@@ -79212,102 +79212,263 @@ app.get('/api/pro-builder/sites/:blog_id/pages', async (req, res) => {
   }
 });
 
+// ─── Pro Builder: Section Parser Helper ───────────────────────────────
+const containerBlocks = ['cover', 'columns', 'column', 'group', 'buttons'];
+const topLevelBlocks = ['cover', 'columns', 'group', 'shortcode', 'heading', 'paragraph', 'image', 'buttons', 'spacer'];
+
+function parseSections(rawContent) {
+  const sections = [];
+  const blockRegex = /<!-- (\/?)wp:(\S+?)(?:\s+(\{.*?\}))? (?:\/)?-->/g;
+  let match;
+  let idx = 0;
+  let depth = 0;
+  let currentSection = null; // tracks container block we're inside at depth 0
+
+  while ((match = blockRegex.exec(rawContent)) !== null) {
+    const isClosing = match[1] === '/';
+    const blockType = match[2];
+
+    if (isClosing) {
+      if (containerBlocks.includes(blockType)) {
+        depth--;
+        // If we just closed the top-level container, record its end boundary
+        if (depth === 0 && currentSection) {
+          currentSection.end = match.index + match[0].length;
+          currentSection.raw_markup = rawContent.substring(currentSection.start, currentSection.end);
+          sections.push(currentSection);
+          currentSection = null;
+        }
+      } else if (depth === 0 && currentSection && currentSection.type === blockType) {
+        // Closing a non-container top-level block (heading, paragraph, shortcode, image, spacer)
+        currentSection.end = match.index + match[0].length;
+        currentSection.raw_markup = rawContent.substring(currentSection.start, currentSection.end);
+        sections.push(currentSection);
+        currentSection = null;
+      }
+      continue;
+    }
+
+    // Opening tag
+    if (depth === 0 && topLevelBlocks.includes(blockType)) {
+      let attrs = {};
+      try { if (match[3]) attrs = JSON.parse(match[3]); } catch (e) {}
+      currentSection = {
+        index: idx++,
+        type: blockType,
+        label: blockType.charAt(0).toUpperCase() + blockType.slice(1),
+        attrs: attrs,
+        start: match.index,
+        end: 0,
+        raw_markup: ''
+      };
+
+      // Self-closing blocks (<!-- wp:spacer {...} /-->) have no closing tag
+      if (match[0].includes('/-->')) {
+        currentSection.end = match.index + match[0].length;
+        currentSection.raw_markup = rawContent.substring(currentSection.start, currentSection.end);
+        sections.push(currentSection);
+        currentSection = null;
+        continue;
+      }
+
+      // Non-container blocks: find their closing tag immediately
+      if (!containerBlocks.includes(blockType)) {
+        // Keep currentSection open, the closing tag loop above will close it
+      }
+    }
+
+    if (containerBlocks.includes(blockType)) {
+      depth++;
+    }
+  }
+
+  return sections;
+}
+
+// Shared auth + site lookup for pro-builder endpoints
+async function proBuilderAuth(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return { error: 'Authentication required' };
+  }
+  const token = authHeader.split(' ')[1];
+  const session = await pool.query(`
+    SELECT s.account_id, a.role FROM account_sessions s
+    JOIN accounts a ON s.account_id = a.id
+    WHERE s.token = $1 AND s.expires_at > NOW()
+  `, [token]);
+  if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
+    return { error: 'Master admin access required' };
+  }
+  return { accountId: session.rows[0].account_id };
+}
+
+async function proBuilderFetchContent(blogId, pageId) {
+  const site = await pool.query(
+    'SELECT ds.*, a.subscription_tier FROM deployed_sites ds JOIN accounts a ON ds.account_id = a.id WHERE ds.blog_id = $1',
+    [blogId]
+  );
+  if (site.rows.length === 0) return { error: 'Site not found' };
+
+  const siteRow = site.rows[0];
+  let siteUrl = (siteRow.site_url || '').replace(/\/+$/, '');
+  if (!siteUrl.startsWith('http')) siteUrl = 'https://' + siteUrl;
+
+  const license = await pool.query(
+    "SELECT license_key FROM plugin_licenses WHERE account_id = $1 AND status = 'active' LIMIT 1",
+    [siteRow.account_id]
+  );
+  const licenseKey = license.rows.length > 0 ? license.rows[0].license_key : '';
+
+  const wpRes = await fetch(`${siteUrl}/wp-json/gas/v1/page-content/${pageId}?api_key=${encodeURIComponent(licenseKey)}`, {
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!wpRes.ok) return { error: `WordPress API returned ${wpRes.status}` };
+
+  const pageData = await wpRes.json();
+  if (!pageData.success) return { error: pageData.error || 'Failed to fetch page content' };
+
+  return { siteUrl, licenseKey, rawContent: pageData.raw_content || '', pageData };
+}
+
+async function proBuilderPushContent(siteUrl, licenseKey, pageId, newContent) {
+  const pushRes = await fetch(`${siteUrl}/wp-json/gas/v1/push-template`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      api_key: licenseKey,
+      block_markup: newContent,
+      mode: 'replace_all_content',
+      page_id: pageId
+    }),
+    signal: AbortSignal.timeout(30000)
+  });
+  return pushRes.json();
+}
+
 // GET /api/pro-builder/sites/:blog_id/pages/:page_id — fetch single page content
 app.get('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.json({ success: false, error: 'Authentication required' });
-    }
-    const token = authHeader.split(' ')[1];
-    const session = await pool.query(`
-      SELECT s.account_id, a.role FROM account_sessions s
-      JOIN accounts a ON s.account_id = a.id
-      WHERE s.token = $1 AND s.expires_at > NOW()
-    `, [token]);
-    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
-      return res.json({ success: false, error: 'Master admin access required' });
-    }
+    const auth = await proBuilderAuth(req);
+    if (auth.error) return res.json({ success: false, error: auth.error });
 
     const blogId = parseInt(req.params.blog_id);
     const pageId = parseInt(req.params.page_id);
 
-    const site = await pool.query(
-      'SELECT ds.*, a.subscription_tier FROM deployed_sites ds JOIN accounts a ON ds.account_id = a.id WHERE ds.blog_id = $1',
-      [blogId]
-    );
-    if (site.rows.length === 0) {
-      return res.json({ success: false, error: 'Site not found' });
-    }
+    const content = await proBuilderFetchContent(blogId, pageId);
+    if (content.error) return res.json({ success: false, error: content.error });
 
-    const siteRow = site.rows[0];
-    let siteUrl = (siteRow.site_url || '').replace(/\/+$/, '');
-    if (!siteUrl.startsWith('http')) siteUrl = 'https://' + siteUrl;
-
-    // Get license key for authenticated raw content fetch
-    const license = await pool.query(
-      "SELECT license_key FROM plugin_licenses WHERE account_id = $1 AND status = 'active' LIMIT 1",
-      [siteRow.account_id]
-    );
-    const licenseKey = license.rows.length > 0 ? license.rows[0].license_key : '';
-
-    // Fetch raw page content via gas-template-push plugin endpoint
-    const wpRes = await fetch(`${siteUrl}/wp-json/gas/v1/page-content/${pageId}?api_key=${encodeURIComponent(licenseKey)}`, {
-      signal: AbortSignal.timeout(15000)
-    });
-
-    if (!wpRes.ok) {
-      return res.json({ success: false, error: `WordPress API returned ${wpRes.status}` });
-    }
-
-    const pageData = await wpRes.json();
-    if (!pageData.success) {
-      return res.json({ success: false, error: pageData.error || 'Failed to fetch page content' });
-    }
-
-    const rawContent = pageData.raw_content || '';
-
-    // Parse block comments from raw content into section list
-    // Regex captures: (1) optional "/" for closing tag, (2) block type, (3) optional JSON attrs
-    const sections = [];
-    const blockRegex = /<!-- (\/?)wp:(\S+?)(?:\s+(\{.*?\}))? (?:\/)?-->/g;
-    let match;
-    let index = 0;
-    let depth = 0;
-    while ((match = blockRegex.exec(rawContent)) !== null) {
-      const isClosing = match[1] === '/';
-      const blockType = match[2];
-      // Closing comments decrease depth for container blocks
-      if (isClosing) {
-        if (['cover', 'columns', 'column', 'group', 'buttons'].includes(blockType)) depth--;
-        continue;
-      }
-      // Only capture top-level blocks (depth 0)
-      if (depth === 0 && ['cover', 'columns', 'group', 'shortcode', 'heading', 'paragraph', 'image', 'buttons', 'spacer'].includes(blockType)) {
-        let attrs = {};
-        try { if (match[3]) attrs = JSON.parse(match[3]); } catch (e) {}
-        sections.push({
-          index: index++,
-          type: blockType,
-          label: blockType.charAt(0).toUpperCase() + blockType.slice(1),
-          attrs: attrs
-        });
-      }
-      // Increase depth for container blocks that have children
-      if (['cover', 'columns', 'column', 'group', 'buttons'].includes(blockType)) {
-        depth++;
-      }
-    }
+    const sections = parseSections(content.rawContent);
 
     res.json({
       success: true,
       blog_id: blogId,
       page_id: pageId,
-      title: pageData.title || 'Untitled',
-      slug: pageData.slug,
+      title: content.pageData.title || 'Untitled',
+      slug: content.pageData.slug,
       sections: sections,
-      raw_content: rawContent
+      raw_content: content.rawContent
     });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/pro-builder/sites/:blog_id/pages/:page_id/sections/:index — replace a section
+app.put('/api/pro-builder/sites/:blog_id/pages/:page_id/sections/:index', async (req, res) => {
+  try {
+    const auth = await proBuilderAuth(req);
+    if (auth.error) return res.json({ success: false, error: auth.error });
+
+    const blogId = parseInt(req.params.blog_id);
+    const pageId = parseInt(req.params.page_id);
+    const sectionIndex = parseInt(req.params.index);
+    const { markup } = req.body;
+
+    if (typeof markup !== 'string') {
+      return res.json({ success: false, error: 'markup is required' });
+    }
+
+    const content = await proBuilderFetchContent(blogId, pageId);
+    if (content.error) return res.json({ success: false, error: content.error });
+
+    const sections = parseSections(content.rawContent);
+    if (sectionIndex < 0 || sectionIndex >= sections.length) {
+      return res.json({ success: false, error: 'Section index out of range' });
+    }
+
+    const section = sections[sectionIndex];
+    const newContent = content.rawContent.substring(0, section.start) + markup + content.rawContent.substring(section.end);
+
+    const pushResult = await proBuilderPushContent(content.siteUrl, content.licenseKey, pageId, newContent);
+    res.json(pushResult);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/pro-builder/sites/:blog_id/pages/:page_id/sections/:index — delete a section
+app.delete('/api/pro-builder/sites/:blog_id/pages/:page_id/sections/:index', async (req, res) => {
+  try {
+    const auth = await proBuilderAuth(req);
+    if (auth.error) return res.json({ success: false, error: auth.error });
+
+    const blogId = parseInt(req.params.blog_id);
+    const pageId = parseInt(req.params.page_id);
+    const sectionIndex = parseInt(req.params.index);
+
+    const content = await proBuilderFetchContent(blogId, pageId);
+    if (content.error) return res.json({ success: false, error: content.error });
+
+    const sections = parseSections(content.rawContent);
+    if (sectionIndex < 0 || sectionIndex >= sections.length) {
+      return res.json({ success: false, error: 'Section index out of range' });
+    }
+
+    const section = sections[sectionIndex];
+    // Remove section and any surrounding whitespace
+    let before = content.rawContent.substring(0, section.start);
+    let after = content.rawContent.substring(section.end);
+    const newContent = (before.replace(/\s+$/, '') + '\n\n' + after.replace(/^\s+/, '')).trim();
+
+    const pushResult = await proBuilderPushContent(content.siteUrl, content.licenseKey, pageId, newContent);
+    res.json(pushResult);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/pro-builder/sites/:blog_id/pages/:page_id/reorder — move a section
+app.post('/api/pro-builder/sites/:blog_id/pages/:page_id/reorder', async (req, res) => {
+  try {
+    const auth = await proBuilderAuth(req);
+    if (auth.error) return res.json({ success: false, error: auth.error });
+
+    const blogId = parseInt(req.params.blog_id);
+    const pageId = parseInt(req.params.page_id);
+    const { from, to } = req.body;
+
+    if (typeof from !== 'number' || typeof to !== 'number') {
+      return res.json({ success: false, error: 'from and to indices are required' });
+    }
+
+    const content = await proBuilderFetchContent(blogId, pageId);
+    if (content.error) return res.json({ success: false, error: content.error });
+
+    const sections = parseSections(content.rawContent);
+    if (from < 0 || from >= sections.length || to < 0 || to >= sections.length || from === to) {
+      return res.json({ success: false, error: 'Invalid section indices' });
+    }
+
+    // Extract all section markups in order, then rearrange
+    const sectionMarkups = sections.map(s => s.raw_markup);
+    const [moved] = sectionMarkups.splice(from, 1);
+    sectionMarkups.splice(to, 0, moved);
+
+    const newContent = sectionMarkups.join('\n\n');
+
+    const pushResult = await proBuilderPushContent(content.siteUrl, content.licenseKey, pageId, newContent);
+    res.json(pushResult);
   } catch (error) {
     res.json({ success: false, error: error.message });
   }

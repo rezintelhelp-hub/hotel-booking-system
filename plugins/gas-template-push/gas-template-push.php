@@ -2,7 +2,7 @@
 /**
  * Plugin Name: GAS Template Push
  * Description: Receives Elementor and Gutenberg templates from GAS Admin and injects them into pages.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-template-push
@@ -88,6 +88,13 @@ class GAS_Template_Push {
             ), 403);
         }
 
+        $mode = isset($params['mode']) ? $params['mode'] : 'push_to_existing';
+
+        // replace_all_content bypasses format detection — uses block_markup directly
+        if ($mode === 'replace_all_content') {
+            return $this->replace_all_content($params);
+        }
+
         $format = $this->get_format($params);
         if (!$format) {
             return new WP_REST_Response(array(
@@ -95,8 +102,6 @@ class GAS_Template_Push {
                 'error'   => 'template_json or block_markup is required'
             ), 400);
         }
-
-        $mode = isset($params['mode']) ? $params['mode'] : 'push_to_existing';
 
         if ($mode === 'create_new_page') {
             return $this->create_new_page($params, $format);
@@ -207,6 +212,36 @@ class GAS_Template_Push {
             'format'   => 'blocks',
             'page_id'  => $page->ID,
             'page_url' => get_permalink($page->ID),
+        ), 200);
+    }
+
+    private function replace_all_content($params) {
+        $page_id = isset($params['page_id']) ? intval($params['page_id']) : 0;
+        $block_markup = isset($params['block_markup']) ? $params['block_markup'] : '';
+
+        if (!$page_id) {
+            return new WP_REST_Response(array('success' => false, 'error' => 'page_id is required'), 400);
+        }
+
+        $page = get_post($page_id);
+        if (!$page || $page->post_type !== 'page') {
+            return new WP_REST_Response(array('success' => false, 'error' => 'Page not found'), 404);
+        }
+
+        $result = wp_update_post(array(
+            'ID'           => $page_id,
+            'post_content' => $block_markup,
+        ), true);
+
+        if (is_wp_error($result)) {
+            return new WP_REST_Response(array('success' => false, 'error' => $result->get_error_message()), 500);
+        }
+
+        return new WP_REST_Response(array(
+            'success'  => true,
+            'format'   => 'blocks',
+            'page_id'  => $page_id,
+            'page_url' => get_permalink($page_id),
         ), 200);
     }
 

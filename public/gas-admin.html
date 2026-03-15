@@ -55106,6 +55106,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         let proBuilderPageId = null;
         let proBuilderPageTitle = '';
+        let proBuilderSections = []; // stores section data from server including raw_markup
 
         function openPageEditor(pageId, pageTitle) {
             proBuilderPageId = pageId;
@@ -55136,26 +55137,39 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return;
                 }
 
-                if (!data.sections || data.sections.length === 0) {
+                proBuilderSections = data.sections || [];
+
+                if (proBuilderSections.length === 0) {
                     container.innerHTML = '<div class="card" style="padding: 2rem; text-align: center; color: #64748b;">No sections yet — click Add Section to start building</div>';
                     return;
                 }
 
+                const iconMap = { cover: '\u{1F5BC}\uFE0F', columns: '\u25FB\uFE0F', group: '\u{1F4E6}', shortcode: '\u26A1', heading: '\u{1F524}', paragraph: '\u{1F4DD}', image: '\u{1F3DE}\uFE0F', buttons: '\u{1F518}', spacer: '\u2014' };
                 let html = '';
-                const iconMap = { cover: '🖼️', columns: '◻️', group: '📦', shortcode: '⚡', heading: '🔤', paragraph: '📝', image: '🏞️' };
-                data.sections.forEach((section, i) => {
-                    const icon = iconMap[section.type] || '📄';
+                proBuilderSections.forEach((section, i) => {
+                    const icon = iconMap[section.type] || '\u{1F4C4}';
+                    const isFirst = i === 0;
+                    const isLast = i === proBuilderSections.length - 1;
                     const detail = section.type === 'cover' && section.attrs?.url ? 'Background image' :
                                    section.type === 'shortcode' ? 'Shortcode block' :
-                                   section.type === 'heading' ? 'Heading' : '';
+                                   section.type === 'heading' ? 'Heading' :
+                                   section.type === 'paragraph' ? 'Paragraph' : '';
                     html += `
-                        <div class="card" style="padding: 0.75rem 1rem; display: flex; align-items: center; gap: 1rem; border-left: 3px solid #6366f1;">
-                            <span style="font-size: 1.2rem;">${icon}</span>
-                            <div style="flex: 1;">
-                                <strong style="font-size: 0.9rem;">${section.label}</strong>
-                                ${detail ? `<span style="margin-left: 0.5rem; font-size: 0.8rem; color: #64748b;">${detail}</span>` : ''}
+                        <div class="card pb-section-card" id="pb-section-${i}" style="border-left: 3px solid #6366f1; overflow: hidden;">
+                            <div onclick="toggleSectionEditor(${i})" style="padding: 0.75rem 1rem; display: flex; align-items: center; gap: 1rem; cursor: pointer; user-select: none;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                                <span style="font-size: 1.2rem;">${icon}</span>
+                                <div style="flex: 1;">
+                                    <strong style="font-size: 0.9rem;">${section.label}</strong>
+                                    ${detail ? `<span style="margin-left: 0.5rem; font-size: 0.8rem; color: #64748b;">${detail}</span>` : ''}
+                                </div>
+                                <div style="display: flex; gap: 0.25rem; align-items: center;" onclick="event.stopPropagation()">
+                                    <button onclick="moveSection(${i}, 'up')" ${isFirst ? 'disabled' : ''} style="border: none; background: none; cursor: ${isFirst ? 'default' : 'pointer'}; color: ${isFirst ? '#d1d5db' : '#6366f1'}; font-size: 1rem; padding: 2px 6px;" title="Move up">&uarr;</button>
+                                    <button onclick="moveSection(${i}, 'down')" ${isLast ? 'disabled' : ''} style="border: none; background: none; cursor: ${isLast ? 'default' : 'pointer'}; color: ${isLast ? '#d1d5db' : '#6366f1'}; font-size: 1rem; padding: 2px 6px;" title="Move down">&darr;</button>
+                                    <button onclick="deleteSection(${i})" style="border: none; background: none; cursor: pointer; color: #ef4444; font-size: 0.85rem; padding: 2px 6px;" title="Delete section">&times;</button>
+                                </div>
+                                <span style="font-size: 0.75rem; color: #94a3b8;">#${i + 1}</span>
                             </div>
-                            <span style="font-size: 0.75rem; color: #94a3b8;">#${i + 1}</span>
+                            <div id="pb-section-editor-${i}" style="display: none;"></div>
                         </div>
                     `;
                 });
@@ -55163,6 +55177,287 @@ const promo = await fetch('/api/v1/offers/validate', {
                 container.innerHTML = html;
             } catch (error) {
                 container.innerHTML = `<div class="card" style="padding: 1rem; color: #ef4444;">Error: ${error.message}</div>`;
+            }
+        }
+
+        function toggleSectionEditor(index) {
+            const editorEl = document.getElementById(`pb-section-editor-${index}`);
+            if (!editorEl) return;
+
+            if (editorEl.style.display === 'none') {
+                editorEl.style.display = 'block';
+                editorEl.innerHTML = renderSectionEditor(index);
+                if (typeof gasWysiwygInit === 'function') gasWysiwygInit();
+            } else {
+                editorEl.style.display = 'none';
+                editorEl.innerHTML = '';
+            }
+        }
+
+        function extractFromMarkup(rawMarkup) {
+            // Use a temporary DOM element to parse HTML content from block markup
+            const tmp = document.createElement('div');
+            tmp.innerHTML = rawMarkup;
+            return tmp;
+        }
+
+        function renderSectionEditor(index) {
+            const section = proBuilderSections[index];
+            if (!section || !section.raw_markup) return '<div style="padding: 1rem; color: #94a3b8;">No editable content</div>';
+
+            const dom = extractFromMarkup(section.raw_markup);
+            let fieldsHtml = '';
+
+            switch (section.type) {
+                case 'cover': {
+                    const imgUrl = section.attrs?.url || '';
+                    const dimRatio = section.attrs?.dimRatio ?? 50;
+                    const h = dom.querySelector('h1, h2, h3, h4');
+                    const headingText = h ? h.innerHTML : '';
+                    const headingLevel = h ? h.tagName.toLowerCase() : 'h2';
+                    const p = dom.querySelector('.wp-block-cover__inner-container p');
+                    const subtitleText = p ? p.innerHTML : '';
+                    const btn = dom.querySelector('.wp-block-button__link');
+                    const btnText = btn ? btn.textContent : '';
+                    const btnLink = btn ? (btn.getAttribute('href') || '') : '';
+
+                    fieldsHtml = `
+                        <div class="form-group"><label class="form-label">Background Image URL</label>
+                            <input type="text" class="form-input" id="pb-edit-${index}-cover-url" value="${imgUrl.replace(/"/g, '&quot;')}"></div>
+                        <div class="form-group"><label class="form-label">Overlay Opacity (0-100)</label>
+                            <input type="number" class="form-input" id="pb-edit-${index}-cover-dim" value="${dimRatio}" min="0" max="100" style="width: 100px;"></div>
+                        <div class="form-group"><label class="form-label">Heading</label>
+                            <textarea id="pb-edit-${index}-cover-heading" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text">${headingText}</textarea>
+                            <select class="form-input" id="pb-edit-${index}-cover-hlevel" style="width: 80px; margin-top: 0.25rem;">
+                                <option value="h1" ${headingLevel === 'h1' ? 'selected' : ''}>H1</option>
+                                <option value="h2" ${headingLevel === 'h2' ? 'selected' : ''}>H2</option>
+                                <option value="h3" ${headingLevel === 'h3' ? 'selected' : ''}>H3</option>
+                            </select></div>
+                        <div class="form-group"><label class="form-label">Subtitle</label>
+                            <textarea id="pb-edit-${index}-cover-subtitle" data-wysiwyg="true" data-wysiwyg-placeholder="Subtitle text">${subtitleText}</textarea></div>
+                        <div class="form-group"><label class="form-label">Button Text</label>
+                            <input type="text" class="form-input" id="pb-edit-${index}-cover-btn-text" value="${btnText.replace(/"/g, '&quot;')}"></div>
+                        <div class="form-group"><label class="form-label">Button Link</label>
+                            <input type="text" class="form-input" id="pb-edit-${index}-cover-btn-link" value="${btnLink.replace(/"/g, '&quot;')}"></div>
+                    `;
+                    break;
+                }
+                case 'shortcode': {
+                    const scMatch = section.raw_markup.match(/<!-- wp:shortcode -->\s*([\s\S]*?)\s*<!-- \/wp:shortcode -->/);
+                    const scText = scMatch ? scMatch[1].trim() : '';
+                    fieldsHtml = `
+                        <div class="form-group"><label class="form-label">Shortcode (read-only)</label>
+                            <input type="text" class="form-input" value="${scText.replace(/"/g, '&quot;')}" readonly style="background: #f1f5f9; color: #64748b;"></div>
+                    `;
+                    break;
+                }
+                case 'paragraph': {
+                    const pEl = dom.querySelector('p');
+                    const pText = pEl ? pEl.innerHTML : '';
+                    fieldsHtml = `
+                        <div class="form-group"><label class="form-label">Paragraph</label>
+                            <textarea id="pb-edit-${index}-para-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text">${pText}</textarea></div>
+                    `;
+                    break;
+                }
+                case 'heading': {
+                    const hEl = dom.querySelector('h1, h2, h3, h4, h5, h6');
+                    const hText = hEl ? hEl.innerHTML : '';
+                    const hLevel = hEl ? hEl.tagName.toLowerCase() : 'h2';
+                    fieldsHtml = `
+                        <div class="form-group"><label class="form-label">Heading</label>
+                            <textarea id="pb-edit-${index}-heading-text" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text">${hText}</textarea>
+                            <select class="form-input" id="pb-edit-${index}-heading-level" style="width: 80px; margin-top: 0.25rem;">
+                                <option value="h1" ${hLevel === 'h1' ? 'selected' : ''}>H1</option>
+                                <option value="h2" ${hLevel === 'h2' ? 'selected' : ''}>H2</option>
+                                <option value="h3" ${hLevel === 'h3' ? 'selected' : ''}>H3</option>
+                                <option value="h4" ${hLevel === 'h4' ? 'selected' : ''}>H4</option>
+                            </select></div>
+                    `;
+                    break;
+                }
+                case 'image': {
+                    const imgEl = dom.querySelector('img');
+                    const imgSrc = imgEl ? (imgEl.getAttribute('src') || '') : '';
+                    const imgAlt = imgEl ? (imgEl.getAttribute('alt') || '') : '';
+                    fieldsHtml = `
+                        <div class="form-group"><label class="form-label">Image URL</label>
+                            <input type="text" class="form-input" id="pb-edit-${index}-img-url" value="${imgSrc.replace(/"/g, '&quot;')}"></div>
+                        <div class="form-group"><label class="form-label">Alt Text</label>
+                            <input type="text" class="form-input" id="pb-edit-${index}-img-alt" value="${imgAlt.replace(/"/g, '&quot;')}"></div>
+                    `;
+                    break;
+                }
+                case 'buttons': {
+                    const btnEl = dom.querySelector('.wp-block-button__link');
+                    const bText = btnEl ? btnEl.textContent : '';
+                    const bLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
+                    fieldsHtml = `
+                        <div class="form-group"><label class="form-label">Button Text</label>
+                            <input type="text" class="form-input" id="pb-edit-${index}-btn-text" value="${bText.replace(/"/g, '&quot;')}"></div>
+                        <div class="form-group"><label class="form-label">Button Link</label>
+                            <input type="text" class="form-input" id="pb-edit-${index}-btn-link" value="${bLink.replace(/"/g, '&quot;')}"></div>
+                    `;
+                    break;
+                }
+                case 'spacer': {
+                    const spHeight = section.attrs?.height || '40px';
+                    const spVal = parseInt(spHeight) || 40;
+                    fieldsHtml = `
+                        <div class="form-group"><label class="form-label">Height (px)</label>
+                            <input type="number" class="form-input" id="pb-edit-${index}-spacer-h" value="${spVal}" style="width: 100px;"></div>
+                    `;
+                    break;
+                }
+                case 'columns': {
+                    // Show columns as read-only summary for now, full editing in future
+                    const colEls = dom.querySelectorAll('.wp-block-column');
+                    fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem;">${colEls.length} column(s) — edit individual column content in a future update</div>`;
+                    break;
+                }
+                case 'group': {
+                    fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem;">Group block — edit inner content in a future update</div>`;
+                    break;
+                }
+                default:
+                    fieldsHtml = '<div style="color: #94a3b8;">No editable fields for this block type</div>';
+            }
+
+            const canSave = !['shortcode', 'columns', 'group'].includes(section.type);
+
+            return `
+                <div style="padding: 1rem; border-top: 1px solid #e2e8f0; background: #fafbfc;">
+                    ${fieldsHtml}
+                    <div style="display: flex; gap: 0.75rem; align-items: center; margin-top: 1rem;">
+                        ${canSave ? `<button onclick="saveSection(${index})" class="btn btn-small" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-color: #10b981; font-size: 0.8rem;">Save Changes</button>` : ''}
+                        <a href="#" onclick="toggleSectionEditor(${index}); return false;" style="font-size: 0.8rem; color: #94a3b8;">Cancel</a>
+                    </div>
+                </div>
+            `;
+        }
+
+        function collectSectionMarkup(index) {
+            const section = proBuilderSections[index];
+            if (!section) return null;
+
+            switch (section.type) {
+                case 'cover': {
+                    const url = document.getElementById(`pb-edit-${index}-cover-url`)?.value || '';
+                    const dim = parseInt(document.getElementById(`pb-edit-${index}-cover-dim`)?.value) || 50;
+                    const headingVal = gasWysiwygGetValue ? gasWysiwygGetValue(`pb-edit-${index}-cover-heading`) : (document.getElementById(`pb-edit-${index}-cover-heading`)?.value || '');
+                    const hLevel = document.getElementById(`pb-edit-${index}-cover-hlevel`)?.value || 'h2';
+                    const hNum = hLevel.replace('h', '');
+                    const subtitleVal = gasWysiwygGetValue ? gasWysiwygGetValue(`pb-edit-${index}-cover-subtitle`) : (document.getElementById(`pb-edit-${index}-cover-subtitle`)?.value || '');
+                    const btnText = document.getElementById(`pb-edit-${index}-cover-btn-text`)?.value || '';
+                    const btnLink = document.getElementById(`pb-edit-${index}-cover-btn-link`)?.value || '';
+
+                    let innerMarkup = '';
+                    if (headingVal) innerMarkup += `<!-- wp:heading {"level":${hNum}} -->\n<${hLevel} class="wp-block-heading">${headingVal}</${hLevel}>\n<!-- /wp:heading -->\n\n`;
+                    if (subtitleVal) innerMarkup += `<!-- wp:paragraph -->\n<p>${subtitleVal}</p>\n<!-- /wp:paragraph -->\n\n`;
+                    if (btnText) innerMarkup += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button -->\n<div class="wp-block-button"><a class="wp-block-button__link" href="${btnLink || '#'}">${btnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
+
+                    return `<!-- wp:cover {"url":"${url}","dimRatio":${dim}} -->\n<div class="wp-block-cover"><span aria-hidden="true" class="wp-block-cover__background has-background-dim" style="opacity:0.${dim}"></span><img class="wp-block-cover__image-background" alt="" src="${url}" /><div class="wp-block-cover__inner-container">\n${innerMarkup}</div></div>\n<!-- /wp:cover -->`;
+                }
+                case 'paragraph': {
+                    const text = gasWysiwygGetValue ? gasWysiwygGetValue(`pb-edit-${index}-para-text`) : (document.getElementById(`pb-edit-${index}-para-text`)?.value || '');
+                    return blockToMarkup({ type: 'text', text: text });
+                }
+                case 'heading': {
+                    const text = gasWysiwygGetValue ? gasWysiwygGetValue(`pb-edit-${index}-heading-text`) : (document.getElementById(`pb-edit-${index}-heading-text`)?.value || '');
+                    const level = document.getElementById(`pb-edit-${index}-heading-level`)?.value || 'h2';
+                    return blockToMarkup({ type: 'heading', text: text, level: level });
+                }
+                case 'image': {
+                    const url = document.getElementById(`pb-edit-${index}-img-url`)?.value || '';
+                    const alt = document.getElementById(`pb-edit-${index}-img-alt`)?.value || '';
+                    return blockToMarkup({ type: 'image', url: url, alt: alt });
+                }
+                case 'buttons': {
+                    const text = document.getElementById(`pb-edit-${index}-btn-text`)?.value || '';
+                    const url = document.getElementById(`pb-edit-${index}-btn-link`)?.value || '';
+                    return blockToMarkup({ type: 'button', text: text, url: url });
+                }
+                case 'spacer': {
+                    const h = document.getElementById(`pb-edit-${index}-spacer-h`)?.value || '40';
+                    return blockToMarkup({ type: 'spacer', height: h });
+                }
+                default:
+                    return null;
+            }
+        }
+
+        async function saveSection(index) {
+            const markup = collectSectionMarkup(index);
+            if (!markup) {
+                showNotification('Cannot save this section type', 'error');
+                return;
+            }
+
+            try {
+                showNotification('Saving section...', 'info');
+                const res = await fetch(`/api/pro-builder/sites/${proBuilderBlogId}/pages/${proBuilderPageId}/sections/${index}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ markup: markup })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showNotification('Section saved', 'success');
+                    loadPageSections();
+                } else {
+                    showNotification(data.error || 'Failed to save section', 'error');
+                }
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function deleteSection(index) {
+            const section = proBuilderSections[index];
+            if (!section) return;
+            if (!confirm(`Delete this ${section.label} section? This cannot be undone.`)) return;
+
+            try {
+                showNotification('Deleting section...', 'info');
+                const res = await fetch(`/api/pro-builder/sites/${proBuilderBlogId}/pages/${proBuilderPageId}/sections/${index}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showNotification('Section deleted', 'success');
+                    loadPageSections();
+                } else {
+                    showNotification(data.error || 'Failed to delete section', 'error');
+                }
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function moveSection(index, direction) {
+            const target = direction === 'up' ? index - 1 : index + 1;
+            if (target < 0 || target >= proBuilderSections.length) return;
+
+            try {
+                showNotification('Moving section...', 'info');
+                const res = await fetch(`/api/pro-builder/sites/${proBuilderBlogId}/pages/${proBuilderPageId}/reorder`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ from: index, to: target })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showNotification('Section moved', 'success');
+                    loadPageSections();
+                } else {
+                    showNotification(data.error || 'Failed to move section', 'error');
+                }
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
             }
         }
 
