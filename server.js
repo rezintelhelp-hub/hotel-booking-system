@@ -52658,7 +52658,8 @@ const SECTION_DEFAULTS = {
     'favicon-image-url': '',
     'apple-icon-image-url': '',
     'lang-color': '',
-    'lang-color-light': ''
+    'lang-dropdown-color': '',
+    'lang-dropdown-bg': ''
   },
   hero: {
     'headline-en': '',

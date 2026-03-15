@@ -2610,7 +2610,8 @@ function developer_get_api_settings() {
         'header_border_width' => $website_header['border-width'] ?? null,
         'header_border_style_type' => $website_header['border-style-type'] ?? null,
         'header_lang_color' => $website_header['lang-color'] ?? null,
-        'header_lang_color_light' => $website_header['lang-color-light'] ?? null,
+        'header_lang_dropdown_color' => $website_header['lang-dropdown-color'] ?? null,
+        'header_lang_dropdown_bg' => $website_header['lang-dropdown-bg'] ?? null,
         // Header typography
         'header_font' => $website_header['font'] ?? null,
         'header_font_size' => $website_header['font-size'] ?? null,
@@ -3128,15 +3129,33 @@ function developer_developer_custom_css() {
             background-color: ' . esc_attr($header_solid_text) . ';
         }';
 
-    // Lang switcher colour - API override
+    // Lang switcher colours - API override
     $header_lang_color = $api['header_lang_color'] ?? '';
+    $header_lang_dd_color = $api['header_lang_dropdown_color'] ?? '';
+    $header_lang_dd_bg = $api['header_lang_dropdown_bg'] ?? '';
     if (!empty($header_lang_color)) {
         echo '
         .developer-lang-current {
             color: ' . esc_attr($header_lang_color) . ';
+        }';
+    }
+    if (!empty($header_lang_dd_color) || !empty($header_lang_dd_bg)) {
+        echo '
+        .developer-lang-dropdown {' .
+            (!empty($header_lang_dd_bg) ? '
+            background: ' . esc_attr($header_lang_dd_bg) . ';' : '') . '
         }
-        .developer-lang-current:hover {
-            color: ' . esc_attr($header_lang_color) . ';
+        .developer-lang-option {' .
+            (!empty($header_lang_dd_color) ? '
+            color: ' . esc_attr($header_lang_dd_color) . ';' : '') . '
+        }
+        .developer-lang-option:hover {
+            background: rgba(0,0,0,0.05);
+        }
+        .developer-lang-option.active {' .
+            (!empty($header_lang_dd_color) ? '
+            color: ' . esc_attr($header_lang_dd_color) . ';' : '') . '
+            background: rgba(0,0,0,0.08);
         }';
     }
 
@@ -3195,12 +3214,6 @@ function developer_developer_custom_css() {
             text-shadow: none;
         }
 
-        .home .developer-header .developer-lang-current,
-        body:has(.developer-page-hero) .developer-header .developer-lang-current {
-            color: ' . esc_attr($api['header_lang_color_light'] ?? '#ffffff') . ';
-            text-shadow: 0 1px 3px rgba(0,0,0,0.3);
-        }
-
         .home .developer-header.scrolled,
         body:has(.developer-page-hero) .developer-header.scrolled {
             background: ' . esc_attr($header_bg) . ';
@@ -3223,12 +3236,6 @@ function developer_developer_custom_css() {
         body:has(.developer-page-hero) .developer-header.scrolled .developer-menu-toggle span {
             background-color: ' . esc_attr($header_solid_text) . ';
             box-shadow: none;
-        }
-
-        .home .developer-header.scrolled .developer-lang-current,
-        body:has(.developer-page-hero) .developer-header.scrolled .developer-lang-current {
-            color: ' . esc_attr(!empty($header_lang_color) ? $header_lang_color : $header_solid_text) . ';
-            text-shadow: none;
         }
 
         /* Logo variant swap: light logo over hero, default when scrolled */
