@@ -1956,6 +1956,11 @@ body:has(.gas-rooms-page-wrapper) .developer-page-content {
     transform: translateY(0);
 }
 
+.developer-lang-flag {
+    margin-left: 0.15rem;
+    margin-right: 0.25rem;
+}
+
 .developer-lang-option {
     display: flex;
     align-items: center;

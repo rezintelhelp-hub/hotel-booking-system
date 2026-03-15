@@ -52656,7 +52656,8 @@ const SECTION_DEFAULTS = {
     'transparent-opacity': '35',
     'border': false,
     'favicon-image-url': '',
-    'apple-icon-image-url': ''
+    'apple-icon-image-url': '',
+    'lang-color': ''
   },
   hero: {
     'headline-en': '',

@@ -2278,7 +2278,7 @@ function developer_language_switcher() {
     
     $output = '<div class="developer-lang-switcher">';
     $output .= '<button class="developer-lang-current" aria-label="Select language">';
-    $output .= isset($lang_info[$current_lang]) ? $lang_info[$current_lang]['flag'] . ' ' . $lang_info[$current_lang]['code'] : '🌐';
+    $output .= isset($lang_info[$current_lang]) ? '<span class="developer-lang-flag">' . $lang_info[$current_lang]['flag'] . '</span> ' . $lang_info[$current_lang]['code'] : '🌐';
     $output .= ' <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     $output .= '</button>';
     $output .= '<div class="developer-lang-dropdown">';
@@ -2289,7 +2289,7 @@ function developer_language_switcher() {
         $is_active = $lang === $current_lang ? ' active' : '';
         $lang_url = add_query_arg('lang', $lang, $current_url);
         $output .= '<a href="' . esc_url($lang_url) . '" class="developer-lang-option' . $is_active . '" data-lang="' . esc_attr($lang) . '">';
-        $output .= $info['flag'] . ' ' . $info['name'];
+        $output .= '<span class="developer-lang-flag">' . $info['flag'] . '</span> ' . $info['name'];
         $output .= '</a>';
     }
     
@@ -2617,6 +2617,7 @@ function developer_get_api_settings() {
         'header_border_style_color' => $website_header['border-style-color'] ?? null,
         'header_border_width' => $website_header['border-width'] ?? null,
         'header_border_style_type' => $website_header['border-style-type'] ?? null,
+        'header_lang_color' => $website_header['lang-color'] ?? null,
         // Header typography
         'header_font' => $website_header['font'] ?? null,
         'header_font_size' => $website_header['font-size'] ?? null,
@@ -3140,7 +3141,19 @@ function developer_developer_custom_css() {
         .developer-menu-toggle span {
             background-color: ' . esc_attr($header_solid_text) . ';
         }';
-    
+
+    // Lang switcher colour - API override
+    $header_lang_color = $api['header_lang_color'] ?? '';
+    if (!empty($header_lang_color)) {
+        echo '
+        .developer-lang-current {
+            color: ' . esc_attr($header_lang_color) . ';
+        }
+        .developer-lang-current:hover {
+            color: ' . esc_attr($header_lang_color) . ';
+        }';
+    }
+
     // Header border - read from API first, fallback to theme_mod
     $header_border = $api['header_border'] ?? get_theme_mod('developer_header_border', false);
     $header_border_color = $api['header_border_style_color'] ?? $api['header_border_color'] ?? get_theme_mod('developer_header_border_color', '#e2e8f0');
