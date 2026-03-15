@@ -51183,6 +51183,7 @@ app.get('/api/partner/websites/:websiteId/styles', async (req, res) => {
         testimonials_bg: s['testimonials-bg'] || '',
         cta_bg: s['cta-bg'] || '',
         section_spacing: s['section-spacing'] || '20',
+        spinner_style: s['spinner-style'] || 'compass',
         custom_css: s['custom-css'] || ''
       }
     });
@@ -51217,7 +51218,7 @@ app.put('/api/partner/websites/:websiteId/styles', async (req, res) => {
             title_size, subheading_size, body_size,
             btn_primary_bg, btn_primary_text,
             btn_radius, featured_bg, about_bg, testimonials_bg, cta_bg,
-            section_spacing, custom_css } = req.body;
+            section_spacing, spinner_style, custom_css } = req.body;
     
     const stylesResult = await pool.query(
       `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'styles'`,
@@ -51245,10 +51246,11 @@ app.put('/api/partner/websites/:websiteId/styles', async (req, res) => {
       testimonials_bg: 'testimonials-bg',
       cta_bg: 'cta-bg',
       section_spacing: 'section-spacing',
+      spinner_style: 'spinner-style',
       custom_css: 'custom-css'
     };
 
-    const incoming = { primary_color, secondary_color, accent_color, link_color, heading_font, subheading_font, body_font, title_size, subheading_size, body_size, btn_primary_bg, btn_primary_text, btn_radius, featured_bg, about_bg, testimonials_bg, cta_bg, section_spacing, custom_css };
+    const incoming = { primary_color, secondary_color, accent_color, link_color, heading_font, subheading_font, body_font, title_size, subheading_size, body_size, btn_primary_bg, btn_primary_text, btn_radius, featured_bg, about_bg, testimonials_bg, cta_bg, section_spacing, spinner_style, custom_css };
     
     for (const [apiField, cssField] of Object.entries(fieldMap)) {
       if (incoming[apiField] !== undefined) {
@@ -51258,7 +51260,7 @@ app.put('/api/partner/websites/:websiteId/styles', async (req, res) => {
     }
     
     if (Object.keys(changes).length === 0) {
-      return res.status(400).json({ success: false, error: 'No fields provided. Use: primary_color, secondary_color, accent_color, link_color, heading_font, subheading_font, body_font, title_size, subheading_size, body_size, btn_primary_bg, btn_primary_text, btn_radius, featured_bg, about_bg, testimonials_bg, cta_bg, section_spacing, custom_css' });
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: primary_color, secondary_color, accent_color, link_color, heading_font, subheading_font, body_font, title_size, subheading_size, body_size, btn_primary_bg, btn_primary_text, btn_radius, featured_bg, about_bg, testimonials_bg, cta_bg, section_spacing, spinner_style, custom_css' });
     }
     
     if (stylesResult.rows.length > 0) {
