@@ -183,6 +183,11 @@ img {
     text-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 
+.developer-header-transparent .developer-lang-current {
+    color: white;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
 .developer-header-transparent .developer-menu-toggle span {
     background: white;
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
@@ -195,6 +200,11 @@ img {
 
 .developer-header-transparent.scrolled .developer-logo,
 .developer-header-transparent.scrolled .developer-nav a {
+    color: var(--developer-text);
+    text-shadow: none;
+}
+
+.developer-header-transparent.scrolled .developer-lang-current {
     color: var(--developer-text);
     text-shadow: none;
 }

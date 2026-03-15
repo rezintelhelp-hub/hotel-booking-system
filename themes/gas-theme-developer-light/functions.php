@@ -2751,6 +2751,9 @@ function developer_get_api_settings() {
         'intro_bg' => $website_intro['bg'] ?? $website_intro['bg-color'] ?? null,
         'intro_title_color' => $website_intro['title-color'] ?? null,
         'intro_text_color' => $website_intro['text-color'] ?? null,
+        'intro_title_size' => $website_intro['title-size'] ?? null,
+        'intro_text_size' => $website_intro['text-size'] ?? null,
+        'intro_max_width' => $website_intro['max-width'] ?? null,
         
         // Reviews Section - MULTILINGUAL
         'reviews_enabled' => $website_reviews['enabled'] ?? false,
