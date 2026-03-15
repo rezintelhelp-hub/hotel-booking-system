@@ -25289,6 +25289,57 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        // Sync original wb-* field values to their cloned copies in editor panels.
+        // Ensures image URLs and hidden inputs updated after cloning are
+        // available when save collects from the cloned container.
+        function syncOriginalToClone(section) {
+            const clonedPanelMap = {
+                'header': 'editor-header-content',
+                'hero': 'editor-hero-content',
+                'intro': 'editor-intro-content',
+                'featured': 'editor-featured-content',
+                'about': 'editor-about-content',
+                'reviews': 'editor-reviews-content',
+                'cta': 'editor-cta-content',
+                'footer': 'editor-footer-content',
+                'page-terms': 'editor-footer-footer-terms',
+                'page-privacy': 'editor-footer-footer-privacy'
+            };
+
+            const clonedContainerId = clonedPanelMap[section];
+            if (!clonedContainerId) return;
+
+            const clonedContainer = document.getElementById(clonedContainerId);
+            const originalContainer = document.getElementById(`wb-${section}`);
+            if (!clonedContainer || !originalContainer) return;
+
+            const prefix = `wb-${section}-`;
+
+            originalContainer.querySelectorAll(`[id^="${prefix}"]`).forEach(origEl => {
+                const clonedEl = clonedContainer.querySelector(`[id="${origEl.id}"]`);
+                if (!clonedEl) return;
+
+                if (origEl.type === 'checkbox' || origEl.type === 'radio') {
+                    // Don't overwrite user edits in the clone for visible controls
+                } else if (origEl.type === 'hidden') {
+                    // Hidden inputs (image URLs, etc.) — always sync from original
+                    // These are set by async upload handlers that only update the original
+                    if (origEl.value && !clonedEl.value) {
+                        clonedEl.value = origEl.value;
+                    }
+                } else if (origEl.type === 'file') {
+                    // Skip file inputs
+                } else {
+                    // Text, email, url, number — sync if clone is empty but original has value
+                    if (origEl.value && !clonedEl.value) {
+                        clonedEl.value = origEl.value;
+                    }
+                }
+            });
+
+            console.log(`[syncOriginalToClone] Synced ${section} original → clone`);
+        }
+
         async function saveWebsiteSection(section, buttonEl = null) {
             // Find the save button if not passed
             const saveBtn = buttonEl || document.querySelector(`button[onclick*="saveWebsiteSection('${section}', this)"]`);
@@ -25307,7 +25358,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     showNotification('Please select a website to edit first', 'error');
                     return;
                 }
-                
+
+                // Sync original → clone before collecting (catches async image uploads)
+                syncOriginalToClone(section);
+
                 // Collect all form values from the VISIBLE editor container
                 const settings = {};
                 const prefix = `wb-${section}-`;
@@ -25445,11 +25499,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         } else if (el.type === 'file') {
                             // Skip file inputs
                         } else if (el.value !== undefined) {
-                            // Only override if clone value is not empty, OR original was also empty
-                            // EXCEPTION: allow empty for -url fields (intentional image removal)
-                            if (el.value !== '' || !settings[key] || key.endsWith('-url')) {
-                                settings[key] = el.value;
-                            }
+                            settings[key] = el.value;
                         }
                     });
                 }
