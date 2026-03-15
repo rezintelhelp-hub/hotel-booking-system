@@ -24929,7 +24929,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const data = await response.json();
                 if (data.success && data.content) {
-                    document.getElementById('wb-intro-title').value = data.content;
+                    document.getElementById('wb-intro-title-en').value = data.content;
                     showNotification('Title generated!', 'success');
                 } else {
                     showNotification('Failed to generate: ' + (data.error || 'Unknown error'), 'error');
@@ -24953,7 +24953,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const businessName = document.getElementById('wb-header-site-name')?.value || 
                                     document.getElementById('wb-hero-headline')?.value || 'Our Property';
                 const location = document.getElementById('wb-hero-subheadline')?.value || '';
-                const introTitle = document.getElementById('wb-intro-title')?.value || '';
+                const introTitle = document.getElementById('wb-intro-title-en')?.value || '';
                 
                 const response = await fetch('/api/admin/ai/generate-website-content', {
                     method: 'POST',
@@ -24969,7 +24969,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const data = await response.json();
                 if (data.success && data.content) {
-                    document.getElementById('wb-intro-text').value = data.content;
+                    document.getElementById('wb-intro-text-en').value = data.content;
                     showNotification('Intro text generated!', 'success');
                 } else {
                     showNotification('Failed to generate: ' + (data.error || 'Unknown error'), 'error');
@@ -25032,7 +25032,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const businessName = document.getElementById('wb-header-site-name')?.value || 
                                     document.getElementById('wb-hero-headline')?.value || 'Our Property';
                 const location = document.getElementById('wb-hero-subheadline')?.value || '';
-                const aboutTitle = document.getElementById('wb-about-title')?.value || '';
+                const aboutTitle = document.getElementById('wb-about-title-en')?.value || '';
                 
                 const response = await fetch('/api/admin/ai/generate-website-content', {
                     method: 'POST',
