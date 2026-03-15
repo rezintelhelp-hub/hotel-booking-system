@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.3.5
+ * Version: 3.3.6
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.3.5');
+define('GAS_BOOKING_VERSION', '3.3.6');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4335,6 +4335,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             'background' => !empty($license_display['background']) ? $license_display['background'] : '',
             'background_custom' => !empty($license_display['background_custom']) ? $license_display['background_custom'] : '#0f172a',
             'primary_color' => !empty($license_display['primary_color']) ? $license_display['primary_color'] : '#2563eb',
+            'text_color' => '',
             'card_style' => !empty($license_display['card_style']) ? $license_display['card_style'] : 'default',
         ), $atts);
         
@@ -4375,6 +4376,12 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             }
             if (!empty($api_settings['rooms_filter_text'])) {
                 $atts['filter_text'] = $api_settings['rooms_filter_text'];
+            }
+            if (!empty($api_settings['page_rooms_search_btn_bg'])) {
+                $atts['primary_color'] = $api_settings['page_rooms_search_btn_bg'];
+            }
+            if (!empty($api_settings['page_rooms_search_btn_text'])) {
+                $atts['text_color'] = $api_settings['page_rooms_search_btn_text'];
             }
         }
         
@@ -4681,8 +4688,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             height: 38px !important;
         }
         .gas-date-filter .gas-filter-btn {
-            background: <?php echo esc_attr($this->get_effective_button_color()); ?> !important;
-            color: white !important;
+            background: <?php echo esc_attr(!empty($atts['primary_color']) ? $atts['primary_color'] : $this->get_effective_button_color()); ?> !important;
+            color: <?php echo esc_attr(!empty($atts['text_color']) ? $atts['text_color'] : 'white'); ?> !important;
             border: none !important;
             padding: 0 16px !important;
             border-radius: 6px !important;

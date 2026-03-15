@@ -2486,6 +2486,8 @@ function developer_get_api_settings() {
         'page_rooms_enabled' => true, // Always enabled
         'page_rooms_menu_order' => $website_rooms['menu-order'] ?? 1,
         'page_rooms_transparent_header' => $website_rooms['transparent-header'] ?? false,
+        'page_rooms_search_btn_bg' => $website_rooms['search-btn-bg'] ?? '',
+        'page_rooms_search_btn_text' => $website_rooms['search-btn-text'] ?? '',
         'page_rooms_meta_title' => $website_rooms['meta-title'] ?? '',
         'page_rooms_meta_description' => $website_rooms['meta-description'] ?? '',
 

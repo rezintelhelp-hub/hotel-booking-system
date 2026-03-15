@@ -52914,6 +52914,8 @@ const SECTION_DEFAULTS = {
     'show-map': false,
     'transparent-header': false,
     'menu-order': '',
+    'search-btn-bg': '',
+    'search-btn-text': '',
     'meta-title': '',
     'meta-description': '',
     'faq-enabled': false

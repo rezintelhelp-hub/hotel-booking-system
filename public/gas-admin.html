@@ -7313,6 +7313,20 @@
                                                 <input type="text" class="form-input" id="wb-page-rooms-filter-bg" value="#f8fafc" style="flex: 1;" oninput="document.getElementById('wb-page-rooms-filter-bg-color').value = this.value">
                                             </div>
                                         </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Search Button Color</label>
+                                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                                <input type="color" id="wb-page-rooms-search-btn-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer;" onchange="document.getElementById('wb-page-rooms-search-btn-bg').value = this.value">
+                                                <input type="text" class="form-input" id="wb-page-rooms-search-btn-bg" value="" style="flex: 1;" oninput="syncColorToPicker(this.id, 'wb-page-rooms-search-btn-bg-picker')" placeholder="#2563eb">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Search Button Text</label>
+                                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                                <input type="color" id="wb-page-rooms-search-btn-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer;" onchange="document.getElementById('wb-page-rooms-search-btn-text').value = this.value">
+                                                <input type="text" class="form-input" id="wb-page-rooms-search-btn-text" value="" style="flex: 1;" oninput="syncColorToPicker(this.id, 'wb-page-rooms-search-btn-text-picker')" placeholder="#ffffff">
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
