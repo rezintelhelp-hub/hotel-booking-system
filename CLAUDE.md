@@ -202,20 +202,20 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 
 ---
 
-## CURRENT PRIORITIES — 14 March 2026
+## CURRENT PRIORITIES — 15 March 2026
 
-1. **Pro Site Builder** — Debug section parser (sections not visible in backend after push), WYSIWYG sync, complete Phase 3 (style controls)
-2. **Privacy & Terms external URL toggle** — Footer links to external privacy/terms pages when toggled on
-3. **Plugin licensing system** — Extend to gas-hostvana and all future plugins, tied to Stripe subscription status
-4. Footer — all page links not showing
-5. Contact page — map sizing
-6. Site go-live setup/checklist
-7. Repuso API connection (white-label)
-8. Blog page — header/subheader translation + category translations
-9. Attractions page — header/subheader translation + category translations
-10. Room page — Reviews tab (Repuso widget ID per room)
-11. Cloudflare — speed optimisation strategy
-12. Partner/Elevate white-label URLs — branded domains per partner
+1. **Pro Site Builder** — WYSIWYG text not saving/rendering on site (bug from today)
+2. **Pro Site Builder** — Show existing page sections, reorder/delete
+3. **Pro Site Builder** — Image upload for image blocks
+4. **Pro Site Builder** — Header & Footer settings tab wired up
+5. **Web Builder IMPORTANT fixes** (from audit):
+   - CTA link in header — hardcoded /book-now/ needs to be configurable
+   - FAQ sections — theme doesn't render them
+   - Footer layout toggle — ignored by footer.php
+   - Meta title/description SEO output
+6. **Swagger update** — add missing fields from audit, fix hero search object docs
+7. **Hebden Bridge** — connect Beds24 for account 169, upload logo, configure Web Builder
+8. **Hostvana** — end to end test with Pedro
 
 ---
 
