@@ -1961,7 +1961,8 @@ body:has(.gas-rooms-page-wrapper) .developer-page-content {
     margin-right: 0.25rem;
 }
 
-.developer-lang-option {
+.developer-lang-dropdown .developer-lang-option,
+.developer-lang-dropdown .developer-lang-option:visited {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -1972,11 +1973,11 @@ body:has(.gas-rooms-page-wrapper) .developer-page-content {
     transition: background 0.15s ease;
 }
 
-.developer-lang-option:hover {
+.developer-lang-dropdown .developer-lang-option:hover {
     background: #f3f4f6;
 }
 
-.developer-lang-option.active {
+.developer-lang-dropdown .developer-lang-option.active {
     background: #eff6ff;
     color: #2563eb;
     font-weight: 500;

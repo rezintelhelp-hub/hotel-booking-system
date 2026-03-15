@@ -3160,14 +3160,15 @@ function developer_developer_custom_css() {
             (!empty($header_lang_dd_bg) ? '
             background: ' . esc_attr($header_lang_dd_bg) . ';' : '') . '
         }
-        .developer-lang-option {' .
+        .developer-lang-dropdown .developer-lang-option,
+        .developer-lang-dropdown .developer-lang-option:visited {' .
             (!empty($header_lang_dd_color) ? '
             color: ' . esc_attr($header_lang_dd_color) . ';' : '') . '
         }
-        .developer-lang-option:hover {
+        .developer-lang-dropdown .developer-lang-option:hover {
             background: rgba(0,0,0,0.05);
         }
-        .developer-lang-option.active {' .
+        .developer-lang-dropdown .developer-lang-option.active {' .
             (!empty($header_lang_dd_color) ? '
             color: ' . esc_attr($header_lang_dd_color) . ';' : '') . '
             background: rgba(0,0,0,0.08);
