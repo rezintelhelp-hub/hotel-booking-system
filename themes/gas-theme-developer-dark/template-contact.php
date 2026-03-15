@@ -89,6 +89,20 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
 ?>
 
 <style>
+/* Page hero — must clear the fixed header (position:fixed, ~70-80px tall) */
+.developer-page-hero {
+    position: relative;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 80px 0 3rem;
+}
+.developer-page-hero-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+.developer-page-hero-content { position: relative; z-index: 1; }
+.developer-page-hero h1 { font-weight: 700; margin: 0 0 0.5rem; }
+
 .gas-contact-page { padding-top: 120px; padding-bottom: 80px; min-height: 70vh; }
 .gas-contact-container { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
 .gas-contact-header { text-align: center; margin-bottom: 3rem; }
