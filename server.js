@@ -68772,6 +68772,26 @@ app.post('/api/admin/website-builder/upload-image', (req, res, next) => {
       return res.status(500).json({ success: false, error: 'R2 storage not configured. Check R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT env vars.' });
     }
     
+    // Favicon/icon uploads: skip Sharp (doesn't support .ico), upload raw file directly
+    const isIcon = section === 'header-favicon' || section === 'header-apple-icon';
+    if (isIcon) {
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      const uniqueId = uuidv4();
+      const key = `website/${section}/${entityId}/${uniqueId}-favicon${ext}`;
+      const contentType = ext === '.ico' ? 'image/x-icon' : (ext === '.svg' ? 'image/svg+xml' : req.file.mimetype);
+
+      await r2Client.send(new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: key,
+        Body: req.file.buffer,
+        ContentType: contentType,
+        CacheControl: 'public, max-age=31536000'
+      }));
+
+      const url = `${R2_PUBLIC_URL}/${key}`;
+      return res.json({ success: true, url, urls: { original: url, large: url, medium: url, thumbnail: url } });
+    }
+
     // Process and upload to R2
     const results = await processAndUploadImage(
       req.file.buffer,
@@ -68779,9 +68799,9 @@ app.post('/api/admin/website-builder/upload-image', (req, res, next) => {
       entityId,
       req.file.originalname
     );
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       url: results.large, // Use large size for hero images
       urls: results
     });
