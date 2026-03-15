@@ -53054,6 +53054,7 @@ const SECTION_DEFAULTS = {
     'latitude': '',
     'longitude': '',
     'map-zoom': '14',
+    'map-height': '300',
     // Contact form
     'button-color': '#10b981'
   },

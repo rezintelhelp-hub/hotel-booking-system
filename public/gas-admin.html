@@ -7260,6 +7260,32 @@
                                             <span>Show Map View Toggle</span>
                                         </label>
                                     </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                                        <div class="form-group">
+                                            <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                                <input type="checkbox" id="wb-page-rooms-show-filters" checked style="width: 18px; height: 18px;">
+                                                <span>Show Filter Bar</span>
+                                            </label>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                                <input type="checkbox" id="wb-page-rooms-show-property-filter" checked style="width: 18px; height: 18px;">
+                                                <span>Show Property Filter</span>
+                                            </label>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                                <input type="checkbox" id="wb-page-rooms-show-date-filters" checked style="width: 18px; height: 18px;">
+                                                <span>Show Date Filters</span>
+                                            </label>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                                <input type="checkbox" id="wb-page-rooms-show-guest-filter" checked style="width: 18px; height: 18px;">
+                                                <span>Show Guest Filter</span>
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="card">
@@ -7710,6 +7736,10 @@
                                         <span style="font-weight: 600; color: #92400e;">Enable Blog Page</span>
                                     </label>
                                     <span style="font-size: 0.8rem; color: #92400e; background: #fcd34d; padding: 2px 8px; border-radius: 4px;">🔒 Requires Blog App</span>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 1rem;">
+                                        <label style="font-size: 0.85rem; color: #92400e;">Menu Position:</label>
+                                        <input type="number" id="wb-page-blog-menu-order" value="4" min="1" max="20" style="width: 60px; padding: 4px 8px; border: 1px solid #fcd34d; border-radius: 6px; text-align: center;">
+                                    </div>
                                 </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-blog', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Blog Page</button>
                             </div>
@@ -7826,6 +7856,10 @@
                                         <span style="font-weight: 600; color: #92400e;">Enable Attractions Page</span>
                                     </label>
                                     <span style="font-size: 0.8rem; color: #92400e; background: #fcd34d; padding: 2px 8px; border-radius: 4px;">🔒 Requires Attractions App</span>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 1rem;">
+                                        <label style="font-size: 0.85rem; color: #92400e;">Menu Position:</label>
+                                        <input type="number" id="wb-page-attractions-menu-order" value="5" min="1" max="20" style="width: 60px; padding: 4px 8px; border: 1px solid #fcd34d; border-radius: 6px; text-align: center;">
+                                    </div>
                                 </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-attractions', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Attractions Page</button>
                             </div>
@@ -8322,18 +8356,6 @@
                                             <span>Show Address</span>
                                         </label>
                                         <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
-                                            <input type="checkbox" id="wb-page-contact-show-map" checked style="width: 18px; height: 18px; accent-color: #f59e0b;">
-                                            <span>Show Map</span>
-                                        </label>
-                                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
-                                            <input type="checkbox" id="wb-page-contact-show-directions" checked style="width: 18px; height: 18px; accent-color: #f59e0b;">
-                                            <span>Show Direction Link</span>
-                                        </label>
-                                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
-                                            <input type="checkbox" id="wb-page-contact-show-form" checked style="width: 18px; height: 18px; accent-color: #f59e0b;">
-                                            <span>Show Contact Form</span>
-                                        </label>
-                                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
                                             <input type="checkbox" id="wb-page-contact-show-opening-hours" style="width: 18px; height: 18px; accent-color: #f59e0b;">
                                             <span>Show Opening Hours</span>
                                         </label>
@@ -8598,14 +8620,20 @@
                                         </div>
                                         <button type="button" class="btn" onclick="lookupContactCoordinates()" style="background: #64748b; margin-bottom: 0.25rem; white-space: nowrap;">📍 Lookup</button>
                                     </div>
-                                    <div class="form-group" style="margin-top: 1rem;">
-                                        <label class="form-label">Map Zoom Level</label>
-                                        <select class="form-input" id="wb-page-contact-map-zoom" style="max-width: 200px;">
-                                            <option value="12">City (12)</option>
-                                            <option value="14" selected>Neighbourhood (14)</option>
-                                            <option value="16">Street (16)</option>
-                                            <option value="18">Building (18)</option>
-                                        </select>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                                        <div class="form-group">
+                                            <label class="form-label">Map Zoom Level</label>
+                                            <select class="form-input" id="wb-page-contact-map-zoom">
+                                                <option value="12">City (12)</option>
+                                                <option value="14" selected>Neighbourhood (14)</option>
+                                                <option value="16">Street (16)</option>
+                                                <option value="18">Building (18)</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Map Height (px)</label>
+                                            <input type="number" class="form-input" id="wb-page-contact-map-height" value="300" min="150" max="800" step="50" placeholder="300">
+                                        </div>
                                     </div>
                                 </div>
                             </div>

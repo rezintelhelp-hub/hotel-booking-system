@@ -50,6 +50,7 @@ $country  = $api['page_contact_country'] ?? '';
 $lat  = $api['page_contact_latitude'] ?? '';
 $lng  = $api['page_contact_longitude'] ?? '';
 $zoom = $api['page_contact_map_zoom'] ?? '14';
+$map_height = intval($api['page_contact_map_height'] ?? 300);
 
 // 4 card toggles
 $show_details    = !empty($api['page_contact_show_details']) && $api['page_contact_show_details'] !== 'false' && $api['page_contact_show_details'] !== false;
@@ -152,7 +153,7 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
 .gas-contact-card--map { display: flex; flex-direction: column; }
 .gas-contact-card--map h2 { flex-shrink: 0; }
 .gas-contact-map-frame { flex: 1; border-radius: 12px; overflow: hidden; border: 1px solid var(--developer-border, #e2e8f0); }
-.gas-contact-map-frame iframe { width: 100%; height: 100%; min-height: 300px; border: 0; display: block; }
+.gas-contact-map-frame iframe { width: 100%; height: 100%; min-height: <?php echo intval($map_height); ?>px; border: 0; display: block; }
 
 /* Form card */
 .gas-contact-form .gas-form-group { margin-bottom: 1rem; }

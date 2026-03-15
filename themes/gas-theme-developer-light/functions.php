@@ -2473,8 +2473,12 @@ function developer_get_api_settings() {
         'page_about_header_text' => $website_page_about['header-text'] ?? null,
         'page_about_title_color' => $website_page_about['title-color'] ?? null,
         'page_about_text_color' => $website_page_about['text-color'] ?? null,
-        
+        'page_about_meta_title' => $website_page_about['meta-title'] ?? '',
+        'page_about_meta_description' => $website_page_about['meta-description'] ?? '',
+
         // Home Page Menu Title
+        'page_home_meta_title' => $website_hero['meta-title'] ?? '',
+        'page_home_meta_description' => $website_hero['meta-description'] ?? '',
         'page_home_menu_title' => developer_get_ml_value($website_hero, 'menu_title', $lang) ?: 'Home',
         
         // Rooms Page - MULTILINGUAL
@@ -2482,7 +2486,9 @@ function developer_get_api_settings() {
         'page_rooms_enabled' => true, // Always enabled
         'page_rooms_menu_order' => $website_rooms['menu-order'] ?? 1,
         'page_rooms_transparent_header' => $website_rooms['transparent-header'] ?? false,
-        
+        'page_rooms_meta_title' => $website_rooms['meta-title'] ?? '',
+        'page_rooms_meta_description' => $website_rooms['meta-description'] ?? '',
+
         // Contact Page - MULTILINGUAL
         'page_contact_menu_title' => developer_get_ml_value($website_page_contact, 'menu_title', $lang) ?: 'Contact',
         'page_contact_title' => developer_get_ml_value($website_page_contact, 'title', $lang),
@@ -2505,6 +2511,7 @@ function developer_get_api_settings() {
         'page_contact_latitude' => $website_page_contact['latitude'] ?? '',
         'page_contact_longitude' => $website_page_contact['longitude'] ?? '',
         'page_contact_map_zoom' => $website_page_contact['map-zoom'] ?? '14',
+        'page_contact_map_height' => $website_page_contact['map-height'] ?? '300',
         'page_contact_show_details' => $website_page_contact['show-details'] ?? true,
         'page_contact_show_directions' => $website_page_contact['show-directions'] ?? true,
         'page_contact_show_map' => $website_page_contact['show-map'] ?? true,
@@ -2525,18 +2532,24 @@ function developer_get_api_settings() {
         'page_contact_hours_friday' => $website_page_contact['hours-friday'] ?? '',
         'page_contact_hours_saturday' => $website_page_contact['hours-saturday'] ?? '',
         'page_contact_hours_sunday' => $website_page_contact['hours-sunday'] ?? '',
+        'page_contact_meta_title' => $website_page_contact['meta-title'] ?? '',
+        'page_contact_meta_description' => $website_page_contact['meta-description'] ?? '',
 
         // Gallery Page - MULTILINGUAL
         'page_gallery_menu_title' => developer_get_ml_value($website_page_gallery, 'menu_title', $lang) ?: 'Gallery',
         'page_gallery_enabled' => $website_page_gallery['enabled'] ?? false,
         'page_gallery_menu_order' => $website_page_gallery['menu-order'] ?? 3,
-        
+        'page_gallery_meta_title' => $website_page_gallery['meta-title'] ?? '',
+        'page_gallery_meta_description' => $website_page_gallery['meta-description'] ?? '',
+
         // Blog Page - MULTILINGUAL
         'page_blog_menu_title' => developer_get_ml_value($website_page_blog, 'menu_title', $lang) ?: 'Blog',
         'page_blog_title' => developer_get_ml_value($website_page_blog, 'title', $lang),
         'page_blog_subtitle' => developer_get_ml_value($website_page_blog, 'subtitle', $lang),
         'page_blog_enabled' => $website_page_blog['enabled'] ?? false,
         'page_blog_menu_order' => $website_page_blog['menu-order'] ?? 4,
+        'page_blog_meta_title' => $website_page_blog['meta-title'] ?? '',
+        'page_blog_meta_description' => $website_page_blog['meta-description'] ?? '',
 
         // Attractions Page - MULTILINGUAL
         'page_attractions_menu_title' => developer_get_ml_value($website_page_attractions, 'menu_title', $lang) ?: 'Attractions',
@@ -2544,7 +2557,9 @@ function developer_get_api_settings() {
         'page_attractions_subtitle' => developer_get_ml_value($website_page_attractions, 'subtitle', $lang),
         'page_attractions_enabled' => $website_page_attractions['enabled'] ?? false,
         'page_attractions_menu_order' => $website_page_attractions['menu-order'] ?? 5,
-        
+        'page_attractions_meta_title' => $website_page_attractions['meta-title'] ?? '',
+        'page_attractions_meta_description' => $website_page_attractions['meta-description'] ?? '',
+
         // Dining Page - MULTILINGUAL
         'page_dining_menu_title' => developer_get_ml_value($website_page_dining, 'menu_title', $lang) ?: 'Dining',
         'page_dining_enabled' => $website_page_dining['enabled'] ?? false,
@@ -3281,6 +3296,57 @@ function developer_favicon_meta_tags() {
     }
 }
 add_action('wp_head', 'developer_favicon_meta_tags', 5);
+
+/**
+ * SEO: Override <title> with page-specific meta_title from API
+ */
+function developer_seo_title_parts($title_parts) {
+    $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+    $page_key = developer_get_current_page_key();
+    if ($page_key) {
+        $meta_title = $api['page_' . $page_key . '_meta_title'] ?? '';
+        if (!empty($meta_title)) {
+            $title_parts['title'] = $meta_title;
+        }
+    }
+    return $title_parts;
+}
+add_filter('document_title_parts', 'developer_seo_title_parts');
+
+/**
+ * SEO: Output <meta name="description"> from page-specific meta_description
+ */
+function developer_seo_meta_description() {
+    $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+    $page_key = developer_get_current_page_key();
+    if ($page_key) {
+        $meta_desc = $api['page_' . $page_key . '_meta_description'] ?? '';
+        if (!empty($meta_desc)) {
+            echo '<meta name="description" content="' . esc_attr($meta_desc) . '">' . "\n";
+        }
+    }
+}
+add_action('wp_head', 'developer_seo_meta_description', 6);
+
+/**
+ * Helper: detect current page key from template
+ */
+function developer_get_current_page_key() {
+    if (is_front_page()) return 'home';
+    if (is_page_template('template-contact.php')) return 'contact';
+    if (is_page_template('template-about.php')) return 'about';
+    if (is_page_template('template-terms.php')) return 'terms';
+    if (is_page_template('template-privacy.php')) return 'privacy';
+    if (is_page_template('template-reviews.php')) return 'reviews';
+    $slug = get_post_field('post_name', get_queried_object_id());
+    $slug_map = array(
+        'book-now' => 'rooms', 'rooms' => 'rooms',
+        'blog' => 'blog', 'attractions' => 'attractions',
+        'gallery' => 'gallery', 'dining' => 'dining',
+        'offers' => 'offers', 'properties' => 'properties',
+    );
+    return $slug_map[$slug] ?? null;
+}
 
 /**
  * Adjust color brightness
