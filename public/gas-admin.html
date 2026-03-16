@@ -55657,7 +55657,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 case 'paragraph': {
                     const text = gasWysiwygGetValue(`pb-edit-${index}-para-text`) || document.getElementById(`pb-edit-${index}-para-text`)?.value || '';
                     const paraStyle = pbCollectLayoutStyles(index, 'para');
-                    return blockToMarkup({ type: 'text', text: text, style: paraStyle });
+                    const paraMarkup = blockToMarkup({ type: 'text', text: text, style: paraStyle });
+                    console.log('[LAYOUT] styles:', paraStyle, 'markup:', paraMarkup);
+                    return paraMarkup;
                 }
                 case 'heading': {
                     const text = gasWysiwygGetValue(`pb-edit-${index}-heading-text`) || document.getElementById(`pb-edit-${index}-heading-text`)?.value || '';
