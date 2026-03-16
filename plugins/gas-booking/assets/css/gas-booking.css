@@ -64,8 +64,8 @@
    ========================================================================== */
 .gas-gallery {
     display: grid;
-    grid-template-columns: 1.2fr 1fr;
-    gap: 8px;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
     height: 480px;
     border-radius: var(--gas-radius-lg);
     overflow: hidden;
@@ -84,7 +84,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr 1fr;
-    gap: 8px;
+    gap: 4px;
     height: 100%;
 }
 
