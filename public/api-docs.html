@@ -1761,16 +1761,86 @@
                 "post": {
                     "tags": ["Website Content"],
                     "summary": "Upload Media",
-                    "description": "Upload media (base64 encoded) for use in website content.",
+                    "description": "Upload an image or video (base64 encoded) for use in website content. Images are automatically optimised and resized into multiple sizes (large, medium, thumbnail). Videos are stored as-is.\n\n**Size limits:**\n- Images: 10 MB max\n- Videos: 50 MB max\n\n**Supported formats:** JPEG, PNG, WebP, GIF, SVG, ICO (images) / MP4, WebM (video)",
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
                     "requestBody": {
+                        "required": true,
                         "content": {
                             "application/json": {
-                                "example": { "file": "data:image/png;base64,...", "filename": "hero-bg.jpg" }
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["file_data", "file_name"],
+                                    "properties": {
+                                        "file_data": {
+                                            "type": "string",
+                                            "description": "Base64-encoded file data. Can include data URI prefix (e.g. `data:image/jpeg;base64,/9j/4AAQ...`) which is automatically stripped, or raw base64 string."
+                                        },
+                                        "file_name": {
+                                            "type": "string",
+                                            "description": "Filename including extension (e.g. `hero-image.jpg`). Used for storage path and content type detection."
+                                        },
+                                        "file_type": {
+                                            "type": "string",
+                                            "description": "MIME type (e.g. `image/jpeg`, `video/mp4`). Optional — auto-detected from data URI prefix or defaults to `image/jpeg`."
+                                        },
+                                        "section": {
+                                            "type": "string",
+                                            "description": "Where the image will be used. Used for storage path organisation.",
+                                            "enum": ["hero", "about", "featured", "header-logo", "header-favicon", "rooms", "gallery"]
+                                        }
+                                    }
+                                },
+                                "examples": {
+                                    "image_with_data_uri": {
+                                        "summary": "Image with data URI prefix",
+                                        "value": {
+                                            "file_data": "data:image/jpeg;base64,/9j/4AAQSkZJRg...",
+                                            "file_name": "hero-background.jpg",
+                                            "section": "hero"
+                                        }
+                                    },
+                                    "image_raw_base64": {
+                                        "summary": "Image with raw base64 (no prefix)",
+                                        "value": {
+                                            "file_data": "/9j/4AAQSkZJRg...",
+                                            "file_name": "room-photo.jpg",
+                                            "file_type": "image/jpeg",
+                                            "section": "rooms"
+                                        }
+                                    },
+                                    "logo_upload": {
+                                        "summary": "Logo upload",
+                                        "value": {
+                                            "file_data": "data:image/png;base64,iVBORw0KGgo...",
+                                            "file_name": "company-logo.png",
+                                            "section": "header-logo"
+                                        }
+                                    }
+                                }
                             }
                         }
                     },
-                    "responses": { "200": { "description": "Upload complete, returns URL" } }
+                    "responses": {
+                        "200": {
+                            "description": "Upload successful",
+                            "content": {
+                                "application/json": {
+                                    "example": {
+                                        "success": true,
+                                        "url": "https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/hero/123/large/uuid-hero-background.webp",
+                                        "urls": {
+                                            "original": "https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/hero/123/original/uuid-hero-background.webp",
+                                            "large": "https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/hero/123/large/uuid-hero-background.webp",
+                                            "medium": "https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/hero/123/medium/uuid-hero-background.webp",
+                                            "thumbnail": "https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/hero/123/thumbnail/uuid-hero-background.webp"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "400": { "description": "Missing required fields (file_data or file_name)" },
+                        "413": { "description": "File too large (over 10 MB for images, 50 MB for videos)" }
+                    }
                 }
             },
             
