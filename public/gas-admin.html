@@ -55717,6 +55717,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function saveSection(index) {
             const markup = collectSectionMarkup(index);
+            console.log('[saveSection] index=', index, 'markup length=', markup?.length, 'markup=', markup?.substring(0, 500));
             if (!markup) {
                 showNotification('Cannot save this section type', 'error');
                 return;
@@ -56082,7 +56083,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 1rem; align-items:center;">
                         <div style="${row}">
                             <span style="${lbl}">Colour</span>
-                            <input type="color" id="pb-edit-${index}-${prefix}-bg-color-picker" value="${bg.hex || '#ffffff'}" oninput="document.getElementById('pb-edit-${index}-${prefix}-bg-color').value=this.value;" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                            <input type="color" id="pb-edit-${index}-${prefix}-bg-color-picker" value="${bg.hex || '#ffffff'}" oninput="this.dataset.touched='true'; document.getElementById('pb-edit-${index}-${prefix}-bg-color').value=this.value;" onchange="this.dataset.touched='true'; document.getElementById('pb-edit-${index}-${prefix}-bg-color').value=this.value;" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
                             <input type="text" id="pb-edit-${index}-${prefix}-bg-color" value="${bg.hex}" placeholder="none" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-${prefix}-bg-color-picker').value=this.value;" style="${ctrl} width:80px;">
                         </div>
                         <div style="${row}">
@@ -56114,6 +56115,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function pbCollectLayoutStyles(index, prefix) {
             // All values use !important to override theme CSS (burger theme uses !important on margins/padding)
+            console.log('[pbCollect] index=', index, 'prefix=', prefix);
             const parts = [];
             const width = document.getElementById(`pb-edit-${index}-${prefix}-width`)?.value || '100%';
             if (width === 'custom') {
@@ -56133,9 +56135,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             const marginBot = document.getElementById(`pb-edit-${index}-${prefix}-margin-bot`)?.value;
             if (marginBot && marginBot !== '0') parts.push(`margin-bottom:${marginBot}px !important`);
 
-            // Background colour
-            const bgColor = document.getElementById(`pb-edit-${index}-${prefix}-bg-color`)?.value?.trim();
+            // Background colour — read from text field (set by picker oninput) or fall back to picker directly
+            let bgColor = document.getElementById(`pb-edit-${index}-${prefix}-bg-color`)?.value?.trim();
+            const bgPicker = document.getElementById(`pb-edit-${index}-${prefix}-bg-color-picker`);
+            if (!bgColor && bgPicker && bgPicker.dataset.touched === 'true') bgColor = bgPicker.value;
             const bgOpacity = document.getElementById(`pb-edit-${index}-${prefix}-bg-opacity`)?.value;
+            console.log('[pbCollect] bgColor=', bgColor, 'bgOpacity=', bgOpacity, 'bgColorEl=', document.getElementById(`pb-edit-${index}-${prefix}-bg-color`), 'pickerEl=', bgPicker);
             if (bgColor && /^#[0-9a-fA-F]{6}$/.test(bgColor)) {
                 const r = parseInt(bgColor.slice(1,3), 16);
                 const g = parseInt(bgColor.slice(3,5), 16);
@@ -56177,6 +56182,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (!parts.some(p => p.startsWith('padding-right'))) parts.push('padding-right:20px !important');
                 }
             }
+            console.log('[pbCollect] final parts=', parts);
             return parts.join(';');
         }
 
