@@ -55464,6 +55464,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                 editorEl.style.display = 'block';
                 editorEl.innerHTML = renderSectionEditor(index);
                 gasWysiwygInit(); // Initialise WYSIWYG on any data-wysiwyg textareas
+                // Inject real HTML into WYSIWYG editors (must happen after init wraps the textarea)
+                const _sec = proBuilderSections[index];
+                if (_sec._paraHtml !== undefined) {
+                    const _ta = document.getElementById(`pb-edit-${index}-para-text`);
+                    if (_ta) { const _w = _ta.previousElementSibling; if (_w && _w._gasEditor) _w._gasEditor.innerHTML = _sec._paraHtml; else _ta.value = _sec._paraHtml; }
+                }
+                if (_sec._headingHtml !== undefined) {
+                    const _ta = document.getElementById(`pb-edit-${index}-heading-text`);
+                    if (_ta) { const _w = _ta.previousElementSibling; if (_w && _w._gasEditor) _w._gasEditor.innerHTML = _sec._headingHtml; else _ta.value = _sec._headingHtml; }
+                }
             } else {
                 editorEl.style.display = 'none';
                 editorEl.innerHTML = '';
@@ -55535,8 +55545,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const pHtml = pEl ? pEl.innerHTML : '';
                     fieldsHtml = `
                         <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Paragraph</label>
-                            <textarea id="pb-edit-${index}-para-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" style="${taStyle}">${pHtml.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea></div>
+                            <textarea id="pb-edit-${index}-para-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" style="${taStyle}"></textarea></div>
                     `;
+                    // Store parsed HTML for post-init injection into WYSIWYG editor
+                    proBuilderSections[index]._paraHtml = pHtml;
                     break;
                 }
                 case 'heading': {
@@ -55545,7 +55557,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const hLevel = hEl ? hEl.tagName.toLowerCase() : 'h2';
                     fieldsHtml = `
                         <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Heading</label>
-                            <input type="text" id="pb-edit-${index}-heading-text" value="${hHtml.replace(/"/g, '&quot;')}" style="${inputStyle} font-size:1.1rem; font-weight:600;">
+                            <textarea id="pb-edit-${index}-heading-text" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text" style="${taStyle} font-size:1.1rem; font-weight:600;"></textarea>
                             <select id="pb-edit-${index}-heading-level" style="${inputStyle} width:80px; margin-top:4px;">
                                 <option value="h1" ${hLevel === 'h1' ? 'selected' : ''}>H1</option>
                                 <option value="h2" ${hLevel === 'h2' ? 'selected' : ''}>H2</option>
@@ -55553,6 +55565,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <option value="h4" ${hLevel === 'h4' ? 'selected' : ''}>H4</option>
                             </select></div>
                     `;
+                    // Store parsed HTML for post-init injection into WYSIWYG editor
+                    proBuilderSections[index]._headingHtml = hHtml;
                     break;
                 }
                 case 'image': {
@@ -55642,7 +55656,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return blockToMarkup({ type: 'text', text: text });
                 }
                 case 'heading': {
-                    const text = document.getElementById(`pb-edit-${index}-heading-text`)?.value || '';
+                    const text = gasWysiwygGetValue(`pb-edit-${index}-heading-text`) || document.getElementById(`pb-edit-${index}-heading-text`)?.value || '';
                     const level = document.getElementById(`pb-edit-${index}-heading-level`)?.value || 'h2';
                     return blockToMarkup({ type: 'heading', text: text, level: level });
                 }
