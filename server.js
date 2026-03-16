@@ -23785,16 +23785,16 @@ app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
 
     // Verify deployed site exists and get info for WordPress push
     const siteResult = await pool.query(
-      'SELECT id, account_id, template, site_name, site_url FROM deployed_sites WHERE id = $1',
+      'SELECT id, account_id, template, site_name, site_url, blog_id FROM deployed_sites WHERE id = $1',
       [deployedSiteId]
     );
-    
+
     if (siteResult.rows.length === 0) {
       return res.json({ success: false, error: 'Deployed site not found' });
     }
-    
+
     const site = siteResult.rows[0];
-    
+
     console.log(`Saving ${section} settings for deployed site ${deployedSiteId} (${site.site_name})`);
     console.log('Settings:', JSON.stringify(settings, null, 2));
     
@@ -23821,9 +23821,23 @@ app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
     if (site.site_url) {
       wpPushResult = await pushSettingsToWordPress(site.site_url, section, settings);
     }
-    
-    res.json({ 
-      success: true, 
+
+    // Clear API settings transient cache so changes appear immediately
+    if (site.blog_id && site.site_url) {
+      try {
+        await fetch('https://sites.gas.travel/gas-api.php', {
+          method: 'POST',
+          headers: { 'X-API-Key': 'gas-deploy-2024-secure-key', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'flush_transient', site_url: site.site_url, transient_key: 'gas_api_settings_' + site.blog_id })
+        });
+        console.log(`Cache busted for blog ${site.blog_id}`);
+      } catch (e) {
+        console.log(`Cache bust failed for blog ${site.blog_id}: ${e.message}`);
+      }
+    }
+
+    res.json({
+      success: true,
       message: 'Settings saved',
       deployed_site_id: deployedSiteId,
       section,

@@ -2365,9 +2365,9 @@ function developer_get_api_settings() {
         return array();
     }
     
-    // Check cache first
-    $cache_key = 'gas_api_settings_' . $client_id;
-    $cached = false; // Cache disabled for dev
+    // Check transient cache first (5 min TTL, cleared on Web Builder save)
+    $cache_key = 'gas_api_settings_' . get_current_blog_id();
+    $cached = get_transient($cache_key);
     if ($cached !== false) {
         return $cached;
     }
@@ -2890,8 +2890,8 @@ function developer_get_api_settings() {
         'primary_language' => $config['languages']['primary'] ?? 'en',
     );
     
-    // Cache for 0 minutes (dev mode - change to 5 for production)
-    set_transient($cache_key, $result, 0 * MINUTE_IN_SECONDS);
+    // Cache for 5 minutes — cleared by GAS API on Web Builder save
+    set_transient($cache_key, $result, 5 * MINUTE_IN_SECONDS);
     
     return $result;
 }
