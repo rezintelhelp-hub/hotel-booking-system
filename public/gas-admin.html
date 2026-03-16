@@ -35257,7 +35257,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <button onclick="manageWebsiteRooms(${site.id}, ${site.property_id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #10b981; border-color: #10b981;">🛏️ Rooms</button>
                                                                                 <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
                                         ${['pro','bespoke'].includes(site.subscription_tier) && siteStatus !== 'frozen' ? `
-                                            <button onclick="openProBuilder(${site.blog_id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-color: #f97316;">Build Site</button>
+                                            <button onclick="openProBuilder(${site.blog_id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}', ${site.id})" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-color: #f97316;">Build Site</button>
                                         ` : ''}
                                     </div>
                                 </div>
@@ -55310,10 +55310,12 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         let proBuilderBlogId = null;
         let proBuilderSiteName = '';
+        let proBuilderDeployedSiteId = null;
 
-        function openProBuilder(blogId, siteName) {
+        function openProBuilder(blogId, siteName, deployedSiteId) {
             proBuilderBlogId = blogId;
             proBuilderSiteName = siteName;
+            proBuilderDeployedSiteId = deployedSiteId || null;
             document.getElementById('pro-builder-title').textContent = 'Pro Site Builder — ' + siteName;
             document.getElementById('pro-builder-subtitle').textContent = 'Manage pages and settings';
             showView('pro-builder');
@@ -56186,7 +56188,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const file = fileInput.files && fileInput.files[0];
             if (!file) return;
             const urlField = document.getElementById(`pb-edit-${index}-${prefix}-bg-img`);
-            const siteId = selectedDeployedSiteId;
+            const siteId = proBuilderDeployedSiteId || selectedDeployedSiteId;
             if (!siteId) { alert('No site selected'); return; }
             urlField.value = 'Uploading...';
             const formData = new FormData();
