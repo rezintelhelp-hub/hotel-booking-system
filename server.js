@@ -51589,6 +51589,7 @@ app.put('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
     
     const { enabled, title, subtitle, menu_title, columns, layout_style,
             show_search, show_amenity_filter, show_location_filter, show_map,
+            show_filters, show_property_filter, show_date_filters, show_guest_filter,
             filter_bg, bg_color, text_color, transparent_header,
             menu_order, faq_enabled,
             search_btn_bg, search_btn_text,
@@ -51612,6 +51613,10 @@ app.put('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
       show_amenity_filter: 'show-amenity-filter',
       show_location_filter: 'show-location-filter',
       show_map: 'show-map',
+      show_filters: 'show-filters',
+      show_property_filter: 'show-property-filter',
+      show_date_filters: 'show-date-filters',
+      show_guest_filter: 'show-guest-filter',
       filter_bg: 'filter-bg',
       bg_color: 'bg-color',
       text_color: 'text-color',
@@ -51626,6 +51631,7 @@ app.put('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
 
     const incoming = { enabled, title, subtitle, menu_title, columns, layout_style,
                        show_search, show_amenity_filter, show_location_filter, show_map,
+                       show_filters, show_property_filter, show_date_filters, show_guest_filter,
                        filter_bg, bg_color, text_color, transparent_header,
                        menu_order, faq_enabled,
                        search_btn_bg, search_btn_text,
@@ -51781,7 +51787,7 @@ app.put('/api/partner/websites/:websiteId/contact-page', async (req, res) => {
       show_details, show_email, show_phone, show_address, show_map, show_directions, show_contact_form, show_opening_hours,
       business_name, email, phone, address, city, state, zip, country,
       opening_hours,
-      latitude, longitude, map_zoom,
+      latitude, longitude, map_zoom, map_height,
       button_color,
       meta_title, meta_description
     } = req.body;
@@ -51818,6 +51824,7 @@ app.put('/api/partner/websites/:websiteId/contact-page', async (req, res) => {
       latitude: 'latitude',
       longitude: 'longitude',
       map_zoom: 'map-zoom',
+      map_height: 'map-height',
       button_color: 'button-color',
       meta_title: 'meta-title',
       meta_description: 'meta-description'
@@ -51829,7 +51836,7 @@ app.put('/api/partner/websites/:websiteId/contact-page', async (req, res) => {
       details_title, directions_text, map_title, form_title, faq_enabled,
       show_details, show_email, show_phone, show_address, show_map, show_directions, show_contact_form, show_opening_hours,
       business_name, email, phone, address, city, state, zip, country,
-      latitude, longitude, map_zoom, button_color,
+      latitude, longitude, map_zoom, map_height, button_color,
       meta_title, meta_description
     };
     
@@ -52797,7 +52804,7 @@ app.put('/api/partner/websites/:websiteId/content/:section', async (req, res) =>
     
     // Validate section
     const validSections = [
-      'header', 'hero', 'intro', 'featured', 'about', 'services', 'reviews', 'cta', 'footer', 'styles', 'seo',
+      'header', 'hero', 'intro', 'featured', 'about', 'services', 'usp', 'reviews', 'cta', 'footer', 'styles', 'seo',
       'page-rooms', 'page-about', 'page-gallery', 'page-contact', 'page-blog', 'page-attractions',
       'page-dining', 'page-offers', 'page-properties', 'page-reviews', 'page-terms', 'page-privacy', 'currency'
     ];
@@ -53053,6 +53060,40 @@ const SECTION_DEFAULTS = {
     'item-8-image-url': '',
     'item-8-title-en': '',
     'item-8-text-en': ''
+  },
+  usp: {
+    'enabled': false,
+    'title-en': '',
+    'subtitle-en': '',
+    'bg-color': '',
+    'card-bg': '',
+    'text-color': '',
+    'title-color': '',
+    'card-title-size': '',
+    'item-1-icon': '',
+    'item-1-image-url': '',
+    'item-1-title-en': '',
+    'item-1-text-en': '',
+    'item-2-icon': '',
+    'item-2-image-url': '',
+    'item-2-title-en': '',
+    'item-2-text-en': '',
+    'item-3-icon': '',
+    'item-3-image-url': '',
+    'item-3-title-en': '',
+    'item-3-text-en': '',
+    'item-4-icon': '',
+    'item-4-image-url': '',
+    'item-4-title-en': '',
+    'item-4-text-en': '',
+    'item-5-icon': '',
+    'item-5-image-url': '',
+    'item-5-title-en': '',
+    'item-5-text-en': '',
+    'item-6-icon': '',
+    'item-6-image-url': '',
+    'item-6-title-en': '',
+    'item-6-text-en': ''
   },
   reviews: {
     'enabled': true,
@@ -53355,6 +53396,7 @@ const SECTION_DEFAULTS = {
   },
   'page-terms': {
     'title': 'Terms & Conditions',
+    'title-en': 'Terms & Conditions',
     'updated': '',
     'menu-title-en': 'Terms',
     'use-external': false,
@@ -53390,6 +53432,7 @@ const SECTION_DEFAULTS = {
   },
   'page-privacy': {
     'title': 'Privacy Policy',
+    'title-en': 'Privacy Policy',
     'updated': '',
     'effective': '',
     'menu-title-en': 'Privacy',
