@@ -35217,6 +35217,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </select>
                     `;
                     
+                    // Site protection status
+                    const siteStatus = site.site_status || 'development';
+                    const siteStatusConfig = {
+                        'development': { color: '#3b82f6', label: 'Dev' },
+                        'live': { color: '#10b981', label: 'Live' },
+                        'frozen': { color: '#6b7280', label: 'Frozen' }
+                    };
+                    const siteProtection = siteStatusConfig[siteStatus] || siteStatusConfig['development'];
+                    const siteStatusBadge = `<span style="display: inline-block; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.65rem; background: ${siteProtection.color}20; color: ${siteProtection.color}; font-weight: 600; margin-left: 0.5rem;">${siteStatus === 'frozen' ? '🔒 ' : ''}${siteProtection.label}</span>`;
+                    const siteStatusDropdown = isMaster ? `
+                        <select data-prev="${siteStatus}" onchange="updateSiteProtection(${site.id}, this.value, this)"
+                                style="font-size: 0.7rem; padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid ${siteStatus === 'frozen' ? '#6b7280' : '#e2e8f0'}; background: ${siteStatus === 'frozen' ? '#f1f5f9' : 'white'}; cursor: pointer; margin-top: 0.5rem;">
+                            <option value="development" ${siteStatus === 'development' ? 'selected' : ''}>Protection: Dev</option>
+                            <option value="live" ${siteStatus === 'live' ? 'selected' : ''}>Protection: Live</option>
+                            <option value="frozen" ${siteStatus === 'frozen' ? 'selected' : ''}>Protection: Frozen</option>
+                        </select>
+                    ` : '';
+
                     // Template badge
                     const templateLabel = site.template === 'developer-dark' ? ' Dark' : ' Light';
                     
@@ -35238,7 +35256,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <button onclick="renameDeployedSiteName(${site.id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #8b5cf6; border-color: #8b5cf6;">✏️ Name</button>
                                         <button onclick="manageWebsiteRooms(${site.id}, ${site.property_id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #10b981; border-color: #10b981;">🛏️ Rooms</button>
                                                                                 <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
-                                        ${['pro','bespoke'].includes(site.subscription_tier) ? `
+                                        ${['pro','bespoke'].includes(site.subscription_tier) && siteStatus !== 'frozen' ? `
                                             <button onclick="openProBuilder(${site.blog_id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-color: #f97316;">Build Site</button>
                                         ` : ''}
                                     </div>
@@ -35247,6 +35265,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <span style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; background: ${statusColor}20; color: ${statusColor}; font-weight: 600;">
                                         ${statusLabel}
                                     </span>
+                                    ${siteStatusBadge}
                                     ${site.custom_domain ? `
                                         <div style="margin-top: 0.5rem; font-size: 0.7rem; color: #10b981;">
                                              ${site.custom_domain}
@@ -35268,6 +35287,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <button class="btn btn-small btn-secondary" style="margin-top: 0.5rem; font-size: 0.65rem;" onclick="createMasterUser(${site.id})">🔑 Create GAS Access</button>
                                     ` : ''}
                                     ${statusDropdown}
+                                    ${siteStatusDropdown}
                                     ${pricingDropdown}
                                 </div>
                             </div>
@@ -35886,6 +35906,34 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        async function updateSiteProtection(siteId, newStatus, selectEl) {
+            if (newStatus === 'frozen') {
+                if (!confirm('Freeze this site? All modifications (settings, templates, sections) will be blocked until unfrozen.')) {
+                    selectEl.value = selectEl.dataset.prev || 'development';
+                    return;
+                }
+            }
+            try {
+                const response = await fetch(`/api/deployed-sites/${siteId}/site-status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ site_status: newStatus, confirm: true })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    selectEl.dataset.prev = newStatus;
+                    showNotification(`Site protection updated to ${newStatus}`, 'success');
+                    loadDeployedSites();
+                } else {
+                    selectEl.value = selectEl.dataset.prev || 'development';
+                    showNotification(data.error || 'Failed to update protection', 'error');
+                }
+            } catch (error) {
+                selectEl.value = selectEl.dataset.prev || 'development';
+                showNotification('Failed to update protection', 'error');
+            }
+        }
+
         async function updateSitePricingTier(siteId, pricingTier) {
             try {
                 const response = await fetch(`/api/deployed-sites/${siteId}/pricing-tier`, {

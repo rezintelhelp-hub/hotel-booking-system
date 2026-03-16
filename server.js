@@ -21966,6 +21966,10 @@ app.get('/api/setup-deploy', async (req, res) => {
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS discount_type VARCHAR(10) DEFAULT 'none'`).catch(() => {}); // none, percentage, fixed
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS discount_value DECIMAL(10,2) DEFAULT 0`).catch(() => {}); 
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
+
+    // Site protection — 'development' (default, unprotected), 'live' (unprotected, visual), 'frozen' (all writes blocked)
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS site_status VARCHAR(20) DEFAULT 'development'`).catch(() => {});
+
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS pricing_tier VARCHAR(50) DEFAULT 'standard'`);
     
     // Add website_url column to bookable_units if it doesn't exist
@@ -23750,6 +23754,18 @@ app.get('/api/deployed-sites/:id/settings', async (req, res) => {
   }
 });
 
+// --- Site Protection helpers ---
+async function checkSiteFrozen(deployedSiteId) {
+  const result = await pool.query('SELECT site_status FROM deployed_sites WHERE id = $1', [parseInt(deployedSiteId)]);
+  if (result.rows.length === 0) return { frozen: false, error: 'Site not found' };
+  return { frozen: result.rows[0].site_status === 'frozen' };
+}
+async function checkSiteFrozenByBlogId(blogId) {
+  const result = await pool.query('SELECT site_status FROM deployed_sites WHERE blog_id = $1', [parseInt(blogId)]);
+  if (result.rows.length === 0) return { frozen: false };
+  return { frozen: result.rows[0].site_status === 'frozen' };
+}
+
 // SAVE settings for a deployed site
 app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
   try {
@@ -23760,7 +23776,13 @@ app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
     if (!settings) {
       return res.json({ success: false, error: 'Settings object required' });
     }
-    
+
+    // Site protection — block writes to frozen sites
+    const frozenCheck = await checkSiteFrozen(deployedSiteId);
+    if (frozenCheck.frozen) {
+      return res.json({ success: false, error: 'This site is frozen. Unfreeze it before making changes.' });
+    }
+
     // Verify deployed site exists and get info for WordPress push
     const siteResult = await pool.query(
       'SELECT id, account_id, template, site_name, site_url FROM deployed_sites WHERE id = $1',
@@ -26418,6 +26440,38 @@ app.post('/api/admin/fix-deployed-slugs', async (req, res) => {
       }
     }
     res.json({ success: true, fixed, total: result.rows.length });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update site protection status (development/live/frozen)
+app.put('/api/deployed-sites/:id/site-status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { site_status, confirm } = req.body;
+
+    const validStatuses = ['development', 'live', 'frozen'];
+    if (!validStatuses.includes(site_status)) {
+      return res.json({ success: false, error: `Invalid site_status. Must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    // Freezing requires explicit confirmation
+    if (site_status === 'frozen' && confirm !== true) {
+      return res.json({ success: false, error: 'Freezing a site requires confirm: true' });
+    }
+
+    const result = await pool.query(
+      'UPDATE deployed_sites SET site_status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, site_name, site_status',
+      [id, site_status]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Deployed site not found' });
+    }
+
+    console.log(`Site protection updated: site ${id} → ${site_status}`);
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -79601,6 +79655,9 @@ app.put('/api/pro-builder/sites/:blog_id/pages/:page_id/sections/:index', async 
     const auth = await proBuilderAuth(req);
     if (auth.error) return res.json({ success: false, error: auth.error });
 
+    const frozenCheck = await checkSiteFrozenByBlogId(req.params.blog_id);
+    if (frozenCheck.frozen) return res.json({ success: false, error: 'This site is frozen. Unfreeze it before making changes.' });
+
     const blogId = parseInt(req.params.blog_id);
     const pageId = parseInt(req.params.page_id);
     const sectionIndex = parseInt(req.params.index);
@@ -79634,6 +79691,9 @@ app.delete('/api/pro-builder/sites/:blog_id/pages/:page_id/sections/:index', asy
     const auth = await proBuilderAuth(req);
     if (auth.error) return res.json({ success: false, error: auth.error });
 
+    const frozenCheck = await checkSiteFrozenByBlogId(req.params.blog_id);
+    if (frozenCheck.frozen) return res.json({ success: false, error: 'This site is frozen. Unfreeze it before making changes.' });
+
     const blogId = parseInt(req.params.blog_id);
     const pageId = parseInt(req.params.page_id);
     const sectionIndex = parseInt(req.params.index);
@@ -79664,6 +79724,9 @@ app.post('/api/pro-builder/sites/:blog_id/pages/:page_id/reorder', async (req, r
   try {
     const auth = await proBuilderAuth(req);
     if (auth.error) return res.json({ success: false, error: auth.error });
+
+    const frozenCheck = await checkSiteFrozenByBlogId(req.params.blog_id);
+    if (frozenCheck.frozen) return res.json({ success: false, error: 'This site is frozen. Unfreeze it before making changes.' });
 
     const blogId = parseInt(req.params.blog_id);
     const pageId = parseInt(req.params.page_id);
@@ -79876,6 +79939,14 @@ app.post('/api/templates/:id/push', async (req, res) => {
     }
 
     const { account_id, site_url, blog_id, mode, page_id, position, page_title, page_slug, add_to_menu, raw_block_markup } = req.body;
+
+    // Site protection — block pushes to frozen sites
+    if (blog_id) {
+      const frozenCheck = await checkSiteFrozenByBlogId(blog_id);
+      if (frozenCheck.frozen) {
+        return res.json({ success: false, error: 'This site is frozen. Unfreeze it before making changes.' });
+      }
+    }
 
     // Template ID 0 = custom-built section (raw markup provided directly)
     let tpl = null;
