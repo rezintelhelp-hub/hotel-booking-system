@@ -55464,12 +55464,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 editorEl.style.display = 'block';
                 editorEl.innerHTML = renderSectionEditor(index);
                 gasWysiwygInit(); // Initialise WYSIWYG on any data-wysiwyg textareas
-                // Inject heading HTML into WYSIWYG editor (must happen after init wraps the textarea)
+                // Inject HTML into WYSIWYG editors (must happen after init wraps the textarea)
                 const _sec = proBuilderSections[index];
-                if (_sec._headingHtml !== undefined) {
-                    const _ta = document.getElementById(`pb-edit-${index}-heading-text`);
-                    if (_ta) { const _w = _ta.previousElementSibling; if (_w && _w._gasEditor) _w._gasEditor.innerHTML = _sec._headingHtml; else _ta.value = _sec._headingHtml; }
-                }
+                ['_paraHtml', '_headingHtml'].forEach(key => {
+                    if (_sec[key] === undefined) return;
+                    const suffix = key === '_paraHtml' ? 'para-text' : 'heading-text';
+                    const _ta = document.getElementById(`pb-edit-${index}-${suffix}`);
+                    if (_ta) { const _w = _ta.previousElementSibling; if (_w && _w._gasEditor) _w._gasEditor.innerHTML = _sec[key]; else _ta.value = _sec[key]; }
+                });
             } else {
                 editorEl.style.display = 'none';
                 editorEl.innerHTML = '';
@@ -55537,12 +55539,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                     break;
                 }
                 case 'paragraph': {
-                    const pEl = dom.querySelector('p');
-                    const pHtml = pEl ? pEl.innerHTML : '';
+                    // Regex extract: DOM parsing mangles <div> inside <p> (browser auto-closes the <p>)
+                    const pMatch = section.raw_markup.match(/<p[^>]*>([\s\S]*)<\/p>/);
+                    const pHtml = pMatch ? pMatch[1] : (dom.textContent || '').trim();
                     fieldsHtml = `
                         <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Paragraph</label>
-                            <textarea id="pb-edit-${index}-para-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" style="${taStyle}">${pHtml.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea></div>
+                            <textarea id="pb-edit-${index}-para-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" style="${taStyle}"></textarea></div>
                     `;
+                    // Store for post-init injection (content may contain backticks/template chars)
+                    proBuilderSections[index]._paraHtml = pHtml;
                     break;
                 }
                 case 'heading': {
