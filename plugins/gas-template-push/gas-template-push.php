@@ -2,7 +2,7 @@
 /**
  * Plugin Name: GAS Template Push
  * Description: Receives Elementor and Gutenberg templates from GAS Admin and injects them into pages.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-template-push
@@ -195,10 +195,15 @@ class GAS_Template_Push {
             $new_content = $existing_content . "\n\n" . $block_markup;
         }
 
+        // Bypass kses filtering — API key validates authorization, and block markup
+        // contains CSS properties (background-color rgba, background-image url, box-shadow)
+        // that wp_kses_post strips when no authenticated WP user is present
+        kses_remove_filters();
         $result = wp_update_post(array(
             'ID'           => $page->ID,
             'post_content' => $new_content,
         ), true);
+        kses_init_filters();
 
         if (is_wp_error($result)) {
             return new WP_REST_Response(array(
@@ -228,10 +233,12 @@ class GAS_Template_Push {
             return new WP_REST_Response(array('success' => false, 'error' => 'Page not found'), 404);
         }
 
+        kses_remove_filters();
         $result = wp_update_post(array(
             'ID'           => $page_id,
             'post_content' => $block_markup,
         ), true);
+        kses_init_filters();
 
         if (is_wp_error($result)) {
             return new WP_REST_Response(array('success' => false, 'error' => $result->get_error_message()), 500);
@@ -273,7 +280,9 @@ class GAS_Template_Push {
             $post_args['post_content'] = $params['block_markup'];
         }
 
+        kses_remove_filters();
         $page_id = wp_insert_post($post_args);
+        kses_init_filters();
 
         if (is_wp_error($page_id)) {
             return new WP_REST_Response(array(
