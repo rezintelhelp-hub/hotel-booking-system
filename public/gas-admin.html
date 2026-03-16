@@ -55542,8 +55542,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Regex extract: DOM parsing mangles <div> inside <p> (browser auto-closes the <p>)
                     const pMatch = section.raw_markup.match(/<p[^>]*>([\s\S]*)<\/p>/);
                     const pHtml = pMatch ? pMatch[1] : (dom.textContent || '').trim();
-                    const pStyleMatch = section.raw_markup.match(/<p\s[^>]*style="([^"]*)"/);
-                    const pStyles = pbParseStyleAttr(pStyleMatch ? pStyleMatch[1] : '');
+                    // Layout styles: check pb-layout wrapper div first, then fall back to <p> style
+                    const wrapMatch = section.raw_markup.match(/<div\s+class="pb-layout"\s+style="([^"]*)"/);
+                    const pStyleMatch = !wrapMatch ? section.raw_markup.match(/<p\s[^>]*style="([^"]*)"/i) : null;
+                    const pStyles = pbParseStyleAttr(wrapMatch ? wrapMatch[1] : (pStyleMatch ? pStyleMatch[1] : ''));
                     fieldsHtml = `
                         <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Paragraph</label>
                             <textarea id="pb-edit-${index}-para-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" style="${taStyle}"></textarea></div>
@@ -55657,9 +55659,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 case 'paragraph': {
                     const text = gasWysiwygGetValue(`pb-edit-${index}-para-text`) || document.getElementById(`pb-edit-${index}-para-text`)?.value || '';
                     const paraStyle = pbCollectLayoutStyles(index, 'para');
-                    const paraMarkup = blockToMarkup({ type: 'text', text: text, style: paraStyle });
-                    console.log('[LAYOUT] styles:', paraStyle, 'markup:', paraMarkup);
-                    return paraMarkup;
+                    return blockToMarkup({ type: 'text', text: text, style: paraStyle });
                 }
                 case 'heading': {
                     const text = gasWysiwygGetValue(`pb-edit-${index}-heading-text`) || document.getElementById(`pb-edit-${index}-heading-text`)?.value || '';
@@ -55925,7 +55925,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             const result = {};
             if (!styleStr) return result;
             styleStr.split(';').forEach(part => {
-                const [prop, val] = part.split(':').map(s => s.trim());
+                const colonIdx = part.indexOf(':');
+                if (colonIdx < 0) return;
+                const prop = part.substring(0, colonIdx).trim();
+                const val = part.substring(colonIdx + 1).trim().replace(/\s*!important\s*/gi, '');
                 if (prop && val) {
                     const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
                     result[camel] = val;
@@ -56037,8 +56040,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return `<!-- wp:heading {"level":${num}} -->\n<${level} class="wp-block-heading"${hStyleAttr}>${block.text || ''}</${level}>\n<!-- /wp:heading -->`;
                 }
                 case 'text': {
-                    const pStyleAttr = block.style ? ` style="${block.style}"` : '';
-                    return `<!-- wp:paragraph -->\n<p${pStyleAttr}>${block.text || ''}</p>\n<!-- /wp:paragraph -->`;
+                    if (block.style) {
+                        return `<!-- wp:paragraph -->\n<div class="pb-layout" style="${block.style}"><p>${block.text || ''}</p></div>\n<!-- /wp:paragraph -->`;
+                    }
+                    return `<!-- wp:paragraph -->\n<p>${block.text || ''}</p>\n<!-- /wp:paragraph -->`;
                 }
                 case 'image':
                     return `<!-- wp:image -->\n<figure class="wp-block-image"><img src="${block.url || ''}" alt="${block.alt || ''}"/></figure>\n<!-- /wp:image -->`;
