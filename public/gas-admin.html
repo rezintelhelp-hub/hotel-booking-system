@@ -55468,10 +55468,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 gasWysiwygInit(); // Initialise WYSIWYG on any data-wysiwyg textareas
                 // Inject HTML into WYSIWYG editors (must happen after init wraps the textarea)
                 const _sec = proBuilderSections[index];
-                ['_paraHtml', '_headingHtml'].forEach(key => {
+                ['_paraHtml', '_headingHtml', '_coverHeadHtml', '_coverSubHtml'].forEach(key => {
                     if (_sec[key] === undefined) return;
-                    const suffix = key === '_paraHtml' ? 'para-text' : 'heading-text';
-                    const _ta = document.getElementById(`pb-edit-${index}-${suffix}`);
+                    const suffixMap = { '_paraHtml': 'para-text', '_headingHtml': 'heading-text', '_coverHeadHtml': 'cover-heading', '_coverSubHtml': 'cover-subtitle' };
+                    const _ta = document.getElementById(`pb-edit-${index}-${suffixMap[key]}`);
                     if (_ta) { const _w = _ta.previousElementSibling; if (_w && _w._gasEditor) _w._gasEditor.innerHTML = _sec[key]; else _ta.value = _sec[key]; }
                 });
             } else {
@@ -55499,36 +55499,161 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             switch (section.type) {
                 case 'cover': {
-                    const imgUrl = section.attrs?.url || '';
-                    const dimRatio = section.attrs?.dimRatio ?? 50;
-                    const h = dom.querySelector('h1, h2, h3, h4');
-                    const headingText = h ? h.innerHTML : '';
-                    const headingLevel = h ? h.tagName.toLowerCase() : 'h2';
-                    const p = dom.querySelector('.wp-block-cover__inner-container p');
-                    const subtitleText = p ? p.innerHTML : '';
-                    const btn = dom.querySelector('.wp-block-button__link');
-                    const btnText = btn ? btn.textContent : '';
-                    const btnLink = btn ? (btn.getAttribute('href') || '') : '';
+                    // Parse existing values — handle both old simple covers and new pb-hero column covers
+                    const cvUrl = section.attrs?.url || '';
+                    const cvMinH = section.attrs?.minHeight || 60;
+                    const cvMinHUnit = section.attrs?.minHeightUnit || 'vh';
+                    const cvHeight = cvMinH + cvMinHUnit;
+                    // Detect pb-hero column covers
+                    const isPbHero = section.raw_markup.includes('pb-hero');
+                    let cvPos = 'left', cvWidth = 40, cvOlColor = '#000000', cvOlOpacity = 70;
+                    let cvHeadHtml = '', cvHeadColor = '#ffffff', cvSubHtml = '', cvSubColor = '#ffffff';
+                    let cvBtnText = '', cvBtnLink = '', cvBtnColor = '#F97224';
+                    if (isPbHero) {
+                        // Parse from column structure
+                        const cols = dom.querySelectorAll('.wp-block-column');
+                        let overlayCol = null;
+                        if (cols.length >= 2) {
+                            // Overlay column has background:rgba — check first, then second
+                            const firstBg = cols[0].getAttribute('style') || '';
+                            const secondBg = cols[1].getAttribute('style') || '';
+                            if (firstBg.includes('rgba')) { overlayCol = cols[0]; cvPos = 'left'; }
+                            else if (secondBg.includes('rgba')) { overlayCol = cols[1]; cvPos = 'right'; }
+                            // Parse overlay column width from flex-basis
+                            if (overlayCol) {
+                                const fbMatch = (overlayCol.getAttribute('style') || '').match(/flex-basis:\s*([\d.]+)%/);
+                                if (fbMatch) cvWidth = parseInt(fbMatch[1]);
+                                // Parse rgba
+                                const rgbaMatch = (overlayCol.getAttribute('style') || '').match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+                                if (rgbaMatch) {
+                                    cvOlColor = '#' + [rgbaMatch[1],rgbaMatch[2],rgbaMatch[3]].map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
+                                    cvOlOpacity = Math.round(parseFloat(rgbaMatch[4]) * 100);
+                                }
+                            }
+                        }
+                        const contentCol = overlayCol || dom;
+                        const hEl = contentCol.querySelector('h1, h2, h3, h4');
+                        cvHeadHtml = hEl ? hEl.innerHTML : '';
+                        cvHeadColor = hEl ? (hEl.style.color || '#ffffff') : '#ffffff';
+                        const pEl = contentCol.querySelector('p');
+                        cvSubHtml = pEl ? pEl.innerHTML : '';
+                        cvSubColor = pEl ? (pEl.style.color || '#ffffff') : '#ffffff';
+                        const btnEl = contentCol.querySelector('.wp-block-button__link');
+                        cvBtnText = btnEl ? btnEl.textContent : '';
+                        cvBtnLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
+                        cvBtnColor = btnEl ? (btnEl.style.backgroundColor || '#F97224') : '#F97224';
+                    } else {
+                        // Old simple cover — heading/subtitle/button from flat structure
+                        const hEl = dom.querySelector('h1, h2, h3, h4');
+                        cvHeadHtml = hEl ? hEl.innerHTML : '';
+                        cvHeadColor = hEl ? (hEl.style.color || '#ffffff') : '#ffffff';
+                        const pEl = dom.querySelector('.wp-block-cover__inner-container p');
+                        cvSubHtml = pEl ? pEl.innerHTML : '';
+                        cvSubColor = pEl ? (pEl.style.color || '#ffffff') : '#ffffff';
+                        const btnEl = dom.querySelector('.wp-block-button__link');
+                        cvBtnText = btnEl ? btnEl.textContent : '';
+                        cvBtnLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
+                        cvBtnColor = btnEl ? (btnEl.style.backgroundColor || '#F97224') : '#F97224';
+                    }
+                    // Normalise hex colours
+                    if (!cvOlColor.startsWith('#')) cvOlColor = '#000000';
+                    if (!cvHeadColor.startsWith('#')) cvHeadColor = '#ffffff';
+                    if (!cvSubColor.startsWith('#')) cvSubColor = '#ffffff';
+                    if (!cvBtnColor.startsWith('#')) cvBtnColor = '#F97224';
+
+                    const lbl = 'font-weight:600; font-size:0.78rem; color:#6b7280; white-space:nowrap; min-width:85px;';
+                    const ctrl = 'padding:5px 8px; border:1px solid #d1d5db; border-radius:5px; font-size:0.82rem; color:#1e293b; background:#fff;';
+                    const row = 'display:flex; align-items:center; gap:6px;';
+                    const grp = 'font-weight:700; font-size:0.72rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:8px 0 4px; padding-top:6px; border-top:1px solid #e2e8f0;';
+                    const posBtn = (val, label) => {
+                        const sel = val === cvPos;
+                        return `<button type="button" onclick="document.getElementById('pb-edit-${index}-cover-pos').value='${val}'; this.parentNode.querySelectorAll('button').forEach(b=>{b.style.background='#fff';b.style.color='#374151';}); this.style.background='#6366f1'; this.style.color='#fff';" style="padding:4px 14px; border:1px solid #d1d5db; border-radius:4px; font-size:0.78rem; cursor:pointer; background:${sel ? '#6366f1' : '#fff'}; color:${sel ? '#fff' : '#374151'};">${label}</button>`;
+                    };
 
                     fieldsHtml = `
-                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Background Image URL</label>
-                            <input type="text" id="pb-edit-${index}-cover-url" value="${imgUrl.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
-                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Overlay Opacity (0-100)</label>
-                            <input type="number" id="pb-edit-${index}-cover-dim" value="${dimRatio}" min="0" max="100" style="${inputStyle} width:100px;"></div>
-                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Heading</label>
-                            <input type="text" id="pb-edit-${index}-cover-heading" value="${headingText.replace(/"/g, '&quot;')}" style="${inputStyle}">
-                            <select id="pb-edit-${index}-cover-hlevel" style="${inputStyle} width:80px; margin-top:4px;">
-                                <option value="h1" ${headingLevel === 'h1' ? 'selected' : ''}>H1</option>
-                                <option value="h2" ${headingLevel === 'h2' ? 'selected' : ''}>H2</option>
-                                <option value="h3" ${headingLevel === 'h3' ? 'selected' : ''}>H3</option>
-                            </select></div>
-                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Subtitle</label>
-                            <input type="text" id="pb-edit-${index}-cover-subtitle" value="${subtitleText.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
-                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Button Text</label>
-                            <input type="text" id="pb-edit-${index}-cover-btn-text" value="${btnText.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
-                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Button Link</label>
-                            <input type="text" id="pb-edit-${index}-cover-btn-link" value="${btnLink.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
+                        <div style="padding:0.5rem 0;">
+                            <div style="${grp} border-top:none; margin-top:0;">Image</div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 1rem; align-items:center; margin-bottom:6px;">
+                                <div style="${row} grid-column:1/-1;">
+                                    <span style="${lbl}">Background</span>
+                                    <input type="text" id="pb-edit-${index}-cover-url" value="${cvUrl.replace(/"/g, '&quot;')}" placeholder="Paste URL or upload" style="${ctrl} flex:1;">
+                                    <label style="padding:4px 10px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.78rem; cursor:pointer; white-space:nowrap;">Upload<input type="file" accept="image/*" onchange="pbUploadBgImage(this, '${index}', 'cover')" style="display:none;"></label>
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Height</span>
+                                    <select id="pb-edit-${index}-cover-height" style="${ctrl} flex:1;">
+                                        <option value="40vh" ${cvHeight === '40vh' ? 'selected' : ''}>Small (40vh)</option>
+                                        <option value="60vh" ${cvHeight === '60vh' ? 'selected' : ''}>Medium (60vh)</option>
+                                        <option value="80vh" ${cvHeight === '80vh' ? 'selected' : ''}>Large (80vh)</option>
+                                        <option value="100vh" ${cvHeight === '100vh' ? 'selected' : ''}>Full (100vh)</option>
+                                    </select>
+                                </div>
+                                <div></div>
+                            </div>
+
+                            <div style="${grp}">Overlay</div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 1rem; align-items:center; margin-bottom:6px;">
+                                <div style="${row}">
+                                    <span style="${lbl}">Position</span>
+                                    <div style="display:flex; gap:2px;">${posBtn('left', 'Left')}${posBtn('right', 'Right')}</div>
+                                    <input type="hidden" id="pb-edit-${index}-cover-pos" value="${cvPos}">
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Width</span>
+                                    <input type="range" id="pb-edit-${index}-cover-ol-width" min="20" max="60" step="5" value="${cvWidth}" oninput="document.getElementById('pb-edit-${index}-cover-ol-width-val').textContent=this.value+'%';" style="flex:1; cursor:pointer;">
+                                    <span id="pb-edit-${index}-cover-ol-width-val" style="font-size:0.78rem; color:#6b7280; min-width:30px;">${cvWidth}%</span>
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Colour</span>
+                                    <input type="color" id="pb-edit-${index}-cover-ol-color" value="${cvOlColor}" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                    <input type="text" id="pb-edit-${index}-cover-ol-color-hex" value="${cvOlColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-cover-ol-color').value=this.value;" style="${ctrl} width:75px;">
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Opacity</span>
+                                    <input type="range" id="pb-edit-${index}-cover-ol-opacity" min="0" max="100" step="5" value="${cvOlOpacity}" oninput="document.getElementById('pb-edit-${index}-cover-ol-opacity-val').textContent=this.value+'%';" style="flex:1; cursor:pointer;">
+                                    <span id="pb-edit-${index}-cover-ol-opacity-val" style="font-size:0.78rem; color:#6b7280; min-width:30px;">${cvOlOpacity}%</span>
+                                </div>
+                            </div>
+
+                            <div style="${grp}">Content</div>
+                            <div style="display:grid; grid-template-columns:1fr; gap:6px; margin-bottom:6px;">
+                                <div style="${row}">
+                                    <span style="${lbl}">Heading</span>
+                                    <textarea id="pb-edit-${index}-cover-heading" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text" style="${ctrl} flex:1; min-height:40px; resize:vertical; font-size:1rem; font-weight:600;"></textarea>
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Head Color</span>
+                                    <input type="color" id="pb-edit-${index}-cover-head-color" value="${cvHeadColor}" onchange="document.getElementById('pb-edit-${index}-cover-head-color-hex').value=this.value;" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                    <input type="text" id="pb-edit-${index}-cover-head-color-hex" value="${cvHeadColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-cover-head-color').value=this.value;" style="${ctrl} width:75px;">
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Subtitle</span>
+                                    <textarea id="pb-edit-${index}-cover-subtitle" data-wysiwyg="true" data-wysiwyg-placeholder="Subtitle text" style="${ctrl} flex:1; min-height:36px; resize:vertical;"></textarea>
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Sub Color</span>
+                                    <input type="color" id="pb-edit-${index}-cover-sub-color" value="${cvSubColor}" onchange="document.getElementById('pb-edit-${index}-cover-sub-color-hex').value=this.value;" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                    <input type="text" id="pb-edit-${index}-cover-sub-color-hex" value="${cvSubColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-cover-sub-color').value=this.value;" style="${ctrl} width:75px;">
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Button Text</span>
+                                    <input type="text" id="pb-edit-${index}-cover-btn-text" value="${cvBtnText.replace(/"/g, '&quot;')}" placeholder="Leave blank for no button" style="${ctrl} flex:1;">
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Button URL</span>
+                                    <input type="text" id="pb-edit-${index}-cover-btn-link" value="${cvBtnLink.replace(/"/g, '&quot;')}" placeholder="/book-now" style="${ctrl} flex:1;">
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Button Color</span>
+                                    <input type="color" id="pb-edit-${index}-cover-btn-color" value="${cvBtnColor}" onchange="document.getElementById('pb-edit-${index}-cover-btn-color-hex').value=this.value;" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                    <input type="text" id="pb-edit-${index}-cover-btn-color-hex" value="${cvBtnColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-cover-btn-color').value=this.value;" style="${ctrl} width:75px;">
+                                </div>
+                            </div>
+                        </div>
                     `;
+                    // Store heading/subtitle HTML for WYSIWYG injection after init
+                    proBuilderSections[index]._coverHeadHtml = cvHeadHtml;
+                    proBuilderSections[index]._coverSubHtml = cvSubHtml;
                     break;
                 }
                 case 'shortcode': {
@@ -55642,50 +55767,28 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             switch (section.type) {
                 case 'cover': {
-                    // Surgical update — preserve original markup structure (custom classes, overlay columns, margins)
-                    let markup = section.raw_markup;
-                    const url = document.getElementById(`pb-edit-${index}-cover-url`)?.value || '';
-                    const dim = parseInt(document.getElementById(`pb-edit-${index}-cover-dim`)?.value) || 50;
-                    const headingVal = document.getElementById(`pb-edit-${index}-cover-heading`)?.value || '';
-                    const hLevel = document.getElementById(`pb-edit-${index}-cover-hlevel`)?.value || 'h2';
-                    const hNum = hLevel.replace('h', '');
-                    const subtitleVal = document.getElementById(`pb-edit-${index}-cover-subtitle`)?.value || '';
-                    const btnText = document.getElementById(`pb-edit-${index}-cover-btn-text`)?.value || '';
-                    const btnLink = document.getElementById(`pb-edit-${index}-cover-btn-link`)?.value || '';
-
-                    // Update block comment JSON — replace url and dimRatio
-                    markup = markup.replace(/<!-- wp:cover \{([\s\S]*?)\} -->/, (match, jsonStr) => {
-                        try {
-                            const attrs = JSON.parse('{' + jsonStr + '}');
-                            attrs.url = url;
-                            attrs.dimRatio = dim;
-                            return `<!-- wp:cover ${JSON.stringify(attrs)} -->`;
-                        } catch(e) { return match; }
+                    // Collect all values from cover editor controls
+                    const cvUrl = document.getElementById(`pb-edit-${index}-cover-url`)?.value || '';
+                    const cvHeight = document.getElementById(`pb-edit-${index}-cover-height`)?.value || '60vh';
+                    const cvPos = document.getElementById(`pb-edit-${index}-cover-pos`)?.value || 'left';
+                    const cvOlWidth = document.getElementById(`pb-edit-${index}-cover-ol-width`)?.value || '40';
+                    const cvOlColor = document.getElementById(`pb-edit-${index}-cover-ol-color`)?.value || '#000000';
+                    const cvOlOpacity = document.getElementById(`pb-edit-${index}-cover-ol-opacity`)?.value || '70';
+                    const cvHeadHtml = gasWysiwygGetValue(`pb-edit-${index}-cover-heading`) || document.getElementById(`pb-edit-${index}-cover-heading`)?.value || '';
+                    const cvHeadColor = document.getElementById(`pb-edit-${index}-cover-head-color`)?.value || '#ffffff';
+                    const cvSubHtml = gasWysiwygGetValue(`pb-edit-${index}-cover-subtitle`) || document.getElementById(`pb-edit-${index}-cover-subtitle`)?.value || '';
+                    const cvSubColor = document.getElementById(`pb-edit-${index}-cover-sub-color`)?.value || '#ffffff';
+                    const cvBtnText = document.getElementById(`pb-edit-${index}-cover-btn-text`)?.value || '';
+                    const cvBtnLink = document.getElementById(`pb-edit-${index}-cover-btn-link`)?.value || '';
+                    const cvBtnColor = document.getElementById(`pb-edit-${index}-cover-btn-color`)?.value || '#F97224';
+                    return blockToMarkup({
+                        type: 'cover', url: cvUrl, height: cvHeight,
+                        overlayPos: cvPos, overlayWidth: parseInt(cvOlWidth),
+                        overlayColor: cvOlColor, overlayOpacity: parseInt(cvOlOpacity),
+                        headingHtml: cvHeadHtml, headingColor: cvHeadColor,
+                        subtitleHtml: cvSubHtml, subtitleColor: cvSubColor,
+                        btnText: cvBtnText, btnLink: cvBtnLink, btnColor: cvBtnColor
                     });
-                    // Update image src
-                    markup = markup.replace(/(wp-block-cover__image-background[^>]*src=")[^"]*(")/i, `$1${url}$2`);
-                    // Update overlay opacity
-                    markup = markup.replace(/(wp-block-cover__background[^>]*style="[^"]*opacity:)\s*[\d.]+/i, `$1${(dim/100).toFixed(2)}`);
-                    // Update first heading found
-                    markup = markup.replace(/(<!-- wp:heading[^>]*-->[\s\S]*?<)h[1-6]([^>]*>)([\s\S]*?)(<\/h)[1-6](>[\s\S]*?<!-- \/wp:heading -->)/, `$1${hLevel}$2${headingVal}$4${hNum}$5`);
-                    // Update heading level in block comment
-                    markup = markup.replace(/<!-- wp:heading \{[^}]*\} -->/, (m) => {
-                        try {
-                            const inner = m.match(/\{([\s\S]*)\}/)[1];
-                            const attrs = JSON.parse('{' + inner + '}');
-                            attrs.level = parseInt(hNum);
-                            return `<!-- wp:heading ${JSON.stringify(attrs)} -->`;
-                        } catch(e) { return m; }
-                    });
-                    // Update first paragraph inside cover (subtitle)
-                    if (subtitleVal) {
-                        markup = markup.replace(/(<!-- wp:paragraph[^>]*-->\s*<p[^>]*>)([\s\S]*?)(<\/p>\s*<!-- \/wp:paragraph -->)/, `$1${subtitleVal}$3`);
-                    }
-                    // Update button text and link if button exists
-                    if (btnText && markup.includes('wp-block-button__link')) {
-                        markup = markup.replace(/(wp-block-button__link[^>]*href=")[^"]*("[^>]*>)([\s\S]*?)(<\/a>)/, `$1${btnLink || '#'}$2${btnText}$4`);
-                    }
-                    return markup;
                 }
                 case 'paragraph': {
                     const text = gasWysiwygGetValue(`pb-edit-${index}-para-text`) || document.getElementById(`pb-edit-${index}-para-text`)?.value || '';
@@ -56236,6 +56339,53 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return `<!-- wp:spacer {"height":"${block.height || 40}px"} -->\n<div style="height:${block.height || 40}px" aria-hidden="true" class="wp-block-spacer"></div>\n<!-- /wp:spacer -->`;
                 case 'slider':
                     return `<!-- wp:shortcode -->\n[smartslider3 slider="${block.sliderId || ''}"]\n<!-- /wp:shortcode -->`;
+                case 'cover': {
+                    const url = block.url || '';
+                    const h = block.height || '60vh';
+                    const hVal = parseInt(h);
+                    const hUnit = h.replace(/[\d]/g, '') || 'vh';
+                    const olW = block.overlayWidth || 40;
+                    const emptyW = 100 - olW;
+                    const olColor = block.overlayColor || '#000000';
+                    const olOp = block.overlayOpacity ?? 70;
+                    const olR = parseInt(olColor.slice(1,3), 16);
+                    const olG = parseInt(olColor.slice(3,5), 16);
+                    const olB = parseInt(olColor.slice(5,7), 16);
+                    const olA = (olOp / 100).toFixed(2);
+                    const pos = block.overlayPos || 'left';
+                    const headHtml = block.headingHtml || '';
+                    const headColor = block.headingColor || '#ffffff';
+                    const subHtml = block.subtitleHtml || '';
+                    const subColor = block.subtitleColor || '#ffffff';
+                    const btnText = block.btnText || '';
+                    const btnLink = block.btnLink || '#';
+                    const btnColor = block.btnColor || '#F97224';
+
+                    // Build content column inner blocks
+                    let contentInner = '';
+                    if (headHtml) {
+                        contentInner += `<!-- wp:heading {"level":2} -->\n<h2 class="wp-block-heading" style="color:${headColor}">${headHtml}</h2>\n<!-- /wp:heading -->\n\n`;
+                    }
+                    if (subHtml) {
+                        contentInner += `<!-- wp:paragraph -->\n<p style="color:${subColor}">${subHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
+                    }
+                    if (btnText) {
+                        contentInner += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button {"backgroundColor":"custom","style":{"color":{"background":"${btnColor}"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${btnLink}" style="background-color:${btnColor}">${btnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
+                    }
+
+                    // Overlay column (has rgba background + content)
+                    const overlayCol = `<!-- wp:column {"width":"${olW}%"} -->\n<div class="wp-block-column" style="flex-basis:${olW}%;background:rgba(${olR},${olG},${olB},${olA});padding:40px 30px;display:flex;flex-direction:column;justify-content:center">\n${contentInner}</div>\n<!-- /wp:column -->`;
+
+                    // Empty transparent column
+                    const emptyCol = `<!-- wp:column {"width":"${emptyW}%"} -->\n<div class="wp-block-column" style="flex-basis:${emptyW}%"></div>\n<!-- /wp:column -->`;
+
+                    // Assemble columns in correct order
+                    const colsInner = pos === 'left' ? `${overlayCol}\n\n${emptyCol}` : `${emptyCol}\n\n${overlayCol}`;
+
+                    // Wrap in wp:cover with pb-hero class
+                    const coverAttrs = JSON.stringify({ url, dimRatio: 0, minHeight: hVal, minHeightUnit: hUnit, className: 'pb-hero alignfull' });
+                    return `<!-- wp:cover ${coverAttrs} -->\n<div class="wp-block-cover pb-hero alignfull" style="min-height:${h}"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-0 has-background-dim"></span><img class="wp-block-cover__image-background" alt="" src="${url}" data-object-fit="cover"/><div class="wp-block-cover__inner-container">\n<!-- wp:columns -->\n<div class="wp-block-columns">\n${colsInner}\n</div>\n<!-- /wp:columns -->\n</div></div>\n<!-- /wp:cover -->`;
+                }
                 default:
                     return '';
             }
