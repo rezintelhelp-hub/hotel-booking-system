@@ -230,16 +230,12 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 - Theme deployments: check `site_status` before any SCP, skip live/frozen sites automatically
 - Add to CLAUDE.md safety rules: always check `site_status` before deploying
 
-### Performance & Caching
-- Sites are slow — need caching strategy
-- **Option 1**: WP Super Cache or W3 Total Cache per site on multisite (per-site config, enable only for live sites)
-- **Option 2**: Nginx FastCGI cache at server level (faster, server config)
-- **Option 3**: Cloudflare in front of the multisite VPS (CDN + caching)
-- **Recommended**: Cloudflare + WP Super Cache combination
-- Action needed: audit current page load times across 3-4 sites
-- Action needed: check if any caching plugin is currently active on multisite
-- Per-site cache control: development sites cache OFF, live sites cache ON
-- Cache purge on Web Builder save — when client saves settings, automatically purge cache for their site so changes appear immediately
+### Performance & Caching (IMPLEMENTED)
+- **API transient cache**: `developer_get_api_settings()` caches Railway API response for 5 minutes via `set_transient('gas_api_settings_{blog_id}')` — reduced TTFB from 10s to 2s
+- **Cache bust on save**: `POST /api/deployed-sites/:id/settings/:section` calls `gas-api.php?action=flush_transient` after saving to clear the transient immediately
+- **WP Super Cache**: Installed on multisite (not network-activated). Activated per-site for live sites only.
+- **Auto-activate on status change**: When a site's `site_status` is changed to `'live'`, the status endpoint must automatically activate WP Super Cache for that site via `gas-api.php` calling `wp plugin activate wp-super-cache --url={site_host}`. When changed away from `'live'`, deactivate it.
+- Per-site cache control: `development` = cache OFF, `live` = cache ON, `frozen` = cache ON
 
 ---
 

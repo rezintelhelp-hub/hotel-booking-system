@@ -26484,6 +26484,23 @@ app.put('/api/deployed-sites/:id/site-status', async (req, res) => {
       return res.json({ success: false, error: 'Deployed site not found' });
     }
 
+    // Auto-activate/deactivate WP Super Cache based on site_status
+    const siteInfo = await pool.query('SELECT site_url FROM deployed_sites WHERE id = $1', [id]);
+    if (siteInfo.rows.length > 0 && siteInfo.rows[0].site_url) {
+      const siteHost = new URL(siteInfo.rows[0].site_url).hostname;
+      const pluginAction = (site_status === 'live' || site_status === 'frozen') ? 'activate' : 'deactivate';
+      try {
+        await fetch('https://sites.gas.travel/gas-api.php', {
+          method: 'POST',
+          headers: { 'X-API-Key': 'gas-deploy-2024-secure-key', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'toggle_plugin', site_url: siteInfo.rows[0].site_url, plugin: 'wp-super-cache', toggle: pluginAction })
+        });
+        console.log(`WP Super Cache ${pluginAction}d for ${siteHost}`);
+      } catch (e) {
+        console.log(`WP Super Cache toggle failed for ${siteHost}: ${e.message}`);
+      }
+    }
+
     console.log(`Site protection updated: site ${id} → ${site_status}`);
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
