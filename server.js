@@ -63629,8 +63629,20 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
 app.get('/api/public/client/:clientId/properties', async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { limit, offset, sort } = req.query;
-    
+    const { limit, offset, sort, blog_id } = req.query;
+
+    // If blog_id provided, look up deployed site's property_ids to filter
+    let sitePropertyIds = null;
+    if (blog_id) {
+      const siteRes = await pool.query(
+        'SELECT property_ids FROM deployed_sites WHERE blog_id = $1 AND account_id = $2',
+        [parseInt(blog_id), clientId]
+      );
+      if (siteRes.rows.length > 0 && siteRes.rows[0].property_ids && siteRes.rows[0].property_ids.length > 0) {
+        sitePropertyIds = siteRes.rows[0].property_ids;
+      }
+    }
+
     // Get all active properties for this account with image and room stats
     let result;
     try {
@@ -63747,8 +63759,13 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
       }
     }
     
-    // Apply optional limit/offset in JS to keep SQL safe
+    // Filter by deployed site's property_ids if blog_id was provided
     let properties = result.rows;
+    if (sitePropertyIds) {
+      properties = properties.filter(p => sitePropertyIds.includes(p.id));
+    }
+
+    // Apply optional limit/offset in JS to keep SQL safe
     if (offset) properties = properties.slice(parseInt(offset));
     if (limit) properties = properties.slice(0, parseInt(limit));
     
