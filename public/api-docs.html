@@ -1665,6 +1665,23 @@
                     "responses": { "200": { "description": "Contact page updated and pushed to WordPress" } }
                 }
             },
+            "/api/partner/websites/{websiteId}/privacy": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Privacy Policy Settings",
+                    "description": "Returns privacy policy page settings including business details, structured sub-sections (intro, collection, usage, sharing, cookies, retention, rights, contact), external link options, and SEO metadata.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Privacy policy settings", "content": { "application/json": { "example": { "success": true, "privacy": { "title": "Privacy Policy", "updated": "2026-03-16", "effective": "2026-03-01", "menu_title": "Privacy", "use_external": false, "external_url": "", "ext_heading": "", "ext_text": "", "business_name": "My Hotel GmbH", "contact_email": "privacy@myhotel.com", "business_address": "123 Main St, Zurich", "meta_title": "", "meta_description": "", "faq_enabled": false, "sections": { "intro": { "enabled": true, "title": "Introduction", "content": "", "sub": "" }, "collection": { "enabled": true, "title": "Information We Collect", "content": "", "sub": "", "how_collect": "", "how_collect_sub": "" }, "usage": { "enabled": true, "title": "How We Use Your Information", "content": "", "sub": "" }, "sharing": { "enabled": true, "title": "Information Sharing", "content": "", "sub": "" }, "cookies": { "enabled": true, "title": "Cookies", "content": "", "sub": "" }, "retention": { "enabled": true, "title": "Data Retention", "content": "", "sub": "" }, "rights": { "enabled": true, "title": "Your Rights", "content": "", "sub": "" }, "contact": { "enabled": true, "title": "Contact Us", "content": "", "sub": "" } } } } } } } }
+                },
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Privacy Policy Settings",
+                    "description": "Update privacy policy page. All fields optional.\n\n**Page:** title, updated, effective, menu_title, use_external, external_url, ext_heading, ext_text\n**Business:** business_name, contact_email, business_address\n**SEO:** meta_title, meta_description\n**FAQ:** faq_enabled\n**Sections:** sections object with keys: intro, collection, usage, sharing, cookies, retention, rights, contact. Each section has: enabled (bool), title (string), content (string), sub (string). Collection also has: how_collect, how_collect_sub.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "examples": { "business_details": { "summary": "Set business details", "value": { "business_name": "Alpine Lodge GmbH", "contact_email": "privacy@alpine-lodge.ch", "business_address": "Hauptstrasse 12, 3800 Interlaken" } }, "external_link": { "summary": "Link to external privacy policy", "value": { "use_external": true, "external_url": "https://example.com/privacy", "ext_heading": "Privacy Policy", "ext_text": "Our full privacy policy is available at the link above." } }, "update_sections": { "summary": "Update structured sections", "value": { "sections": { "cookies": { "enabled": true, "title": "Cookie Policy", "content": "We use essential cookies only.", "sub": "No third-party tracking cookies are used." }, "rights": { "enabled": true, "title": "Your Data Rights", "content": "Under GDPR you have the right to access, correct, or delete your personal data." } } } } } } } },
+                    "responses": { "200": { "description": "Privacy policy updated and pushed to WordPress" } }
+                }
+            },
             "/api/deployed-sites/{siteId}/site-status": {
                 "put": {
                     "tags": ["Websites"],
@@ -1767,16 +1784,16 @@
                                         "value": { "settings": { "bg": "#0f172a", "text": "#ffffff", "layout": "standard", "heading-quicklinks-en": "Quick Links", "heading-legal-en": "Legal", "copyright-en": "2026 All rights reserved.", "company-number-label-en": "Company Reg", "company-number-en": "HRB 12345", "tax-number-label-en": "VAT", "tax-number-en": "DE123456789", "email": "info@example.com", "phone": "+1 555 123 4567", "address": "123 Main Street", "social-facebook": "https://facebook.com/myhotel", "social-instagram": "https://instagram.com/myhotel" } }
                                     },
                                     "page-blog": {
-                                        "summary": "Blog listing page",
-                                        "value": { "settings": { "enabled": true, "menu-title-en": "Blog", "title-en": "Our Blog", "subtitle-en": "News and travel tips", "menu-order": "3", "meta-title": "Blog | Hotel Name", "meta-description": "Read our latest articles", "faq-enabled": false } }
+                                        "summary": "Blog listing page (multilingual: append -en, -fr, -es, -nl, -de to text fields)",
+                                        "value": { "settings": { "enabled": true, "menu-title-en": "Blog", "menu-title-fr": "Blog", "menu-title-es": "Blog", "menu-title-nl": "Blog", "menu-title-de": "Blog", "title-en": "Our Blog", "title-fr": "Notre Blog", "title-es": "Nuestro Blog", "title-nl": "Onze Blog", "title-de": "Unser Blog", "subtitle-en": "News and travel tips", "subtitle-fr": "Nouvelles et conseils de voyage", "subtitle-es": "Noticias y consejos de viaje", "subtitle-nl": "Nieuws en reistips", "subtitle-de": "Neuigkeiten und Reisetipps", "menu-order": "3", "meta-title": "Blog | Hotel Name", "meta-description": "Read our latest articles", "faq-enabled": false, "faq-list": "" } }
                                     },
                                     "page-attractions": {
-                                        "summary": "Attractions listing page",
-                                        "value": { "settings": { "enabled": true, "menu-title-en": "Things To Do", "title-en": "Things To Do", "subtitle-en": "Explore the area", "menu-order": "4", "meta-title": "Things To Do | Hotel Name", "meta-description": "Discover local attractions", "faq-enabled": false } }
+                                        "summary": "Attractions listing page (multilingual: append -en, -fr, -es, -nl, -de to text fields)",
+                                        "value": { "settings": { "enabled": true, "menu-title-en": "Things To Do", "menu-title-fr": "Activités", "menu-title-es": "Qué Hacer", "menu-title-nl": "Activiteiten", "menu-title-de": "Aktivitäten", "title-en": "Things To Do", "title-fr": "Activités", "title-es": "Qué Hacer", "title-nl": "Activiteiten", "title-de": "Aktivitäten", "subtitle-en": "Explore the area", "subtitle-fr": "Explorez la région", "subtitle-es": "Explora la zona", "subtitle-nl": "Verken de omgeving", "subtitle-de": "Entdecken Sie die Umgebung", "menu-order": "4", "meta-title": "Things To Do | Hotel Name", "meta-description": "Discover local attractions", "faq-enabled": false, "faq-list": "" } }
                                     },
                                     "page-offers": {
-                                        "summary": "Special Offers page",
-                                        "value": { "settings": { "enabled": true, "menu-title-en": "Offers", "title-en": "Special Offers", "subtitle-en": "Save on your stay", "menu-order": "5", "meta-title": "", "meta-description": "", "faq-enabled": false, "content": "" } }
+                                        "summary": "Special Offers page (multilingual: append -en, -fr, -es, -nl, -de to text fields)",
+                                        "value": { "settings": { "enabled": true, "menu-title-en": "Offers", "menu-title-fr": "Offres", "menu-title-es": "Ofertas", "menu-title-nl": "Aanbiedingen", "menu-title-de": "Angebote", "title-en": "Special Offers", "title-fr": "Offres Spéciales", "title-es": "Ofertas Especiales", "title-nl": "Speciale Aanbiedingen", "title-de": "Sonderangebote", "subtitle-en": "Save on your stay", "subtitle-fr": "Économisez sur votre séjour", "subtitle-es": "Ahorre en su estancia", "subtitle-nl": "Bespaar op uw verblijf", "subtitle-de": "Sparen Sie bei Ihrem Aufenthalt", "menu-order": "5", "meta-title": "", "meta-description": "", "faq-enabled": false, "content": "" } }
                                     },
                                     "page-gallery": {
                                         "summary": "Photo Gallery page",

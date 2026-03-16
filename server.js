@@ -51878,6 +51878,149 @@ app.put('/api/partner/websites/:websiteId/contact-page', async (req, res) => {
   }
 });
 
+// GET /api/partner/websites/:websiteId/privacy - Get privacy policy settings
+app.get('/api/partner/websites/:websiteId/privacy', async (req, res) => {
+  console.log('=== PARTNER API: GET PRIVACY POLICY ===');
+
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) return res.status(401).json({ success: false, error: auth.error });
+
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+
+    const result = await pool.query(`SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'page-privacy'`, [deployedSiteId]);
+    const s = result.rows.length > 0 ? (result.rows[0].settings || {}) : {};
+    const v = (key) => s[key] !== undefined ? s[key] : '';
+
+    res.json({
+      success: true,
+      privacy: {
+        title: v('title') || 'Privacy Policy',
+        updated: v('updated'),
+        effective: v('effective'),
+        menu_title: v('menu-title-en') || 'Privacy',
+        use_external: v('use-external') === true || v('use-external') === 'true',
+        external_url: v('external-url'),
+        ext_heading: v('ext-heading-en'),
+        ext_text: v('ext-text-en'),
+        business_name: v('business-name'),
+        contact_email: v('contact-email'),
+        business_address: v('business-address'),
+        meta_title: v('meta-title'),
+        meta_description: v('meta-description'),
+        faq_enabled: v('faq-enabled') === true || v('faq-enabled') === 'true',
+        sections: {
+          intro: { enabled: v('intro-enabled') !== false && v('intro-enabled') !== 'false', title: v('intro-title') || 'Introduction', content: v('intro'), sub: v('intro-sub') },
+          collection: { enabled: v('collection-enabled') !== false && v('collection-enabled') !== 'false', title: v('collection-title') || 'Information We Collect', content: v('collection'), sub: v('collection-sub1'), how_collect: v('how-collect'), how_collect_sub: v('how-collect-sub') },
+          usage: { enabled: v('usage-enabled') !== false && v('usage-enabled') !== 'false', title: v('usage-title') || 'How We Use Your Information', content: v('usage'), sub: v('usage-sub') },
+          sharing: { enabled: v('sharing-enabled') !== false && v('sharing-enabled') !== 'false', title: v('sharing-title') || 'Information Sharing', content: v('sharing'), sub: v('sharing-sub') },
+          cookies: { enabled: v('cookies-enabled') !== false && v('cookies-enabled') !== 'false', title: v('cookies-title') || 'Cookies', content: v('cookies'), sub: v('cookies-sub') },
+          retention: { enabled: v('retention-enabled') !== false && v('retention-enabled') !== 'false', title: v('retention-title') || 'Data Retention', content: v('retention'), sub: v('retention-sub') },
+          rights: { enabled: v('rights-enabled') !== false && v('rights-enabled') !== 'false', title: v('rights-title') || 'Your Rights', content: v('rights'), sub: v('rights-sub') },
+          contact: { enabled: v('contact-enabled') !== false && v('contact-enabled') !== 'false', title: v('contact-title') || 'Contact Us', content: v('contact'), sub: v('contact-sub') }
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Partner API get privacy error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/privacy - Update privacy policy settings
+app.put('/api/partner/websites/:websiteId/privacy', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE PRIVACY POLICY ===');
+
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) return res.status(401).json({ success: false, error: auth.error });
+
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+
+    const siteResult = await pool.query('SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1', [deployedSiteId]);
+    if (siteResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Site not found' });
+    const site = siteResult.rows[0];
+
+    const privResult = await pool.query(`SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'page-privacy'`, [deployedSiteId]);
+    const settings = privResult.rows.length > 0 ? (privResult.rows[0].settings || {}) : {};
+    const changes = {};
+
+    const {
+      title, updated, effective, menu_title, use_external, external_url,
+      ext_heading, ext_text, business_name, contact_email, business_address,
+      meta_title, meta_description, faq_enabled, sections
+    } = req.body;
+
+    const fieldMap = {
+      title: 'title',
+      updated: 'updated',
+      effective: 'effective',
+      use_external: 'use-external',
+      external_url: 'external-url',
+      ext_heading: 'ext-heading-en',
+      ext_text: 'ext-text-en',
+      business_name: 'business-name',
+      contact_email: 'contact-email',
+      business_address: 'business-address',
+      meta_title: 'meta-title',
+      meta_description: 'meta-description',
+      faq_enabled: 'faq-enabled'
+    };
+
+    const incoming = { title, updated, effective, use_external, external_url, ext_heading, ext_text, business_name, contact_email, business_address, meta_title, meta_description, faq_enabled };
+
+    for (const [apiField, cssField] of Object.entries(fieldMap)) {
+      if (incoming[apiField] !== undefined) {
+        const val = typeof incoming[apiField] === 'boolean' ? incoming[apiField] : String(incoming[apiField]);
+        settings[cssField] = val;
+        changes[cssField] = val;
+      }
+    }
+
+    if (menu_title !== undefined) { settings['menu-title-en'] = menu_title; changes['menu-title-en'] = menu_title; }
+
+    // Privacy sub-sections
+    if (sections && typeof sections === 'object') {
+      const sectionNames = ['intro', 'collection', 'usage', 'sharing', 'cookies', 'retention', 'rights', 'contact'];
+      for (const name of sectionNames) {
+        if (sections[name] && typeof sections[name] === 'object') {
+          const sec = sections[name];
+          if (sec.enabled !== undefined) { settings[name + '-enabled'] = sec.enabled; changes[name + '-enabled'] = sec.enabled; }
+          if (sec.title !== undefined) { settings[name + '-title'] = sec.title; changes[name + '-title'] = sec.title; }
+          if (sec.content !== undefined) { settings[name] = sec.content; changes[name] = sec.content; }
+          if (sec.sub !== undefined) { const subKey = name === 'collection' ? name + '-sub1' : name + '-sub'; settings[subKey] = sec.sub; changes[subKey] = sec.sub; }
+          if (name === 'collection') {
+            if (sec.how_collect !== undefined) { settings['how-collect'] = sec.how_collect; changes['how-collect'] = sec.how_collect; }
+            if (sec.how_collect_sub !== undefined) { settings['how-collect-sub'] = sec.how_collect_sub; changes['how-collect-sub'] = sec.how_collect_sub; }
+          }
+        }
+      }
+    }
+
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields provided' });
+    }
+
+    if (privResult.rows.length > 0) {
+      await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'page-privacy'`, [JSON.stringify(settings), deployedSiteId]);
+    } else {
+      await pool.query(`INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at) VALUES ($1, $2, 'page-privacy', $3, 'partner', NOW())`, [deployedSiteId, site.account_id, JSON.stringify(settings)]);
+    }
+
+    let wpPushResult = null;
+    if (site.site_url) { wpPushResult = await pushSettingsToWordPress(site.site_url, 'page-privacy', changes); }
+
+    res.json({ success: true, updated_fields: Object.keys(changes), wordpress_push: wpPushResult });
+
+  } catch (error) {
+    console.error('Partner API update privacy error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/partner/websites/:websiteId/deploy - Deploy website to VPS
 app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
   console.log('=== PARTNER API: DEPLOY WEBSITE ===');
@@ -52743,11 +52886,16 @@ const SECTION_DEFAULTS = {
     'logo-color': '#0f172a',
     'underline-color': '',
     'cta-button-text-en': 'Book Now',
+    'cta-button-text-fr': '',
+    'cta-button-text-es': '',
+    'cta-button-text-nl': '',
     'cta-bg': '#2563eb',
     'cta-text-color': '#ffffff',
     'cta-link': '/book-now/',
     'border-color': '#e5e7eb',
     'border-width': '1',
+    'border-style-type': '',
+    'border-style-color': '',
     'font': '',
     'font-size': '',
     'font-weight': '',
@@ -53059,22 +53207,48 @@ const SECTION_DEFAULTS = {
   'page-blog': {
     'enabled': false,
     'menu-title-en': 'Blog',
+    'menu-title-fr': '',
+    'menu-title-es': '',
+    'menu-title-nl': '',
+    'menu-title-de': '',
     'title-en': 'Blog',
+    'title-fr': '',
+    'title-es': '',
+    'title-nl': '',
+    'title-de': '',
     'subtitle-en': '',
+    'subtitle-fr': '',
+    'subtitle-es': '',
+    'subtitle-nl': '',
+    'subtitle-de': '',
     'menu-order': '',
     'meta-title': '',
     'meta-description': '',
-    'faq-enabled': false
+    'faq-enabled': false,
+    'faq-list': ''
   },
   'page-attractions': {
     'enabled': false,
     'menu-title-en': 'Things To Do',
+    'menu-title-fr': '',
+    'menu-title-es': '',
+    'menu-title-nl': '',
+    'menu-title-de': '',
     'title-en': 'Things To Do',
+    'title-fr': '',
+    'title-es': '',
+    'title-nl': '',
+    'title-de': '',
     'subtitle-en': '',
+    'subtitle-fr': '',
+    'subtitle-es': '',
+    'subtitle-nl': '',
+    'subtitle-de': '',
     'menu-order': '',
     'meta-title': '',
     'meta-description': '',
-    'faq-enabled': false
+    'faq-enabled': false,
+    'faq-list': ''
   },
   'page-dining': {
     'enabled': false,
@@ -53087,8 +53261,20 @@ const SECTION_DEFAULTS = {
   'page-offers': {
     'enabled': false,
     'title-en': 'Special Offers',
+    'title-fr': '',
+    'title-es': '',
+    'title-nl': '',
+    'title-de': '',
     'subtitle-en': '',
+    'subtitle-fr': '',
+    'subtitle-es': '',
+    'subtitle-nl': '',
+    'subtitle-de': '',
     'menu-title-en': 'Offers',
+    'menu-title-fr': '',
+    'menu-title-es': '',
+    'menu-title-nl': '',
+    'menu-title-de': '',
     'menu-order': '',
     'meta-title': '',
     'meta-description': '',
