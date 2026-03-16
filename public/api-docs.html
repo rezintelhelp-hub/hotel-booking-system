@@ -1665,7 +1665,57 @@
                     "responses": { "200": { "description": "Contact page updated and pushed to WordPress" } }
                 }
             },
-            
+            "/api/deployed-sites/{siteId}/site-status": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Site Protection Status",
+                    "description": "Set the protection status of a deployed site. Controls whether the site can be modified.\n\n**Values:**\n- `development` — Default. No restrictions, site can be freely edited.\n- `live` — Visual indicator that site is live. No restrictions.\n- `frozen` — All write operations blocked (settings, template pushes, section edits). Requires `confirm: true`.\n\nWhen a site is frozen, the following endpoints will return an error:\n- `POST /api/deployed-sites/:id/settings/:section`\n- `POST /api/templates/:id/push` (when blog_id matches)\n- `PUT/DELETE /api/pro-builder/.../sections/:index`\n- `POST /api/pro-builder/.../reorder`\n\n**Note:** This is separate from the lifecycle `status` field (development/deployed/live/on-hold). Master admin only.",
+                    "parameters": [ { "name": "siteId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Deployed site ID" } ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "freeze": {
+                                        "summary": "Freeze a site (block all modifications)",
+                                        "value": { "site_status": "frozen", "confirm": true }
+                                    },
+                                    "unfreeze": {
+                                        "summary": "Unfreeze back to development",
+                                        "value": { "site_status": "development" }
+                                    },
+                                    "mark_live": {
+                                        "summary": "Mark as live (visual only, no restrictions)",
+                                        "value": { "site_status": "live" }
+                                    }
+                                },
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["site_status"],
+                                    "properties": {
+                                        "site_status": { "type": "string", "enum": ["development", "live", "frozen"], "description": "Protection status" },
+                                        "confirm": { "type": "boolean", "description": "Required when setting to 'frozen'. Must be true." }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Site protection updated",
+                            "content": {
+                                "application/json": {
+                                    "examples": {
+                                        "success": { "value": { "success": true, "data": { "id": 118, "site_name": "Beach Break Guesthouse", "site_status": "frozen" } } },
+                                        "frozen_error": { "summary": "Missing confirm flag", "value": { "success": false, "error": "Freezing a site requires confirm: true" } },
+                                        "write_blocked": { "summary": "Write to frozen site rejected", "value": { "success": false, "error": "This site is frozen. Unfreeze it before making changes." } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+
             // ===== WEBSITE CONTENT =====
             "/api/partner/websites/{websiteId}/content/{section}": {
                 "put": {
