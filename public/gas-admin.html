@@ -56006,22 +56006,23 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function pbCollectLayoutStyles(index, prefix) {
+            // All values use !important to override theme CSS (burger theme uses !important on margins/padding)
             const parts = [];
             const width = document.getElementById(`pb-edit-${index}-${prefix}-width`)?.value || '100%';
             if (width === 'custom') {
                 const px = document.getElementById(`pb-edit-${index}-${prefix}-width-custom`)?.value;
-                if (px) { parts.push(`max-width:${px}px`); parts.push('margin-left:auto'); parts.push('margin-right:auto'); }
+                if (px) { parts.push(`max-width:${px}px !important`); parts.push('margin-left:auto !important'); parts.push('margin-right:auto !important'); parts.push('padding-left:0 !important'); parts.push('padding-right:0 !important'); }
             } else if (width !== '100%') {
-                parts.push(`max-width:${width}`); parts.push('margin-left:auto'); parts.push('margin-right:auto');
+                parts.push(`max-width:${width} !important`); parts.push('margin-left:auto !important'); parts.push('margin-right:auto !important'); parts.push('padding-left:0 !important'); parts.push('padding-right:0 !important');
             }
             const lineH = document.getElementById(`pb-edit-${index}-${prefix}-linespace`)?.value || '1.6';
-            if (lineH !== '1.6') parts.push(`line-height:${lineH}`);
+            if (lineH !== '1.6') parts.push(`line-height:${lineH} !important`);
             const align = document.getElementById(`pb-edit-${index}-${prefix}-align`)?.value || 'left';
-            if (align !== 'left') parts.push(`text-align:${align}`);
+            if (align !== 'left') parts.push(`text-align:${align} !important`);
             const padTop = document.getElementById(`pb-edit-${index}-${prefix}-pad-top`)?.value;
-            if (padTop && padTop !== '0') parts.push(`padding-top:${padTop}px`);
+            if (padTop && padTop !== '0') parts.push(`padding-top:${padTop}px !important`);
             const padBot = document.getElementById(`pb-edit-${index}-${prefix}-pad-bot`)?.value;
-            if (padBot && padBot !== '0') parts.push(`padding-bottom:${padBot}px`);
+            if (padBot && padBot !== '0') parts.push(`padding-bottom:${padBot}px !important`);
             return parts.join(';');
         }
 
