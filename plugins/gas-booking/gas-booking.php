@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.3.8
+ * Version: 3.3.9
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -4457,6 +4457,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $lang = $this->get_current_language();
         $endpoint = "{$api_url}/api/public/client/{$client_id}/rooms?lang={$lang}";
 
+        if (empty($atts['property_id']) && !empty($_GET['property_id'])) { $atts['property_id'] = sanitize_text_field($_GET['property_id']); }
         if (!empty($atts['property_id'])) {
             $endpoint .= "&property_id=" . intval($atts['property_id']);
         }
