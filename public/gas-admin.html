@@ -55542,10 +55542,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Regex extract: DOM parsing mangles <div> inside <p> (browser auto-closes the <p>)
                     const pMatch = section.raw_markup.match(/<p[^>]*>([\s\S]*)<\/p>/);
                     const pHtml = pMatch ? pMatch[1] : (dom.textContent || '').trim();
+                    const pStyleMatch = section.raw_markup.match(/<p\s[^>]*style="([^"]*)"/);
+                    const pStyles = pbParseStyleAttr(pStyleMatch ? pStyleMatch[1] : '');
                     fieldsHtml = `
                         <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Paragraph</label>
                             <textarea id="pb-edit-${index}-para-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" style="${taStyle}"></textarea></div>
-                    `;
+                    ` + pbLayoutControlsHtml(index, 'para', pStyles);
                     // Store for post-init injection (content may contain backticks/template chars)
                     proBuilderSections[index]._paraHtml = pHtml;
                     break;
@@ -55554,6 +55556,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const hEl = dom.querySelector('h1, h2, h3, h4, h5, h6');
                     const hHtml = hEl ? hEl.innerHTML : '';
                     const hLevel = hEl ? hEl.tagName.toLowerCase() : 'h2';
+                    const hExistingStyle = hEl ? (hEl.getAttribute('style') || '') : '';
+                    const hStyles = pbParseStyleAttr(hExistingStyle);
                     fieldsHtml = `
                         <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Heading</label>
                             <textarea id="pb-edit-${index}-heading-text" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text" style="${taStyle} font-size:1.1rem; font-weight:600;"></textarea>
@@ -55563,7 +55567,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <option value="h3" ${hLevel === 'h3' ? 'selected' : ''}>H3</option>
                                 <option value="h4" ${hLevel === 'h4' ? 'selected' : ''}>H4</option>
                             </select></div>
-                    `;
+                    ` + pbLayoutControlsHtml(index, 'heading', hStyles);
                     // Store parsed HTML for post-init injection into WYSIWYG editor
                     proBuilderSections[index]._headingHtml = hHtml;
                     break;
@@ -55652,12 +55656,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
                 case 'paragraph': {
                     const text = gasWysiwygGetValue(`pb-edit-${index}-para-text`) || document.getElementById(`pb-edit-${index}-para-text`)?.value || '';
-                    return blockToMarkup({ type: 'text', text: text });
+                    const paraStyle = pbCollectLayoutStyles(index, 'para');
+                    return blockToMarkup({ type: 'text', text: text, style: paraStyle });
                 }
                 case 'heading': {
                     const text = gasWysiwygGetValue(`pb-edit-${index}-heading-text`) || document.getElementById(`pb-edit-${index}-heading-text`)?.value || '';
                     const level = document.getElementById(`pb-edit-${index}-heading-level`)?.value || 'h2';
-                    return blockToMarkup({ type: 'heading', text: text, level: level });
+                    const headStyle = pbCollectLayoutStyles(index, 'heading');
+                    return blockToMarkup({ type: 'heading', text: text, level: level, style: headStyle });
                 }
                 case 'image': {
                     const url = document.getElementById(`pb-edit-${index}-img-url`)?.value || '';
@@ -55913,15 +55919,124 @@ const promo = await fetch('/api/v1/offers/validate', {
             pbColumnBlocks[colIdx][blockIdx][key] = value;
         }
 
+        function pbParseStyleAttr(styleStr) {
+            const result = {};
+            if (!styleStr) return result;
+            styleStr.split(';').forEach(part => {
+                const [prop, val] = part.split(':').map(s => s.trim());
+                if (prop && val) {
+                    const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+                    result[camel] = val;
+                }
+            });
+            return result;
+        }
+
+        function pbLayoutControlsHtml(index, prefix, existingStyle) {
+            const s = existingStyle || {};
+            // Determine width value from maxWidth
+            let widthVal = '100%';
+            let customPx = '';
+            if (s.maxWidth) {
+                if (s.maxWidth === '80%') widthVal = '80%';
+                else if (s.maxWidth === '65%') widthVal = '65%';
+                else if (s.maxWidth === '50%') widthVal = '50%';
+                else { widthVal = 'custom'; customPx = parseInt(s.maxWidth) || ''; }
+            }
+            const lineH = s.lineHeight || '1.6';
+            const align = s.textAlign || 'left';
+            const padTop = parseInt(s.paddingTop) || '';
+            const padBot = parseInt(s.paddingBottom) || '';
+            const customVis = widthVal === 'custom' ? '' : 'display:none;';
+
+            const ctrlStyle = 'padding:6px 8px; border:1px solid #d1d5db; border-radius:5px; font-size:0.82rem; color:#1e293b; background:#fff;';
+            const lblStyle = 'font-weight:600; font-size:0.78rem; color:#6b7280; white-space:nowrap;';
+            const abtn = (val, label) => {
+                const sel = val === align;
+                return `<button type="button" onclick="document.getElementById('pb-edit-${index}-${prefix}-align').value='${val}'; this.parentNode.querySelectorAll('button').forEach(b=>b.style.background='#fff'); this.style.background='#6366f1'; this.style.color='#fff';" style="padding:4px 10px; border:1px solid #d1d5db; border-radius:4px; font-size:0.78rem; cursor:pointer; background:${sel ? '#6366f1' : '#fff'}; color:${sel ? '#fff' : '#374151'};">${label}</button>`;
+            };
+
+            return `
+                <div style="margin-top:0.75rem; padding:0.75rem; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px;">
+                    <div style="font-weight:700; font-size:0.78rem; color:#475569; margin-bottom:0.5rem;">Layout & Spacing</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem 1rem; align-items:center;">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="${lblStyle}">Width</span>
+                            <select id="pb-edit-${index}-${prefix}-width" onchange="document.getElementById('pb-edit-${index}-${prefix}-width-custom-wrap').style.display=this.value==='custom'?'flex':'none';" style="${ctrlStyle} flex:1;">
+                                <option value="100%" ${widthVal === '100%' ? 'selected' : ''}>Full</option>
+                                <option value="80%" ${widthVal === '80%' ? 'selected' : ''}>Wide (80%)</option>
+                                <option value="65%" ${widthVal === '65%' ? 'selected' : ''}>Medium (65%)</option>
+                                <option value="50%" ${widthVal === '50%' ? 'selected' : ''}>Narrow (50%)</option>
+                                <option value="custom" ${widthVal === 'custom' ? 'selected' : ''}>Custom</option>
+                            </select>
+                        </div>
+                        <div id="pb-edit-${index}-${prefix}-width-custom-wrap" style="${customVis} align-items:center; gap:6px;">
+                            <span style="${lblStyle}">Custom</span>
+                            <input type="number" id="pb-edit-${index}-${prefix}-width-custom" value="${customPx}" placeholder="600" style="${ctrlStyle} width:70px;">
+                            <span style="font-size:0.78rem; color:#6b7280;">px</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="${lblStyle}">Line Spacing</span>
+                            <select id="pb-edit-${index}-${prefix}-linespace" style="${ctrlStyle} flex:1;">
+                                <option value="1.3" ${lineH === '1.3' ? 'selected' : ''}>Tight</option>
+                                <option value="1.6" ${lineH === '1.6' ? 'selected' : ''}>Normal</option>
+                                <option value="1.8" ${lineH === '1.8' ? 'selected' : ''}>Relaxed</option>
+                                <option value="2.0" ${lineH === '2.0' || lineH === '2' ? 'selected' : ''}>Loose</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="${lblStyle}">Align</span>
+                            <div style="display:flex; gap:2px;">
+                                ${abtn('left', 'Left')}${abtn('center', 'Centre')}${abtn('right', 'Right')}
+                            </div>
+                            <input type="hidden" id="pb-edit-${index}-${prefix}-align" value="${align}">
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="${lblStyle}">Pad Top</span>
+                            <input type="number" id="pb-edit-${index}-${prefix}-pad-top" value="${padTop}" placeholder="0" style="${ctrlStyle} width:60px;">
+                            <span style="font-size:0.78rem; color:#6b7280;">px</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="${lblStyle}">Pad Bottom</span>
+                            <input type="number" id="pb-edit-${index}-${prefix}-pad-bot" value="${padBot}" placeholder="0" style="${ctrlStyle} width:60px;">
+                            <span style="font-size:0.78rem; color:#6b7280;">px</span>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        function pbCollectLayoutStyles(index, prefix) {
+            const parts = [];
+            const width = document.getElementById(`pb-edit-${index}-${prefix}-width`)?.value || '100%';
+            if (width === 'custom') {
+                const px = document.getElementById(`pb-edit-${index}-${prefix}-width-custom`)?.value;
+                if (px) { parts.push(`max-width:${px}px`); parts.push('margin-left:auto'); parts.push('margin-right:auto'); }
+            } else if (width !== '100%') {
+                parts.push(`max-width:${width}`); parts.push('margin-left:auto'); parts.push('margin-right:auto');
+            }
+            const lineH = document.getElementById(`pb-edit-${index}-${prefix}-linespace`)?.value || '1.6';
+            if (lineH !== '1.6') parts.push(`line-height:${lineH}`);
+            const align = document.getElementById(`pb-edit-${index}-${prefix}-align`)?.value || 'left';
+            if (align !== 'left') parts.push(`text-align:${align}`);
+            const padTop = document.getElementById(`pb-edit-${index}-${prefix}-pad-top`)?.value;
+            if (padTop && padTop !== '0') parts.push(`padding-top:${padTop}px`);
+            const padBot = document.getElementById(`pb-edit-${index}-${prefix}-pad-bot`)?.value;
+            if (padBot && padBot !== '0') parts.push(`padding-bottom:${padBot}px`);
+            return parts.join(';');
+        }
+
         function blockToMarkup(block) {
             switch (block.type) {
                 case 'heading': {
                     const level = block.level || 'h2';
                     const num = level.replace('h', '');
-                    return `<!-- wp:heading {"level":${num}} -->\n<${level} class="wp-block-heading">${block.text || ''}</${level}>\n<!-- /wp:heading -->`;
+                    const hStyleAttr = block.style ? ` style="${block.style}"` : '';
+                    return `<!-- wp:heading {"level":${num}} -->\n<${level} class="wp-block-heading"${hStyleAttr}>${block.text || ''}</${level}>\n<!-- /wp:heading -->`;
                 }
-                case 'text':
-                    return `<!-- wp:paragraph -->\n<p>${block.text || ''}</p>\n<!-- /wp:paragraph -->`;
+                case 'text': {
+                    const pStyleAttr = block.style ? ` style="${block.style}"` : '';
+                    return `<!-- wp:paragraph -->\n<p${pStyleAttr}>${block.text || ''}</p>\n<!-- /wp:paragraph -->`;
+                }
                 case 'image':
                     return `<!-- wp:image -->\n<figure class="wp-block-image"><img src="${block.url || ''}" alt="${block.alt || ''}"/></figure>\n<!-- /wp:image -->`;
                 case 'button':
