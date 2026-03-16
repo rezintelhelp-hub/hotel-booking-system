@@ -55640,6 +55640,8 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             switch (section.type) {
                 case 'cover': {
+                    // Surgical update — preserve original markup structure (custom classes, overlay columns, margins)
+                    let markup = section.raw_markup;
                     const url = document.getElementById(`pb-edit-${index}-cover-url`)?.value || '';
                     const dim = parseInt(document.getElementById(`pb-edit-${index}-cover-dim`)?.value) || 50;
                     const headingVal = document.getElementById(`pb-edit-${index}-cover-heading`)?.value || '';
@@ -55649,12 +55651,39 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const btnText = document.getElementById(`pb-edit-${index}-cover-btn-text`)?.value || '';
                     const btnLink = document.getElementById(`pb-edit-${index}-cover-btn-link`)?.value || '';
 
-                    let innerMarkup = '';
-                    if (headingVal) innerMarkup += `<!-- wp:heading {"level":${hNum}} -->\n<${hLevel} class="wp-block-heading">${headingVal}</${hLevel}>\n<!-- /wp:heading -->\n\n`;
-                    if (subtitleVal) innerMarkup += `<!-- wp:paragraph -->\n<p>${subtitleVal}</p>\n<!-- /wp:paragraph -->\n\n`;
-                    if (btnText) innerMarkup += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button -->\n<div class="wp-block-button"><a class="wp-block-button__link" href="${btnLink || '#'}">${btnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
-
-                    return `<!-- wp:cover {"url":"${url}","dimRatio":${dim}} -->\n<div class="wp-block-cover"><span aria-hidden="true" class="wp-block-cover__background has-background-dim" style="opacity:0.${dim}"></span><img class="wp-block-cover__image-background" alt="" src="${url}" /><div class="wp-block-cover__inner-container">\n${innerMarkup}</div></div>\n<!-- /wp:cover -->`;
+                    // Update block comment JSON — replace url and dimRatio
+                    markup = markup.replace(/<!-- wp:cover \{([\s\S]*?)\} -->/, (match, jsonStr) => {
+                        try {
+                            const attrs = JSON.parse('{' + jsonStr + '}');
+                            attrs.url = url;
+                            attrs.dimRatio = dim;
+                            return `<!-- wp:cover ${JSON.stringify(attrs)} -->`;
+                        } catch(e) { return match; }
+                    });
+                    // Update image src
+                    markup = markup.replace(/(wp-block-cover__image-background[^>]*src=")[^"]*(")/i, `$1${url}$2`);
+                    // Update overlay opacity
+                    markup = markup.replace(/(wp-block-cover__background[^>]*style="[^"]*opacity:)\s*[\d.]+/i, `$1${(dim/100).toFixed(2)}`);
+                    // Update first heading found
+                    markup = markup.replace(/(<!-- wp:heading[^>]*-->[\s\S]*?<)h[1-6]([^>]*>)([\s\S]*?)(<\/h)[1-6](>[\s\S]*?<!-- \/wp:heading -->)/, `$1${hLevel}$2${headingVal}$4${hNum}$5`);
+                    // Update heading level in block comment
+                    markup = markup.replace(/<!-- wp:heading \{[^}]*\} -->/, (m) => {
+                        try {
+                            const inner = m.match(/\{([\s\S]*)\}/)[1];
+                            const attrs = JSON.parse('{' + inner + '}');
+                            attrs.level = parseInt(hNum);
+                            return `<!-- wp:heading ${JSON.stringify(attrs)} -->`;
+                        } catch(e) { return m; }
+                    });
+                    // Update first paragraph inside cover (subtitle)
+                    if (subtitleVal) {
+                        markup = markup.replace(/(<!-- wp:paragraph[^>]*-->\s*<p[^>]*>)([\s\S]*?)(<\/p>\s*<!-- \/wp:paragraph -->)/, `$1${subtitleVal}$3`);
+                    }
+                    // Update button text and link if button exists
+                    if (btnText && markup.includes('wp-block-button__link')) {
+                        markup = markup.replace(/(wp-block-button__link[^>]*href=")[^"]*("[^>]*>)([\s\S]*?)(<\/a>)/, `$1${btnLink || '#'}$2${btnText}$4`);
+                    }
+                    return markup;
                 }
                 case 'paragraph': {
                     const text = gasWysiwygGetValue(`pb-edit-${index}-para-text`) || document.getElementById(`pb-edit-${index}-para-text`)?.value || '';
