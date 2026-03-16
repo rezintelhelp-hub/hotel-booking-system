@@ -56370,14 +56370,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                         contentInner += `<!-- wp:paragraph -->\n<p style="color:${subColor}">${subHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
                     }
                     if (btnText) {
-                        contentInner += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button {"backgroundColor":"custom","style":{"color":{"background":"${btnColor}"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${btnLink}" style="background-color:${btnColor}">${btnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
+                        contentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"backgroundColor":"custom","style":{"color":{"background":"${btnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${btnLink}" style="background-color:${btnColor};border-radius:0px">${btnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
                     }
 
                     // Overlay column (has rgba background + content)
                     const overlayCol = `<!-- wp:column {"width":"${olW}%"} -->\n<div class="wp-block-column" style="flex-basis:${olW}%;background:rgba(${olR},${olG},${olB},${olA});padding:40px 30px;display:flex;flex-direction:column;justify-content:center">\n${contentInner}</div>\n<!-- /wp:column -->`;
 
-                    // Empty transparent column
-                    const emptyCol = `<!-- wp:column {"width":"${emptyW}%"} -->\n<div class="wp-block-column" style="flex-basis:${emptyW}%"></div>\n<!-- /wp:column -->`;
+                    // Empty transparent column (min-height prevents flex collapse)
+                    const emptyCol = `<!-- wp:column {"width":"${emptyW}%"} -->\n<div class="wp-block-column" style="flex-basis:${emptyW}%;min-height:1px"></div>\n<!-- /wp:column -->`;
 
                     // Assemble columns in correct order
                     const colsInner = pos === 'left' ? `${overlayCol}\n\n${emptyCol}` : `${emptyCol}\n\n${overlayCol}`;
