@@ -49901,7 +49901,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Wrapper
             const wrapper = document.createElement('div');
             wrapper.className = 'gas-wysiwyg-wrap';
-            wrapper.style.cssText = 'position: relative;';
+            wrapper.style.cssText = 'position: relative; flex:1; min-width:0;';
             el.parentNode.insertBefore(wrapper, el);
 
             // Toolbar — two rows: formatting + font/size/colours
