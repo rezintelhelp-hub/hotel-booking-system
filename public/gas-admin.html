@@ -56200,7 +56200,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             { id: 'search', label: 'Search Bar', icon: 'Src' },
             { id: 'rooms', label: 'Room List', icon: 'Rm' },
             { id: 'spacer', label: 'Spacer', icon: '—' },
-            { id: 'slider', label: 'Slider', icon: 'Sld' }
+            { id: 'slider', label: 'Slider', icon: 'Sld' },
+            { id: 'cover-slider', label: 'Cover Slider', icon: 'Cvr' }
         ];
 
         function selectLayout(layout) {
@@ -56229,6 +56230,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (block.type === 'heading' || block.type === 'text') {
                         const val = gasWysiwygGetValue(`pb-block-${colIdx}-${blockIdx}-text`);
                         if (val) block.text = val;
+                    }
+                    if (block.type === 'cover-slider') {
+                        const hVal = gasWysiwygGetValue(`pb-block-${colIdx}-${blockIdx}-heading`);
+                        if (hVal) block.headingHtml = hVal;
+                        const sVal = gasWysiwygGetValue(`pb-block-${colIdx}-${blockIdx}-subtitle`);
+                        if (sVal) block.subtitleHtml = sVal;
                     }
                 });
             });
@@ -56298,6 +56305,71 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return `<input type="number" class="form-input" style="font-size: 0.8rem; width: 80px;" placeholder="40" value="${block.height || 40}" onchange="updateBlock(${colIdx},${blockIdx},'height',this.value)"> <span style="font-size: 0.75rem; color: #64748b;">px</span>`;
                 case 'slider':
                     return `<input type="text" class="form-input" style="font-size: 0.8rem;" placeholder="Smart Slider ID" value="${block.sliderId || ''}" onchange="updateBlock(${colIdx},${blockIdx},'sliderId',this.value)">`;
+                case 'cover-slider': {
+                    const cs = block;
+                    const csLbl = 'font-weight:600; font-size:0.72rem; color:#6b7280; white-space:nowrap; min-width:70px;';
+                    const csCtrl = 'padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.78rem; color:#1e293b; background:#fff;';
+                    const csRow = 'display:flex; align-items:center; gap:5px; margin-bottom:4px;';
+                    const csGrp = 'font-weight:700; font-size:0.68rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:6px 0 3px; padding-top:4px; border-top:1px solid #e2e8f0;';
+                    const csFonts = ['','Arial','Helvetica','Georgia','Times New Roman','Verdana','Montserrat','Open Sans','Playfair Display','Raleway'];
+                    const csFontOpts = (val) => csFonts.map(f => `<option value="${f}"${(val||'') === f ? ' selected' : ''}>${f || 'Default'}</option>`).join('');
+                    return `
+                        <div style="font-size:0.78rem;">
+                            <div style="${csRow}">
+                                <span style="${csLbl}">Image</span>
+                                <input type="text" id="pb-block-${colIdx}-${blockIdx}-url" class="form-input" style="${csCtrl} flex:1;" placeholder="Paste URL or upload" value="${cs.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">
+                                <label style="padding:3px 8px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.72rem; cursor:pointer; white-space:nowrap;">Upload<input type="file" accept="image/*" onchange="pbUploadBlockBgImage(this,${colIdx},${blockIdx})" style="display:none;"></label>
+                            </div>
+                            <div style="${csRow}">
+                                <span style="${csLbl}">Height</span>
+                                <input type="number" class="form-input" style="${csCtrl} width:65px;" placeholder="400" value="${cs.coverHeight || 400}" onchange="updateBlock(${colIdx},${blockIdx},'coverHeight',this.value)">
+                                <span style="font-size:0.7rem; color:#94a3b8;">px</span>
+                                <span style="${csLbl} min-width:50px; margin-left:8px;">Overlay</span>
+                                <input type="color" value="${cs.overlayColor || '#000000'}" onchange="updateBlock(${colIdx},${blockIdx},'overlayColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                <input type="range" min="0" max="100" step="5" value="${cs.overlayOpacity ?? 50}" oninput="updateBlock(${colIdx},${blockIdx},'overlayOpacity',parseInt(this.value)); this.nextElementSibling.textContent=this.value+'%';" style="flex:1; cursor:pointer;">
+                                <span style="font-size:0.7rem; color:#6b7280; min-width:28px;">${cs.overlayOpacity ?? 50}%</span>
+                            </div>
+                            <div style="${csGrp}">Heading</div>
+                            <div style="${csRow}">
+                                <textarea id="pb-block-${colIdx}-${blockIdx}-heading" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text" data-pb-col="${colIdx}" data-pb-block="${blockIdx}" style="${csCtrl} flex:1; min-height:50px; resize:vertical; font-weight:600;">${cs.headingHtml || ''}</textarea>
+                            </div>
+                            <div style="${csRow}">
+                                <span style="${csLbl}">Color</span>
+                                <input type="color" value="${cs.headingColor || '#ffffff'}" onchange="updateBlock(${colIdx},${blockIdx},'headingColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                <select class="form-input" style="${csCtrl} width:50px;" onchange="updateBlock(${colIdx},${blockIdx},'headingLevel',this.value)">
+                                    <option value="h1"${(cs.headingLevel||'h2')==='h1'?' selected':''}>H1</option>
+                                    <option value="h2"${(cs.headingLevel||'h2')==='h2'?' selected':''}>H2</option>
+                                    <option value="h3"${(cs.headingLevel||'h2')==='h3'?' selected':''}>H3</option>
+                                    <option value="h4"${(cs.headingLevel||'h2')==='h4'?' selected':''}>H4</option>
+                                </select>
+                                <select class="form-input" style="${csCtrl} flex:1;" onchange="updateBlock(${colIdx},${blockIdx},'headingFont',this.value)">${csFontOpts(cs.headingFont)}</select>
+                                <input type="number" class="form-input" style="${csCtrl} width:50px;" placeholder="auto" value="${cs.headingSize || ''}" onchange="updateBlock(${colIdx},${blockIdx},'headingSize',this.value)">
+                                <span style="font-size:0.7rem; color:#94a3b8;">px</span>
+                            </div>
+                            <div style="${csGrp}">Subtitle</div>
+                            <div style="${csRow}">
+                                <textarea id="pb-block-${colIdx}-${blockIdx}-subtitle" data-wysiwyg="true" data-wysiwyg-placeholder="Subtitle text" data-pb-col="${colIdx}" data-pb-block="${blockIdx}" style="${csCtrl} flex:1; min-height:32px; resize:vertical;">${cs.subtitleHtml || ''}</textarea>
+                            </div>
+                            <div style="${csRow}">
+                                <span style="${csLbl}">Color</span>
+                                <input type="color" value="${cs.subtitleColor || '#ffffff'}" onchange="updateBlock(${colIdx},${blockIdx},'subtitleColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                <select class="form-input" style="${csCtrl} flex:1;" onchange="updateBlock(${colIdx},${blockIdx},'subtitleFont',this.value)">${csFontOpts(cs.subtitleFont)}</select>
+                                <input type="number" class="form-input" style="${csCtrl} width:50px;" placeholder="auto" value="${cs.subtitleSize || ''}" onchange="updateBlock(${colIdx},${blockIdx},'subtitleSize',this.value)">
+                                <span style="font-size:0.7rem; color:#94a3b8;">px</span>
+                            </div>
+                            <div style="${csGrp}">Button</div>
+                            <div style="${csRow}">
+                                <span style="${csLbl}">Text</span>
+                                <input type="text" class="form-input" style="${csCtrl} flex:1;" placeholder="Leave blank for no button" value="${cs.btnText || ''}" onchange="updateBlock(${colIdx},${blockIdx},'btnText',this.value)">
+                            </div>
+                            <div style="${csRow}">
+                                <span style="${csLbl}">URL</span>
+                                <input type="text" class="form-input" style="${csCtrl} flex:1;" placeholder="/book-now" value="${cs.btnLink || ''}" onchange="updateBlock(${colIdx},${blockIdx},'btnLink',this.value)">
+                                <span style="${csLbl} min-width:40px;">Color</span>
+                                <input type="color" value="${cs.btnColor || '#F97224'}" onchange="updateBlock(${colIdx},${blockIdx},'btnColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                            </div>
+                        </div>`;
+                }
                 default:
                     return '';
             }
@@ -56581,6 +56653,33 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        async function pbUploadBlockBgImage(fileInput, colIdx, blockIdx) {
+            const file = fileInput.files && fileInput.files[0];
+            if (!file) return;
+            const urlField = document.getElementById(`pb-block-${colIdx}-${blockIdx}-url`);
+            const siteId = proBuilderDeployedSiteId || selectedDeployedSiteId;
+            if (!siteId) { alert('No site selected'); return; }
+            urlField.value = 'Uploading...';
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('deployed_site_id', siteId);
+            formData.append('section', `pb-bg-cover-slider-${colIdx}-${blockIdx}`);
+            try {
+                const res = await fetch('/api/admin/website-builder/upload-image', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.success && data.url) {
+                    urlField.value = data.url;
+                    updateBlock(colIdx, blockIdx, 'url', data.url);
+                } else {
+                    urlField.value = '';
+                    alert('Upload failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                urlField.value = '';
+                alert('Upload failed: ' + e.message);
+            }
+        }
+
         function blockToMarkup(block) {
             switch (block.type) {
                 case 'heading': {
@@ -56667,6 +56766,45 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Wrap in wp:cover with pb-hero class
                     const coverAttrs = JSON.stringify({ url, dimRatio: 0, minHeight: hVal, minHeightUnit: hUnit, className: 'pb-hero alignfull' });
                     return `<!-- wp:cover ${coverAttrs} -->\n<div class="wp-block-cover pb-hero alignfull" style="min-height:${h}"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-0 has-background-dim"></span><img class="wp-block-cover__image-background" alt="" src="${url}" data-object-fit="cover"/><div class="wp-block-cover__inner-container">\n<!-- wp:columns -->\n<div class="wp-block-columns">\n${colsInner}\n</div>\n<!-- /wp:columns -->\n</div></div>\n<!-- /wp:cover -->`;
+                }
+                case 'cover-slider': {
+                    const csUrl = block.url || '';
+                    const csH = parseInt(block.coverHeight) || 400;
+                    const csOlColor = block.overlayColor || '#000000';
+                    const csOlOp = block.overlayOpacity ?? 50;
+                    const csOlR = parseInt(csOlColor.slice(1,3), 16);
+                    const csOlG = parseInt(csOlColor.slice(3,5), 16);
+                    const csOlB = parseInt(csOlColor.slice(5,7), 16);
+                    const csOlA = (csOlOp / 100).toFixed(2);
+                    const csHeadHtml = block.headingHtml || '';
+                    const csHeadColor = block.headingColor || '#ffffff';
+                    const csSubHtml = block.subtitleHtml || '';
+                    const csSubColor = block.subtitleColor || '#ffffff';
+                    const csBtnText = block.btnText || '';
+                    const csBtnLink = block.btnLink || '#';
+                    const csBtnColor = block.btnColor || '#F97224';
+
+                    let csInner = '';
+                    const csLvl = block.headingLevel || 'h2';
+                    const csNum = csLvl.replace('h', '');
+                    if (csHeadHtml) {
+                        let hStyle = `color:${csHeadColor} !important`;
+                        if (block.headingFont) hStyle += `;font-family:${block.headingFont} !important`;
+                        if (block.headingSize) hStyle += `;font-size:${block.headingSize}px !important`;
+                        csInner += `<!-- wp:heading {"level":${csNum},"style":{"color":{"text":"${csHeadColor}"}}} -->\n<${csLvl} class="wp-block-heading has-text-color" style="${hStyle}">${csHeadHtml}</${csLvl}>\n<!-- /wp:heading -->\n\n`;
+                    }
+                    if (csSubHtml) {
+                        let sStyle = `color:${csSubColor} !important`;
+                        if (block.subtitleFont) sStyle += `;font-family:${block.subtitleFont} !important`;
+                        if (block.subtitleSize) sStyle += `;font-size:${block.subtitleSize}px !important`;
+                        csInner += `<!-- wp:paragraph {"style":{"color":{"text":"${csSubColor}"}}} -->\n<p class="has-text-color" style="${sStyle}">${csSubHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
+                    }
+                    if (csBtnText) {
+                        csInner += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${csBtnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${csBtnLink}" style="background-color:${csBtnColor} !important;border-radius:0px !important">${csBtnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
+                    }
+
+                    const csCoverAttrs = JSON.stringify({ url: csUrl, dimRatio: parseInt(csOlOp), minHeight: csH });
+                    return `<!-- wp:cover ${csCoverAttrs} -->\n<div class="wp-block-cover" style="min-height:${csH}px"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-${csOlOp} has-background-dim" style="background-color:rgba(${csOlR},${csOlG},${csOlB},${csOlA})"></span>${csUrl ? `<img class="wp-block-cover__image-background" alt="" src="${csUrl}" data-object-fit="cover"/>` : ''}<div class="wp-block-cover__inner-container">\n${csInner}</div></div>\n<!-- /wp:cover -->`;
                 }
                 default:
                     return '';
