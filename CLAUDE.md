@@ -417,6 +417,15 @@ Full field-by-field audit of every Web Builder section across UI → API → DB 
 
 ---
 
+## ELEVATE API ALIAS
+
+- `/api/elevate/*` is aliased to `/api/partner/*` via middleware at line 22177 of server.js
+- **Do NOT remove this alias** — Elevate's integration depends on it
+- The PDF documentation (`docs/Elevate-Partner-API-v7_8.pdf`) is correct — `/api/elevate/` paths work via this alias
+- The `/webhooks/elevate/` routes (lines 57572-57877) are a separate, older set of endpoints — not used by the current integration
+
+---
+
 ## SWAGGER / API DOCS
 
 - URL: https://admin.gas.travel/api/docs
