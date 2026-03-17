@@ -50010,6 +50010,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             el.style.display = 'none';
             wrapper.appendChild(editor);
+            console.log('[WYSIWYG INIT]', el.id, 'editor created, contentEditable:', editor.contentEditable, 'parent:', wrapper.parentNode?.tagName);
 
             return { wrapper, editor, toolbar };
         }
@@ -56015,6 +56016,17 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function saveSection(index) {
+            // Debug: dump all contenteditable elements in section editor
+            const sectionEditor = document.getElementById(`pb-section-editor-${index}`);
+            if (sectionEditor) {
+                const editables = sectionEditor.querySelectorAll('[contenteditable="true"]');
+                console.log('[SAVE] Found', editables.length, 'contenteditable elements in section', index);
+                editables.forEach((ed, i) => console.log(`  [${i}] class=${ed.className}, innerHTML=${ed.innerHTML.substring(0,100)}`));
+                // Also check _gasEditor refs
+                const wraps = sectionEditor.querySelectorAll('.gas-wysiwyg-wrap');
+                console.log('[SAVE] Found', wraps.length, 'wysiwyg wraps');
+                wraps.forEach((w, i) => console.log(`  wrap[${i}] _gasEditor=${!!w._gasEditor}, innerHTML=${w._gasEditor?.innerHTML?.substring(0,100)}`));
+            }
             const markup = collectSectionMarkup(index);
             console.log('[SAVE SECTION DEBUG]', { index, markupLength: markup?.length, markupPreview: markup?.substring(0, 300) });
             if (!markup) {
