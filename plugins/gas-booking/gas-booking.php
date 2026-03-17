@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.3.9
+ * Version: 3.4.0
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -4762,7 +4762,15 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .developer-featured .gas-rooms-grid {
             justify-content: center;
         }
-        
+
+        /* Featured section: cancel the full-viewport breakout so cards stay inside the container */
+        .developer-featured .gas-rooms-page-wrapper {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-left: 0 !important;
+            padding: 0 !important;
+        }
+
         .gas-rooms-map .leaflet-popup-content-wrapper {
             border-radius: 8px;
         }
