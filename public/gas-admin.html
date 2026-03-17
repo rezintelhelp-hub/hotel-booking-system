@@ -55576,7 +55576,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 1rem; align-items:center; margin-bottom:6px;">
                                 <div style="${row} grid-column:1/-1;">
                                     <span style="${lbl}">Background</span>
-                                    <input type="text" id="pb-edit-${index}-cover-url" value="${cvUrl.replace(/"/g, '&quot;')}" placeholder="Paste URL or upload" style="${ctrl} flex:1;">
+                                    <input type="text" id="pb-edit-${index}-cover-bg-img" value="${cvUrl.replace(/"/g, '&quot;')}" placeholder="Paste URL or upload" style="${ctrl} flex:1;">
                                     <label style="padding:4px 10px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.78rem; cursor:pointer; white-space:nowrap;">Upload<input type="file" accept="image/*" onchange="pbUploadBgImage(this, '${index}', 'cover')" style="display:none;"></label>
                                 </div>
                                 <div style="${row}">
@@ -55914,7 +55914,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             switch (section.type) {
                 case 'cover': {
                     // Collect all values from cover editor controls
-                    const cvUrl = document.getElementById(`pb-edit-${index}-cover-url`)?.value || '';
+                    const cvUrl = document.getElementById(`pb-edit-${index}-cover-bg-img`)?.value || '';
                     const cvHeight = document.getElementById(`pb-edit-${index}-cover-height`)?.value || '60vh';
                     const cvPos = document.getElementById(`pb-edit-${index}-cover-pos`)?.value || 'left';
                     const cvOlWidth = document.getElementById(`pb-edit-${index}-cover-ol-width`)?.value || '40';
