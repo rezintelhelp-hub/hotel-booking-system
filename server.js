@@ -63720,7 +63720,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         p.latitude,
         p.longitude,
         p.id as property_id,
-        p.name as property_name,
+        COALESCE(p.display_name, p.name) as property_name,
         p.city,
         p.currency,
         (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_active = true ORDER BY is_primary DESC, display_order ASC LIMIT 1) as image_url,
