@@ -50010,7 +50010,6 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             el.style.display = 'none';
             wrapper.appendChild(editor);
-            console.log('[WYSIWYG INIT]', el.id, 'editor created, contentEditable:', editor.contentEditable, 'parent:', wrapper.parentNode?.tagName);
 
             return { wrapper, editor, toolbar };
         }
@@ -50018,14 +50017,13 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Helper: get HTML content from a WYSIWYG field by original element ID
         function gasWysiwygGetValue(elementId) {
             const el = document.getElementById(elementId);
-            if (!el) { console.log('[WYSIWYG getValue] element NOT FOUND:', elementId); return ''; }
+            if (!el) return '';
             const wrapper = el.closest ? el.parentNode.querySelector('.gas-wysiwyg-wrap') : null;
             // Try previous sibling (standard layout: wrapper then hidden textarea)
             const prevSib = el.previousElementSibling;
-            if (prevSib && prevSib._gasEditor) { console.log('[WYSIWYG getValue]', elementId, 'via prevSib:', prevSib._gasEditor.innerHTML.substring(0,80)); return prevSib._gasEditor.innerHTML; }
+            if (prevSib && prevSib._gasEditor) return prevSib._gasEditor.innerHTML;
             // Fallback: search parent for wrapper
-            if (wrapper && wrapper._gasEditor) { console.log('[WYSIWYG getValue]', elementId, 'via wrapper:', wrapper._gasEditor.innerHTML.substring(0,80)); return wrapper._gasEditor.innerHTML; }
-            console.log('[WYSIWYG getValue]', elementId, 'fallback to el.value:', (el.value || el.innerHTML || '').substring(0,80));
+            if (wrapper && wrapper._gasEditor) return wrapper._gasEditor.innerHTML;
             return el.value || el.innerHTML || '';
         }
 
@@ -55938,7 +55936,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const cvBtnLink = document.getElementById(`pb-edit-${index}-cover-btn-link`)?.value || '';
                     const cvBtnColor = document.getElementById(`pb-edit-${index}-cover-btn-color`)?.value || '#F97224';
                     const cvHeadLevel = document.getElementById(`pb-edit-${index}-cover-head-level`)?.value || 'h2';
-                    console.log('[COVER SAVE DEBUG]', { index, cvUrl: cvUrl.substring(0,60), cvHeadHtml, cvHeadColor, cvSubHtml, cvSubColor, cvBtnText, cvBtnColor, cvPos, cvOlWidth, cvOlOpacity, cvHeadLevel });
                     return blockToMarkup({
                         type: 'cover', url: cvUrl, height: cvHeight,
                         overlayPos: cvPos, overlayWidth: parseInt(cvOlWidth),
@@ -56016,19 +56013,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function saveSection(index) {
-            // Debug: dump all contenteditable elements in section editor
-            const sectionEditor = document.getElementById(`pb-section-editor-${index}`);
-            if (sectionEditor) {
-                const editables = sectionEditor.querySelectorAll('[contenteditable="true"]');
-                console.log('[SAVE] Found', editables.length, 'contenteditable elements in section', index);
-                editables.forEach((ed, i) => console.log(`  [${i}] class=${ed.className}, innerHTML=${ed.innerHTML.substring(0,100)}`));
-                // Also check _gasEditor refs
-                const wraps = sectionEditor.querySelectorAll('.gas-wysiwyg-wrap');
-                console.log('[SAVE] Found', wraps.length, 'wysiwyg wraps');
-                wraps.forEach((w, i) => console.log(`  wrap[${i}] _gasEditor=${!!w._gasEditor}, innerHTML=${w._gasEditor?.innerHTML?.substring(0,100)}`));
-            }
             const markup = collectSectionMarkup(index);
-            console.log('[SAVE SECTION DEBUG]', { index, markupLength: markup?.length, markupPreview: markup?.substring(0, 300) });
             if (!markup) {
                 showNotification('Cannot save this section type', 'error');
                 return;

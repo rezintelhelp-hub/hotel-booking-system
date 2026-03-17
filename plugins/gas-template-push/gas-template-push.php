@@ -2,7 +2,7 @@
 /**
  * Plugin Name: GAS Template Push
  * Description: Receives Elementor and Gutenberg templates from GAS Admin and injects them into pages.
- * Version: 1.2.1
+ * Version: 1.3.0
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-template-push
@@ -173,6 +173,8 @@ class GAS_Template_Push {
             \Elementor\Plugin::$instance->files_manager->clear_cache();
         }
 
+        $this->flush_page_cache($page_id);
+
         return new WP_REST_Response(array(
             'success'        => true,
             'format'         => 'elementor',
@@ -212,6 +214,8 @@ class GAS_Template_Push {
             ), 500);
         }
 
+        $this->flush_page_cache($page->ID);
+
         return new WP_REST_Response(array(
             'success'  => true,
             'format'   => 'blocks',
@@ -243,6 +247,8 @@ class GAS_Template_Push {
         if (is_wp_error($result)) {
             return new WP_REST_Response(array('success' => false, 'error' => $result->get_error_message()), 500);
         }
+
+        $this->flush_page_cache($page_id);
 
         return new WP_REST_Response(array(
             'success'  => true,
@@ -316,6 +322,30 @@ class GAS_Template_Push {
             'page_id'  => $page_id,
             'page_url' => get_permalink($page_id),
         ), 200);
+    }
+
+    /**
+     * Flush any page cache after content updates so changes appear immediately.
+     */
+    private function flush_page_cache($page_id) {
+        // WP Super Cache
+        if (function_exists('wp_cache_post_change')) {
+            wp_cache_post_change($page_id);
+        }
+        // WP Super Cache — clear by URL
+        if (function_exists('wpsc_delete_post_cache')) {
+            wpsc_delete_post_cache($page_id);
+        }
+        // W3 Total Cache
+        if (function_exists('w3tc_flush_post')) {
+            w3tc_flush_post($page_id);
+        }
+        // LiteSpeed Cache
+        if (method_exists('LiteSpeed_Cache_API', 'purge_post')) {
+            LiteSpeed_Cache_API::purge_post($page_id);
+        }
+        // Generic object cache
+        clean_post_cache($page_id);
     }
 
     private function add_page_to_menu($page_id, $page_title) {
