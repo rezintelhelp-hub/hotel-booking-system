@@ -80037,8 +80037,8 @@ app.post('/api/pro-builder/sites/:blog_id/pages/:page_id/reorder', async (req, r
 
 // ─── GAS Template Library ───────────────────────────────────────────
 
-// GET /api/templates — list all active templates (excludes elementor_json for performance)
-app.get('/api/templates', async (req, res) => {
+// GET /api/page-templates — list all active page/section templates from gas_templates
+app.get('/api/page-templates', async (req, res) => {
   try {
     const { category, tier } = req.query;
     let query = 'SELECT id, name, category, description, tier, template_type, preview_image, sort_order, created_at FROM gas_templates WHERE active = true';
@@ -80061,8 +80061,8 @@ app.get('/api/templates', async (req, res) => {
   }
 });
 
-// GET /api/templates/:id — get single template with full elementor_json
-app.get('/api/templates/:id', async (req, res) => {
+// GET /api/page-templates/:id — get single template with full block_markup/elementor_json
+app.get('/api/page-templates/:id', async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT * FROM gas_templates WHERE id = $1 AND active = true',
@@ -80079,8 +80079,8 @@ app.get('/api/templates/:id', async (req, res) => {
   }
 });
 
-// POST /api/templates — create new template (master admin only)
-app.post('/api/templates', async (req, res) => {
+// POST /api/page-templates — create new template (master admin only)
+app.post('/api/page-templates', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -80096,17 +80096,17 @@ app.post('/api/templates', async (req, res) => {
       return res.json({ success: false, error: 'Master admin access required' });
     }
 
-    const { name, category, description, tier, template_type, elementor_json, preview_image, sort_order } = req.body;
+    const { name, category, description, tier, template_type, elementor_json, block_markup, preview_image, sort_order } = req.body;
 
-    if (!name || !category || !elementor_json) {
-      return res.json({ success: false, error: 'name, category, and elementor_json are required' });
+    if (!name || !category || (!elementor_json && !block_markup)) {
+      return res.json({ success: false, error: 'name, category, and either elementor_json or block_markup are required' });
     }
 
     const result = await pool.query(`
-      INSERT INTO gas_templates (name, category, description, tier, template_type, elementor_json, preview_image, sort_order)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+      INSERT INTO gas_templates (name, category, description, tier, template_type, elementor_json, block_markup, preview_image, sort_order)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
     `, [name, category, description || null, tier || 'standard', template_type || 'section',
-        JSON.stringify(elementor_json), preview_image || null, sort_order || 0]);
+        elementor_json ? JSON.stringify(elementor_json) : null, block_markup || null, preview_image || null, sort_order || 0]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -80114,8 +80114,8 @@ app.post('/api/templates', async (req, res) => {
   }
 });
 
-// PUT /api/templates/:id — update template (master admin only)
-app.put('/api/templates/:id', async (req, res) => {
+// PUT /api/page-templates/:id — update template (master admin only)
+app.put('/api/page-templates/:id', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -80166,8 +80166,8 @@ app.put('/api/templates/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/templates/:id — soft delete (master admin only)
-app.delete('/api/templates/:id', async (req, res) => {
+// DELETE /api/page-templates/:id — soft delete (master admin only)
+app.delete('/api/page-templates/:id', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -80198,8 +80198,8 @@ app.delete('/api/templates/:id', async (req, res) => {
   }
 });
 
-// POST /api/templates/:id/push — push template to a WordPress site via GAS plugin
-app.post('/api/templates/:id/push', async (req, res) => {
+// POST /api/page-templates/:id/push — push template to a WordPress site via GAS plugin
+app.post('/api/page-templates/:id/push', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {

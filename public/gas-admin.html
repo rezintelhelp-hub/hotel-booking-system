@@ -56429,7 +56429,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             try {
                 showNotification('Inserting section...', 'info');
-                const res = await fetch(`/api/templates/0/push`, {
+                const res = await fetch(`/api/page-templates/0/push`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
@@ -56459,7 +56459,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             try {
                 const category = document.getElementById('section-category-filter').value;
-                let url = '/api/templates?tier=pro';
+                let url = '/api/page-templates?tier=pro';
                 if (category) url += `&category=${category}`;
 
                 const res = await fetch(url, { headers: authHeaders() });
@@ -56494,7 +56494,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             try {
                 showNotification(`Inserting ${templateName}...`, 'info');
-                const res = await fetch(`/api/templates/${templateId}/push`, {
+                const res = await fetch(`/api/page-templates/${templateId}/push`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
@@ -56524,7 +56524,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadTemplates() {
             const category = document.getElementById('tpl-category-filter')?.value || '';
             const tier = document.getElementById('tpl-tier-filter')?.value || '';
-            let url = '/api/templates?';
+            let url = '/api/page-templates?';
             if (category) url += 'category=' + encodeURIComponent(category) + '&';
             if (tier) url += 'tier=' + encodeURIComponent(tier);
 
@@ -56585,7 +56585,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function openEditTemplateModal(id) {
             try {
-                const res = await fetch('/api/templates/' + id, { headers: authHeaders() });
+                const res = await fetch('/api/page-templates/' + id, { headers: authHeaders() });
                 const t = await res.json();
                 document.getElementById('tpl-edit-id').value = t.id;
                 document.getElementById('tpl-name').value = t.name || '';
@@ -56634,7 +56634,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
 
             try {
-                const url = id ? '/api/templates/' + id : '/api/templates';
+                const url = id ? '/api/page-templates/' + id : '/api/page-templates';
                 const method = id ? 'PUT' : 'POST';
                 const res = await fetch(url, {
                     method,
@@ -56657,7 +56657,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function deleteTemplate(id) {
             if (!confirm('Delete this template? It will be deactivated, not permanently removed.')) return;
             try {
-                const res = await fetch('/api/templates/' + id, {
+                const res = await fetch('/api/page-templates/' + id, {
                     method: 'DELETE',
                     headers: authHeaders()
                 });
@@ -56746,7 +56746,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             resultDiv.style.display = 'none';
 
             try {
-                const res = await fetch('/api/templates/' + templateId + '/push', {
+                const res = await fetch('/api/page-templates/' + templateId + '/push', {
                     method: 'POST',
                     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
