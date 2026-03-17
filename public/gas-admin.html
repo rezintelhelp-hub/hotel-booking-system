@@ -56558,13 +56558,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const hLvl = block.headingLevel || 'h2';
                     const hNum = hLvl.replace('h', '');
                     if (headHtml) {
-                        contentInner += `<!-- wp:heading {"level":${hNum}} -->\n<${hLvl} class="wp-block-heading" style="color:${headColor}">${headHtml}</${hLvl}>\n<!-- /wp:heading -->\n\n`;
+                        contentInner += `<!-- wp:heading {"level":${hNum},"style":{"color":{"text":"${headColor}"}}} -->\n<${hLvl} class="wp-block-heading has-text-color" style="color:${headColor} !important">${headHtml}</${hLvl}>\n<!-- /wp:heading -->\n\n`;
                     }
                     if (subHtml) {
-                        contentInner += `<!-- wp:paragraph -->\n<p style="color:${subColor}">${subHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
+                        contentInner += `<!-- wp:paragraph {"style":{"color":{"text":"${subColor}"}}} -->\n<p class="has-text-color" style="color:${subColor} !important">${subHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
                     }
                     if (btnText) {
-                        contentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"backgroundColor":"custom","style":{"color":{"background":"${btnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${btnLink}" style="background-color:${btnColor};border-radius:0px">${btnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
+                        contentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${btnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${btnLink}" style="background-color:${btnColor} !important;border-radius:0px !important">${btnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
                     }
 
                     // Overlay column (has rgba background + content)
