@@ -55509,6 +55509,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     let cvPos = 'left', cvWidth = 40, cvOlColor = '#000000', cvOlOpacity = 70;
                     let cvHeadHtml = '', cvHeadColor = '#ffffff', cvHeadLevel = 'h2', cvSubHtml = '', cvSubColor = '#ffffff';
                     let cvBtnText = '', cvBtnLink = '', cvBtnColor = '#F97224';
+                    let cvPadTop = '40', cvPadRight = '30', cvPadBot = '40', cvPadLeft = '30';
+                    let cvHeadFont = '', cvHeadSize = '', cvSubFont = '', cvSubSize = '';
                     if (isPbHero) {
                         // Parse from column structure
                         const cols = dom.querySelectorAll('.wp-block-column');
@@ -55529,6 +55531,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     cvOlColor = '#' + [rgbaMatch[1],rgbaMatch[2],rgbaMatch[3]].map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
                                     cvOlOpacity = Math.round(parseFloat(rgbaMatch[4]) * 100);
                                 }
+                                // Parse overlay column padding
+                                const colStyle = overlayCol.getAttribute('style') || '';
+                                const padMatch = colStyle.match(/padding:\s*(\d+)px\s+(\d+)px(?:\s+(\d+)px\s+(\d+)px)?/);
+                                if (padMatch) {
+                                    cvPadTop = padMatch[1]; cvPadRight = padMatch[2];
+                                    cvPadBot = padMatch[3] || padMatch[1]; cvPadLeft = padMatch[4] || padMatch[2];
+                                }
                             }
                         }
                         const contentCol = overlayCol || dom;
@@ -55536,9 +55545,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                         cvHeadHtml = hEl ? hEl.innerHTML : '';
                         cvHeadColor = hEl ? (hEl.style.color || '#ffffff') : '#ffffff';
                         cvHeadLevel = hEl ? hEl.tagName.toLowerCase() : 'h2';
+                        if (hEl) {
+                            const hStyle = hEl.getAttribute('style') || '';
+                            const hFontMatch = hStyle.match(/font-family:\s*([^;!]+)/);
+                            const hSizeMatch = hStyle.match(/font-size:\s*(\d+)px/);
+                            if (hFontMatch) cvHeadFont = hFontMatch[1].trim();
+                            if (hSizeMatch) cvHeadSize = hSizeMatch[1];
+                        }
                         const pEl = contentCol.querySelector('p');
                         cvSubHtml = pEl ? pEl.innerHTML : '';
                         cvSubColor = pEl ? (pEl.style.color || '#ffffff') : '#ffffff';
+                        if (pEl) {
+                            const pStyle = pEl.getAttribute('style') || '';
+                            const pFontMatch = pStyle.match(/font-family:\s*([^;!]+)/);
+                            const pSizeMatch = pStyle.match(/font-size:\s*(\d+)px/);
+                            if (pFontMatch) cvSubFont = pFontMatch[1].trim();
+                            if (pSizeMatch) cvSubSize = pSizeMatch[1];
+                        }
                         const btnEl = contentCol.querySelector('.wp-block-button__link');
                         cvBtnText = btnEl ? btnEl.textContent : '';
                         cvBtnLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
@@ -55617,6 +55640,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 </div>
                             </div>
 
+                            <div style="${grp}">Layout</div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 1rem; align-items:center; margin-bottom:6px;">
+                                <div style="${row}">
+                                    <span style="${lbl}">Pad Left</span>
+                                    <input type="number" id="pb-edit-${index}-cover-pad-left" value="${cvPadLeft}" min="0" max="200" style="${ctrl} width:60px;">
+                                    <span style="font-size:0.75rem; color:#94a3b8;">px</span>
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Pad Right</span>
+                                    <input type="number" id="pb-edit-${index}-cover-pad-right" value="${cvPadRight}" min="0" max="200" style="${ctrl} width:60px;">
+                                    <span style="font-size:0.75rem; color:#94a3b8;">px</span>
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Pad Top</span>
+                                    <input type="number" id="pb-edit-${index}-cover-pad-top" value="${cvPadTop}" min="0" max="200" style="${ctrl} width:60px;">
+                                    <span style="font-size:0.75rem; color:#94a3b8;">px</span>
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Pad Bottom</span>
+                                    <input type="number" id="pb-edit-${index}-cover-pad-bot" value="${cvPadBot}" min="0" max="200" style="${ctrl} width:60px;">
+                                    <span style="font-size:0.75rem; color:#94a3b8;">px</span>
+                                </div>
+                            </div>
+
                             <div style="${grp}">Content</div>
                             <div style="display:grid; grid-template-columns:1fr; gap:6px; margin-bottom:6px;">
                                 <div style="${row}">
@@ -55635,6 +55682,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     </select>
                                 </div>
                                 <div style="${row}">
+                                    <span style="${lbl}">Head Font</span>
+                                    <select id="pb-edit-${index}-cover-head-font" style="${ctrl} flex:1;">
+                                        ${['','Arial','Helvetica','Georgia','Times New Roman','Verdana','Montserrat','Open Sans','Playfair Display','Raleway'].map(f => '<option value="' + f + '"' + (cvHeadFont === f ? ' selected' : '') + '>' + (f || 'Default') + '</option>').join('')}
+                                    </select>
+                                    <span style="${lbl} min-width:30px;">Size</span>
+                                    <input type="number" id="pb-edit-${index}-cover-head-size" value="${cvHeadSize}" min="10" max="120" placeholder="auto" style="${ctrl} width:60px;">
+                                    <span style="font-size:0.75rem; color:#94a3b8;">px</span>
+                                </div>
+                                <div style="${row}">
                                     <span style="${lbl}">Subtitle</span>
                                     <textarea id="pb-edit-${index}-cover-subtitle" data-wysiwyg="true" data-wysiwyg-placeholder="Subtitle text" style="${ctrl} flex:1; min-height:36px; resize:vertical;"></textarea>
                                 </div>
@@ -55642,6 +55698,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <span style="${lbl}">Sub Color</span>
                                     <input type="color" id="pb-edit-${index}-cover-sub-color" value="${cvSubColor}" onchange="document.getElementById('pb-edit-${index}-cover-sub-color-hex').value=this.value;" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
                                     <input type="text" id="pb-edit-${index}-cover-sub-color-hex" value="${cvSubColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-cover-sub-color').value=this.value;" style="${ctrl} width:75px;">
+                                </div>
+                                <div style="${row}">
+                                    <span style="${lbl}">Sub Font</span>
+                                    <select id="pb-edit-${index}-cover-sub-font" style="${ctrl} flex:1;">
+                                        ${['','Arial','Helvetica','Georgia','Times New Roman','Verdana','Montserrat','Open Sans','Playfair Display','Raleway'].map(f => '<option value="' + f + '"' + (cvSubFont === f ? ' selected' : '') + '>' + (f || 'Default') + '</option>').join('')}
+                                    </select>
+                                    <span style="${lbl} min-width:30px;">Size</span>
+                                    <input type="number" id="pb-edit-${index}-cover-sub-size" value="${cvSubSize}" min="10" max="120" placeholder="auto" style="${ctrl} width:60px;">
+                                    <span style="font-size:0.75rem; color:#94a3b8;">px</span>
                                 </div>
                                 <div style="${row}">
                                     <span style="${lbl}">Button Text</span>
@@ -55936,13 +56001,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const cvBtnLink = document.getElementById(`pb-edit-${index}-cover-btn-link`)?.value || '';
                     const cvBtnColor = document.getElementById(`pb-edit-${index}-cover-btn-color`)?.value || '#F97224';
                     const cvHeadLevel = document.getElementById(`pb-edit-${index}-cover-head-level`)?.value || 'h2';
+                    const cvPadTop = document.getElementById(`pb-edit-${index}-cover-pad-top`)?.value || '40';
+                    const cvPadRight = document.getElementById(`pb-edit-${index}-cover-pad-right`)?.value || '30';
+                    const cvPadBot = document.getElementById(`pb-edit-${index}-cover-pad-bot`)?.value || '40';
+                    const cvPadLeft = document.getElementById(`pb-edit-${index}-cover-pad-left`)?.value || '30';
+                    const cvHeadFont = document.getElementById(`pb-edit-${index}-cover-head-font`)?.value || '';
+                    const cvHeadSize = document.getElementById(`pb-edit-${index}-cover-head-size`)?.value || '';
+                    const cvSubFont = document.getElementById(`pb-edit-${index}-cover-sub-font`)?.value || '';
+                    const cvSubSize = document.getElementById(`pb-edit-${index}-cover-sub-size`)?.value || '';
                     return blockToMarkup({
                         type: 'cover', url: cvUrl, height: cvHeight,
                         overlayPos: cvPos, overlayWidth: parseInt(cvOlWidth),
                         overlayColor: cvOlColor, overlayOpacity: parseInt(cvOlOpacity),
                         headingHtml: cvHeadHtml, headingColor: cvHeadColor, headingLevel: cvHeadLevel,
                         subtitleHtml: cvSubHtml, subtitleColor: cvSubColor,
-                        btnText: cvBtnText, btnLink: cvBtnLink, btnColor: cvBtnColor
+                        btnText: cvBtnText, btnLink: cvBtnLink, btnColor: cvBtnColor,
+                        padTop: cvPadTop, padRight: cvPadRight, padBottom: cvPadBot, padLeft: cvPadLeft,
+                        headingFont: cvHeadFont, headingSize: cvHeadSize,
+                        subtitleFont: cvSubFont, subtitleSize: cvSubSize
                     });
                 }
                 case 'paragraph': {
@@ -56553,22 +56629,34 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const btnLink = block.btnLink || '#';
                     const btnColor = block.btnColor || '#F97224';
 
+                    // Padding values
+                    const padT = block.padTop || '40';
+                    const padR = block.padRight || '30';
+                    const padB = block.padBottom || '40';
+                    const padL = block.padLeft || '30';
+
                     // Build content column inner blocks
                     let contentInner = '';
                     const hLvl = block.headingLevel || 'h2';
                     const hNum = hLvl.replace('h', '');
                     if (headHtml) {
-                        contentInner += `<!-- wp:heading {"level":${hNum},"style":{"color":{"text":"${headColor}"}}} -->\n<${hLvl} class="wp-block-heading has-text-color" style="color:${headColor} !important">${headHtml}</${hLvl}>\n<!-- /wp:heading -->\n\n`;
+                        let headStyle = `color:${headColor} !important`;
+                        if (block.headingFont) headStyle += `;font-family:${block.headingFont} !important`;
+                        if (block.headingSize) headStyle += `;font-size:${block.headingSize}px !important`;
+                        contentInner += `<!-- wp:heading {"level":${hNum},"style":{"color":{"text":"${headColor}"}}} -->\n<${hLvl} class="wp-block-heading has-text-color" style="${headStyle}">${headHtml}</${hLvl}>\n<!-- /wp:heading -->\n\n`;
                     }
                     if (subHtml) {
-                        contentInner += `<!-- wp:paragraph {"style":{"color":{"text":"${subColor}"}}} -->\n<p class="has-text-color" style="color:${subColor} !important">${subHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
+                        let subStyle = `color:${subColor} !important`;
+                        if (block.subtitleFont) subStyle += `;font-family:${block.subtitleFont} !important`;
+                        if (block.subtitleSize) subStyle += `;font-size:${block.subtitleSize}px !important`;
+                        contentInner += `<!-- wp:paragraph {"style":{"color":{"text":"${subColor}"}}} -->\n<p class="has-text-color" style="${subStyle}">${subHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
                     }
                     if (btnText) {
                         contentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${btnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${btnLink}" style="background-color:${btnColor} !important;border-radius:0px !important">${btnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
                     }
 
                     // Overlay column (has rgba background + content)
-                    const overlayCol = `<!-- wp:column {"width":"${olW}%"} -->\n<div class="wp-block-column" style="flex-basis:${olW}%;background:rgba(${olR},${olG},${olB},${olA});padding:40px 30px;display:flex;flex-direction:column;justify-content:center">\n${contentInner}</div>\n<!-- /wp:column -->`;
+                    const overlayCol = `<!-- wp:column {"width":"${olW}%"} -->\n<div class="wp-block-column" style="flex-basis:${olW}%;background:rgba(${olR},${olG},${olB},${olA});padding:${padT}px ${padR}px ${padB}px ${padL}px;display:flex;flex-direction:column;justify-content:center">\n${contentInner}</div>\n<!-- /wp:column -->`;
 
                     // Empty transparent column (min-height prevents flex collapse)
                     const emptyCol = `<!-- wp:column {"width":"${emptyW}%"} -->\n<div class="wp-block-column" style="flex-basis:${emptyW}%;min-height:1px"></div>\n<!-- /wp:column -->`;
