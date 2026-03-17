@@ -14,6 +14,20 @@
 
 ---
 
+## ELEVATE INTEGRATION — CHANGE MANAGEMENT
+
+Elevate (contact: Adi) must be notified BEFORE any changes to:
+- Any `/api/elevate/*` endpoint
+- Any `/api/partner/*` endpoint
+- Any webhook payload format
+- Any field name changes in the partner API
+
+Never remove or rename existing endpoints without a deprecation notice period.
+Always maintain backwards compatibility for Elevate's integration.
+Add new endpoints alongside old ones, never replace.
+
+---
+
 ## WHAT GAS IS
 
 GAS (Global Accommodation System) is a full-stack hotel booking and property management SaaS platform built and maintained by Steve Driver. It connects property owners directly with guests and travel agents, free from big platform fees.
