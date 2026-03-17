@@ -55507,7 +55507,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Detect pb-hero column covers
                     const isPbHero = section.raw_markup.includes('pb-hero');
                     let cvPos = 'left', cvWidth = 40, cvOlColor = '#000000', cvOlOpacity = 70;
-                    let cvHeadHtml = '', cvHeadColor = '#ffffff', cvSubHtml = '', cvSubColor = '#ffffff';
+                    let cvHeadHtml = '', cvHeadColor = '#ffffff', cvHeadLevel = 'h2', cvSubHtml = '', cvSubColor = '#ffffff';
                     let cvBtnText = '', cvBtnLink = '', cvBtnColor = '#F97224';
                     if (isPbHero) {
                         // Parse from column structure
@@ -55535,6 +55535,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const hEl = contentCol.querySelector('h1, h2, h3, h4');
                         cvHeadHtml = hEl ? hEl.innerHTML : '';
                         cvHeadColor = hEl ? (hEl.style.color || '#ffffff') : '#ffffff';
+                        cvHeadLevel = hEl ? hEl.tagName.toLowerCase() : 'h2';
                         const pEl = contentCol.querySelector('p');
                         cvSubHtml = pEl ? pEl.innerHTML : '';
                         cvSubColor = pEl ? (pEl.style.color || '#ffffff') : '#ffffff';
@@ -55547,6 +55548,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const hEl = dom.querySelector('h1, h2, h3, h4');
                         cvHeadHtml = hEl ? hEl.innerHTML : '';
                         cvHeadColor = hEl ? (hEl.style.color || '#ffffff') : '#ffffff';
+                        cvHeadLevel = hEl ? hEl.tagName.toLowerCase() : 'h2';
                         const pEl = dom.querySelector('.wp-block-cover__inner-container p');
                         cvSubHtml = pEl ? pEl.innerHTML : '';
                         cvSubColor = pEl ? (pEl.style.color || '#ffffff') : '#ffffff';
@@ -55619,12 +55621,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <div style="display:grid; grid-template-columns:1fr; gap:6px; margin-bottom:6px;">
                                 <div style="${row}">
                                     <span style="${lbl}">Heading</span>
-                                    <textarea id="pb-edit-${index}-cover-heading" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text" style="${ctrl} flex:1; min-height:40px; resize:vertical; font-size:1rem; font-weight:600;"></textarea>
+                                    <textarea id="pb-edit-${index}-cover-heading" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text" style="${ctrl} flex:1; min-height:80px; resize:vertical; font-size:1.1rem; font-weight:600;"></textarea>
                                 </div>
                                 <div style="${row}">
                                     <span style="${lbl}">Head Color</span>
                                     <input type="color" id="pb-edit-${index}-cover-head-color" value="${cvHeadColor}" onchange="document.getElementById('pb-edit-${index}-cover-head-color-hex').value=this.value;" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
                                     <input type="text" id="pb-edit-${index}-cover-head-color-hex" value="${cvHeadColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-cover-head-color').value=this.value;" style="${ctrl} width:75px;">
+                                    <select id="pb-edit-${index}-cover-head-level" style="${ctrl} width:60px;">
+                                        <option value="h1" ${cvHeadLevel === 'h1' ? 'selected' : ''}>H1</option>
+                                        <option value="h2" ${cvHeadLevel === 'h2' ? 'selected' : ''}>H2</option>
+                                        <option value="h3" ${cvHeadLevel === 'h3' ? 'selected' : ''}>H3</option>
+                                        <option value="h4" ${cvHeadLevel === 'h4' ? 'selected' : ''}>H4</option>
+                                    </select>
                                 </div>
                                 <div style="${row}">
                                     <span style="${lbl}">Subtitle</span>
@@ -55927,11 +55935,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const cvBtnText = document.getElementById(`pb-edit-${index}-cover-btn-text`)?.value || '';
                     const cvBtnLink = document.getElementById(`pb-edit-${index}-cover-btn-link`)?.value || '';
                     const cvBtnColor = document.getElementById(`pb-edit-${index}-cover-btn-color`)?.value || '#F97224';
+                    const cvHeadLevel = document.getElementById(`pb-edit-${index}-cover-head-level`)?.value || 'h2';
                     return blockToMarkup({
                         type: 'cover', url: cvUrl, height: cvHeight,
                         overlayPos: cvPos, overlayWidth: parseInt(cvOlWidth),
                         overlayColor: cvOlColor, overlayOpacity: parseInt(cvOlOpacity),
-                        headingHtml: cvHeadHtml, headingColor: cvHeadColor,
+                        headingHtml: cvHeadHtml, headingColor: cvHeadColor, headingLevel: cvHeadLevel,
                         subtitleHtml: cvSubHtml, subtitleColor: cvSubColor,
                         btnText: cvBtnText, btnLink: cvBtnLink, btnColor: cvBtnColor
                     });
@@ -56546,8 +56555,10 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                     // Build content column inner blocks
                     let contentInner = '';
+                    const hLvl = block.headingLevel || 'h2';
+                    const hNum = hLvl.replace('h', '');
                     if (headHtml) {
-                        contentInner += `<!-- wp:heading {"level":2} -->\n<h2 class="wp-block-heading" style="color:${headColor}">${headHtml}</h2>\n<!-- /wp:heading -->\n\n`;
+                        contentInner += `<!-- wp:heading {"level":${hNum}} -->\n<${hLvl} class="wp-block-heading" style="color:${headColor}">${headHtml}</${hLvl}>\n<!-- /wp:heading -->\n\n`;
                     }
                     if (subHtml) {
                         contentInner += `<!-- wp:paragraph -->\n<p style="color:${subColor}">${subHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
