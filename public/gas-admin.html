@@ -55468,9 +55468,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 gasWysiwygInit(); // Initialise WYSIWYG on any data-wysiwyg textareas
                 // Inject HTML into WYSIWYG editors (must happen after init wraps the textarea)
                 const _sec = proBuilderSections[index];
-                ['_paraHtml', '_headingHtml', '_coverHeadHtml', '_coverSubHtml'].forEach(key => {
+                ['_paraHtml', '_headingHtml', '_coverHeadHtml', '_coverSubHtml', '_splitHeadHtml', '_splitParaHtml'].forEach(key => {
                     if (_sec[key] === undefined) return;
-                    const suffixMap = { '_paraHtml': 'para-text', '_headingHtml': 'heading-text', '_coverHeadHtml': 'cover-heading', '_coverSubHtml': 'cover-subtitle' };
+                    const suffixMap = { '_paraHtml': 'para-text', '_headingHtml': 'heading-text', '_coverHeadHtml': 'cover-heading', '_coverSubHtml': 'cover-subtitle', '_splitHeadHtml': 'split-heading', '_splitParaHtml': 'split-para' };
                     const _ta = document.getElementById(`pb-edit-${index}-${suffixMap[key]}`);
                     if (_ta) { const _w = _ta.previousElementSibling; if (_w && _w._gasEditor) _w._gasEditor.innerHTML = _sec[key]; else _ta.value = _sec[key]; }
                 });
@@ -55737,7 +55737,153 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
                 case 'columns': {
                     const colEls = dom.querySelectorAll('.wp-block-column');
-                    fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem; padding: 4px 0;">${colEls.length} column(s) — edit individual column content in a future update</div>`;
+                    // Detect split layout: 2 columns where one has a wp:cover
+                    const hasCover0 = colEls.length >= 2 && colEls[0].querySelector('.wp-block-cover');
+                    const hasCover1 = colEls.length >= 2 && colEls[1] && colEls[1].querySelector('.wp-block-cover');
+                    const isSplit = colEls.length === 2 && (hasCover0 || hasCover1);
+
+                    if (isSplit) {
+                        const coverColIdx = hasCover0 ? 0 : 1;
+                        const textColIdx = coverColIdx === 0 ? 1 : 0;
+                        const coverCol = colEls[coverColIdx];
+                        const textCol = colEls[textColIdx];
+
+                        // Parse cover attrs from block comment in raw_markup
+                        const coverCommentMatch = section.raw_markup.match(/<!-- wp:cover\s+(\{.*?\})\s*-->/);
+                        let coverAttrs = {};
+                        if (coverCommentMatch) { try { coverAttrs = JSON.parse(coverCommentMatch[1]); } catch(e) {} }
+                        const spCoverUrl = coverAttrs.url || '';
+                        const spCoverHeight = coverAttrs.minHeight || 450;
+                        const spCoverDim = coverAttrs.dimRatio !== undefined ? coverAttrs.dimRatio : 0;
+
+                        // Parse cover column width
+                        const spCoverWidth = parseInt(coverCol.style.flexBasis) || 40;
+
+                        // Parse text column
+                        const spTextBgRaw = textCol.style.backgroundColor || '';
+                        let spTextBg = '#1b374c';
+                        if (spTextBgRaw.startsWith('#')) { spTextBg = spTextBgRaw; }
+                        else if (spTextBgRaw.startsWith('rgb')) {
+                            const m = spTextBgRaw.match(/(\d+)/g);
+                            if (m && m.length >= 3) spTextBg = '#' + m.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
+                        }
+                        const spHEl = textCol.querySelector('h1, h2, h3, h4, h5, h6');
+                        const spHHtml = spHEl ? spHEl.innerHTML : '';
+                        const spHColor = spHEl ? (spHEl.style.color || '#ffffff') : '#ffffff';
+                        const spHLevel = spHEl ? spHEl.tagName.toLowerCase() : 'h2';
+                        const spPEl = textCol.querySelector('p');
+                        const spPHtml = spPEl ? spPEl.innerHTML : '';
+                        const spPColor = spPEl ? (spPEl.style.color || '#ffffff') : '#ffffff';
+                        const spBtnEl = textCol.querySelector('.wp-block-button__link');
+                        const spBtnText = spBtnEl ? spBtnEl.textContent : '';
+                        const spBtnLink = spBtnEl ? (spBtnEl.getAttribute('href') || '') : '';
+                        let spBtnColor = spBtnEl ? (spBtnEl.style.backgroundColor || '#E8621A') : '#E8621A';
+                        if (!spBtnColor.startsWith('#')) {
+                            const bm = spBtnColor.match(/(\d+)/g);
+                            if (bm && bm.length >= 3) spBtnColor = '#' + bm.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
+                        }
+
+                        const spPos = coverColIdx === 0 ? 'left' : 'right';
+                        const lbl = 'font-weight:600; font-size:0.78rem; color:#6b7280; white-space:nowrap; min-width:85px;';
+                        const ctrl = 'padding:5px 8px; border:1px solid #d1d5db; border-radius:5px; font-size:0.82rem; color:#1e293b; background:#fff;';
+                        const row = 'display:flex; align-items:center; gap:6px;';
+                        const grp = 'font-weight:700; font-size:0.72rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:8px 0 4px; padding-top:6px; border-top:1px solid #e2e8f0;';
+                        const posBtn = (val, label) => {
+                            const sel = val === spPos;
+                            return `<button type="button" onclick="document.getElementById('pb-edit-${index}-split-pos').value='${val}'; this.parentNode.querySelectorAll('button').forEach(b=>{b.style.background='#fff';b.style.color='#374151';}); this.style.background='#6366f1'; this.style.color='#fff';" style="padding:4px 14px; border:1px solid #d1d5db; border-radius:4px; font-size:0.78rem; cursor:pointer; background:${sel ? '#6366f1' : '#fff'}; color:${sel ? '#fff' : '#374151'};">${label}</button>`;
+                        };
+
+                        fieldsHtml = `
+                            <div style="padding:0.5rem 0;">
+                                <div style="${grp} border-top:none; margin-top:0;">Cover Image</div>
+                                <div style="display:grid; grid-template-columns:1fr; gap:6px; margin-bottom:6px;">
+                                    <div style="${row}">
+                                        <span style="${lbl}">Image</span>
+                                        <input type="text" id="pb-edit-${index}-split-bg-img" value="${spCoverUrl.replace(/"/g, '&quot;')}" placeholder="Paste URL or upload" style="${ctrl} flex:1;">
+                                        <label style="padding:4px 10px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.78rem; cursor:pointer; white-space:nowrap;">Upload<input type="file" accept="image/*" onchange="pbUploadBgImage(this, '${index}', 'split')" style="display:none;"></label>
+                                    </div>
+                                    ${spCoverUrl ? `<div style="margin-left:91px;"><img src="${spCoverUrl}" style="max-width:180px; max-height:100px; border-radius:4px; border:1px solid #e2e8f0;"></div>` : ''}
+                                    <div style="${row}">
+                                        <span style="${lbl}">Height</span>
+                                        <input type="number" id="pb-edit-${index}-split-cover-height" value="${spCoverHeight}" style="${ctrl} width:80px;" min="200" max="1000" step="50">
+                                        <span style="font-size:0.78rem; color:#6b7280;">px</span>
+                                    </div>
+                                    <div style="${row}">
+                                        <span style="${lbl}">Overlay</span>
+                                        <input type="range" id="pb-edit-${index}-split-cover-dim" min="0" max="100" step="5" value="${spCoverDim}" oninput="document.getElementById('pb-edit-${index}-split-cover-dim-val').textContent=this.value+'%';" style="flex:1; cursor:pointer;">
+                                        <span id="pb-edit-${index}-split-cover-dim-val" style="font-size:0.78rem; color:#6b7280; min-width:30px;">${spCoverDim}%</span>
+                                    </div>
+                                </div>
+
+                                <div style="${grp}">Layout</div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px;">
+                                    <div style="${row}">
+                                        <span style="${lbl}">Image Side</span>
+                                        <div style="display:flex; gap:2px;">${posBtn('left', 'Left')}${posBtn('right', 'Right')}</div>
+                                        <input type="hidden" id="pb-edit-${index}-split-pos" value="${spPos}">
+                                    </div>
+                                    <div style="${row}">
+                                        <span style="${lbl}">Image Width</span>
+                                        <input type="range" id="pb-edit-${index}-split-cover-width" min="25" max="65" step="5" value="${spCoverWidth}" oninput="document.getElementById('pb-edit-${index}-split-cover-width-val').textContent=this.value+'%';" style="flex:1; cursor:pointer;">
+                                        <span id="pb-edit-${index}-split-cover-width-val" style="font-size:0.78rem; color:#6b7280; min-width:30px;">${spCoverWidth}%</span>
+                                    </div>
+                                </div>
+
+                                <div style="${grp}">Content</div>
+                                <div style="display:grid; grid-template-columns:1fr; gap:6px; margin-bottom:6px;">
+                                    <div style="${row}">
+                                        <span style="${lbl}">BG Colour</span>
+                                        <input type="color" id="pb-edit-${index}-split-text-bg" value="${spTextBg}" onchange="document.getElementById('pb-edit-${index}-split-text-bg-hex').value=this.value;" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                        <input type="text" id="pb-edit-${index}-split-text-bg-hex" value="${spTextBg}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-split-text-bg').value=this.value;" style="${ctrl} width:80px;">
+                                    </div>
+                                    <div style="${row}">
+                                        <span style="${lbl}">Heading</span>
+                                        <textarea id="pb-edit-${index}-split-heading" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text" style="${ctrl} flex:1; min-height:40px; resize:vertical; font-size:1rem; font-weight:600;"></textarea>
+                                    </div>
+                                    <div style="${row}">
+                                        <span style="${lbl}">Head Color</span>
+                                        <input type="color" id="pb-edit-${index}-split-head-color" value="${spHColor}" onchange="document.getElementById('pb-edit-${index}-split-head-color-hex').value=this.value;" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                        <input type="text" id="pb-edit-${index}-split-head-color-hex" value="${spHColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-split-head-color').value=this.value;" style="${ctrl} width:80px;">
+                                        <select id="pb-edit-${index}-split-head-level" style="${ctrl} width:60px;">
+                                            <option value="h1" ${spHLevel === 'h1' ? 'selected' : ''}>H1</option>
+                                            <option value="h2" ${spHLevel === 'h2' ? 'selected' : ''}>H2</option>
+                                            <option value="h3" ${spHLevel === 'h3' ? 'selected' : ''}>H3</option>
+                                            <option value="h4" ${spHLevel === 'h4' ? 'selected' : ''}>H4</option>
+                                        </select>
+                                    </div>
+                                    <div style="${row}">
+                                        <span style="${lbl}">Paragraph</span>
+                                        <textarea id="pb-edit-${index}-split-para" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" style="${ctrl} flex:1; min-height:60px; resize:vertical;"></textarea>
+                                    </div>
+                                    <div style="${row}">
+                                        <span style="${lbl}">Text Color</span>
+                                        <input type="color" id="pb-edit-${index}-split-para-color" value="${spPColor}" onchange="document.getElementById('pb-edit-${index}-split-para-color-hex').value=this.value;" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                        <input type="text" id="pb-edit-${index}-split-para-color-hex" value="${spPColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-split-para-color').value=this.value;" style="${ctrl} width:80px;">
+                                    </div>
+                                    <div style="${row}">
+                                        <span style="${lbl}">Button Text</span>
+                                        <input type="text" id="pb-edit-${index}-split-btn-text" value="${spBtnText.replace(/"/g, '&quot;')}" placeholder="Leave blank for no button" style="${ctrl} flex:1;">
+                                    </div>
+                                    <div style="${row}">
+                                        <span style="${lbl}">Button URL</span>
+                                        <input type="text" id="pb-edit-${index}-split-btn-link" value="${spBtnLink.replace(/"/g, '&quot;')}" placeholder="/book-now" style="${ctrl} flex:1;">
+                                    </div>
+                                    <div style="${row}">
+                                        <span style="${lbl}">Btn Colour</span>
+                                        <input type="color" id="pb-edit-${index}-split-btn-color" value="${spBtnColor}" onchange="document.getElementById('pb-edit-${index}-split-btn-color-hex').value=this.value;" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                        <input type="text" id="pb-edit-${index}-split-btn-color-hex" value="${spBtnColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-split-btn-color').value=this.value;" style="${ctrl} width:80px;">
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        // Store for WYSIWYG injection + mark as split for save logic
+                        proBuilderSections[index]._splitHeadHtml = spHHtml;
+                        proBuilderSections[index]._splitParaHtml = spPHtml;
+                        proBuilderSections[index]._isSplit = true;
+                        proBuilderSections[index]._splitCoverPos = spPos;
+                    } else {
+                        fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem; padding: 4px 0;">${colEls.length} column(s) — edit individual column content in a future update</div>`;
+                    }
                     break;
                 }
                 case 'group': {
@@ -55748,7 +55894,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     fieldsHtml = '<div style="color: #94a3b8; padding: 4px 0;">No editable fields for this block type</div>';
             }
 
-            const canSave = !['shortcode', 'columns', 'group'].includes(section.type);
+            const canSave = !['shortcode', 'group'].includes(section.type) && !(section.type === 'columns' && !section._isSplit);
 
             return `
                 <div style="padding: 1rem 1rem 0.75rem; border-top: 1px solid #e2e8f0; background: #f8fafc;">
@@ -55814,6 +55960,43 @@ const promo = await fetch('/api/v1/offers/validate', {
                 case 'spacer': {
                     const h = document.getElementById(`pb-edit-${index}-spacer-h`)?.value || '40';
                     return blockToMarkup({ type: 'spacer', height: h });
+                }
+                case 'columns': {
+                    if (!section._isSplit) return null;
+                    const spUrl = document.getElementById(`pb-edit-${index}-split-bg-img`)?.value || '';
+                    const spH = document.getElementById(`pb-edit-${index}-split-cover-height`)?.value || '450';
+                    const spDim = document.getElementById(`pb-edit-${index}-split-cover-dim`)?.value || '0';
+                    const spCW = document.getElementById(`pb-edit-${index}-split-cover-width`)?.value || '40';
+                    const spPos = document.getElementById(`pb-edit-${index}-split-pos`)?.value || 'left';
+                    const spBg = document.getElementById(`pb-edit-${index}-split-text-bg`)?.value || '#1b374c';
+                    const spHead = gasWysiwygGetValue(`pb-edit-${index}-split-heading`) || document.getElementById(`pb-edit-${index}-split-heading`)?.value || '';
+                    const spHC = document.getElementById(`pb-edit-${index}-split-head-color`)?.value || '#ffffff';
+                    const spHL = document.getElementById(`pb-edit-${index}-split-head-level`)?.value || 'h2';
+                    const spPara = gasWysiwygGetValue(`pb-edit-${index}-split-para`) || document.getElementById(`pb-edit-${index}-split-para`)?.value || '';
+                    const spPC = document.getElementById(`pb-edit-${index}-split-para-color`)?.value || '#ffffff';
+                    const spBT = document.getElementById(`pb-edit-${index}-split-btn-text`)?.value || '';
+                    const spBL = document.getElementById(`pb-edit-${index}-split-btn-link`)?.value || '';
+                    const spBC = document.getElementById(`pb-edit-${index}-split-btn-color`)?.value || '#E8621A';
+                    const spTW = 100 - parseInt(spCW);
+
+                    // Build cover attrs JSON
+                    const cAttrs = { dimRatio: parseInt(spDim), minHeight: parseInt(spH), style: { border: { radius: '0px' } } };
+                    if (spUrl) cAttrs.url = spUrl;
+                    const dimClass = `has-background-dim-${spDim} has-background-dim`;
+                    const coverImg = spUrl ? `<img class="wp-block-cover__image-background" alt="" src="${spUrl}" data-object-fit="cover"/>` : '';
+                    const coverCol = `<!-- wp:column {"width":"${spCW}%"} -->\n<div class="wp-block-column" style="flex-basis:${spCW}%"><!-- wp:cover ${JSON.stringify(cAttrs)} -->\n<div class="wp-block-cover" style="border-radius:0px;min-height:${spH}px"><span aria-hidden="true" class="wp-block-cover__background ${dimClass}"></span>${coverImg}<div class="wp-block-cover__inner-container"><!-- wp:paragraph -->\n<p></p>\n<!-- /wp:paragraph --></div></div>\n<!-- /wp:cover --></div>\n<!-- /wp:column -->`;
+
+                    // Build text column content
+                    let tc = '';
+                    const hNum = spHL.replace('h', '');
+                    if (spHead) tc += `<!-- wp:heading {"level":${hNum},"style":{"color":{"text":"${spHC}"}}} -->\n<${spHL} class="wp-block-heading has-text-color" style="color:${spHC}">${spHead}</${spHL}>\n<!-- /wp:heading -->`;
+                    if (spPara) tc += `<!-- wp:paragraph {"style":{"color":{"text":"${spPC}"}}} -->\n<p class="has-text-color" style="color:${spPC}">${spPara}</p>\n<!-- /wp:paragraph -->`;
+                    if (spBT) tc += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${spBC}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link has-background wp-element-button" style="border-radius:0px;background-color:${spBC}"${spBL ? ` href="${spBL}"` : ''}>${spBT}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->`;
+                    const textCol = `<!-- wp:column {"width":"${spTW}%","style":{"color":{"background":"${spBg}"},"spacing":{"padding":{"top":"60px","bottom":"60px","left":"60px","right":"60px"}}}} -->\n<div class="wp-block-column has-background" style="background-color:${spBg};padding-top:60px;padding-right:60px;padding-bottom:60px;padding-left:60px;flex-basis:${spTW}%">${tc}</div>\n<!-- /wp:column -->`;
+
+                    const first = spPos === 'left' ? coverCol : textCol;
+                    const second = spPos === 'left' ? textCol : coverCol;
+                    return `<!-- wp:columns {"align":"full","style":{"spacing":{"padding":{"top":"0","bottom":"0","left":"0","right":"0"},"blockGap":{"left":"0"}}}} -->\n<div class="wp-block-columns alignfull" style="padding-top:0;padding-right:0;padding-bottom:0;padding-left:0">${first}${second}</div>\n<!-- /wp:columns -->`;
                 }
                 default:
                     return null;

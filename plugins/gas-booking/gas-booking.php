@@ -4769,6 +4769,25 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             max-width: 100% !important;
             margin-left: 0 !important;
             padding: 0 !important;
+            overflow: hidden !important;
+        }
+        .developer-featured .gas-rooms-wrapper {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        .developer-featured .gas-rooms-list {
+            flex: 1 1 100% !important;
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        .developer-featured .gas-rooms-grid {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+        }
+        .developer-featured .gas-room-card {
+            overflow: hidden !important;
+            min-width: 0 !important;
         }
 
         .gas-rooms-map .leaflet-popup-content-wrapper {
