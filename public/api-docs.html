@@ -496,8 +496,11 @@
                                     }
                                 }
                             }
-                        }
-                    }
+                        },
+                        "sms_consent_enabled": { "type": "boolean", "description": "Show SMS consent checkbox on checkout page", "example": true },
+                        "sms_consent_text": { "type": "string", "description": "Custom text for the SMS consent checkbox. If empty, uses default.", "example": "I agree to receive SMS text messages regarding my stay (Msg&Data rates may apply, reply STOP to opt out)" }
+                    },
+                    "description": "Checkout configuration including payment options and consent checkboxes. SMS consent and marketing opt-in values are synced to Beds24 as bookingInfoItems: SMS_CONSENT (Yes/No) and MARKETING_OPT_IN (Yes/No)."
                 },
                 "SuccessResponse": {
                     "type": "object",
@@ -1953,7 +1956,7 @@
                 "put": {
                     "tags": ["Stripe & Payments"],
                     "summary": "Configure Checkout",
-                    "description": "Configure payment options for checkout. Multiple payment methods can be enabled simultaneously.\n\n**Pay at Property modes:**\n- `book_only` — Confirmed immediately, no payment\n- `bank_required` — Request (pending), bank details shown\n- `pay_optional` — Confirmed immediately, bank details shown",
+                    "description": "Configure payment options and consent checkboxes for checkout. Multiple payment methods can be enabled simultaneously.\n\n**Pay at Property modes:**\n- `book_only` — Confirmed immediately, no payment\n- `bank_required` — Request (pending), bank details shown\n- `pay_optional` — Confirmed immediately, bank details shown\n\n**Consent checkboxes:**\n- `sms_consent_enabled` — Show SMS consent checkbox on checkout\n- `sms_consent_text` — Custom label text for the SMS checkbox\n\nBoth SMS consent and marketing opt-in are synced to Beds24 as custom `bookingInfoItems`: `SMS_CONSENT` and `MARKETING_OPT_IN` (Yes/No).",
                     "parameters": [ { "name": "property_id", "in": "path", "required": true, "schema": { "type": "integer" } } ],
                     "requestBody": {
                         "content": {
