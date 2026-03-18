@@ -55817,7 +55817,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Detect split layout: 2 columns where one has a wp:cover
                     const hasCover0 = colEls.length >= 2 && colEls[0].querySelector('.wp-block-cover');
                     const hasCover1 = colEls.length >= 2 && colEls[1] && colEls[1].querySelector('.wp-block-cover');
-                    const isSplit = colEls.length === 2 && (hasCover0 || hasCover1);
+                    const isSplit = colEls.length === 2 && ((hasCover0 && !hasCover1) || (!hasCover0 && hasCover1));
 
                     if (isSplit) {
                         const coverColIdx = hasCover0 ? 0 : 1;
@@ -55959,7 +55959,28 @@ const promo = await fetch('/api/v1/offers/validate', {
                         proBuilderSections[index]._isSplit = true;
                         proBuilderSections[index]._splitCoverPos = spPos;
                     } else {
-                        fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem; padding: 4px 0;">${colEls.length} column(s) — edit individual column content in a future update</div>`;
+                        // Multi-column layout — show summary of each column's content
+                        let colSummary = '';
+                        for (let ci = 0; ci < colEls.length; ci++) {
+                            const col = colEls[ci];
+                            const colW = col.style.flexBasis || 'auto';
+                            const colCover = col.querySelector('.wp-block-cover');
+                            const colImg = colCover ? (colCover.querySelector('img')?.getAttribute('src') || '') : '';
+                            const colH = col.querySelector('h1, h2, h3, h4');
+                            const colP = col.querySelector('p');
+                            const colBtn = col.querySelector('.wp-block-button__link');
+                            colSummary += `<div style="padding:8px; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:6px; background:#fff;">
+                                <div style="font-weight:600; font-size:0.78rem; color:#6366f1; margin-bottom:4px;">Column ${ci + 1} (${colW})</div>
+                                ${colImg ? `<img src="${colImg}" style="max-width:150px; max-height:80px; border-radius:4px; margin-bottom:4px; display:block;">` : ''}
+                                ${colH ? `<div style="font-size:0.82rem; font-weight:600; color:#1e293b;">${colH.textContent}</div>` : ''}
+                                ${colP ? `<div style="font-size:0.78rem; color:#64748b; margin-top:2px;">${colP.textContent.substring(0, 80)}</div>` : ''}
+                                ${colBtn ? `<div style="font-size:0.75rem; color:#6366f1; margin-top:2px;">Button: ${colBtn.textContent}</div>` : ''}
+                            </div>`;
+                        }
+                        fieldsHtml = `<div style="padding:4px 0;">
+                            <div style="font-size:0.82rem; color:#64748b; margin-bottom:6px;">${colEls.length}-column layout — delete and re-insert to modify</div>
+                            ${colSummary}
+                        </div>`;
                     }
                     break;
                 }
