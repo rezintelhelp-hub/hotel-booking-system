@@ -81347,9 +81347,11 @@ app.post('/api/hostvana/chat', async (req, res) => {
       });
 
       const msgs = response.data?.data || [];
+      // Sort oldest first so widget can slice correctly
+      msgs.sort((a, b) => new Date(a.time) - new Date(b.time));
       const messages = msgs.map(m => ({
         text: m.message || '',
-        timestamp: m.createdTime || m.modifiedTime || null,
+        timestamp: m.time || null,
         sender: m.source === 'guest' ? 'guest' : 'host'
       }));
       return res.json({ success: true, messages });
