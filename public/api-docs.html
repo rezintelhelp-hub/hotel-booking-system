@@ -2442,6 +2442,49 @@
                     "security": []
                 }
             },
+            "/api/public/client/{clientId}/contact-form": {
+                "post": {
+                    "tags": ["Public"],
+                    "summary": "Submit contact form message",
+                    "description": "Sends a contact form submission via email to the site owner. Recipient priority: form-email setting > contact page email > account admin email. No authentication required.",
+                    "parameters": [
+                        { "name": "clientId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Account ID (client_id)" }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["name", "email", "message"],
+                                    "properties": {
+                                        "name": { "type": "string", "example": "John Smith" },
+                                        "email": { "type": "string", "format": "email", "example": "john@example.com" },
+                                        "subject": { "type": "string", "example": "Booking enquiry" },
+                                        "message": { "type": "string", "example": "I would like to enquire about availability for next weekend." },
+                                        "page_url": { "type": "string", "example": "https://myhotel.sites.gas.travel/contact/" }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Message sent successfully",
+                            "content": { "application/json": { "example": { "success": true } } }
+                        },
+                        "400": {
+                            "description": "Validation error",
+                            "content": { "application/json": { "example": { "success": false, "error": "Name, email and message are required" } } }
+                        },
+                        "404": {
+                            "description": "Site not found",
+                            "content": { "application/json": { "example": { "success": false, "error": "Site not found" } } }
+                        }
+                    },
+                    "security": []
+                }
+            },
             "/api/public/repuso-reviews": {
                 "get": {
                     "tags": ["Public"],
