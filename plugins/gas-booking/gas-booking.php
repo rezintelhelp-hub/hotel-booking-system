@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.4.3
+ * Version: 3.4.5
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.4.3');
+define('GAS_BOOKING_VERSION', '3.4.5');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -1093,6 +1093,44 @@ class GAS_Booking {
         return $labels;
     }
     
+    /**
+     * Get checkout settings from site-config (SMS consent etc.)
+     */
+    private function get_checkout_settings() {
+        $cache_key = 'gas_checkout_settings_v1';
+        $cached = get_transient($cache_key);
+        if ($cached !== false) {
+            return $cached;
+        }
+
+        $client_id = get_option('gas_client_id');
+        if (!$client_id) {
+            return array('sms_consent_enabled' => false, 'sms_consent_text' => '');
+        }
+
+        $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
+        $response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config", array(
+            'timeout' => 10,
+            'sslverify' => false
+        ));
+
+        if (is_wp_error($response)) {
+            return array('sms_consent_enabled' => false, 'sms_consent_text' => '');
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        $checkout = $data['config']['checkout'] ?? array();
+
+        $settings = array(
+            'sms_consent_enabled' => !empty($checkout['sms_consent_enabled']),
+            'sms_consent_text' => $checkout['sms_consent_text'] ?? ''
+        );
+
+        set_transient($cache_key, $settings, HOUR_IN_SECONDS);
+        return $settings;
+    }
+
     /**
      * Get UI translations for current language
      * Fetches from GAS server and caches for performance
@@ -6336,10 +6374,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $t_guest = $t['guest_details'] ?? array();
         $t_payment = $t['payment'] ?? array();
         $t_common = $t['common'] ?? array();
-        
+
+        // Get checkout settings (SMS consent etc.)
+        $checkout_settings = $this->get_checkout_settings();
+
         // Check if group booking
         $is_group = isset($_GET['group']) && $_GET['group'] == '1';
-        
+
         // Get booking details from URL params
         $unit_id = isset($_GET['room']) ? intval($_GET['room']) : 0;
         $checkin = isset($_GET['checkin']) ? sanitize_text_field($_GET['checkin']) : '';
@@ -6601,6 +6642,16 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                         </label>
                                     </div>
                                 </div>
+                                <?php if (!empty($checkout_settings['sms_consent_enabled'])): ?>
+                                <div class="gas-form-row">
+                                    <div class="gas-form-field full-width">
+                                        <label class="gas-checkbox-label">
+                                            <input type="checkbox" name="sms_consent" value="1" />
+                                            <span><?php echo esc_html($checkout_settings['sms_consent_text'] ?: 'I agree to receive SMS text messages regarding my stay (Msg&Data rates may apply, reply STOP to opt out)'); ?></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
                             </form>
                         </div>
                         
@@ -7484,13 +7535,29 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
     }
     
     public function contact_shortcode($atts) {
-        $title = get_option('gas_contact_title', 'Contact Us');
+        // Try Web Builder API settings first, fall back to WP options
+        $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+
+        $title = $api['page_contact_title'] ?? get_option('gas_contact_title', 'Contact Us');
         $content = get_option('gas_contact_content', '<p>We would love to hear from you.</p>');
-        $address = get_option('gas_contact_address', '');
-        $phone = get_option('gas_contact_phone', '');
-        $email = get_option('gas_contact_email', '');
+
+        // Build address from Web Builder fields, fall back to WP option
+        $wb_address_parts = array_filter([
+            $api['page_contact_business_name'] ?? '',
+            $api['page_contact_address'] ?? '',
+            implode(', ', array_filter([
+                $api['page_contact_city'] ?? '',
+                $api['page_contact_state'] ?? '',
+                $api['page_contact_zip'] ?? '',
+            ])),
+            $api['page_contact_country'] ?? '',
+        ]);
+        $address = !empty($wb_address_parts) ? implode("\n", $wb_address_parts) : get_option('gas_contact_address', '');
+
+        $phone = $api['page_contact_phone'] ?? get_option('gas_contact_phone', '');
+        $email = $api['page_contact_email'] ?? get_option('gas_contact_email', '');
         $map_embed = get_option('gas_contact_map_embed', '');
-        $button_color = $this->get_effective_button_color();
+        $button_color = $api['page_contact_button_color'] ?? $this->get_effective_button_color();
         
         ob_start();
         ?>

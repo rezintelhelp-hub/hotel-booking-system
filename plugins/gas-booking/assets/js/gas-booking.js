@@ -1,6 +1,6 @@
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
- * @version 3.4.3
+ * @version 3.4.5
  */
 jQuery(document).ready(function($) {
     
@@ -5330,6 +5330,7 @@ jQuery(document).ready(function($) {
                 guest_country: $form.find('[name="country"]').val(),
                 notes: $form.find('[name="notes"]').val(),
                 marketing: $form.find('[name="marketing"]').is(':checked'),
+                sms_consent: $form.find('[name="sms_consent"]').is(':checked'),
                 payment_method: paymentMethod,
                 total_price: checkoutData.grandTotal,
                 rate_type: checkoutData.rateType,

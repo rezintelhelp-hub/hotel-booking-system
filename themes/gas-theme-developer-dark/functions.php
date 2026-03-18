@@ -92,6 +92,13 @@ function developer_theme_activation() {
             }
         } else {
             $created_pages[$slug] = $existing->ID;
+            // Assign template if page exists but has no template set
+            if (!empty($page_data['template'])) {
+                $current_template = get_post_meta($existing->ID, '_wp_page_template', true);
+                if (empty($current_template) || $current_template === 'default') {
+                    update_post_meta($existing->ID, '_wp_page_template', $page_data['template']);
+                }
+            }
         }
     }
     

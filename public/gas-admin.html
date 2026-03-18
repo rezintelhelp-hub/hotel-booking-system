@@ -2702,8 +2702,29 @@
                         </div>
                         
                         <button class="btn" onclick="saveAccountSettings()" style="margin-top: 1.5rem;">
-                            💾 Save Language Settings
+                            Save Account Settings
                         </button>
+
+                        <!-- Checkout Settings -->
+                        <div class="card" style="margin-top: 2rem;">
+                            <div class="card-header">
+                                <h3>Checkout Settings</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="margin-bottom: 1rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600;">
+                                        <input type="checkbox" id="settings-sms-consent-enabled" style="width: 18px; height: 18px;">
+                                        Enable SMS Consent Checkbox
+                                    </label>
+                                    <small style="color: #64748b; display: block; margin-top: 0.25rem;">Show an SMS consent checkbox on the checkout page (below marketing opt-in).</small>
+                                </div>
+                                <div id="sms-consent-text-wrapper" style="display: none;">
+                                    <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">SMS Consent Text</label>
+                                    <textarea id="settings-sms-consent-text" rows="3" style="width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem; font-size: 0.9rem;" placeholder="I agree to receive SMS text messages regarding my stay (Msg&Data rates may apply, reply STOP to opt out)"></textarea>
+                                    <small style="color: #64748b; display: block; margin-top: 0.25rem;">Leave blank to use the default text.</small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -27668,6 +27689,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                             }
                         };
                     });
+
+                    // SMS consent settings
+                    const smsEnabled = document.getElementById('settings-sms-consent-enabled');
+                    const smsText = document.getElementById('settings-sms-consent-text');
+                    const smsWrapper = document.getElementById('sms-consent-text-wrapper');
+                    if (smsEnabled) {
+                        smsEnabled.checked = data.sms_consent_enabled || false;
+                        if (smsWrapper) smsWrapper.style.display = smsEnabled.checked ? 'block' : 'none';
+                        smsEnabled.onchange = function() {
+                            if (smsWrapper) smsWrapper.style.display = this.checked ? 'block' : 'none';
+                        };
+                    }
+                    if (smsText) smsText.value = data.sms_consent_text || '';
                 }
             } catch (error) {
                 console.error('Error loading account settings:', error);
@@ -27701,6 +27735,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 supportedLanguages.push(primaryLanguage);
             }
             
+            // SMS consent settings
+            const smsConsentEnabled = document.getElementById('settings-sms-consent-enabled')?.checked || false;
+            const smsConsentText = document.getElementById('settings-sms-consent-text')?.value || '';
+
             try {
                 const response = await fetch('/api/account/language-settings', {
                     method: 'PUT',
@@ -27708,17 +27746,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify({
                         primary_language: primaryLanguage,
                         supported_languages: supportedLanguages,
+                        sms_consent_enabled: smsConsentEnabled,
+                        sms_consent_text: smsConsentText,
                         account_id: selectedAccountId || null
                     })
                 });
-                
+
                 const data = await response.json();
                 if (data.success) {
                     window.accountLanguageSettings = {
                         primary_language: primaryLanguage,
                         supported_languages: supportedLanguages
                     };
-                    showNotification('Language settings saved!', 'success');
+                    showNotification('Account settings saved!', 'success');
                 } else {
                     showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
                 }
@@ -29695,7 +29735,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const skipped = data.results.properties?.filter(p => p.status === 'skipped').length || 0;
                     let msg = `${total} properties found: ${data.results.success} success, ${data.results.failed} failed`;
                     if (skipped > 0) msg += `, ${skipped} skipped (existing non-GAS webhook)`;
-                    if (total === 0) msg = 'No Beds24 properties found for this account. Check the connection is active.';
+                    if (total === 0) msg = 'No Beds24 properties found for this account. You can set the webhook manually in Beds24 — copy the URL shown above.';
                     showNotification(msg, total === 0 ? 'warning' : 'success');
                 } else {
                     showNotification('Failed to set webhooks: ' + (data.error || 'Unknown error'), 'error');
@@ -62249,9 +62289,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 ` : ''}
                 ${isBeds24 ? `
                 <hr style="margin: 20px 0;">
-                <h4 style="margin-bottom: 15px;">🔗 Webhooks</h4>
+                <h4 style="margin-bottom: 15px;">Webhooks</h4>
                 <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 12px;">Set the GAS webhook URL on all Beds24 properties for this account. Properties with existing non-GAS webhooks will be skipped.</p>
-                <button class="btn" style="background: #8b5cf6; color: white;" onclick="setBeds24WebhooksForConnection('${conn.account_id}')">🔗 Set Webhooks</button>
+                <div style="background: #1e293b; padding: 0.75rem; border-radius: 6px; margin-bottom: 12px;">
+                    <p style="font-size: 0.8rem; color: #94a3b8; margin: 0 0 4px 0;">Webhook URL (for manual setup in Beds24):</p>
+                    <code style="color: #22c55e; font-size: 0.85rem; word-break: break-all;">https://admin.gas.travel/api/webhooks/beds24?propertyId=[PROPERTYID]</code>
+                    <button onclick="navigator.clipboard.writeText('https://admin.gas.travel/api/webhooks/beds24?propertyId=[PROPERTYID]'); showNotification('Webhook URL copied!', 'success');" class="btn btn-secondary btn-small" style="margin-top: 6px; font-size: 0.75rem;">Copy URL</button>
+                </div>
+                <button class="btn" style="background: #8b5cf6; color: white;" onclick="setBeds24WebhooksForConnection('${conn.account_id}')">Set Webhooks Automatically</button>
                 ` : ''}
                 <hr style="margin: 20px 0;">
                 <button class="btn btn-primary" onclick="saveConnectionSettings()">💾 Save Settings</button>

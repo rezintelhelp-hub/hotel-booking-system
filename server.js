@@ -11354,7 +11354,9 @@ app.get('/api/account/language-settings', async (req, res) => {
     res.json({
       success: true,
       primary_language: settings.primary_language || 'en',
-      supported_languages: settings.supported_languages || ['en']
+      supported_languages: settings.supported_languages || ['en'],
+      sms_consent_enabled: settings.sms_consent_enabled || false,
+      sms_consent_text: settings.sms_consent_text || ''
     });
   } catch (error) {
     console.error('Get language settings error:', error);
@@ -11389,25 +11391,30 @@ app.put('/api/account/language-settings', async (req, res) => {
       }
     }
     
-    const { primary_language, supported_languages } = req.body;
-    
+    const { primary_language, supported_languages, sms_consent_enabled, sms_consent_text } = req.body;
+
     // Validate
     const validLangs = ['en', 'es', 'fr', 'de', 'nl', 'it', 'pt', 'pl', 'ru', 'ja', 'zh'];
     if (!validLangs.includes(primary_language)) {
       return res.json({ success: false, error: 'Invalid primary language' });
     }
-    
+
     if (!Array.isArray(supported_languages) || supported_languages.length > 4) {
       return res.json({ success: false, error: 'Supported languages must be an array of max 4 languages' });
     }
-    
+
+    // Build settings update object
+    const settingsUpdate = { primary_language, supported_languages };
+    if (typeof sms_consent_enabled === 'boolean') settingsUpdate.sms_consent_enabled = sms_consent_enabled;
+    if (typeof sms_consent_text === 'string') settingsUpdate.sms_consent_text = sms_consent_text;
+
     // Update settings JSONB field
     await pool.query(`
-      UPDATE accounts 
+      UPDATE accounts
       SET settings = COALESCE(settings, '{}'::jsonb) || $1::jsonb,
           updated_at = NOW()
       WHERE id = $2
-    `, [JSON.stringify({ primary_language, supported_languages }), accountId]);
+    `, [JSON.stringify(settingsUpdate), accountId]);
     
     res.json({ success: true });
   } catch (error) {
@@ -19522,6 +19529,7 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_country VARCHAR(100)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS special_requests TEXT`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS marketing_opt_in BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS sms_consent BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS notes TEXT`);
     
     // Enigma usage tracking table
@@ -60765,7 +60773,7 @@ app.post('/api/public/book', async (req, res) => {
       unit_id, check_in, check_out, guests,
       guest_first_name, guest_last_name, guest_email, guest_phone,
       guest_address, guest_city, guest_country, guest_postcode,
-      voucher_code, notes, marketing, total_price, upsells, price_breakdown,
+      voucher_code, notes, marketing, sms_consent, total_price, upsells, price_breakdown,
       stripe_payment_intent_id, deposit_amount, balance_amount, payment_method,
       enigma_reference_id, stripe_setup_intent_id, stripe_payment_method_id,
       source_site_url
@@ -60854,18 +60862,19 @@ app.post('/api/public/book', async (req, res) => {
     // Create booking
     const booking = await pool.query(`
       INSERT INTO bookings (
-        property_id, property_owner_id, bookable_unit_id, 
-        arrival_date, departure_date, 
-        num_adults, num_children, 
+        property_id, property_owner_id, bookable_unit_id,
+        arrival_date, departure_date,
+        num_adults, num_children,
         guest_first_name, guest_last_name, guest_email, guest_phone,
         guest_address, guest_city, guest_postcode, guest_country,
         special_requests, notes,
-        accommodation_price, subtotal, grand_total, 
+        accommodation_price, subtotal, grand_total,
         deposit_amount, balance_amount, balance_due_date,
         stripe_payment_intent_id, payment_status,
-        status, booking_source, currency, source_site_url
-      ) 
-      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $15, $15, $16, $17, $18, $19, $20, $21, 'direct', $22, $23)
+        status, booking_source, currency, source_site_url,
+        marketing_opt_in, sms_consent
+      )
+      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $15, $15, $16, $17, $18, $19, $20, $21, 'direct', $22, $23, $24, $25)
       RETURNING *
     `, [
       unit.rows[0].property_id,
@@ -60890,7 +60899,9 @@ app.post('/api/public/book', async (req, res) => {
       paymentStatus,
       bookingStatus,
       unit.rows[0].currency || 'EUR',
-      source_site_url || null
+      source_site_url || null,
+      marketing || false,
+      sms_consent || false
     ]);
     
     const newBooking = booking.rows[0];
@@ -68824,6 +68835,15 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                     return {
                         primary: acctSettings.primary_language || 'en',
                         supported: acctSettings.supported_languages || ['en']
+                    };
+                })(),
+
+                // Checkout settings
+                checkout: (() => {
+                    const acctSettings = langSettingsResult.rows[0]?.settings || {};
+                    return {
+                        sms_consent_enabled: acctSettings.sms_consent_enabled || false,
+                        sms_consent_text: acctSettings.sms_consent_text || ''
                     };
                 })()
             }
@@ -81181,18 +81201,47 @@ app.post('/api/hostvana/chat', async (req, res) => {
         return res.status(400).json({ success: false, error: 'roomId and message are required' });
       }
 
-      // Look up beds24_property_id from beds24_room_id
-      const roomLookup = await pool.query(`
-        SELECT p.beds24_property_id
+      console.log(`[HOSTVANA] createBooking request — accountId: ${accountId}, roomId: ${roomId}, message: "${message?.substring(0, 80)}..."`);
+
+      // Look up beds24_property_id from beds24_room_id OR from GAS bookable_unit id
+      let roomLookup = await pool.query(`
+        SELECT bu.id as unit_id, bu.beds24_room_id, p.beds24_property_id, p.id as property_id
         FROM bookable_units bu
         JOIN properties p ON p.id = bu.property_id
         WHERE bu.beds24_room_id = $1 AND p.account_id = $2
         LIMIT 1
       `, [String(roomId), accountId]);
 
-      const beds24PropId = roomLookup.rows[0]?.beds24_property_id;
-      if (!beds24PropId) {
+      // Fallback: try roomId as a GAS bookable_unit ID
+      if (roomLookup.rows.length === 0) {
+        console.log(`[HOSTVANA] beds24_room_id lookup failed for ${roomId}, trying as bookable_unit id...`);
+        roomLookup = await pool.query(`
+          SELECT bu.id as unit_id, bu.beds24_room_id, p.beds24_property_id, p.id as property_id
+          FROM bookable_units bu
+          JOIN properties p ON p.id = bu.property_id
+          WHERE bu.id = $1 AND p.account_id = $2
+          LIMIT 1
+        `, [roomId, accountId]);
+      }
+
+      if (roomLookup.rows.length === 0) {
+        console.log(`[HOSTVANA] Room not found — accountId: ${accountId}, roomId: ${roomId}`);
         return res.status(400).json({ success: false, error: 'Room not found for this account' });
+      }
+
+      const row = roomLookup.rows[0];
+      const beds24PropId = row.beds24_property_id;
+      const beds24RoomId = row.beds24_room_id;
+
+      console.log(`[HOSTVANA] Room lookup result — unit_id: ${row.unit_id}, beds24_room_id: ${beds24RoomId}, beds24_property_id: ${beds24PropId}, property_id: ${row.property_id}`);
+
+      if (!beds24PropId) {
+        console.log(`[HOSTVANA] No beds24_property_id set for property ${row.property_id}`);
+        return res.status(400).json({ success: false, error: 'Beds24 property ID not mapped for this property' });
+      }
+      if (!beds24RoomId) {
+        console.log(`[HOSTVANA] No beds24_room_id set for unit ${row.unit_id}`);
+        return res.status(400).json({ success: false, error: 'Beds24 room ID not mapped for this room' });
       }
 
       const v2Token = syncConn.rows[0].access_token;
@@ -81202,22 +81251,26 @@ app.post('/api/hostvana/chat', async (req, res) => {
 
       const bookingData = [{
         propId: parseInt(beds24PropId),
-        roomId: parseInt(roomId),
+        roomId: parseInt(beds24RoomId),
         status: 'inquiry',
-        firstName: 'Hostvana Question',
+        firstName: senderName || 'Hostvana Question',
         lastName: '',
         arrival: arrival || new Date().toISOString().split('T')[0],
         departure: departure || new Date(Date.now() + 86400000).toISOString().split('T')[0],
         infoItems: [{ code: 'message', text: message }]
       }];
 
+      console.log(`[HOSTVANA] Sending to Beds24 V2:`, JSON.stringify(bookingData));
+
       const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, {
         headers: { 'token': v2Token, 'Content-Type': 'application/json', 'accept': 'application/json' }
       });
 
+      console.log(`[HOSTVANA] Beds24 V2 response:`, JSON.stringify(response.data));
+
       if (response.data && response.data.length > 0 && response.data[0].new) {
         const created = response.data[0].new;
-        console.log(`[HOSTVANA] Created inquiry booking ${created.id} for room ${roomId} on account ${accountId}`);
+        console.log(`[HOSTVANA] Created inquiry booking ${created.id} for room ${beds24RoomId} on account ${accountId}`);
         return res.json({
           success: true,
           bookingId: created.id,
@@ -81225,7 +81278,8 @@ app.post('/api/hostvana/chat', async (req, res) => {
         });
       }
 
-      return res.status(502).json({ success: false, error: 'Failed to create booking on Beds24' });
+      console.log(`[HOSTVANA] Unexpected Beds24 response — no 'new' booking returned`);
+      return res.status(502).json({ success: false, error: 'Failed to create booking on Beds24', beds24Response: response.data });
     }
 
     // Action: sendMessage — adds a message to an existing booking via V1
