@@ -81271,21 +81271,32 @@ app.post('/api/hostvana/chat', async (req, res) => {
         firstName: senderName || 'Hostvana Question',
         lastName: '',
         arrival: arrival || new Date().toISOString().split('T')[0],
-        departure: departure || new Date(Date.now() + 86400000).toISOString().split('T')[0],
-        infoItems: [{ code: 'message', text: message }]
+        departure: departure || new Date(Date.now() + 86400000).toISOString().split('T')[0]
       }];
 
-      console.log(`[HOSTVANA] Sending to Beds24 V2:`, JSON.stringify(bookingData));
+      console.log(`[HOSTVANA] Creating inquiry on Beds24 V2:`, JSON.stringify(bookingData));
 
       const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, {
         headers: { 'token': v2Token, 'Content-Type': 'application/json', 'accept': 'application/json' }
       });
 
-      console.log(`[HOSTVANA] Beds24 V2 response:`, JSON.stringify(response.data));
+      console.log(`[HOSTVANA] Beds24 V2 booking response:`, JSON.stringify(response.data));
 
       if (response.data && response.data.length > 0 && response.data[0].new) {
         const created = response.data[0].new;
         console.log(`[HOSTVANA] Created inquiry booking ${created.id} for room ${beds24RoomId} on account ${accountId}`);
+
+        // Add the guest message via POST /bookings/messages with source: guest
+        try {
+          const msgPayload = [{ bookingId: created.id, message, source: 'guest' }];
+          const msgRes = await axios.post('https://beds24.com/api/v2/bookings/messages', msgPayload, {
+            headers: { 'token': v2Token, 'Content-Type': 'application/json', 'accept': 'application/json' }
+          });
+          console.log(`[HOSTVANA] Guest message added to booking ${created.id}:`, JSON.stringify(msgRes.data));
+        } catch (msgErr) {
+          console.error(`[HOSTVANA] Failed to add guest message to booking ${created.id}:`, msgErr.message);
+        }
+
         return res.json({
           success: true,
           bookingId: created.id,
@@ -81297,58 +81308,50 @@ app.post('/api/hostvana/chat', async (req, res) => {
       return res.status(502).json({ success: false, error: 'Failed to create booking on Beds24', beds24Response: response.data });
     }
 
-    // Action: sendMessage — adds a message to an existing booking via V1
+    // Action: sendMessage — adds a guest message to an existing booking via V2
     if (action === 'sendMessage') {
       if (!bookingId || !message) {
         return res.status(400).json({ success: false, error: 'bookingId and message are required' });
       }
 
-      const v1Payload = {
-        authentication: { apiKey: v1ApiKey },
-        bookId: String(bookingId),
-        infoItems: [{ code: 'message', text: message }]
-      };
+      const v2Token = syncConn.rows[0].access_token;
+      if (!v2Token) {
+        return res.status(502).json({ success: false, error: 'Beds24 V2 token not available' });
+      }
 
-      await axios.post('https://api.beds24.com/json/setBooking', v1Payload, {
-        headers: { 'Content-Type': 'application/json' },
+      const msgPayload = [{ bookingId: parseInt(bookingId), message, source: 'guest' }];
+      await axios.post('https://beds24.com/api/v2/bookings/messages', msgPayload, {
+        headers: { 'token': v2Token, 'Content-Type': 'application/json', 'accept': 'application/json' },
         timeout: 10000
       });
 
-      console.log(`[HOSTVANA] Sent message on booking ${bookingId} for account ${accountId}`);
+      console.log(`[HOSTVANA] Sent guest message on booking ${bookingId} for account ${accountId}`);
       return res.json({ success: true });
     }
 
-    // Action: getMessages — retrieves messages from a booking via V1
+    // Action: getMessages — retrieves messages from a booking via V2
     if (action === 'getMessages') {
       if (!bookingId) {
         return res.status(400).json({ success: false, error: 'bookingId is required' });
       }
 
-      const v1Payload = {
-        authentication: { apiKey: v1ApiKey },
-        bookId: String(bookingId),
-        includeInvoice: false,
-        includeInfoItems: true
-      };
+      const v2Token = syncConn.rows[0].access_token;
+      if (!v2Token) {
+        return res.status(502).json({ success: false, error: 'Beds24 V2 token not available' });
+      }
 
-      const response = await axios.post('https://api.beds24.com/json/getBooking', v1Payload, {
-        headers: { 'Content-Type': 'application/json' },
+      const response = await axios.get(`https://beds24.com/api/v2/bookings/messages?bookingId=${bookingId}`, {
+        headers: { 'token': v2Token, 'accept': 'application/json' },
         timeout: 10000
       });
 
-      const booking = response.data;
-      if (booking && booking.infoItems) {
-        const messages = booking.infoItems
-          .filter(item => item.code === 'message')
-          .map(item => ({
-            text: item.text,
-            timestamp: item.time || item.modifiedTime || null,
-            sender: item.source === 'guest' ? 'guest' : 'host'
-          }));
-        return res.json({ success: true, messages });
-      }
-
-      return res.json({ success: true, messages: [] });
+      const msgs = response.data?.data || [];
+      const messages = msgs.map(m => ({
+        text: m.message || '',
+        timestamp: m.createdTime || m.modifiedTime || null,
+        sender: m.source === 'guest' ? 'guest' : 'host'
+      }));
+      return res.json({ success: true, messages });
     }
 
     return res.status(400).json({ success: false, error: 'Invalid action. Use: createBooking, sendMessage, getMessages' });
