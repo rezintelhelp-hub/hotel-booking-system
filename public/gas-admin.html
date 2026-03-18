@@ -56780,7 +56780,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
 
                     // Overlay column (has rgba background + content)
-                    const overlayCol = `<!-- wp:column {"width":"${olW}%"} -->\n<div class="wp-block-column" style="flex-basis:${olW}%;background:rgba(${olR},${olG},${olB},${olA});padding:${padT}px ${padR}px ${padB}px ${padL}px;display:flex;flex-direction:column;justify-content:center">\n${contentInner}</div>\n<!-- /wp:column -->`;
+                    const olColAttrs = JSON.stringify({ width: `${olW}%`, style: { spacing: { padding: { top: `${padT}px`, right: `${padR}px`, bottom: `${padB}px`, left: `${padL}px` } } } });
+                    const overlayCol = `<!-- wp:column ${olColAttrs} -->\n<div class="wp-block-column" style="flex-basis:${olW}%;background:rgba(${olR},${olG},${olB},${olA});padding-top:${padT}px;padding-right:${padR}px;padding-bottom:${padB}px;padding-left:${padL}px;display:flex;flex-direction:column;justify-content:center">\n${contentInner}</div>\n<!-- /wp:column -->`;
 
                     // Empty transparent column (min-height prevents flex collapse)
                     const emptyCol = `<!-- wp:column {"width":"${emptyW}%"} -->\n<div class="wp-block-column" style="flex-basis:${emptyW}%;min-height:1px"></div>\n<!-- /wp:column -->`;
@@ -56841,7 +56842,8 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                     if (isFullWidth) {
                         // Full layout — pb-hero with nested overlay/transparent columns
-                        const csOverlayCol = `<!-- wp:column {"width":"${csOlW}%"} -->\n<div class="wp-block-column" style="flex-basis:${csOlW}%;background:rgba(${csOlR},${csOlG},${csOlB},${csOlA});padding:${csPadT}px ${csPadR}px ${csPadB}px ${csPadL}px;display:flex;flex-direction:column;justify-content:center">\n${csContentInner}</div>\n<!-- /wp:column -->`;
+                        const csOlColAttrs = JSON.stringify({ width: `${csOlW}%`, style: { spacing: { padding: { top: `${csPadT}px`, right: `${csPadR}px`, bottom: `${csPadB}px`, left: `${csPadL}px` } } } });
+                        const csOverlayCol = `<!-- wp:column ${csOlColAttrs} -->\n<div class="wp-block-column" style="flex-basis:${csOlW}%;background:rgba(${csOlR},${csOlG},${csOlB},${csOlA});padding-top:${csPadT}px;padding-right:${csPadR}px;padding-bottom:${csPadB}px;padding-left:${csPadL}px;display:flex;flex-direction:column;justify-content:center">\n${csContentInner}</div>\n<!-- /wp:column -->`;
                         const csEmptyCol = `<!-- wp:column {"width":"${csEmptyW}%"} -->\n<div class="wp-block-column" style="flex-basis:${csEmptyW}%;min-height:1px"></div>\n<!-- /wp:column -->`;
                         const csColsInner = csPos === 'left' ? `${csOverlayCol}\n\n${csEmptyCol}` : `${csEmptyCol}\n\n${csOverlayCol}`;
                         const csCoverAttrs = JSON.stringify({ url: csUrl, dimRatio: 0, minHeight: csHVal, minHeightUnit: csHUnit, className: 'pb-hero alignfull' });
