@@ -1,5 +1,6 @@
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
+ * @version 3.4.1
  */
 jQuery(document).ready(function($) {
     
@@ -271,6 +272,12 @@ jQuery(document).ready(function($) {
         });
     }
     
+    // Resolve currency: when site override is active, always use gasBooking.currency
+    function resolveCurrency(roomCurrency) {
+        if (gasBooking.currencyOverride) return gasBooking.currency;
+        return roomCurrency || gasBooking.currency || '';
+    }
+
     // Currency formatting function
     // Converts currency code to symbol and formats price
     function formatPrice(amount, currencyCode) {
@@ -867,7 +874,7 @@ jQuery(document).ready(function($) {
     }
     
     function renderRoomDetails(room, images, amenities, checkin, checkout, guests, occSettings) {
-        var currency = room.currency || gasBooking.currency || '';
+        var currency = resolveCurrency(room.currency);
         occSettings = occSettings || {};
         
         // Set title and location - prefer display_name over internal name
@@ -1705,7 +1712,7 @@ jQuery(document).ready(function($) {
                 lang: currentLanguage
             }),
             success: function(response) {
-                var currency = $roomWidget.data('currency') || gasBooking.currency || '';
+                var currency = resolveCurrency($roomWidget.data('currency'));
                 var occSettings = $roomWidget.data('occupancy-settings') || {};
                 
                 console.log('Calculate price response:', response);
@@ -1961,7 +1968,7 @@ jQuery(document).ready(function($) {
         var rate = $(this).data('rate');
         $roomWidget.data('selected-rate', rate);
         
-        var currency = $roomWidget.data('currency') || gasBooking.currency || '';
+        var currency = resolveCurrency($roomWidget.data('currency'));
         updateBookingButton(currency);
     });
     
@@ -2016,7 +2023,7 @@ jQuery(document).ready(function($) {
     
     // Render upsells list
     function renderUpsells(byCategory, allUpsells) {
-        var currency = $roomWidget.data('currency') || gasBooking.currency || '';
+        var currency = resolveCurrency($roomWidget.data('currency'));
         var html = '';
         
         // If we have categories, group them
@@ -2228,7 +2235,7 @@ jQuery(document).ready(function($) {
             adults: numAdults,
             children: numChildren,
             totalPrice: $roomWidget.data('total-price') || 0,
-            currency: $roomWidget.data('currency') || gasBooking.currency || ''
+            currency: resolveCurrency($roomWidget.data('currency'))
         };
         
         if (window.GASCart && window.GASCart.add(roomData)) {
@@ -2411,7 +2418,7 @@ jQuery(document).ready(function($) {
                         if (response.success && response.available) {
                             $room.removeClass('unavailable checking').addClass('available');
                             var totalPrice = response.accommodation_total || 0;
-                            var roomCurrency = response.currency || gasBooking.currency || '';
+                            var roomCurrency = resolveCurrency(response.currency);
                             var pricingTier = gasBooking.pricingTier || 'standard';
 
                             // Update data-price for sort to work
@@ -2783,7 +2790,7 @@ jQuery(document).ready(function($) {
                     popupHtml += '<div class="gas-map-popup-property">' + room.property_name + '</div>';
                 }
                 if (room.price > 0) {
-                    var mapCurrency = room.currency || gasBooking.currency || '';
+                    var mapCurrency = resolveCurrency(room.currency);
                     popupHtml += '<div class="gas-map-popup-price">' + formatPriceShort(room.price, mapCurrency) + ' <small>/ night</small></div>';
                 }
                 popupHtml += '<a href="' + room.url + '" class="gas-map-popup-link">' + t('booking', 'view_book', 'View &amp; Book') + '</a>';
@@ -2797,7 +2804,7 @@ jQuery(document).ready(function($) {
                     popupHtml += '<div style="padding: 6px 0; border-bottom: 1px solid #eee;">';
                     popupHtml += '<div style="font-weight: 500; font-size: 13px;">' + multiRoomName + '</div>';
                     if (room.price > 0) {
-                        var roomMapCurrency = room.currency || gasBooking.currency || '';
+                        var roomMapCurrency = resolveCurrency(room.currency);
                         popupHtml += '<div style="font-size: 12px; color: #666;">' + formatPriceShort(room.price, roomMapCurrency) + '/night</div>';
                     }
                     popupHtml += '<a href="' + room.url + '" style="font-size: 11px; color: #667eea;">' + t('booking', 'view_book', 'View') + ' →</a>';
@@ -4454,7 +4461,7 @@ jQuery(document).ready(function($) {
                         }
                         
                         checkoutData.room = room;
-                        checkoutData.currency = room.currency || gasBooking.currency || '';
+                        checkoutData.currency = resolveCurrency(room.currency);
                     }
                 }
             });

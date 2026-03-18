@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.4.0
+ * Version: 3.4.1
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.3.9');
+define('GAS_BOOKING_VERSION', '3.4.1');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3346,13 +3346,29 @@ class GAS_Booking {
         wp_enqueue_style('gas-booking', GAS_BOOKING_PLUGIN_URL . 'assets/css/gas-booking.css', array('flatpickr', 'leaflet'), GAS_BOOKING_VERSION);
         wp_enqueue_script('gas-booking', GAS_BOOKING_PLUGIN_URL . 'assets/js/gas-booking.js', array('jquery', 'flatpickr', 'leaflet', 'stripe-js'), time(), true);
         
-        // Read spinner style from theme API settings if available
+        // Read spinner style and currency settings from theme API settings if available
         $spinner_style = 'compass';
+        $currency_mode = 'property';
+        $site_currency = '';
         if (function_exists('developer_get_api_settings')) {
             $api = developer_get_api_settings();
             if (!empty($api['spinner_style'])) {
                 $spinner_style = $api['spinner_style'];
             }
+            if (!empty($api['currency_mode'])) {
+                $currency_mode = $api['currency_mode'];
+            }
+            if (!empty($api['site_currency'])) {
+                $site_currency = $api['site_currency'];
+            }
+        }
+
+        // Determine effective currency: site override wins when mode is 'site'
+        $effective_currency = get_option('gas_currency_symbol', '');
+        $currency_override = false;
+        if ($currency_mode === 'site' && !empty($site_currency)) {
+            $effective_currency = $site_currency;
+            $currency_override = true;
         }
 
         wp_localize_script('gas-booking', 'gasBooking', array(
@@ -3364,7 +3380,8 @@ class GAS_Booking {
             'roomUrlBase' => get_option('gas_room_url_base', '/room/'),
             'searchResultsUrl' => get_option('gas_search_results_url', '/book-now/'),
             'checkoutUrl' => get_option('gas_checkout_url', '/checkout/'),
-            'currency' => get_option('gas_currency_symbol', ''),
+            'currency' => $effective_currency,
+            'currencyOverride' => $currency_override,
             'pricingTier' => get_option('gas_pricing_tier', 'standard'),
             'currentLanguage' => $current_lang,
             'spinnerStyle' => $spinner_style,
@@ -3975,6 +3992,27 @@ class GAS_Booking {
         return isset($symbols[$code]) ? $symbols[$code] : $code;
     }
     
+    /**
+     * Resolve display currency — site override wins when currency-mode is 'site'
+     */
+    private function resolve_currency($room_currency = '') {
+        static $override = null;
+        static $site_cur = null;
+        if ($override === null) {
+            $override = false;
+            $site_cur = '';
+            if (function_exists('developer_get_api_settings')) {
+                $api = developer_get_api_settings();
+                if (!empty($api['currency_mode']) && $api['currency_mode'] === 'site' && !empty($api['site_currency'])) {
+                    $override = true;
+                    $site_cur = $api['site_currency'];
+                }
+            }
+        }
+        if ($override) return $site_cur;
+        return $room_currency ?: get_option('gas_currency_symbol', '');
+    }
+
     private function get_max_guests_setting() {
         // First check local WordPress option
         $local_setting = get_option('gas_max_guests_dropdown', '');
@@ -5487,7 +5525,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $bathrooms = floatval($room['num_bathrooms'] ?? $room['bathroom_count'] ?? 0);
                             $bathrooms_display = ($bathrooms == floor($bathrooms)) ? intval($bathrooms) : number_format($bathrooms, 1);
                             $image_url = $room['image_url'] ?? '';
-                            $room_currency = $this->get_currency_symbol($room['currency'] ?? $currency);
+                            $room_currency = $this->get_currency_symbol($this->resolve_currency($room['currency'] ?? ''));
                             $room_amenities = $room['amenities'] ?? array();
                             $room_location = $room['city'] ?? $room['district'] ?? '';
                             $room_property_name = $room['property_name'] ?? '';
@@ -5589,7 +5627,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $image_url = $room['image_url'] ?? '';
                             $lat = $room['latitude'] ?? '';
                             $lng = $room['longitude'] ?? '';
-                            $room_currency = $this->get_currency_symbol($room['currency'] ?? $currency);
+                            $room_currency = $this->get_currency_symbol($this->resolve_currency($room['currency'] ?? ''));
                             $room_amenities = $room['amenities'] ?? array();
                             $room_location = $room['city'] ?? $room['district'] ?? '';
                             $room_property_name = $room['property_name'] ?? '';

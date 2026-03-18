@@ -2421,7 +2421,8 @@ function developer_get_api_settings() {
     $website_page_terms = $website['page-terms'] ?? array();
     $website_page_privacy = $website['page-privacy'] ?? array();
     $website_footer = $website['footer'] ?? array();
-    
+    $website_currency = $website['currency'] ?? array();
+
     // Get current language for multilingual content
     $lang = developer_get_current_language();
     
@@ -2453,6 +2454,10 @@ function developer_get_api_settings() {
         'section_spacing' => $website_styles['section-spacing'] ?? null,
         'spinner_style' => $website_styles['spinner-style'] ?? 'compass',
         'custom_css' => $website_styles['custom-css'] ?? null,
+
+        // Currency
+        'currency_mode' => $website_currency['currency-mode'] ?? 'property',
+        'site_currency' => $website_currency['site-currency'] ?? '',
 
         // About Page (standalone page, not homepage section) - MULTILINGUAL
         'page_about_title' => developer_get_ml_value($website_page_about, 'title', $lang),
