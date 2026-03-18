@@ -3,14 +3,14 @@
  * Plugin Name: GAS Hostvana
  * Plugin URI: https://gas.travel
  * Description: Guest messaging chat widget powered by Beds24. Floating chat bubble for website visitors to message property staff.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: GAS - Guest Accommodation System
  * License: GPL v2 or later
  */
 
 if (!defined('ABSPATH')) exit;
 define('GAS_HOSTVANA_DEFAULT_API_URL', 'https://admin.gas.travel');
-define('GAS_HOSTVANA_VERSION', '1.0.2');
+define('GAS_HOSTVANA_VERSION', '1.0.3');
 
 class GAS_Hostvana {
     private static $instance = null;
@@ -348,14 +348,15 @@ class GAS_Hostvana {
             function getPropertyId() {
                 // 1. Meta tag
                 var meta = document.querySelector('meta[name="gas-property-id"]');
-                if (meta && meta.content) return parseInt(meta.content);
-                // 2. URL param
+                if (meta && meta.content) return { id: parseInt(meta.content), type: 'property' };
+                // 2. URL params — check unit_id first (room pages), then property_id
                 var params = new URLSearchParams(window.location.search);
-                if (params.get('property_id')) return parseInt(params.get('property_id'));
+                if (params.get('unit_id')) return { id: parseInt(params.get('unit_id')), type: 'unit' };
+                if (params.get('property_id')) return { id: parseInt(params.get('property_id')), type: 'property' };
                 // 3. gasBooking object
-                if (typeof gasBooking !== 'undefined' && gasBooking.currentPropertyId) return parseInt(gasBooking.currentPropertyId);
+                if (typeof gasBooking !== 'undefined' && gasBooking.currentPropertyId) return { id: parseInt(gasBooking.currentPropertyId), type: 'property' };
                 // 4. No specific property detected — still show bubble
-                return -1;
+                return { id: -1, type: 'none' };
             }
 
             function getDates() {
@@ -366,10 +367,8 @@ class GAS_Hostvana {
                 return null;
             }
 
-            // Show bubble only if property ID is available on this page
-            if (getPropertyId()) {
-                bubble.style.display = 'flex';
-            }
+            // Always show bubble (getPropertyId returns object now)
+            bubble.style.display = 'flex';
 
             function addMessage(text, type) {
                 var div = document.createElement('div');
@@ -431,7 +430,7 @@ class GAS_Hostvana {
                     var formData = new FormData();
                     formData.append('action', 'gas_hostvana_chat');
                     formData.append('chat_action', 'createBooking');
-                    if (propId && propId > 0) formData.append('roomId', propId);
+                    if (propId.id > 0) formData.append('roomId', propId.id);
                     formData.append('message', text);
                     formData.append('arrival', dates.arrival);
                     formData.append('departure', dates.departure);

@@ -81271,7 +81271,8 @@ app.post('/api/hostvana/chat', async (req, res) => {
         firstName: senderName || 'Hostvana Question',
         lastName: '',
         arrival: arrival || new Date().toISOString().split('T')[0],
-        departure: departure || new Date(Date.now() + 86400000).toISOString().split('T')[0]
+        departure: departure || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        refererEditable: 'RezIntel-MyStayMessaging'
       }];
 
       console.log(`[HOSTVANA] Creating inquiry on Beds24 V2:`, JSON.stringify(bookingData));
