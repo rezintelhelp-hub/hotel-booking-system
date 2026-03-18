@@ -3,14 +3,14 @@
  * Plugin Name: GAS Hostvana
  * Plugin URI: https://gas.travel
  * Description: Guest messaging chat widget powered by Beds24. Floating chat bubble for website visitors to message property staff.
- * Version: 1.0.4
+ * Version: 1.0.7
  * Author: GAS - Guest Accommodation System
  * License: GPL v2 or later
  */
 
 if (!defined('ABSPATH')) exit;
 define('GAS_HOSTVANA_DEFAULT_API_URL', 'https://admin.gas.travel');
-define('GAS_HOSTVANA_VERSION', '1.0.4');
+define('GAS_HOSTVANA_VERSION', '1.0.7');
 
 class GAS_Hostvana {
     private static $instance = null;
@@ -30,7 +30,7 @@ class GAS_Hostvana {
     public function add_admin_menu() { add_options_page('GAS Hostvana', 'GAS Hostvana', 'manage_options', 'gas-hostvana', array($this, 'settings_page')); }
 
     public function register_settings() {
-        foreach (array('api_url','client_id','license_key','widget_position','widget_color','welcome_message','enabled') as $s) {
+        foreach (array('api_url','client_id','license_key','widget_position','widget_color','welcome_message','assistant_name','enabled') as $s) {
             register_setting('gas_hostvana_settings', 'gas_hostvana_' . $s);
         }
     }
@@ -61,6 +61,7 @@ class GAS_Hostvana {
                         </select>
                     </td></tr>
                     <tr><th>Widget Color</th><td><input type="color" name="gas_hostvana_widget_color" value="<?php echo esc_attr($color); ?>"/></td></tr>
+                    <tr><th>Assistant Name</th><td><input type="text" name="gas_hostvana_assistant_name" value="<?php echo esc_attr(get_option('gas_hostvana_assistant_name', 'Claire')); ?>" class="regular-text"/><p class="description">Name shown in the chat header (e.g. Claire)</p></td></tr>
                     <tr><th>Welcome Message</th><td><input type="text" name="gas_hostvana_welcome_message" value="<?php echo esc_attr(get_option('gas_hostvana_welcome_message', 'Hi! How can we help you?')); ?>" class="large-text"/></td></tr>
                 </table>
                 <?php submit_button(); ?>
@@ -142,6 +143,7 @@ class GAS_Hostvana {
         $position = get_option('gas_hostvana_widget_position', 'bottom-right');
         $color = esc_attr(get_option('gas_hostvana_widget_color', '#2563eb'));
         $welcome = esc_js(get_option('gas_hostvana_welcome_message', 'Hi! How can we help you?'));
+        $assistant_name = esc_attr(get_option('gas_hostvana_assistant_name', 'Claire'));
         $ajax_url = esc_url(admin_url('admin-ajax.php'));
 
         $pos_right = ($position === 'bottom-right') ? 'right: 24px;' : 'left: 24px;';
@@ -281,7 +283,7 @@ class GAS_Hostvana {
         .gas-hostvana-send:disabled { opacity: 0.5; cursor: not-allowed; }
         .gas-hostvana-send svg { width: 18px; height: 18px; fill: #fff; }
 
-        .gas-hostvana-typing {
+        .gas-hostvana-thinking {
             align-self: flex-start;
             background: #f0f0f0;
             padding: 10px 14px;
@@ -291,7 +293,15 @@ class GAS_Hostvana {
             color: #999;
             display: none;
         }
-        .gas-hostvana-typing.show { display: block; }
+        .gas-hostvana-thinking.show { display: flex; align-items: center; gap: 8px; }
+        .gas-hostvana-dots { display: flex; gap: 4px; }
+        .gas-hostvana-dots span {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: #999; animation: gasDotPulse 1.4s ease-in-out infinite;
+        }
+        .gas-hostvana-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .gas-hostvana-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes gasDotPulse { 0%,80%,100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
 
         @media (max-width: 480px) {
             .gas-hostvana-panel {
@@ -313,10 +323,15 @@ class GAS_Hostvana {
         <!-- Chat Panel -->
         <div class="gas-hostvana-panel" id="gasHostvanaPanel">
             <div class="gas-hostvana-header">
-                <span class="gas-hostvana-header-title">Chat with us</span>
+                <span class="gas-hostvana-header-title">Chat with <?php echo $assistant_name; ?></span>
                 <button class="gas-hostvana-close" id="gasHostvanaClose">&times;</button>
             </div>
-            <div class="gas-hostvana-messages" id="gasHostvanaMessages"></div>
+            <div class="gas-hostvana-messages" id="gasHostvanaMessages">
+                <div class="gas-hostvana-thinking" id="gasHostvanaThinking">
+                    <div class="gas-hostvana-dots"><span></span><span></span><span></span></div>
+                    <?php echo $assistant_name; ?> is thinking...
+                </div>
+            </div>
             <div class="gas-hostvana-input-row">
                 <input type="text" id="gasHostvanaInput" placeholder="Type a message..." autocomplete="off"/>
                 <button class="gas-hostvana-send" id="gasHostvanaSend">
@@ -336,12 +351,12 @@ class GAS_Hostvana {
             var messagesDiv = document.getElementById('gasHostvanaMessages');
             var input = document.getElementById('gasHostvanaInput');
             var sendBtn = document.getElementById('gasHostvanaSend');
+            var thinkingEl = document.getElementById('gasHostvanaThinking');
 
             var bookingId = null; // Always start fresh — each page visit is a new conversation
             localStorage.removeItem('gas_hostvana_bookingId');
             var pollTimer = null;
-            var pollCount = 0;
-            var maxPolls = 20;
+            var pollSeconds = 0;
             var sending = false;
             var knownMessageCount = 0;
 
@@ -419,6 +434,8 @@ class GAS_Hostvana {
                 sendBtn.disabled = true;
                 input.value = '';
                 addMessage(text, 'sent');
+                thinkingEl.classList.add('show');
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
                 if (!bookingId) {
                     // First message — create booking inquiry
@@ -477,7 +494,7 @@ class GAS_Hostvana {
                             } else {
                                 knownMessageCount++;
                                 // Reset polling on new message
-                                pollCount = 0;
+                                pollSeconds = 0;
                                 startPolling();
                             }
                             sending = false;
@@ -496,19 +513,25 @@ class GAS_Hostvana {
                 if (e.key === 'Enter') sendMessage();
             });
 
-            // Polling for new messages
+            // Adaptive polling: 3s for first 90s, then 6s up to 5 min total
             function startPolling() {
                 stopPolling();
-                pollCount = 0;
-                pollTimer = setInterval(function() {
-                    pollCount++;
-                    if (pollCount > maxPolls) {
+                pollSeconds = 0;
+                schedulePoll();
+            }
+
+            function schedulePoll() {
+                var interval = pollSeconds < 90 ? 3000 : 6000;
+                pollTimer = setTimeout(function() {
+                    pollSeconds += interval / 1000;
+                    if (pollSeconds > 300) {
                         stopPolling();
                         addMessage("We'll get back to you shortly.", 'system');
                         return;
                     }
                     fetchMessages();
-                }, 3000);
+                    schedulePoll();
+                }, interval);
             }
 
             function stopPolling() {
@@ -529,13 +552,14 @@ class GAS_Hostvana {
                         if (data.success && data.messages && data.messages.length > knownMessageCount) {
                             // New messages received — render only the new ones
                             var newMsgs = data.messages.slice(knownMessageCount);
+                            thinkingEl.classList.remove('show');
                             for (var i = 0; i < newMsgs.length; i++) {
                                 var m = newMsgs[i];
                                 addMessage(m.text, m.sender === 'guest' ? 'sent' : 'received');
                             }
                             knownMessageCount = data.messages.length;
                             // Reset poll count since we got new messages
-                            pollCount = 0;
+                            pollSeconds = 0;
                         }
                     })
                     .catch(function() {});
