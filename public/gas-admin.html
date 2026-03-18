@@ -56326,12 +56326,33 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                             <div style="${csRow}">
                                 <span style="${csLbl}">Height</span>
-                                <input type="number" class="form-input" style="${csCtrl} width:65px;" placeholder="400" value="${cs.coverHeight || 400}" onchange="updateBlock(${colIdx},${blockIdx},'coverHeight',this.value)">
-                                <span style="font-size:0.7rem; color:#94a3b8;">px</span>
-                                <span style="${csLbl} min-width:50px; margin-left:8px;">Overlay</span>
+                                <input type="text" class="form-input" style="${csCtrl} width:65px;" placeholder="60vh" value="${cs.coverHeight || '60vh'}" onchange="updateBlock(${colIdx},${blockIdx},'coverHeight',this.value)">
+                                <span style="${csLbl} min-width:50px; margin-left:8px;">Position</span>
+                                <select class="form-input" style="${csCtrl} width:70px;" onchange="updateBlock(${colIdx},${blockIdx},'overlayPos',this.value)">
+                                    <option value="left"${(cs.overlayPos||'left')==='left'?' selected':''}>Left</option>
+                                    <option value="right"${(cs.overlayPos||'left')==='right'?' selected':''}>Right</option>
+                                </select>
+                            </div>
+                            <div style="${csRow}">
+                                <span style="${csLbl}">OL Width</span>
+                                <input type="number" class="form-input" style="${csCtrl} width:50px;" placeholder="40" value="${cs.overlayWidth || 40}" onchange="updateBlock(${colIdx},${blockIdx},'overlayWidth',this.value)">
+                                <span style="font-size:0.7rem; color:#94a3b8;">%</span>
+                                <span style="${csLbl} min-width:50px; margin-left:8px;">Color</span>
                                 <input type="color" value="${cs.overlayColor || '#000000'}" onchange="updateBlock(${colIdx},${blockIdx},'overlayColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
-                                <input type="range" min="0" max="100" step="5" value="${cs.overlayOpacity ?? 50}" oninput="updateBlock(${colIdx},${blockIdx},'overlayOpacity',parseInt(this.value)); this.nextElementSibling.textContent=this.value+'%';" style="flex:1; cursor:pointer;">
-                                <span style="font-size:0.7rem; color:#6b7280; min-width:28px;">${cs.overlayOpacity ?? 50}%</span>
+                                <input type="range" min="0" max="100" step="5" value="${cs.overlayOpacity ?? 70}" oninput="updateBlock(${colIdx},${blockIdx},'overlayOpacity',parseInt(this.value)); this.nextElementSibling.textContent=this.value+'%';" style="flex:1; cursor:pointer;">
+                                <span style="font-size:0.7rem; color:#6b7280; min-width:28px;">${cs.overlayOpacity ?? 70}%</span>
+                            </div>
+                            <div style="${csRow}">
+                                <span style="${csLbl}">Padding</span>
+                                <span style="font-size:0.68rem; color:#94a3b8;">T</span>
+                                <input type="number" class="form-input" style="${csCtrl} width:42px;" placeholder="40" value="${cs.padTop || 40}" onchange="updateBlock(${colIdx},${blockIdx},'padTop',this.value)">
+                                <span style="font-size:0.68rem; color:#94a3b8;">R</span>
+                                <input type="number" class="form-input" style="${csCtrl} width:42px;" placeholder="30" value="${cs.padRight || 30}" onchange="updateBlock(${colIdx},${blockIdx},'padRight',this.value)">
+                                <span style="font-size:0.68rem; color:#94a3b8;">B</span>
+                                <input type="number" class="form-input" style="${csCtrl} width:42px;" placeholder="40" value="${cs.padBottom || 40}" onchange="updateBlock(${colIdx},${blockIdx},'padBottom',this.value)">
+                                <span style="font-size:0.68rem; color:#94a3b8;">L</span>
+                                <input type="number" class="form-input" style="${csCtrl} width:42px;" placeholder="30" value="${cs.padLeft || 30}" onchange="updateBlock(${colIdx},${blockIdx},'padLeft',this.value)">
+                                <span style="font-size:0.7rem; color:#94a3b8;">px</span>
                             </div>
                             <div style="${csGrp}">Heading</div>
                             <div style="${csRow}">
@@ -56772,14 +56793,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return `<!-- wp:cover ${coverAttrs} -->\n<div class="wp-block-cover pb-hero alignfull" style="min-height:${h}"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-0 has-background-dim"></span><img class="wp-block-cover__image-background" alt="" src="${url}" data-object-fit="cover"/><div class="wp-block-cover__inner-container">\n<!-- wp:columns -->\n<div class="wp-block-columns">\n${colsInner}\n</div>\n<!-- /wp:columns -->\n</div></div>\n<!-- /wp:cover -->`;
                 }
                 case 'cover-slider': {
+                    // Same pb-hero nested-columns structure as Quick Add cover
                     const csUrl = block.url || '';
-                    const csH = parseInt(block.coverHeight) || 400;
+                    const csH = block.coverHeight || '60vh';
+                    const csHVal = parseInt(csH);
+                    const csHUnit = csH.replace(/[\d]/g, '') || 'vh';
+                    const csOlW = parseInt(block.overlayWidth) || 40;
+                    const csEmptyW = 100 - csOlW;
                     const csOlColor = block.overlayColor || '#000000';
-                    const csOlOp = block.overlayOpacity ?? 50;
+                    const csOlOp = block.overlayOpacity ?? 70;
                     const csOlR = parseInt(csOlColor.slice(1,3), 16);
                     const csOlG = parseInt(csOlColor.slice(3,5), 16);
                     const csOlB = parseInt(csOlColor.slice(5,7), 16);
                     const csOlA = (csOlOp / 100).toFixed(2);
+                    const csPos = block.overlayPos || 'left';
                     const csHeadHtml = block.headingHtml || '';
                     const csHeadColor = block.headingColor || '#ffffff';
                     const csSubHtml = block.subtitleHtml || '';
@@ -56787,28 +56814,43 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const csBtnText = block.btnText || '';
                     const csBtnLink = block.btnLink || '#';
                     const csBtnColor = block.btnColor || '#F97224';
+                    const csPadT = block.padTop || '40';
+                    const csPadR = block.padRight || '30';
+                    const csPadB = block.padBottom || '40';
+                    const csPadL = block.padLeft || '30';
 
-                    let csInner = '';
+                    // Build content column inner blocks
+                    let csContentInner = '';
                     const csLvl = block.headingLevel || 'h2';
                     const csNum = csLvl.replace('h', '');
                     if (csHeadHtml) {
                         let hStyle = `color:${csHeadColor} !important`;
                         if (block.headingFont) hStyle += `;font-family:${block.headingFont} !important`;
                         if (block.headingSize) hStyle += `;font-size:${block.headingSize}px !important`;
-                        csInner += `<!-- wp:heading {"level":${csNum},"style":{"color":{"text":"${csHeadColor}"}}} -->\n<${csLvl} class="wp-block-heading has-text-color" style="${hStyle}">${csHeadHtml}</${csLvl}>\n<!-- /wp:heading -->\n\n`;
+                        csContentInner += `<!-- wp:heading {"level":${csNum},"style":{"color":{"text":"${csHeadColor}"}}} -->\n<${csLvl} class="wp-block-heading has-text-color" style="${hStyle}">${csHeadHtml}</${csLvl}>\n<!-- /wp:heading -->\n\n`;
                     }
                     if (csSubHtml) {
                         let sStyle = `color:${csSubColor} !important`;
                         if (block.subtitleFont) sStyle += `;font-family:${block.subtitleFont} !important`;
                         if (block.subtitleSize) sStyle += `;font-size:${block.subtitleSize}px !important`;
-                        csInner += `<!-- wp:paragraph {"style":{"color":{"text":"${csSubColor}"}}} -->\n<p class="has-text-color" style="${sStyle}">${csSubHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
+                        csContentInner += `<!-- wp:paragraph {"style":{"color":{"text":"${csSubColor}"}}} -->\n<p class="has-text-color" style="${sStyle}">${csSubHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
                     }
                     if (csBtnText) {
-                        csInner += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${csBtnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${csBtnLink}" style="background-color:${csBtnColor} !important;border-radius:0px !important">${csBtnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
+                        csContentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${csBtnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${csBtnLink}" style="background-color:${csBtnColor} !important;border-radius:0px !important">${csBtnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
                     }
 
-                    const csCoverAttrs = JSON.stringify({ url: csUrl, dimRatio: parseInt(csOlOp), minHeight: csH, className: 'alignfull' });
-                    return `<!-- wp:cover ${csCoverAttrs} -->\n<div class="wp-block-cover alignfull" style="min-height:${csH}px"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-${csOlOp} has-background-dim" style="background-color:rgba(${csOlR},${csOlG},${csOlB},${csOlA})"></span>${csUrl ? `<img class="wp-block-cover__image-background" alt="" src="${csUrl}" data-object-fit="cover"/>` : ''}<div class="wp-block-cover__inner-container">\n${csInner}</div></div>\n<!-- /wp:cover -->`;
+                    // Overlay column (rgba background + padding + content)
+                    const csOverlayCol = `<!-- wp:column {"width":"${csOlW}%"} -->\n<div class="wp-block-column" style="flex-basis:${csOlW}%;background:rgba(${csOlR},${csOlG},${csOlB},${csOlA});padding:${csPadT}px ${csPadR}px ${csPadB}px ${csPadL}px;display:flex;flex-direction:column;justify-content:center">\n${csContentInner}</div>\n<!-- /wp:column -->`;
+
+                    // Empty transparent column
+                    const csEmptyCol = `<!-- wp:column {"width":"${csEmptyW}%"} -->\n<div class="wp-block-column" style="flex-basis:${csEmptyW}%;min-height:1px"></div>\n<!-- /wp:column -->`;
+
+                    // Assemble columns in correct order
+                    const csColsInner = csPos === 'left' ? `${csOverlayCol}\n\n${csEmptyCol}` : `${csEmptyCol}\n\n${csOverlayCol}`;
+
+                    // Wrap in wp:cover with pb-hero class
+                    const csCoverAttrs = JSON.stringify({ url: csUrl, dimRatio: 0, minHeight: csHVal, minHeightUnit: csHUnit, className: 'pb-hero alignfull' });
+                    return `<!-- wp:cover ${csCoverAttrs} -->\n<div class="wp-block-cover pb-hero alignfull" style="min-height:${csH}"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-0 has-background-dim"></span><img class="wp-block-cover__image-background" alt="" src="${csUrl}" data-object-fit="cover"/><div class="wp-block-cover__inner-container">\n<!-- wp:columns -->\n<div class="wp-block-columns">\n${csColsInner}\n</div>\n<!-- /wp:columns -->\n</div></div>\n<!-- /wp:cover -->`;
                 }
                 default:
                     return '';
