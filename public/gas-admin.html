@@ -12559,6 +12559,30 @@
                     </div>
                 </div>
 
+                <!-- Checkout Settings -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Checkout Settings</h3>
+                    </div>
+                    <div style="padding: 1rem 0;">
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600;">
+                                <input type="checkbox" id="myacct-sms-consent-enabled" style="width: 18px; height: 18px;">
+                                Enable SMS Consent Checkbox
+                            </label>
+                            <small style="color: #64748b; display: block; margin-top: 0.25rem;">Show an SMS consent checkbox on the checkout page (below marketing opt-in).</small>
+                        </div>
+                        <div id="myacct-sms-consent-text-wrapper" style="display: none;">
+                            <label class="form-label">SMS Consent Text</label>
+                            <textarea id="myacct-sms-consent-text" rows="3" class="form-input" style="width: 100%;" placeholder="I agree to receive SMS text messages regarding my stay (Msg&Data rates may apply, reply STOP to opt out)"></textarea>
+                            <small style="color: #64748b; display: block; margin-top: 0.25rem;">Leave blank to use the default text.</small>
+                        </div>
+                        <button class="btn" onclick="saveLanguageSettings()" style="margin-top: 1rem;">
+                            Save Checkout Settings
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Master Admin Only: Create Master Admin -->
                 <div id="createMasterAdminSection" class="card" style="display: none; margin-top: 1.5rem;">
                     <div class="card-header">
@@ -27602,6 +27626,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                             }
                         });
                     });
+
+                    // SMS consent settings
+                    const smsEnabled = document.getElementById('myacct-sms-consent-enabled');
+                    const smsText = document.getElementById('myacct-sms-consent-text');
+                    const smsWrapper = document.getElementById('myacct-sms-consent-text-wrapper');
+                    if (smsEnabled) {
+                        smsEnabled.checked = data.sms_consent_enabled || false;
+                        if (smsWrapper) smsWrapper.style.display = smsEnabled.checked ? 'block' : 'none';
+                        smsEnabled.onchange = function() {
+                            if (smsWrapper) smsWrapper.style.display = this.checked ? 'block' : 'none';
+                        };
+                    }
+                    if (smsText) smsText.value = data.sms_consent_text || '';
                 }
             } catch (error) {
                 console.error('Error loading language settings:', error);
@@ -27613,12 +27650,16 @@ const promo = await fetch('/api/v1/offers/validate', {
             const primaryLanguage = document.getElementById('primaryLanguage').value;
             const supportedLanguages = Array.from(document.querySelectorAll('.supported-lang-checkbox:checked'))
                 .map(cb => cb.value);
-            
+
             // Ensure primary language is in supported
             if (!supportedLanguages.includes(primaryLanguage)) {
                 supportedLanguages.push(primaryLanguage);
             }
-            
+
+            // SMS consent settings
+            const smsConsentEnabled = document.getElementById('myacct-sms-consent-enabled')?.checked || false;
+            const smsConsentText = document.getElementById('myacct-sms-consent-text')?.value || '';
+
             try {
                 const response = await fetch('/api/account/language-settings', {
                     method: 'PUT',
@@ -27626,10 +27667,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify({
                         primary_language: primaryLanguage,
                         supported_languages: supportedLanguages,
+                        sms_consent_enabled: smsConsentEnabled,
+                        sms_consent_text: smsConsentText,
                         account_id: selectedAccountId || null
                     })
                 });
-                
+
                 const data = await response.json();
                 if (data.success) {
                     // Update global settings
@@ -27637,13 +27680,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                         primary_language: primaryLanguage,
                         supported_languages: supportedLanguages
                     };
-                    showNotification('Language settings saved!', 'success');
+                    showNotification('Settings saved!', 'success');
                 } else {
                     showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
                 }
             } catch (error) {
-                console.error('Error saving language settings:', error);
-                showNotification('Error saving language settings', 'error');
+                console.error('Error saving settings:', error);
+                showNotification('Error saving settings', 'error');
             }
         }
         
