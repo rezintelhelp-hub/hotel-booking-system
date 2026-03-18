@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.4.1
+ * Version: 3.4.2
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.4.1');
+define('GAS_BOOKING_VERSION', '3.4.2');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -6350,7 +6350,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $rate_type = isset($_GET['rate']) ? sanitize_text_field($_GET['rate']) : 'standard';
         $property_id = isset($_GET['property']) ? intval($_GET['property']) : 0;
         $currency_param = isset($_GET['currency']) ? sanitize_text_field($_GET['currency']) : '';
-        
+        // Apply site currency override so checkout always uses the correct display currency
+        $currency_param = $this->resolve_currency($currency_param);
+
         // For group bookings, data comes from localStorage via JS
         if (!$is_group && (!$unit_id || !$checkin || !$checkout)) {
             return '<div class="gas-checkout-error">

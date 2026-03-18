@@ -1,6 +1,6 @@
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
- * @version 3.4.1
+ * @version 3.4.2
  */
 jQuery(document).ready(function($) {
     
@@ -4539,7 +4539,7 @@ jQuery(document).ready(function($) {
         
         function updateCheckoutPricing() {
             var p = checkoutData.pricing || {};
-            var currency = checkoutData.currency || '';
+            var currency = resolveCurrency(checkoutData.currency) || '';
             var nights = p.nights || 1;
             var accommodationTotal = parseFloat(p.accommodation_total) || 0;
             checkoutData.accommodationTotal = accommodationTotal;
@@ -4560,7 +4560,7 @@ jQuery(document).ready(function($) {
             // If we have a CM quote (e.g. from Hostaway), use it for clean display
             if (checkoutData.cmQuote) {
                 var q = checkoutData.cmQuote;
-                var qCurrency = q.currency || currency;
+                var qCurrency = resolveCurrency(q.currency) || currency;
                 
                 // Show per night x nights line
                 var perNight = q.pricePerNight || 0;
