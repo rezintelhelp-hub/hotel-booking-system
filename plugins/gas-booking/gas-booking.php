@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.4.2
+ * Version: 3.4.3
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.4.2');
+define('GAS_BOOKING_VERSION', '3.4.3');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -6755,7 +6755,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             <div class="gas-terms-box">
                                 <label class="gas-checkbox-label">
                                     <input type="checkbox" name="terms" id="gas-terms" required />
-                                    <span><?php echo esc_html($t_guest['terms_agree'] ?? 'I agree to the'); ?> <a href="#" class="gas-terms-link"><?php echo esc_html($t_guest['terms_conditions'] ?? 'Terms & Conditions'); ?></a> <?php echo esc_html($t_common['and'] ?? 'and'); ?> <a href="#" class="gas-privacy-link"><?php echo esc_html($t_guest['privacy_policy'] ?? 'Privacy Policy'); ?></a>.</span>
+                                    <span><?php echo esc_html($t_guest['terms_agree'] ?? 'I agree to the'); ?> <a href="/terms/" target="_blank" rel="noopener" class="gas-terms-link"><?php echo esc_html($t_guest['terms_conditions'] ?? 'Terms & Conditions'); ?></a> <?php echo esc_html($t_common['and'] ?? 'and'); ?> <a href="/privacy/" target="_blank" rel="noopener" class="gas-privacy-link"><?php echo esc_html($t_guest['privacy_policy'] ?? 'Privacy Policy'); ?></a>.</span>
                                 </label>
                             </div>
                         </div>
