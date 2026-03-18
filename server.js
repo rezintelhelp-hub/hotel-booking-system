@@ -61097,7 +61097,11 @@ app.post('/api/public/book', async (req, res) => {
             }
             return items;
           })(),
-          payments: payments.length > 0 ? payments : undefined
+          payments: payments.length > 0 ? payments : undefined,
+          bookingInfoItems: [
+            { code: 'SMS_CONSENT', text: sms_consent ? 'Yes' : 'No' },
+            { code: 'MARKETING_OPT_IN', text: marketing ? 'Yes' : 'No' }
+          ]
         }];
         beds24Booking.forEach(b => b.allowWebhooks = true);
 

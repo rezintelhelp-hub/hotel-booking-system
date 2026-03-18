@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.4.5
+ * Version: 3.4.6
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.4.5');
+define('GAS_BOOKING_VERSION', '3.4.6');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7004,7 +7004,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         /* Checkbox */
         .gas-checkbox-label { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; font-size: 15px; color: #4b5563; }
-        .gas-checkbox-label input { width: 20px; height: 20px; margin-top: 2px; }
+        .gas-checkbox-label input { width: 20px; height: 20px; min-width: 20px; min-height: 20px; margin-top: 2px; flex-shrink: 0; }
         
         /* Navigation */
         .gas-checkout-nav { display: flex; justify-content: space-between; gap: 20px; margin-top: 28px; }
