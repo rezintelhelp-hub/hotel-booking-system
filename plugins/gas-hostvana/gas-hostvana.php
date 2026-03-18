@@ -3,14 +3,14 @@
  * Plugin Name: GAS Hostvana
  * Plugin URI: https://gas.travel
  * Description: Guest messaging chat widget powered by Beds24. Floating chat bubble for website visitors to message property staff.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: GAS - Guest Accommodation System
  * License: GPL v2 or later
  */
 
 if (!defined('ABSPATH')) exit;
 define('GAS_HOSTVANA_DEFAULT_API_URL', 'https://admin.gas.travel');
-define('GAS_HOSTVANA_VERSION', '1.0.0');
+define('GAS_HOSTVANA_VERSION', '1.0.1');
 
 class GAS_Hostvana {
     private static $instance = null;
@@ -353,7 +353,8 @@ class GAS_Hostvana {
                 if (params.get('property_id')) return parseInt(params.get('property_id'));
                 // 3. gasBooking object
                 if (typeof gasBooking !== 'undefined' && gasBooking.currentPropertyId) return parseInt(gasBooking.currentPropertyId);
-                return null;
+                // 4. No specific property detected — still show bubble
+                return -1;
             }
 
             function getDates() {
@@ -413,27 +414,23 @@ class GAS_Hostvana {
                 addMessage(text, 'sent');
 
                 if (!bookingId) {
-                    // First message — create booking
+                    // First message — create booking inquiry
                     var propId = getPropertyId();
-                    if (!propId) {
-                        addMessage('Chat is not available on this page. No property configured.', 'system');
-                        sending = false;
-                        sendBtn.disabled = false;
-                        return;
-                    }
-
                     var dates = getDates();
+                    // Default dates if none in URL (today + tomorrow)
                     if (!dates) {
-                        addMessage('Please select your check-in and check-out dates to continue.', 'system');
-                        sending = false;
-                        sendBtn.disabled = false;
-                        return;
+                        var today = new Date();
+                        var tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+                        dates = {
+                            arrival: today.toISOString().split('T')[0],
+                            departure: tomorrow.toISOString().split('T')[0]
+                        };
                     }
 
                     var formData = new FormData();
                     formData.append('action', 'gas_hostvana_chat');
                     formData.append('chat_action', 'createBooking');
-                    formData.append('roomId', propId);
+                    if (propId && propId > 0) formData.append('roomId', propId);
                     formData.append('message', text);
                     formData.append('arrival', dates.arrival);
                     formData.append('departure', dates.departure);

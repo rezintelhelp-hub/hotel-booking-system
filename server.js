@@ -81197,31 +81197,46 @@ app.post('/api/hostvana/chat', async (req, res) => {
 
     // Action: createBooking — creates an inquiry booking via V2 (supports inquiry status)
     if (action === 'createBooking') {
-      if (!roomId || !message) {
-        return res.status(400).json({ success: false, error: 'roomId and message are required' });
+      if (!message) {
+        return res.status(400).json({ success: false, error: 'message is required' });
       }
 
-      console.log(`[HOSTVANA] createBooking request — accountId: ${accountId}, roomId: ${roomId}, message: "${message?.substring(0, 80)}..."`);
+      console.log(`[HOSTVANA] createBooking request — accountId: ${accountId}, roomId: ${roomId || '(none)'}, message: "${message?.substring(0, 80)}..."`);
 
-      // Look up beds24_property_id from beds24_room_id OR from GAS bookable_unit id
-      let roomLookup = await pool.query(`
-        SELECT bu.id as unit_id, bu.beds24_room_id, p.beds24_property_id, p.id as property_id
-        FROM bookable_units bu
-        JOIN properties p ON p.id = bu.property_id
-        WHERE bu.beds24_room_id = $1 AND p.account_id = $2
-        LIMIT 1
-      `, [String(roomId), accountId]);
-
-      // Fallback: try roomId as a GAS bookable_unit ID
-      if (roomLookup.rows.length === 0) {
-        console.log(`[HOSTVANA] beds24_room_id lookup failed for ${roomId}, trying as bookable_unit id...`);
+      let roomLookup;
+      if (roomId) {
+        // Look up beds24_property_id from beds24_room_id
         roomLookup = await pool.query(`
           SELECT bu.id as unit_id, bu.beds24_room_id, p.beds24_property_id, p.id as property_id
           FROM bookable_units bu
           JOIN properties p ON p.id = bu.property_id
-          WHERE bu.id = $1 AND p.account_id = $2
+          WHERE bu.beds24_room_id = $1 AND p.account_id = $2
           LIMIT 1
-        `, [roomId, accountId]);
+        `, [String(roomId), accountId]);
+
+        // Fallback: try roomId as a GAS bookable_unit ID
+        if (roomLookup.rows.length === 0) {
+          console.log(`[HOSTVANA] beds24_room_id lookup failed for ${roomId}, trying as bookable_unit id...`);
+          roomLookup = await pool.query(`
+            SELECT bu.id as unit_id, bu.beds24_room_id, p.beds24_property_id, p.id as property_id
+            FROM bookable_units bu
+            JOIN properties p ON p.id = bu.property_id
+            WHERE bu.id = $1 AND p.account_id = $2
+            LIMIT 1
+          `, [roomId, accountId]);
+        }
+      }
+
+      // Fallback: no roomId or lookup failed — use first room for account
+      if (!roomLookup || roomLookup.rows.length === 0) {
+        console.log(`[HOSTVANA] No roomId match — using first room for account ${accountId}`);
+        roomLookup = await pool.query(`
+          SELECT bu.id as unit_id, bu.beds24_room_id, p.beds24_property_id, p.id as property_id
+          FROM bookable_units bu
+          JOIN properties p ON p.id = bu.property_id
+          WHERE p.account_id = $1 AND bu.beds24_room_id IS NOT NULL
+          ORDER BY p.id, bu.id LIMIT 1
+        `, [accountId]);
       }
 
       if (roomLookup.rows.length === 0) {
