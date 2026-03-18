@@ -53392,6 +53392,7 @@ const SECTION_DEFAULTS = {
     'map-zoom': '14',
     'map-height': '300',
     // Contact form
+    'form-email': '',
     'button-color': '#10b981'
   },
   'page-terms': {
@@ -68848,6 +68849,88 @@ app.get('/api/public/client/:clientId/page/:pageType', async (req, res) => {
         res.json({ success: true, page: result.rows[0] });
     } catch (error) {
         res.json({ success: false, error: error.message });
+    }
+});
+
+// Contact form submission (public)
+app.post('/api/public/client/:clientId/contact-form', async (req, res) => {
+    try {
+        const { clientId } = req.params;
+        const { name, email, subject, message, page_url } = req.body;
+
+        if (!name || !email || !message) {
+            return res.status(400).json({ success: false, error: 'Name, email and message are required' });
+        }
+
+        // Basic email validation
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({ success: false, error: 'Invalid email address' });
+        }
+
+        // Look up deployed site and account
+        const siteResult = await pool.query(
+            `SELECT ds.id, ds.account_id, ds.site_url, a.email as admin_email, a.name as account_name
+             FROM deployed_sites ds
+             JOIN accounts a ON a.id = ds.account_id
+             WHERE ds.account_id = $1 ORDER BY ds.id LIMIT 1`, [clientId]
+        );
+
+        if (siteResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Site not found' });
+        }
+
+        const site = siteResult.rows[0];
+        const deployedSiteId = site.id;
+
+        // Get page-contact settings to find form-email recipient
+        const settingsResult = await pool.query(
+            `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'page-contact'`,
+            [deployedSiteId]
+        );
+
+        const contactSettings = settingsResult.rows.length > 0 ? settingsResult.rows[0].settings : {};
+
+        // Recipient priority: form-email > contact email > account admin email
+        const recipientEmail = contactSettings['form-email'] || contactSettings['email'] || site.admin_email;
+
+        if (!recipientEmail) {
+            console.log(`Contact form for account ${clientId}: no recipient email found`);
+            return res.status(500).json({ success: false, error: 'No recipient configured' });
+        }
+
+        const siteName = site.account_name || site.site_url || 'Your Website';
+        const subjectLine = subject ? `Contact Form: ${subject}` : `New message from ${name} via ${siteName}`;
+
+        await sendEmail({
+            to: recipientEmail,
+            subject: subjectLine,
+            html: `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <div style="background: #1e293b; color: white; padding: 20px 24px; border-radius: 12px 12px 0 0;">
+                        <h2 style="margin: 0; font-size: 18px;">New Contact Form Message</h2>
+                        <p style="margin: 4px 0 0; opacity: 0.7; font-size: 13px;">${siteName}</p>
+                    </div>
+                    <div style="background: #f8fafc; padding: 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr><td style="padding: 8px 0; color: #64748b; width: 80px; vertical-align: top;">Name:</td><td style="padding: 8px 0; font-weight: 600;">${name}</td></tr>
+                            <tr><td style="padding: 8px 0; color: #64748b; vertical-align: top;">Email:</td><td style="padding: 8px 0;"><a href="mailto:${email}" style="color: #2563eb;">${email}</a></td></tr>
+                            ${subject ? `<tr><td style="padding: 8px 0; color: #64748b; vertical-align: top;">Subject:</td><td style="padding: 8px 0;">${subject}</td></tr>` : ''}
+                        </table>
+                        <div style="margin-top: 16px; padding: 16px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <p style="margin: 0; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">Message</p>
+                            <p style="margin: 0; white-space: pre-wrap; color: #1e293b; line-height: 1.6;">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+                        </div>
+                        <p style="margin: 16px 0 0; font-size: 12px; color: #94a3b8;">Sent from ${page_url || site.site_url || 'contact page'}</p>
+                    </div>
+                </div>
+            `
+        });
+
+        console.log(`Contact form sent for account ${clientId} to ${recipientEmail}`);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Contact form error:', error);
+        res.status(500).json({ success: false, error: 'Failed to send message' });
     }
 });
 
