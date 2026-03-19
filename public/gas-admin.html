@@ -15497,6 +15497,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <div style="display: flex; gap: 4px; height: 40px; margin-bottom: 0.5rem;"><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div></div>
                                     <span style="font-size: 0.8rem; font-weight: 600;">20 / 20 / 20 / 20 / 20</span>
                                 </div>
+                                <div onclick="selectPresetImageFaq()" class="card" style="padding: 1rem; cursor: pointer; text-align: center; border: 2px solid #f59e0b40;" onmouseover="this.style.borderColor='#f59e0b'" onmouseout="this.style.borderColor='#f59e0b40'">
+                                    <div style="display: flex; gap: 4px; height: 40px; margin-bottom: 0.5rem;"><div style="flex: 2; background: #f59e0b20; border-radius: 4px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; color:#92400e;">Img</div><div style="flex: 3; background: #f59e0b20; border-radius: 4px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; color:#92400e;">FAQ</div></div>
+                                    <span style="font-size: 0.8rem; font-weight: 600; color: #92400e;">Image + FAQ</span>
+                                </div>
                             </div>
                             <div style="text-align: center; margin-top: 0.75rem;">
                                 <a href="#" onclick="hideLayoutPicker(); return false;" style="font-size: 0.8rem; color: #94a3b8;">Cancel</a>
@@ -49996,6 +50000,46 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (inputEl.tagName === 'SELECT') inputEl.selectedIndex = 0;
         }
 
+        function gasWysiwygInsertImage(btn) {
+            const wrapper = btn.closest('.gas-wysiwyg-wrap');
+            if (!wrapper || !wrapper._gasEditor) return;
+            const editor = wrapper._gasEditor;
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'image/*';
+            fileInput.style.display = 'none';
+            fileInput.onchange = async () => {
+                const file = fileInput.files && fileInput.files[0];
+                if (!file) return;
+                const siteId = proBuilderDeployedSiteId || selectedDeployedSiteId;
+                if (!siteId) { alert('No site selected'); return; }
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('deployed_site_id', siteId);
+                formData.append('section', 'pb-wysiwyg-thumb');
+                try {
+                    const res = await fetch('/api/admin/website-builder/upload-image', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (data.success && data.url) {
+                        editor.focus();
+                        if (wrapper._savedRange) {
+                            const sel = window.getSelection();
+                            sel.removeAllRanges();
+                            sel.addRange(wrapper._savedRange);
+                        }
+                        document.execCommand('insertHTML', false, `<img src="${data.url}" style="max-width:150px; border-radius:4px; display:inline-block; vertical-align:middle; margin:4px;">`);
+                    } else {
+                        alert('Upload failed: ' + (data.error || 'Unknown error'));
+                    }
+                } catch (e) {
+                    alert('Upload failed: ' + e.message);
+                }
+                fileInput.remove();
+            };
+            document.body.appendChild(fileInput);
+            fileInput.click();
+        }
+
         function gasWysiwyg(el) {
             if (el.dataset.wysiwygInit) return;
             el.dataset.wysiwygInit = 'true';
@@ -50027,6 +50071,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('underline')" style="${btnStyle} text-decoration:underline;" ${btnHover} title="Underline">U</button>
                     ${sep}
                     <button type="button" onmousedown="event.preventDefault()" onclick="var u=prompt('URL:','https://');if(u)document.execCommand('createLink',false,u)" style="${btnStyle}" ${btnHover} title="Link">Lnk</button>
+                    ${sep}
+                    <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('insertUnorderedList')" style="${btnStyle}" ${btnHover} title="Bullet List">&#8226; List</button>
+                    <button type="button" onmousedown="event.preventDefault()" onclick="gasWysiwygInsertImage(this)" style="${btnStyle}" ${btnHover} title="Insert Thumbnail">Img</button>
                     ${sep}
                     <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyLeft')" style="${btnStyle}" ${btnHover} title="Align Left">&equiv;</button>
                     <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyCenter')" style="${btnStyle}" ${btnHover} title="Align Centre">&Xi;</button>
@@ -57067,6 +57114,19 @@ const promo = await fetch('/api/v1/offers/validate', {
             renderColumnEditors();
         }
 
+        function selectPresetImageFaq() {
+            pbSelectedLayout = '40-60';
+            pbColumnBlocks = [
+                [{ type: 'image', label: 'Image', url: '', alt: '', size: 'large' }],
+                [{ type: 'faq', label: 'FAQ', faqItems: [{ question: '', answer: '' }, { question: '', answer: '' }],
+                   qColor: '#1e293b', aColor: '#374151', bgColor: '#ffffff', borderColor: '#e2e8f0' }]
+            ];
+            document.getElementById('pb-layout-picker').style.display = 'none';
+            document.getElementById('pb-block-editor').style.display = 'block';
+            document.getElementById('pb-block-editor-title').textContent = 'Build Section — Image + FAQ';
+            renderColumnEditors();
+        }
+
         function hideBlockEditor() {
             document.getElementById('pb-block-editor').style.display = 'none';
             document.getElementById('pb-add-section-bar').style.display = 'block';
@@ -57144,7 +57204,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <input type="text" id="pb-block-${colIdx}-${blockIdx}-url" class="form-input" style="font-size: 0.8rem; flex:1; min-width:80px;" placeholder="URL" value="${block.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">
                                 <label style="padding:4px 10px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.72rem; cursor:pointer; white-space:nowrap; flex-shrink:0;">Upload<input type="file" accept="image/*" onchange="pbUploadBlockBgImage(this,${colIdx},${blockIdx})" style="display:none;"></label>
                             </div>
-                            <input type="text" class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" placeholder="Alt text" value="${block.alt || ''}" onchange="updateBlock(${colIdx},${blockIdx},'alt',this.value)">`;
+                            <div style="display:flex; align-items:center; gap:5px; margin-top:0.25rem;">
+                                <input type="text" class="form-input" style="font-size: 0.8rem; flex:1;" placeholder="Alt text" value="${block.alt || ''}" onchange="updateBlock(${colIdx},${blockIdx},'alt',this.value)">
+                                <select class="form-input" style="font-size: 0.78rem; width:auto;" onchange="updateBlock(${colIdx},${blockIdx},'size',this.value)">
+                                    <option value="large" ${(block.size||'large')==='large'?'selected':''}>Large</option>
+                                    <option value="medium" ${block.size==='medium'?'selected':''}>Medium</option>
+                                    <option value="small" ${block.size==='small'?'selected':''}>Small</option>
+                                </select>
+                            </div>`;
                 case 'spacer':
                     return `<input type="number" class="form-input" style="font-size: 0.8rem; width: 80px;" placeholder="40" value="${block.height || 40}" onchange="updateBlock(${colIdx},${blockIdx},'height',this.value)"> <span style="font-size: 0.75rem; color: #64748b;">px</span>`;
                 case 'slider':
@@ -57452,6 +57519,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             const bt = pbBlockTypes.find(b => b.id === typeId);
             const block = { type: typeId, label: bt.label };
             // Pre-populate defaults so values persist across re-renders
+            if (typeId === 'image') {
+                Object.assign(block, { url: '', alt: '', size: 'large' });
+            }
             if (typeId === 'cover' || typeId === 'cover-hero') {
                 Object.assign(block, {
                     url: '', coverHeight: '60vh', overlayPos: 'left', overlayWidth: 40,
@@ -57829,8 +57899,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                     return `<!-- wp:paragraph -->\n<p>${block.text || ''}</p>\n<!-- /wp:paragraph -->`;
                 }
-                case 'image':
-                    return `<!-- wp:image -->\n<figure class="wp-block-image"><img src="${block.url || ''}" alt="${block.alt || ''}"/></figure>\n<!-- /wp:image -->`;
+                case 'image': {
+                    const imgSize = block.size || 'large';
+                    const imgSizeClass = `size-${imgSize}`;
+                    const imgSizeStyle = imgSize === 'small' ? ' style="max-width:300px"' : imgSize === 'medium' ? ' style="max-width:500px"' : '';
+                    const imgAttrs = imgSize === 'large' ? '{"sizeSlug":"large"}' : `{"sizeSlug":"${imgSize}","width":"${imgSize === 'small' ? '300' : '500'}px"}`;
+                    return `<!-- wp:image ${imgAttrs} -->\n<figure class="wp-block-image ${imgSizeClass}"${imgSizeStyle}><img src="${block.url || ''}" alt="${block.alt || ''}"/></figure>\n<!-- /wp:image -->`;
+                }
                 case 'button':
                     return `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button -->\n<div class="wp-block-button"><a class="wp-block-button__link" href="${block.url || '#'}">${block.text || 'Click'}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->`;
                 case 'search':
