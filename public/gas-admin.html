@@ -55685,11 +55685,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                         cvBtnLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
                         cvBtnColor = btnEl ? (btnEl.style.backgroundColor || '#F97224') : '#F97224';
                     }
-                    // Normalise hex colours
-                    if (!cvOlColor.startsWith('#')) cvOlColor = '#000000';
-                    if (!cvHeadColor.startsWith('#')) cvHeadColor = '#ffffff';
-                    if (!cvSubColor.startsWith('#')) cvSubColor = '#ffffff';
-                    if (!cvBtnColor.startsWith('#')) cvBtnColor = '#F97224';
+                    // Normalise RGB to hex — style.color returns rgb() not hex
+                    const rgbToHex = (c, fallback) => { if (c.startsWith('#')) return c; const m = c.match(/(\d+)/g); return (m && m.length >= 3) ? '#' + m.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('') : fallback; };
+                    cvOlColor = rgbToHex(cvOlColor, '#000000');
+                    cvHeadColor = rgbToHex(cvHeadColor, '#ffffff');
+                    cvSubColor = rgbToHex(cvSubColor, '#ffffff');
+                    cvBtnColor = rgbToHex(cvBtnColor, '#F97224');
 
                     const lbl = 'font-weight:600; font-size:0.78rem; color:#6b7280; white-space:nowrap; min-width:85px;';
                     const ctrl = 'padding:5px 8px; border:1px solid #d1d5db; border-radius:5px; font-size:0.82rem; color:#1e293b; background:#fff;';
@@ -56136,7 +56137,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             const contentRoot = overlayColEl || innerEl || col;
                             const hEl = contentRoot.querySelector('h1, h2, h3, h4');
                             const dcHHtml = hEl ? hEl.innerHTML : '';
-                            const dcHColor = hEl ? (hEl.style.color || '#ffffff') : '#ffffff';
+                            let dcHColor = hEl ? (hEl.style.color || '#ffffff') : '#ffffff';
+                            if (!dcHColor.startsWith('#')) { const hcm = dcHColor.match(/(\d+)/g); if (hcm && hcm.length >= 3) dcHColor = '#' + hcm.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join(''); }
                             const dcHLevel = hEl ? hEl.tagName.toLowerCase() : 'h2';
                             // Heading font/size from inline style
                             const hStyle = hEl ? (hEl.getAttribute('style') || '') : '';
@@ -56144,7 +56146,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             const dcHSize = (hStyle.match(/font-size:\s*(\d+)px/) || [])[1] || '';
                             const pEl = contentRoot.querySelector('p');
                             const dcSHtml = pEl ? pEl.innerHTML : '';
-                            const dcSColor = pEl ? (pEl.style.color || '#ffffff') : '#ffffff';
+                            let dcSColor = pEl ? (pEl.style.color || '#ffffff') : '#ffffff';
+                            if (!dcSColor.startsWith('#')) { const scm = dcSColor.match(/(\d+)/g); if (scm && scm.length >= 3) dcSColor = '#' + scm.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join(''); }
                             // Subtitle font/size from inline style
                             const pStyle = pEl ? (pEl.getAttribute('style') || '') : '';
                             const dcSFont = (pStyle.match(/font-family:\s*([^;!]+)/) || [])[1]?.trim() || '';
@@ -56186,7 +56189,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                             <input type="number" id="pb-edit-${index}-dc${ci}-ol-width" value="${dcOlWidth}" style="${ctrl} width:50px;" min="20" max="80">
                                             <span style="font-size:0.7rem; color:#94a3b8;">%</span>
                                             <span style="${lbl} min-width:50px; margin-left:8px;">Color</span>
-                                            <input type="color" id="pb-edit-${index}-dc${ci}-ol-color" value="${dcOlColor}" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                            <input type="color" id="pb-edit-${index}-dc${ci}-ol-color" value="${dcOlColor}" onchange="document.getElementById('pb-edit-${index}-dc${ci}-ol-color-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                            <input type="text" id="pb-edit-${index}-dc${ci}-ol-color-hex" value="${dcOlColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-dc${ci}-ol-color').value=this.value" style="${ctrl} width:70px; font-size:0.7rem;">
                                             <input type="range" min="0" max="100" step="5" id="pb-edit-${index}-dc${ci}-ol-op" value="${dcOlOp}" oninput="this.nextElementSibling.textContent=this.value+'%'" style="flex:1; cursor:pointer;">
                                             <span style="font-size:0.7rem; color:#6b7280; min-width:28px;">${dcOlOp}%</span>
                                         </div>
@@ -56208,7 +56212,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         </div>
                                         <div style="${row}">
                                             <span style="${lbl}">Color</span>
-                                            <input type="color" id="pb-edit-${index}-dc${ci}-head-color" value="${dcHColor}" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                            <input type="color" id="pb-edit-${index}-dc${ci}-head-color" value="${dcHColor}" onchange="document.getElementById('pb-edit-${index}-dc${ci}-head-color-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                            <input type="text" id="pb-edit-${index}-dc${ci}-head-color-hex" value="${dcHColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-dc${ci}-head-color').value=this.value" style="${ctrl} width:70px; font-size:0.7rem;">
                                             <select id="pb-edit-${index}-dc${ci}-head-level" style="${ctrl} width:50px;">
                                                 <option value="h1"${dcHLevel==='h1'?' selected':''}>H1</option>
                                                 <option value="h2"${dcHLevel==='h2'?' selected':''}>H2</option>
@@ -56225,7 +56230,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         </div>
                                         <div style="${row}">
                                             <span style="${lbl}">Color</span>
-                                            <input type="color" id="pb-edit-${index}-dc${ci}-sub-color" value="${dcSColor}" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                            <input type="color" id="pb-edit-${index}-dc${ci}-sub-color" value="${dcSColor}" onchange="document.getElementById('pb-edit-${index}-dc${ci}-sub-color-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                            <input type="text" id="pb-edit-${index}-dc${ci}-sub-color-hex" value="${dcSColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-dc${ci}-sub-color').value=this.value" style="${ctrl} width:70px; font-size:0.7rem;">
                                             <select id="pb-edit-${index}-dc${ci}-sub-font" style="${ctrl} flex:1;">${dcFontOpts(dcSFont)}</select>
                                             <input type="number" id="pb-edit-${index}-dc${ci}-sub-size" value="${dcSSize}" min="10" max="120" placeholder="auto" style="${ctrl} width:50px;">
                                             <span style="font-size:0.7rem; color:#94a3b8;">px</span>
@@ -56239,7 +56245,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                             <span style="${lbl}">URL</span>
                                             <input type="text" id="pb-edit-${index}-dc${ci}-btn-link" value="${dcBtnLink.replace(/"/g, '&quot;')}" placeholder="/book-now" style="${ctrl} flex:1;">
                                             <span style="${lbl} min-width:40px;">Color</span>
-                                            <input type="color" id="pb-edit-${index}-dc${ci}-btn-color" value="${dcBtnColor}" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                            <input type="color" id="pb-edit-${index}-dc${ci}-btn-color" value="${dcBtnColor}" onchange="document.getElementById('pb-edit-${index}-dc${ci}-btn-color-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                            <input type="text" id="pb-edit-${index}-dc${ci}-btn-color-hex" value="${dcBtnColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-dc${ci}-btn-color').value=this.value" style="${ctrl} width:70px; font-size:0.7rem;">
                                         </div>
                                     </div>
                                 </div>`;
