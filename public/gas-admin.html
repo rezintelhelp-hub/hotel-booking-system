@@ -57088,18 +57088,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                         csContentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${csBtnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${csBtnLink}" style="background-color:${csBtnColor} !important;border-radius:0px !important">${csBtnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
                     }
 
+                    // Build overlay + empty columns (same structure for both full and column layouts)
+                    const csOlColAttrs = JSON.stringify({ width: `${csOlW}%`, style: { spacing: { padding: { top: `${csPadT}px`, right: `${csPadR}px`, bottom: `${csPadB}px`, left: `${csPadL}px` } } } });
+                    const csOverlayCol = `<!-- wp:column ${csOlColAttrs} -->\n<div class="wp-block-column" style="flex-basis:${csOlW}%;background:rgba(${csOlR},${csOlG},${csOlB},${csOlA});padding-top:${csPadT}px;padding-right:${csPadR}px;padding-bottom:${csPadB}px;padding-left:${csPadL}px;display:flex;flex-direction:column;justify-content:center">\n${csContentInner}</div>\n<!-- /wp:column -->`;
+                    const csEmptyCol = `<!-- wp:column {"width":"${csEmptyW}%"} -->\n<div class="wp-block-column" style="flex-basis:${csEmptyW}%;min-height:1px"></div>\n<!-- /wp:column -->`;
+                    const csColsInner = csPos === 'left' ? `${csOverlayCol}\n\n${csEmptyCol}` : `${csEmptyCol}\n\n${csOverlayCol}`;
+
                     if (isFullWidth) {
-                        // Full layout — pb-hero with nested overlay/transparent columns
-                        const csOlColAttrs = JSON.stringify({ width: `${csOlW}%`, style: { spacing: { padding: { top: `${csPadT}px`, right: `${csPadR}px`, bottom: `${csPadB}px`, left: `${csPadL}px` } } } });
-                        const csOverlayCol = `<!-- wp:column ${csOlColAttrs} -->\n<div class="wp-block-column" style="flex-basis:${csOlW}%;background:rgba(${csOlR},${csOlG},${csOlB},${csOlA});padding-top:${csPadT}px;padding-right:${csPadR}px;padding-bottom:${csPadB}px;padding-left:${csPadL}px;display:flex;flex-direction:column;justify-content:center">\n${csContentInner}</div>\n<!-- /wp:column -->`;
-                        const csEmptyCol = `<!-- wp:column {"width":"${csEmptyW}%"} -->\n<div class="wp-block-column" style="flex-basis:${csEmptyW}%;min-height:1px"></div>\n<!-- /wp:column -->`;
-                        const csColsInner = csPos === 'left' ? `${csOverlayCol}\n\n${csEmptyCol}` : `${csEmptyCol}\n\n${csOverlayCol}`;
                         const csCoverAttrs = JSON.stringify({ url: csUrl, dimRatio: 0, minHeight: csHVal, minHeightUnit: csHUnit, className: 'pb-hero alignfull' });
                         return `<!-- wp:cover ${csCoverAttrs} -->\n<div class="wp-block-cover pb-hero alignfull" style="min-height:${csH}"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-0 has-background-dim"></span><img class="wp-block-cover__image-background" alt="" src="${csUrl}" data-object-fit="cover"/><div class="wp-block-cover__inner-container">\n<!-- wp:columns -->\n<div class="wp-block-columns">\n${csColsInner}\n</div>\n<!-- /wp:columns -->\n</div></div>\n<!-- /wp:cover -->`;
                     } else {
-                        // Inside a column — simple cover with rgba overlay span, content centred
-                        const csCoverAttrs = JSON.stringify({ url: csUrl, dimRatio: parseInt(csOlOp), minHeight: csHVal });
-                        return `<!-- wp:cover ${csCoverAttrs} -->\n<div class="wp-block-cover" style="min-height:${csHVal}px"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-${csOlOp} has-background-dim" style="background-color:rgba(${csOlR},${csOlG},${csOlB},${csOlA})"></span>${csUrl ? `<img class="wp-block-cover__image-background" alt="" src="${csUrl}" data-object-fit="cover"/>` : ''}<div class="wp-block-cover__inner-container" style="padding:${csPadT}px ${csPadR}px ${csPadB}px ${csPadL}px">\n${csContentInner}</div></div>\n<!-- /wp:cover -->`;
+                        // Inside a column — same nested columns structure but without pb-hero/alignfull
+                        const csCoverAttrs = JSON.stringify({ url: csUrl, dimRatio: 0, minHeight: csHVal, minHeightUnit: csHUnit });
+                        return `<!-- wp:cover ${csCoverAttrs} -->\n<div class="wp-block-cover" style="min-height:${csH}"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-0 has-background-dim"></span>${csUrl ? `<img class="wp-block-cover__image-background" alt="" src="${csUrl}" data-object-fit="cover"/>` : ''}<div class="wp-block-cover__inner-container">\n<!-- wp:columns -->\n<div class="wp-block-columns">\n${csColsInner}\n</div>\n<!-- /wp:columns -->\n</div></div>\n<!-- /wp:cover -->`;
                     }
                 }
                 default:
