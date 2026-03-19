@@ -56544,9 +56544,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 case 'text':
                     return `<textarea id="${base}-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" data-pb-col="${colIdx}" data-pb-block="${blockIdx}" style="font-size: 0.8rem;">${block.text || ''}</textarea>`;
                 case 'image':
-                    return `<div style="display:flex; align-items:center; gap:5px;">
-                                <input type="text" id="pb-block-${colIdx}-${blockIdx}-url" class="form-input" style="font-size: 0.8rem; flex:1;" placeholder="Image URL" value="${block.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">
-                                <label style="padding:3px 8px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.72rem; cursor:pointer; white-space:nowrap;">Upload<input type="file" accept="image/*" onchange="pbUploadBlockBgImage(this,${colIdx},${blockIdx})" style="display:none;"></label>
+                    return `<div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+                                <input type="text" id="pb-block-${colIdx}-${blockIdx}-url" class="form-input" style="font-size: 0.8rem; flex:1; min-width:80px;" placeholder="URL" value="${block.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">
+                                <label style="padding:4px 10px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.72rem; cursor:pointer; white-space:nowrap; flex-shrink:0;">Upload<input type="file" accept="image/*" onchange="pbUploadBlockBgImage(this,${colIdx},${blockIdx})" style="display:none;"></label>
                             </div>
                             <input type="text" class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" placeholder="Alt text" value="${block.alt || ''}" onchange="updateBlock(${colIdx},${blockIdx},'alt',this.value)">`;
                 case 'button':
@@ -56570,10 +56570,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const csFontOpts = (val) => csFonts.map(f => `<option value="${f}"${(val||'') === f ? ' selected' : ''}>${f || 'Default'}</option>`).join('');
                     return `
                         <div style="font-size:0.78rem;">
-                            <div style="${csRow}">
+                            <div style="${csRow} flex-wrap:wrap;">
                                 <span style="${csLbl}">Image</span>
-                                <input type="text" id="pb-block-${colIdx}-${blockIdx}-url" class="form-input" style="${csCtrl} flex:1;" placeholder="Paste URL or upload" value="${cs.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">
-                                <label style="padding:3px 8px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.72rem; cursor:pointer; white-space:nowrap;">Upload<input type="file" accept="image/*" onchange="pbUploadBlockBgImage(this,${colIdx},${blockIdx})" style="display:none;"></label>
+                                <input type="text" id="pb-block-${colIdx}-${blockIdx}-url" class="form-input" style="${csCtrl} flex:1; min-width:80px;" placeholder="URL" value="${cs.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">
+                                <label style="padding:4px 10px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.72rem; cursor:pointer; white-space:nowrap; flex-shrink:0;">Upload<input type="file" accept="image/*" onchange="pbUploadBlockBgImage(this,${colIdx},${blockIdx})" style="display:none;"></label>
                             </div>
                             <div style="${csRow}">
                                 <span style="${csLbl}">Height</span>
