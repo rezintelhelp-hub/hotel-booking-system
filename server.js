@@ -68699,7 +68699,7 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 // Full contact information
                 contact: {
                     id: contact.id,
-                    business_name: contact.business_name,
+                    business_name: websiteSettings.header?.['site-name'] || contact.business_name,
                     tagline: contact.tagline,
                     email: websiteSettings.footer?.email || contact.email,
                     phone: websiteSettings.footer?.phone || contact.phone,
@@ -68759,7 +68759,7 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                         text_color: websiteSettings.footer?.text || branding.footer_text_color || '#ffffff',
                         link_color: branding.footer_link_color || '#94a3b8',
                         link_hover_color: branding.footer_link_hover_color || '#ffffff',
-                        copyright: websiteSettings.footer?.copyright || branding.copyright_text || `© ${new Date().getFullYear()} ${contact.business_name || 'All rights reserved'}`,
+                        copyright: websiteSettings.footer?.copyright || branding.copyright_text || `© ${new Date().getFullYear()} ${websiteSettings.header?.['site-name'] || contact.business_name || 'All rights reserved'}`,
                         layout: websiteSettings.footer?.layout || 'default'
                     },
                     buttons: {
