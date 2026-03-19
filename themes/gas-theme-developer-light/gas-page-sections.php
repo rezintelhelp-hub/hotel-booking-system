@@ -201,6 +201,33 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 </section>
                 <?php endif; break;
 
+            case 'image_faq':
+                $image = $section['image'] ?? '';
+                $image_position = $section['image_position'] ?? 'left';
+                $items = $section['items'] ?? array();
+                $img_order = ($image_position === 'right') ? 'order: 2;' : 'order: 1;';
+                $faq_order = ($image_position === 'right') ? 'order: 1;' : 'order: 2;';
+                if (!empty($items)) : ?>
+                <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-imgfaq" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
+                    <div class="gas-ps-imgtext-grid" style="max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start;">
+                        <?php if ($image) : ?><div style="<?php echo $img_order; ?>"><img src="<?php echo esc_url($image); ?>" alt="" style="width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);"></div><?php endif; ?>
+                        <div style="<?php echo $faq_order; ?>">
+                            <?php if ($heading) : ?><h2 style="font-size: 1.8rem; font-weight: 700; color: #1e293b; margin: 0 0 16px;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
+                            <?php foreach ($items as $i => $item) :
+                                $q = gas_ps_field($item, 'q', $lang);
+                                $a = gas_ps_field($item, 'a', $lang);
+                                if (empty($q)) continue;
+                            ?>
+                                <details style="border-bottom: 1px solid #e5e7eb; padding: 14px 0;">
+                                    <summary style="font-size: 1rem; font-weight: 600; color: #1e293b; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center;"><?php echo esc_html($q); ?><span style="font-size: 1.5rem; color: #94a3b8;">+</span></summary>
+                                    <div class="gas-ps-body" style="padding-top: 10px;"><?php echo wp_kses_post($a); ?></div>
+                                </details>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </section>
+                <?php endif; break;
+
             case 'testimonials':
                 $items = $section['items'] ?? array();
                 if (!empty($items)) : ?>
