@@ -55907,7 +55907,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     break;
                 }
                 case 'columns': {
-                    const colEls = dom.querySelectorAll('.wp-block-column');
+                    // Only select direct child columns — not nested columns inside cover-sliders
+                    const colsBlock = dom.querySelector('.wp-block-columns');
+                    const colEls = colsBlock ? colsBlock.querySelectorAll(':scope > .wp-block-column') : [];
                     // Detect split layout: 2 columns where one has a wp:cover
                     const hasCover0 = colEls.length >= 2 && colEls[0].querySelector('.wp-block-cover');
                     const hasCover1 = colEls.length >= 2 && colEls[1] && colEls[1].querySelector('.wp-block-cover');
