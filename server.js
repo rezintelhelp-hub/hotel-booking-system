@@ -26631,7 +26631,7 @@ app.post('/api/deployed-sites/connect-domain', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': process.env.VPS_DEPLOY_API_KEY || 'GAS-DEPLOY-SECRET-2024'
+        'X-API-Key': VPS_DEPLOY_API_KEY
       },
       body: JSON.stringify({
         action: 'connect-custom-domain',
@@ -26697,7 +26697,7 @@ app.post('/api/deployed-sites/remove-domain', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': process.env.VPS_DEPLOY_API_KEY || 'GAS-DEPLOY-SECRET-2024'
+        'X-API-Key': VPS_DEPLOY_API_KEY
       },
       body: JSON.stringify({
         action: 'remove-custom-domain',
@@ -52701,7 +52701,7 @@ app.put('/api/partner/websites/:websiteId/domain', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': process.env.VPS_DEPLOY_API_KEY || 'GAS-DEPLOY-SECRET-2024'
+        'X-API-Key': VPS_DEPLOY_API_KEY
       },
       body: JSON.stringify({
         action: 'connect-custom-domain',
@@ -52778,7 +52778,7 @@ app.delete('/api/partner/websites/:websiteId/domain', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': process.env.VPS_DEPLOY_API_KEY || 'GAS-DEPLOY-SECRET-2024'
+        'X-API-Key': VPS_DEPLOY_API_KEY
       },
       body: JSON.stringify({
         action: 'remove-custom-domain',
