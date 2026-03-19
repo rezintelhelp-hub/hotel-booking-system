@@ -55616,6 +55616,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     let cvBtnText = '', cvBtnLink = '', cvBtnColor = '#F97224';
                     let cvPadTop = '40', cvPadRight = '30', cvPadBot = '40', cvPadLeft = '30';
                     let cvHeadFont = '', cvHeadSize = '', cvSubFont = '', cvSubSize = '';
+                    let cvHeadGap = '', cvBtnSize = 'medium';
                     if (isPbHero) {
                         // Parse from column structure
                         const cols = dom.querySelectorAll('.wp-block-column');
@@ -55654,8 +55655,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                             const hStyle = hEl.getAttribute('style') || '';
                             const hFontMatch = hStyle.match(/font-family:\s*([^;!]+)/);
                             const hSizeMatch = hStyle.match(/font-size:\s*(\d+)px/);
+                            const hGapMatch = hStyle.match(/margin-bottom:\s*(\d+)px/);
                             if (hFontMatch) cvHeadFont = hFontMatch[1].trim();
                             if (hSizeMatch) cvHeadSize = hSizeMatch[1];
+                            if (hGapMatch) cvHeadGap = hGapMatch[1];
                         }
                         const pEl = contentCol.querySelector('p');
                         cvSubHtml = pEl ? pEl.innerHTML : '';
@@ -55671,6 +55674,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         cvBtnText = btnEl ? btnEl.textContent : '';
                         cvBtnLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
                         cvBtnColor = btnEl ? (btnEl.style.backgroundColor || '#F97224') : '#F97224';
+                        if (btnEl) { const bStyle = btnEl.getAttribute('style') || ''; const bfs = bStyle.match(/font-size:\s*([\d.]+)rem/); if (bfs) { const fs = parseFloat(bfs[1]); cvBtnSize = fs <= 0.8 ? 'small' : fs >= 1.0 ? 'large' : 'medium'; } }
                     } else {
                         // Old simple cover — heading/subtitle/button from flat structure
                         const hEl = dom.querySelector('h1, h2, h3, h4');
@@ -55795,6 +55799,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <span style="${lbl} min-width:30px;">Size</span>
                                     <input type="number" id="pb-edit-${index}-cover-head-size" value="${cvHeadSize}" min="10" max="120" placeholder="auto" style="${ctrl} width:60px;">
                                     <span style="font-size:0.75rem; color:#94a3b8;">px</span>
+                                    <span style="${lbl} min-width:30px;">Gap</span>
+                                    <input type="number" id="pb-edit-${index}-cover-head-gap" value="${cvHeadGap}" min="0" max="200" placeholder="auto" style="${ctrl} width:60px;">
+                                    <span style="font-size:0.75rem; color:#94a3b8;">px</span>
                                 </div>
                                 <div style="${row}">
                                     <span style="${lbl}">Subtitle</span>
@@ -55826,6 +55833,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <span style="${lbl}">Button Color</span>
                                     <input type="color" id="pb-edit-${index}-cover-btn-color" value="${cvBtnColor}" onchange="document.getElementById('pb-edit-${index}-cover-btn-color-hex').value=this.value;" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
                                     <input type="text" id="pb-edit-${index}-cover-btn-color-hex" value="${cvBtnColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-cover-btn-color').value=this.value;" style="${ctrl} width:75px;">
+                                    <span style="${lbl} min-width:30px;">Size</span>
+                                    <select id="pb-edit-${index}-cover-btn-size" style="${ctrl} width:70px;">
+                                        <option value="small"${cvBtnSize==='small'?' selected':''}>Small</option>
+                                        <option value="medium"${cvBtnSize==='medium'?' selected':''}>Medium</option>
+                                        <option value="large"${cvBtnSize==='large'?' selected':''}>Large</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -56152,11 +56165,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                             const pStyle = pEl ? (pEl.getAttribute('style') || '') : '';
                             const dcSFont = (pStyle.match(/font-family:\s*([^;!]+)/) || [])[1]?.trim() || '';
                             const dcSSize = (pStyle.match(/font-size:\s*(\d+)px/) || [])[1] || '';
+                            // Heading gap (margin-bottom) from inline style
+                            const dcHGap = (hStyle.match(/margin-bottom:\s*(\d+)px/) || [])[1] || '';
                             const btnEl = contentRoot.querySelector('.wp-block-button__link');
                             const dcBtnText = btnEl ? btnEl.textContent : '';
                             const dcBtnLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
                             let dcBtnColor = btnEl ? (btnEl.style.backgroundColor || '#F97224') : '#F97224';
                             if (!dcBtnColor.startsWith('#')) { const bm = dcBtnColor.match(/(\d+)/g); if (bm && bm.length >= 3) dcBtnColor = '#' + bm.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join(''); }
+                            // Button size from inline style
+                            const btnStyle = btnEl ? (btnEl.getAttribute('style') || '') : '';
+                            const btnFsMatch = btnStyle.match(/font-size:\s*([\d.]+)rem/);
+                            let dcBtnSize = 'medium';
+                            if (btnFsMatch) { const fs = parseFloat(btnFsMatch[1]); dcBtnSize = fs <= 0.8 ? 'small' : fs >= 1.0 ? 'large' : 'medium'; }
                             proBuilderSections[index]._dualCoverData.push({ headHtml: dcHHtml, subHtml: dcSHtml });
                             const colW = colWidths[ci] || '50';
                             const dcPosBtn = (val, label) => {
@@ -56223,6 +56243,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                             <select id="pb-edit-${index}-dc${ci}-head-font" style="${ctrl} flex:1;">${dcFontOpts(dcHFont)}</select>
                                             <input type="number" id="pb-edit-${index}-dc${ci}-head-size" value="${dcHSize}" min="10" max="120" placeholder="auto" style="${ctrl} width:50px;">
                                             <span style="font-size:0.7rem; color:#94a3b8;">px</span>
+                                            <span style="${lbl} min-width:30px; margin-left:8px;">Gap</span>
+                                            <input type="number" id="pb-edit-${index}-dc${ci}-head-gap" value="${dcHGap}" min="0" max="200" placeholder="auto" style="${ctrl} width:50px;">
+                                            <span style="font-size:0.7rem; color:#94a3b8;">px</span>
                                         </div>
                                         <div style="${grp}">Subtitle</div>
                                         <div style="${row}">
@@ -56247,6 +56270,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                                             <span style="${lbl} min-width:40px;">Color</span>
                                             <input type="color" id="pb-edit-${index}-dc${ci}-btn-color" value="${dcBtnColor}" onchange="document.getElementById('pb-edit-${index}-dc${ci}-btn-color-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
                                             <input type="text" id="pb-edit-${index}-dc${ci}-btn-color-hex" value="${dcBtnColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-dc${ci}-btn-color').value=this.value" style="${ctrl} width:70px; font-size:0.7rem;">
+                                            <span style="${lbl} min-width:30px; margin-left:8px;">Size</span>
+                                            <select id="pb-edit-${index}-dc${ci}-btn-size" style="${ctrl} width:70px;">
+                                                <option value="small"${dcBtnSize==='small'?' selected':''}>Small</option>
+                                                <option value="medium"${dcBtnSize==='medium'?' selected':''}>Medium</option>
+                                                <option value="large"${dcBtnSize==='large'?' selected':''}>Large</option>
+                                            </select>
                                         </div>
                                     </div>
                                 </div>`;
@@ -56309,15 +56338,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const cvHeadSize = document.getElementById(`pb-edit-${index}-cover-head-size`)?.value || '';
                     const cvSubFont = document.getElementById(`pb-edit-${index}-cover-sub-font`)?.value || '';
                     const cvSubSize = document.getElementById(`pb-edit-${index}-cover-sub-size`)?.value || '';
+                    const cvHeadGap = document.getElementById(`pb-edit-${index}-cover-head-gap`)?.value || '';
+                    const cvBtnSize = document.getElementById(`pb-edit-${index}-cover-btn-size`)?.value || 'medium';
                     return blockToMarkup({
                         type: 'cover', url: cvUrl, height: cvHeight,
                         overlayPos: cvPos, overlayWidth: parseInt(cvOlWidth),
                         overlayColor: cvOlColor, overlayOpacity: parseInt(cvOlOpacity),
                         headingHtml: cvHeadHtml, headingColor: cvHeadColor, headingLevel: cvHeadLevel,
                         subtitleHtml: cvSubHtml, subtitleColor: cvSubColor,
-                        btnText: cvBtnText, btnLink: cvBtnLink, btnColor: cvBtnColor,
+                        btnText: cvBtnText, btnLink: cvBtnLink, btnColor: cvBtnColor, btnSize: cvBtnSize,
                         padTop: cvPadTop, padRight: cvPadRight, padBottom: cvPadBot, padLeft: cvPadLeft,
-                        headingFont: cvHeadFont, headingSize: cvHeadSize,
+                        headingFont: cvHeadFont, headingSize: cvHeadSize, headingGap: cvHeadGap,
                         subtitleFont: cvSubFont, subtitleSize: cvSubSize
                     });
                 }
@@ -56374,16 +56405,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                             const dcBtnText = document.getElementById(`pb-edit-${index}-dc${ci}-btn-text`)?.value || '';
                             const dcBtnLink = document.getElementById(`pb-edit-${index}-dc${ci}-btn-link`)?.value || '#';
                             const dcBtnColor = document.getElementById(`pb-edit-${index}-dc${ci}-btn-color`)?.value || '#F97224';
+                            const dcHeadGap = document.getElementById(`pb-edit-${index}-dc${ci}-head-gap`)?.value || '';
+                            const dcBtnSize = document.getElementById(`pb-edit-${index}-dc${ci}-btn-size`)?.value || 'medium';
                             const coverMarkup = blockToMarkup({
                                 type: 'cover-slider', url: dcUrl, coverHeight: dcH,
                                 overlayColor: dcOlC, overlayOpacity: dcOlO,
                                 overlayWidth: dcOlW, overlayPos: dcPos,
                                 padTop: dcPT, padRight: dcPR, padBottom: dcPB, padLeft: dcPL,
                                 headingHtml: dcHeadHtml, headingColor: dcHeadColor, headingLevel: dcHeadLevel,
-                                headingFont: dcHeadFont, headingSize: dcHeadSize,
+                                headingFont: dcHeadFont, headingSize: dcHeadSize, headingGap: dcHeadGap,
                                 subtitleHtml: dcSubHtml, subtitleColor: dcSubColor,
                                 subtitleFont: dcSubFont, subtitleSize: dcSubSize,
-                                btnText: dcBtnText, btnLink: dcBtnLink, btnColor: dcBtnColor
+                                btnText: dcBtnText, btnLink: dcBtnLink, btnColor: dcBtnColor, btnSize: dcBtnSize
                             }, false);
                             const w = dcWidths[ci] || '50';
                             dcColsMarkup += `<!-- wp:column {"width":"${w}%"} -->\n<div class="wp-block-column" style="flex-basis:${w}%">\n${coverMarkup}\n</div>\n<!-- /wp:column -->\n\n`;
@@ -57120,6 +57153,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const padR = block.padRight || '30';
                     const padB = block.padBottom || '40';
                     const padL = block.padLeft || '30';
+                    const headGap = block.headingGap || '';
+                    const coverBtnSize = block.btnSize || 'medium';
 
                     // Build content column inner blocks
                     let contentInner = '';
@@ -57129,6 +57164,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         let headStyle = `color:${headColor} !important`;
                         if (block.headingFont) headStyle += `;font-family:${block.headingFont} !important`;
                         if (block.headingSize) headStyle += `;font-size:${block.headingSize}px !important`;
+                        if (headGap) headStyle += `;margin-bottom:${headGap}px !important`;
                         contentInner += `<!-- wp:heading {"level":${hNum},"style":{"color":{"text":"${headColor}"}}} -->\n<${hLvl} class="wp-block-heading has-text-color" style="${headStyle}">${headHtml}</${hLvl}>\n<!-- /wp:heading -->\n\n`;
                     }
                     if (subHtml) {
@@ -57138,7 +57174,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                         contentInner += `<!-- wp:paragraph {"style":{"color":{"text":"${subColor}"}}} -->\n<p class="has-text-color" style="${subStyle}">${subHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
                     }
                     if (btnText) {
-                        contentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${btnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${btnLink}" style="background-color:${btnColor} !important;border-radius:0px !important">${btnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
+                        const cvBtnSizeMap = { small: 'font-size:0.75rem !important;padding:6px 14px !important', medium: '', large: 'font-size:1.1rem !important;padding:14px 28px !important' };
+                        const cvBtnSizeStyle = cvBtnSizeMap[coverBtnSize] || '';
+                        const cvBtnExtra = cvBtnSizeStyle ? `;${cvBtnSizeStyle}` : '';
+                        contentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${btnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${btnLink}" style="background-color:${btnColor} !important;border-radius:0px !important${cvBtnExtra}">${btnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
                     }
 
                     // Overlay column — background + padding go in JSON attrs (WordPress re-renders from JSON)
@@ -57182,6 +57221,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const csPadR = block.padRight || '30';
                     const csPadB = block.padBottom || '40';
                     const csPadL = block.padLeft || '30';
+                    const csHeadGap = block.headingGap || '';
+                    const csBtnSize = block.btnSize || 'medium';
 
                     // Build content column inner blocks
                     let csContentInner = '';
@@ -57191,6 +57232,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         let hStyle = `color:${csHeadColor} !important`;
                         if (block.headingFont) hStyle += `;font-family:${block.headingFont} !important`;
                         if (block.headingSize) hStyle += `;font-size:${block.headingSize}px !important`;
+                        if (csHeadGap) hStyle += `;margin-bottom:${csHeadGap}px !important`;
                         csContentInner += `<!-- wp:heading {"level":${csNum},"style":{"color":{"text":"${csHeadColor}"}}} -->\n<${csLvl} class="wp-block-heading has-text-color" style="${hStyle}">${csHeadHtml}</${csLvl}>\n<!-- /wp:heading -->\n\n`;
                     }
                     if (csSubHtml) {
@@ -57200,7 +57242,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                         csContentInner += `<!-- wp:paragraph {"style":{"color":{"text":"${csSubColor}"}}} -->\n<p class="has-text-color" style="${sStyle}">${csSubHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
                     }
                     if (csBtnText) {
-                        csContentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${csBtnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${csBtnLink}" style="background-color:${csBtnColor} !important;border-radius:0px !important">${csBtnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
+                        const btnSizeMap = { small: 'font-size:0.75rem !important;padding:6px 14px !important', medium: '', large: 'font-size:1.1rem !important;padding:14px 28px !important' };
+                        const btnSizeStyle = btnSizeMap[csBtnSize] || '';
+                        const btnExtraStyle = btnSizeStyle ? `;${btnSizeStyle}` : '';
+                        csContentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${csBtnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${csBtnLink}" style="background-color:${csBtnColor} !important;border-radius:0px !important${btnExtraStyle}">${csBtnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
                     }
 
                     // Build overlay + empty columns — WordPress re-renders columns from JSON attrs (html:false),
