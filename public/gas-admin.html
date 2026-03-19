@@ -15425,7 +15425,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <div style="margin-bottom: 1rem;">
                             <a href="#" onclick="closePageEditor(); return false;" style="color: #6366f1; text-decoration: none; font-size: 0.9rem;">&larr; Back to Pages</a>
                         </div>
-                        <h3 id="pro-builder-page-title" style="margin: 0 0 1.5rem 0;"></h3>
+                        <div style="display:flex; align-items:center; gap:1rem; margin:0 0 1.5rem 0;">
+                            <h3 id="pro-builder-page-title" style="margin:0;"></h3>
+                            <a id="pb-view-live-link" href="#" target="_blank" onclick="if(!proBuilderSiteUrl){event.preventDefault();return;} this.href=proBuilderSiteUrl+'?v='+Date.now()" style="font-size:0.8rem; color:#6366f1; text-decoration:none; white-space:nowrap; display:none;">View Live Site &rarr;</a>
+                        </div>
                         <div id="pro-builder-sections" style="display: flex; flex-direction: column; gap: 0.5rem;">
                             <div style="text-align: center; padding: 2rem; color: #64748b;">Loading sections...</div>
                         </div>
@@ -35344,7 +35347,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <button onclick="manageWebsiteRooms(${site.id}, ${site.property_id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #10b981; border-color: #10b981;">🛏️ Rooms</button>
                                                                                 <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
                                         ${['pro','bespoke'].includes(site.subscription_tier) && siteStatus !== 'frozen' ? `
-                                            <button onclick="openProBuilder(${site.blog_id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}', ${site.id})" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-color: #f97316;">Build Site</button>
+                                            <button onclick="openProBuilder(${site.blog_id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}', ${site.id}, '${(site.site_url || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-color: #f97316;">Build Site</button>
                                         ` : ''}
                                     </div>
                                 </div>
@@ -55398,11 +55401,13 @@ const promo = await fetch('/api/v1/offers/validate', {
         let proBuilderBlogId = null;
         let proBuilderSiteName = '';
         let proBuilderDeployedSiteId = null;
+        let proBuilderSiteUrl = '';
 
-        function openProBuilder(blogId, siteName, deployedSiteId) {
+        function openProBuilder(blogId, siteName, deployedSiteId, siteUrl) {
             proBuilderBlogId = blogId;
             proBuilderSiteName = siteName;
             proBuilderDeployedSiteId = deployedSiteId || null;
+            proBuilderSiteUrl = siteUrl || '';
             document.getElementById('pro-builder-title').textContent = 'Pro Site Builder — ' + siteName;
             document.getElementById('pro-builder-subtitle').textContent = 'Manage pages and settings';
             showView('pro-builder');
@@ -55475,6 +55480,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('pro-builder-pages-list').style.display = 'none';
             document.getElementById('pro-builder-page-editor').style.display = 'block';
             document.getElementById('pro-builder-page-title').textContent = pageTitle;
+            const viewLink = document.getElementById('pb-view-live-link');
+            if (viewLink) viewLink.style.display = proBuilderSiteUrl ? 'inline' : 'none';
             loadPageSections();
         }
 
@@ -56432,7 +56439,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await res.json();
 
                 if (data.success) {
-                    showNotification('Section saved', 'success');
+                    const viewLink = proBuilderSiteUrl ? ` <a href="${proBuilderSiteUrl}?v=${Date.now()}" target="_blank" style="color:#fff;text-decoration:underline;">View live site</a>` : '';
+                    showNotification('Section saved.' + viewLink, 'success', 5000);
                     loadPageSections();
                 } else {
                     showNotification(data.error || 'Failed to save section', 'error');
@@ -57262,7 +57270,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await res.json();
 
                 if (data.success) {
-                    showNotification('Section added', 'success');
+                    const viewLink = proBuilderSiteUrl ? ` <a href="${proBuilderSiteUrl}?v=${Date.now()}" target="_blank" style="color:#fff;text-decoration:underline;">View live site</a>` : '';
+                    showNotification('Section added.' + viewLink, 'success', 5000);
                     hideBlockEditor();
                     loadPageSections();
                 } else {
@@ -59457,7 +59466,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 notification.style.background = 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)';
             }
             
-            notification.textContent = message;
+            notification.innerHTML = message;
             document.body.appendChild(notification);
             
             // Remove after duration
