@@ -41633,9 +41633,21 @@ app.post('/api/pricing/calculate', async (req, res) => {
 // Get dashboard statistics
 app.get('/api/admin/stats', async (req, res) => {
   try {
-    const clientId = req.query.client_id;
-    const accountId = req.query.account_id;
-    
+    // Enforce auth — non-master users can only see their own stats
+    let accountId = req.query.account_id;
+    let clientId = req.query.client_id;
+    const token = (req.headers.authorization || '').replace('Bearer ', '');
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'gas-secret-key');
+        if (decoded.role !== 'master_admin') {
+          // Force filter to own account regardless of query params
+          accountId = String(decoded.accountId || decoded.id);
+          clientId = null;
+        }
+      } catch (e) { /* invalid token — proceed with query params */ }
+    }
+
     console.log('Stats request - accountId:', accountId, 'clientId:', clientId);
     
     let propertiesCount, unitsCount, bookingsCount, connectionsCount;

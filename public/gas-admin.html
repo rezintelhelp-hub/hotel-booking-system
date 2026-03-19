@@ -60117,9 +60117,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        // Initial load
+        // Initial load — loadDashboard() is called inside checkAuth() after role/account filtering is applied
         loadClientSelector();
-        loadDashboard();
         handleUrlParams();
 
         // =====================================================
