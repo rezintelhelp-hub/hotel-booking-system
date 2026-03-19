@@ -2366,7 +2366,7 @@ function developer_get_api_settings() {
     }
     
     // Check transient cache first (5 min TTL, cleared on Web Builder save)
-    $cache_key = 'gas_api_settings_' . get_current_blog_id();
+    $cache_key = 'gas_api_settings_' . get_current_blog_id() . '_' . developer_get_current_language();
     $cached = get_transient($cache_key);
     if ($cached !== false) {
         return $cached;
