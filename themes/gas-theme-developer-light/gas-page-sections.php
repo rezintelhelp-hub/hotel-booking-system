@@ -91,7 +91,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                     <div style="position: relative; z-index: 2; text-align: center; padding: 40px 24px; max-width: 900px;">
                         <?php if ($heading) : ?><h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2rem, 4vw, 3.5rem); font-weight: 700; color: #fff; margin: 0 0 16px; text-shadow: 0 2px 15px rgba(0,0,0,0.3);"><?php echo esc_html($heading); ?></h1><?php endif; ?>
                         <?php if ($subheading) : ?><p style="font-size: 1.25rem; color: #fff; opacity: 0.9; margin: 0 0 24px;"><?php echo esc_html($subheading); ?></p><?php endif; ?>
-                        <?php if ($body) : ?><div style="font-size: 1.05rem; color: #fff; opacity: 0.9; margin: 0 0 16px; line-height: 1.6;"><?php echo wp_kses_post(wpautop($body)); ?></div><?php endif; ?>
+                        <?php if ($body) : ?><div class="gas-ps-body" style="color: #fff; opacity: 0.9;"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
                         <?php if ($cta_text && $cta_link) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; background: <?php echo esc_attr($primary_color); ?>; color: #fff; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 600;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                     </div>
                 </section>
@@ -102,7 +102,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-text" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
                     <div style="max-width: 800px; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 12px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
-                        <?php if ($body) : ?><div style="font-size: 1.05rem; line-height: 1.6; color: #475569;"><?php echo wp_kses_post(wpautop($body)); ?></div><?php endif; ?>
+                        <?php if ($body) : ?><div class="gas-ps-body"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
                     </div>
                 </section>
                 <?php break;
@@ -119,7 +119,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                         <?php if ($image) : ?><div style="<?php echo $img_order; ?>"><img src="<?php echo esc_url($image); ?>" alt="" style="width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);"></div><?php endif; ?>
                         <div style="<?php echo $txt_order; ?>">
                             <?php if ($heading) : ?><h2 style="font-size: 1.8rem; font-weight: 700; color: #1e293b; margin: 0 0 10px;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
-                            <?php if ($body) : ?><div style="font-size: 1.05rem; line-height: 1.6; color: #475569;"><?php echo wp_kses_post(wpautop($body)); ?></div><?php endif; ?>
+                            <?php if ($body) : ?><div class="gas-ps-body"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
                         </div>
                     </div>
                 </section>
@@ -194,7 +194,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                         ?>
                             <details style="border-bottom: 1px solid #e5e7eb; padding: 20px 0;">
                                 <summary style="font-size: 1.1rem; font-weight: 600; color: #1e293b; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center;"><?php echo esc_html($q); ?><span style="font-size: 1.5rem; color: #94a3b8; transition: transform 0.2s;">+</span></summary>
-                                <div style="padding-top: 12px; font-size: 1rem; line-height: 1.7; color: #475569;"><?php echo wp_kses_post(wpautop($a)); ?></div>
+                                <div class="gas-ps-body" style="padding-top: 12px;"><?php echo wp_kses_post($a); ?></div>
                             </details>
                         <?php endforeach; ?>
                     </div>
@@ -302,6 +302,18 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     .gas-ps-section a {
         font-family: var(--developer-font) !important;
     }
+    /* Hybrid body — baseline defaults that WYSIWYG inline styles override */
+    .gas-ps-body {
+        font-family: var(--developer-font) !important;
+        font-size: 1.05rem;
+        line-height: 1.6;
+        color: #475569;
+    }
+    .gas-ps-body p { margin: 0 0 0.6em; }
+    .gas-ps-body h2, .gas-ps-body h3 { margin: 0.8em 0 0.4em; }
+    .gas-ps-body ul, .gas-ps-body ol { margin: 0 0 0.6em; padding-left: 1.5em; }
+    .gas-ps-body img { max-width: 100%; height: auto; border-radius: 8px; }
+    .gas-ps-body a { color: inherit; text-decoration: underline; }
     @media (max-width: 768px) {
         .gas-ps-imgtext-grid { grid-template-columns: 1fr !important; }
         .gas-ps-imgtext-grid > div { order: unset !important; }
