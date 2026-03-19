@@ -79876,8 +79876,30 @@ app.get('/api/pro-builder/sites/:blog_id/pages', async (req, res) => {
       status: p.status,
       link: p.link,
       menu_order: p.menu_order,
-      template: p.template || ''
+      template: p.template || '',
+      in_menu: false,
+      menu_parent_page_id: 0
     }));
+
+    // Fetch menu state and merge into pages
+    try {
+      const menuData = await proBuilderManagePage(siteUrl, licenseKey, { action: 'get_menu' });
+      if (menuData.success && menuData.items) {
+        // Build menu_item_id → object_id map for resolving parent
+        const menuItemToPageId = {};
+        menuData.items.forEach(mi => { menuItemToPageId[mi.menu_item_id] = mi.object_id; });
+
+        menuData.items.forEach(mi => {
+          const page = pageList.find(p => p.id === mi.object_id);
+          if (page) {
+            page.in_menu = true;
+            page.menu_parent_page_id = mi.parent ? (menuItemToPageId[mi.parent] || 0) : 0;
+          }
+        });
+      }
+    } catch (menuErr) {
+      // Menu fetch failed — pages still return without menu data
+    }
 
     res.json({ success: true, blog_id: blogId, site_url: siteUrl, pages: pageList });
   } catch (error) {
@@ -80019,6 +80041,38 @@ async function proBuilderPushContent(siteUrl, licenseKey, pageId, newContent) {
   return pushRes.json();
 }
 
+// Shared site lookup for pro-builder endpoints — returns { siteRow, siteUrl, licenseKey } or throws
+async function proBuilderSiteLookup(blogId) {
+  const site = await pool.query(
+    'SELECT ds.*, a.subscription_tier FROM deployed_sites ds JOIN accounts a ON ds.account_id = a.id WHERE ds.blog_id = $1',
+    [blogId]
+  );
+  if (site.rows.length === 0) throw new Error('Site not found');
+  const siteRow = site.rows[0];
+  if (!['pro', 'bespoke'].includes(siteRow.subscription_tier)) throw new Error('Pro or Bespoke subscription required');
+
+  const license = await pool.query(
+    "SELECT license_key FROM plugin_licenses WHERE account_id = $1 AND status = 'active' LIMIT 1",
+    [siteRow.account_id]
+  );
+  const licenseKey = license.rows.length > 0 ? license.rows[0].license_key : '';
+  let siteUrl = (siteRow.site_url || siteRow.domain || '').replace(/\/+$/, '');
+  if (!siteUrl.startsWith('http')) siteUrl = 'https://' + siteUrl;
+
+  return { siteRow, siteUrl, licenseKey };
+}
+
+// Helper: call plugin manage-page endpoint
+async function proBuilderManagePage(siteUrl, licenseKey, actionPayload) {
+  const res = await fetch(`${siteUrl}/wp-json/gas/v1/manage-page`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: licenseKey, ...actionPayload }),
+    signal: AbortSignal.timeout(15000)
+  });
+  return res.json();
+}
+
 // GET /api/pro-builder/sites/:blog_id/pages/:page_id — fetch single page content
 app.get('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
   try {
@@ -80151,6 +80205,149 @@ app.post('/api/pro-builder/sites/:blog_id/pages/:page_id/reorder', async (req, r
 
     const pushResult = await proBuilderPushContent(content.siteUrl, content.licenseKey, pageId, newContent);
     res.json(pushResult);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// ─── Pro Builder: Page Management ──────────────────────────────────────
+
+// POST /api/pro-builder/sites/:blog_id/pages — create a new page
+app.post('/api/pro-builder/sites/:blog_id/pages', async (req, res) => {
+  try {
+    const auth = await proBuilderAuth(req);
+    if (auth.error) return res.json({ success: false, error: auth.error });
+
+    const frozenCheck = await checkSiteFrozenByBlogId(req.params.blog_id);
+    if (frozenCheck.frozen) return res.json({ success: false, error: 'This site is frozen. Unfreeze it before making changes.' });
+
+    const blogId = parseInt(req.params.blog_id);
+    const { siteUrl, licenseKey } = await proBuilderSiteLookup(blogId);
+    const { page_title, add_to_menu } = req.body;
+
+    if (!page_title) return res.json({ success: false, error: 'page_title is required' });
+
+    const result = await proBuilderManagePage(siteUrl, licenseKey, {
+      action: 'create',
+      page_title,
+      add_to_menu: !!add_to_menu
+    });
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/pro-builder/sites/:blog_id/pages/:page_id — rename a page
+app.put('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
+  try {
+    const auth = await proBuilderAuth(req);
+    if (auth.error) return res.json({ success: false, error: auth.error });
+
+    const frozenCheck = await checkSiteFrozenByBlogId(req.params.blog_id);
+    if (frozenCheck.frozen) return res.json({ success: false, error: 'This site is frozen. Unfreeze it before making changes.' });
+
+    const blogId = parseInt(req.params.blog_id);
+    const pageId = parseInt(req.params.page_id);
+    const { new_title } = req.body;
+
+    if (!new_title) return res.json({ success: false, error: 'new_title is required' });
+
+    const { siteUrl, licenseKey } = await proBuilderSiteLookup(blogId);
+    const result = await proBuilderManagePage(siteUrl, licenseKey, {
+      action: 'rename',
+      page_id: pageId,
+      new_title
+    });
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/pro-builder/sites/:blog_id/pages/:page_id — delete (trash) a page
+app.delete('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
+  try {
+    const auth = await proBuilderAuth(req);
+    if (auth.error) return res.json({ success: false, error: auth.error });
+
+    const frozenCheck = await checkSiteFrozenByBlogId(req.params.blog_id);
+    if (frozenCheck.frozen) return res.json({ success: false, error: 'This site is frozen. Unfreeze it before making changes.' });
+
+    const blogId = parseInt(req.params.blog_id);
+    const pageId = parseInt(req.params.page_id);
+
+    const { siteUrl, licenseKey } = await proBuilderSiteLookup(blogId);
+    const result = await proBuilderManagePage(siteUrl, licenseKey, {
+      action: 'delete',
+      page_id: pageId
+    });
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/pro-builder/sites/:blog_id/page-order — reorder pages (menu_order)
+app.post('/api/pro-builder/sites/:blog_id/page-order', async (req, res) => {
+  try {
+    const auth = await proBuilderAuth(req);
+    if (auth.error) return res.json({ success: false, error: auth.error });
+
+    const frozenCheck = await checkSiteFrozenByBlogId(req.params.blog_id);
+    if (frozenCheck.frozen) return res.json({ success: false, error: 'This site is frozen. Unfreeze it before making changes.' });
+
+    const blogId = parseInt(req.params.blog_id);
+    const { pages } = req.body;
+
+    if (!pages || !Array.isArray(pages)) return res.json({ success: false, error: 'pages array is required' });
+
+    const { siteUrl, licenseKey } = await proBuilderSiteLookup(blogId);
+    const result = await proBuilderManagePage(siteUrl, licenseKey, {
+      action: 'reorder',
+      pages
+    });
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/pro-builder/sites/:blog_id/menu — get nav menu items
+app.get('/api/pro-builder/sites/:blog_id/menu', async (req, res) => {
+  try {
+    const auth = await proBuilderAuth(req);
+    if (auth.error) return res.json({ success: false, error: auth.error });
+
+    const blogId = parseInt(req.params.blog_id);
+    const { siteUrl, licenseKey } = await proBuilderSiteLookup(blogId);
+    const result = await proBuilderManagePage(siteUrl, licenseKey, { action: 'get_menu' });
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/pro-builder/sites/:blog_id/menu — update full nav menu
+app.put('/api/pro-builder/sites/:blog_id/menu', async (req, res) => {
+  try {
+    const auth = await proBuilderAuth(req);
+    if (auth.error) return res.json({ success: false, error: auth.error });
+
+    const frozenCheck = await checkSiteFrozenByBlogId(req.params.blog_id);
+    if (frozenCheck.frozen) return res.json({ success: false, error: 'This site is frozen. Unfreeze it before making changes.' });
+
+    const blogId = parseInt(req.params.blog_id);
+    const { items } = req.body;
+
+    if (!items || !Array.isArray(items)) return res.json({ success: false, error: 'items array is required' });
+
+    const { siteUrl, licenseKey } = await proBuilderSiteLookup(blogId);
+    const result = await proBuilderManagePage(siteUrl, licenseKey, {
+      action: 'update_menu',
+      items
+    });
+    res.json(result);
   } catch (error) {
     res.json({ success: false, error: error.message });
   }

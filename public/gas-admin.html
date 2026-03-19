@@ -15422,6 +15422,9 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                 <!-- Pages Tab -->
                 <div id="pro-builder-pages" class="pro-builder-panel">
+                    <div id="pro-builder-add-page-bar" style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                        <button class="btn" onclick="addProBuilderPage()" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); font-size: 0.85rem;">+ Add Page</button>
+                    </div>
                     <div id="pro-builder-pages-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
                         <div style="text-align: center; padding: 2rem; color: #64748b;">Loading pages...</div>
                     </div>
@@ -55413,6 +55416,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         let proBuilderBlogId = null;
         let proBuilderSiteName = '';
+        let proBuilderPagesData = [];
         let proBuilderDeployedSiteId = null;
         let proBuilderSiteUrl = '';
 
@@ -55453,25 +55457,57 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return;
                 }
 
-                if (!data.pages || data.pages.length === 0) {
-                    container.innerHTML = '<div class="card" style="padding: 2rem; text-align: center; color: #64748b;">No pages found</div>';
+                proBuilderPagesData = data.pages || [];
+
+                if (proBuilderPagesData.length === 0) {
+                    container.innerHTML = '<div class="card" style="padding: 2rem; text-align: center; color: #64748b;">No pages found — click + Add Page to create one</div>';
                     return;
                 }
 
                 let html = '';
-                data.pages.forEach(page => {
+                proBuilderPagesData.forEach((page, idx) => {
                     const statusColor = page.status === 'publish' ? '#10b981' : '#f59e0b';
                     const statusLabel = page.status === 'publish' ? 'Published' : page.status;
+                    const isFirst = idx === 0;
+                    const isLast = idx === proBuilderPagesData.length - 1;
+                    const safeTitle = (page.title || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+                    const escapedTitle = (page.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                    // Build menu dropdown options
+                    let menuOptions = `<option value="in_menu" ${page.in_menu && !page.menu_parent_page_id ? 'selected' : ''}>In Menu</option>`;
+                    menuOptions += `<option value="hidden" ${!page.in_menu ? 'selected' : ''}>Hidden</option>`;
+                    proBuilderPagesData.forEach(other => {
+                        if (other.id === page.id) return;
+                        const otherTitle = (other.title || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+                        const isSel = page.in_menu && page.menu_parent_page_id === other.id;
+                        menuOptions += `<option value="sub_${other.id}" ${isSel ? 'selected' : ''}>Sub-menu of ${otherTitle}</option>`;
+                    });
+
+                    // Determine if this is the front page (first page with slug = front-page or home, or menu_order 0)
+                    const isFrontPage = page.slug === 'front-page' || page.slug === 'home' || page.slug === 'homepage';
+
                     html += `
-                        <div class="card" style="padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <h4 style="margin: 0 0 0.25rem 0;">${page.title}</h4>
-                                <span style="font-size: 0.8rem; color: #64748b;">/${page.slug}/</span>
-                                <span style="display: inline-block; margin-left: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; background: ${statusColor}20; color: ${statusColor}; font-weight: 600;">${statusLabel}</span>
-                            </div>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <a href="${page.link}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">View</a>
-                                <button onclick="openPageEditor(${page.id}, '${page.title.replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-color: #f97316;">Build Page</button>
+                        <div class="card" style="padding: 0.75rem 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <div style="display: flex; flex-direction: column; gap: 2px; flex-shrink: 0;">
+                                    <button onclick="moveProBuilderPage(${idx}, 'up')" ${isFirst ? 'disabled' : ''} style="border: none; background: none; cursor: ${isFirst ? 'default' : 'pointer'}; color: ${isFirst ? '#d1d5db' : '#6366f1'}; font-size: 0.9rem; padding: 0 4px; line-height: 1;" title="Move up">&uarr;</button>
+                                    <button onclick="moveProBuilderPage(${idx}, 'down')" ${isLast ? 'disabled' : ''} style="border: none; background: none; cursor: ${isLast ? 'default' : 'pointer'}; color: ${isLast ? '#d1d5db' : '#6366f1'}; font-size: 0.9rem; padding: 0 4px; line-height: 1;" title="Move down">&darr;</button>
+                                </div>
+                                <div style="flex: 1; min-width: 0;">
+                                    <span id="pb-page-title-${page.id}" onclick="renameProBuilderPage(${page.id}, '${escapedTitle}')" style="font-weight: 600; font-size: 0.95rem; cursor: pointer;" title="Click to rename">${safeTitle}</span>
+                                    <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
+                                        /${page.slug}/
+                                        <span style="display: inline-block; margin-left: 0.5rem; padding: 0.1rem 0.4rem; border-radius: 8px; font-size: 0.68rem; background: ${statusColor}20; color: ${statusColor}; font-weight: 600;">${statusLabel}</span>
+                                    </div>
+                                </div>
+                                <select onchange="updatePageMenuState(${page.id}, this.value)" style="padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.78rem; color: #374151; background: #fff; cursor: pointer; max-width: 160px;" title="Menu visibility">
+                                    ${menuOptions}
+                                </select>
+                                <div style="display: flex; gap: 0.35rem; align-items: center; flex-shrink: 0;">
+                                    <a href="${page.link}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.72rem; padding: 4px 10px;">View</a>
+                                    <button onclick="openPageEditor(${page.id}, '${escapedTitle}')" class="btn btn-small" style="font-size: 0.72rem; padding: 4px 10px; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-color: #f97316;">Build</button>
+                                    <button onclick="deleteProBuilderPage(${page.id}, '${escapedTitle}')" ${isFrontPage ? 'disabled title="Cannot delete front page"' : 'title="Delete page"'} style="border: none; background: none; cursor: ${isFrontPage ? 'default' : 'pointer'}; color: ${isFrontPage ? '#d1d5db' : '#ef4444'}; font-size: 1rem; padding: 2px 6px;">&times;</button>
+                                </div>
                             </div>
                         </div>
                     `;
@@ -55483,6 +55519,175 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        async function addProBuilderPage() {
+            const title = prompt('Enter page title:');
+            if (!title || !title.trim()) return;
+            const addToMenu = confirm('Add this page to the navigation menu?');
+
+            try {
+                const res = await fetch(`/api/pro-builder/sites/${proBuilderBlogId}/pages`, {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ page_title: title.trim(), add_to_menu: addToMenu })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    alert('Error creating page: ' + data.error);
+                    return;
+                }
+                showToast('Page created successfully');
+                loadProBuilderPages();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function renameProBuilderPage(pageId, currentTitle) {
+            const titleEl = document.getElementById('pb-page-title-' + pageId);
+            if (!titleEl) return;
+            const origHtml = titleEl.innerHTML;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentTitle;
+            input.style.cssText = 'font-size: 0.95rem; font-weight: 600; padding: 2px 6px; border: 1px solid #6366f1; border-radius: 4px; outline: none; width: 100%;';
+
+            const save = async () => {
+                const newTitle = input.value.trim();
+                if (!newTitle || newTitle === currentTitle) {
+                    titleEl.innerHTML = origHtml;
+                    titleEl.onclick = () => renameProBuilderPage(pageId, currentTitle);
+                    return;
+                }
+                titleEl.innerHTML = '<span style="color: #64748b;">Saving...</span>';
+                try {
+                    const res = await fetch(`/api/pro-builder/sites/${proBuilderBlogId}/pages/${pageId}`, {
+                        method: 'PUT',
+                        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ new_title: newTitle })
+                    });
+                    const data = await res.json();
+                    if (!data.success) {
+                        alert('Error renaming: ' + data.error);
+                        titleEl.innerHTML = origHtml;
+                        titleEl.onclick = () => renameProBuilderPage(pageId, currentTitle);
+                        return;
+                    }
+                    showToast('Page renamed');
+                    loadProBuilderPages();
+                } catch (err) {
+                    alert('Error: ' + err.message);
+                    titleEl.innerHTML = origHtml;
+                    titleEl.onclick = () => renameProBuilderPage(pageId, currentTitle);
+                }
+            };
+
+            input.onkeydown = (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); save(); }
+                if (e.key === 'Escape') { titleEl.innerHTML = origHtml; titleEl.onclick = () => renameProBuilderPage(pageId, currentTitle); }
+            };
+            input.onblur = save;
+            titleEl.innerHTML = '';
+            titleEl.onclick = null;
+            titleEl.appendChild(input);
+            input.focus();
+            input.select();
+        }
+
+        async function moveProBuilderPage(index, direction) {
+            const swapIdx = direction === 'up' ? index - 1 : index + 1;
+            if (swapIdx < 0 || swapIdx >= proBuilderPagesData.length) return;
+
+            // Swap in local array
+            [proBuilderPagesData[index], proBuilderPagesData[swapIdx]] = [proBuilderPagesData[swapIdx], proBuilderPagesData[index]];
+
+            // Build sequential menu_order values
+            const pages = proBuilderPagesData.map((p, i) => ({ page_id: p.id, menu_order: i }));
+
+            try {
+                const res = await fetch(`/api/pro-builder/sites/${proBuilderBlogId}/page-order`, {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pages })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    alert('Error reordering: ' + data.error);
+                }
+                loadProBuilderPages();
+            } catch (err) {
+                alert('Error: ' + err.message);
+                loadProBuilderPages();
+            }
+        }
+
+        async function deleteProBuilderPage(pageId, title) {
+            if (!confirm('Delete page "' + title + '"? It will be moved to trash.')) return;
+
+            try {
+                const res = await fetch(`/api/pro-builder/sites/${proBuilderBlogId}/pages/${pageId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    alert('Error deleting page: ' + data.error);
+                    return;
+                }
+                showToast('Page deleted');
+                loadProBuilderPages();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function updatePageMenuState(pageId, menuValue) {
+            // Build full menu items array from current page states with the changed page's new value
+            const items = [];
+            let position = 0;
+
+            proBuilderPagesData.forEach(page => {
+                let inMenu, parentPageId;
+                if (page.id === pageId) {
+                    // Apply the new value
+                    if (menuValue === 'hidden') return; // skip — not in menu
+                    inMenu = true;
+                    parentPageId = 0;
+                    if (menuValue.startsWith('sub_')) {
+                        parentPageId = parseInt(menuValue.replace('sub_', ''));
+                    }
+                } else {
+                    // Keep existing state
+                    if (!page.in_menu) return;
+                    inMenu = true;
+                    parentPageId = page.menu_parent_page_id || 0;
+                }
+
+                items.push({
+                    page_id: page.id,
+                    title: page.title,
+                    position: position++,
+                    parent_page_id: parentPageId
+                });
+            });
+
+            try {
+                const res = await fetch(`/api/pro-builder/sites/${proBuilderBlogId}/menu`, {
+                    method: 'PUT',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    alert('Error updating menu: ' + data.error);
+                }
+                showToast('Menu updated');
+                loadProBuilderPages();
+            } catch (err) {
+                alert('Error: ' + err.message);
+                loadProBuilderPages();
+            }
+        }
+
         let proBuilderPageId = null;
         let proBuilderPageTitle = '';
         let proBuilderSections = []; // stores section data from server including raw_markup
@@ -55490,6 +55695,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         function openPageEditor(pageId, pageTitle) {
             proBuilderPageId = pageId;
             proBuilderPageTitle = pageTitle;
+            document.getElementById('pro-builder-add-page-bar').style.display = 'none';
             document.getElementById('pro-builder-pages-list').style.display = 'none';
             document.getElementById('pro-builder-page-editor').style.display = 'block';
             document.getElementById('pro-builder-page-title').textContent = pageTitle;
@@ -55500,6 +55706,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function closePageEditor() {
             document.getElementById('pro-builder-page-editor').style.display = 'none';
+            document.getElementById('pro-builder-add-page-bar').style.display = 'flex';
             document.getElementById('pro-builder-pages-list').style.display = 'flex';
             proBuilderPageId = null;
         }

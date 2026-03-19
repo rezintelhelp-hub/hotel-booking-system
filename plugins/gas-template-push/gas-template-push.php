@@ -2,7 +2,7 @@
 /**
  * Plugin Name: GAS Template Push
  * Description: Receives Elementor and Gutenberg templates from GAS Admin and injects them into pages.
- * Version: 1.3.0
+ * Version: 1.4.0
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-template-push
@@ -26,6 +26,12 @@ class GAS_Template_Push {
         register_rest_route('gas/v1', '/page-content/(?P<page_id>\d+)', array(
             'methods'  => 'GET',
             'callback' => array($this, 'get_page_content'),
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route('gas/v1', '/manage-page', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'handle_manage_page'),
             'permission_callback' => '__return_true',
         ));
     }
@@ -349,23 +355,7 @@ class GAS_Template_Push {
     }
 
     private function add_page_to_menu($page_id, $page_title) {
-        $locations = get_nav_menu_locations();
-        $menu_id = 0;
-
-        foreach (array('primary', 'main', 'header') as $loc) {
-            if (!empty($locations[$loc])) {
-                $menu_id = $locations[$loc];
-                break;
-            }
-        }
-
-        if (!$menu_id) {
-            $menus = wp_get_nav_menus();
-            if (!empty($menus)) {
-                $menu_id = $menus[0]->term_id;
-            }
-        }
-
+        $menu_id = $this->get_primary_menu_id();
         if ($menu_id) {
             wp_update_nav_menu_item($menu_id, 0, array(
                 'menu-item-title'     => $page_title,
@@ -375,6 +365,294 @@ class GAS_Template_Push {
                 'menu-item-status'    => 'publish',
             ));
         }
+    }
+
+    private function get_primary_menu_id() {
+        $locations = get_nav_menu_locations();
+        foreach (array('primary', 'main', 'header') as $loc) {
+            if (!empty($locations[$loc])) {
+                return $locations[$loc];
+            }
+        }
+        $menus = wp_get_nav_menus();
+        if (!empty($menus)) {
+            return $menus[0]->term_id;
+        }
+        return 0;
+    }
+
+    public function handle_manage_page($request) {
+        $params = $request->get_json_params();
+
+        // Validate API key
+        $api_key = isset($params['api_key']) ? sanitize_text_field($params['api_key']) : '';
+        $stored_key = get_option('gas_license_key', '');
+        if (empty($api_key) || empty($stored_key) || $api_key !== $stored_key) {
+            return new WP_REST_Response(array('success' => false, 'error' => 'Invalid or missing API key'), 403);
+        }
+
+        $action = isset($params['action']) ? $params['action'] : '';
+
+        switch ($action) {
+            case 'create':
+                return $this->manage_page_create($params);
+            case 'rename':
+                return $this->manage_page_rename($params);
+            case 'delete':
+                return $this->manage_page_delete($params);
+            case 'reorder':
+                return $this->manage_page_reorder($params);
+            case 'get_menu':
+                return $this->manage_page_get_menu();
+            case 'update_menu':
+                return $this->manage_page_update_menu($params);
+            default:
+                return new WP_REST_Response(array('success' => false, 'error' => 'Invalid action: ' . $action), 400);
+        }
+    }
+
+    private function manage_page_create($params) {
+        $page_title = isset($params['page_title']) ? sanitize_text_field($params['page_title']) : '';
+        $page_slug = isset($params['page_slug']) ? sanitize_title($params['page_slug']) : '';
+        $add_to_menu = !empty($params['add_to_menu']);
+
+        if (empty($page_title)) {
+            return new WP_REST_Response(array('success' => false, 'error' => 'page_title is required'), 400);
+        }
+        if (empty($page_slug)) {
+            $page_slug = sanitize_title($page_title);
+        }
+
+        $page_id = wp_insert_post(array(
+            'post_title'   => $page_title,
+            'post_name'    => $page_slug,
+            'post_status'  => 'publish',
+            'post_type'    => 'page',
+            'post_content' => '',
+        ));
+
+        if (is_wp_error($page_id)) {
+            return new WP_REST_Response(array('success' => false, 'error' => $page_id->get_error_message()), 500);
+        }
+
+        if ($add_to_menu) {
+            $this->add_page_to_menu($page_id, $page_title);
+        }
+
+        return new WP_REST_Response(array(
+            'success'  => true,
+            'page_id'  => $page_id,
+            'page_url' => get_permalink($page_id),
+            'slug'     => get_post_field('post_name', $page_id),
+        ), 200);
+    }
+
+    private function manage_page_rename($params) {
+        $page_id = isset($params['page_id']) ? intval($params['page_id']) : 0;
+        $new_title = isset($params['new_title']) ? sanitize_text_field($params['new_title']) : '';
+
+        if (!$page_id || empty($new_title)) {
+            return new WP_REST_Response(array('success' => false, 'error' => 'page_id and new_title are required'), 400);
+        }
+
+        $page = get_post($page_id);
+        if (!$page || $page->post_type !== 'page') {
+            return new WP_REST_Response(array('success' => false, 'error' => 'Page not found'), 404);
+        }
+
+        $new_slug = sanitize_title($new_title);
+        wp_update_post(array(
+            'ID'         => $page_id,
+            'post_title' => $new_title,
+            'post_name'  => $new_slug,
+        ));
+
+        // Update matching nav menu item title
+        $menu_id = $this->get_primary_menu_id();
+        if ($menu_id) {
+            $items = wp_get_nav_menu_items($menu_id);
+            if ($items) {
+                foreach ($items as $item) {
+                    if ($item->object === 'page' && intval($item->object_id) === $page_id) {
+                        wp_update_nav_menu_item($menu_id, $item->ID, array(
+                            'menu-item-title'     => $new_title,
+                            'menu-item-object'    => 'page',
+                            'menu-item-object-id' => $page_id,
+                            'menu-item-type'      => 'post_type',
+                            'menu-item-status'    => 'publish',
+                            'menu-item-parent-id' => $item->menu_item_parent,
+                            'menu-item-position'  => $item->menu_order,
+                        ));
+                        break;
+                    }
+                }
+            }
+        }
+
+        return new WP_REST_Response(array(
+            'success'   => true,
+            'page_id'   => $page_id,
+            'new_title' => $new_title,
+            'new_slug'  => $new_slug,
+        ), 200);
+    }
+
+    private function manage_page_delete($params) {
+        $page_id = isset($params['page_id']) ? intval($params['page_id']) : 0;
+        if (!$page_id) {
+            return new WP_REST_Response(array('success' => false, 'error' => 'page_id is required'), 400);
+        }
+
+        // Protect front page
+        $front_page_id = intval(get_option('page_on_front'));
+        if ($front_page_id && $front_page_id === $page_id) {
+            return new WP_REST_Response(array('success' => false, 'error' => 'Cannot delete the front page'), 400);
+        }
+
+        $page = get_post($page_id);
+        if (!$page || $page->post_type !== 'page') {
+            return new WP_REST_Response(array('success' => false, 'error' => 'Page not found'), 404);
+        }
+
+        // Remove from nav menu
+        $menu_id = $this->get_primary_menu_id();
+        if ($menu_id) {
+            $items = wp_get_nav_menu_items($menu_id);
+            if ($items) {
+                foreach ($items as $item) {
+                    if ($item->object === 'page' && intval($item->object_id) === $page_id) {
+                        wp_delete_post($item->ID, true);
+                    }
+                }
+            }
+        }
+
+        wp_trash_post($page_id);
+
+        return new WP_REST_Response(array('success' => true, 'page_id' => $page_id), 200);
+    }
+
+    private function manage_page_reorder($params) {
+        $pages = isset($params['pages']) ? $params['pages'] : array();
+        if (empty($pages) || !is_array($pages)) {
+            return new WP_REST_Response(array('success' => false, 'error' => 'pages array is required'), 400);
+        }
+
+        foreach ($pages as $item) {
+            $pid = isset($item['page_id']) ? intval($item['page_id']) : 0;
+            $order = isset($item['menu_order']) ? intval($item['menu_order']) : 0;
+            if ($pid) {
+                wp_update_post(array('ID' => $pid, 'menu_order' => $order));
+            }
+        }
+
+        return new WP_REST_Response(array('success' => true), 200);
+    }
+
+    private function manage_page_get_menu() {
+        $menu_id = $this->get_primary_menu_id();
+        if (!$menu_id) {
+            return new WP_REST_Response(array('success' => true, 'items' => array(), 'menu_id' => 0), 200);
+        }
+
+        $items = wp_get_nav_menu_items($menu_id);
+        $result = array();
+        if ($items) {
+            foreach ($items as $item) {
+                $result[] = array(
+                    'menu_item_id'      => $item->ID,
+                    'object_id'         => intval($item->object_id),
+                    'title'             => $item->title,
+                    'url'               => $item->url,
+                    'position'          => $item->menu_order,
+                    'parent'            => intval($item->menu_item_parent),
+                    'object_type'       => $item->object,
+                );
+            }
+        }
+
+        return new WP_REST_Response(array('success' => true, 'items' => $result, 'menu_id' => $menu_id), 200);
+    }
+
+    private function manage_page_update_menu($params) {
+        $items = isset($params['items']) ? $params['items'] : array();
+        if (!is_array($items)) {
+            return new WP_REST_Response(array('success' => false, 'error' => 'items array is required'), 400);
+        }
+
+        $menu_id = $this->get_primary_menu_id();
+
+        // Create menu if none exists
+        if (!$menu_id) {
+            $menu_id = wp_create_nav_menu('Primary Menu');
+            if (is_wp_error($menu_id)) {
+                return new WP_REST_Response(array('success' => false, 'error' => $menu_id->get_error_message()), 500);
+            }
+            $locations = get_theme_mod('nav_menu_locations', array());
+            $locations['primary'] = $menu_id;
+            set_theme_mod('nav_menu_locations', $locations);
+        }
+
+        // Delete all existing menu items
+        $existing = wp_get_nav_menu_items($menu_id);
+        if ($existing) {
+            foreach ($existing as $item) {
+                wp_delete_post($item->ID, true);
+            }
+        }
+
+        // Two-pass insert: first top-level, then children
+        $page_id_to_menu_item_id = array();
+
+        // Pass 1: top-level items (parent_page_id = 0 or not set)
+        foreach ($items as $item) {
+            $parent_page_id = isset($item['parent_page_id']) ? intval($item['parent_page_id']) : 0;
+            if ($parent_page_id !== 0) continue;
+
+            $page_id = intval($item['page_id']);
+            $title = isset($item['title']) ? sanitize_text_field($item['title']) : get_the_title($page_id);
+            $position = isset($item['position']) ? intval($item['position']) : 0;
+
+            $menu_item_id = wp_update_nav_menu_item($menu_id, 0, array(
+                'menu-item-title'     => $title,
+                'menu-item-object'    => 'page',
+                'menu-item-object-id' => $page_id,
+                'menu-item-type'      => 'post_type',
+                'menu-item-status'    => 'publish',
+                'menu-item-position'  => $position,
+            ));
+
+            if (!is_wp_error($menu_item_id)) {
+                $page_id_to_menu_item_id[$page_id] = $menu_item_id;
+            }
+        }
+
+        // Pass 2: child items
+        foreach ($items as $item) {
+            $parent_page_id = isset($item['parent_page_id']) ? intval($item['parent_page_id']) : 0;
+            if ($parent_page_id === 0) continue;
+
+            $page_id = intval($item['page_id']);
+            $title = isset($item['title']) ? sanitize_text_field($item['title']) : get_the_title($page_id);
+            $position = isset($item['position']) ? intval($item['position']) : 0;
+            $parent_menu_id = isset($page_id_to_menu_item_id[$parent_page_id]) ? $page_id_to_menu_item_id[$parent_page_id] : 0;
+
+            $menu_item_id = wp_update_nav_menu_item($menu_id, 0, array(
+                'menu-item-title'     => $title,
+                'menu-item-object'    => 'page',
+                'menu-item-object-id' => $page_id,
+                'menu-item-type'      => 'post_type',
+                'menu-item-status'    => 'publish',
+                'menu-item-position'  => $position,
+                'menu-item-parent-id' => $parent_menu_id,
+            ));
+
+            if (!is_wp_error($menu_item_id)) {
+                $page_id_to_menu_item_id[$page_id] = $menu_item_id;
+            }
+        }
+
+        return new WP_REST_Response(array('success' => true, 'items_count' => count($page_id_to_menu_item_id)), 200);
     }
 }
 
