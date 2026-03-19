@@ -57171,6 +57171,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         let subStyle = `color:${subColor} !important`;
                         if (block.subtitleFont) subStyle += `;font-family:${block.subtitleFont} !important`;
                         if (block.subtitleSize) subStyle += `;font-size:${block.subtitleSize}px !important`;
+                        if (headGap) subStyle += `;margin-bottom:${headGap}px !important`;
                         contentInner += `<!-- wp:paragraph {"style":{"color":{"text":"${subColor}"}}} -->\n<p class="has-text-color" style="${subStyle}">${subHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
                     }
                     if (btnText) {
@@ -57239,6 +57240,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         let sStyle = `color:${csSubColor} !important`;
                         if (block.subtitleFont) sStyle += `;font-family:${block.subtitleFont} !important`;
                         if (block.subtitleSize) sStyle += `;font-size:${block.subtitleSize}px !important`;
+                        if (csHeadGap) sStyle += `;margin-bottom:${csHeadGap}px !important`;
                         csContentInner += `<!-- wp:paragraph {"style":{"color":{"text":"${csSubColor}"}}} -->\n<p class="has-text-color" style="${sStyle}">${csSubHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
                     }
                     if (csBtnText) {
