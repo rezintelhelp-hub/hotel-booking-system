@@ -56544,7 +56544,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 case 'text':
                     return `<textarea id="${base}-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" data-pb-col="${colIdx}" data-pb-block="${blockIdx}" style="font-size: 0.8rem;">${block.text || ''}</textarea>`;
                 case 'image':
-                    return `<input type="text" class="form-input" style="font-size: 0.8rem;" placeholder="Image URL" value="${block.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">
+                    return `<div style="display:flex; align-items:center; gap:5px;">
+                                <input type="text" id="pb-block-${colIdx}-${blockIdx}-url" class="form-input" style="font-size: 0.8rem; flex:1;" placeholder="Image URL" value="${block.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">
+                                <label style="padding:3px 8px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.72rem; cursor:pointer; white-space:nowrap;">Upload<input type="file" accept="image/*" onchange="pbUploadBlockBgImage(this,${colIdx},${blockIdx})" style="display:none;"></label>
+                            </div>
                             <input type="text" class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" placeholder="Alt text" value="${block.alt || ''}" onchange="updateBlock(${colIdx},${blockIdx},'alt',this.value)">`;
                 case 'button':
                     return `<input type="text" class="form-input" style="font-size: 0.8rem;" placeholder="Button text" value="${block.text || ''}" onchange="updateBlock(${colIdx},${blockIdx},'text',this.value)">
@@ -56593,13 +56596,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <div style="${csRow}">
                                 <span style="${csLbl}">Padding</span>
                                 <span style="font-size:0.68rem; color:#94a3b8;">T</span>
-                                <input type="number" class="form-input" style="${csCtrl} width:42px;" placeholder="40" value="${cs.padTop || 40}" onchange="updateBlock(${colIdx},${blockIdx},'padTop',this.value)">
+                                <input type="number" class="form-input" style="${csCtrl} width:55px;" placeholder="40" value="${cs.padTop || 40}" onchange="updateBlock(${colIdx},${blockIdx},'padTop',this.value)">
                                 <span style="font-size:0.68rem; color:#94a3b8;">R</span>
-                                <input type="number" class="form-input" style="${csCtrl} width:42px;" placeholder="30" value="${cs.padRight || 30}" onchange="updateBlock(${colIdx},${blockIdx},'padRight',this.value)">
+                                <input type="number" class="form-input" style="${csCtrl} width:55px;" placeholder="30" value="${cs.padRight || 30}" onchange="updateBlock(${colIdx},${blockIdx},'padRight',this.value)">
                                 <span style="font-size:0.68rem; color:#94a3b8;">B</span>
-                                <input type="number" class="form-input" style="${csCtrl} width:42px;" placeholder="40" value="${cs.padBottom || 40}" onchange="updateBlock(${colIdx},${blockIdx},'padBottom',this.value)">
+                                <input type="number" class="form-input" style="${csCtrl} width:55px;" placeholder="40" value="${cs.padBottom || 40}" onchange="updateBlock(${colIdx},${blockIdx},'padBottom',this.value)">
                                 <span style="font-size:0.68rem; color:#94a3b8;">L</span>
-                                <input type="number" class="form-input" style="${csCtrl} width:42px;" placeholder="30" value="${cs.padLeft || 30}" onchange="updateBlock(${colIdx},${blockIdx},'padLeft',this.value)">
+                                <input type="number" class="form-input" style="${csCtrl} width:55px;" placeholder="30" value="${cs.padLeft || 30}" onchange="updateBlock(${colIdx},${blockIdx},'padLeft',this.value)">
                                 <span style="font-size:0.7rem; color:#94a3b8;">px</span>
                             </div>
                             <div style="${csGrp}">Heading</div>
