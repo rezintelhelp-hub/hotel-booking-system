@@ -56423,8 +56423,69 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 </div>
                             </div>`;
                     } else if (rawMk.includes('pb-hero-search')) {
-                        // Cover Hero search bar group — display as read-only info
-                        fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem; padding: 4px 0;">Search bar (part of Cover Hero) — edit the Cover section above to modify</div>`;
+                        // Cover Hero search bar — parse shortcode attributes for editing
+                        proBuilderSections[index]._isHeroSearch = true;
+                        const scAttr = (name, fallback) => { const m = rawMk.match(new RegExp(name + '="([^"]*)"')); return m ? m[1] : fallback; };
+                        const hsOffset = scAttr('offset', '-40');
+                        const hsBgColor = scAttr('background_color', '#ffffff');
+                        const hsBtnColor = scAttr('primary_color', '#F97224');
+                        const hsBtnTextColor = scAttr('text_color', '#ffffff');
+                        const hsLabelColor = scAttr('label_color', '#374151');
+                        const hsRadius = scAttr('border_radius', '8');
+                        const hsCheckin = scAttr('checkin_label', 'Check-in');
+                        const hsCheckout = scAttr('checkout_label', 'Check-out');
+                        const hsGuests = scAttr('guests_label', 'Guests');
+                        const hsBtnLabel = scAttr('button_text', 'Search');
+                        // Also parse offset from margin-top style
+                        const mtMatch = rawMk.match(/margin-top:\s*(-?\d+)px/);
+                        const hsMarginOffset = mtMatch ? mtMatch[1] : hsOffset;
+                        const sLbl = 'font-weight:600; font-size:0.78rem; color:#6b7280; white-space:nowrap; min-width:85px;';
+                        const sCtrl = 'padding:5px 8px; border:1px solid #d1d5db; border-radius:5px; font-size:0.82rem; color:#1e293b; background:#fff;';
+                        const sRow = 'display:flex; align-items:center; gap:6px;';
+                        const sGrp = 'font-weight:700; font-size:0.72rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:8px 0 4px; padding-top:6px; border-top:1px solid #e2e8f0;';
+                        fieldsHtml = `
+                            <div style="padding:0.5rem 0;">
+                                <div style="${sGrp} border-top:none; margin-top:0;">Search Bar Settings</div>
+                                <div style="${sRow}">
+                                    <span style="${sLbl}">Offset</span>
+                                    <input type="range" id="pb-edit-${index}-hs-offset" min="-80" max="80" step="1" value="${hsMarginOffset}" oninput="document.getElementById('pb-edit-${index}-hs-offset-val').textContent=this.value+'px';" style="flex:1; cursor:pointer;">
+                                    <span id="pb-edit-${index}-hs-offset-val" style="font-size:0.78rem; color:#6b7280; min-width:36px;">${hsMarginOffset}px</span>
+                                </div>
+                                <div style="${sRow}">
+                                    <span style="${sLbl}">BG Color</span>
+                                    <input type="color" id="pb-edit-${index}-hs-bg-color" value="${hsBgColor}" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                    <span style="${sLbl} min-width:65px;">Btn Color</span>
+                                    <input type="color" id="pb-edit-${index}-hs-btn-color" value="${hsBtnColor}" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                </div>
+                                <div style="${sRow}">
+                                    <span style="${sLbl}">Btn Text</span>
+                                    <input type="color" id="pb-edit-${index}-hs-btn-text-color" value="${hsBtnTextColor}" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                    <span style="${sLbl} min-width:65px;">Label</span>
+                                    <input type="color" id="pb-edit-${index}-hs-label-color" value="${hsLabelColor}" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                </div>
+                                <div style="${sRow}">
+                                    <span style="${sLbl}">Radius</span>
+                                    <input type="number" id="pb-edit-${index}-hs-radius" value="${hsRadius}" min="0" max="50" style="${sCtrl} width:60px;">
+                                    <span style="font-size:0.75rem; color:#94a3b8;">px</span>
+                                </div>
+                                <div style="${sGrp}">Labels</div>
+                                <div style="${sRow}">
+                                    <span style="${sLbl}">Check-in</span>
+                                    <input type="text" id="pb-edit-${index}-hs-checkin" value="${hsCheckin}" style="${sCtrl} flex:1;">
+                                </div>
+                                <div style="${sRow}">
+                                    <span style="${sLbl}">Check-out</span>
+                                    <input type="text" id="pb-edit-${index}-hs-checkout" value="${hsCheckout}" style="${sCtrl} flex:1;">
+                                </div>
+                                <div style="${sRow}">
+                                    <span style="${sLbl}">Guests</span>
+                                    <input type="text" id="pb-edit-${index}-hs-guests" value="${hsGuests}" style="${sCtrl} flex:1;">
+                                </div>
+                                <div style="${sRow}">
+                                    <span style="${sLbl}">Button</span>
+                                    <input type="text" id="pb-edit-${index}-hs-btn-label" value="${hsBtnLabel}" style="${sCtrl} flex:1;">
+                                </div>
+                            </div>`;
                     } else {
                         fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem; padding: 4px 0;">Group block — edit inner content in a future update</div>`;
                     }
@@ -56434,7 +56495,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     fieldsHtml = '<div style="color: #94a3b8; padding: 4px 0;">No editable fields for this block type</div>';
             }
 
-            const canSave = !['shortcode'].includes(section.type) && !(section.type === 'group' && !section._isFaq && !section._isReviews) && !(section.type === 'columns' && !section._isSplit && !section._isDualCover);
+            const canSave = !['shortcode'].includes(section.type) && !(section.type === 'group' && !section._isFaq && !section._isReviews && !section._isHeroSearch) && !(section.type === 'columns' && !section._isSplit && !section._isDualCover);
 
             return `
                 <div style="padding: 1rem 1rem 0.75rem; border-top: 1px solid #e2e8f0; background: #f8fafc;">
@@ -56622,6 +56683,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const starColor = document.getElementById(`pb-edit-${index}-rev-star-color`)?.value || '#f59e0b';
                         const reviewCols = parseInt(document.getElementById(`pb-edit-${index}-rev-cols`)?.value) || 3;
                         return blockToMarkup({ type: 'reviews', reviewItems: revItems, cardBg, textColor, starColor, reviewCols });
+                    }
+                    if (section._isHeroSearch) {
+                        // Rebuild search bar group markup from editor controls
+                        const hsOffset = document.getElementById(`pb-edit-${index}-hs-offset`)?.value || '-40';
+                        const hsBgColor = document.getElementById(`pb-edit-${index}-hs-bg-color`)?.value || '#ffffff';
+                        const hsBtnColor = document.getElementById(`pb-edit-${index}-hs-btn-color`)?.value || '#F97224';
+                        const hsBtnTextColor = document.getElementById(`pb-edit-${index}-hs-btn-text-color`)?.value || '#ffffff';
+                        const hsLabelColor = document.getElementById(`pb-edit-${index}-hs-label-color`)?.value || '#374151';
+                        const hsRadius = document.getElementById(`pb-edit-${index}-hs-radius`)?.value || '8';
+                        const hsCheckin = document.getElementById(`pb-edit-${index}-hs-checkin`)?.value || 'Check-in';
+                        const hsCheckout = document.getElementById(`pb-edit-${index}-hs-checkout`)?.value || 'Check-out';
+                        const hsGuests = document.getElementById(`pb-edit-${index}-hs-guests`)?.value || 'Guests';
+                        const hsBtnLabel = document.getElementById(`pb-edit-${index}-hs-btn-label`)?.value || 'Search';
+                        return `<!-- wp:group {"className":"pb-hero-search","layout":{"type":"constrained"}} -->\n<div class="wp-block-group pb-hero-search" style="margin-top:${hsOffset}px; position:relative; z-index:10;">\n<!-- wp:shortcode -->\n[gas_search layout="horizontal" primary_color="${hsBtnColor}" text_color="${hsBtnTextColor}" label_color="${hsLabelColor}" background_color="${hsBgColor}" border_radius="${hsRadius}" checkin_label="${hsCheckin}" checkout_label="${hsCheckout}" guests_label="${hsGuests}" button_text="${hsBtnLabel}" offset="${hsOffset}"]\n<!-- /wp:shortcode -->\n</div>\n<!-- /wp:group -->`;
                     }
                     return null;
                 }
