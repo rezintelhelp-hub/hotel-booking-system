@@ -56870,15 +56870,20 @@ const promo = await fetch('/api/v1/offers/validate', {
         function syncWysiwygToBlocks() {
             pbColumnBlocks.forEach((blocks, colIdx) => {
                 blocks.forEach((block, blockIdx) => {
+                    const base = `pb-block-${colIdx}-${blockIdx}`;
                     if (block.type === 'text') {
-                        const val = gasWysiwygGetValue(`pb-block-${colIdx}-${blockIdx}-text`);
+                        const val = gasWysiwygGetValue(`${base}-text`);
                         if (val) block.text = val;
                     }
                     if (block.type === 'cover' || block.type === 'cover-hero') {
-                        const hVal = gasWysiwygGetValue(`pb-block-${colIdx}-${blockIdx}-heading`);
+                        const hVal = gasWysiwygGetValue(`${base}-heading`);
                         if (hVal) block.headingHtml = hVal;
-                        const sVal = gasWysiwygGetValue(`pb-block-${colIdx}-${blockIdx}-subtitle`);
+                        const sVal = gasWysiwygGetValue(`${base}-subtitle`);
                         if (sVal) block.subtitleHtml = sVal;
+                        // Sync all non-WYSIWYG inputs back to block data
+                        const el = (id) => document.getElementById(id);
+                        const urlEl = el(`${base}-url`);
+                        if (urlEl) block.url = urlEl.value;
                     }
                 });
             });
@@ -57238,7 +57243,28 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function addBlockToColumn(colIdx, typeId) {
             const bt = pbBlockTypes.find(b => b.id === typeId);
-            pbColumnBlocks[colIdx].push({ type: typeId, label: bt.label });
+            const block = { type: typeId, label: bt.label };
+            // Pre-populate defaults so values persist across re-renders
+            if (typeId === 'cover' || typeId === 'cover-hero') {
+                Object.assign(block, {
+                    url: '', coverHeight: '60vh', overlayPos: 'left', overlayWidth: 40,
+                    overlayColor: '#000000', overlayOpacity: 70,
+                    padTop: 40, padRight: 30, padBottom: 40, padLeft: 30,
+                    headingHtml: '', headingColor: '#ffffff', headingLevel: 'h2',
+                    headingFont: '', headingSize: '', headingGap: '',
+                    subtitleHtml: '', subtitleColor: '#ffffff', subtitleFont: '', subtitleSize: '',
+                    btnText: '', btnLink: '', btnColor: '#F97224', btnSize: 'medium'
+                });
+                if (typeId === 'cover-hero') {
+                    Object.assign(block, {
+                        searchOffset: -40, searchBgColor: '#ffffff', searchBtnColor: '#F97224',
+                        searchBtnTextColor: '#ffffff', searchLabelColor: '#374151', searchRadius: 8,
+                        searchCheckinLabel: 'Check-in', searchCheckoutLabel: 'Check-out',
+                        searchGuestsLabel: 'Guests', searchBtnLabel: 'Search'
+                    });
+                }
+            }
+            pbColumnBlocks[colIdx].push(block);
             document.getElementById(`pb-block-picker-${colIdx}`).style.display = 'none';
             renderColumnEditors();
         }
