@@ -15497,9 +15497,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <div style="display: flex; gap: 4px; height: 40px; margin-bottom: 0.5rem;"><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div></div>
                                     <span style="font-size: 0.8rem; font-weight: 600;">20 / 20 / 20 / 20 / 20</span>
                                 </div>
-                                <div onclick="selectPresetImageFaq()" class="card" style="padding: 1rem; cursor: pointer; text-align: center; border: 2px solid #f59e0b40;" onmouseover="this.style.borderColor='#f59e0b'" onmouseout="this.style.borderColor='#f59e0b40'">
+                                <div onclick="selectPresetImageFaq('left')" class="card" style="padding: 1rem; cursor: pointer; text-align: center; border: 2px solid #f59e0b40;" onmouseover="this.style.borderColor='#f59e0b'" onmouseout="this.style.borderColor='#f59e0b40'">
                                     <div style="display: flex; gap: 4px; height: 40px; margin-bottom: 0.5rem;"><div style="flex: 2; background: #f59e0b20; border-radius: 4px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; color:#92400e;">Img</div><div style="flex: 3; background: #f59e0b20; border-radius: 4px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; color:#92400e;">FAQ</div></div>
-                                    <span style="font-size: 0.8rem; font-weight: 600; color: #92400e;">Image + FAQ</span>
+                                    <span style="font-size: 0.8rem; font-weight: 600; color: #92400e;">Img Left + FAQ</span>
+                                </div>
+                                <div onclick="selectPresetImageFaq('right')" class="card" style="padding: 1rem; cursor: pointer; text-align: center; border: 2px solid #f59e0b40;" onmouseover="this.style.borderColor='#f59e0b'" onmouseout="this.style.borderColor='#f59e0b40'">
+                                    <div style="display: flex; gap: 4px; height: 40px; margin-bottom: 0.5rem;"><div style="flex: 3; background: #f59e0b20; border-radius: 4px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; color:#92400e;">FAQ</div><div style="flex: 2; background: #f59e0b20; border-radius: 4px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; color:#92400e;">Img</div></div>
+                                    <span style="font-size: 0.8rem; font-weight: 600; color: #92400e;">FAQ + Img Right</span>
                                 </div>
                             </div>
                             <div style="text-align: center; margin-top: 0.75rem;">
@@ -57114,16 +57118,20 @@ const promo = await fetch('/api/v1/offers/validate', {
             renderColumnEditors();
         }
 
-        function selectPresetImageFaq() {
-            pbSelectedLayout = '40-60';
-            pbColumnBlocks = [
-                [{ type: 'image', label: 'Image', url: '', alt: '', size: 'large' }],
-                [{ type: 'faq', label: 'FAQ', faqItems: [{ question: '', answer: '' }, { question: '', answer: '' }],
-                   qColor: '#1e293b', aColor: '#374151', bgColor: '#ffffff', borderColor: '#e2e8f0' }]
-            ];
+        function selectPresetImageFaq(side) {
+            const imgBlock = { type: 'image', label: 'Image', url: '', alt: '', size: 'large' };
+            const faqBlock = { type: 'faq', label: 'FAQ', faqItems: [{ question: '', answer: '' }, { question: '', answer: '' }],
+                   qColor: '#1e293b', aColor: '#374151', bgColor: '#ffffff', borderColor: '#e2e8f0' };
+            if (side === 'right') {
+                pbSelectedLayout = '60-40';
+                pbColumnBlocks = [[faqBlock], [imgBlock]];
+            } else {
+                pbSelectedLayout = '40-60';
+                pbColumnBlocks = [[imgBlock], [faqBlock]];
+            }
             document.getElementById('pb-layout-picker').style.display = 'none';
             document.getElementById('pb-block-editor').style.display = 'block';
-            document.getElementById('pb-block-editor-title').textContent = 'Build Section — Image + FAQ';
+            document.getElementById('pb-block-editor-title').textContent = `Build Section — ${side === 'right' ? 'FAQ + Image Right' : 'Image Left + FAQ'}`;
             renderColumnEditors();
         }
 
