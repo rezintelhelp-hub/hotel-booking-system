@@ -52715,12 +52715,13 @@ app.put('/api/partner/websites/:websiteId/domain', async (req, res) => {
     console.log(`[Partner API] VPS response:`, vpsData);
     
     if (vpsData.success) {
-      // Update the deployed_sites table
+      // Update the deployed_sites table — also update site_url so site-config
+      // URL matching finds the correct site (prevents cross-site bleed)
       await pool.query(`
-        UPDATE deployed_sites 
-        SET custom_domain = $1, updated_at = NOW()
-        WHERE id = $2
-      `, [cleanDomain, website.deployed_site_id]);
+        UPDATE deployed_sites
+        SET custom_domain = $1, site_url = $2, updated_at = NOW()
+        WHERE id = $3
+      `, [cleanDomain, `https://${cleanDomain}/`, website.deployed_site_id]);
       
       res.json({ 
         success: true, 
