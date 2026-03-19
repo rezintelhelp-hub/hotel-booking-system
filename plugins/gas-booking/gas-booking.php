@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.4.6
+ * Version: 3.4.7
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.4.6');
+define('GAS_BOOKING_VERSION', '3.4.7');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4310,6 +4310,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             'label_color' => '',             // Label text color
             'border_radius' => '',           // Border radius for widget
             
+            // Position
+            'offset' => '',                  // Vertical offset in px (negative pulls up to overlap section above)
+
             // Custom CSS class
             'class' => '',                   // Additional CSS class for AI builders
             'css' => ''                      // Inline custom CSS
@@ -4330,6 +4333,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         if (!empty($atts['max_width'])) $widget_styles[] = 'max-width: ' . esc_attr($atts['max_width']);
         if (!empty($atts['background_color'])) $widget_styles[] = 'background-color: ' . esc_attr($atts['background_color']);
         if (!empty($atts['border_radius'])) $widget_styles[] = 'border-radius: ' . esc_attr($atts['border_radius']);
+        if ($atts['offset'] !== '') $widget_styles[] = 'margin-top: ' . intval($atts['offset']) . 'px; position: relative; z-index: 10';
         
         $widget_style_attr = !empty($widget_styles) ? ' style="' . implode('; ', $widget_styles) . '"' : '';
         

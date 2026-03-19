@@ -10042,6 +10042,11 @@
                                 <input type="range" id="wb-hero-search-scale" min="80" max="120" value="100" style="width: 100%;" oninput="document.getElementById('wb-hero-search-scale-value').textContent = this.value">
                             </div>
                             <div class="form-group">
+                                <label class="form-label">Vertical Offset: <span id="wb-hero-search-offset-value">0</span>px</label>
+                                <input type="range" id="wb-hero-search-offset" min="-80" max="80" value="0" style="width: 100%;" oninput="document.getElementById('wb-hero-search-offset-value').textContent = this.value">
+                                <p style="font-size: 0.7rem; color: #64748b; margin: 4px 0 0;">Negative = overlap hero above, Positive = push down</p>
+                            </div>
+                            <div class="form-group">
                                 <label class="form-label">Max Guests in Dropdown</label>
                                 <input type="number" class="form-input" id="wb-hero-search-max-guests" min="1" max="20" value="4" style="width: 80px;">
                             </div>
@@ -26449,7 +26454,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
                 
                 // Update range slider value displays
-                const rangeKeys = ['search-opacity', 'search-radius', 'search-padding', 'search-max-width', 'search-scale',
+                const rangeKeys = ['search-opacity', 'search-radius', 'search-padding', 'search-max-width', 'search-scale', 'search-offset',
                                    'overlay', 'height', 'font-size', 'title-size', 'text-size', 'max-width', 'btn-radius', 'body-size', 'count', 'section-spacing'];
                 rangeKeys.forEach(key => {
                     if (data.settings[key] !== undefined && data.settings[key] !== null) {
