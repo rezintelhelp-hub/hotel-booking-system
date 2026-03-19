@@ -56079,8 +56079,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 dcOlOp = Math.round(parseFloat(rgbaM[4]) * 100);
                             }
                             const innerEl = cover ? cover.querySelector('.wp-block-cover__inner-container') : null;
-                            const innerStyle = innerEl ? (innerEl.getAttribute('style') || '') : '';
-                            const padM = innerStyle.match(/padding:\s*(\d+)px\s+(\d+)px\s+(\d+)px\s+(\d+)px/);
+                            // Padding lives on the overlay column (background:rgba) inside nested columns, not on inner-container
+                            const overlayCol = innerEl ? innerEl.querySelector('.wp-block-column[style*="background"]') : null;
+                            const padSrc = overlayCol ? (overlayCol.getAttribute('style') || '') : (innerEl ? (innerEl.getAttribute('style') || '') : '');
+                            const padM = padSrc.match(/padding:\s*(\d+)px\s+(\d+)px\s+(\d+)px\s+(\d+)px/) || (function() {
+                                const pt = padSrc.match(/padding-top:\s*(\d+)px/), pr = padSrc.match(/padding-right:\s*(\d+)px/),
+                                      pb = padSrc.match(/padding-bottom:\s*(\d+)px/), pl = padSrc.match(/padding-left:\s*(\d+)px/);
+                                return (pt || pr || pb || pl) ? [null, pt?pt[1]:'40', pr?pr[1]:'30', pb?pb[1]:'40', pl?pl[1]:'30'] : null;
+                            })();
                             const dcPadT = padM ? padM[1] : '40', dcPadR = padM ? padM[2] : '30', dcPadB = padM ? padM[3] : '40', dcPadL = padM ? padM[4] : '30';
                             const coverStyle = cover ? (cover.getAttribute('style') || '') : '';
                             const mhM = coverStyle.match(/min-height:\s*(\d+)/);
@@ -56108,9 +56114,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <span style="font-size:0.75rem; color:#94a3b8;">click to expand</span>
                                     </div>
                                     <div style="display:none; padding:8px 12px;">
-                                        <div style="${row}">
+                                        <div style="${row} flex-wrap:wrap;">
                                             <span style="${lbl}">Image</span>
-                                            <input type="text" id="pb-edit-${index}-dc${ci}-url" value="${dcUrl.replace(/"/g, '&quot;')}" placeholder="Paste URL" style="${ctrl} flex:1;">
+                                            <input type="text" id="pb-edit-${index}-dc${ci}-url" value="${dcUrl.replace(/"/g, '&quot;')}" placeholder="Paste URL" style="${ctrl} flex:1; min-width:80px;">
+                                            <label style="padding:4px 10px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.72rem; cursor:pointer; white-space:nowrap; flex-shrink:0;">Upload<input type="file" accept="image/*" onchange="pbUploadDcImage(this,'${index}',${ci})" style="display:none;"></label>
                                         </div>
                                         <div style="${row}">
                                             <span style="${lbl}">Height</span>
@@ -56124,13 +56131,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <div style="${row}">
                                             <span style="${lbl}">Padding</span>
                                             <span style="font-size:0.68rem; color:#94a3b8;">T</span>
-                                            <input type="number" id="pb-edit-${index}-dc${ci}-pad-t" value="${dcPadT}" style="${ctrl} width:42px;">
+                                            <input type="number" id="pb-edit-${index}-dc${ci}-pad-t" value="${dcPadT}" style="${ctrl} width:55px;">
                                             <span style="font-size:0.68rem; color:#94a3b8;">R</span>
-                                            <input type="number" id="pb-edit-${index}-dc${ci}-pad-r" value="${dcPadR}" style="${ctrl} width:42px;">
+                                            <input type="number" id="pb-edit-${index}-dc${ci}-pad-r" value="${dcPadR}" style="${ctrl} width:55px;">
                                             <span style="font-size:0.68rem; color:#94a3b8;">B</span>
-                                            <input type="number" id="pb-edit-${index}-dc${ci}-pad-b" value="${dcPadB}" style="${ctrl} width:42px;">
+                                            <input type="number" id="pb-edit-${index}-dc${ci}-pad-b" value="${dcPadB}" style="${ctrl} width:55px;">
                                             <span style="font-size:0.68rem; color:#94a3b8;">L</span>
-                                            <input type="number" id="pb-edit-${index}-dc${ci}-pad-l" value="${dcPadL}" style="${ctrl} width:42px;">
+                                            <input type="number" id="pb-edit-${index}-dc${ci}-pad-l" value="${dcPadL}" style="${ctrl} width:55px;">
                                             <span style="font-size:0.7rem; color:#94a3b8;">px</span>
                                         </div>
                                         <div style="${grp}">Content</div>
@@ -56929,6 +56936,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                 urlField.value = '';
                 alert('Upload failed: ' + e.message);
             }
+        }
+
+        async function pbUploadDcImage(fileInput, index, ci) {
+            const file = fileInput.files && fileInput.files[0];
+            if (!file) return;
+            const urlField = document.getElementById(`pb-edit-${index}-dc${ci}-url`);
+            const siteId = proBuilderDeployedSiteId || selectedDeployedSiteId;
+            if (!siteId) { alert('No site selected'); return; }
+            urlField.value = 'Uploading...';
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('deployed_site_id', siteId);
+            formData.append('section', `pb-bg-dc${ci}`);
+            try {
+                const res = await fetch('/api/admin/website-builder/upload-image', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.success && data.url) { urlField.value = data.url; }
+                else { urlField.value = ''; alert('Upload failed: ' + (data.error || 'Unknown error')); }
+            } catch (e) { urlField.value = ''; alert('Upload failed: ' + e.message); }
         }
 
         async function pbUploadBlockBgImage(fileInput, colIdx, blockIdx) {
