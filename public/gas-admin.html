@@ -56067,9 +56067,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const ctrl = 'padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.78rem; color:#1e293b; background:#fff;';
                         const row = 'display:flex; align-items:center; gap:5px; margin-bottom:4px;';
                         const grp = 'font-weight:700; font-size:0.68rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:6px 0 3px; padding-top:4px; border-top:1px solid #e2e8f0;';
-                        // Parse column widths from block comment JSON
-                        const colWidthMatches = section.raw_markup.match(/<!-- wp:column \{"width":"([\d.]+)%"/g) || [];
-                        const colWidths = colWidthMatches.map(m => { const wm = m.match(/"([\d.]+)%"/); return wm ? wm[1] : '50'; });
+                        // Parse column widths from DOM elements (not regex — regex grabs nested inner columns too)
+                        const colWidths = Array.from(colEls).map(el => {
+                            const fb = el.style && el.style.flexBasis;
+                            return fb ? parseInt(fb).toString() : '50';
+                        });
                         let dualHtml = '';
                         proBuilderSections[index]._dualCoverData = [];
                         const dcFonts = ['','Arial','Helvetica','Georgia','Times New Roman','Verdana','Montserrat','Open Sans','Playfair Display','Raleway'];
