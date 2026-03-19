@@ -15486,6 +15486,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <div style="display: flex; gap: 4px; height: 40px; margin-bottom: 0.5rem;"><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div></div>
                                     <span style="font-size: 0.8rem; font-weight: 600;">33 / 33 / 33</span>
                                 </div>
+                                <div onclick="selectLayout('25-25-25-25')" class="card" style="padding: 1rem; cursor: pointer; text-align: center; border: 2px solid #e2e8f0;" onmouseover="this.style.borderColor='#6366f1'" onmouseout="this.style.borderColor='#e2e8f0'">
+                                    <div style="display: flex; gap: 4px; height: 40px; margin-bottom: 0.5rem;"><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div></div>
+                                    <span style="font-size: 0.8rem; font-weight: 600;">25 / 25 / 25 / 25</span>
+                                </div>
+                                <div onclick="selectLayout('20-20-20-20-20')" class="card" style="padding: 1rem; cursor: pointer; text-align: center; border: 2px solid #e2e8f0;" onmouseover="this.style.borderColor='#6366f1'" onmouseout="this.style.borderColor='#e2e8f0'">
+                                    <div style="display: flex; gap: 4px; height: 40px; margin-bottom: 0.5rem;"><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div></div>
+                                    <span style="font-size: 0.8rem; font-weight: 600;">20 / 20 / 20 / 20 / 20</span>
+                                </div>
                             </div>
                             <div style="text-align: center; margin-top: 0.75rem;">
                                 <a href="#" onclick="hideLayoutPicker(); return false;" style="font-size: 0.8rem; color: #94a3b8;">Cancel</a>
@@ -55933,7 +55941,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     break;
                 }
                 case 'columns': {
-                    // Only select direct child columns — not nested columns inside cover-sliders
+                    // Only select direct child columns — not nested columns inside covers
                     const colsBlock = dom.querySelector('.wp-block-columns');
                     const colEls = colsBlock ? colsBlock.querySelectorAll(':scope > .wp-block-column') : [];
                     // Detect split layout: 2 columns where one has a wp:cover
@@ -56294,14 +56302,139 @@ const promo = await fetch('/api/v1/offers/validate', {
                     break;
                 }
                 case 'group': {
-                    fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem; padding: 4px 0;">Group block — edit inner content in a future update</div>`;
+                    const rawMk = section.raw_markup || '';
+                    if (rawMk.includes('pb-faq')) {
+                        // FAQ block — parse <details> items
+                        const faqDetailRe = /<details[^>]*>[\s\S]*?<summary[^>]*style="[^"]*color:\s*([^;]*)[^"]*"[^>]*>([\s\S]*?)<\/summary>[\s\S]*?<p[^>]*style="[^"]*color:\s*([^;]*)[^"]*"[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/details>/g;
+                        const faqItems = [];
+                        let fm;
+                        while ((fm = faqDetailRe.exec(rawMk)) !== null) {
+                            faqItems.push({ question: fm[2].trim(), answer: fm[4].trim() });
+                        }
+                        // Parse styling from first item
+                        const fqcMatch = rawMk.match(/<summary[^>]*style="[^"]*color:\s*([^;!]+)/);
+                        const facMatch = rawMk.match(/<p[^>]*style="[^"]*color:\s*([^;!]+)/);
+                        const fbgMatch = rawMk.match(/pb-faq"[^>]*style="[^"]*background:\s*([^;]+)/);
+                        const fbrMatch = rawMk.match(/border:\s*1px solid\s*([^;]+)/);
+                        const fqColor = fqcMatch ? fqcMatch[1].trim() : '#1e293b';
+                        const faColor = facMatch ? facMatch[1].trim() : '#374151';
+                        const fbgColor = fbgMatch ? fbgMatch[1].trim() : '#ffffff';
+                        const fbrColor = fbrMatch ? fbrMatch[1].trim() : '#e2e8f0';
+                        proBuilderSections[index]._isFaq = true;
+                        proBuilderSections[index]._faqItems = faqItems;
+                        proBuilderSections[index]._faqStyle = { qColor: fqColor, aColor: faColor, bgColor: fbgColor, borderColor: fbrColor };
+                        const fLbl = 'font-weight:600; font-size:0.78rem; color:#6b7280; white-space:nowrap; min-width:85px;';
+                        const fCtrl = 'padding:5px 8px; border:1px solid #d1d5db; border-radius:5px; font-size:0.82rem; color:#1e293b; background:#fff;';
+                        const fRow = 'display:flex; align-items:center; gap:6px;';
+                        const fGrp = 'font-weight:700; font-size:0.72rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:8px 0 4px; padding-top:6px; border-top:1px solid #e2e8f0;';
+                        let faqItemsHtml = '';
+                        faqItems.forEach((item, fi) => {
+                            faqItemsHtml += `
+                                <div class="card" style="padding:6px 8px; margin-bottom:4px; border-left:2px solid #f59e0b;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                                        <span style="font-weight:600; font-size:0.72rem; color:#6b7280;">Item ${fi+1}</span>
+                                        <button onclick="pbEditRemoveFaqItem(${index},${fi})" style="border:none; background:none; color:#ef4444; cursor:pointer; font-size:0.75rem;">x</button>
+                                    </div>
+                                    <input type="text" id="pb-edit-${index}-faq-q-${fi}" value="${(item.question||'').replace(/"/g,'&quot;')}" placeholder="Question" style="${fCtrl} width:100%; margin-bottom:3px;">
+                                    <textarea id="pb-edit-${index}-faq-a-${fi}" placeholder="Answer" style="${fCtrl} width:100%; min-height:40px; resize:vertical;">${item.answer||''}</textarea>
+                                </div>`;
+                        });
+                        fieldsHtml = `
+                            <div style="padding:0.5rem 0;">
+                                <div style="${fGrp} border-top:none; margin-top:0;">FAQ Items</div>
+                                <div id="pb-edit-${index}-faq-items">${faqItemsHtml}</div>
+                                <button onclick="pbEditAddFaqItem(${index})" class="btn btn-small btn-secondary" style="font-size:0.75rem; margin:6px 0;">+ Add FAQ Item</button>
+                                <div style="${fGrp}">Styling</div>
+                                <div style="${fRow}">
+                                    <span style="${fLbl}">Q Color</span>
+                                    <input type="color" id="pb-edit-${index}-faq-q-color" value="${fqColor}" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                    <span style="${fLbl} min-width:60px;">A Color</span>
+                                    <input type="color" id="pb-edit-${index}-faq-a-color" value="${faColor}" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                </div>
+                                <div style="${fRow}">
+                                    <span style="${fLbl}">BG</span>
+                                    <input type="color" id="pb-edit-${index}-faq-bg-color" value="${fbgColor}" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                    <span style="${fLbl} min-width:60px;">Border</span>
+                                    <input type="color" id="pb-edit-${index}-faq-border-color" value="${fbrColor}" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                </div>
+                            </div>`;
+                    } else if (rawMk.includes('pb-reviews')) {
+                        // Reviews block — parse review columns
+                        const revCols = dom.querySelectorAll('.wp-block-column');
+                        const revItems = [];
+                        let rCardBg = '#f8fafc', rTextColor = '#1e293b', rStarColor = '#f59e0b';
+                        revCols.forEach(col => {
+                            const starEl = col.querySelector('div[style*="font-size:20px"]');
+                            const stars = starEl ? (starEl.textContent.match(/\u2605/g) || []).length : 5;
+                            const paras = col.querySelectorAll('p');
+                            let revText = '', revName = '';
+                            if (paras.length >= 1) revText = (paras[0].textContent || '').replace(/^"|"$/g, '').trim();
+                            if (paras.length >= 2) revName = (paras[1].textContent || '').replace(/^\u2014\s*/, '').trim();
+                            if (revText || revName) revItems.push({ name: revName, rating: stars || 5, text: revText });
+                            if (col.style.background || col.style.backgroundColor) rCardBg = col.style.background || col.style.backgroundColor;
+                            if (paras[0]?.style.color) rTextColor = paras[0].style.color;
+                            if (starEl?.style.color) rStarColor = starEl.style.color;
+                        });
+                        // Normalise RGB to hex
+                        const rgbH = (c, f) => { if (c.startsWith('#')) return c; const m = c.match(/(\d+)/g); return (m && m.length >= 3) ? '#' + m.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('') : f; };
+                        rCardBg = rgbH(rCardBg, '#f8fafc'); rTextColor = rgbH(rTextColor, '#1e293b'); rStarColor = rgbH(rStarColor, '#f59e0b');
+                        proBuilderSections[index]._isReviews = true;
+                        proBuilderSections[index]._reviewItems = revItems;
+                        proBuilderSections[index]._reviewStyle = { cardBg: rCardBg, textColor: rTextColor, starColor: rStarColor, reviewCols: revItems.length <= 3 ? revItems.length : 3 };
+                        const rLbl = 'font-weight:600; font-size:0.78rem; color:#6b7280; white-space:nowrap; min-width:85px;';
+                        const rCtrl = 'padding:5px 8px; border:1px solid #d1d5db; border-radius:5px; font-size:0.82rem; color:#1e293b; background:#fff;';
+                        const rRow = 'display:flex; align-items:center; gap:6px;';
+                        const rGrp = 'font-weight:700; font-size:0.72rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:8px 0 4px; padding-top:6px; border-top:1px solid #e2e8f0;';
+                        let revItemsHtml = '';
+                        const starSelectOpts = (sel) => [1,2,3,4,5].map(s => `<option value="${s}"${sel===s?' selected':''}>${'\u2605'.repeat(s)}</option>`).join('');
+                        revItems.forEach((rev, ri) => {
+                            revItemsHtml += `
+                                <div class="card" style="padding:6px 8px; margin-bottom:4px; border-left:2px solid #10b981;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                                        <span style="font-weight:600; font-size:0.72rem; color:#6b7280;">Review ${ri+1}</span>
+                                        <button onclick="pbEditRemoveReviewItem(${index},${ri})" style="border:none; background:none; color:#ef4444; cursor:pointer; font-size:0.75rem;">x</button>
+                                    </div>
+                                    <input type="text" id="pb-edit-${index}-rev-name-${ri}" value="${(rev.name||'').replace(/"/g,'&quot;')}" placeholder="Reviewer name" style="${rCtrl} width:100%; margin-bottom:3px;">
+                                    <select id="pb-edit-${index}-rev-rating-${ri}" style="${rCtrl} width:100%; margin-bottom:3px;">${starSelectOpts(rev.rating||5)}</select>
+                                    <textarea id="pb-edit-${index}-rev-text-${ri}" placeholder="Review text" style="${rCtrl} width:100%; min-height:40px; resize:vertical;">${rev.text||''}</textarea>
+                                </div>`;
+                        });
+                        fieldsHtml = `
+                            <div style="padding:0.5rem 0;">
+                                <div style="${rGrp} border-top:none; margin-top:0;">Reviews</div>
+                                <div id="pb-edit-${index}-rev-items">${revItemsHtml}</div>
+                                <button onclick="pbEditAddReviewItem(${index})" class="btn btn-small btn-secondary" style="font-size:0.75rem; margin:6px 0;">+ Add Review</button>
+                                <div style="${rGrp}">Styling</div>
+                                <div style="${rRow}">
+                                    <span style="${rLbl}">Card BG</span>
+                                    <input type="color" id="pb-edit-${index}-rev-card-bg" value="${rCardBg}" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                    <span style="${rLbl} min-width:60px;">Text</span>
+                                    <input type="color" id="pb-edit-${index}-rev-text-color" value="${rTextColor}" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                </div>
+                                <div style="${rRow}">
+                                    <span style="${rLbl}">Stars</span>
+                                    <input type="color" id="pb-edit-${index}-rev-star-color" value="${rStarColor}" style="width:30px; height:28px; padding:0; border:1px solid #d1d5db; border-radius:4px; cursor:pointer;">
+                                    <span style="${rLbl} min-width:60px;">Columns</span>
+                                    <select id="pb-edit-${index}-rev-cols" style="${rCtrl} width:60px;">
+                                        <option value="1"${revItems.length<=1?' selected':''}>1</option>
+                                        <option value="2"${revItems.length===2?' selected':''}>2</option>
+                                        <option value="3"${revItems.length>=3?' selected':''}>3</option>
+                                    </select>
+                                </div>
+                            </div>`;
+                    } else if (rawMk.includes('pb-hero-search')) {
+                        // Cover Hero search bar group — display as read-only info
+                        fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem; padding: 4px 0;">Search bar (part of Cover Hero) — edit the Cover section above to modify</div>`;
+                    } else {
+                        fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem; padding: 4px 0;">Group block — edit inner content in a future update</div>`;
+                    }
                     break;
                 }
                 default:
                     fieldsHtml = '<div style="color: #94a3b8; padding: 4px 0;">No editable fields for this block type</div>';
             }
 
-            const canSave = !['shortcode', 'group'].includes(section.type) && !(section.type === 'columns' && !section._isSplit && !section._isDualCover);
+            const canSave = !['shortcode'].includes(section.type) && !(section.type === 'group' && !section._isFaq && !section._isReviews) && !(section.type === 'columns' && !section._isSplit && !section._isDualCover);
 
             return `
                 <div style="padding: 1rem 1rem 0.75rem; border-top: 1px solid #e2e8f0; background: #f8fafc;">
@@ -56413,7 +56546,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             const dcHeadGap = document.getElementById(`pb-edit-${index}-dc${ci}-head-gap`)?.value || '';
                             const dcBtnSize = document.getElementById(`pb-edit-${index}-dc${ci}-btn-size`)?.value || 'medium';
                             const coverMarkup = blockToMarkup({
-                                type: 'cover-slider', url: dcUrl, coverHeight: dcH,
+                                type: 'cover', url: dcUrl, coverHeight: dcH,
                                 overlayColor: dcOlC, overlayOpacity: dcOlO,
                                 overlayWidth: dcOlW, overlayPos: dcPos,
                                 padTop: dcPT, padRight: dcPR, padBottom: dcPB, padLeft: dcPL,
@@ -56464,9 +56597,62 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const second = spPos === 'left' ? textCol : coverCol;
                     return `<!-- wp:columns {"align":"full","style":{"spacing":{"padding":{"top":"0","bottom":"0","left":"0","right":"0"},"blockGap":{"left":"0"}}}} -->\n<div class="wp-block-columns alignfull" style="padding-top:0;padding-right:0;padding-bottom:0;padding-left:0">${first}${second}</div>\n<!-- /wp:columns -->`;
                 }
+                case 'group': {
+                    if (section._isFaq) {
+                        // Collect FAQ items from editor inputs
+                        const faqItems = (section._faqItems || []).map((_, fi) => ({
+                            question: document.getElementById(`pb-edit-${index}-faq-q-${fi}`)?.value || '',
+                            answer: document.getElementById(`pb-edit-${index}-faq-a-${fi}`)?.value || ''
+                        }));
+                        const qColor = document.getElementById(`pb-edit-${index}-faq-q-color`)?.value || '#1e293b';
+                        const aColor = document.getElementById(`pb-edit-${index}-faq-a-color`)?.value || '#374151';
+                        const bgColor = document.getElementById(`pb-edit-${index}-faq-bg-color`)?.value || '#ffffff';
+                        const borderColor = document.getElementById(`pb-edit-${index}-faq-border-color`)?.value || '#e2e8f0';
+                        return blockToMarkup({ type: 'faq', faqItems, qColor, aColor, bgColor, borderColor });
+                    }
+                    if (section._isReviews) {
+                        // Collect review items from editor inputs
+                        const revItems = (section._reviewItems || []).map((_, ri) => ({
+                            name: document.getElementById(`pb-edit-${index}-rev-name-${ri}`)?.value || '',
+                            rating: parseInt(document.getElementById(`pb-edit-${index}-rev-rating-${ri}`)?.value) || 5,
+                            text: document.getElementById(`pb-edit-${index}-rev-text-${ri}`)?.value || ''
+                        }));
+                        const cardBg = document.getElementById(`pb-edit-${index}-rev-card-bg`)?.value || '#f8fafc';
+                        const textColor = document.getElementById(`pb-edit-${index}-rev-text-color`)?.value || '#1e293b';
+                        const starColor = document.getElementById(`pb-edit-${index}-rev-star-color`)?.value || '#f59e0b';
+                        const reviewCols = parseInt(document.getElementById(`pb-edit-${index}-rev-cols`)?.value) || 3;
+                        return blockToMarkup({ type: 'reviews', reviewItems: revItems, cardBg, textColor, starColor, reviewCols });
+                    }
+                    return null;
+                }
                 default:
                     return null;
             }
+        }
+
+        // FAQ/Reviews editor helper functions (for section editor, not block editor)
+        function pbEditAddFaqItem(index) {
+            if (!proBuilderSections[index]._faqItems) proBuilderSections[index]._faqItems = [];
+            proBuilderSections[index]._faqItems.push({ question: '', answer: '' });
+            // Re-render the section editor
+            const editorEl = document.getElementById(`pb-section-editor-${index}`);
+            if (editorEl) { editorEl.innerHTML = renderSectionEditor(index); gasWysiwygInit(); }
+        }
+        function pbEditRemoveFaqItem(index, fi) {
+            proBuilderSections[index]._faqItems.splice(fi, 1);
+            const editorEl = document.getElementById(`pb-section-editor-${index}`);
+            if (editorEl) { editorEl.innerHTML = renderSectionEditor(index); gasWysiwygInit(); }
+        }
+        function pbEditAddReviewItem(index) {
+            if (!proBuilderSections[index]._reviewItems) proBuilderSections[index]._reviewItems = [];
+            proBuilderSections[index]._reviewItems.push({ name: '', rating: 5, text: '' });
+            const editorEl = document.getElementById(`pb-section-editor-${index}`);
+            if (editorEl) { editorEl.innerHTML = renderSectionEditor(index); gasWysiwygInit(); }
+        }
+        function pbEditRemoveReviewItem(index, ri) {
+            proBuilderSections[index]._reviewItems.splice(ri, 1);
+            const editorEl = document.getElementById(`pb-section-editor-${index}`);
+            if (editorEl) { editorEl.innerHTML = renderSectionEditor(index); gasWysiwygInit(); }
         }
 
         async function saveSection(index) {
@@ -56547,7 +56733,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function showAddSectionChoice() {
             document.getElementById('pb-add-section-bar').style.display = 'none';
-            document.getElementById('pb-add-choice').style.display = 'block';
+            openLayoutPicker();
         }
 
         function hideAddSectionChoice() {
@@ -56563,6 +56749,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function openLayoutPicker() {
             document.getElementById('pb-add-choice').style.display = 'none';
+            document.getElementById('pb-add-section-bar').style.display = 'none';
             document.getElementById('pb-layout-picker').style.display = 'block';
         }
 
@@ -56575,20 +56762,19 @@ const promo = await fetch('/api/v1/offers/validate', {
         let pbColumnBlocks = [];
 
         const pbBlockTypes = [
-            { id: 'heading', label: 'Heading', icon: 'H' },
+            { id: 'cover', label: 'Cover', icon: 'Cvr' },
+            { id: 'cover-hero', label: 'Cover Hero', icon: 'Hero' },
             { id: 'text', label: 'Text', icon: 'T' },
             { id: 'image', label: 'Image', icon: 'Img' },
-            { id: 'button', label: 'Button', icon: 'Btn' },
-            { id: 'search', label: 'Search Bar', icon: 'Src' },
-            { id: 'rooms', label: 'Room List', icon: 'Rm' },
             { id: 'spacer', label: 'Spacer', icon: '—' },
             { id: 'slider', label: 'Slider', icon: 'Sld' },
-            { id: 'cover-slider', label: 'Cover Slider', icon: 'Cvr' }
+            { id: 'faq', label: 'FAQ', icon: 'FAQ' },
+            { id: 'reviews', label: 'Reviews', icon: 'Rev' }
         ];
 
         function selectLayout(layout) {
             pbSelectedLayout = layout;
-            const colMap = { 'full': 1, '50-50': 2, '60-40': 2, '40-60': 2, '33-33-33': 3 };
+            const colMap = { 'full': 1, '50-50': 2, '60-40': 2, '40-60': 2, '33-33-33': 3, '25-25-25-25': 4, '20-20-20-20-20': 5 };
             const colCount = colMap[layout] || 1;
             pbColumnBlocks = new Array(colCount).fill(null).map(() => []);
 
@@ -56609,11 +56795,11 @@ const promo = await fetch('/api/v1/offers/validate', {
         function syncWysiwygToBlocks() {
             pbColumnBlocks.forEach((blocks, colIdx) => {
                 blocks.forEach((block, blockIdx) => {
-                    if (block.type === 'heading' || block.type === 'text') {
+                    if (block.type === 'text') {
                         const val = gasWysiwygGetValue(`pb-block-${colIdx}-${blockIdx}-text`);
                         if (val) block.text = val;
                     }
-                    if (block.type === 'cover-slider') {
+                    if (block.type === 'cover' || block.type === 'cover-hero') {
                         const hVal = gasWysiwygGetValue(`pb-block-${colIdx}-${blockIdx}-heading`);
                         if (hVal) block.headingHtml = hVal;
                         const sVal = gasWysiwygGetValue(`pb-block-${colIdx}-${blockIdx}-subtitle`);
@@ -56664,13 +56850,6 @@ const promo = await fetch('/api/v1/offers/validate', {
         function renderBlockInputs(colIdx, blockIdx, block) {
             const base = `pb-block-${colIdx}-${blockIdx}`;
             switch (block.type) {
-                case 'heading':
-                    return `<textarea id="${base}-text" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text" data-pb-col="${colIdx}" data-pb-block="${blockIdx}" style="font-size: 0.8rem;">${block.text || ''}</textarea>
-                            <select class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" onchange="updateBlock(${colIdx},${blockIdx},'level',this.value)">
-                                <option value="h2" ${block.level === 'h2' ? 'selected' : ''}>H2</option>
-                                <option value="h3" ${block.level === 'h3' ? 'selected' : ''}>H3</option>
-                                <option value="h1" ${block.level === 'h1' ? 'selected' : ''}>H1</option>
-                            </select>`;
                 case 'text':
                     return `<textarea id="${base}-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" data-pb-col="${colIdx}" data-pb-block="${blockIdx}" style="font-size: 0.8rem;">${block.text || ''}</textarea>`;
                 case 'image':
@@ -56679,18 +56858,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <label style="padding:4px 10px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.72rem; cursor:pointer; white-space:nowrap; flex-shrink:0;">Upload<input type="file" accept="image/*" onchange="pbUploadBlockBgImage(this,${colIdx},${blockIdx})" style="display:none;"></label>
                             </div>
                             <input type="text" class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" placeholder="Alt text" value="${block.alt || ''}" onchange="updateBlock(${colIdx},${blockIdx},'alt',this.value)">`;
-                case 'button':
-                    return `<input type="text" class="form-input" style="font-size: 0.8rem;" placeholder="Button text" value="${block.text || ''}" onchange="updateBlock(${colIdx},${blockIdx},'text',this.value)">
-                            <input type="text" class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" placeholder="Link URL" value="${block.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">`;
-                case 'search':
-                    return `<span style="font-size: 0.75rem; color: #64748b;">[gas_search] shortcode</span>`;
-                case 'rooms':
-                    return `<span style="font-size: 0.75rem; color: #64748b;">[gas_rooms] shortcode</span>`;
                 case 'spacer':
                     return `<input type="number" class="form-input" style="font-size: 0.8rem; width: 80px;" placeholder="40" value="${block.height || 40}" onchange="updateBlock(${colIdx},${blockIdx},'height',this.value)"> <span style="font-size: 0.75rem; color: #64748b;">px</span>`;
                 case 'slider':
                     return `<input type="text" class="form-input" style="font-size: 0.8rem;" placeholder="Smart Slider ID" value="${block.sliderId || ''}" onchange="updateBlock(${colIdx},${blockIdx},'sliderId',this.value)">`;
-                case 'cover-slider': {
+                case 'cover': {
                     const cs = block;
                     const csLbl = 'font-weight:600; font-size:0.72rem; color:#6b7280; white-space:nowrap; min-width:70px;';
                     const csCtrl = 'padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.78rem; color:#1e293b; background:#fff;';
@@ -56776,6 +56948,210 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                         </div>`;
                 }
+                case 'cover-hero': {
+                    const ch = block;
+                    const chLbl = 'font-weight:600; font-size:0.72rem; color:#6b7280; white-space:nowrap; min-width:70px;';
+                    const chCtrl = 'padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.78rem; color:#1e293b; background:#fff;';
+                    const chRow = 'display:flex; align-items:center; gap:5px; margin-bottom:4px;';
+                    const chGrp = 'font-weight:700; font-size:0.68rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:6px 0 3px; padding-top:4px; border-top:1px solid #e2e8f0;';
+                    const chFonts = ['','Arial','Helvetica','Georgia','Times New Roman','Verdana','Montserrat','Open Sans','Playfair Display','Raleway'];
+                    const chFontOpts = (val) => chFonts.map(f => `<option value="${f}"${(val||'') === f ? ' selected' : ''}>${f || 'Default'}</option>`).join('');
+                    return `
+                        <div style="font-size:0.78rem;">
+                            <div style="${chRow} flex-wrap:wrap;">
+                                <span style="${chLbl}">Image</span>
+                                <input type="text" id="pb-block-${colIdx}-${blockIdx}-url" class="form-input" style="${chCtrl} flex:1; min-width:80px;" placeholder="URL" value="${ch.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">
+                                <label style="padding:4px 10px; background:#6366f1; color:#fff; border-radius:4px; font-size:0.72rem; cursor:pointer; white-space:nowrap; flex-shrink:0;">Upload<input type="file" accept="image/*" onchange="pbUploadBlockBgImage(this,${colIdx},${blockIdx})" style="display:none;"></label>
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">Height</span>
+                                <input type="text" class="form-input" style="${chCtrl} width:65px;" placeholder="60vh" value="${ch.coverHeight || '60vh'}" onchange="updateBlock(${colIdx},${blockIdx},'coverHeight',this.value)">
+                                <span style="${chLbl} min-width:50px; margin-left:8px;">Position</span>
+                                <select class="form-input" style="${chCtrl} width:70px;" onchange="updateBlock(${colIdx},${blockIdx},'overlayPos',this.value)">
+                                    <option value="left"${(ch.overlayPos||'left')==='left'?' selected':''}>Left</option>
+                                    <option value="right"${(ch.overlayPos||'left')==='right'?' selected':''}>Right</option>
+                                </select>
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">OL Width</span>
+                                <input type="number" class="form-input" style="${chCtrl} width:50px;" placeholder="40" value="${ch.overlayWidth || 40}" onchange="updateBlock(${colIdx},${blockIdx},'overlayWidth',this.value)">
+                                <span style="font-size:0.7rem; color:#94a3b8;">%</span>
+                                <span style="${chLbl} min-width:50px; margin-left:8px;">Color</span>
+                                <input type="color" value="${ch.overlayColor || '#000000'}" onchange="updateBlock(${colIdx},${blockIdx},'overlayColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                <input type="range" min="0" max="100" step="5" value="${ch.overlayOpacity ?? 70}" oninput="updateBlock(${colIdx},${blockIdx},'overlayOpacity',parseInt(this.value)); this.nextElementSibling.textContent=this.value+'%';" style="flex:1; cursor:pointer;">
+                                <span style="font-size:0.7rem; color:#6b7280; min-width:28px;">${ch.overlayOpacity ?? 70}%</span>
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">Padding</span>
+                                <span style="font-size:0.68rem; color:#94a3b8;">T</span>
+                                <input type="number" class="form-input" style="${chCtrl} width:55px;" placeholder="40" value="${ch.padTop || 40}" onchange="updateBlock(${colIdx},${blockIdx},'padTop',this.value)">
+                                <span style="font-size:0.68rem; color:#94a3b8;">R</span>
+                                <input type="number" class="form-input" style="${chCtrl} width:55px;" placeholder="30" value="${ch.padRight || 30}" onchange="updateBlock(${colIdx},${blockIdx},'padRight',this.value)">
+                                <span style="font-size:0.68rem; color:#94a3b8;">B</span>
+                                <input type="number" class="form-input" style="${chCtrl} width:55px;" placeholder="40" value="${ch.padBottom || 40}" onchange="updateBlock(${colIdx},${blockIdx},'padBottom',this.value)">
+                                <span style="font-size:0.68rem; color:#94a3b8;">L</span>
+                                <input type="number" class="form-input" style="${chCtrl} width:55px;" placeholder="30" value="${ch.padLeft || 30}" onchange="updateBlock(${colIdx},${blockIdx},'padLeft',this.value)">
+                                <span style="font-size:0.7rem; color:#94a3b8;">px</span>
+                            </div>
+                            <div style="${chGrp}">Heading</div>
+                            <div style="${chRow}">
+                                <textarea id="pb-block-${colIdx}-${blockIdx}-heading" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text" data-pb-col="${colIdx}" data-pb-block="${blockIdx}" style="${chCtrl} flex:1; min-height:50px; resize:vertical; font-weight:600;">${ch.headingHtml || ''}</textarea>
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">Color</span>
+                                <input type="color" value="${ch.headingColor || '#ffffff'}" onchange="updateBlock(${colIdx},${blockIdx},'headingColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                <select class="form-input" style="${chCtrl} width:50px;" onchange="updateBlock(${colIdx},${blockIdx},'headingLevel',this.value)">
+                                    <option value="h1"${(ch.headingLevel||'h2')==='h1'?' selected':''}>H1</option>
+                                    <option value="h2"${(ch.headingLevel||'h2')==='h2'?' selected':''}>H2</option>
+                                    <option value="h3"${(ch.headingLevel||'h2')==='h3'?' selected':''}>H3</option>
+                                    <option value="h4"${(ch.headingLevel||'h2')==='h4'?' selected':''}>H4</option>
+                                </select>
+                                <select class="form-input" style="${chCtrl} flex:1;" onchange="updateBlock(${colIdx},${blockIdx},'headingFont',this.value)">${chFontOpts(ch.headingFont)}</select>
+                                <input type="number" class="form-input" style="${chCtrl} width:50px;" placeholder="auto" value="${ch.headingSize || ''}" onchange="updateBlock(${colIdx},${blockIdx},'headingSize',this.value)">
+                                <span style="font-size:0.7rem; color:#94a3b8;">px</span>
+                            </div>
+                            <div style="${chGrp}">Subtitle</div>
+                            <div style="${chRow}">
+                                <textarea id="pb-block-${colIdx}-${blockIdx}-subtitle" data-wysiwyg="true" data-wysiwyg-placeholder="Subtitle text" data-pb-col="${colIdx}" data-pb-block="${blockIdx}" style="${chCtrl} flex:1; min-height:32px; resize:vertical;">${ch.subtitleHtml || ''}</textarea>
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">Color</span>
+                                <input type="color" value="${ch.subtitleColor || '#ffffff'}" onchange="updateBlock(${colIdx},${blockIdx},'subtitleColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                <select class="form-input" style="${chCtrl} flex:1;" onchange="updateBlock(${colIdx},${blockIdx},'subtitleFont',this.value)">${chFontOpts(ch.subtitleFont)}</select>
+                                <input type="number" class="form-input" style="${chCtrl} width:50px;" placeholder="auto" value="${ch.subtitleSize || ''}" onchange="updateBlock(${colIdx},${blockIdx},'subtitleSize',this.value)">
+                                <span style="font-size:0.7rem; color:#94a3b8;">px</span>
+                            </div>
+                            <div style="${chGrp}">Button</div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">Text</span>
+                                <input type="text" class="form-input" style="${chCtrl} flex:1;" placeholder="Leave blank for no button" value="${ch.btnText || ''}" onchange="updateBlock(${colIdx},${blockIdx},'btnText',this.value)">
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">URL</span>
+                                <input type="text" class="form-input" style="${chCtrl} flex:1;" placeholder="/book-now" value="${ch.btnLink || ''}" onchange="updateBlock(${colIdx},${blockIdx},'btnLink',this.value)">
+                                <span style="${chLbl} min-width:40px;">Color</span>
+                                <input type="color" value="${ch.btnColor || '#F97224'}" onchange="updateBlock(${colIdx},${blockIdx},'btnColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                            </div>
+                            <div style="${chGrp}">Search Bar</div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">Offset</span>
+                                <input type="range" min="-80" max="80" step="1" value="${ch.searchOffset || -40}" oninput="updateBlock(${colIdx},${blockIdx},'searchOffset',parseInt(this.value)); this.nextElementSibling.textContent=this.value+'px';" style="flex:1; cursor:pointer;">
+                                <span style="font-size:0.7rem; color:#6b7280; min-width:36px;">${ch.searchOffset || -40}px</span>
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">BG Color</span>
+                                <input type="color" value="${ch.searchBgColor || '#ffffff'}" onchange="updateBlock(${colIdx},${blockIdx},'searchBgColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                <span style="${chLbl} min-width:50px;">Btn Color</span>
+                                <input type="color" value="${ch.searchBtnColor || '#F97224'}" onchange="updateBlock(${colIdx},${blockIdx},'searchBtnColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">Btn Text</span>
+                                <input type="color" value="${ch.searchBtnTextColor || '#ffffff'}" onchange="updateBlock(${colIdx},${blockIdx},'searchBtnTextColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                <span style="${chLbl} min-width:55px;">Label</span>
+                                <input type="color" value="${ch.searchLabelColor || '#374151'}" onchange="updateBlock(${colIdx},${blockIdx},'searchLabelColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">Radius</span>
+                                <input type="number" class="form-input" style="${chCtrl} width:55px;" placeholder="8" value="${ch.searchRadius || 8}" onchange="updateBlock(${colIdx},${blockIdx},'searchRadius',this.value)">
+                                <span style="font-size:0.7rem; color:#94a3b8;">px</span>
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">Checkin</span>
+                                <input type="text" class="form-input" style="${chCtrl} flex:1;" placeholder="Check-in" value="${ch.searchCheckinLabel || 'Check-in'}" onchange="updateBlock(${colIdx},${blockIdx},'searchCheckinLabel',this.value)">
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">Checkout</span>
+                                <input type="text" class="form-input" style="${chCtrl} flex:1;" placeholder="Check-out" value="${ch.searchCheckoutLabel || 'Check-out'}" onchange="updateBlock(${colIdx},${blockIdx},'searchCheckoutLabel',this.value)">
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">Guests</span>
+                                <input type="text" class="form-input" style="${chCtrl} flex:1;" placeholder="Guests" value="${ch.searchGuestsLabel || 'Guests'}" onchange="updateBlock(${colIdx},${blockIdx},'searchGuestsLabel',this.value)">
+                            </div>
+                            <div style="${chRow}">
+                                <span style="${chLbl}">Btn Label</span>
+                                <input type="text" class="form-input" style="${chCtrl} flex:1;" placeholder="Search" value="${ch.searchBtnLabel || 'Search'}" onchange="updateBlock(${colIdx},${blockIdx},'searchBtnLabel',this.value)">
+                            </div>
+                        </div>`;
+                }
+                case 'faq': {
+                    const items = block.faqItems || [];
+                    let itemsHtml = '';
+                    items.forEach((item, fi) => {
+                        itemsHtml += `
+                            <div class="card" style="padding:6px 8px; margin-bottom:4px; border-left:2px solid #f59e0b;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                                    <span style="font-weight:600; font-size:0.72rem; color:#6b7280;">Item ${fi+1}</span>
+                                    <button onclick="pbRemoveFaqItem(${colIdx},${blockIdx},${fi})" style="border:none; background:none; color:#ef4444; cursor:pointer; font-size:0.75rem;">x</button>
+                                </div>
+                                <input type="text" class="form-input" style="font-size:0.78rem; margin-bottom:3px;" placeholder="Question" value="${(item.question||'').replace(/"/g,'&quot;')}" onchange="pbUpdateFaqItem(${colIdx},${blockIdx},${fi},'question',this.value)">
+                                <textarea class="form-input" style="font-size:0.78rem; min-height:40px; resize:vertical;" placeholder="Answer" onchange="pbUpdateFaqItem(${colIdx},${blockIdx},${fi},'answer',this.value)">${item.answer||''}</textarea>
+                            </div>`;
+                    });
+                    const fLbl = 'font-weight:600; font-size:0.72rem; color:#6b7280; white-space:nowrap; min-width:70px;';
+                    const fCtrl = 'padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.78rem; color:#1e293b; background:#fff;';
+                    const fRow = 'display:flex; align-items:center; gap:5px; margin-bottom:4px;';
+                    const fGrp = 'font-weight:700; font-size:0.68rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:6px 0 3px; padding-top:4px; border-top:1px solid #e2e8f0;';
+                    return `
+                        <div style="font-size:0.78rem;">
+                            ${itemsHtml}
+                            <button onclick="pbAddFaqItem(${colIdx},${blockIdx})" class="btn btn-small btn-secondary" style="font-size:0.7rem; margin-bottom:6px;">+ Add FAQ Item</button>
+                            <div style="${fGrp}">Styling</div>
+                            <div style="${fRow}">
+                                <span style="${fLbl}">Q Color</span>
+                                <input type="color" value="${block.qColor || '#1e293b'}" onchange="updateBlock(${colIdx},${blockIdx},'qColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                <span style="${fLbl} min-width:50px;">A Color</span>
+                                <input type="color" value="${block.aColor || '#374151'}" onchange="updateBlock(${colIdx},${blockIdx},'aColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                            </div>
+                            <div style="${fRow}">
+                                <span style="${fLbl}">BG</span>
+                                <input type="color" value="${block.bgColor || '#ffffff'}" onchange="updateBlock(${colIdx},${blockIdx},'bgColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                <span style="${fLbl} min-width:50px;">Border</span>
+                                <input type="color" value="${block.borderColor || '#e2e8f0'}" onchange="updateBlock(${colIdx},${blockIdx},'borderColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                            </div>
+                        </div>`;
+                }
+                case 'reviews': {
+                    const revItems = block.reviewItems || [];
+                    let revsHtml = '';
+                    revItems.forEach((rev, ri) => {
+                        const starOpts = [1,2,3,4,5].map(s => `<option value="${s}"${(rev.rating||5)===s?' selected':''}>${'★'.repeat(s)}</option>`).join('');
+                        revsHtml += `
+                            <div class="card" style="padding:6px 8px; margin-bottom:4px; border-left:2px solid #10b981;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                                    <span style="font-weight:600; font-size:0.72rem; color:#6b7280;">Review ${ri+1}</span>
+                                    <button onclick="pbRemoveReviewItem(${colIdx},${blockIdx},${ri})" style="border:none; background:none; color:#ef4444; cursor:pointer; font-size:0.75rem;">x</button>
+                                </div>
+                                <input type="text" class="form-input" style="font-size:0.78rem; margin-bottom:3px;" placeholder="Reviewer name" value="${(rev.name||'').replace(/"/g,'&quot;')}" onchange="pbUpdateReviewItem(${colIdx},${blockIdx},${ri},'name',this.value)">
+                                <select class="form-input" style="font-size:0.78rem; margin-bottom:3px;" onchange="pbUpdateReviewItem(${colIdx},${blockIdx},${ri},'rating',parseInt(this.value))">${starOpts}</select>
+                                <textarea class="form-input" style="font-size:0.78rem; min-height:40px; resize:vertical;" placeholder="Review text" onchange="pbUpdateReviewItem(${colIdx},${blockIdx},${ri},'text',this.value)">${rev.text||''}</textarea>
+                            </div>`;
+                    });
+                    const rLbl = 'font-weight:600; font-size:0.72rem; color:#6b7280; white-space:nowrap; min-width:70px;';
+                    const rRow = 'display:flex; align-items:center; gap:5px; margin-bottom:4px;';
+                    const rGrp = 'font-weight:700; font-size:0.68rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:6px 0 3px; padding-top:4px; border-top:1px solid #e2e8f0;';
+                    return `
+                        <div style="font-size:0.78rem;">
+                            ${revsHtml}
+                            <button onclick="pbAddReviewItem(${colIdx},${blockIdx})" class="btn btn-small btn-secondary" style="font-size:0.7rem; margin-bottom:6px;">+ Add Review</button>
+                            <div style="${rGrp}">Styling</div>
+                            <div style="${rRow}">
+                                <span style="${rLbl}">Card BG</span>
+                                <input type="color" value="${block.cardBg || '#f8fafc'}" onchange="updateBlock(${colIdx},${blockIdx},'cardBg',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                <span style="${rLbl} min-width:50px;">Text</span>
+                                <input type="color" value="${block.textColor || '#1e293b'}" onchange="updateBlock(${colIdx},${blockIdx},'textColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                            </div>
+                            <div style="${rRow}">
+                                <span style="${rLbl}">Stars</span>
+                                <input type="color" value="${block.starColor || '#f59e0b'}" onchange="updateBlock(${colIdx},${blockIdx},'starColor',this.value)" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
+                                <span style="${rLbl} min-width:50px;">Columns</span>
+                                <select class="form-input" style="font-size:0.78rem; width:55px;" onchange="updateBlock(${colIdx},${blockIdx},'reviewCols',parseInt(this.value))">
+                                    <option value="1"${(block.reviewCols||3)===1?' selected':''}>1</option>
+                                    <option value="2"${(block.reviewCols||3)===2?' selected':''}>2</option>
+                                    <option value="3"${(block.reviewCols||3)===3?' selected':''}>3</option>
+                                </select>
+                            </div>
+                        </div>`;
+                }
                 default:
                     return '';
             }
@@ -56799,6 +57175,32 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function updateBlock(colIdx, blockIdx, key, value) {
             pbColumnBlocks[colIdx][blockIdx][key] = value;
+        }
+
+        function pbAddFaqItem(colIdx, blockIdx) {
+            if (!pbColumnBlocks[colIdx][blockIdx].faqItems) pbColumnBlocks[colIdx][blockIdx].faqItems = [];
+            pbColumnBlocks[colIdx][blockIdx].faqItems.push({ question: '', answer: '' });
+            renderColumnEditors();
+        }
+        function pbRemoveFaqItem(colIdx, blockIdx, fi) {
+            pbColumnBlocks[colIdx][blockIdx].faqItems.splice(fi, 1);
+            renderColumnEditors();
+        }
+        function pbUpdateFaqItem(colIdx, blockIdx, fi, key, value) {
+            pbColumnBlocks[colIdx][blockIdx].faqItems[fi][key] = value;
+        }
+
+        function pbAddReviewItem(colIdx, blockIdx) {
+            if (!pbColumnBlocks[colIdx][blockIdx].reviewItems) pbColumnBlocks[colIdx][blockIdx].reviewItems = [];
+            pbColumnBlocks[colIdx][blockIdx].reviewItems.push({ name: '', rating: 5, text: '' });
+            renderColumnEditors();
+        }
+        function pbRemoveReviewItem(colIdx, blockIdx, ri) {
+            pbColumnBlocks[colIdx][blockIdx].reviewItems.splice(ri, 1);
+            renderColumnEditors();
+        }
+        function pbUpdateReviewItem(colIdx, blockIdx, ri, key, value) {
+            pbColumnBlocks[colIdx][blockIdx].reviewItems[ri][key] = value;
         }
 
         function pbParseStyleAttr(styleStr) {
@@ -57088,7 +57490,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const formData = new FormData();
             formData.append('image', file);
             formData.append('deployed_site_id', siteId);
-            formData.append('section', `pb-bg-cover-slider-${colIdx}-${blockIdx}`);
+            formData.append('section', `pb-bg-cover-${colIdx}-${blockIdx}`);
             try {
                 const res = await fetch('/api/admin/website-builder/upload-image', { method: 'POST', body: formData });
                 const data = await res.json();
@@ -57131,80 +57533,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return `<!-- wp:spacer {"height":"${block.height || 40}px"} -->\n<div style="height:${block.height || 40}px" aria-hidden="true" class="wp-block-spacer"></div>\n<!-- /wp:spacer -->`;
                 case 'slider':
                     return `<!-- wp:shortcode -->\n[smartslider3 slider="${block.sliderId || ''}"]\n<!-- /wp:shortcode -->`;
-                case 'cover': {
-                    const url = block.url || '';
-                    const h = block.height || '60vh';
-                    const hVal = parseInt(h);
-                    const hUnit = h.replace(/[\d]/g, '') || 'vh';
-                    const olW = block.overlayWidth || 40;
-                    const emptyW = 100 - olW;
-                    const olColor = block.overlayColor || '#000000';
-                    const olOp = block.overlayOpacity ?? 70;
-                    const olR = parseInt(olColor.slice(1,3), 16);
-                    const olG = parseInt(olColor.slice(3,5), 16);
-                    const olB = parseInt(olColor.slice(5,7), 16);
-                    const olA = (olOp / 100).toFixed(2);
-                    const pos = block.overlayPos || 'left';
-                    const headHtml = block.headingHtml || '';
-                    const headColor = block.headingColor || '#ffffff';
-                    const subHtml = block.subtitleHtml || '';
-                    const subColor = block.subtitleColor || '#ffffff';
-                    const btnText = block.btnText || '';
-                    const btnLink = block.btnLink || '#';
-                    const btnColor = block.btnColor || '#F97224';
-
-                    // Padding values
-                    const padT = block.padTop || '40';
-                    const padR = block.padRight || '30';
-                    const padB = block.padBottom || '40';
-                    const padL = block.padLeft || '30';
-                    const headGap = block.headingGap || '';
-                    const coverBtnSize = block.btnSize || 'medium';
-
-                    // Build content column inner blocks
-                    let contentInner = '';
-                    const hLvl = block.headingLevel || 'h2';
-                    const hNum = hLvl.replace('h', '');
-                    if (headHtml) {
-                        let headStyle = `color:${headColor} !important`;
-                        if (block.headingFont) headStyle += `;font-family:${block.headingFont} !important`;
-                        if (block.headingSize) headStyle += `;font-size:${block.headingSize}px !important`;
-                        if (headGap) headStyle += `;margin-bottom:${headGap}px !important`;
-                        contentInner += `<!-- wp:heading {"level":${hNum},"style":{"color":{"text":"${headColor}"}}} -->\n<${hLvl} class="wp-block-heading has-text-color" style="${headStyle}">${headHtml}</${hLvl}>\n<!-- /wp:heading -->\n\n`;
-                    }
-                    if (subHtml) {
-                        let subStyle = `color:${subColor} !important`;
-                        if (block.subtitleFont) subStyle += `;font-family:${block.subtitleFont} !important`;
-                        if (block.subtitleSize) subStyle += `;font-size:${block.subtitleSize}px !important`;
-                        if (headGap) subStyle += `;margin-bottom:${headGap}px !important`;
-                        contentInner += `<!-- wp:paragraph {"style":{"color":{"text":"${subColor}"}}} -->\n<p class="has-text-color" style="${subStyle}">${subHtml}</p>\n<!-- /wp:paragraph -->\n\n`;
-                    }
-                    if (btnText) {
-                        const cvBtnSizeMap = { small: 'font-size:0.75rem !important;padding:6px 14px !important', medium: '', large: 'font-size:1.1rem !important;padding:14px 28px !important' };
-                        const cvBtnSizeStyle = cvBtnSizeMap[coverBtnSize] || '';
-                        const cvBtnExtra = cvBtnSizeStyle ? `;${cvBtnSizeStyle}` : '';
-                        contentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${btnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${btnLink}" style="background-color:${btnColor} !important;border-radius:0px !important${cvBtnExtra}">${btnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
-                    }
-
-                    // Overlay column — background + padding go in JSON attrs (WordPress re-renders from JSON)
-                    const olBg = `rgba(${olR},${olG},${olB},${olA})`;
-                    const olColAttrs = JSON.stringify({ width: `${olW}%`, style: { color: { background: olBg }, spacing: { padding: { top: `${padT}px`, right: `${padR}px`, bottom: `${padB}px`, left: `${padL}px` } } } });
-                    const overlayCol = `<!-- wp:column ${olColAttrs} -->\n<div class="wp-block-column has-background" style="flex-basis:${olW}%;background-color:${olBg};padding-top:${padT}px;padding-right:${padR}px;padding-bottom:${padB}px;padding-left:${padL}px">\n${contentInner}</div>\n<!-- /wp:column -->`;
-
-                    // Empty transparent column
-                    const emptyCol = `<!-- wp:column {"width":"${emptyW}%"} -->\n<div class="wp-block-column" style="flex-basis:${emptyW}%"></div>\n<!-- /wp:column -->`;
-
-                    // Assemble columns in correct order
-                    const colsInner = pos === 'left' ? `${overlayCol}\n\n${emptyCol}` : `${emptyCol}\n\n${overlayCol}`;
-
-                    // Wrap in wp:cover — pb-hero class triggers theme CSS for edge-to-edge layout
-                    const coverAttrs = JSON.stringify({ url, dimRatio: 0, minHeight: hVal, minHeightUnit: hUnit, className: 'pb-hero alignfull' });
-                    return `<!-- wp:cover ${coverAttrs} -->\n<div class="wp-block-cover pb-hero alignfull" style="min-height:${h}"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-0 has-background-dim"></span><img class="wp-block-cover__image-background" alt="" src="${url}" data-object-fit="cover"/><div class="wp-block-cover__inner-container">\n<!-- wp:columns {"style":{"spacing":{"blockGap":{"left":"0"},"padding":{"top":"0","bottom":"0","left":"0","right":"0"}}}} -->\n<div class="wp-block-columns">\n${colsInner}\n</div>\n<!-- /wp:columns -->\n</div></div>\n<!-- /wp:cover -->`;
-                }
+                case 'cover':
                 case 'cover-slider': {
-                    // Same pb-hero nested-columns structure as Quick Add cover
+                    // Unified cover block — accepts both old 'cover' and renamed 'cover-slider' types
                     const csUrl = block.url || '';
-                    const csH = block.coverHeight || '60vh';
+                    const csH = block.coverHeight || block.height || '60vh';
                     const csHVal = parseInt(csH);
                     const csHUnit = csH.replace(/[\d]/g, '') || 'vh';
                     const csOlW = parseInt(block.overlayWidth) || 40;
@@ -57230,7 +57563,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const csHeadGap = block.headingGap || '';
                     const csBtnSize = block.btnSize || 'medium';
 
-                    // Build content column inner blocks
                     let csContentInner = '';
                     const csLvl = block.headingLevel || 'h2';
                     const csNum = csLvl.replace('h', '');
@@ -57255,25 +57587,64 @@ const promo = await fetch('/api/v1/offers/validate', {
                         csContentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${csBtnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${csBtnLink}" style="background-color:${csBtnColor} !important;border-radius:0px !important${btnExtraStyle}">${csBtnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
                     }
 
-                    // Build overlay + empty columns — WordPress re-renders columns from JSON attrs (html:false),
-                    // so ALL styles must go in the block comment JSON, not just inline HTML styles.
                     const csOlBg = `rgba(${csOlR},${csOlG},${csOlB},${csOlA})`;
                     const csOlColAttrs = JSON.stringify({ width: `${csOlW}%`, style: { color: { background: csOlBg }, spacing: { padding: { top: `${csPadT}px`, right: `${csPadR}px`, bottom: `${csPadB}px`, left: `${csPadL}px` } } } });
                     const csOverlayCol = `<!-- wp:column ${csOlColAttrs} -->\n<div class="wp-block-column has-background" style="flex-basis:${csOlW}%;background-color:${csOlBg};padding-top:${csPadT}px;padding-right:${csPadR}px;padding-bottom:${csPadB}px;padding-left:${csPadL}px">\n${csContentInner}</div>\n<!-- /wp:column -->`;
                     const csEmptyCol = `<!-- wp:column {"width":"${csEmptyW}%"} -->\n<div class="wp-block-column" style="flex-basis:${csEmptyW}%"></div>\n<!-- /wp:column -->`;
                     const csColsInner = csPos === 'left' ? `${csOverlayCol}\n\n${csEmptyCol}` : `${csEmptyCol}\n\n${csOverlayCol}`;
 
-                    // Inner columns: zero gap via JSON attrs. pb-hero class on cover triggers theme CSS
-                    // for display:flex, align-items:stretch, column flex layout etc.
                     const csColsAttrs = '{"style":{"spacing":{"blockGap":{"left":"0"},"padding":{"top":"0","bottom":"0","left":"0","right":"0"}}}}';
                     if (isFullWidth) {
                         const csCoverAttrs = JSON.stringify({ url: csUrl, dimRatio: 0, minHeight: csHVal, minHeightUnit: csHUnit, className: 'pb-hero alignfull' });
                         return `<!-- wp:cover ${csCoverAttrs} -->\n<div class="wp-block-cover pb-hero alignfull" style="min-height:${csH}"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-0 has-background-dim"></span><img class="wp-block-cover__image-background" alt="" src="${csUrl}" data-object-fit="cover"/><div class="wp-block-cover__inner-container">\n<!-- wp:columns ${csColsAttrs} -->\n<div class="wp-block-columns">\n${csColsInner}\n</div>\n<!-- /wp:columns -->\n</div></div>\n<!-- /wp:cover -->`;
                     } else {
-                        // Inside a column — pb-hero (without alignfull) triggers theme edge-to-edge CSS
                         const csCoverAttrs = JSON.stringify({ url: csUrl, dimRatio: 0, minHeight: csHVal, minHeightUnit: csHUnit, className: 'pb-hero' });
                         return `<!-- wp:cover ${csCoverAttrs} -->\n<div class="wp-block-cover pb-hero" style="min-height:${csH}"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-0 has-background-dim"></span>${csUrl ? `<img class="wp-block-cover__image-background" alt="" src="${csUrl}" data-object-fit="cover"/>` : ''}<div class="wp-block-cover__inner-container">\n<!-- wp:columns ${csColsAttrs} -->\n<div class="wp-block-columns">\n${csColsInner}\n</div>\n<!-- /wp:columns -->\n</div></div>\n<!-- /wp:cover -->`;
                     }
+                }
+                case 'cover-hero': {
+                    // Cover Hero = Cover block + gas_search shortcode below it
+                    const coverMarkup = blockToMarkup({ ...block, type: 'cover' }, isFullWidth);
+                    const offset = block.searchOffset || -40;
+                    const sBgColor = block.searchBgColor || '#ffffff';
+                    const sBtnColor = block.searchBtnColor || '#F97224';
+                    const sBtnTextColor = block.searchBtnTextColor || '#ffffff';
+                    const sLabelColor = block.searchLabelColor || '#374151';
+                    const sRadius = block.searchRadius || 8;
+                    const sCheckin = block.searchCheckinLabel || 'Check-in';
+                    const sCheckout = block.searchCheckoutLabel || 'Check-out';
+                    const sGuests = block.searchGuestsLabel || 'Guests';
+                    const sBtnLabel = block.searchBtnLabel || 'Search';
+                    const searchBlock = `\n\n<!-- wp:group {"className":"pb-hero-search","layout":{"type":"constrained"}} -->\n<div class="wp-block-group pb-hero-search" style="margin-top:${offset}px; position:relative; z-index:10;">\n<!-- wp:shortcode -->\n[gas_search layout="horizontal" primary_color="${sBtnColor}" text_color="${sBtnTextColor}" label_color="${sLabelColor}" background_color="${sBgColor}" border_radius="${sRadius}" checkin_label="${sCheckin}" checkout_label="${sCheckout}" guests_label="${sGuests}" button_text="${sBtnLabel}" offset="${offset}"]\n<!-- /wp:shortcode -->\n</div>\n<!-- /wp:group -->`;
+                    return coverMarkup + searchBlock;
+                }
+                case 'faq': {
+                    const faqItems = block.faqItems || [];
+                    const fBg = block.bgColor || '#ffffff';
+                    const fBorder = block.borderColor || '#e2e8f0';
+                    const fQColor = block.qColor || '#1e293b';
+                    const fAColor = block.aColor || '#374151';
+                    let faqInner = '';
+                    faqItems.forEach(item => {
+                        if (!item.question && !item.answer) return;
+                        faqInner += `\n<!-- wp:details -->\n<details class="wp-block-details" style="border:1px solid ${fBorder}; border-radius:8px; padding:16px; margin-bottom:8px;">\n<summary style="color:${fQColor}; font-weight:600; cursor:pointer;">${item.question || ''}</summary>\n<!-- wp:paragraph -->\n<p style="color:${fAColor}; margin-top:12px;">${item.answer || ''}</p>\n<!-- /wp:paragraph -->\n</details>\n<!-- /wp:details -->\n`;
+                    });
+                    return `<!-- wp:group {"className":"pb-faq"} -->\n<div class="wp-block-group pb-faq" style="background:${fBg};">\n${faqInner}\n</div>\n<!-- /wp:group -->`;
+                }
+                case 'reviews': {
+                    const revItems = block.reviewItems || [];
+                    const rCardBg = block.cardBg || '#f8fafc';
+                    const rTextColor = block.textColor || '#1e293b';
+                    const rStarColor = block.starColor || '#f59e0b';
+                    const rCols = block.reviewCols || 3;
+                    let revColsMarkup = '';
+                    revItems.forEach(rev => {
+                        if (!rev.name && !rev.text) return;
+                        const stars = '\u2605'.repeat(rev.rating || 5);
+                        revColsMarkup += `\n<!-- wp:column -->\n<div class="wp-block-column" style="background:${rCardBg}; border-radius:12px; padding:24px;">\n<div style="color:${rStarColor}; font-size:20px; margin-bottom:8px;">${stars}</div>\n<!-- wp:paragraph -->\n<p style="color:${rTextColor}; font-style:italic;">"${rev.text || ''}"</p>\n<!-- /wp:paragraph -->\n<!-- wp:paragraph -->\n<p style="color:${rTextColor}; font-weight:600; margin-top:12px;">\u2014 ${rev.name || ''}</p>\n<!-- /wp:paragraph -->\n</div>\n<!-- /wp:column -->\n`;
+                    });
+                    // Distribute reviews into rows of rCols columns
+                    return `<!-- wp:group {"className":"pb-reviews"} -->\n<div class="wp-block-group pb-reviews">\n\n<!-- wp:columns -->\n<div class="wp-block-columns">\n${revColsMarkup}\n</div>\n<!-- /wp:columns -->\n\n</div>\n<!-- /wp:group -->`;
                 }
                 default:
                     return '';
@@ -57297,7 +57668,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     '50-50': [50, 50],
                     '60-40': [60, 40],
                     '40-60': [40, 60],
-                    '33-33-33': [33.33, 33.33, 33.33]
+                    '33-33-33': [33.33, 33.33, 33.33],
+                    '25-25-25-25': [25, 25, 25, 25],
+                    '20-20-20-20-20': [20, 20, 20, 20, 20]
                 };
                 const widths = widthMap[pbSelectedLayout] || [50, 50];
 
