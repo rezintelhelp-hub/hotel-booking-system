@@ -80143,8 +80143,10 @@ app.put('/api/pro-builder/sites/:blog_id/pages/:page_id/sections/:index', async 
 
     const section = sections[sectionIndex];
     const newContent = content.rawContent.substring(0, section.start) + markup + content.rawContent.substring(section.end);
+    console.log(`[ProBuilder SAVE] blogId=${blogId} pageId=${pageId} sectionIndex=${sectionIndex} type=${section.type} markupLen=${markup.length} newContentLen=${newContent.length}`);
 
     const pushResult = await proBuilderPushContent(content.siteUrl, content.licenseKey, pageId, newContent);
+    console.log(`[ProBuilder SAVE] pushResult:`, JSON.stringify(pushResult));
     res.json(pushResult);
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -80173,12 +80175,15 @@ app.delete('/api/pro-builder/sites/:blog_id/pages/:page_id/sections/:index', asy
     }
 
     const section = sections[sectionIndex];
+    console.log(`[ProBuilder DELETE] blogId=${blogId} pageId=${pageId} sectionIndex=${sectionIndex} type=${section.type} totalSections=${sections.length} rawLen=${content.rawContent.length} start=${section.start} end=${section.end}`);
     // Remove section and any surrounding whitespace
     let before = content.rawContent.substring(0, section.start);
     let after = content.rawContent.substring(section.end);
     const newContent = (before.replace(/\s+$/, '') + '\n\n' + after.replace(/^\s+/, '')).trim();
+    console.log(`[ProBuilder DELETE] newContent length=${newContent.length} pushing to ${content.siteUrl}`);
 
     const pushResult = await proBuilderPushContent(content.siteUrl, content.licenseKey, pageId, newContent);
+    console.log(`[ProBuilder DELETE] pushResult:`, JSON.stringify(pushResult));
     res.json(pushResult);
   } catch (error) {
     res.json({ success: false, error: error.message });
