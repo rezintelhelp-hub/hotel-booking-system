@@ -80625,6 +80625,401 @@ app.post('/api/page-templates/:id/push', async (req, res) => {
   }
 });
 
+// ============================================================
+// GAS UNIFIED INBOX — Phase 1 Endpoints (Master Admin Only)
+// ============================================================
+
+// GET /api/inbox/messages/:accountId — list messages with filters
+app.get('/api/inbox/messages/:accountId', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res);
+    if (!user || user.role !== 'master_admin') return res.status(403).json({ error: 'Master admin only' });
+
+    const { accountId } = req.params;
+    const { channel, status, search, limit = 50, offset = 0 } = req.query;
+
+    let query = `SELECT * FROM inbox_messages WHERE account_id = $1`;
+    const params = [accountId];
+    let paramIdx = 2;
+
+    if (channel && channel !== 'all') {
+      query += ` AND channel = $${paramIdx++}`;
+      params.push(channel);
+    }
+    if (status && status !== 'all') {
+      query += ` AND status = $${paramIdx++}`;
+      params.push(status);
+    }
+    if (search) {
+      query += ` AND (subject ILIKE $${paramIdx} OR body ILIKE $${paramIdx} OR from_name ILIKE $${paramIdx} OR from_handle ILIKE $${paramIdx})`;
+      params.push(`%${search}%`);
+      paramIdx++;
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const result = await pool.query(query, params);
+
+    // Get unread counts per channel
+    const countsResult = await pool.query(`
+      SELECT channel, COUNT(*) as count FROM inbox_messages
+      WHERE account_id = $1 AND status = 'unread'
+      GROUP BY channel
+    `, [accountId]);
+    const unreadCounts = {};
+    let totalUnread = 0;
+    countsResult.rows.forEach(r => { unreadCounts[r.channel] = parseInt(r.count); totalUnread += parseInt(r.count); });
+
+    res.json({
+      success: true,
+      messages: result.rows,
+      total: result.rows.length,
+      unread: { total: totalUnread, byChannel: unreadCounts }
+    });
+  } catch (error) {
+    console.error('Inbox messages error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/inbox/messages/:accountId/:id/thread — get full thread
+app.get('/api/inbox/messages/:accountId/:id/thread', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res);
+    if (!user || user.role !== 'master_admin') return res.status(403).json({ error: 'Master admin only' });
+
+    const { accountId, id } = req.params;
+
+    // Get the clicked message to find its thread_id
+    const msg = await pool.query('SELECT thread_id FROM inbox_messages WHERE id = $1 AND account_id = $2', [id, accountId]);
+    if (!msg.rows.length) return res.status(404).json({ error: 'Message not found' });
+
+    const threadId = msg.rows[0].thread_id;
+    let threadMessages;
+    if (threadId) {
+      threadMessages = await pool.query(
+        'SELECT * FROM inbox_messages WHERE thread_id = $1 AND account_id = $2 ORDER BY created_at ASC',
+        [threadId, accountId]
+      );
+    } else {
+      threadMessages = await pool.query('SELECT * FROM inbox_messages WHERE id = $1', [id]);
+    }
+
+    res.json({ success: true, messages: threadMessages.rows });
+  } catch (error) {
+    console.error('Inbox thread error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/inbox/messages/:id/status — mark read/archived/replied
+app.put('/api/inbox/messages/:id/status', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res);
+    if (!user || user.role !== 'master_admin') return res.status(403).json({ error: 'Master admin only' });
+
+    const { id } = req.params;
+    const { status } = req.body;
+    const validStatuses = ['unread', 'read', 'replied', 'archived'];
+    if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+
+    let extraFields = '';
+    if (status === 'read') extraFields = ', read_at = NOW()';
+    if (status === 'replied') extraFields = ', replied_at = NOW()';
+
+    await pool.query(`UPDATE inbox_messages SET status = $1${extraFields} WHERE id = $2`, [status, id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Inbox status update error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/inbox/messages/bulk-status — bulk mark read/archived
+app.put('/api/inbox/messages/bulk-status', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res);
+    if (!user || user.role !== 'master_admin') return res.status(403).json({ error: 'Master admin only' });
+
+    const { ids, status } = req.body;
+    if (!ids || !ids.length) return res.status(400).json({ error: 'No message IDs provided' });
+
+    let extraFields = '';
+    if (status === 'read') extraFields = ', read_at = NOW()';
+
+    await pool.query(`UPDATE inbox_messages SET status = $1${extraFields} WHERE id = ANY($2)`, [status, ids]);
+    res.json({ success: true, updated: ids.length });
+  } catch (error) {
+    console.error('Inbox bulk status error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/inbox/unread-count/:accountId — lightweight unread count for sidebar badge
+app.get('/api/inbox/unread-count/:accountId', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res);
+    if (!user || user.role !== 'master_admin') return res.json({ count: 0 });
+
+    const result = await pool.query('SELECT COUNT(*) FROM inbox_messages WHERE account_id = $1 AND status = $2', [req.params.accountId, 'unread']);
+    res.json({ count: parseInt(result.rows[0].count) });
+  } catch (error) {
+    res.json({ count: 0 });
+  }
+});
+
+// GET /api/inbox/channels/:accountId — list connected channels
+app.get('/api/inbox/channels/:accountId', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res);
+    if (!user || user.role !== 'master_admin') return res.status(403).json({ error: 'Master admin only' });
+
+    const result = await pool.query('SELECT id, account_id, channel_type, active, last_sync_at, created_at FROM inbox_channels WHERE account_id = $1', [req.params.accountId]);
+    res.json({ success: true, channels: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/inbox/sync/gmail/:accountId — sync Gmail messages into inbox
+app.post('/api/inbox/sync/gmail/:accountId', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res);
+    if (!user || user.role !== 'master_admin') return res.status(403).json({ error: 'Master admin only' });
+
+    const { accountId } = req.params;
+    const { maxResults = 50 } = req.body || {};
+
+    // Check if Gmail channel is connected — look for Google OAuth credentials on account
+    const account = await pool.query('SELECT google_access_token, google_refresh_token FROM accounts WHERE id = $1', [accountId]);
+    if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
+
+    let accessToken = account.rows[0].google_access_token;
+    const refreshToken = account.rows[0].google_refresh_token;
+
+    if (!accessToken && !refreshToken) {
+      return res.status(400).json({ error: 'Gmail not connected. Connect Google account in Settings first.' });
+    }
+
+    // Refresh token if needed
+    if (refreshToken) {
+      try {
+        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: process.env.GOOGLE_CLIENT_ID,
+            client_secret: process.env.GOOGLE_CLIENT_SECRET,
+            refresh_token: refreshToken,
+            grant_type: 'refresh_token'
+          })
+        });
+        const tokenData = await tokenRes.json();
+        if (tokenData.access_token) {
+          accessToken = tokenData.access_token;
+          await pool.query('UPDATE accounts SET google_access_token = $1 WHERE id = $2', [accessToken, accountId]);
+        }
+      } catch (refreshErr) {
+        console.log('Gmail token refresh error:', refreshErr.message);
+      }
+    }
+
+    if (!accessToken) {
+      return res.status(400).json({ error: 'Gmail token expired. Re-connect Google account in Settings.' });
+    }
+
+    // Fetch message list from Gmail API
+    const listRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&labelIds=INBOX`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const listData = await listRes.json();
+
+    if (!listData.messages || !listData.messages.length) {
+      return res.json({ success: true, synced: 0, message: 'No messages found in inbox' });
+    }
+
+    let synced = 0;
+    let skipped = 0;
+
+    for (const msgRef of listData.messages) {
+      // Check if already synced
+      const exists = await pool.query('SELECT id FROM inbox_messages WHERE channel_message_id = $1 AND account_id = $2', [msgRef.id, accountId]);
+      if (exists.rows.length) { skipped++; continue; }
+
+      // Fetch full message
+      const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgRef.id}?format=full`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      const msgData = await msgRes.json();
+
+      if (!msgData.payload) continue;
+
+      // Extract headers
+      const headers = msgData.payload.headers || [];
+      const getHeader = (name) => (headers.find(h => h.name.toLowerCase() === name.toLowerCase()) || {}).value || '';
+
+      const from = getHeader('From');
+      const subject = getHeader('Subject');
+      const date = getHeader('Date');
+      const messageId = getHeader('Message-ID');
+      const inReplyTo = getHeader('In-Reply-To');
+      const references = getHeader('References');
+
+      // Parse from name and email
+      const fromMatch = from.match(/^"?([^"<]*)"?\s*<?([^>]*)>?$/);
+      const fromName = fromMatch ? fromMatch[1].trim() : from;
+      const fromHandle = fromMatch ? fromMatch[2].trim() : from;
+
+      // Extract body — prefer text/plain, fallback to text/html
+      let body = '';
+      const extractBody = (part) => {
+        if (part.body && part.body.data) {
+          return Buffer.from(part.body.data, 'base64url').toString('utf-8');
+        }
+        if (part.parts) {
+          for (const p of part.parts) {
+            if (p.mimeType === 'text/plain' && p.body && p.body.data) {
+              return Buffer.from(p.body.data, 'base64url').toString('utf-8');
+            }
+          }
+          for (const p of part.parts) {
+            if (p.mimeType === 'text/html' && p.body && p.body.data) {
+              return Buffer.from(p.body.data, 'base64url').toString('utf-8');
+            }
+          }
+          for (const p of part.parts) {
+            const nested = extractBody(p);
+            if (nested) return nested;
+          }
+        }
+        return '';
+      };
+      body = extractBody(msgData.payload);
+
+      // Determine thread ID (use Gmail threadId)
+      const threadId = msgData.threadId || null;
+
+      // Determine direction — if from matches account email, it's outbound
+      const accountEmail = (await pool.query('SELECT email FROM accounts WHERE id = $1', [accountId])).rows[0]?.email || '';
+      const direction = fromHandle.toLowerCase() === accountEmail.toLowerCase() ? 'outbound' : 'inbound';
+
+      // Determine if read in Gmail
+      const isUnread = (msgData.labelIds || []).includes('UNREAD');
+
+      await pool.query(`
+        INSERT INTO inbox_messages (account_id, channel, channel_message_id, thread_id, from_name, from_handle, subject, body, raw_payload, direction, status, created_at, metadata)
+        VALUES ($1, 'email', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `, [
+        accountId,
+        msgRef.id,
+        threadId,
+        fromName,
+        fromHandle,
+        subject,
+        body,
+        JSON.stringify({ gmailId: msgRef.id, labelIds: msgData.labelIds, snippet: msgData.snippet }),
+        direction,
+        isUnread ? 'unread' : 'read',
+        date ? new Date(date) : new Date(),
+        JSON.stringify({ messageId, inReplyTo, references })
+      ]);
+      synced++;
+    }
+
+    // Update last_sync_at on channel record (upsert)
+    await pool.query(`
+      INSERT INTO inbox_channels (account_id, channel_type, active, last_sync_at)
+      VALUES ($1, 'email', true, NOW())
+      ON CONFLICT (id) DO UPDATE SET last_sync_at = NOW()
+    `).catch(() => {
+      // If no unique constraint on account_id+channel_type, just update
+      pool.query(`UPDATE inbox_channels SET last_sync_at = NOW() WHERE account_id = $1 AND channel_type = 'email'`, [accountId]).catch(() => {});
+    });
+
+    res.json({ success: true, synced, skipped, total: listData.messages.length });
+  } catch (error) {
+    console.error('Gmail sync error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/inbox/reply/email — send email reply via Gmail and store in inbox
+app.post('/api/inbox/reply/email', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res);
+    if (!user || user.role !== 'master_admin') return res.status(403).json({ error: 'Master admin only' });
+
+    const { accountId, to, subject, body, threadId, inReplyTo } = req.body;
+    if (!accountId || !to || !body) return res.status(400).json({ error: 'accountId, to, and body are required' });
+
+    // Get Gmail credentials
+    const account = await pool.query('SELECT google_access_token, google_refresh_token, email FROM accounts WHERE id = $1', [accountId]);
+    if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
+
+    let accessToken = account.rows[0].google_access_token;
+    const refreshToken = account.rows[0].google_refresh_token;
+    const fromEmail = account.rows[0].email;
+
+    // Refresh token if needed
+    if (refreshToken) {
+      try {
+        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: process.env.GOOGLE_CLIENT_ID,
+            client_secret: process.env.GOOGLE_CLIENT_SECRET,
+            refresh_token: refreshToken,
+            grant_type: 'refresh_token'
+          })
+        });
+        const tokenData = await tokenRes.json();
+        if (tokenData.access_token) {
+          accessToken = tokenData.access_token;
+          await pool.query('UPDATE accounts SET google_access_token = $1 WHERE id = $2', [accessToken, accountId]);
+        }
+      } catch (e) { /* use existing token */ }
+    }
+
+    if (!accessToken) return res.status(400).json({ error: 'Gmail not connected or token expired' });
+
+    // Build raw email
+    const emailLines = [
+      `From: ${fromEmail}`,
+      `To: ${to}`,
+      `Subject: ${subject || 'Re: (no subject)'}`,
+      inReplyTo ? `In-Reply-To: ${inReplyTo}` : '',
+      inReplyTo ? `References: ${inReplyTo}` : '',
+      'Content-Type: text/html; charset=utf-8',
+      '',
+      body
+    ].filter(Boolean).join('\r\n');
+
+    const encodedEmail = Buffer.from(emailLines).toString('base64url');
+
+    const sendRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw: encodedEmail, threadId: threadId || undefined })
+    });
+    const sendData = await sendRes.json();
+
+    if (sendData.error) return res.status(400).json({ error: sendData.error.message });
+
+    // Store outbound message in inbox
+    await pool.query(`
+      INSERT INTO inbox_messages (account_id, channel, channel_message_id, thread_id, from_name, from_handle, subject, body, direction, status, created_at)
+      VALUES ($1, 'email', $2, $3, $4, $5, $6, $7, 'outbound', 'replied', NOW())
+    `, [accountId, sendData.id, sendData.threadId || threadId, 'Me', fromEmail, subject, body]);
+
+    res.json({ success: true, gmailId: sendData.id });
+  } catch (error) {
+    console.error('Gmail reply error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('🚀 Server running on port ' + PORT);
   console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
@@ -80673,6 +81068,52 @@ app.listen(PORT, '0.0.0.0', async () => {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
     )`);
+
+    // GAS Unified Inbox — Phase 1 (master admin only)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inbox_channels (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id),
+        channel_type VARCHAR(50) NOT NULL,
+        credentials JSONB DEFAULT '{}',
+        webhook_url TEXT,
+        active BOOLEAN DEFAULT true,
+        last_sync_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inbox_messages (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER NOT NULL,
+        channel VARCHAR(50) NOT NULL,
+        channel_message_id TEXT,
+        thread_id TEXT,
+        parent_message_id INTEGER REFERENCES inbox_messages(id),
+        from_name TEXT,
+        from_handle TEXT,
+        from_avatar TEXT,
+        subject TEXT,
+        body TEXT,
+        raw_payload JSONB DEFAULT '{}',
+        direction VARCHAR(20) DEFAULT 'inbound',
+        status VARCHAR(20) DEFAULT 'unread',
+        category VARCHAR(50),
+        sentiment VARCHAR(20),
+        created_at TIMESTAMP DEFAULT NOW(),
+        read_at TIMESTAMP,
+        replied_at TIMESTAMP,
+        metadata JSONB DEFAULT '{}'
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inbox_messages_account ON inbox_messages(account_id, status, created_at DESC)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inbox_messages_thread ON inbox_messages(thread_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inbox_messages_channel ON inbox_messages(account_id, channel)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inbox_channels_account ON inbox_channels(account_id)`);
+    // Gmail OAuth columns on accounts (for Inbox Gmail sync)
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS google_access_token TEXT`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS google_refresh_token TEXT`);
+    console.log('✅ Unified Inbox tables ensured (inbox_messages, inbox_channels)');
 
     console.log('✅ Database migrations complete');
   } catch (migrationError) {
