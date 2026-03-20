@@ -498,5 +498,24 @@ Before every commit, Claude Code must ask Steve:
 
 ---
 
+## NEW PRODUCTS
+
+### GAS Unified Inbox
+
+- **Spec**: `docs/GAS-Unified-Inbox-Spec.md`
+- **Status**: Specification complete, not yet built
+- **Scope**: Master Admin only — NOT visible to clients until productised
+- **What**: Unified messaging inbox consolidating email, WhatsApp, Facebook, LinkedIn, Slack, and document collaboration into one GAS Admin interface
+- **Monetisation**: £19/month per account as paid add-on (replaces Front at $25-65/user/month)
+- **Sidebar position**: Top level, between Dashboard and Properties, with unread badge
+- **Key tables**: `inbox_messages`, `inbox_channels`
+- **Key endpoints**: `/api/inbox/*`, `/api/webhooks/whatsapp`, `/api/webhooks/facebook`, `/api/webhooks/gmail`
+- **AI features**: Auto-draft replies, sentiment detection, auto-categorisation
+- **Mobile**: PWA first (manifest.json + service worker), native app Phase 2
+- **Build order**: DB schema → Gmail → UI → PWA → WhatsApp → Facebook → AI → Phase 2 channels → Phase 3 docs
+- **IMPORTANT**: This is a standalone product — usable by ANY property owner, even without GAS properties registered
+
+---
+
 *Last updated: March 2026*
 *Maintained by Steve Driver*
