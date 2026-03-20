@@ -14,6 +14,25 @@
 
 ---
 
+## API DOCUMENTATION — ENDPOINT UPDATES
+
+Every time a new field is added to any endpoint in server.js, the
+corresponding Swagger example payload in public/api-docs.html MUST
+be updated in the same commit.
+
+This is non-negotiable — if Elevate or any partner cannot see a field
+in the Swagger example they will not know it exists.
+
+Checklist before committing any server.js endpoint change:
+1. Is the new field in the request example?
+2. Is the new field in the response example?
+3. Is the field described in the parameters/description?
+4. If a field was removed — is it removed from the Swagger too?
+
+Failure to update Swagger examples causes partner integration failures.
+
+---
+
 ## ELEVATE INTEGRATION — CHANGE MANAGEMENT
 
 Elevate (contact: Adi) must be notified BEFORE any changes to:
