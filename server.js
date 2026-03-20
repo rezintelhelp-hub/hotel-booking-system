@@ -52846,16 +52846,16 @@ app.put('/api/partner/websites/:websiteId/content/:section', async (req, res) =>
     
     // Get site info for WordPress push
     const siteResult = await pool.query(
-      'SELECT id, account_id, template, site_name, site_url FROM deployed_sites WHERE id = $1',
+      'SELECT id, account_id, template, site_name, site_url, blog_id FROM deployed_sites WHERE id = $1',
       [deployedSiteId]
     );
-    
+
     if (siteResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Deployed site not found' });
     }
-    
+
     const site = siteResult.rows[0];
-    
+
     console.log(`[Partner Content] Saving ${section} for site ${deployedSiteId} (${site.site_name})`);
     
     // Read existing settings first, then merge (prevents data loss on partial updates)
@@ -52885,6 +52885,20 @@ app.put('/api/partner/websites/:websiteId/content/:section', async (req, res) =>
     let wpPushResult = null;
     if (site.site_url) {
       wpPushResult = await pushSettingsToWordPress(site.site_url, section, mergedSettings);
+    }
+
+    // Flush transient cache so changes appear immediately
+    if (site.blog_id && site.site_url) {
+      try {
+        await fetch('https://sites.gas.travel/gas-api.php', {
+          method: 'POST',
+          headers: { 'X-API-Key': 'gas-deploy-2024-secure-key', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'flush_transient', site_url: site.site_url, transient_key: 'gas_api_settings_' + site.blog_id })
+        });
+        console.log(`[Partner Content] Cache busted for blog ${site.blog_id}`);
+      } catch (e) {
+        console.log(`[Partner Content] Cache bust failed: ${e.message}`);
+      }
     }
 
     res.json({
