@@ -84375,17 +84375,17 @@ async function processAutoChargePayments() {
         const result = await pool.query(`
             SELECT
                 b.id as booking_id,
-                b.account_id,
+                p.account_id,
                 b.property_id,
                 b.guest_first_name,
                 b.guest_last_name,
                 b.guest_email,
-                b.check_in,
+                b.arrival_date,
                 b.grand_total,
                 b.deposit_amount,
                 b.balance_amount,
                 b.stripe_payment_method_id,
-                b.stripe_customer_id,
+                b.stripe_payment_intent_id,
                 b.payment_status,
                 b.currency,
                 dr.auto_charge_days_before,
@@ -84393,16 +84393,16 @@ async function processAutoChargePayments() {
                 COALESCE(p.stripe_secret_key, a.stripe_secret_key) as stripe_secret_key,
                 p.currency as property_currency
             FROM bookings b
-            JOIN deposit_rules dr ON dr.property_id = b.property_id
             JOIN properties p ON p.id = b.property_id
-            JOIN accounts a ON a.id = b.account_id
+            JOIN accounts a ON a.id = p.account_id
+            JOIN deposit_rules dr ON dr.property_id = b.property_id
             WHERE dr.auto_charge_balance = true
             AND dr.is_active = true
             AND b.stripe_payment_method_id IS NOT NULL
             AND b.payment_status != 'paid'
             AND b.balance_amount > 0
             AND b.status NOT IN ('cancelled', 'rejected')
-            AND (b.check_in - INTERVAL '1 day' * dr.auto_charge_days_before)::date = CURRENT_DATE
+            AND (b.arrival_date - INTERVAL '1 day' * dr.auto_charge_days_before)::date = CURRENT_DATE
         `);
 
         if (result.rows.length === 0) {
@@ -84423,14 +84423,29 @@ async function processAutoChargePayments() {
                 const guestName = [booking.guest_first_name, booking.guest_last_name].filter(Boolean).join(' ');
                 const chargeCurrency = (booking.currency || booking.property_currency || 'eur').toLowerCase();
 
+                // Retrieve the original payment intent to get the customer ID
+                let stripeCustomerId = null;
+                if (booking.stripe_payment_intent_id) {
+                    try {
+                        const origIntent = await stripeClient.paymentIntents.retrieve(booking.stripe_payment_intent_id);
+                        stripeCustomerId = origIntent.customer;
+                    } catch (e) {
+                        console.log(`[AUTO-CHARGE] Could not retrieve original intent for booking ${booking.booking_id}: ${e.message}`);
+                    }
+                }
+                if (!stripeCustomerId) {
+                    console.log(`[AUTO-CHARGE] No Stripe customer ID for booking ${booking.booking_id}, skipping`);
+                    continue;
+                }
+
                 const paymentIntent = await stripeClient.paymentIntents.create({
                     amount: Math.round(booking.balance_amount * 100),
                     currency: chargeCurrency,
-                    customer: booking.stripe_customer_id,
+                    customer: stripeCustomerId,
                     payment_method: booking.stripe_payment_method_id,
                     confirm: true,
                     off_session: true,
-                    description: `Balance payment for booking ${booking.booking_id} - ${guestName} - Check-in ${booking.check_in}`,
+                    description: `Balance payment for booking ${booking.booking_id} - ${guestName} - Check-in ${booking.arrival_date}`,
                     metadata: {
                         booking_id: String(booking.booking_id),
                         account_id: String(booking.account_id),
