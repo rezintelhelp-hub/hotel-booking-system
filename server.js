@@ -18734,7 +18734,18 @@ app.post('/api/public/create-setup-intent', async (req, res) => {
             const config = paymentConfig.rows[0];
             const configStripe = new Stripe(config.credentials.secret_key);
 
+            // Create a Stripe customer so the card can be charged later
+            const customer = await configStripe.customers.create({
+                email: booking_data?.email || undefined,
+                metadata: {
+                    property_id: String(property_id),
+                    check_in: booking_data?.check_in || '',
+                    check_out: booking_data?.check_out || ''
+                }
+            });
+
             setupIntent = await configStripe.setupIntents.create({
+                customer: customer.id,
                 payment_method_types: ['card'],
                 metadata: {
                     property_id: String(property_id),
@@ -18777,14 +18788,17 @@ app.post('/api/public/create-setup-intent', async (req, res) => {
 
         if (prop.stripe_enabled && prop.stripe_secret_key) {
             const propertyStripe = new Stripe(prop.stripe_secret_key);
-            setupIntent = await propertyStripe.setupIntents.create({ payment_method_types: ['card'], metadata });
+            const customer = await propertyStripe.customers.create({ email: booking_data?.email || undefined, metadata });
+            setupIntent = await propertyStripe.setupIntents.create({ customer: customer.id, payment_method_types: ['card'], metadata });
             return res.json({ success: true, client_secret: setupIntent.client_secret, setup_intent_id: setupIntent.id, publishable_key: prop.stripe_publishable_key });
         } else if (prop.stripe_account_id) {
-            setupIntent = await stripe.setupIntents.create({ payment_method_types: ['card'], metadata }, { stripeAccount: prop.stripe_account_id });
+            const customer = await stripe.customers.create({ email: booking_data?.email || undefined, metadata }, { stripeAccount: prop.stripe_account_id });
+            setupIntent = await stripe.setupIntents.create({ customer: customer.id, payment_method_types: ['card'], metadata }, { stripeAccount: prop.stripe_account_id });
             return res.json({ success: true, client_secret: setupIntent.client_secret, setup_intent_id: setupIntent.id });
         } else if (prop.account_stripe_secret_key) {
             const accountStripe = new Stripe(prop.account_stripe_secret_key);
-            setupIntent = await accountStripe.setupIntents.create({ payment_method_types: ['card'], metadata });
+            const customer = await accountStripe.customers.create({ email: booking_data?.email || undefined, metadata });
+            setupIntent = await accountStripe.setupIntents.create({ customer: customer.id, payment_method_types: ['card'], metadata });
             return res.json({ success: true, client_secret: setupIntent.client_secret, setup_intent_id: setupIntent.id, publishable_key: prop.account_stripe_publishable_key });
         } else {
             return res.status(400).json({ success: false, error: 'Property not configured for Stripe payments.' });
@@ -61062,8 +61076,8 @@ app.post('/api/public/book', async (req, res) => {
       }
     }
 
-    // If Stripe SetupIntent card guarantee was used, store the IDs
-    if (stripe_setup_intent_id && payment_method === 'card_guarantee') {
+    // If Stripe SetupIntent was used (card guarantee OR deferred payment with 0% deposit), store the IDs
+    if (stripe_setup_intent_id && (payment_method === 'card_guarantee' || payment_method === 'card')) {
       await pool.query(`
         UPDATE bookings SET stripe_setup_intent_id = $1, stripe_payment_method_id = $2
         WHERE id = $3
@@ -84410,11 +84424,14 @@ async function processAutoChargePayments() {
                 dr.auto_charge_days_before,
                 dr.auto_charge_balance,
                 COALESCE(p.stripe_secret_key, a.stripe_secret_key) as stripe_secret_key,
-                p.currency as property_currency
+                b.stripe_setup_intent_id,
+                p.currency as property_currency,
+                pc.credentials as payment_config_credentials
             FROM bookings b
             JOIN properties p ON p.id = b.property_id
             JOIN accounts a ON a.id = p.account_id
             JOIN deposit_rules dr ON (dr.property_id = b.property_id OR (dr.property_id IS NULL AND dr.account_id = p.account_id))
+            LEFT JOIN payment_configurations pc ON (pc.property_id = b.property_id OR (pc.property_id IS NULL AND pc.account_id = p.account_id)) AND pc.provider = 'stripe' AND pc.is_enabled = true
             WHERE dr.auto_charge_balance = true
             AND dr.is_active = true
             AND b.stripe_payment_method_id IS NOT NULL
@@ -84433,7 +84450,8 @@ async function processAutoChargePayments() {
 
         for (const booking of result.rows) {
             try {
-                const stripeKey = booking.stripe_secret_key || process.env.STRIPE_SECRET_KEY;
+                // Get Stripe key: payment_configurations > property > account > env
+                const stripeKey = booking.payment_config_credentials?.secret_key || booking.stripe_secret_key || process.env.STRIPE_SECRET_KEY;
                 if (!stripeKey) {
                     console.log(`[AUTO-CHARGE] No Stripe key for booking ${booking.booking_id}, skipping`);
                     continue;
@@ -84442,7 +84460,7 @@ async function processAutoChargePayments() {
                 const guestName = [booking.guest_first_name, booking.guest_last_name].filter(Boolean).join(' ');
                 const chargeCurrency = (booking.currency || booking.property_currency || 'eur').toLowerCase();
 
-                // Retrieve the original payment intent to get the customer ID
+                // Get customer ID from original payment intent or setup intent
                 let stripeCustomerId = null;
                 if (booking.stripe_payment_intent_id) {
                     try {
@@ -84450,6 +84468,21 @@ async function processAutoChargePayments() {
                         stripeCustomerId = origIntent.customer;
                     } catch (e) {
                         console.log(`[AUTO-CHARGE] Could not retrieve original intent for booking ${booking.booking_id}: ${e.message}`);
+                    }
+                }
+                // For deferred payments (0% deposit with SetupIntent), create a customer from the payment method
+                if (!stripeCustomerId && booking.stripe_setup_intent_id && booking.stripe_payment_method_id) {
+                    try {
+                        const customer = await stripeClient.customers.create({
+                            name: guestName,
+                            email: booking.guest_email,
+                            payment_method: booking.stripe_payment_method_id,
+                            metadata: { booking_id: String(booking.booking_id) }
+                        });
+                        stripeCustomerId = customer.id;
+                        console.log(`[AUTO-CHARGE] Created Stripe customer ${customer.id} for deferred booking ${booking.booking_id}`);
+                    } catch (e) {
+                        console.log(`[AUTO-CHARGE] Could not create customer for booking ${booking.booking_id}: ${e.message}`);
                     }
                 }
                 if (!stripeCustomerId) {
