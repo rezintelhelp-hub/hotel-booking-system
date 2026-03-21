@@ -60975,6 +60975,10 @@ app.post('/api/public/book', async (req, res) => {
     if (stripe_payment_intent_id && deposit_amount) {
       paymentStatus = 'deposit_paid';
       bookingStatus = 'confirmed';
+    } else if (stripe_setup_intent_id) {
+      // Deferred payment — card saved for later charge
+      paymentStatus = 'pending';
+      bookingStatus = 'confirmed';
     } else if (payment_method === 'property') {
       paymentStatus = 'pending';
       bookingStatus = 'confirmed';
@@ -60998,9 +61002,9 @@ app.post('/api/public/book', async (req, res) => {
         deposit_amount, balance_amount, balance_due_date,
         stripe_payment_intent_id, payment_status,
         status, booking_source, currency, source_site_url,
-        marketing_opt_in, sms_consent
+        marketing_opt_in, sms_consent, payment_method
       )
-      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $15, $15, $16, $17, $18, $19, $20, $21, 'direct', $22, $23, $24, $25)
+      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $15, $15, $16, $17, $18, $19, $20, $21, 'direct', $22, $23, $24, $25, $26)
       RETURNING *
     `, [
       unit.rows[0].property_id,
@@ -61018,8 +61022,8 @@ app.post('/api/public/book', async (req, res) => {
       guest_country || null,
       notes || null,
       total_price || 0,
-      deposit_amount || null,
-      balance_amount || null,
+      deposit_amount != null ? deposit_amount : null,
+      balance_amount != null ? balance_amount : null,
       balanceDueDate,
       stripe_payment_intent_id || null,
       paymentStatus,
@@ -61027,7 +61031,8 @@ app.post('/api/public/book', async (req, res) => {
       unit.rows[0].currency || 'EUR',
       source_site_url || null,
       marketing || false,
-      sms_consent || false
+      sms_consent || false,
+      payment_method || null
     ]);
     
     const newBooking = booking.rows[0];

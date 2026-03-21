@@ -5554,13 +5554,23 @@ jQuery(document).ready(function($) {
                         $('.gas-conf-total').text(formatPrice(checkoutData.grandTotal, checkoutData.currency));
                         
                         if (paymentMethod === 'card' && paymentIntentId) {
+                            // Card payment with deposit taken
                             $('.gas-price-paid').show();
                             $('.gas-conf-deposit').text('✓ ' + formatPrice(checkoutData.depositAmount, checkoutData.currency));
-                            
+
                             if (checkoutData.balanceAmount > 0) {
                                 $('.gas-price-balance').show();
                                 $('.gas-conf-balance').text(formatPrice(checkoutData.balanceAmount, checkoutData.currency));
                             }
+                        } else if (paymentMethod === 'card' && window.gasStripeSetupIntentId) {
+                            // Deferred card payment (0% deposit, card saved for later)
+                            if (checkoutData.balanceAmount > 0) {
+                                $('.gas-price-balance').show();
+                                $('.gas-price-balance span').first().text('Balance \u2014 card charged before arrival');
+                                $('.gas-conf-balance').text(formatPrice(checkoutData.balanceAmount, checkoutData.currency));
+                            }
+                            $('.gas-price-property span').last().text('Card on file');
+                            $('.gas-price-property').show();
                         } else {
                             $('.gas-price-property').show();
                         }
