@@ -18290,30 +18290,71 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         
         // Record Stripe payment transaction if deposit was paid (once for whole group)
         if (stripe_payment_intent_id && deposit_amount && createdBookings.length > 0) {
+            // VERIFY payment intent with Stripe before marking as paid
+            let stripeVerified = false;
+            let stripeIntentStatus = 'unknown';
             try {
-                // Use SAVEPOINT to prevent failed INSERT from aborting entire transaction
-                await client.query('SAVEPOINT payment_tx');
-                await client.query(`
-                    INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
-                    VALUES ($1, 'deposit', $2, $3, 'completed', $4, NOW())
-                `, [createdBookings[0].id, deposit_amount, reqCurrency || rooms[0]?.currency || 'USD', stripe_payment_intent_id]);
-                await client.query('RELEASE SAVEPOINT payment_tx');
-            } catch (txError) {
-                await client.query('ROLLBACK TO SAVEPOINT payment_tx');
-                console.log('Could not record payment transaction:', txError.message);
+                // Get Stripe secret key for this property/account
+                const stripeKeyResult = await client.query(`
+                    SELECT COALESCE(p.stripe_secret_key, a.stripe_secret_key) as stripe_secret_key
+                    FROM properties p
+                    JOIN accounts a ON p.account_id = a.id
+                    WHERE p.id = $1
+                `, [createdBookings[0].property_id]);
+                const stripeSecretKey = stripeKeyResult.rows[0]?.stripe_secret_key;
+                if (stripeSecretKey) {
+                    const verifyStripe = new (require('stripe'))(stripeSecretKey);
+                    const intent = await verifyStripe.paymentIntents.retrieve(stripe_payment_intent_id);
+                    stripeIntentStatus = intent.status;
+                    stripeVerified = (intent.status === 'succeeded' || intent.status === 'requires_capture');
+                    console.log(`[Stripe Verify] Payment intent ${stripe_payment_intent_id} status: ${intent.status}, verified: ${stripeVerified}`);
+                } else {
+                    console.log(`[Stripe Verify] No Stripe secret key found for property ${createdBookings[0].property_id} — cannot verify`);
+                }
+            } catch (verifyError) {
+                console.log(`[Stripe Verify] Could not verify payment intent: ${verifyError.message}`);
             }
-            
-            // Update payment status on first booking (separate try/catch with savepoint)
+
+            // Always store the payment intent ID on the booking
             try {
-                await client.query('SAVEPOINT payment_status');
+                await client.query('SAVEPOINT payment_intent_store');
                 await client.query(`
-                    UPDATE bookings SET payment_status = 'deposit_paid', stripe_payment_intent_id = $1, deposit_amount = $2
+                    UPDATE bookings SET stripe_payment_intent_id = $1, deposit_amount = $2
                     WHERE id = $3
                 `, [stripe_payment_intent_id, deposit_amount, createdBookings[0].id]);
-                await client.query('RELEASE SAVEPOINT payment_status');
-            } catch (statusError) {
-                await client.query('ROLLBACK TO SAVEPOINT payment_status');
-                console.log('Could not update payment status:', statusError.message);
+                await client.query('RELEASE SAVEPOINT payment_intent_store');
+            } catch (storeError) {
+                await client.query('ROLLBACK TO SAVEPOINT payment_intent_store');
+                console.log('Could not store payment intent ID:', storeError.message);
+            }
+
+            // Only mark as deposit_paid and record transaction if Stripe confirms payment
+            if (stripeVerified) {
+                try {
+                    await client.query('SAVEPOINT payment_tx');
+                    await client.query(`
+                        INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
+                        VALUES ($1, 'deposit', $2, $3, 'completed', $4, NOW())
+                    `, [createdBookings[0].id, deposit_amount, reqCurrency || rooms[0]?.currency || 'USD', stripe_payment_intent_id]);
+                    await client.query('RELEASE SAVEPOINT payment_tx');
+                } catch (txError) {
+                    await client.query('ROLLBACK TO SAVEPOINT payment_tx');
+                    console.log('Could not record payment transaction:', txError.message);
+                }
+
+                try {
+                    await client.query('SAVEPOINT payment_status');
+                    await client.query(`
+                        UPDATE bookings SET payment_status = 'deposit_paid', deposit_paid = $1, deposit_paid_at = NOW()
+                        WHERE id = $2
+                    `, [deposit_amount, createdBookings[0].id]);
+                    await client.query('RELEASE SAVEPOINT payment_status');
+                } catch (statusError) {
+                    await client.query('ROLLBACK TO SAVEPOINT payment_status');
+                    console.log('Could not update payment status:', statusError.message);
+                }
+            } else {
+                console.log(`[Stripe Verify] Payment NOT verified (status: ${stripeIntentStatus}) — booking ${createdBookings[0].id} left as pending payment`);
             }
         }
 
