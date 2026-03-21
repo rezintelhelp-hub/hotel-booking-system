@@ -40743,7 +40743,8 @@ app.get('/api/admin/payment-stats', async (req, res) => {
       SELECT
         COUNT(*) FILTER (WHERE b.payment_status IS NULL OR b.payment_status = 'pending') as pending_count,
         COALESCE(SUM(b.deposit_amount) FILTER (WHERE b.deposit_paid_at IS NOT NULL), 0) as deposits_received,
-        COALESCE(SUM(COALESCE(b.total_amount, 0) - COALESCE(b.deposit_amount, 0)) FILTER (WHERE b.deposit_paid_at IS NOT NULL AND b.balance_paid_at IS NULL), 0) as balance_due,
+        COALESCE(SUM(COALESCE(b.total_amount, 0) - COALESCE(b.deposit_amount, 0)) FILTER (WHERE b.deposit_paid_at IS NOT NULL AND b.balance_paid_at IS NULL), 0) +
+          COALESCE(SUM(COALESCE(b.balance_amount, b.total_amount, 0)) FILTER (WHERE b.stripe_setup_intent_id IS NOT NULL AND (b.deposit_amount IS NULL OR b.deposit_amount = 0) AND b.balance_paid_at IS NULL), 0) as balance_due,
         COALESCE(SUM(b.total_amount) FILTER (WHERE b.balance_paid_at IS NOT NULL), 0) +
           COALESCE(SUM(b.deposit_amount) FILTER (WHERE b.deposit_paid_at IS NOT NULL AND b.balance_paid_at IS NULL), 0) as total_collected
       FROM bookings b
