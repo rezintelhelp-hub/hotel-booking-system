@@ -262,7 +262,8 @@ function generateBookingConfirmationEmail(booking, property, room) {
   
   const depositPaid = booking.deposit_amount && parseFloat(booking.deposit_amount) > 0;
   const balanceDue = booking.balance_amount && parseFloat(booking.balance_amount) > 0;
-  
+  const cardOnFile = !depositPaid && balanceDue && booking.stripe_setup_intent_id;
+
   return `
 <!DOCTYPE html>
 <html>
@@ -358,20 +359,26 @@ function generateBookingConfirmationEmail(booking, property, room) {
                 ` : ''}
                 ${balanceDue ? `
                 <tr>
-                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Balance Due at Check-in</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">${cardOnFile ? 'Balance — card will be charged before arrival' : 'Balance Due at Check-in'}</td>
                   <td style="padding: 8px 0; font-size: 14px; color: #f59e0b; text-align: right; font-weight: 500;">${booking.currency || '$'}${parseFloat(booking.balance_amount).toFixed(2)}</td>
                 </tr>
                 ` : ''}
-                ${!depositPaid ? `
+                ${!depositPaid && !cardOnFile ? `
                 <tr>
                   <td style="padding: 8px 0; font-size: 14px; color: #475569;">Payment</td>
                   <td style="padding: 8px 0; font-size: 14px; color: #475569; text-align: right;">Pay at Property</td>
                 </tr>
                 ` : ''}
+                ${cardOnFile ? `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Payment</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #10b981; text-align: right;">Card on file</td>
+                </tr>
+                ` : ''}
               </table>
             </td>
           </tr>
-          
+
           <!-- Footer -->
           <tr>
             <td style="background: #f8fafc; padding: 24px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
@@ -402,6 +409,7 @@ function generateGroupBookingConfirmationEmail(groupBookingId, bookings, rooms, 
   
   const depositPaid = totals.depositAmount && parseFloat(totals.depositAmount) > 0;
   const balanceDue = totals.balanceAmount && parseFloat(totals.balanceAmount) > 0;
+  const cardOnFile = !depositPaid && balanceDue && bookings[0]?.stripe_setup_intent_id;
   const currency = totals.currency || '$';
   
   // Build rooms HTML
@@ -571,20 +579,26 @@ function generateGroupBookingConfirmationEmail(groupBookingId, bookings, rooms, 
                 ` : ''}
                 ${balanceDue ? `
                 <tr>
-                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Balance Due at Check-in</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">${cardOnFile ? 'Balance — card will be charged before arrival' : 'Balance Due at Check-in'}</td>
                   <td style="padding: 8px 0; font-size: 14px; color: #f59e0b; text-align: right; font-weight: 500;">${currency}${parseFloat(totals.balanceAmount).toFixed(2)}</td>
                 </tr>
                 ` : ''}
-                ${!depositPaid ? `
+                ${!depositPaid && !cardOnFile ? `
                 <tr>
                   <td style="padding: 8px 0; font-size: 14px; color: #475569;">Payment</td>
                   <td style="padding: 8px 0; font-size: 14px; color: #475569; text-align: right;">Pay at Property</td>
                 </tr>
                 ` : ''}
+                ${cardOnFile ? `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Payment</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #10b981; text-align: right;">Card on file</td>
+                </tr>
+                ` : ''}
               </table>
             </td>
           </tr>
-          
+
           <!-- Footer -->
           <tr>
             <td style="background: #f8fafc; padding: 24px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
