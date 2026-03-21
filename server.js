@@ -13996,13 +13996,26 @@ app.post('/api/accounts/:accountId/stripe-disconnect', async (req, res) => {
 app.get('/api/properties/:propertyId/deposit-rules', async (req, res) => {
     try {
         const { propertyId } = req.params;
-        
-        const result = await pool.query(`
-            SELECT * FROM deposit_rules 
-            WHERE property_id = $1 
+
+        // Get property-specific rules first
+        let result = await pool.query(`
+            SELECT * FROM deposit_rules
+            WHERE property_id = $1
             ORDER BY is_active DESC, created_at DESC
         `, [propertyId]);
-        
+
+        // If no property-specific rules, fall back to account-level defaults
+        if (result.rows.length === 0) {
+            const propResult = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+            if (propResult.rows.length > 0) {
+                result = await pool.query(`
+                    SELECT * FROM deposit_rules
+                    WHERE account_id = $1 AND property_id IS NULL
+                    ORDER BY is_active DESC, created_at DESC
+                `, [propResult.rows[0].account_id]);
+            }
+        }
+
         res.json({ success: true, rules: result.rows });
     } catch (error) {
         console.error('Error getting deposit rules:', error);
@@ -84401,7 +84414,7 @@ async function processAutoChargePayments() {
             FROM bookings b
             JOIN properties p ON p.id = b.property_id
             JOIN accounts a ON a.id = p.account_id
-            JOIN deposit_rules dr ON dr.property_id = b.property_id
+            JOIN deposit_rules dr ON (dr.property_id = b.property_id OR (dr.property_id IS NULL AND dr.account_id = p.account_id))
             WHERE dr.auto_charge_balance = true
             AND dr.is_active = true
             AND b.stripe_payment_method_id IS NOT NULL
