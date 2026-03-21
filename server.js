@@ -81948,7 +81948,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
     }
 
     const accountId = accountResult.rows[0].account_id;
-    const { action, bookingId, roomId, message, senderName, arrival, departure } = req.body;
+    const { action, bookingId, roomId, message, senderName, arrival, departure, firstName, lastName, email, phone } = req.body;
 
     if (!action) {
       return res.status(400).json({ success: false, error: 'Action required (createBooking, sendMessage, getMessages)' });
@@ -82043,12 +82043,16 @@ app.post('/api/hostvana/chat', async (req, res) => {
         return res.status(502).json({ success: false, error: 'Beds24 V2 token not available' });
       }
 
+      const guestFirst = firstName || senderName || 'Website Inquiry';
+      const guestLast = lastName || '';
       const bookingData = [{
         propId: parseInt(beds24PropId),
         roomId: parseInt(beds24RoomId),
         status: 'inquiry',
-        firstName: senderName || 'Hostvana Question',
-        lastName: '',
+        firstName: guestFirst,
+        lastName: guestLast,
+        email: email || '',
+        phone: phone || '',
         arrival: arrival || new Date().toISOString().split('T')[0],
         departure: departure || new Date(Date.now() + 86400000).toISOString().split('T')[0],
         refererEditable: 'RezIntel-MyStayMessaging'
