@@ -28219,25 +28219,35 @@ app.get('/api/property/:propertyId/payment-settings', async (req, res) => {
     if (result.rows.length === 0) {
       // Still try to get account settings for pay_property_mode
       const acctResult = await pool.query(`
-        SELECT a.settings as account_settings FROM properties p
+        SELECT a.settings as account_settings, a.stripe_publishable_key as acct_stripe_key FROM properties p
         LEFT JOIN accounts a ON p.account_id = a.id
         WHERE p.id = $1
       `, [req.params.propertyId]);
       const acctSettings = typeof acctResult.rows[0]?.account_settings === 'string'
         ? JSON.parse(acctResult.rows[0].account_settings)
         : (acctResult.rows[0]?.account_settings || {});
-      
-      res.json({ 
-        success: true, 
+
+      // Check payment_configurations for Stripe connection (property or account level)
+      const pcResult = await pool.query(`
+        SELECT pc.id FROM payment_configurations pc
+        LEFT JOIN properties p ON p.id = $1
+        WHERE (pc.property_id = $1 OR (pc.property_id IS NULL AND pc.account_id = p.account_id))
+          AND pc.provider = 'stripe' AND pc.is_enabled = true
+        LIMIT 1
+      `, [req.params.propertyId]);
+      const hasStripeConfig = pcResult.rows.length > 0 || !!acctResult.rows[0]?.acct_stripe_key;
+
+      res.json({
+        success: true,
         data: {
           property_id: parseInt(req.params.propertyId),
           payment_enabled: true,
           deposit_type: 'percentage',
           deposit_amount: 25,
           balance_due_days: 14,
-          stripe_connected: false,
-          accepted_methods: acctSettings.payment_methods ? 
-            Object.entries(acctSettings.payment_methods).filter(([k,v]) => v).map(([k]) => k === 'pay_at_property' ? 'pay_at_property' : k) : ['card'],
+          stripe_connected: hasStripeConfig,
+          accepted_methods: acctSettings.payment_methods ?
+            Object.entries(acctSettings.payment_methods).filter(([k,v]) => v).map(([k]) => k === 'pay_at_property' ? 'pay_at_property' : k) : (hasStripeConfig ? ['card'] : ['card']),
           currency: 'GBP',
           pay_property_mode: acctSettings.pay_property_mode || 'no_payment',
           bank_details: acctSettings.bank_details || {},

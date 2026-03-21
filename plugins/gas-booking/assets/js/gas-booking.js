@@ -3290,12 +3290,18 @@ jQuery(document).ready(function($) {
 
                     // Deposit info
                     if (sg.depositRule && sg.balanceAmount > 0) {
-                        html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#2563eb;">';
-                        html += '<span>Deposit due now</span>';
-                        html += '<span>' + formatPrice(sg.depositAmount, sg.currency) + '</span>';
-                        html += '</div>';
+                        if (sg.depositAmount > 0) {
+                            html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#2563eb;">';
+                            html += '<span>Deposit due now</span>';
+                            html += '<span>' + formatPrice(sg.depositAmount, sg.currency) + '</span>';
+                            html += '</div>';
+                        }
                         html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#6b7280;">';
-                        html += '<span>Balance at check-in</span>';
+                        if (sg.depositAmount === 0) {
+                            html += '<span>Balance — card charged before arrival</span>';
+                        } else {
+                            html += '<span>Balance at check-in</span>';
+                        }
                         html += '<span>' + formatPrice(sg.balanceAmount, sg.currency) + '</span>';
                         html += '</div>';
                     }
@@ -5046,15 +5052,25 @@ jQuery(document).ready(function($) {
                 
                 checkoutData.depositAmount = depositAmount;
                 checkoutData.balanceAmount = balanceAmount;
-                
+
                 var currency = checkoutData.currency || '';
-                $('.gas-deposit-amount-display').text(formatPrice(depositAmount, currency));
-                
-                if (balanceAmount > 0) {
+
+                if (depositAmount === 0 && balanceAmount > 0) {
+                    // Deferred payment — hide deposit row, update balance label
+                    $('.gas-deposit-amount-display').closest('.gas-payment-row').hide();
                     $('.gas-balance-row').show();
+                    $('.gas-balance-row span').first().text('Balance \u2014 card charged before arrival');
                     $('.gas-balance-amount-display').text(formatPrice(balanceAmount, currency));
                 } else {
-                    $('.gas-balance-row').hide();
+                    $('.gas-deposit-amount-display').closest('.gas-payment-row').show();
+                    $('.gas-deposit-amount-display').text(formatPrice(depositAmount, currency));
+                    if (balanceAmount > 0) {
+                        $('.gas-balance-row').show();
+                        $('.gas-balance-row span').first().text(t('payment', 'balance_due', 'Balance due at check-in'));
+                        $('.gas-balance-amount-display').text(formatPrice(balanceAmount, currency));
+                    } else {
+                        $('.gas-balance-row').hide();
+                    }
                 }
             } else if (paymentMethod === 'card_guarantee') {
                 $('.gas-bank-transfer-panel').slideUp(200);
