@@ -3511,6 +3511,62 @@ jQuery(document).ready(function($) {
                     var paymentAmount = curGroup.depositAmount || (curGroup.subtotal + (curGroup.taxTotal || 0));
                     var currencyCode = (curGroup.currency || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 3);
 
+                    // If deposit is 0 (deferred payment), create SetupIntent to save card
+                    if (curGroup.depositAmount === 0 && curGroup.balanceAmount > 0) {
+                        console.log('[Deferred Payment] Group: 0% deposit — creating SetupIntent');
+                        $btn.find('.gas-btn-loading').text(t('payment', 'securing_card', 'Securing card...')).show();
+                        $.ajax({
+                            url: window.groupCheckoutData.apiUrl + '/api/public/create-setup-intent',
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({
+                                property_id: curGroup.propertyId,
+                                booking_data: {
+                                    email: $form.find('[name="email"]').val(),
+                                    check_in: window.groupCheckoutData.checkin,
+                                    check_out: window.groupCheckoutData.checkout
+                                }
+                            }),
+                            success: function(response) {
+                                if (response.success && (response.client_secret || response.setup_intent_client_secret)) {
+                                    var clientSecret = response.client_secret || response.setup_intent_client_secret;
+                                    curGroup.stripe.confirmCardSetup(clientSecret, {
+                                        payment_method: {
+                                            card: curGroup.cardElement,
+                                            billing_details: {
+                                                name: $form.find('[name="first_name"]').val() + ' ' + $form.find('[name="last_name"]').val(),
+                                                email: $form.find('[name="email"]').val()
+                                            }
+                                        }
+                                    }).then(function(result) {
+                                        if (result.error) {
+                                            $('#gas-card-errors').text(result.error.message);
+                                            $btn.prop('disabled', false);
+                                            $btn.find('.gas-btn-text').show();
+                                            $btn.find('.gas-btn-loading').hide();
+                                        } else {
+                                            window.gasStripeSetupIntentId = result.setupIntent.id;
+                                            window.gasStripePaymentMethodId = result.setupIntent.payment_method;
+                                            submitGroupBooking($btn, $form, null);
+                                        }
+                                    });
+                                } else {
+                                    alert('Failed to initialize card setup: ' + (response.error || 'Please try again'));
+                                    $btn.prop('disabled', false);
+                                    $btn.find('.gas-btn-text').show();
+                                    $btn.find('.gas-btn-loading').hide();
+                                }
+                            },
+                            error: function() {
+                                alert('Payment service unavailable. Please try again.');
+                                $btn.prop('disabled', false);
+                                $btn.find('.gas-btn-text').show();
+                                $btn.find('.gas-btn-loading').hide();
+                            }
+                        });
+                        return;
+                    }
+
                     // Create payment intent - use current group's property
                     $.ajax({
                         url: window.groupCheckoutData.apiUrl + '/api/public/create-payment-intent',
@@ -5244,7 +5300,65 @@ jQuery(document).ready(function($) {
             }
             
             var paymentAmount = checkoutData.depositAmount || checkoutData.grandTotal;
-            
+
+            // If deposit is 0 (deferred payment), create SetupIntent to save card for later charge
+            if (checkoutData.depositAmount === 0 && checkoutData.balanceAmount > 0) {
+                console.log('[Deferred Payment] 0% deposit — creating SetupIntent to save card for later charge');
+                $btn.find('.gas-btn-loading').text(t('payment', 'securing_card', 'Securing card...')).show();
+                $.ajax({
+                    url: checkoutData.apiUrl + '/api/public/create-setup-intent',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        property_id: checkoutData.propertyId,
+                        booking_data: {
+                            email: $form.find('[name="email"]').val(),
+                            check_in: checkoutData.checkin,
+                            check_out: checkoutData.checkout
+                        }
+                    }),
+                    success: function(response) {
+                        if (response.success && (response.client_secret || response.setup_intent_client_secret)) {
+                            var clientSecret = response.client_secret || response.setup_intent_client_secret;
+                            checkoutData.stripe.confirmCardSetup(clientSecret, {
+                                payment_method: {
+                                    card: checkoutData.cardElement,
+                                    billing_details: {
+                                        name: $form.find('[name="first_name"]').val() + ' ' + $form.find('[name="last_name"]').val(),
+                                        email: $form.find('[name="email"]').val()
+                                    }
+                                }
+                            }).then(function(result) {
+                                if (result.error) {
+                                    $('#gas-card-errors').text(result.error.message);
+                                    $btn.prop('disabled', false);
+                                    $btn.find('.gas-btn-text').show();
+                                    $btn.find('.gas-btn-loading').hide();
+                                } else {
+                                    // Card saved — store SetupIntent and PaymentMethod for later charging
+                                    window.gasStripeSetupIntentId = result.setupIntent.id;
+                                    window.gasStripePaymentMethodId = result.setupIntent.payment_method;
+                                    console.log('[Deferred Payment] Card saved. SetupIntent:', result.setupIntent.id, 'PaymentMethod:', result.setupIntent.payment_method);
+                                    submitBooking($btn, null);
+                                }
+                            });
+                        } else {
+                            alert('Failed to initialize card setup: ' + (response.error || 'Please try again'));
+                            $btn.prop('disabled', false);
+                            $btn.find('.gas-btn-text').show();
+                            $btn.find('.gas-btn-loading').hide();
+                        }
+                    },
+                    error: function() {
+                        alert('Payment service unavailable. Please try again.');
+                        $btn.prop('disabled', false);
+                        $btn.find('.gas-btn-text').show();
+                        $btn.find('.gas-btn-loading').hide();
+                    }
+                });
+                return;
+            }
+
             // Create payment intent
             $.ajax({
                 url: checkoutData.apiUrl + '/api/public/create-payment-intent',
@@ -5341,8 +5455,8 @@ jQuery(document).ready(function($) {
                 stripe_setup_intent_id: window.gasStripeSetupIntentId || null,
                 stripe_payment_method_id: window.gasStripePaymentMethodId || null,
                 source_site_url: window.location.origin + window.location.pathname,
-                deposit_amount: paymentMethod === 'card' ? checkoutData.depositAmount : null,
-                balance_amount: paymentMethod === 'card' ? checkoutData.balanceAmount : null,
+                deposit_amount: (paymentMethod === 'card' || paymentMethod === 'card_guarantee') ? checkoutData.depositAmount : null,
+                balance_amount: (paymentMethod === 'card' || paymentMethod === 'card_guarantee') ? checkoutData.balanceAmount : null,
                 price_breakdown: (function() {
                     var bd = checkoutData.gasBreakdown;
                     if (!bd) return null;

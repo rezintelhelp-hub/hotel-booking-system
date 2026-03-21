@@ -18358,17 +18358,23 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             }
         }
 
-        // Store Stripe SetupIntent data for card guarantee bookings
+        // Store Stripe SetupIntent data for card guarantee / deferred payment bookings
         if (stripe_setup_intent_id && createdBookings.length > 0) {
             try {
                 await client.query('SAVEPOINT setup_intent_status');
+                // Calculate balance from grand_total if not provided (deferred payment with 0% deposit)
+                const bookingBalance = req.body.balance_amount || createdBookings[0].grand_total;
+                const bookingDeposit = deposit_amount || 0;
                 for (const b of createdBookings) {
                     await client.query(`
-                        UPDATE bookings SET stripe_setup_intent_id = $1, stripe_payment_method_id = $2, payment_method = 'card_guarantee'
+                        UPDATE bookings SET stripe_setup_intent_id = $1, stripe_payment_method_id = $2,
+                            payment_method = 'card_guarantee', payment_status = 'pending',
+                            deposit_amount = $4, balance_amount = $5
                         WHERE id = $3
-                    `, [stripe_setup_intent_id, stripe_payment_method_id || null, b.id]);
+                    `, [stripe_setup_intent_id, stripe_payment_method_id || null, b.id, bookingDeposit, bookingBalance]);
                 }
                 await client.query('RELEASE SAVEPOINT setup_intent_status');
+                console.log(`[Deferred Payment] Stored SetupIntent ${stripe_setup_intent_id} for ${createdBookings.length} bookings, balance: ${bookingBalance}`);
             } catch (siError) {
                 await client.query('ROLLBACK TO SAVEPOINT setup_intent_status');
                 console.log('Could not store setup intent:', siError.message);
