@@ -1,6 +1,6 @@
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
- * @version 3.4.7
+ * @version 3.5.0
  */
 jQuery(document).ready(function($) {
     
@@ -2338,9 +2338,10 @@ jQuery(document).ready(function($) {
             last_name: $form.find('[name="last_name"]').val(),
             email: $form.find('[name="email"]').val(),
             phone: $form.find('[name="phone"]').val(),
-            notes: $form.find('[name="notes"]').val()
+            notes: $form.find('[name="notes"]').val(),
+            hostvana_booking_id: localStorage.getItem('gas_hostvana_bookingId') || ''
         };
-        
+
         $.ajax({
             url: gasBooking.ajaxUrl,
             method: 'POST',
@@ -5488,7 +5489,8 @@ jQuery(document).ready(function($) {
                     return bd;
                 })(),
                 damage_deposit: checkoutData.damageDeposit || null,
-                cm_quote_source: checkoutData.cmQuoteSource || null
+                cm_quote_source: checkoutData.cmQuoteSource || null,
+                hostvana_booking_id: localStorage.getItem('gas_hostvana_bookingId') || null
             };
             
             $.ajax({
@@ -5498,6 +5500,9 @@ jQuery(document).ready(function($) {
                 data: JSON.stringify(formData),
                 success: function(response) {
                     if (response.success) {
+                        // Clear Hostvana inquiry booking ID — it's now confirmed
+                        localStorage.removeItem('gas_hostvana_bookingId');
+
                         // Show confirmation
                         $('.gas-checkout-main > *').hide();
                         $('.gas-checkout-confirmation').show();

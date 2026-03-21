@@ -60903,7 +60903,7 @@ app.post('/api/public/book', async (req, res) => {
       voucher_code, notes, marketing, sms_consent, total_price, upsells, price_breakdown,
       stripe_payment_intent_id, deposit_amount, balance_amount, payment_method,
       enigma_reference_id, stripe_setup_intent_id, stripe_payment_method_id,
-      source_site_url
+      source_site_url, hostvana_booking_id
     } = req.body;
 
     console.log('REQ BODY KEYS:', Object.keys(req.body));
@@ -61161,11 +61161,11 @@ app.post('/api/public/book', async (req, res) => {
       try {
         // Use property-specific token lookup for GasSync connections
         const accessToken = await getBeds24AccessTokenForProperty(pool, newBooking.property_id, unit_id);
-        
+
         // Build payment array if deposit was taken
         const payments = [];
         console.log(`Beds24 sync - deposit_amount: ${deposit_amount}, stripe_payment_intent_id: ${stripe_payment_intent_id}`);
-        
+
         if (stripe_payment_intent_id && deposit_amount) {
           payments.push({
             description: 'Deposit via Stripe',
@@ -61175,7 +61175,68 @@ app.post('/api/public/book', async (req, res) => {
           });
           console.log('Added deposit payment to Beds24 payload:', JSON.stringify(payments));
         }
-        
+
+        // ========== HOSTVANA INQUIRY UPDATE ==========
+        // If hostvana_booking_id is set, this checkout is completing an existing Beds24 inquiry
+        // created by the Hostvana chat widget — UPDATE it instead of creating a new booking
+        if (hostvana_booking_id) {
+          console.log(`[HOSTVANA] Updating existing Beds24 inquiry ${hostvana_booking_id} to confirmed`);
+          const updatePayload = [{
+            id: parseInt(hostvana_booking_id),
+            roomId: cmData.beds24_room_id,
+            status: (function() {
+              if (payment_method === 'pay_at_property' || payment_method === 'property') {
+                try {
+                  const accSettings = unit.rows[0]?.account_settings || '{}';
+                  const parsed = typeof accSettings === 'string' ? JSON.parse(accSettings) : accSettings;
+                  if (parsed.pay_property_mode === 'bank_required') return 'request';
+                } catch(e) {}
+              }
+              return 'confirmed';
+            })(),
+            arrival: check_in,
+            departure: check_out,
+            numAdult: guests || 1,
+            numChild: 0,
+            firstName: guest_first_name,
+            lastName: guest_last_name,
+            email: guest_email,
+            mobile: guest_phone || '',
+            phone: guest_phone || '',
+            address: guest_address || '',
+            city: guest_city || '',
+            postcode: guest_postcode || '',
+            country: guest_country || '',
+            referer: `GAS Direct - GAS-${newBooking.id}`,
+            refererEditable: `GAS Direct - GAS-${newBooking.id}`,
+            reference: `GAS-${newBooking.id}`,
+            notes: `Booked via GAS (Hostvana chat inquiry upgraded) | Ref: GAS-${newBooking.id}`,
+            price: parseFloat(total_price) || 0,
+            deposit: deposit_amount ? parseFloat(deposit_amount) : 0,
+            payments: payments.length > 0 ? payments : undefined
+          }];
+          updatePayload[0].allowWebhooks = true;
+
+          console.log('[HOSTVANA] PUT /bookings payload:', JSON.stringify(updatePayload));
+
+          const updateRes = await axios.put('https://beds24.com/api/v2/bookings', updatePayload, {
+            headers: { 'token': accessToken, 'Content-Type': 'application/json' }
+          });
+
+          console.log('[HOSTVANA] Beds24 update response:', JSON.stringify(updateRes.data));
+
+          if (updateRes.data && updateRes.data[0]?.success) {
+            beds24BookingId = parseInt(hostvana_booking_id);
+            await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24BookingId, newBooking.id]);
+            console.log(`[HOSTVANA] Successfully updated Beds24 inquiry ${hostvana_booking_id} → confirmed for GAS booking ${newBooking.id}`);
+          } else {
+            console.error('[HOSTVANA] Beds24 update did not return success, falling through to create new booking');
+          }
+        }
+        // ========== END HOSTVANA INQUIRY UPDATE ==========
+
+        // Only create a new Beds24 booking if we didn't successfully update an existing inquiry
+        if (!beds24BookingId) {
         const beds24Booking = [{
           roomId: cmData.beds24_room_id,
           status: (function() {
@@ -61254,6 +61315,7 @@ app.post('/api/public/book', async (req, res) => {
             await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24BookingId, newBooking.id]);
           }
         }
+        } // end if (!beds24BookingId) — new booking creation
       } catch (beds24Error) {
         console.error('Error syncing to Beds24:', beds24Error.response?.data || beds24Error.message);
       }

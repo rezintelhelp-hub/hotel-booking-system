@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.4.9
+ * Version: 3.5.0
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.4.9');
+define('GAS_BOOKING_VERSION', '3.5.0');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7492,7 +7492,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             'guest_email' => sanitize_email($_POST['email']),
             'guest_phone' => sanitize_text_field($_POST['phone'] ?? ''),
             'notes' => sanitize_textarea_field($_POST['notes'] ?? ''),
-            'total_price' => floatval($_POST['total_price'] ?? 0)
+            'total_price' => floatval($_POST['total_price'] ?? 0),
+            'hostvana_booking_id' => sanitize_text_field($_POST['hostvana_booking_id'] ?? '')
         );
         
         $response = wp_remote_post("{$api_url}/api/public/book", array(
