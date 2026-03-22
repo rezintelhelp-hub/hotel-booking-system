@@ -642,6 +642,13 @@ app.get('/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     const offerCode = req.query.offer;
+    const isEmbed = req.query.embed === '1';
+
+    // Allow embedding on any domain
+    if (isEmbed) {
+      res.removeHeader('X-Frame-Options');
+      res.setHeader('Content-Security-Policy', "frame-ancestors *");
+    }
     
     // Get lite config with all related data
     const liteResult = await pool.query(`
@@ -855,10 +862,11 @@ app.get('/:slug', async (req, res) => {
       }
     }
     
-    res.send(renderFullPage({ 
-      lite, images, amenities, reviews, availability, 
+    res.send(renderFullPage({
+      lite, images, amenities, reviews, availability,
       todayPrice, qrCode, liteUrl, showReviews,
-      roomId, propertyId, accountId, activeOffer, lang, supportedLangs
+      roomId, propertyId, accountId, activeOffer, lang, supportedLangs,
+      embed: isEmbed
     }));
   } catch (error) {
     console.error('Lite page error:', error);
@@ -2525,12 +2533,20 @@ ${embed ? `
     new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
     setInterval(reportHeight, 500);
     document.addEventListener('click', function(e) {
-      var link = e.target.closest('a.book-btn');
-      if (link && link.href) {
+      var link = e.target.closest('a');
+      if (!link || !link.href) return;
+      var url = link.href;
+      // Room detail links — navigate inside iframe with embed=1
+      if (url.indexOf(location.origin) === 0 || url.startsWith('/')) {
         e.preventDefault();
-        var url = link.href;
         if (url.startsWith('/')) url = location.origin + url;
-        window.open(url, '_blank');
+        var sep = url.indexOf('?') === -1 ? '?' : '&';
+        location.href = url + sep + 'embed=1';
+      }
+      // External links — open in parent window
+      else if (url.indexOf('http') === 0) {
+        e.preventDefault();
+        window.parent.postMessage({ type: 'gas-embed-navigate', url: url }, '*');
       }
     });
 ` : ''}
@@ -2580,7 +2596,7 @@ ${mapPins.length > 0 && !embed && !compact ? `
 </html>`;
 }
 
-function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId, accountId, activeOffer, lang = 'en', supportedLangs = ['en', 'es', 'fr', 'de', 'nl'] }) {
+function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId, accountId, activeOffer, lang = 'en', supportedLangs = ['en', 'es', 'fr', 'de', 'nl'], embed = false }) {
   // Validate language
   if (!LITE_TRANSLATIONS[lang]) lang = 'en';
   
@@ -4430,6 +4446,36 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     
     // Init calendar
     renderCalendar();
+${embed ? `
+    // === EMBED MODE — room detail page ===
+    // Report height to parent for auto-resize
+    function reportHeight() {
+      var h = document.documentElement.scrollHeight;
+      window.parent.postMessage({ type: 'gas-embed-resize', height: h }, '*');
+    }
+    reportHeight();
+    window.addEventListener('resize', reportHeight);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    setInterval(reportHeight, 500);
+
+    // Intercept checkout/external links — open in parent window
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a');
+      if (!link || !link.href) return;
+      var url = link.href;
+      // Checkout or external links open in parent
+      if (url.indexOf('/checkout') !== -1 || url.indexOf('admin.gas.travel') !== -1 || (url.indexOf('http') === 0 && url.indexOf(location.origin) === -1)) {
+        e.preventDefault();
+        window.parent.postMessage({ type: 'gas-embed-navigate', url: url }, '*');
+      }
+      // Internal lite links stay in iframe (add embed=1)
+      else if (url.indexOf(location.origin) === 0 && url.indexOf('embed=1') === -1) {
+        e.preventDefault();
+        var sep = url.indexOf('?') === -1 ? '?' : '&';
+        location.href = url + sep + 'embed=1';
+      }
+    });
+` : ''}
   </script>
 </body>
 </html>`;
