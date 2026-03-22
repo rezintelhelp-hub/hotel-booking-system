@@ -14709,15 +14709,46 @@ async function getBeds24Token(accountId, beds24PropId) {
 
 // ─── Beds24 Master Key helpers (additive — does NOT touch existing invite code flow) ───
 
+// In-memory cache for the refreshed master token
+let beds24MasterTokenCache = { token: null, expiresAt: 0 };
+
+// Refresh the master token using BEDS24_REFRESH_TOKEN
+async function refreshBeds24MasterToken() {
+  // If cached token is still valid (with 60s buffer), return it
+  if (beds24MasterTokenCache.token && Date.now() < beds24MasterTokenCache.expiresAt - 60000) {
+    return beds24MasterTokenCache.token;
+  }
+  const refreshToken = process.env.BEDS24_REFRESH_TOKEN || process.env.BEDS24_MASTER_TOKEN;
+  if (!refreshToken) throw new Error('BEDS24_REFRESH_TOKEN env var not set');
+
+  try {
+    const response = await axios.get('https://beds24.com/api/v2/authentication/token', {
+      headers: { 'refreshToken': refreshToken }
+    });
+    const newToken = response.data?.token;
+    if (!newToken) throw new Error('No token in Beds24 refresh response');
+    // Cache for 60 minutes (Beds24 tokens last ~1 hour)
+    beds24MasterTokenCache = { token: newToken, expiresAt: Date.now() + 3600000 };
+    console.log('[Beds24 Master] Token refreshed successfully');
+    return newToken;
+  } catch (err) {
+    console.error('[Beds24 Master] Token refresh failed:', err.response?.data || err.message);
+    // Fall back to the static token as last resort
+    const fallback = process.env.BEDS24_MASTER_TOKEN;
+    if (fallback) return fallback;
+    throw err;
+  }
+}
+
 // Returns V2 headers for a master key call scoped to a specific property
-function getBeds24MasterHeaders(beds24PropId) {
-  const masterToken = process.env.BEDS24_MASTER_TOKEN;
+async function getBeds24MasterHeaders(beds24PropId) {
+  const token = await refreshBeds24MasterToken();
   const orgId = process.env.BEDS24_ORG_ID;
-  if (!masterToken || !orgId) throw new Error('BEDS24_MASTER_TOKEN and BEDS24_ORG_ID env vars required');
+  if (!orgId) throw new Error('BEDS24_ORG_ID env var required');
   return {
     'accept': 'application/json',
     'Content-Type': 'application/json',
-    'token': masterToken + (beds24PropId ? ':p' + beds24PropId : ''),
+    'token': token + (beds24PropId ? ':p' + beds24PropId : ''),
     'organization': orgId
   };
 }
@@ -14731,11 +14762,10 @@ async function isBeds24MasterKeyAccount(accountId) {
   return result.rows.length > 0 && result.rows[0].beds24_auth_method === 'master_key';
 }
 
-// Get Beds24 token — master key version (no refresh needed, token is permanent)
+// Get Beds24 token — master key version (refreshes automatically)
 async function getBeds24MasterToken(beds24PropId) {
-  const masterToken = process.env.BEDS24_MASTER_TOKEN;
-  if (!masterToken) throw new Error('BEDS24_MASTER_TOKEN env var not set');
-  return masterToken + (beds24PropId ? ':p' + beds24PropId : '');
+  const token = await refreshBeds24MasterToken();
+  return token + (beds24PropId ? ':p' + beds24PropId : '');
 }
 
 // Connect account to Beds24 via master key (does NOT touch invite code flow)
@@ -14749,8 +14779,8 @@ app.post('/api/accounts/:id/beds24/connect-master', async (req, res) => {
       return res.json({ success: false, error: 'Master key not configured on server' });
     }
 
-    // Test the master key by fetching properties
-    const headers = getBeds24MasterHeaders();
+    // Test the master key by fetching properties (refreshes token automatically)
+    const headers = await getBeds24MasterHeaders();
     const propsResponse = await axios.get('https://beds24.com/api/v2/properties', { headers });
     const properties = propsResponse.data?.data || propsResponse.data || [];
 
