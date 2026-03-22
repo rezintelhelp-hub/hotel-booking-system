@@ -3092,14 +3092,17 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   </script>
   
   <div class="page-wrapper">
+  ${embed ? `<div style="background:#f8fafc;padding:10px 20px;border-bottom:1px solid #e2e8f0;">
+    <a href="javascript:void(0)" onclick="history.back()" style="color:var(--accent);text-decoration:none;font-size:14px;font-weight:500;">← Back to all rooms</a>
+  </div>` : ''}
   ${offerBannerHtml}
-  <header class="header">
+  ${embed ? '' : `<header class="header">
     <div class="header-brand">
       <a href="/" class="logo">GAS Lite</a>
       ${(lite.account_display_name || lite.business_name) ? `<span class="header-presents">— <strong>${escapeForHTML(lite.account_display_name || lite.business_name)}</strong> Presents</span>` : ''}
     </div>
     <button class="share-btn" onclick="shareProperty()">📤 Share</button>
-  </header>
+  </header>`}
   
   <div class="container">
     <div class="gallery">
@@ -3513,7 +3516,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     </div>
   </div>
   
-  <footer class="footer">Powered by <a href="https://gas.travel">GAS.travel</a> • <a href="${liteUrl}/card">View Promo Card</a></footer>
+  ${embed ? '' : `<footer class="footer">Powered by <a href="https://gas.travel">GAS.travel</a> • <a href="${liteUrl}/card">View Promo Card</a></footer>`}
   </div><!-- end page-wrapper -->
   
   <script>
