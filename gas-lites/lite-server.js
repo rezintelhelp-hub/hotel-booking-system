@@ -580,6 +580,8 @@ app.get('/book/:accountSlug', async (req, res) => {
   try {
     const { accountSlug } = req.params;
     const isEmbed = req.query.embed === '1';
+    const isCompact = req.query.compact === '1';
+    const colorOverride = req.query.color || '';
 
     // Allow embedding on any domain
     if (isEmbed) {
@@ -624,7 +626,9 @@ app.get('/book/:accountSlug', async (req, res) => {
         p.name, bu.name
     `, [account.id]);
 
-    res.send(renderBookingPage({ account, rooms: roomsResult.rows, embed: isEmbed }));
+    // Allow color override from embed params
+    if (colorOverride) account.primary_color = colorOverride;
+    res.send(renderBookingPage({ account, rooms: roomsResult.rows, embed: isEmbed, compact: isCompact }));
   } catch (error) {
     console.error('Account booking page error:', error);
     res.status(500).send(renderError('Something went wrong'));
@@ -2110,7 +2114,7 @@ function renderError(msg) {
 // ============================================
 // ACCOUNT BOOKING PAGE RENDERER
 // ============================================
-function renderBookingPage({ account, rooms, embed = false }) {
+function renderBookingPage({ account, rooms, embed = false, compact = false }) {
   const accent = account.primary_color || '#3b82f6';
   const businessName = account.business_name || account.name || 'Book Your Stay';
   const logoHtml = account.logo_url
@@ -2252,7 +2256,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
   </style>
 </head>
 <body>
-  ${embed ? '' : `<div class="page-header">
+  ${(embed || compact) ? '' : `<div class="page-header">
     <div class="header-left">
       ${logoHtml}
       <h1>${escapeForHTML(businessName)}</h1>
@@ -2318,7 +2322,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
           <p>This property hasn't listed any rooms yet.</p>
         </div>`}
     </div>
-    ${!embed && mapPins.length > 0 ? '<div class="map-panel"><div id="property-map"></div></div>' : ''}
+    ${!embed && !compact && mapPins.length > 0 ? '<div class="map-panel"><div id="property-map"></div></div>' : ''}
   </div>
 
   <script>
@@ -2530,7 +2534,7 @@ ${embed ? `
       }
     });
 ` : ''}
-${mapPins.length > 0 && !embed ? `
+${mapPins.length > 0 && !embed && !compact ? `
     // === PROPERTY MAP ===
     (function() {
       var pins = ${mapDataJson};
