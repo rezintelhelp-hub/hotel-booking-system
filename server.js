@@ -14268,6 +14268,7 @@ app.get('/api/setup-accounts-billing', async (req, res) => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_connected BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_account_id VARCHAR(50)`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_last_sync TIMESTAMP`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_auth_method TEXT DEFAULT 'invite_code'`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS total_units INTEGER DEFAULT 0`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS total_properties INTEGER DEFAULT 0`);
     console.log('✅ Beds24 columns added to accounts');
@@ -14638,11 +14639,16 @@ app.post('/api/accounts/:id/beds24/disconnect', async (req, res) => {
 });
 
 // Helper: get valid Beds24 token for an account (refreshes if needed)
-async function getBeds24Token(accountId) {
+async function getBeds24Token(accountId, beds24PropId) {
   const result = await pool.query(
-    'SELECT beds24_token, beds24_refresh_token, beds24_token_expires FROM accounts WHERE id = $1',
+    'SELECT beds24_token, beds24_refresh_token, beds24_token_expires, beds24_auth_method FROM accounts WHERE id = $1',
     [accountId]
   );
+
+  // If master key account, return master token (no refresh needed)
+  if (result.rows.length > 0 && result.rows[0].beds24_auth_method === 'master_key') {
+    return getBeds24MasterToken(beds24PropId || null);
+  }
 
   if (result.rows.length === 0) throw new Error('Account not found');
 
@@ -14701,8 +14707,107 @@ async function getBeds24Token(accountId) {
   }
 }
 
+// ─── Beds24 Master Key helpers (additive — does NOT touch existing invite code flow) ───
+
+// Returns V2 headers for a master key call scoped to a specific property
+function getBeds24MasterHeaders(beds24PropId) {
+  const masterToken = process.env.BEDS24_MASTER_TOKEN;
+  const orgId = process.env.BEDS24_ORG_ID;
+  if (!masterToken || !orgId) throw new Error('BEDS24_MASTER_TOKEN and BEDS24_ORG_ID env vars required');
+  return {
+    'accept': 'application/json',
+    'Content-Type': 'application/json',
+    'token': masterToken + (beds24PropId ? ':p' + beds24PropId : ''),
+    'organization': orgId
+  };
+}
+
+// Check if an account uses master key auth
+async function isBeds24MasterKeyAccount(accountId) {
+  const result = await pool.query(
+    "SELECT beds24_auth_method FROM accounts WHERE id = $1",
+    [accountId]
+  );
+  return result.rows.length > 0 && result.rows[0].beds24_auth_method === 'master_key';
+}
+
+// Get Beds24 token — master key version (no refresh needed, token is permanent)
+async function getBeds24MasterToken(beds24PropId) {
+  const masterToken = process.env.BEDS24_MASTER_TOKEN;
+  if (!masterToken) throw new Error('BEDS24_MASTER_TOKEN env var not set');
+  return masterToken + (beds24PropId ? ':p' + beds24PropId : '');
+}
+
+// Connect account to Beds24 via master key (does NOT touch invite code flow)
+app.post('/api/accounts/:id/beds24/connect-master', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const masterToken = process.env.BEDS24_MASTER_TOKEN;
+    const orgId = process.env.BEDS24_ORG_ID;
+
+    if (!masterToken || !orgId) {
+      return res.json({ success: false, error: 'Master key not configured on server' });
+    }
+
+    // Test the master key by fetching properties
+    const headers = getBeds24MasterHeaders();
+    const propsResponse = await axios.get('https://beds24.com/api/v2/properties', { headers });
+    const properties = propsResponse.data?.data || propsResponse.data || [];
+
+    if (!properties || properties.length === 0) {
+      return res.json({ success: false, error: 'Master key returned no properties. Check BEDS24_MASTER_TOKEN and BEDS24_ORG_ID.' });
+    }
+
+    // Add auth_method column if not exists (safe — runs once)
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_auth_method TEXT DEFAULT 'invite_code'`);
+
+    // Mark account as master key auth — do NOT overwrite existing token fields
+    await pool.query(`
+      UPDATE accounts SET
+        beds24_auth_method = 'master_key',
+        beds24_connected = true,
+        updated_at = NOW()
+      WHERE id = $1
+    `, [id]);
+
+    // Set webhooks on all properties (using master key token with :p scoping + org header)
+    const orgHeader = { 'organization': process.env.BEDS24_ORG_ID };
+    for (const prop of properties) {
+      try {
+        await setBeds24Webhook(masterToken + ':p' + prop.id, prop.id, '', orgHeader);
+      } catch (whErr) {
+        console.error(`[BEDS24 MASTER] Webhook setup failed for property ${prop.id}:`, whErr.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Connected via master key. Found ${properties.length} properties.`,
+      properties: properties.map(p => ({ id: p.id, name: p.name }))
+    });
+  } catch (error) {
+    console.error('[BEDS24 MASTER] Connect error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.response?.data?.error || error.message });
+  }
+});
+
+// List properties available via master key (master admin only, for testing)
+app.get('/api/beds24/master-properties', async (req, res) => {
+  try {
+    const headers = getBeds24MasterHeaders();
+    const propsResponse = await axios.get('https://beds24.com/api/v2/properties', { headers });
+    const properties = propsResponse.data?.data || propsResponse.data || [];
+    res.json({ success: true, properties });
+  } catch (error) {
+    console.error('[BEDS24 MASTER] List properties error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.response?.data?.error || error.message });
+  }
+});
+
+// ─── End Beds24 Master Key helpers ───
+
 // Helper: Set Beds24 webhook for a property via V2 API
-async function setBeds24Webhook(accessToken, beds24PropertyId, existingWebhookUrl) {
+async function setBeds24Webhook(accessToken, beds24PropertyId, existingWebhookUrl, extraHeaders) {
     try {
         const gasWebhookUrl = 'https://admin.gas.travel/api/webhooks/beds24?propertyId=[PROPERTYID]';
         const currentUrl = existingWebhookUrl || '';
@@ -14716,6 +14821,13 @@ async function setBeds24Webhook(accessToken, beds24PropertyId, existingWebhookUr
         // Append GAS webhook to existing URLs (never overwrite)
         const newUrl = currentUrl ? currentUrl + '\n' + gasWebhookUrl : gasWebhookUrl;
 
+        const headers = {
+            'token': accessToken,
+            'Content-Type': 'application/json',
+            'accept': 'application/json',
+            ...(extraHeaders || {})
+        };
+
         await axios.post('https://beds24.com/api/v2/properties',
             [{
                 id: beds24PropertyId,
@@ -14726,13 +14838,7 @@ async function setBeds24Webhook(accessToken, beds24PropertyId, existingWebhookUr
                     customHeader: ''
                 }
             }],
-            {
-                headers: {
-                    'token': accessToken,
-                    'Content-Type': 'application/json',
-                    'accept': 'application/json'
-                }
-            }
+            { headers }
         );
         console.log(`[BEDS24] Webhook ${currentUrl ? 'APPENDED' : 'set'} for property ${beds24PropertyId}`);
         return true;
