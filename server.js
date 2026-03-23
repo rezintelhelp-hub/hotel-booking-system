@@ -14720,27 +14720,52 @@ async function beds24MarketplaceRequest(endpoint, extraData = {}) {
 }
 
 // Connect account via Beds24 marketplace (master admin only)
+// Properties are OBJECTS keyed by propId, roomTypes are OBJECTS keyed by roomId
+// Structure: { getAccounts: { ownerId: { ownerId, masterId, username, properties: { propId: { name, propId, roomTypes: { roomId: {...} } } } } } }
 app.post('/api/accounts/:id/beds24v2/connect', async (req, res) => {
   try {
     const { id } = req.params;
-    // Test marketplace — getAccounts returns { getAccounts: { userId: { properties: [...] } } }
     const data = await beds24MarketplaceRequest('getAccounts', {});
-    console.log('[Beds24 Marketplace] Raw response keys:', JSON.stringify(Object.keys(data || {})));
-    // Collect all properties across all accounts
+    const accountsObj = data?.getAccounts || {};
+
+    // Parse all properties from all accounts (objects, not arrays)
     const allProps = [];
-    const accountsObj = data?.getAccounts || data;
-    if (typeof accountsObj === 'object' && !Array.isArray(accountsObj)) {
-      for (const [userId, account] of Object.entries(accountsObj)) {
-        if (account.properties && Array.isArray(account.properties)) {
-          account.properties.forEach(p => allProps.push({ ...p, userId, accountName: account.name }));
+    for (const [ownerId, account] of Object.entries(accountsObj)) {
+      if (account.properties && typeof account.properties === 'object') {
+        for (const [propId, prop] of Object.entries(account.properties)) {
+          const roomTypes = [];
+          if (prop.roomTypes && typeof prop.roomTypes === 'object') {
+            for (const [roomId, room] of Object.entries(prop.roomTypes)) {
+              roomTypes.push({ roomId, name: room.name, qty: room.qty, unitNames: room.unitNames });
+            }
+          }
+          allProps.push({
+            propId: prop.propId || propId,
+            name: prop.name,
+            ownerId: account.ownerId || ownerId,
+            masterId: account.masterId,
+            username: account.username,
+            roomTypes
+          });
         }
       }
     }
+
+    console.log(`[Beds24 Marketplace] Found ${allProps.length} properties across ${Object.keys(accountsObj).length} accounts`);
     res.json({
       success: true,
-      message: `Marketplace connection working. Found ${allProps.length} properties across ${Object.keys(accountsObj || {}).length} accounts.`,
-      properties: allProps.map(p => ({ id: p.propId || p.id, name: p.name || `Property ${p.propId}`, userId: p.userId })),
-      raw_keys: Object.keys(data || {})
+      message: `Found ${allProps.length} properties across ${Object.keys(accountsObj).length} accounts.`,
+      total_accounts: Object.keys(accountsObj).length,
+      total_properties: allProps.length,
+      properties: allProps.map(p => ({
+        propId: p.propId,
+        name: p.name,
+        ownerId: p.ownerId,
+        masterId: p.masterId,
+        username: p.username,
+        roomCount: p.roomTypes.length,
+        rooms: p.roomTypes.map(r => ({ roomId: r.roomId, name: r.name, qty: r.qty }))
+      }))
     });
   } catch (error) {
     console.error('[Beds24 Marketplace] Connect test error:', error.response?.data || error.message);
@@ -14748,22 +14773,23 @@ app.post('/api/accounts/:id/beds24v2/connect', async (req, res) => {
   }
 });
 
-// List properties via Beds24 marketplace (debug — shows structure of first account)
+// List all marketplace accounts with property counts (debug/admin)
 app.get('/api/accounts/:id/beds24v2/properties', async (req, res) => {
   try {
     const data = await beds24MarketplaceRequest('getAccounts', {});
-    const accountsObj = data?.getAccounts || data;
-    const keys = Object.keys(accountsObj || {});
-    const firstKey = keys[0];
-    const firstAccount = firstKey ? accountsObj[firstKey] : null;
-    res.json({
-      success: true,
-      total_accounts: keys.length,
-      top_level_keys: Object.keys(data || {}),
-      first_account_key: firstKey,
-      first_account_keys: firstAccount ? Object.keys(firstAccount) : [],
-      first_account_sample: firstAccount ? JSON.stringify(firstAccount).substring(0, 2000) : null
-    });
+    const accountsObj = data?.getAccounts || {};
+    const summary = [];
+    for (const [ownerId, account] of Object.entries(accountsObj)) {
+      const props = account.properties && typeof account.properties === 'object' ? Object.keys(account.properties) : [];
+      summary.push({
+        ownerId: account.ownerId || ownerId,
+        masterId: account.masterId,
+        username: account.username,
+        propertyCount: props.length,
+        propertyIds: props
+      });
+    }
+    res.json({ success: true, total_accounts: summary.length, accounts: summary });
   } catch (error) {
     console.error('[Beds24 Marketplace] List properties error:', error.response?.data || error.message);
     res.json({ success: false, error: error.response?.data?.error || error.message });
