@@ -14704,13 +14704,13 @@ async function getBeds24Token(accountId, beds24PropId) {
 
 // ─── Beds24 Marketplace (rezintel.net) helper ───
 // Uses HTTP Basic Auth + POST with json= form data + apiKey authentication (same as old Rezintel server)
-async function beds24MarketplaceRequest(endpoint, extraData = {}) {
+async function beds24MarketplaceRequest(endpoint, extraData = {}, extraAuth = {}) {
   const user = process.env.BEDS24_MARKETPLACE_USER;
   const pass = process.env.BEDS24_MARKETPLACE_PASS;
   const apiKey = process.env.BEDS24_MASTER_API_KEY || process.env.BEDS24_MARKETPLACE_APIKEY;
   if (!user || !pass || !apiKey) throw new Error('BEDS24_MARKETPLACE_USER/PASS and BEDS24_MASTER_API_KEY env vars not set');
   const url = `https://api.beds24.com/rezintel.net/${endpoint}`;
-  const jsonData = { authentication: { apiKey }, ...extraData };
+  const jsonData = { authentication: { apiKey, ...extraAuth }, ...extraData };
   const response = await axios.post(url, `json=${encodeURIComponent(JSON.stringify(jsonData))}`, {
     auth: { username: user, password: pass },
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -14889,12 +14889,11 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     let contentData;
     try {
       contentData = await beds24MarketplaceRequest('getPropertyContent', {
-        propKey: targetPropKey,
         texts: ['EN'],
         roomIds: true,
         images: true,
         bookingData: true
-      });
+      }, { propKey: targetPropKey });
     } catch (contentErr) {
       console.error('[Beds24 Marketplace Sync] getPropertyContent failed:', contentErr.message);
       return res.json({ success: false, error: 'getPropertyContent failed: ' + contentErr.message });
