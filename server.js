@@ -14796,6 +14796,56 @@ app.get('/api/accounts/:id/beds24v2/properties', async (req, res) => {
   }
 });
 
+// Link a Beds24 marketplace property to a GAS account (master admin only)
+// Creates a gas_sync_connections row with adapter_code='beds24-marketplace' — does NOT touch existing beds24 connections
+app.post('/api/accounts/:id/beds24v2/link', async (req, res) => {
+  try {
+    const accountId = parseInt(req.params.id);
+    const { propId, propName, ownerId, rooms } = req.body;
+    if (!propId || !ownerId) return res.status(400).json({ success: false, error: 'propId and ownerId required' });
+
+    // Ensure beds24-marketplace adapter exists
+    await pool.query(`
+      INSERT INTO gas_sync_adapters (code, name, description, auth_type, is_active, capabilities, supports_webhooks)
+      VALUES ('beds24-marketplace', 'Beds24 (Marketplace)', 'Beds24 via Rezintel marketplace master API key', 'api_key', true,
+        '["properties", "room_types", "availability", "rates", "reservations", "images"]', true)
+      ON CONFLICT (code) DO UPDATE SET is_active = true
+    `);
+
+    // Check for existing marketplace connection for this account
+    const existing = await pool.query(
+      `SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = 'beds24-marketplace'`,
+      [accountId]
+    );
+
+    let connectionId;
+    const credentials = { ownerId, propId: String(propId), propName, rooms: rooms || [] };
+
+    if (existing.rows.length > 0) {
+      // Update existing
+      connectionId = existing.rows[0].id;
+      await pool.query(`
+        UPDATE gas_sync_connections SET credentials = $1, status = 'connected', external_account_id = $2, external_account_name = $3, updated_at = NOW()
+        WHERE id = $4
+      `, [JSON.stringify(credentials), String(ownerId), propName || 'Beds24 Property ' + propId, connectionId]);
+    } else {
+      // Create new
+      const connResult = await pool.query(`
+        INSERT INTO gas_sync_connections (account_id, adapter_code, external_account_id, external_account_name, credentials, status, sync_enabled, created_at)
+        VALUES ($1, 'beds24-marketplace', $2, $3, $4, 'connected', true, NOW())
+        RETURNING id
+      `, [accountId, String(ownerId), propName || 'Beds24 Property ' + propId, JSON.stringify(credentials)]);
+      connectionId = connResult.rows[0].id;
+    }
+
+    console.log(`[Beds24 Marketplace] Linked propId ${propId} (owner ${ownerId}) to account ${accountId}, connection ${connectionId}`);
+    res.json({ success: true, connectionId, message: `Linked "${propName}" to account ${accountId}` });
+  } catch (error) {
+    console.error('[Beds24 Marketplace] Link error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Helper: Set Beds24 webhook for a property via V2 API
 async function setBeds24Webhook(accessToken, beds24PropertyId, existingWebhookUrl, extraHeaders) {
     try {
