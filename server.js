@@ -14846,6 +14846,138 @@ app.post('/api/accounts/:id/beds24v2/link', async (req, res) => {
   }
 });
 
+// Sync properties & rooms for a Beds24 marketplace connection
+// Pulls from marketplace API, creates/updates GAS properties + bookable_units + sync tables
+app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const conn = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (conn.rows.length === 0) return res.status(404).json({ success: false, error: 'Connection not found' });
+    const connection = conn.rows[0];
+    if (connection.adapter_code !== 'beds24-marketplace') {
+      return res.json({ success: false, error: 'Not a marketplace connection' });
+    }
+
+    const creds = typeof connection.credentials === 'string' ? JSON.parse(connection.credentials) : (connection.credentials || {});
+    const targetPropId = String(creds.propId);
+    const targetOwnerId = String(creds.ownerId);
+    const accountId = connection.account_id;
+
+    // Fetch from marketplace API
+    const data = await beds24MarketplaceRequest('getAccounts', {});
+    const accountsObj = data?.getAccounts || {};
+
+    // Find the target account and property
+    const b24Account = accountsObj[targetOwnerId];
+    if (!b24Account || !b24Account.properties) {
+      return res.json({ success: false, error: `Beds24 owner ${targetOwnerId} not found in marketplace` });
+    }
+    const b24Prop = b24Account.properties[targetPropId];
+    if (!b24Prop) {
+      return res.json({ success: false, error: `Property ${targetPropId} not found under owner ${targetOwnerId}` });
+    }
+
+    const propName = b24Prop.name || 'Beds24 Property ' + targetPropId;
+    console.log(`[Beds24 Marketplace Sync] Syncing "${propName}" (propId: ${targetPropId}) for account ${accountId}`);
+
+    // 1. Create or update GAS property
+    const existingProp = await pool.query(
+      'SELECT id FROM properties WHERE cm_property_id = $1 AND account_id = $2',
+      [targetPropId, accountId]
+    );
+
+    let gasPropertyId;
+    if (existingProp.rows.length > 0) {
+      gasPropertyId = existingProp.rows[0].id;
+      await pool.query('UPDATE properties SET name = $1, cm_source = $2, updated_at = NOW() WHERE id = $3',
+        [propName, 'beds24-marketplace', gasPropertyId]);
+      console.log(`[Beds24 Marketplace Sync] Updated GAS property ${gasPropertyId}`);
+    } else {
+      const propResult = await pool.query(`
+        INSERT INTO properties (account_id, user_id, cm_property_id, cm_source, name, status, created_at)
+        VALUES ($1, 1, $2, 'beds24-marketplace', $3, 'active', NOW()) RETURNING id
+      `, [accountId, targetPropId, propName]);
+      gasPropertyId = propResult.rows[0].id;
+      console.log(`[Beds24 Marketplace Sync] Created GAS property ${gasPropertyId}`);
+    }
+
+    // 2. Create or update gas_sync_properties
+    const existingSyncProp = await pool.query(
+      'SELECT id FROM gas_sync_properties WHERE connection_id = $1 AND external_id = $2',
+      [connectionId, targetPropId]
+    );
+    let syncPropertyId;
+    if (existingSyncProp.rows.length > 0) {
+      syncPropertyId = existingSyncProp.rows[0].id;
+      await pool.query('UPDATE gas_sync_properties SET gas_property_id = $1, name = $2, raw_data = $3, synced_at = NOW() WHERE id = $4',
+        [gasPropertyId, propName, JSON.stringify(b24Prop), syncPropertyId]);
+    } else {
+      const spResult = await pool.query(`
+        INSERT INTO gas_sync_properties (connection_id, external_id, gas_property_id, name, raw_data, created_at, synced_at)
+        VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) RETURNING id
+      `, [connectionId, targetPropId, gasPropertyId, propName, JSON.stringify(b24Prop)]);
+      syncPropertyId = spResult.rows[0].id;
+    }
+
+    // 3. Create or update rooms from roomTypes (object keyed by roomId)
+    const roomTypes = b24Prop.roomTypes && typeof b24Prop.roomTypes === 'object' ? b24Prop.roomTypes : {};
+    let roomsCreated = 0, roomsUpdated = 0;
+
+    for (const [roomId, room] of Object.entries(roomTypes)) {
+      const roomName = room.name || 'Room ' + roomId;
+      const qty = room.qty || 1;
+
+      // Create/update bookable_unit
+      const existingRoom = await pool.query(
+        'SELECT id FROM bookable_units WHERE cm_room_id = $1 AND property_id = $2',
+        [String(roomId), gasPropertyId]
+      );
+
+      let gasRoomId;
+      if (existingRoom.rows.length > 0) {
+        gasRoomId = existingRoom.rows[0].id;
+        await pool.query('UPDATE bookable_units SET name = $1, cm_source = $2, updated_at = NOW() WHERE id = $3',
+          [roomName, 'beds24-marketplace', gasRoomId]);
+        roomsUpdated++;
+      } else {
+        const roomResult = await pool.query(`
+          INSERT INTO bookable_units (property_id, cm_room_id, cm_source, name, max_guests, status, created_at)
+          VALUES ($1, $2, 'beds24-marketplace', $3, 2, 'available', NOW()) RETURNING id
+        `, [gasPropertyId, String(roomId), roomName]);
+        gasRoomId = roomResult.rows[0].id;
+        roomsCreated++;
+      }
+
+      // Create/update gas_sync_room_types
+      const existingSyncRoom = await pool.query(
+        'SELECT id FROM gas_sync_room_types WHERE sync_property_id = $1 AND external_id = $2',
+        [syncPropertyId, String(roomId)]
+      );
+      if (existingSyncRoom.rows.length > 0) {
+        await pool.query('UPDATE gas_sync_room_types SET gas_room_id = $1, name = $2, unit_count = $3, synced_at = NOW() WHERE id = $4',
+          [gasRoomId, roomName, qty, existingSyncRoom.rows[0].id]);
+      } else {
+        await pool.query(`
+          INSERT INTO gas_sync_room_types (sync_property_id, connection_id, external_id, gas_room_id, name, unit_count, synced_at)
+          VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        `, [syncPropertyId, parseInt(connectionId), String(roomId), gasRoomId, roomName, qty]);
+      }
+    }
+
+    // Update connection sync time
+    await pool.query(`
+      UPDATE gas_sync_connections SET last_sync_at = NOW(), status = 'connected', updated_at = NOW() WHERE id = $1
+    `, [connectionId]);
+
+    const stats = { property: propName, gasPropertyId, roomsCreated, roomsUpdated, totalRooms: Object.keys(roomTypes).length };
+    console.log(`[Beds24 Marketplace Sync] Done:`, stats);
+    res.json({ success: true, ...stats, message: `Synced "${propName}" — ${roomsCreated} rooms created, ${roomsUpdated} updated` });
+  } catch (error) {
+    console.error('[Beds24 Marketplace Sync] Error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Helper: Set Beds24 webhook for a property via V2 API
 async function setBeds24Webhook(accessToken, beds24PropertyId, existingWebhookUrl, extraHeaders) {
     try {
@@ -72614,13 +72746,28 @@ app.post('/api/gas-sync/connections/:id/sync', async (req, res) => {
     const { id } = req.params;
     const { type = 'full', syncType } = req.body;  // Default to full, accept both type and syncType
     const actualType = syncType || type;
-    
+
+    // Route marketplace connections to dedicated handler
+    const connCheck = await pool.query('SELECT adapter_code FROM gas_sync_connections WHERE id = $1', [id]);
+    if (connCheck.rows.length > 0 && connCheck.rows[0].adapter_code === 'beds24-marketplace') {
+      // Forward to marketplace sync endpoint
+      const port = process.env.PORT || 3000;
+      try {
+        const mpResp = await axios.post(`http://localhost:${port}/api/gas-sync/connections/${id}/sync-marketplace`, {}, {
+          headers: req.headers.authorization ? { authorization: req.headers.authorization } : {}
+        });
+        return res.json(mpResp.data);
+      } catch (mpErr) {
+        return res.json({ success: false, error: mpErr.response?.data?.error || mpErr.message });
+      }
+    }
+
     console.log(`Starting ${actualType} sync for connection ${id}`);
-    
+
     await pool.query(`
       UPDATE gas_sync_connections SET status = 'syncing', updated_at = NOW() WHERE id = $1
     `, [id]);
-    
+
     syncManager.syncConnection(id, actualType)
       .then(async (result) => {
         await pool.query(`
