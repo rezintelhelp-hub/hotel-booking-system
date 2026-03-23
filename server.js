@@ -623,6 +623,10 @@ function generateGroupBookingConfirmationEmail(groupBookingId, bookings, rooms, 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Force pg to return DATE columns as plain strings (no timezone shift)
+const pg = require('pg');
+pg.types.setTypeParser(pg.types.builtins.DATE, val => val); // Return "2026-03-24" as-is
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
