@@ -80669,7 +80669,7 @@ async function proBuilderFetchContent(blogId, pageId) {
   );
   const licenseKey = license.rows.length > 0 ? license.rows[0].license_key : '';
 
-  const wpRes = await fetch(`${siteUrl}/wp-json/gas/v1/page-content/${pageId}?api_key=${encodeURIComponent(licenseKey)}`, {
+  const wpRes = await fetch(`${siteUrl}/wp-json/gas/v1/page-content/${pageId}?api_key=${encodeURIComponent(licenseKey)}&_t=${Date.now()}`, {
     signal: AbortSignal.timeout(15000)
   });
   if (!wpRes.ok) return { error: `WordPress API returned ${wpRes.status}` };
