@@ -74070,8 +74070,9 @@ async function runGasSyncScheduler() {
     console.error('[GAS Sync Scheduler] Error:', error.message);
   }
 }
-setInterval(runGasSyncScheduler, GAS_SYNC_CYCLE_MS);
-setTimeout(runGasSyncScheduler, 30000); // First run 30s after startup
+// DISABLED — tiered sync handles price/availability, full sync only on manual trigger
+// setInterval(runGasSyncScheduler, GAS_SYNC_CYCLE_MS);
+// setTimeout(runGasSyncScheduler, 30000);
 
 // =====================================================
 // SYNC COMPARISON & RECONCILIATION
@@ -81832,29 +81833,43 @@ app.listen(PORT, '0.0.0.0', async () => {
 // Runs automatically - no external cron needed
 // =====================================================
 
+// Track which connections have been synced this rotation
+let _tieredSyncOffset = 0;
+const TIERED_SYNC_CONNECTIONS_PER_CYCLE = 2;
+const TIERED_SYNC_ROOM_DELAY_MS = 1500; // 1.5 seconds between rooms
+
 async function runTieredSync() {
-  console.log('⏰ [Tiered Sync] Starting automatic sync...');
-  
   try {
     await ensureTierTrackingColumns();
-    
+
     const now = new Date();
     let totalRoomsSynced = 0;
     let totalDaysUpdated = 0;
     const errors = [];
-    
-    // Get all active Beds24 connections
+
+    // Get all active Beds24 connections, prioritise accounts 98, 222, 224
     const connections = await pool.query(`
-      SELECT * FROM gas_sync_connections 
+      SELECT * FROM gas_sync_connections
       WHERE adapter_code = 'beds24' AND sync_enabled = true AND status != 'syncing'
+      ORDER BY
+        CASE WHEN account_id IN (98, 222, 224) THEN 0 ELSE 1 END,
+        last_sync_at ASC NULLS FIRST
     `);
-    
+
     if (connections.rows.length === 0) {
       console.log('⏰ [Tiered Sync] No active Beds24 connections found');
       return;
     }
-    
-    for (const conn of connections.rows) {
+
+    // Pick the next batch of connections (round-robin)
+    const total = connections.rows.length;
+    if (_tieredSyncOffset >= total) _tieredSyncOffset = 0;
+    const batch = connections.rows.slice(_tieredSyncOffset, _tieredSyncOffset + TIERED_SYNC_CONNECTIONS_PER_CYCLE);
+    _tieredSyncOffset += TIERED_SYNC_CONNECTIONS_PER_CYCLE;
+
+    console.log(`⏰ [Tiered Sync] Processing ${batch.length}/${total} connections (offset ${_tieredSyncOffset - TIERED_SYNC_CONNECTIONS_PER_CYCLE}): accounts ${batch.map(c => c.account_id).join(', ')}`);
+
+    for (const conn of batch) {
       let accessToken = conn.access_token;
       
       // Always try to refresh token - access tokens expire quickly
@@ -82076,10 +82091,12 @@ async function runTieredSync() {
           }
         }
       }
+      // Pause between connections to avoid hammering Beds24
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
-    
+
     if (totalRoomsSynced > 0) {
-      console.log(`⏰ [Tiered Sync] Complete: ${totalRoomsSynced} rooms, ${totalDaysUpdated} days updated`);
+      console.log(`⏰ [Tiered Sync] Complete: ${totalRoomsSynced} rooms, ${totalDaysUpdated} days updated (${batch.length} connections)`);
     }
     
   } catch (error) {
