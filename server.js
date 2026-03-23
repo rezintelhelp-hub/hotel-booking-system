@@ -15075,18 +15075,24 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     }
 
     // 4. Import ALL images from top-level images (hosted + external)
+    //    Beds24 returns images as OBJECTS keyed by number, not arrays — use Object.values()
     //    Each image has a map[] array — map[].roomId = room image, map[].propId = property image
-    //    This matches how the old server processes images
+    //    caption is { "EN": "text" } not a plain string
     const allImages = [];
-    if (Array.isArray(propContent.images?.hosted)) allImages.push(...propContent.images.hosted);
-    if (Array.isArray(propContent.images?.external)) allImages.push(...propContent.images.external);
+    const hosted = propContent.images?.hosted;
+    const external = propContent.images?.external;
+    if (hosted && typeof hosted === 'object') allImages.push(...(Array.isArray(hosted) ? hosted : Object.values(hosted)));
+    if (external && typeof external === 'object') allImages.push(...(Array.isArray(external) ? external : Object.values(external)));
     let roomImagesImported = 0, propImagesImported = 0;
     const roomImgCounters = {};
     let propImgCounter = 0;
 
     for (const img of allImages) {
       if (!img.url) continue;
+      const caption = typeof img.caption === 'object' ? (img.caption?.EN || '') : (img.caption || '');
       const maps = Array.isArray(img.map) ? img.map : [];
+      let assignedToRoom = false;
+
       for (const mapping of maps) {
         if (mapping.offerId) continue; // skip offer images
 
@@ -15099,27 +15105,35 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
           );
           if (existing.rows.length === 0) {
             roomImgCounters[mapping.roomId] = (roomImgCounters[mapping.roomId] || 0) + 1;
-            const pos = mapping.position || roomImgCounters[mapping.roomId];
+            const pos = parseInt(mapping.position) || roomImgCounters[mapping.roomId];
             await pool.query(`
               INSERT INTO room_images (room_id, image_key, image_url, caption, display_order, upload_source, created_at)
               VALUES ($1, $2, $3, $4, $5, 'beds24-marketplace', NOW())`,
-              [gasRoomId, `beds24-${mapping.roomId}-${pos}`, img.url, img.caption || '', pos]);
+              [gasRoomId, `beds24-${mapping.roomId}-${pos}`, img.url, caption, pos]);
             roomImagesImported++;
           }
-        } else if (mapping.propId) {
-          // Property image
-          const existing = await pool.query(
-            'SELECT id FROM property_images WHERE property_id = $1 AND image_url = $2',
-            [gasPropertyId, img.url]
-          );
-          if (existing.rows.length === 0) {
-            propImgCounter++;
-            const pos = mapping.position || propImgCounter;
-            await pool.query(`
-              INSERT INTO property_images (property_id, image_key, image_url, caption, sort_order, created_at)
-              VALUES ($1, $2, $3, $4, $5, NOW())`,
-              [gasPropertyId, `beds24-prop-${targetPropId}-${pos}`, img.url, img.caption || '', pos]);
-            propImagesImported++;
+          assignedToRoom = true;
+        }
+      }
+
+      // If image has propId mapping and wasn't assigned to a room, it's a property-level image
+      if (!assignedToRoom) {
+        for (const mapping of maps) {
+          if (mapping.propId && !mapping.offerId) {
+            const existing = await pool.query(
+              'SELECT id FROM property_images WHERE property_id = $1 AND image_url = $2',
+              [gasPropertyId, img.url]
+            );
+            if (existing.rows.length === 0) {
+              propImgCounter++;
+              const pos = parseInt(mapping.position) || propImgCounter;
+              await pool.query(`
+                INSERT INTO property_images (property_id, image_key, image_url, caption, sort_order, created_at)
+                VALUES ($1, $2, $3, $4, $5, NOW())`,
+                [gasPropertyId, `beds24-prop-${targetPropId}-${pos}`, img.url, caption, pos]);
+              propImagesImported++;
+            }
+            break; // only insert once per image for property
           }
         }
       }
