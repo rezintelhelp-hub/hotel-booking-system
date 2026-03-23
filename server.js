@@ -15021,8 +15021,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
 
       // Import room images
       const roomImages = [];
-      if (room.images?.external) roomImages.push(...room.images.external);
-      if (room.images?.hosted) roomImages.push(...room.images.hosted);
+      if (Array.isArray(room.images?.external)) roomImages.push(...room.images.external);
+      if (Array.isArray(room.images?.hosted)) roomImages.push(...room.images.hosted);
       for (let imgIdx = 0; imgIdx < roomImages.length; imgIdx++) {
         const img = roomImages[imgIdx];
         if (!img.url) continue;
@@ -15057,8 +15057,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
 
     // 4. Import property-level images
     const propImages = [];
-    if (propContent.images?.hosted) propImages.push(...propContent.images.hosted);
-    if (propContent.images?.external) propImages.push(...propContent.images.external);
+    if (Array.isArray(propContent.images?.hosted)) propImages.push(...propContent.images.hosted);
+    if (Array.isArray(propContent.images?.external)) propImages.push(...propContent.images.external);
     let propImagesImported = 0;
     for (let imgIdx = 0; imgIdx < propImages.length; imgIdx++) {
       const img = propImages[imgIdx];
