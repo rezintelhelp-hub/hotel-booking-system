@@ -14983,7 +14983,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
 
     // 3. Create or update rooms from roomIds (object keyed by roomId)
     const roomIds = propContent.roomIds && typeof propContent.roomIds === 'object' ? propContent.roomIds : {};
-    let roomsCreated = 0, roomsUpdated = 0, imagesImported = 0;
+    let roomsCreated = 0, roomsUpdated = 0;
+    const beds24RoomToGasRoom = {}; // maps Beds24 roomId → GAS bookable_unit id
 
     for (const [roomId, room] of Object.entries(roomIds)) {
       const roomTexts = room.texts || {};
@@ -14993,7 +14994,6 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
       const rackRate = room.rackRate ? parseFloat(room.rackRate) : 0;
       const minStay = room.minStay || 1;
 
-      // Create/update bookable_unit with rich data
       const existingRoom = await pool.query(
         'SELECT id FROM bookable_units WHERE cm_room_id = $1 AND property_id = $2',
         [String(roomId), gasPropertyId]
@@ -15018,26 +15018,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
         gasRoomId = roomResult.rows[0].id;
         roomsCreated++;
       }
-
-      // Import room images
-      const roomImages = [];
-      if (Array.isArray(room.images?.external)) roomImages.push(...room.images.external);
-      if (Array.isArray(room.images?.hosted)) roomImages.push(...room.images.hosted);
-      for (let imgIdx = 0; imgIdx < roomImages.length; imgIdx++) {
-        const img = roomImages[imgIdx];
-        if (!img.url) continue;
-        const existing = await pool.query(
-          'SELECT id FROM room_images WHERE room_id = $1 AND image_url = $2',
-          [gasRoomId, img.url]
-        );
-        if (existing.rows.length === 0) {
-          await pool.query(`
-            INSERT INTO room_images (room_id, image_key, image_url, caption, display_order, upload_source, created_at)
-            VALUES ($1, $2, $3, $4, $5, 'beds24-marketplace', NOW())`,
-            [gasRoomId, `beds24-${roomId}-${imgIdx}`, img.url, img.caption || '', imgIdx]);
-          imagesImported++;
-        }
-      }
+      beds24RoomToGasRoom[String(roomId)] = gasRoomId;
 
       // Create/update gas_sync_room_types
       const existingSyncRoom = await pool.query(
@@ -15055,27 +15036,54 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
       }
     }
 
-    // 4. Import property-level images
-    const propImages = [];
-    if (Array.isArray(propContent.images?.hosted)) propImages.push(...propContent.images.hosted);
-    if (Array.isArray(propContent.images?.external)) propImages.push(...propContent.images.external);
-    let propImagesImported = 0;
-    for (let imgIdx = 0; imgIdx < propImages.length; imgIdx++) {
-      const img = propImages[imgIdx];
+    // 4. Import ALL images from top-level images (hosted + external)
+    //    Each image has a map[] array — map[].roomId = room image, map[].propId = property image
+    //    This matches how the old server processes images
+    const allImages = [];
+    if (Array.isArray(propContent.images?.hosted)) allImages.push(...propContent.images.hosted);
+    if (Array.isArray(propContent.images?.external)) allImages.push(...propContent.images.external);
+    let roomImagesImported = 0, propImagesImported = 0;
+    const roomImgCounters = {};
+    let propImgCounter = 0;
+
+    for (const img of allImages) {
       if (!img.url) continue;
-      // Skip images mapped to specific rooms (already handled above) or offers
-      const mapping = (img.map || [])[0];
-      if (mapping?.roomId || mapping?.offerId) continue;
-      const existing = await pool.query(
-        'SELECT id FROM property_images WHERE property_id = $1 AND image_url = $2',
-        [gasPropertyId, img.url]
-      );
-      if (existing.rows.length === 0) {
-        await pool.query(`
-          INSERT INTO property_images (property_id, image_key, image_url, caption, sort_order, created_at)
-          VALUES ($1, $2, $3, $4, $5, NOW())`,
-          [gasPropertyId, `beds24-prop-${targetPropId}-${imgIdx}`, img.url, img.caption || '', imgIdx]);
-        propImagesImported++;
+      const maps = Array.isArray(img.map) ? img.map : [];
+      for (const mapping of maps) {
+        if (mapping.offerId) continue; // skip offer images
+
+        if (mapping.roomId && beds24RoomToGasRoom[String(mapping.roomId)]) {
+          // Room image
+          const gasRoomId = beds24RoomToGasRoom[String(mapping.roomId)];
+          const existing = await pool.query(
+            'SELECT id FROM room_images WHERE room_id = $1 AND image_url = $2',
+            [gasRoomId, img.url]
+          );
+          if (existing.rows.length === 0) {
+            roomImgCounters[mapping.roomId] = (roomImgCounters[mapping.roomId] || 0) + 1;
+            const pos = mapping.position || roomImgCounters[mapping.roomId];
+            await pool.query(`
+              INSERT INTO room_images (room_id, image_key, image_url, caption, display_order, upload_source, created_at)
+              VALUES ($1, $2, $3, $4, $5, 'beds24-marketplace', NOW())`,
+              [gasRoomId, `beds24-${mapping.roomId}-${pos}`, img.url, img.caption || '', pos]);
+            roomImagesImported++;
+          }
+        } else if (mapping.propId) {
+          // Property image
+          const existing = await pool.query(
+            'SELECT id FROM property_images WHERE property_id = $1 AND image_url = $2',
+            [gasPropertyId, img.url]
+          );
+          if (existing.rows.length === 0) {
+            propImgCounter++;
+            const pos = mapping.position || propImgCounter;
+            await pool.query(`
+              INSERT INTO property_images (property_id, image_key, image_url, caption, sort_order, created_at)
+              VALUES ($1, $2, $3, $4, $5, NOW())`,
+              [gasPropertyId, `beds24-prop-${targetPropId}-${pos}`, img.url, img.caption || '', pos]);
+            propImagesImported++;
+          }
+        }
       }
     }
 
@@ -15087,11 +15095,11 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     const stats = {
       property: propName, gasPropertyId, roomsCreated, roomsUpdated,
       totalRooms: Object.keys(roomIds).length,
-      roomImages: imagesImported, propertyImages: propImagesImported
+      roomImages: roomImagesImported, propertyImages: propImagesImported
     };
     console.log(`[Beds24 Marketplace Sync] Done:`, stats);
     res.json({ success: true, ...stats,
-      message: `Synced "${propName}" — ${roomsCreated} rooms created, ${roomsUpdated} updated, ${imagesImported + propImagesImported} images imported`
+      message: `Synced "${propName}" — ${roomsCreated} rooms created, ${roomsUpdated} updated, ${roomImagesImported + propImagesImported} images imported`
     });
   } catch (error) {
     console.error('[Beds24 Marketplace Sync] Error:', error.message);
