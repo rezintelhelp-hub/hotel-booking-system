@@ -14707,8 +14707,8 @@ async function getBeds24Token(accountId, beds24PropId) {
 async function beds24MarketplaceRequest(endpoint, extraData = {}) {
   const user = process.env.BEDS24_MARKETPLACE_USER;
   const pass = process.env.BEDS24_MARKETPLACE_PASS;
-  const apiKey = process.env.BEDS24_MARKETPLACE_APIKEY;
-  if (!user || !pass || !apiKey) throw new Error('BEDS24_MARKETPLACE_USER/PASS/APIKEY env vars not set');
+  const apiKey = process.env.BEDS24_MASTER_API_KEY || process.env.BEDS24_MARKETPLACE_APIKEY;
+  if (!user || !pass || !apiKey) throw new Error('BEDS24_MARKETPLACE_USER/PASS and BEDS24_MASTER_API_KEY env vars not set');
   const url = `https://api.beds24.com/rezintel.net/${endpoint}`;
   const jsonData = { authentication: { apiKey }, ...extraData };
   const response = await axios.post(url, `json=${encodeURIComponent(JSON.stringify(jsonData))}`, {
