@@ -74033,31 +74033,45 @@ app.post('/api/gas-sync/cron/sync', async (req, res) => {
   }
 });
 
-// Internal scheduler for gas_sync_connections (runs every 5 minutes, processes up to 10 due connections)
+// Internal scheduler for gas_sync_connections
+// - 2 connections per cycle, 5 min interval = ~75 min to cover all 46
+// - 1 second delay between rooms within a connection
+// - Incremental sync = 30 days (not full 365)
+const GAS_SYNC_CONNECTIONS_PER_CYCLE = 2;
+const GAS_SYNC_CYCLE_MS = 5 * 60 * 1000; // 5 minutes
+const GAS_SYNC_ROOM_DELAY_MS = 1000; // 1 second between rooms
+
 async function runGasSyncScheduler() {
   try {
     const dueConnections = await pool.query(`
-      SELECT id FROM gas_sync_connections
+      SELECT id, account_id FROM gas_sync_connections
       WHERE sync_enabled = true
         AND status != 'syncing'
         AND (next_sync_at IS NULL OR next_sync_at <= NOW())
-      LIMIT 10
-    `);
+      ORDER BY
+        CASE WHEN account_id IN (98, 222, 224) THEN 0 ELSE 1 END,
+        next_sync_at ASC NULLS FIRST
+      LIMIT $1
+    `, [GAS_SYNC_CONNECTIONS_PER_CYCLE]);
     if (dueConnections.rows.length === 0) return;
-    console.log(`[GAS Sync Scheduler] ${dueConnections.rows.length} connections due for sync`);
+    console.log(`[GAS Sync Scheduler] ${dueConnections.rows.length} connections due (accounts: ${dueConnections.rows.map(r => r.account_id).join(', ')})`);
     for (const conn of dueConnections.rows) {
       try {
         await syncManager.syncConnection(conn.id, 'incremental');
       } catch (error) {
-        console.error(`[GAS Sync Scheduler] Connection ${conn.id} failed:`, error.message);
+        console.error(`[GAS Sync Scheduler] Connection ${conn.id} (account ${conn.account_id}) failed:`, error.message);
+      }
+      // Pause between connections to avoid hammering Beds24
+      if (dueConnections.rows.indexOf(conn) < dueConnections.rows.length - 1) {
+        await new Promise(r => setTimeout(r, 3000));
       }
     }
   } catch (error) {
     console.error('[GAS Sync Scheduler] Error:', error.message);
   }
 }
-setInterval(runGasSyncScheduler, 5 * 60 * 1000); // Every 5 minutes
-setTimeout(runGasSyncScheduler, 60000); // First run 60s after startup
+setInterval(runGasSyncScheduler, GAS_SYNC_CYCLE_MS);
+setTimeout(runGasSyncScheduler, 30000); // First run 30s after startup
 
 // =====================================================
 // SYNC COMPARISON & RECONCILIATION
