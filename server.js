@@ -81837,6 +81837,7 @@ app.listen(PORT, '0.0.0.0', async () => {
 let _tieredSyncOffset = 0;
 const TIERED_SYNC_CONNECTIONS_PER_CYCLE = 2;
 const TIERED_SYNC_ROOM_DELAY_MS = 1500; // 1.5 seconds between rooms
+const _tieredSyncFailCounts = {}; // Track consecutive failures per connection
 
 async function runTieredSync() {
   try {
@@ -81884,6 +81885,17 @@ async function runTieredSync() {
         } catch (e) {
           console.error(`⏰ [Tiered Sync] Token refresh failed for connection ${conn.id}: ${e.message}`);
           errors.push({ connection: conn.id, error: 'Token refresh failed: ' + e.message });
+          // Track consecutive failures — alert on 3rd
+          const failKey = `sync_fail_${conn.id}`;
+          _tieredSyncFailCounts[failKey] = (_tieredSyncFailCounts[failKey] || 0) + 1;
+          if (_tieredSyncFailCounts[failKey] >= 3 && process.env.SLACK_WEBHOOK_URL) {
+            try {
+              await axios.post(process.env.SLACK_WEBHOOK_URL, {
+                text: `⚠️ *Beds24 Sync Alert*\nAccount ${conn.account_id} (connection ${conn.id}) has failed token refresh ${_tieredSyncFailCounts[failKey]} times in a row.\nLast error: ${e.message}`
+              });
+              _tieredSyncFailCounts[failKey] = 0; // Reset after alerting
+            } catch (slackErr) { /* ignore */ }
+          }
           continue;
         }
       }
@@ -82083,14 +82095,25 @@ async function runTieredSync() {
             console.error(`  ✗ ${room.name}: ${roomError.message}`);
             errors.push({ room: room.id, name: room.name, tier: tier.tier, error: roomError.message });
             
-            // If rate limited, stop and wait longer
-            if (roomError.response?.status === 429) {
-              console.log(`⏰ [Tiered Sync] Rate limited! Stopping this run.`);
+            // If rate limited or blocked, alert and stop
+            if (roomError.response?.status === 429 || roomError.response?.status === 403) {
+              const statusCode = roomError.response?.status;
+              console.error(`⏰ [Tiered Sync] ${statusCode === 429 ? 'Rate limited' : 'Blocked'} by Beds24! Stopping this run.`);
+              // Send Slack alert
+              if (process.env.SLACK_WEBHOOK_URL) {
+                try {
+                  await axios.post(process.env.SLACK_WEBHOOK_URL, {
+                    text: `🚨 *Beds24 Sync Alert*\n${statusCode === 429 ? 'Rate limited (429)' : 'Blocked (403)'} while syncing account ${conn.account_id} room "${room.name}"\nSync paused — will retry next cycle in 15 minutes.`
+                  });
+                } catch (slackErr) { /* ignore slack failures */ }
+              }
               return;
             }
           }
         }
       }
+      // Reset fail count on successful connection sync
+      _tieredSyncFailCounts[`sync_fail_${conn.id}`] = 0;
       // Pause between connections to avoid hammering Beds24
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
