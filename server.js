@@ -14884,20 +14884,17 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
       }
     }
 
-    // Step 2: Fetch rich property data via Beds24 V1 API (propKey is a V1 API key)
-    console.log(`[Beds24 Marketplace Sync] Fetching getPropertyContent via V1 API for propKey: ${targetPropKey}`);
+    // Step 2: Fetch rich property data via marketplace API (same auth as getAccounts)
+    console.log(`[Beds24 Marketplace Sync] Fetching getPropertyContent via marketplace for propKey: ${targetPropKey}`);
     let contentData;
     try {
-      const v1Url = 'https://api.beds24.com/json/getPropertyContent';
-      const v1Body = {
-        authentication: { propKey: targetPropKey },
+      contentData = await beds24MarketplaceRequest('getPropertyContent', {
+        propKey: targetPropKey,
         texts: ['EN'],
         roomIds: true,
         images: true,
         bookingData: true
-      };
-      const v1Resp = await axios.post(v1Url, v1Body, { timeout: 30000 });
-      contentData = v1Resp.data;
+      });
     } catch (contentErr) {
       console.error('[Beds24 Marketplace Sync] getPropertyContent failed:', contentErr.message);
       return res.json({ success: false, error: 'getPropertyContent failed: ' + contentErr.message });
