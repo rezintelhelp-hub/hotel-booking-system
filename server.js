@@ -14702,6 +14702,53 @@ async function getBeds24Token(accountId, beds24PropId) {
   }
 }
 
+// ─── Beds24 Marketplace (rezintel.net) helper ───
+async function beds24MarketplaceRequest(endpoint, params = {}) {
+  const user = process.env.BEDS24_MARKETPLACE_USER;
+  const pass = process.env.BEDS24_MARKETPLACE_PASS;
+  if (!user || !pass) throw new Error('BEDS24_MARKETPLACE_USER/PASS env vars not set');
+  const url = `https://api.beds24.com/rezintel.net/${endpoint}`;
+  const auth = Buffer.from(`${user}:${pass}`).toString('base64');
+  const response = await axios.get(url, {
+    headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' },
+    params
+  });
+  return response.data;
+}
+
+// Connect account via Beds24 marketplace (master admin only)
+app.post('/api/accounts/:id/beds24v2/connect', async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Test marketplace by fetching properties
+    const data = await beds24MarketplaceRequest('getProperties', {});
+    const properties = Array.isArray(data) ? data : (data.properties || []);
+    if (!properties.length) {
+      return res.json({ success: false, error: 'Marketplace returned no properties' });
+    }
+    res.json({
+      success: true,
+      message: `Marketplace connection working. Found ${properties.length} properties.`,
+      properties: properties.map(p => ({ id: p.id || p.propId, name: p.name }))
+    });
+  } catch (error) {
+    console.error('[Beds24 Marketplace] Connect test error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.response?.data?.error || error.message });
+  }
+});
+
+// List properties via Beds24 marketplace
+app.get('/api/accounts/:id/beds24v2/properties', async (req, res) => {
+  try {
+    const data = await beds24MarketplaceRequest('getProperties', {});
+    const properties = Array.isArray(data) ? data : (data.properties || []);
+    res.json({ success: true, properties });
+  } catch (error) {
+    console.error('[Beds24 Marketplace] List properties error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.response?.data?.error || error.message });
+  }
+});
+
 // Helper: Set Beds24 webhook for a property via V2 API
 async function setBeds24Webhook(accessToken, beds24PropertyId, existingWebhookUrl, extraHeaders) {
     try {
