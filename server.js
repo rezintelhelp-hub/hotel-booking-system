@@ -14748,11 +14748,22 @@ app.post('/api/accounts/:id/beds24v2/connect', async (req, res) => {
   }
 });
 
-// List properties via Beds24 marketplace
+// List properties via Beds24 marketplace (debug — shows structure of first account)
 app.get('/api/accounts/:id/beds24v2/properties', async (req, res) => {
   try {
     const data = await beds24MarketplaceRequest('getAccounts', {});
-    res.json({ success: true, raw: data });
+    const accountsObj = data?.getAccounts || data;
+    const keys = Object.keys(accountsObj || {});
+    const firstKey = keys[0];
+    const firstAccount = firstKey ? accountsObj[firstKey] : null;
+    res.json({
+      success: true,
+      total_accounts: keys.length,
+      top_level_keys: Object.keys(data || {}),
+      first_account_key: firstKey,
+      first_account_keys: firstAccount ? Object.keys(firstAccount) : [],
+      first_account_sample: firstAccount ? JSON.stringify(firstAccount).substring(0, 2000) : null
+    });
   } catch (error) {
     console.error('[Beds24 Marketplace] List properties error:', error.response?.data || error.message);
     res.json({ success: false, error: error.response?.data?.error || error.message });
