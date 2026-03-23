@@ -14798,6 +14798,44 @@ app.get('/api/accounts/:id/beds24v2/properties', async (req, res) => {
   }
 });
 
+// Debug: raw getPropertyContent response for a marketplace connection
+app.get('/api/gas-sync/connections/:connectionId/debug-content', async (req, res) => {
+  try {
+    const conn = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [req.params.connectionId]);
+    if (conn.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const connection = conn.rows[0];
+    const creds = typeof connection.credentials === 'string' ? JSON.parse(connection.credentials) : (connection.credentials || {});
+    let propKey = creds.propKey;
+    if (!propKey || propKey === String(creds.propId)) {
+      const acctData = await beds24MarketplaceRequest('getAccounts', {});
+      const b24Prop = acctData?.getAccounts?.[creds.ownerId]?.properties?.[creds.propId];
+      propKey = b24Prop?.propKey || creds.propId;
+    }
+    const contentData = await beds24MarketplaceRequest('getPropertyContent', {
+      texts: ['EN'], roomIds: true, images: true, bookingData: true
+    }, { propKey });
+    const propContent = Array.isArray(contentData?.getPropertyContent) ? contentData.getPropertyContent[0] : contentData;
+    res.json({
+      propKey,
+      topLevelKeys: Object.keys(propContent || {}),
+      hasImages: !!propContent?.images,
+      imageKeys: propContent?.images ? Object.keys(propContent.images) : [],
+      hostedCount: Array.isArray(propContent?.images?.hosted) ? propContent.images.hosted.length : typeof propContent?.images?.hosted,
+      externalCount: Array.isArray(propContent?.images?.external) ? propContent.images.external.length : typeof propContent?.images?.external,
+      firstHosted: Array.isArray(propContent?.images?.hosted) ? propContent.images.hosted[0] : propContent?.images?.hosted,
+      firstExternal: Array.isArray(propContent?.images?.external) ? propContent.images.external[0] : propContent?.images?.external,
+      roomIdKeys: propContent?.roomIds ? Object.keys(propContent.roomIds) : [],
+      firstRoomSample: propContent?.roomIds ? (() => {
+        const firstKey = Object.keys(propContent.roomIds)[0];
+        const r = propContent.roomIds[firstKey];
+        return { keys: Object.keys(r || {}), hasImages: !!r?.images, imageKeys: r?.images ? Object.keys(r.images) : [] };
+      })() : null
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Link a Beds24 marketplace property to a GAS account (master admin only)
 // Creates a gas_sync_connections row with adapter_code='beds24-marketplace' — does NOT touch existing beds24 connections
 app.post('/api/accounts/:id/beds24v2/link', async (req, res) => {
