@@ -14862,11 +14862,29 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
 
     const creds = typeof connection.credentials === 'string' ? JSON.parse(connection.credentials) : (connection.credentials || {});
     const targetPropId = String(creds.propId);
-    const targetPropKey = creds.propKey || targetPropId;
     const targetOwnerId = String(creds.ownerId);
     const accountId = connection.account_id;
 
-    // Fetch rich property data via getPropertyContent (V1 marketplace)
+    // Step 1: Get the real propKey from getAccounts (propKey != propId)
+    let targetPropKey = creds.propKey;
+    if (!targetPropKey || targetPropKey === targetPropId) {
+      console.log(`[Beds24 Marketplace Sync] Looking up real propKey from getAccounts for propId ${targetPropId}`);
+      const acctData = await beds24MarketplaceRequest('getAccounts', {});
+      const b24Acct = acctData?.getAccounts?.[targetOwnerId];
+      const b24Prop = b24Acct?.properties?.[targetPropId];
+      if (b24Prop?.propKey) {
+        targetPropKey = b24Prop.propKey;
+        // Store it in credentials for next time
+        creds.propKey = targetPropKey;
+        await pool.query('UPDATE gas_sync_connections SET credentials = $1 WHERE id = $2',
+          [JSON.stringify(creds), connectionId]);
+        console.log(`[Beds24 Marketplace Sync] Found and cached propKey: ${targetPropKey}`);
+      } else {
+        return res.json({ success: false, error: `Could not find propKey for propId ${targetPropId} under owner ${targetOwnerId}` });
+      }
+    }
+
+    // Step 2: Fetch rich property data via getPropertyContent (V1 marketplace)
     console.log(`[Beds24 Marketplace Sync] Fetching getPropertyContent for propKey: ${targetPropKey}`);
     let contentData;
     try {
