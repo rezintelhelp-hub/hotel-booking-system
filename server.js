@@ -14703,15 +14703,16 @@ async function getBeds24Token(accountId, beds24PropId) {
 }
 
 // ─── Beds24 Marketplace (rezintel.net) helper ───
-async function beds24MarketplaceRequest(endpoint, params = {}) {
+// Uses HTTP Basic Auth + POST with json= form data (same as old Rezintel server)
+async function beds24MarketplaceRequest(endpoint, jsonData = {}) {
   const user = process.env.BEDS24_MARKETPLACE_USER;
   const pass = process.env.BEDS24_MARKETPLACE_PASS;
   if (!user || !pass) throw new Error('BEDS24_MARKETPLACE_USER/PASS env vars not set');
   const url = `https://api.beds24.com/rezintel.net/${endpoint}`;
-  const auth = Buffer.from(`${user}:${pass}`).toString('base64');
-  const response = await axios.get(url, {
-    headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' },
-    params
+  const response = await axios.post(url, `json=${encodeURIComponent(JSON.stringify(jsonData))}`, {
+    auth: { username: user, password: pass },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    timeout: 30000
   });
   return response.data;
 }
@@ -14720,16 +14721,16 @@ async function beds24MarketplaceRequest(endpoint, params = {}) {
 app.post('/api/accounts/:id/beds24v2/connect', async (req, res) => {
   try {
     const { id } = req.params;
-    // Test marketplace by fetching properties
-    const data = await beds24MarketplaceRequest('getProperties', {});
-    const properties = Array.isArray(data) ? data : (data.properties || []);
-    if (!properties.length) {
-      return res.json({ success: false, error: 'Marketplace returned no properties' });
+    // Test marketplace by fetching accounts (lists all properties)
+    const data = await beds24MarketplaceRequest('getAccounts', {});
+    const accounts = Array.isArray(data) ? data : [];
+    if (!accounts.length) {
+      return res.json({ success: false, error: 'Marketplace returned no accounts/properties' });
     }
     res.json({
       success: true,
-      message: `Marketplace connection working. Found ${properties.length} properties.`,
-      properties: properties.map(p => ({ id: p.id || p.propId, name: p.name }))
+      message: `Marketplace connection working. Found ${accounts.length} properties.`,
+      properties: accounts.map(a => ({ id: a.propId || a.id, name: a.name || a.propName || `Property ${a.propId}` }))
     });
   } catch (error) {
     console.error('[Beds24 Marketplace] Connect test error:', error.response?.data || error.message);
@@ -14740,9 +14741,9 @@ app.post('/api/accounts/:id/beds24v2/connect', async (req, res) => {
 // List properties via Beds24 marketplace
 app.get('/api/accounts/:id/beds24v2/properties', async (req, res) => {
   try {
-    const data = await beds24MarketplaceRequest('getProperties', {});
-    const properties = Array.isArray(data) ? data : (data.properties || []);
-    res.json({ success: true, properties });
+    const data = await beds24MarketplaceRequest('getAccounts', {});
+    const accounts = Array.isArray(data) ? data : [];
+    res.json({ success: true, properties: accounts });
   } catch (error) {
     console.error('[Beds24 Marketplace] List properties error:', error.response?.data || error.message);
     res.json({ success: false, error: error.response?.data?.error || error.message });
