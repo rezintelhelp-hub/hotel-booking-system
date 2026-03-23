@@ -2,7 +2,7 @@
 /**
  * Plugin Name: GAS Template Push
  * Description: Receives Elementor and Gutenberg templates from GAS Admin and injects them into pages.
- * Version: 1.4.0
+ * Version: 1.4.1
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-template-push
@@ -538,11 +538,41 @@ class GAS_Template_Push {
             return new WP_REST_Response(array('success' => false, 'error' => 'pages array is required'), 400);
         }
 
+        // Update page menu_order
         foreach ($pages as $item) {
             $pid = isset($item['page_id']) ? intval($item['page_id']) : 0;
             $order = isset($item['menu_order']) ? intval($item['menu_order']) : 0;
             if ($pid) {
                 wp_update_post(array('ID' => $pid, 'menu_order' => $order));
+            }
+        }
+
+        // Also reorder nav menu items to match page order
+        $menu_id = $this->get_primary_menu_id();
+        if ($menu_id) {
+            $menu_items = wp_get_nav_menu_items($menu_id);
+            if ($menu_items) {
+                // Build page_id → new position map
+                $order_map = array();
+                foreach ($pages as $item) {
+                    $pid = isset($item['page_id']) ? intval($item['page_id']) : 0;
+                    $order = isset($item['menu_order']) ? intval($item['menu_order']) : 0;
+                    if ($pid) $order_map[$pid] = $order;
+                }
+                // Update each nav menu item's position to match its page's new order
+                foreach ($menu_items as $mi) {
+                    if ($mi->object === 'page' && isset($order_map[intval($mi->object_id)])) {
+                        wp_update_nav_menu_item($menu_id, $mi->ID, array(
+                            'menu-item-title'     => $mi->title,
+                            'menu-item-object'    => 'page',
+                            'menu-item-object-id' => $mi->object_id,
+                            'menu-item-type'      => 'post_type',
+                            'menu-item-status'    => 'publish',
+                            'menu-item-parent-id' => $mi->menu_item_parent,
+                            'menu-item-position'  => $order_map[intval($mi->object_id)],
+                        ));
+                    }
+                }
             }
         }
 
