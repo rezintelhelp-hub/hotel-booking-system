@@ -14900,9 +14900,22 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
       return res.json({ success: false, error: 'getPropertyContent failed: ' + contentErr.message });
     }
 
-    const propContent = Array.isArray(contentData?.getPropertyContent) ? contentData.getPropertyContent[0] : null;
+    console.log(`[Beds24 Marketplace Sync] getPropertyContent raw keys:`, Object.keys(contentData || {}));
+    console.log(`[Beds24 Marketplace Sync] getPropertyContent raw (first 2000):`, JSON.stringify(contentData).substring(0, 2000));
+
+    // Response could be array or object — handle both
+    let propContent = null;
+    if (Array.isArray(contentData?.getPropertyContent)) {
+      propContent = contentData.getPropertyContent[0];
+    } else if (contentData?.getPropertyContent && typeof contentData.getPropertyContent === 'object') {
+      // Could be keyed by propId
+      const values = Object.values(contentData.getPropertyContent);
+      propContent = values[0] || contentData.getPropertyContent;
+    } else if (Array.isArray(contentData)) {
+      propContent = contentData[0];
+    }
     if (!propContent) {
-      return res.json({ success: false, error: 'No property content returned from Beds24' });
+      return res.json({ success: false, error: 'No property content returned from Beds24', debug: { keys: Object.keys(contentData || {}), type: typeof contentData, sample: JSON.stringify(contentData).substring(0, 500) } });
     }
 
     // Extract property details
