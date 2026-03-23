@@ -626,6 +626,8 @@ const PORT = process.env.PORT || 3000;
 // Force pg to return DATE columns as plain strings (no timezone shift)
 const pg = require('pg');
 pg.types.setTypeParser(pg.types.builtins.DATE, val => val); // Return "2026-03-24" as-is
+// Safe date-to-string helper — works with both Date objects and plain strings
+function toDateStr(d) { return (typeof d === 'string') ? d.split('T')[0] : (d instanceof Date ? d.toISOString().split('T')[0] : String(d)); }
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -3101,7 +3103,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                 console.log(`[Beds24 Sync] Applying ${sourcePricesResult.rows.length} BASE prices to ${room.name} (x${multiplier}), own min_stay entries: ${Object.keys(ownMinStayMap).length}`);
                 
                 for (const row of sourcePricesResult.rows) {
-                  const dateStr = row.date.toISOString().split('T')[0];
+                  const dateStr = toDateStr(row.date);
                   const basePrice = parseFloat(row.cm_price);
                   const linkedPrice = (basePrice * multiplier) + offset;
                   // Use this room's OWN min_stay from its Beds24 calendar, fall back to source
@@ -9192,7 +9194,7 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                 
                 const sourcePriceMap = {};
                 for (const row of sourcePricesResult.rows) {
-                  const dateStr = row.date.toISOString().split('T')[0];
+                  const dateStr = toDateStr(row.date);
                   sourcePriceMap[dateStr] = { 
                     price: parseFloat(row.cm_price) || null, 
                     minStay: row.min_stay || 1 
@@ -43280,7 +43282,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
     // Build availability map
     const availMap = {};
     availability.rows.forEach(a => {
-      const dateStr = a.date.toISOString().split('T')[0];
+      const dateStr = toDateStr(a.date);
       // Calculate effective direct price
       let effectiveDirectPrice = a.direct_price;
       if (!effectiveDirectPrice && a.cm_price && a.direct_discount_percent) {
@@ -60739,7 +60741,7 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
     const availMap = {};
 
     availability.rows.forEach(a => {
-      const dateStr = a.date.toISOString().split('T')[0];
+      const dateStr = toDateStr(a.date);
       availMap[dateStr] = a;
     });
 
@@ -60885,7 +60887,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
     let current = new Date(check_in);
     for (let i = 0; i < nights; i++) {
       const dateStr = current.toISOString().split('T')[0];
-      const dayData = availability.rows.find(a => a.date.toISOString().split('T')[0] === dateStr);
+      const dayData = availability.rows.find(a => toDateStr(a.date) === dateStr);
       
       let nightPrice = dayData?.price ? parseFloat(dayData.price) : 0;
       if (!nightPrice && !dayData) {
@@ -60949,7 +60951,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       const blockedIndices = [];
       for (let i = 0; i < nights; i++) {
         const dateStr = nightlyBreakdown[i].date;
-        const dayData = availability.rows.find(a => a.date.toISOString().split('T')[0] === dateStr);
+        const dayData = availability.rows.find(a => toDateStr(a.date) === dateStr);
         if (dayData && (!dayData.is_available || dayData.is_blocked)) {
           blockedIndices.push(i);
         } else if (!dayData && !nightlyBreakdown[i].base_price) {
@@ -61276,11 +61278,11 @@ app.post('/api/public/calculate-price', async (req, res) => {
       dates_checked: nights,
       availability_rows_found: availability.rows.length,
       unavailable_dates: nightlyBreakdown.filter((n, i) => {
-        const dayData = availability.rows.find(a => a.date.toISOString().split('T')[0] === n.date);
+        const dayData = availability.rows.find(a => toDateStr(a.date) === n.date);
         return dayData && (!dayData.is_available || dayData.is_blocked);
       }).map(n => n.date),
       changeover_fix_applied: allAvailable && nightlyBreakdown.some((n) => {
-        const dayData = availability.rows.find(a => a.date.toISOString().split('T')[0] === n.date);
+        const dayData = availability.rows.find(a => toDateStr(a.date) === n.date);
         return dayData && (!dayData.is_available || dayData.is_blocked);
       })
     };
@@ -81951,7 +81953,7 @@ async function runTieredSync() {
                   
                   // Save prices to this linked room
                   for (const row of sourcePricesResult.rows) {
-                    const dateStr = row.date.toISOString().split('T')[0];
+                    const dateStr = toDateStr(row.date);
                     const basePrice = parseFloat(row.cm_price);
                     const linkedPrice = (basePrice * multiplier) + offset;
                     // Use this room's OWN min_stay from Beds24, fall back to source
