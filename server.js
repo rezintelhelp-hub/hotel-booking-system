@@ -44214,6 +44214,23 @@ app.post('/api/admin/availability', async (req, res) => {
   }
 });
 
+// Reset standard prices to CM prices for a room
+app.post('/api/admin/availability/reset-to-cm', async (req, res) => {
+  try {
+    const { room_id } = req.body;
+    if (!room_id) return res.json({ success: false, error: 'room_id required' });
+    const result = await pool.query(
+      `UPDATE room_availability SET standard_price = cm_price, updated_at = NOW()
+       WHERE room_id = $1 AND cm_price IS NOT NULL AND (standard_price IS NULL OR standard_price != cm_price)`,
+      [room_id]
+    );
+    res.json({ success: true, rows_updated: result.rowCount });
+  } catch (error) {
+    console.error('Reset to CM prices error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Migration: Create room_availability table
 app.post('/api/admin/migrate-availability', async (req, res) => {
   const client = await pool.connect();
