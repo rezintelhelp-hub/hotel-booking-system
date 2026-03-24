@@ -80916,6 +80916,37 @@ app.post('/api/pro-builder/sites/:blog_id/pages/:page_id/reorder', async (req, r
   }
 });
 
+// POST /api/pro-builder/sites/:blog_id/push-css — push custom CSS to WordPress theme
+app.post('/api/pro-builder/sites/:blog_id/push-css', async (req, res) => {
+  try {
+    const auth = await proBuilderAuth(req);
+    if (auth.error) return res.json({ success: false, error: auth.error });
+
+    const blogId = parseInt(req.params.blog_id);
+    const { css } = req.body;
+
+    // Get site URL and license key
+    const siteResult = await pool.query(
+      `SELECT ds.site_url, ds.license_key FROM deployed_sites ds WHERE ds.blog_id = $1 LIMIT 1`,
+      [blogId]
+    );
+    if (siteResult.rows.length === 0) return res.json({ success: false, error: 'Site not found' });
+
+    const { site_url, license_key } = siteResult.rows[0];
+    const wpUrl = site_url.replace(/\/$/, '');
+
+    const wpRes = await fetch(`${wpUrl}/wp-json/gas/v1/push-css`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: license_key, css: css || '' })
+    });
+    const wpData = await wpRes.json();
+    res.json(wpData);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // ─── Pro Builder: Page Management ──────────────────────────────────────
 
 // POST /api/pro-builder/sites/:blog_id/pages — create a new page
