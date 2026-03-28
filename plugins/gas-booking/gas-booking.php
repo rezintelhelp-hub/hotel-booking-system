@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.0
+ * Version: 3.6.1
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.0');
+define('GAS_BOOKING_VERSION', '3.6.1');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3423,9 +3423,16 @@ class GAS_Booking {
             'pricingTier' => get_option('gas_pricing_tier', 'standard'),
             'currentLanguage' => $current_lang,
             'spinnerStyle' => $spinner_style,
-            'nonce' => wp_create_nonce('gas_booking_nonce')
+            'nonce' => wp_create_nonce('gas_booking_nonce'),
+            'buttonColor' => $this->get_effective_button_color()
         ));
-        
+
+        // Inject CSS variable override for button colour
+        $btn_color = $this->get_effective_button_color();
+        if ($btn_color && $btn_color !== '#2563eb') {
+            wp_add_inline_style('gas-booking', ':root { --gas-primary: ' . esc_attr($btn_color) . '; --gas-primary-dark: ' . esc_attr($btn_color) . '; }');
+        }
+
         // Output custom CSS from settings - add to footer so it overrides inline styles
         add_action('wp_footer', array($this, 'output_custom_css'));
         add_action('wp_footer', array($this, 'fix_flatpickr_mobile'), 99);
