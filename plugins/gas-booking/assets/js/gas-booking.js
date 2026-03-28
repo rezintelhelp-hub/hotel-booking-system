@@ -736,6 +736,11 @@ jQuery(document).ready(function($) {
         if (checkout) params.push('checkout=' + checkout);
         if (guests) params.push('guests=' + guests);
 
+        // Preserve offer/property context from current URL
+        var curParams = new URLSearchParams(window.location.search);
+        if (curParams.get('offer_id')) params.push('offer_id=' + curParams.get('offer_id'));
+        if (curParams.get('property_id')) params.push('property_id=' + curParams.get('property_id'));
+
         var url = baseUrl;
         if (params.length > 0) {
             url += (baseUrl.indexOf('?') > -1 ? '&' : '?') + params.join('&');
@@ -2805,22 +2810,31 @@ jQuery(document).ready(function($) {
         sortRooms($(this).val());
     });
 
-    // Filter button
+    // Filter button — preserve offer/property context from URL
     $(document).on('click', '.gas-filter-btn', function() {
         var checkin = $('.gas-filter-checkin').val();
         var checkout = $('.gas-filter-checkout').val();
         var guests = $('.gas-filter-guests').val();
-        
+
         var params = [];
         if (checkin) params.push('checkin=' + checkin);
         if (checkout) params.push('checkout=' + checkout);
         if (guests) params.push('guests=' + guests);
-        
+
+        // Preserve offer and property context from original URL
+        var currentParams = new URLSearchParams(window.location.search);
+        var offerId = currentParams.get('offer_id');
+        var propertyId = currentParams.get('property_id');
+        var unitId = currentParams.get('unit_id');
+        if (offerId) params.push('offer_id=' + offerId);
+        if (propertyId) params.push('property_id=' + propertyId);
+        if (unitId) params.push('unit_id=' + unitId);
+
         var url = window.location.pathname;
         if (params.length > 0) {
             url += '?' + params.join('&');
         }
-        
+
         window.location.href = url;
     });
     
