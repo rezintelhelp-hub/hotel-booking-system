@@ -483,9 +483,10 @@ jQuery(document).ready(function($) {
                 }
             }
 
-            // Show offer banner if offer_id is in URL
+            // Show offer popup if offer_id is in URL — only on first visit (no dates selected yet)
             var urlOfferId = pageUrlParams.get('offer_id');
-            if (urlOfferId && gasBooking.apiUrl && gasBooking.clientId) {
+            var hasCheckin = pageUrlParams.get('checkin');
+            if (urlOfferId && !hasCheckin && gasBooking.apiUrl && gasBooking.clientId) {
                 $.ajax({
                     url: gasBooking.apiUrl + '/api/public/client/' + gasBooking.clientId + '/offers?include_future=1',
                     method: 'GET',
