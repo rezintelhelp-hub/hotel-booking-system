@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.1
+ * Version: 3.6.2
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.1');
+define('GAS_BOOKING_VERSION', '3.6.2');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3427,12 +3427,6 @@ class GAS_Booking {
             'buttonColor' => $this->get_effective_button_color()
         ));
 
-        // Inject CSS variable override for button colour
-        $btn_color = $this->get_effective_button_color();
-        if ($btn_color && $btn_color !== '#2563eb') {
-            wp_add_inline_style('gas-booking', ':root { --gas-primary: ' . esc_attr($btn_color) . '; --gas-primary-dark: ' . esc_attr($btn_color) . '; }');
-        }
-
         // Output custom CSS from settings - add to footer so it overrides inline styles
         add_action('wp_footer', array($this, 'output_custom_css'));
         add_action('wp_footer', array($this, 'fix_flatpickr_mobile'), 99);
@@ -3463,10 +3457,18 @@ class GAS_Booking {
             }
         }
         
+        // Inject button colour override from API
+        $btn_color = $this->get_effective_button_color();
+        if ($btn_color) {
+            $custom_css .= "/* button colour from API */\n";
+            $custom_css .= ":root { --gas-primary: {$btn_color} !important; --gas-primary-dark: {$btn_color} !important; }\n";
+            $custom_css .= ".gas-view-btn, .gas-row-view-btn, .gas-book-btn, .gas-check-btn { background: {$btn_color} !important; }\n\n";
+        }
+
         if (!empty($custom_css)) {
             echo "\n<style id=\"gas-custom-css\">\n" . $custom_css . "</style>\n";
         }
-        
+
         // Output font CSS variables
         $this->output_font_css();
     }
@@ -3814,45 +3816,39 @@ class GAS_Booking {
         if ($this->effective_button_color !== null) {
             return $this->effective_button_color;
         }
-        
+
         // Default from WordPress option
         $button_color = get_option('gas_button_color', '#667eea');
-        
-        // Check if GAS theme is active - if so, use API color
-        $current_theme = wp_get_theme();
-        $is_gas_theme = strpos(strtolower($current_theme->get('Name')), 'developer') !== false ||
-                        strpos(strtolower($current_theme->get('Name')), 'gas') !== false;
-        
-        if ($is_gas_theme) {
-            $client_id = get_option('gas_client_id', '');
-            if ($client_id) {
-                $cache_key = 'gas_booking_api_config_' . $client_id;
-                $api_cache = get_transient($cache_key);
-                
-                if (!$api_cache) {
-                    // Fetch fresh
-                    $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
-                    $response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config", array(
-                        'timeout' => 5,
-                    ));
-                    
-                    if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-                        $data = json_decode(wp_remote_retrieve_body($response), true);
-                        if (!empty($data['config'])) {
-                            $api_cache = $data['config'];
-                            set_transient($cache_key, $api_cache, 60);
-                        }
+
+        // Always try API if client_id is set (not just for GAS themes)
+        $client_id = get_option('gas_client_id', '');
+        if ($client_id) {
+            $cache_key = 'gas_booking_api_config_' . $client_id;
+            $api_cache = get_transient($cache_key);
+
+            if (!$api_cache) {
+                // Fetch fresh
+                $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
+                $response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config", array(
+                    'timeout' => 5,
+                ));
+
+                if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+                    $data = json_decode(wp_remote_retrieve_body($response), true);
+                    if (!empty($data['config'])) {
+                        $api_cache = $data['config'];
+                        set_transient($cache_key, $api_cache, 60);
                     }
                 }
-                
-                if (!empty($api_cache['website']['styles']['btn-primary-bg'])) {
-                    $button_color = $api_cache['website']['styles']['btn-primary-bg'];
-                } elseif (!empty($api_cache['website']['featured']['btn-bg'])) {
-                    $button_color = $api_cache['website']['featured']['btn-bg'];
-                }
+            }
+
+            if (!empty($api_cache['website']['styles']['btn-primary-bg'])) {
+                $button_color = $api_cache['website']['styles']['btn-primary-bg'];
+            } elseif (!empty($api_cache['website']['featured']['btn-bg'])) {
+                $button_color = $api_cache['website']['featured']['btn-bg'];
             }
         }
-        
+
         // Cache and return
         $this->effective_button_color = $button_color;
         return $button_color;
