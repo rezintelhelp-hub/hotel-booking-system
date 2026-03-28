@@ -482,6 +482,67 @@ jQuery(document).ready(function($) {
                     propSelect.dispatchEvent(new Event('change', { bubbles: true }));
                 }
             }
+
+            // Show offer banner if offer_id is in URL
+            var urlOfferId = pageUrlParams.get('offer_id');
+            if (urlOfferId && gasBooking.apiUrl && gasBooking.clientId) {
+                $.ajax({
+                    url: gasBooking.apiUrl + '/api/public/client/' + gasBooking.clientId + '/offers?include_future=1',
+                    method: 'GET',
+                    dataType: 'json',
+                    success: function(response) {
+                        var offers = response.offers || response.data || [];
+                        var offer = offers.find(function(o) { return String(o.id) === String(urlOfferId); });
+                        if (!offer) return;
+
+                        var discountText = '';
+                        if (offer.discount_type === 'percentage') discountText = Math.round(offer.discount_value) + '% OFF';
+                        else if (offer.discount_type === 'fixed') discountText = offer.discount_value + ' OFF';
+
+                        var dateText = '';
+                        if (offer.valid_from || offer.valid_until) {
+                            var fromStr = offer.valid_from ? new Date(offer.valid_from).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+                            var untilStr = offer.valid_until ? new Date(offer.valid_until).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+                            if (fromStr && untilStr) dateText = fromStr + ' — ' + untilStr;
+                            else if (untilStr) dateText = 'Until ' + untilStr;
+                        }
+
+                        var propertyText = offer.property_name ? offer.property_name : '';
+
+                        var bannerHtml = '<div id="gas-offer-banner" style="' +
+                            'background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; ' +
+                            'padding: 16px 24px; margin: 0 auto 20px; max-width: 1100px; border-radius: 12px; ' +
+                            'display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; ' +
+                            'box-shadow: 0 4px 12px rgba(5,150,105,0.3);">' +
+                            '<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">' +
+                                '<span style="font-size: 1.5rem;">🏷</span>' +
+                                '<div>' +
+                                    '<div style="font-weight: 700; font-size: 1.1rem;">' + (offer.name || 'Special Offer') +
+                                        (discountText ? ' <span style="background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 20px; font-size: 0.85rem; margin-left: 8px;">' + discountText + '</span>' : '') +
+                                    '</div>' +
+                                    (offer.description ? '<div style="opacity: 0.9; font-size: 0.9rem; margin-top: 2px;">' + offer.description + '</div>' : '') +
+                                '</div>' +
+                            '</div>' +
+                            '<div style="text-align: right; font-size: 0.85rem; opacity: 0.9;">' +
+                                (dateText ? '<div style="font-weight: 600;">Available: ' + dateText + '</div>' : '') +
+                                (propertyText ? '<div>' + propertyText + '</div>' : '') +
+                                '<div style="margin-top: 4px; font-size: 0.8rem;">Select dates within this period to apply the discount</div>' +
+                            '</div>' +
+                            '<button onclick="document.getElementById(\'gas-offer-banner\').remove()" style="background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer; opacity: 0.7; padding: 0 4px;">&times;</button>' +
+                        '</div>';
+
+                        // Insert banner at top of rooms container
+                        var container = document.querySelector('.gas-rooms-container, .gas-booking-wrapper, #gas-rooms');
+                        if (container) {
+                            container.insertAdjacentHTML('afterbegin', bannerHtml);
+                        } else {
+                            // Fallback: insert after first heading or at top of main content
+                            var main = document.querySelector('main, .entry-content, .page-content, .developer-page-content');
+                            if (main) main.insertAdjacentHTML('afterbegin', bannerHtml);
+                        }
+                    }
+                });
+            }
         }, 500);
 
         // Search widget date pickers - initialize each widget separately
