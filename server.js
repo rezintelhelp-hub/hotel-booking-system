@@ -14096,6 +14096,10 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
         const ruleNameObj = (typeof rawRuleName === 'object' && rawRuleName !== null) ? rawRuleName : (rawRuleName ? { en: rawRuleName } : null);
         const ruleNameJson = ruleNameObj ? JSON.stringify(ruleNameObj) : null;
         await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS rule_name_ml JSONB').catch(() => {});
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS schedule_mode VARCHAR(10) DEFAULT \'basic\'').catch(() => {});
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS payment_schedule JSONB').catch(() => {});
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS auto_charge_retry BOOLEAN DEFAULT false').catch(() => {});
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS max_retry_attempts INTEGER DEFAULT 3').catch(() => {});
 
         // Validate payment_schedule if provided
         if (schedule_mode === 'schedule' && payment_schedule) {
@@ -14173,6 +14177,10 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
         const ruleNameObj = (typeof rawRuleName === 'object' && rawRuleName !== null) ? rawRuleName : (rawRuleName ? { en: rawRuleName } : null);
         const ruleNameJson = ruleNameObj ? JSON.stringify(ruleNameObj) : null;
         await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS rule_name_ml JSONB').catch(() => {});
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS schedule_mode VARCHAR(10) DEFAULT \'basic\'').catch(() => {});
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS payment_schedule JSONB').catch(() => {});
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS auto_charge_retry BOOLEAN DEFAULT false').catch(() => {});
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS max_retry_attempts INTEGER DEFAULT 3').catch(() => {});
 
         // Validate payment_schedule if provided
         if (schedule_mode === 'schedule' && payment_schedule) {
