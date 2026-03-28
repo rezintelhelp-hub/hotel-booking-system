@@ -54570,6 +54570,9 @@ const SECTION_DEFAULTS = {
     'contact': '',
     'contact-sub': '',
     'faq-enabled': false
+  },
+  'custom-pages': {
+    'pages': []
   }
 };
 
