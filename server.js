@@ -65281,8 +65281,8 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
 app.get('/api/public/client/:clientId/offers', async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { unit_id, check_in, check_out, guests } = req.query;
-    
+    const { unit_id, check_in, check_out, guests, include_future } = req.query;
+
     // Calculate nights if dates provided
     const nights = check_in && check_out ? 
       Math.ceil((new Date(check_out) - new Date(check_in)) / (1000 * 60 * 60 * 24)) : null;
@@ -65322,8 +65322,8 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
         WHERE o.active = true
           AND (o.available_website = true OR o.available_website IS NULL)
           AND (o.account_id = $1 OR p.account_id = $1)
-          AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
-          AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
+          AND ($6::boolean = true OR o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
+          AND ($6::boolean = true OR o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
           AND ($2::integer IS NULL OR o.room_id IS NULL OR o.room_id = $2)
           AND ($3::integer IS NULL OR o.min_nights IS NULL OR o.min_nights <= $3)
           AND ($3::integer IS NULL OR o.max_nights IS NULL OR o.max_nights >= $3)
@@ -65332,7 +65332,7 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
           AND ($5::integer IS NULL OR o.min_advance_days IS NULL OR o.min_advance_days <= $5)
           AND ($5::integer IS NULL OR o.max_advance_days IS NULL OR o.max_advance_days >= $5)
         ORDER BY o.priority DESC, o.discount_value DESC
-      `, [clientId, unit_id || null, nights, guests || null, advanceDays]);
+      `, [clientId, unit_id || null, nights, guests || null, advanceDays, include_future === '1']);
     } catch (colError) {
       // Fallback without new columns if they don't exist yet
       console.log('Falling back to offers query without checkin/checkout columns');
@@ -65356,8 +65356,8 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
         WHERE o.active = true
           AND (o.available_website = true OR o.available_website IS NULL)
           AND (o.account_id = $1 OR p.account_id = $1)
-          AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
-          AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
+          AND ($6::boolean = true OR o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
+          AND ($6::boolean = true OR o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
           AND ($2::integer IS NULL OR o.room_id IS NULL OR o.room_id = $2)
           AND ($3::integer IS NULL OR o.min_nights IS NULL OR o.min_nights <= $3)
           AND ($3::integer IS NULL OR o.max_nights IS NULL || o.max_nights >= $3)
@@ -65366,7 +65366,7 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
           AND ($5::integer IS NULL OR o.min_advance_days IS NULL OR o.min_advance_days <= $5)
           AND ($5::integer IS NULL OR o.max_advance_days IS NULL OR o.max_advance_days >= $5)
         ORDER BY o.priority DESC, o.discount_value DESC
-      `, [clientId, unit_id || null, nights, guests || null, advanceDays]);
+      `, [clientId, unit_id || null, nights, guests || null, advanceDays, include_future === '1']);
     }
     
     // Filter by check-in/check-out day restrictions (done in JS for flexibility)
