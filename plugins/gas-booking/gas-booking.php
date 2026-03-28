@@ -476,6 +476,46 @@ class GAS_Booking {
                 error_log("GAS Booking: Skipping {$section_key} - no enabled field set, leaving as-is");
             }
         }
+
+        // Sync custom pages
+        $custom_pages_data = $website['custom-pages'] ?? array();
+        $custom_pages_list = $custom_pages_data['pages'] ?? array();
+        if (is_string($custom_pages_list)) {
+            $custom_pages_list = json_decode($custom_pages_list, true) ?: array();
+        }
+
+        foreach ($custom_pages_list as $cp) {
+            $cp_slug = $cp['slug'] ?? '';
+            $cp_title = $cp['title'] ?? '';
+            if (empty($cp_slug) || empty($cp_title)) continue;
+
+            $cp_section = $website['page-custom-' . $cp_slug] ?? array();
+            $cp_enabled = $cp_section['enabled'] ?? true;
+            $cp_is_enabled = ($cp_enabled === true || $cp_enabled === 'true' || $cp_enabled === '1' || $cp_enabled === 'on');
+            $cp_menu_title = $cp_section['menu-title-en'] ?? $cp_title;
+            $cp_visibility = $cp['visibility'] ?? 'menu';
+            $cp_parent = $cp['parent'] ?? '';
+
+            // Determine parent slug for sub-menu items
+            $cp_parent_slug = null;
+            if ($cp_visibility === 'submenu' && !empty($cp_parent)) {
+                // Map parent names to slugs
+                $parent_map = array('home' => '', 'rooms' => 'book-now', 'about' => 'about', 'gallery' => 'gallery', 'offers' => 'special-offers', 'dining' => 'dining', 'blog' => 'blog', 'attractions' => 'attractions', 'contact' => 'contact');
+                $cp_parent_slug = $parent_map[$cp_parent] ?? $cp_parent;
+            }
+
+            // Hidden pages: create but don't add to menu
+            $cp_menu_order = 100; // Custom pages go after standard pages
+
+            error_log("GAS Booking: Syncing custom page '{$cp_slug}' - enabled: " . ($cp_is_enabled ? 'yes' : 'no') . ", visibility: {$cp_visibility}, parent: " . ($cp_parent_slug ?: 'none'));
+
+            if ($cp_visibility === 'hidden') {
+                // Create page but skip menu
+                $this->sync_single_page($cp_slug, $cp_menu_title, '', $cp_is_enabled, $menu_id, $cp_menu_order, null, '', true);
+            } else {
+                $this->sync_single_page($cp_slug, $cp_menu_title, '', $cp_is_enabled, $menu_id, $cp_menu_order, $cp_parent_slug, '');
+            }
+        }
     }
     
     /**
@@ -589,7 +629,7 @@ class GAS_Booking {
     /**
      * Sync a single page - create/update and manage menu
      */
-    private function sync_single_page($slug, $title, $shortcode, $is_enabled, $menu_id, $menu_order, $parent_slug = null, $template = '') {
+    private function sync_single_page($slug, $title, $shortcode, $is_enabled, $menu_id, $menu_order, $parent_slug = null, $template = '', $skip_menu = false) {
         // Find existing page
         $existing_page = get_page_by_path($slug);
         if (!$existing_page) {
@@ -653,8 +693,8 @@ class GAS_Booking {
                 }
             }
             
-            // Add to menu
-            if ($menu_id && $existing_page) {
+            // Add to menu (unless skip_menu for hidden pages)
+            if ($menu_id && $existing_page && !$skip_menu) {
                 $this->add_page_to_menu($existing_page, $menu_id, $title, $menu_order, $parent_slug);
             }
         } else {
