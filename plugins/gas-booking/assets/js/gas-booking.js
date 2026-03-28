@@ -1852,8 +1852,11 @@ jQuery(document).ready(function($) {
                     // For non-standard tiers, the adjusted price IS the price - no rate options needed
                     var hideDiscountBadge = activeOffer && activeOffer.hide_discount_badge;
                     
-                    if (activeOffer && !hideDiscountBadge) {
-                        renderRateOptions(nights, accommodationTotal, activeOffer, currency);
+                    var allOffers = response.all_offers || [];
+                    if (allOffers.length > 0 && !hideDiscountBadge) {
+                        renderRateOptions(nights, accommodationTotal, allOffers, currency);
+                    } else if (activeOffer && !hideDiscountBadge) {
+                        renderRateOptions(nights, accommodationTotal, [activeOffer], currency);
                     } else {
                         // No offer OR non-standard tier - hide rate options, show simple breakdown
                         $('.gas-rate-options').hide();
@@ -1910,25 +1913,17 @@ jQuery(document).ready(function($) {
     }
     
     // Render rate options (Standard vs Offer)
-    function renderRateOptions(nights, standardTotal, offer, currency) {
+    function renderRateOptions(nights, standardTotal, offers, currency) {
         var perNightStandard = Math.round(standardTotal / nights);
-        var discountAmount = 0;
-        
-        if (offer.discount_type === 'percentage') {
-            discountAmount = standardTotal * (offer.discount_value / 100);
-        } else {
-            discountAmount = parseFloat(offer.discount_value);
-        }
-        
-        var offerTotal = standardTotal - discountAmount;
-        var perNightOffer = Math.round(offerTotal / nights);
-        var savingsPercent = Math.round((discountAmount / standardTotal) * 100);
-        
+
+        // Ensure offers is an array
+        if (!Array.isArray(offers)) offers = [offers];
+
         var html = '<div class="gas-rate-options">';
-        html += '<div class="gas-rate-options-title">Choose your rate:</div>';
-        
-        // Standard Rate
-        html += '<div class="gas-rate-option" data-rate="standard">';
+        html += '<div class="gas-rate-options-title">' + t('booking', 'choose_rate', 'Choose your rate') + ':</div>';
+
+        // Standard Rate — always first
+        html += '<div class="gas-rate-option selected" data-rate="standard" data-offer-id="">';
         html += '<div class="gas-rate-radio"><div class="gas-rate-radio-inner"></div></div>';
         html += '<div class="gas-rate-details">';
         html += '<div class="gas-rate-name">Standard Rate</div>';
@@ -1939,34 +1934,49 @@ jQuery(document).ready(function($) {
         html += '<div class="gas-rate-per-night">' + formatPriceShort(perNightStandard, currency) + '/night</div>';
         html += '</div>';
         html += '</div>';
-        
-        // Offer Rate
-        html += '<div class="gas-rate-option selected" data-rate="offer">';
-        html += '<div class="gas-rate-radio"><div class="gas-rate-radio-inner"></div></div>';
-        html += '<div class="gas-rate-details">';
-        html += '<div class="gas-rate-name">' + offer.name + ' <span class="gas-rate-badge">Save ' + savingsPercent + '%</span></div>';
-        html += '<div class="gas-rate-features"><span class="gas-rate-feature warning">✗ Non-refundable</span></div>';
+
+        // Each offer as a selectable rate
+        offers.forEach(function(offer, idx) {
+            var discountAmount = 0;
+            if (offer.discount_type === 'percentage') {
+                discountAmount = standardTotal * (parseFloat(offer.discount_value) / 100);
+            } else {
+                discountAmount = parseFloat(offer.discount_value) || 0;
+            }
+            var offerTotal = standardTotal - discountAmount;
+            var perNightOffer = Math.round(offerTotal / nights);
+            var savingsPercent = Math.round((discountAmount / standardTotal) * 100);
+
+            html += '<div class="gas-rate-option" data-rate="offer-' + idx + '" data-offer-id="' + (offer.id || '') + '" data-offer-name="' + (offer.name || '').replace(/"/g, '&quot;') + '" data-offer-discount-type="' + (offer.discount_type || '') + '" data-offer-discount-value="' + (offer.discount_value || '') + '" data-offer-total="' + offerTotal + '">';
+            html += '<div class="gas-rate-radio"><div class="gas-rate-radio-inner"></div></div>';
+            html += '<div class="gas-rate-details">';
+            html += '<div class="gas-rate-name">' + (offer.name || 'Special Offer') + ' <span class="gas-rate-badge">Save ' + savingsPercent + '%</span></div>';
+            html += '<div class="gas-rate-features">';
+            if (offer.description) html += '<span class="gas-rate-feature" style="color:#64748b;font-size:0.8rem;">' + offer.description + '</span>';
+            html += '</div>';
+            html += '</div>';
+            html += '<div class="gas-rate-price">';
+            html += '<div class="gas-rate-total">' + formatPrice(offerTotal, currency) + '</div>';
+            html += '<div class="gas-rate-per-night"><s>' + formatPriceShort(perNightStandard, currency) + '</s> ' + formatPriceShort(perNightOffer, currency) + '/night</div>';
+            html += '</div>';
+            html += '</div>';
+        });
+
         html += '</div>';
-        html += '<div class="gas-rate-price">';
-        html += '<div class="gas-rate-total">' + formatPrice(offerTotal, currency) + '</div>';
-        html += '<div class="gas-rate-per-night"><s>' + formatPriceShort(perNightStandard, currency) + '</s> ' + formatPriceShort(perNightOffer, currency) + '/night</div>';
-        html += '</div>';
-        html += '</div>';
-        
-        html += '</div>';
-        
+
         // Replace or insert rate options
         if ($('.gas-rate-options').length) {
             $('.gas-rate-options').replaceWith(html);
         } else {
             $('.gas-guest-fields').after(html);
         }
-        
-        // Store totals for later
+
+        // Store totals for later — default to standard
         $roomWidget.data('standard-total', standardTotal);
-        $roomWidget.data('offer-total', offerTotal);
-        $roomWidget.data('selected-rate', 'offer'); // Default to offer
-        
+        $roomWidget.data('offer-total', standardTotal); // Will update when offer selected
+        $roomWidget.data('selected-rate', 'standard'); // Default to standard rate
+        $roomWidget.data('all-offers', offers);
+
         // Hide old price breakdown when showing rate options
         $('.gas-price-breakdown').hide();
     }
@@ -2022,11 +2032,14 @@ jQuery(document).ready(function($) {
         var $btn = $('.gas-book-btn');
         var selectedRate = $roomWidget.data('selected-rate') || 'standard';
         var total;
-        
-        if (selectedRate === 'offer') {
-            total = $roomWidget.data('offer-total') || $roomWidget.data('standard-total');
-        } else {
+
+        if (selectedRate === 'standard') {
             total = $roomWidget.data('standard-total');
+        } else {
+            // Get total from the selected offer option's data attribute
+            var $selectedOption = $('.gas-rate-option.selected');
+            var offerTotal = $selectedOption.data('offer-total');
+            total = offerTotal || $roomWidget.data('standard-total');
         }
         
         // Add upsells
@@ -2044,10 +2057,27 @@ jQuery(document).ready(function($) {
     $(document).on('click', '.gas-rate-option', function() {
         $('.gas-rate-option').removeClass('selected');
         $(this).addClass('selected');
-        
+
         var rate = $(this).data('rate');
         $roomWidget.data('selected-rate', rate);
-        
+
+        // Store selected offer details for checkout
+        var offerId = $(this).data('offer-id');
+        var offerName = $(this).data('offer-name');
+        var offerTotal = $(this).data('offer-total');
+        if (offerId) {
+            $roomWidget.data('active-offer', {
+                id: offerId,
+                name: offerName,
+                discount_type: $(this).data('offer-discount-type'),
+                discount_value: $(this).data('offer-discount-value')
+            });
+            $roomWidget.data('offer-total', offerTotal);
+        } else {
+            $roomWidget.data('active-offer', null);
+            $roomWidget.data('offer-total', $roomWidget.data('standard-total'));
+        }
+
         var currency = resolveCurrency($roomWidget.data('currency'));
         updateBookingButton(currency);
     });
