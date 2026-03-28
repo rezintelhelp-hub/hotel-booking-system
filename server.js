@@ -54428,6 +54428,7 @@ const SECTION_DEFAULTS = {
     'content': '',
     'card-style': 'grid',
     'columns': '3',
+    'sort-order': 'manual',
     'card-bg': '#ffffff',
     'bg': '#f8fafc',
     'title-color': '#1e293b'
