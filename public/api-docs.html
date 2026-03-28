@@ -535,7 +535,8 @@
             { "name": "Taxes", "description": "Create and manage tourist/city taxes for properties" },
             { "name": "Pages", "description": "Create and manage custom website pages" },
             { "name": "Page Sections", "description": "Add, update, reorder, and delete sections within pages" },
-            { "name": "Public", "description": "Public endpoints (no authentication required)" }
+            { "name": "Public", "description": "Public endpoints (no authentication required)" },
+            { "name": "Deposit Rules", "description": "Configure deposit rules and multi-tier payment schedules" }
         ],
         "paths": {
             // ===== TENANTS =====
@@ -2546,10 +2547,91 @@
                     },
                     "security": []
                 }
+            },
+            // ===== DEPOSIT RULES =====
+            "/api/properties/{propertyId}/deposit-rules": {
+                "get": {
+                    "tags": ["Deposit Rules"],
+                    "summary": "Get deposit rules for a property",
+                    "description": "Returns deposit rules for the specified property. Falls back to account-level defaults if no property-specific rules exist.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Deposit rules list",
+                            "content": { "application/json": { "example": { "success": true, "rules": [{ "id": 1, "schedule_mode": "schedule", "payment_schedule": [{ "order": 1, "percentage": 5, "days_before": null }, { "order": 2, "percentage": 45, "days_before": 30 }, { "order": 3, "percentage": 50, "days_before": 15 }], "refund_policy": "moderate", "is_active": true }] } } }
+                        }
+                    }
+                },
+                "post": {
+                    "tags": ["Deposit Rules"],
+                    "summary": "Create a deposit rule",
+                    "description": "Create a deposit rule for a property. Use schedule_mode 'basic' for single deposit + balance, or 'schedule' for multi-tier payment schedule with auto-charge.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "rule_name": "Multi-Tier Schedule", "schedule_mode": "schedule", "payment_schedule": [{ "order": 1, "percentage": 5, "days_before": null }, { "order": 2, "percentage": 45, "days_before": 30 }, { "order": 3, "percentage": 50, "days_before": 15 }], "refund_policy": "moderate", "auto_charge_retry": true, "max_retry_attempts": 3, "is_active": true } } }
+                    },
+                    "responses": {
+                        "200": { "description": "Rule created", "content": { "application/json": { "example": { "success": true, "rule": { "id": 1 } } } } },
+                        "400": { "description": "Validation error (percentages must total 100%)" }
+                    }
+                }
+            },
+            "/api/bookings/{bookingId}/payment-schedule": {
+                "get": {
+                    "tags": ["Deposit Rules"],
+                    "summary": "Get payment schedule for a booking",
+                    "description": "Returns the per-tier payment tracking rows for a booking, showing which tiers are charged, pending, or failed.",
+                    "parameters": [
+                        { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Payment schedule tiers",
+                            "content": { "application/json": { "example": { "success": true, "data": [{ "id": 1, "booking_id": 501, "tier_order": 1, "percentage": 50, "amount": 250, "days_before": null, "status": "charged", "charged_at": "2026-03-28T10:00:00Z" }, { "id": 2, "booking_id": 501, "tier_order": 2, "percentage": 50, "amount": 250, "days_before": 15, "due_date": "2026-04-15", "status": "pending" }] } } }
+                        }
+                    }
+                }
+            },
+            "/api/bookings/{bookingId}/charge-tier/{tierId}": {
+                "post": {
+                    "tags": ["Deposit Rules"],
+                    "summary": "Manually charge a payment tier",
+                    "description": "Admin endpoint to manually charge a pending or failed payment tier via Stripe. Requires the booking to have a stored payment method.",
+                    "parameters": [
+                        { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "tierId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "responses": {
+                        "200": { "description": "Tier charged", "content": { "application/json": { "example": { "success": true, "message": "Tier charged successfully", "payment_intent_id": "pi_xxx" } } } },
+                        "400": { "description": "Tier already charged or no payment method" },
+                        "404": { "description": "Tier not found" }
+                    }
+                }
+            },
+            "/api/bookings/{bookingId}/mark-tier-paid/{tierId}": {
+                "post": {
+                    "tags": ["Deposit Rules"],
+                    "summary": "Mark a tier as manually paid",
+                    "description": "For bank transfer or manual payment — marks a tier as paid without charging Stripe.",
+                    "parameters": [
+                        { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "tierId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "notes": "Bank transfer received 28/03/2026" } } }
+                    },
+                    "responses": {
+                        "200": { "description": "Tier marked as paid", "content": { "application/json": { "example": { "success": true, "message": "Tier marked as paid" } } } }
+                    }
+                }
             }
         }
     };
-    
+
     // Initialize Swagger UI
     window.onload = function() {
         SwaggerUIBundle({

@@ -254,12 +254,12 @@ async function sendEmail({ to, subject, html, from = EMAIL_FROM }) {
 }
 
 // Generate booking confirmation email HTML
-function generateBookingConfirmationEmail(booking, property, room) {
+function generateBookingConfirmationEmail(booking, property, room, paymentSchedule) {
   const formatDate = (dateStr) => {
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   };
-  
+
   const depositPaid = booking.deposit_amount && parseFloat(booking.deposit_amount) > 0;
   const balanceDue = booking.balance_amount && parseFloat(booking.balance_amount) > 0;
   const cardOnFile = !depositPaid && balanceDue && booking.stripe_setup_intent_id;
@@ -351,6 +351,12 @@ function generateBookingConfirmationEmail(booking, property, room) {
                   <td style="padding: 8px 0; font-size: 16px; font-weight: 600; color: #1e293b;">Total</td>
                   <td style="padding: 8px 0; font-size: 16px; font-weight: 600; color: #1e293b; text-align: right;">${booking.currency || '$'}${parseFloat(booking.grand_total || 0).toFixed(2)}</td>
                 </tr>
+                ${paymentSchedule && paymentSchedule.length > 0 ? paymentSchedule.map(tier => `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">${tier.status === 'charged' ? '✅' : '🕐'} ${tier.days_before === null ? 'Paid at booking' : (tier.status === 'charged' ? 'Charged (rolled up)' : 'Due ' + formatDate(tier.due_date))}</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: ${tier.status === 'charged' ? '#10b981' : '#f59e0b'}; text-align: right; font-weight: 500;">${booking.currency || '$'}${parseFloat(tier.amount).toFixed(2)} (${tier.percentage}%)</td>
+                </tr>
+                `).join('') : `
                 ${depositPaid ? `
                 <tr>
                   <td style="padding: 8px 0; font-size: 14px; color: #475569;">Deposit Paid</td>
@@ -375,6 +381,7 @@ function generateBookingConfirmationEmail(booking, property, room) {
                   <td style="padding: 8px 0; font-size: 14px; color: #10b981; text-align: right;">Card on file</td>
                 </tr>
                 ` : ''}
+                `}
               </table>
             </td>
           </tr>
@@ -14079,12 +14086,27 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
             valid_until,
             min_nights,
             max_nights,
-            is_active
+            is_active,
+            schedule_mode,
+            payment_schedule,
+            auto_charge_retry,
+            max_retry_attempts
         } = req.body;
         const rule_name = mlStr(rawRuleName);
         const ruleNameObj = (typeof rawRuleName === 'object' && rawRuleName !== null) ? rawRuleName : (rawRuleName ? { en: rawRuleName } : null);
         const ruleNameJson = ruleNameObj ? JSON.stringify(ruleNameObj) : null;
         await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS rule_name_ml JSONB').catch(() => {});
+
+        // Validate payment_schedule if provided
+        if (schedule_mode === 'schedule' && payment_schedule) {
+            const totalPct = payment_schedule.reduce((sum, t) => sum + parseFloat(t.percentage || 0), 0);
+            if (Math.abs(totalPct - 100) > 0.01) {
+                return res.status(400).json({ success: false, error: `Payment schedule percentages must total 100% (currently ${totalPct}%)` });
+            }
+            if (!payment_schedule[0] || payment_schedule[0].days_before !== null) {
+                return res.status(400).json({ success: false, error: 'First tier must be "at booking" (days_before: null)' });
+            }
+        }
 
         // Get account_id from property
         const property = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
@@ -14092,14 +14114,17 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
             return res.status(404).json({ success: false, error: 'Property not found' });
         }
         const accountId = property.rows[0].account_id;
-        
+
+        const scheduleJson = payment_schedule ? JSON.stringify(payment_schedule) : null;
+
         const result = await pool.query(`
             INSERT INTO deposit_rules (
                 property_id, account_id, rule_name, rule_name_ml, deposit_type, deposit_percentage,
                 deposit_fixed_amount, balance_due_type, balance_due_days,
                 auto_charge_balance, auto_charge_days_before, refund_policy,
-                valid_from, valid_until, min_nights, max_nights, is_active
-            ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                valid_from, valid_until, min_nights, max_nights, is_active,
+                schedule_mode, payment_schedule, auto_charge_retry, max_retry_attempts
+            ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, $21)
             RETURNING *
         `, [
             propertyId, accountId, rule_name || 'Default', ruleNameJson,
@@ -14108,7 +14133,9 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
             balance_due_days || 14, auto_charge_balance || false,
             auto_charge_days_before || 14, refund_policy || 'flexible',
             valid_from || null, valid_until || null,
-            min_nights || null, max_nights || null, is_active !== false
+            min_nights || null, max_nights || null, is_active !== false,
+            schedule_mode || 'basic', scheduleJson,
+            auto_charge_retry || false, max_retry_attempts || 3
         ]);
         
         res.json({ success: true, rule: result.rows[0] });
@@ -14136,12 +14163,29 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
             valid_until,
             min_nights,
             max_nights,
-            is_active
+            is_active,
+            schedule_mode,
+            payment_schedule,
+            auto_charge_retry,
+            max_retry_attempts
         } = req.body;
         const rule_name = mlStr(rawRuleName);
         const ruleNameObj = (typeof rawRuleName === 'object' && rawRuleName !== null) ? rawRuleName : (rawRuleName ? { en: rawRuleName } : null);
         const ruleNameJson = ruleNameObj ? JSON.stringify(ruleNameObj) : null;
         await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS rule_name_ml JSONB').catch(() => {});
+
+        // Validate payment_schedule if provided
+        if (schedule_mode === 'schedule' && payment_schedule) {
+            const totalPct = payment_schedule.reduce((sum, t) => sum + parseFloat(t.percentage || 0), 0);
+            if (Math.abs(totalPct - 100) > 0.01) {
+                return res.status(400).json({ success: false, error: `Payment schedule percentages must total 100% (currently ${totalPct}%)` });
+            }
+            if (!payment_schedule[0] || payment_schedule[0].days_before !== null) {
+                return res.status(400).json({ success: false, error: 'First tier must be "at booking" (days_before: null)' });
+            }
+        }
+
+        const scheduleJson = payment_schedule ? JSON.stringify(payment_schedule) : undefined;
 
         const result = await pool.query(`
             UPDATE deposit_rules SET
@@ -14160,6 +14204,10 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
                 min_nights = $13,
                 max_nights = $14,
                 is_active = COALESCE($15, is_active),
+                schedule_mode = COALESCE($17, schedule_mode),
+                payment_schedule = COALESCE($18::jsonb, payment_schedule),
+                auto_charge_retry = COALESCE($19, auto_charge_retry),
+                max_retry_attempts = COALESCE($20, max_retry_attempts),
                 updated_at = NOW()
             WHERE id = $16
             RETURNING *
@@ -14167,7 +14215,9 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
             rule_name, ruleNameJson, deposit_type, deposit_percentage, deposit_fixed_amount,
             balance_due_type, balance_due_days, auto_charge_balance,
             auto_charge_days_before, refund_policy, valid_from, valid_until,
-            min_nights, max_nights, is_active, ruleId
+            min_nights, max_nights, is_active, ruleId,
+            schedule_mode, scheduleJson,
+            auto_charge_retry, max_retry_attempts
         ]);
         
         if (result.rows.length === 0) {
@@ -14191,6 +14241,152 @@ app.delete('/api/deposit-rules/:ruleId', async (req, res) => {
         res.json({ success: true, message: 'Rule deleted' });
     } catch (error) {
         console.error('Error deleting deposit rule:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ── Payment Schedule: Get payment schedule tiers for a booking ──
+app.get('/api/bookings/:bookingId/payment-schedule', async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const result = await pool.query(`
+            SELECT * FROM booking_payment_schedule
+            WHERE booking_id = $1
+            ORDER BY tier_order ASC
+        `, [bookingId]);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        console.error('Error fetching payment schedule:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ── Payment Schedule: Manually charge a specific tier ──
+app.post('/api/bookings/:bookingId/charge-tier/:tierId', async (req, res) => {
+    try {
+        const { bookingId, tierId } = req.params;
+
+        // Get the tier
+        const tierResult = await pool.query(`
+            SELECT bps.*, b.stripe_payment_method_id, b.currency, b.property_id,
+                   b.guest_first_name, b.guest_last_name, b.arrival_date,
+                   p.account_id, p.name as property_name
+            FROM booking_payment_schedule bps
+            JOIN bookings b ON b.id = bps.booking_id
+            JOIN properties p ON p.id = b.property_id
+            WHERE bps.id = $1 AND bps.booking_id = $2
+        `, [tierId, bookingId]);
+
+        if (tierResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Payment tier not found' });
+        }
+
+        const tier = tierResult.rows[0];
+        if (tier.status === 'charged') {
+            return res.status(400).json({ success: false, error: 'Tier already charged' });
+        }
+        if (!tier.stripe_payment_method_id) {
+            return res.status(400).json({ success: false, error: 'No payment method on file for this booking' });
+        }
+
+        // Get Stripe credentials
+        const configResult = await pool.query(`
+            SELECT credentials FROM payment_configurations
+            WHERE (property_id = $1 OR (property_id IS NULL AND account_id = $2))
+            AND provider = 'stripe' AND is_enabled = true
+            ORDER BY property_id NULLS LAST LIMIT 1
+        `, [tier.property_id, tier.account_id]);
+
+        const stripeKey = configResult.rows.length > 0
+            ? JSON.parse(configResult.rows[0].credentials).secret_key
+            : process.env.STRIPE_SECRET_KEY;
+
+        const stripe = require('stripe')(stripeKey);
+
+        // Create payment intent
+        const paymentIntent = await stripe.paymentIntents.create({
+            amount: Math.round(tier.amount * 100),
+            currency: tier.currency || 'gbp',
+            payment_method: tier.stripe_payment_method_id,
+            confirm: true,
+            off_session: true,
+            description: `Payment tier ${tier.tier_order} for booking ${bookingId} - ${tier.guest_first_name} ${tier.guest_last_name}`
+        });
+
+        // Update tier status
+        await pool.query(`
+            UPDATE booking_payment_schedule
+            SET status = 'charged', stripe_payment_intent_id = $1, charged_at = NOW(), error_message = NULL
+            WHERE id = $2
+        `, [paymentIntent.id, tierId]);
+
+        // Log transaction
+        await pool.query(`
+            INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id)
+            VALUES ($1, $2, $3, $4, 'completed', $5)
+        `, [bookingId, `tier_${tier.tier_order}`, tier.amount, tier.currency || 'gbp', paymentIntent.id]);
+
+        // Check if all tiers are now charged
+        const remaining = await pool.query(`
+            SELECT COUNT(*) as cnt FROM booking_payment_schedule
+            WHERE booking_id = $1 AND status NOT IN ('charged', 'rolled_up')
+        `, [bookingId]);
+
+        if (parseInt(remaining.rows[0].cnt) === 0) {
+            await pool.query(`UPDATE bookings SET payment_status = 'paid', balance_amount = 0, balance_paid_at = NOW() WHERE id = $1`, [bookingId]);
+        } else {
+            await pool.query(`UPDATE bookings SET payment_status = 'partial_paid' WHERE id = $1`, [bookingId]);
+        }
+
+        res.json({ success: true, message: 'Tier charged successfully', payment_intent_id: paymentIntent.id });
+    } catch (error) {
+        console.error('Error charging tier:', error);
+
+        // Update tier with failure
+        try {
+            await pool.query(`
+                UPDATE booking_payment_schedule
+                SET status = 'failed', error_message = $1, retry_count = retry_count + 1
+                WHERE id = $2
+            `, [error.message, req.params.tierId]);
+        } catch (e) { /* ignore */ }
+
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ── Payment Schedule: Mark a tier as manually paid (bank transfer etc) ──
+app.post('/api/bookings/:bookingId/mark-tier-paid/:tierId', async (req, res) => {
+    try {
+        const { bookingId, tierId } = req.params;
+        const { notes } = req.body;
+
+        const result = await pool.query(`
+            UPDATE booking_payment_schedule
+            SET status = 'charged', charged_at = NOW(), error_message = $1
+            WHERE id = $2 AND booking_id = $3
+            RETURNING *
+        `, [notes || 'Manually marked as paid', tierId, bookingId]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Payment tier not found' });
+        }
+
+        // Check if all tiers charged
+        const remaining = await pool.query(`
+            SELECT COUNT(*) as cnt FROM booking_payment_schedule
+            WHERE booking_id = $1 AND status NOT IN ('charged', 'rolled_up')
+        `, [bookingId]);
+
+        if (parseInt(remaining.rows[0].cnt) === 0) {
+            await pool.query(`UPDATE bookings SET payment_status = 'paid', balance_amount = 0, balance_paid_at = NOW() WHERE id = $1`, [bookingId]);
+        } else {
+            await pool.query(`UPDATE bookings SET payment_status = 'partial_paid' WHERE id = $1`, [bookingId]);
+        }
+
+        res.json({ success: true, message: 'Tier marked as paid' });
+    } catch (error) {
+        console.error('Error marking tier paid:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -14227,16 +14423,31 @@ app.post('/api/accounts/:accountId/deposit-rules', async (req, res) => {
             auto_charge_balance,
             auto_charge_days_before,
             refund_policy,
-            is_active
+            is_active,
+            schedule_mode,
+            payment_schedule,
+            auto_charge_retry,
+            max_retry_attempts
         } = req.body;
         const rule_name = mlStr(rawRuleName);
-        
+
+        // Validate payment_schedule if provided
+        if (schedule_mode === 'schedule' && payment_schedule) {
+            const totalPct = payment_schedule.reduce((sum, t) => sum + parseFloat(t.percentage || 0), 0);
+            if (Math.abs(totalPct - 100) > 0.01) {
+                return res.status(400).json({ success: false, error: `Payment schedule percentages must total 100% (currently ${totalPct}%)` });
+            }
+        }
+
+        const scheduleJson = payment_schedule ? JSON.stringify(payment_schedule) : null;
+
         const result = await pool.query(`
             INSERT INTO deposit_rules (
                 property_id, account_id, rule_name, deposit_type, deposit_percentage,
                 deposit_fixed_amount, balance_due_type, balance_due_days,
-                auto_charge_balance, auto_charge_days_before, refund_policy, is_active
-            ) VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                auto_charge_balance, auto_charge_days_before, refund_policy, is_active,
+                schedule_mode, payment_schedule, auto_charge_retry, max_retry_attempts
+            ) VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15)
             RETURNING *
         `, [
             accountId, rule_name || 'Account Default',
@@ -14244,7 +14455,9 @@ app.post('/api/accounts/:accountId/deposit-rules', async (req, res) => {
             deposit_fixed_amount, balance_due_type || 'days_before',
             balance_due_days || 14, auto_charge_balance || false,
             auto_charge_days_before || 14, refund_policy || 'flexible',
-            is_active !== false
+            is_active !== false,
+            schedule_mode || 'basic', scheduleJson,
+            auto_charge_retry || false, max_retry_attempts || 3
         ]);
         
         res.json({ success: true, rule: result.rows[0] });
@@ -18873,9 +19086,57 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             }
         }
 
+        // ── Payment Schedule: create booking_payment_schedule rows if rule uses schedule mode ──
+        if (createdBookings.length > 0) {
+            try {
+                await client.query('SAVEPOINT payment_schedule_insert');
+                // Find the deposit rule for this booking
+                const schedRuleResult = await client.query(`
+                    SELECT dr.* FROM deposit_rules dr
+                    LEFT JOIN properties p ON p.id = $1
+                    WHERE (dr.property_id = $1 OR (dr.property_id IS NULL AND dr.account_id = p.account_id))
+                    AND dr.is_active = true
+                    ORDER BY dr.property_id NULLS LAST, dr.created_at DESC LIMIT 1
+                `, [createdBookings[0].property_id]);
+
+                if (schedRuleResult.rows.length > 0) {
+                    const schedRule = schedRuleResult.rows[0];
+                    const bookingTotal = createdBookings[0].grand_total || req.body.total_amount || 0;
+                    const arrDate = createdBookings[0].arrival_date || req.body.check_in;
+                    const bookDate = new Date().toISOString();
+
+                    if (bookingTotal > 0 && arrDate) {
+                        const schedule = calculatePaymentScheduleForBooking(schedRule, parseFloat(bookingTotal), arrDate, bookDate);
+
+                        for (const tier of schedule.tiers) {
+                            // For the first booking in the group, create schedule rows
+                            const tierStatus = (tier.status === 'charge_now' || tier.status === 'rolled_up') ? 'charged' : 'pending';
+                            const tierPi = tierStatus === 'charged' ? (stripe_payment_intent_id || null) : null;
+                            const tierChargedAt = tierStatus === 'charged' ? 'NOW()' : null;
+
+                            await client.query(`
+                                INSERT INTO booking_payment_schedule
+                                    (booking_id, tier_order, percentage, amount, days_before, due_date, status, stripe_payment_intent_id, charged_at)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, ${tierStatus === 'charged' ? 'NOW()' : 'NULL'})
+                            `, [
+                                createdBookings[0].id, tier.tier_order, tier.percentage,
+                                tier.amount, tier.days_before, tier.due_date,
+                                tierStatus, tierPi
+                            ]);
+                        }
+                        console.log(`[Payment Schedule] Created ${schedule.tiers.length} tier(s) for booking ${createdBookings[0].id} (mode: ${schedRule.schedule_mode || 'basic'})`);
+                    }
+                }
+                await client.query('RELEASE SAVEPOINT payment_schedule_insert');
+            } catch (schedError) {
+                await client.query('ROLLBACK TO SAVEPOINT payment_schedule_insert');
+                console.log('Could not create payment schedule rows:', schedError.message);
+            }
+        }
+
         console.log(`DEBUG: About to COMMIT transaction with ${createdBookings.length} bookings`);
         console.log(`DEBUG: Booking IDs to commit: ${createdBookings.map(b => b.id).join(', ')}`);
-        
+
         // DEBUG: Verify data exists in transaction BEFORE commit
         const preCommitCheck = await client.query(
             `SELECT id, group_booking_id FROM bookings WHERE group_booking_id = $1`,
@@ -20116,6 +20377,32 @@ app.get('/api/setup-database', async (req, res) => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
     
+    // ── Payment Schedule: add schedule columns to deposit_rules ──
+    await pool.query(`ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS schedule_mode VARCHAR(10) DEFAULT 'basic'`).catch(() => {});
+    await pool.query(`ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS payment_schedule JSONB`).catch(() => {});
+    await pool.query(`ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS auto_charge_retry BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS max_retry_attempts INTEGER DEFAULT 3`).catch(() => {});
+
+    // ── Payment Schedule: per-booking per-tier tracking table ──
+    await pool.query(`CREATE TABLE IF NOT EXISTS booking_payment_schedule (
+      id SERIAL PRIMARY KEY,
+      booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+      tier_order INTEGER NOT NULL,
+      percentage DECIMAL(5,2) NOT NULL,
+      amount DECIMAL(10,2) NOT NULL,
+      days_before INTEGER,
+      due_date DATE,
+      status VARCHAR(20) DEFAULT 'pending',
+      stripe_payment_intent_id VARCHAR(100),
+      charged_at TIMESTAMP,
+      error_message TEXT,
+      retry_count INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_bps_booking ON booking_payment_schedule(booking_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_bps_status_due ON booking_payment_schedule(status, due_date)`);
+    console.log('  ✓ Payment schedule schema ready');
+
     // Create reviews table for storing reviews from channel managers
     await pool.query(`
       CREATE TABLE IF NOT EXISTS reviews (
@@ -28949,37 +29236,141 @@ app.get('/api/property/:propertyId/payments', async (req, res) => {
   }
 });
 
+// ── Payment Schedule: helper to calculate multi-tier schedule for a booking ──
+function calculatePaymentScheduleForBooking(rule, totalAmount, arrivalDate, bookingDate) {
+  let tiers;
+
+  if (rule.schedule_mode === 'schedule' && rule.payment_schedule && Array.isArray(rule.payment_schedule)) {
+    // Multi-tier schedule from JSONB
+    tiers = rule.payment_schedule.map(t => ({ ...t }));
+  } else {
+    // Legacy: synthesize 2-tier schedule from deposit_percentage + balance_due_days
+    const pct = parseFloat(rule.deposit_percentage) || 25;
+    const daysBefore = parseInt(rule.balance_due_days) || 14;
+    tiers = [
+      { order: 1, percentage: pct, days_before: null },
+      { order: 2, percentage: 100 - pct, days_before: daysBefore }
+    ];
+  }
+
+  // Sort by order
+  tiers.sort((a, b) => a.order - b.order);
+
+  const arrival = new Date(arrivalDate);
+  const booking = new Date(bookingDate || new Date());
+  const msPerDay = 86400000;
+  const daysUntilCheckin = Math.floor((arrival - booking) / msPerDay);
+
+  let rolledUpPercentage = 0;
+  const result = [];
+
+  for (const tier of tiers) {
+    const tierDaysBefore = tier.days_before; // null = at booking
+    const isAtBooking = tierDaysBefore === null || tierDaysBefore === undefined;
+    const hasPassed = !isAtBooking && daysUntilCheckin <= tierDaysBefore;
+
+    if (isAtBooking || hasPassed) {
+      // Roll up into booking charge
+      rolledUpPercentage += parseFloat(tier.percentage);
+      result.push({
+        tier_order: tier.order,
+        percentage: parseFloat(tier.percentage),
+        amount: Math.round((totalAmount * parseFloat(tier.percentage) / 100) * 100) / 100,
+        days_before: tier.days_before,
+        due_date: null,
+        status: isAtBooking ? 'charge_now' : 'rolled_up'
+      });
+    } else {
+      // Schedule for future auto-charge
+      const dueDate = new Date(arrival);
+      dueDate.setDate(dueDate.getDate() - tierDaysBefore);
+      result.push({
+        tier_order: tier.order,
+        percentage: parseFloat(tier.percentage),
+        amount: Math.round((totalAmount * parseFloat(tier.percentage) / 100) * 100) / 100,
+        days_before: tier.days_before,
+        due_date: dueDate.toISOString().split('T')[0],
+        status: 'pending'
+      });
+    }
+  }
+
+  // Calculate the total charge at booking (all charge_now + rolled_up)
+  const chargeNowAmount = result
+    .filter(t => t.status === 'charge_now' || t.status === 'rolled_up')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  return {
+    tiers: result,
+    charge_now_amount: Math.round(chargeNowAmount * 100) / 100,
+    charge_now_percentage: rolledUpPercentage,
+    total_amount: totalAmount
+  };
+}
+
 // Calculate deposit for a booking
 app.post('/api/payments/calculate-deposit', async (req, res) => {
   try {
-    const { property_id, total_amount } = req.body;
-    
+    const { property_id, total_amount, arrival_date, booking_date } = req.body;
+
+    // Check for multi-tier deposit rule first
+    if (arrival_date) {
+      const ruleResult = await pool.query(`
+        SELECT dr.* FROM deposit_rules dr
+        LEFT JOIN properties p ON p.id = $1
+        WHERE (dr.property_id = $1 OR (dr.property_id IS NULL AND dr.account_id = p.account_id))
+        AND dr.is_active = true
+        ORDER BY dr.property_id NULLS LAST, dr.created_at DESC LIMIT 1
+      `, [property_id]);
+
+      if (ruleResult.rows.length > 0) {
+        const rule = ruleResult.rows[0];
+        const schedule = calculatePaymentScheduleForBooking(rule, total_amount, arrival_date, booking_date || new Date().toISOString());
+        return res.json({
+          success: true,
+          data: {
+            total: total_amount,
+            deposit: schedule.charge_now_amount,
+            balance: Math.round((total_amount - schedule.charge_now_amount) * 100) / 100,
+            schedule_mode: rule.schedule_mode || 'basic',
+            schedule: schedule.tiers,
+            deposit_type: rule.deposit_type,
+            deposit_setting: rule.deposit_percentage,
+            balance_due_days: rule.balance_due_days,
+            currency: rule.currency || 'GBP'
+          }
+        });
+      }
+    }
+
+    // Legacy fallback: property_payment_settings
     const settingsResult = await pool.query(`
       SELECT * FROM property_payment_settings WHERE property_id = $1
     `, [property_id]);
-    
+
     const settings = settingsResult.rows[0] || {
       deposit_type: 'percentage',
       deposit_amount: 25,
       balance_due_days: 14,
       currency: 'GBP'
     };
-    
+
     let depositAmount;
     if (settings.deposit_type === 'percentage') {
       depositAmount = (total_amount * settings.deposit_amount) / 100;
     } else {
       depositAmount = Math.min(settings.deposit_amount, total_amount);
     }
-    
+
     const balanceAmount = total_amount - depositAmount;
-    
+
     res.json({
       success: true,
       data: {
         total: total_amount,
         deposit: Math.round(depositAmount * 100) / 100,
         balance: Math.round(balanceAmount * 100) / 100,
+        schedule_mode: 'basic',
         deposit_type: settings.deposit_type,
         deposit_setting: settings.deposit_amount,
         balance_due_days: settings.balance_due_days,
@@ -61915,15 +62306,22 @@ app.post('/api/public/book', async (req, res) => {
         currency: room.currency || '$'
       };
       
-      const emailHtml = generateBookingConfirmationEmail(bookingForEmail, property, room);
-      
+      // Fetch payment schedule tiers for this booking (if any)
+      let emailPaymentSchedule = null;
+      try {
+        const schedRows = await pool.query('SELECT * FROM booking_payment_schedule WHERE booking_id = $1 ORDER BY tier_order', [newBooking.id]);
+        if (schedRows.rows.length > 0) emailPaymentSchedule = schedRows.rows;
+      } catch (e) { /* ignore — table may not exist yet */ }
+
+      const emailHtml = generateBookingConfirmationEmail(bookingForEmail, property, room, emailPaymentSchedule);
+
       // Send to guest
       await sendEmail({
         to: guest_email,
         subject: `Booking Confirmed - ${property?.name || 'Your Reservation'} (Ref: ${newBooking.id})`,
         html: emailHtml
       });
-      
+
       // Also send to property owner if different email
       if (property?.account_email && property.account_email !== guest_email) {
         await sendEmail({
@@ -85231,13 +85629,218 @@ async function processAutoChargePayments() {
     }
 }
 
+// ── Payment Schedule: Multi-tier auto-charge job ──
+async function processScheduledTierPayments() {
+    console.log('[TIER-CHARGE] Running scheduled tier payment check...');
+    try {
+        // Find pending tiers due today
+        const result = await pool.query(`
+            SELECT
+                bps.id as tier_id, bps.tier_order, bps.amount, bps.percentage, bps.booking_id,
+                b.guest_first_name, b.guest_last_name, b.guest_email, b.arrival_date,
+                b.stripe_payment_method_id, b.stripe_payment_intent_id, b.stripe_setup_intent_id,
+                b.currency, b.property_id, b.grand_total,
+                p.account_id, p.name as property_name, p.currency as property_currency,
+                a.name as account_name,
+                pc.credentials as payment_config_credentials,
+                COALESCE(p.stripe_secret_key, a.stripe_secret_key) as stripe_secret_key,
+                dr.auto_charge_retry, dr.max_retry_attempts
+            FROM booking_payment_schedule bps
+            JOIN bookings b ON b.id = bps.booking_id
+            JOIN properties p ON p.id = b.property_id
+            JOIN accounts a ON a.id = p.account_id
+            LEFT JOIN payment_configurations pc ON (pc.property_id = b.property_id OR (pc.property_id IS NULL AND pc.account_id = p.account_id)) AND pc.provider = 'stripe' AND pc.is_enabled = true
+            LEFT JOIN deposit_rules dr ON (dr.property_id = b.property_id OR (dr.property_id IS NULL AND dr.account_id = p.account_id)) AND dr.is_active = true
+            WHERE bps.status = 'pending'
+            AND bps.due_date <= CURRENT_DATE
+            AND b.stripe_payment_method_id IS NOT NULL
+            AND b.status NOT IN ('cancelled', 'rejected')
+            ORDER BY bps.due_date ASC, bps.tier_order ASC
+        `);
+
+        // Also find failed tiers eligible for retry
+        const retryResult = await pool.query(`
+            SELECT
+                bps.id as tier_id, bps.tier_order, bps.amount, bps.percentage, bps.booking_id, bps.retry_count,
+                b.guest_first_name, b.guest_last_name, b.guest_email, b.arrival_date,
+                b.stripe_payment_method_id, b.stripe_payment_intent_id, b.stripe_setup_intent_id,
+                b.currency, b.property_id, b.grand_total,
+                p.account_id, p.name as property_name, p.currency as property_currency,
+                a.name as account_name,
+                pc.credentials as payment_config_credentials,
+                COALESCE(p.stripe_secret_key, a.stripe_secret_key) as stripe_secret_key,
+                dr.auto_charge_retry, dr.max_retry_attempts
+            FROM booking_payment_schedule bps
+            JOIN bookings b ON b.id = bps.booking_id
+            JOIN properties p ON p.id = b.property_id
+            JOIN accounts a ON a.id = p.account_id
+            LEFT JOIN payment_configurations pc ON (pc.property_id = b.property_id OR (pc.property_id IS NULL AND pc.account_id = p.account_id)) AND pc.provider = 'stripe' AND pc.is_enabled = true
+            LEFT JOIN deposit_rules dr ON (dr.property_id = b.property_id OR (dr.property_id IS NULL AND dr.account_id = p.account_id)) AND dr.is_active = true
+            WHERE bps.status = 'failed'
+            AND bps.due_date <= CURRENT_DATE
+            AND dr.auto_charge_retry = true
+            AND bps.retry_count < COALESCE(dr.max_retry_attempts, 3)
+            AND b.stripe_payment_method_id IS NOT NULL
+            AND b.status NOT IN ('cancelled', 'rejected')
+        `);
+
+        const allTiers = [...result.rows, ...retryResult.rows];
+
+        if (allTiers.length === 0) {
+            console.log('[TIER-CHARGE] No scheduled tier payments due today');
+            return;
+        }
+
+        console.log(`[TIER-CHARGE] Found ${result.rows.length} pending + ${retryResult.rows.length} retry tiers to charge`);
+
+        for (const tier of allTiers) {
+            try {
+                const stripeKey = (tier.payment_config_credentials ? JSON.parse(tier.payment_config_credentials).secret_key : null)
+                    || tier.stripe_secret_key || process.env.STRIPE_SECRET_KEY;
+                if (!stripeKey) {
+                    console.log(`[TIER-CHARGE] No Stripe key for booking ${tier.booking_id} tier ${tier.tier_order}, skipping`);
+                    continue;
+                }
+                const stripeClient = require('stripe')(stripeKey);
+                const guestName = [tier.guest_first_name, tier.guest_last_name].filter(Boolean).join(' ');
+                const chargeCurrency = (tier.currency || tier.property_currency || 'eur').toLowerCase();
+
+                // Get customer ID from original payment intent or create from setup intent
+                let stripeCustomerId = null;
+                if (tier.stripe_payment_intent_id) {
+                    try {
+                        const origIntent = await stripeClient.paymentIntents.retrieve(tier.stripe_payment_intent_id);
+                        stripeCustomerId = origIntent.customer;
+                    } catch (e) { /* ignore */ }
+                }
+                if (!stripeCustomerId && tier.stripe_setup_intent_id && tier.stripe_payment_method_id) {
+                    try {
+                        const customer = await stripeClient.customers.create({
+                            name: guestName, email: tier.guest_email,
+                            payment_method: tier.stripe_payment_method_id,
+                            metadata: { booking_id: String(tier.booking_id) }
+                        });
+                        stripeCustomerId = customer.id;
+                    } catch (e) { /* ignore */ }
+                }
+                if (!stripeCustomerId) {
+                    console.log(`[TIER-CHARGE] No Stripe customer for booking ${tier.booking_id} tier ${tier.tier_order}, skipping`);
+                    continue;
+                }
+
+                const paymentIntent = await stripeClient.paymentIntents.create({
+                    amount: Math.round(tier.amount * 100),
+                    currency: chargeCurrency,
+                    customer: stripeCustomerId,
+                    payment_method: tier.stripe_payment_method_id,
+                    confirm: true,
+                    off_session: true,
+                    description: `Scheduled payment tier ${tier.tier_order} (${tier.percentage}%) for booking ${tier.booking_id} - ${guestName}`,
+                    metadata: { booking_id: String(tier.booking_id), account_id: String(tier.account_id), type: `tier_${tier.tier_order}` }
+                });
+
+                if (paymentIntent.status === 'succeeded') {
+                    // Mark tier as charged
+                    await pool.query(`
+                        UPDATE booking_payment_schedule
+                        SET status = 'charged', stripe_payment_intent_id = $1, charged_at = NOW(), error_message = NULL
+                        WHERE id = $2
+                    `, [paymentIntent.id, tier.tier_id]);
+
+                    // Log transaction
+                    await pool.query(`
+                        INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id)
+                        VALUES ($1, $2, $3, $4, 'completed', $5)
+                    `, [tier.booking_id, `tier_${tier.tier_order}`, tier.amount, chargeCurrency, paymentIntent.id]);
+
+                    // Check if all tiers now charged
+                    const remaining = await pool.query(`
+                        SELECT COUNT(*) as cnt FROM booking_payment_schedule
+                        WHERE booking_id = $1 AND status NOT IN ('charged', 'rolled_up')
+                    `, [tier.booking_id]);
+
+                    if (parseInt(remaining.rows[0].cnt) === 0) {
+                        await pool.query(`UPDATE bookings SET payment_status = 'paid', balance_amount = 0, balance_paid_at = NOW() WHERE id = $1`, [tier.booking_id]);
+                    } else {
+                        await pool.query(`UPDATE bookings SET payment_status = 'partial_paid' WHERE id = $1`, [tier.booking_id]);
+                    }
+
+                    console.log(`[TIER-CHARGE] ✓ Charged tier ${tier.tier_order} (${tier.percentage}% = ${tier.amount}) for booking ${tier.booking_id}`);
+                }
+
+            } catch (chargeErr) {
+                console.error(`[TIER-CHARGE] ✗ Failed tier ${tier.tier_order} for booking ${tier.booking_id}:`, chargeErr.message);
+
+                // Mark tier as failed
+                await pool.query(`
+                    UPDATE booking_payment_schedule
+                    SET status = 'failed', error_message = $1, retry_count = retry_count + 1
+                    WHERE id = $2
+                `, [chargeErr.message, tier.tier_id]).catch(() => {});
+
+                // Update booking status
+                await pool.query(`UPDATE bookings SET payment_status = 'tier_failed' WHERE id = $1`, [tier.booking_id]).catch(() => {});
+
+                // ── Failed payment notification: email to property owner ──
+                try {
+                    const guestName = [tier.guest_first_name, tier.guest_last_name].filter(Boolean).join(' ');
+                    const ownerEmailResult = await pool.query(`SELECT email FROM accounts WHERE id = $1`, [tier.account_id]);
+                    const ownerEmail = ownerEmailResult.rows[0]?.email;
+                    if (ownerEmail) {
+                        await sendEmail({
+                            to: [ownerEmail, 'development@gas.travel'],
+                            subject: `⚠️ Scheduled Payment Failed — ${guestName} — ${tier.property_name}`,
+                            html: `
+                                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                                    <h2 style="color:#dc2626;">⚠️ Scheduled Payment Failed</h2>
+                                    <p>A scheduled payment tier could not be charged:</p>
+                                    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+                                        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Guest</td><td style="padding:8px;border:1px solid #e5e7eb;">${guestName} (${tier.guest_email})</td></tr>
+                                        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Property</td><td style="padding:8px;border:1px solid #e5e7eb;">${tier.property_name}</td></tr>
+                                        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Booking Ref</td><td style="padding:8px;border:1px solid #e5e7eb;">#${tier.booking_id}</td></tr>
+                                        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Tier</td><td style="padding:8px;border:1px solid #e5e7eb;">${tier.tier_order} of schedule (${tier.percentage}%)</td></tr>
+                                        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Amount</td><td style="padding:8px;border:1px solid #e5e7eb;">${tier.amount} ${(tier.currency || tier.property_currency || 'EUR').toUpperCase()}</td></tr>
+                                        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Check-in</td><td style="padding:8px;border:1px solid #e5e7eb;">${tier.arrival_date}</td></tr>
+                                        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Error</td><td style="padding:8px;border:1px solid #e5e7eb;color:#dc2626;">${chargeErr.message}</td></tr>
+                                        <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Retry</td><td style="padding:8px;border:1px solid #e5e7eb;">${tier.auto_charge_retry ? `Will retry (attempt ${(tier.retry_count || 0) + 1} of ${tier.max_retry_attempts || 3})` : 'No auto-retry — manual action required'}</td></tr>
+                                    </table>
+                                    <p style="color:#6b7280;font-size:13px;">You can manually charge this tier from GAS Admin → Bookings → Payment Schedule.</p>
+                                </div>
+                            `
+                        });
+                        console.log(`[TIER-CHARGE] Failure notification sent to ${ownerEmail}`);
+                    }
+                } catch (emailErr) {
+                    console.log(`[TIER-CHARGE] Could not send failure email:`, emailErr.message);
+                }
+
+                // ── Failed payment notification: Slack webhook ──
+                if (process.env.SLACK_WEBHOOK_URL) {
+                    try {
+                        const guestName = [tier.guest_first_name, tier.guest_last_name].filter(Boolean).join(' ');
+                        await require('axios').post(process.env.SLACK_WEBHOOK_URL, {
+                            text: `❌ *Scheduled Payment Failed*\nBooking #${tier.booking_id} — ${guestName}\nProperty: ${tier.property_name}\nTier ${tier.tier_order} (${tier.percentage}%) — ${tier.amount} ${(tier.currency || 'EUR').toUpperCase()}\nError: ${chargeErr.message}`
+                        });
+                    } catch (slackErr) { /* ignore */ }
+                }
+            }
+        }
+
+    } catch (err) {
+        console.error('[TIER-CHARGE] Error in processScheduledTierPayments:', err);
+    }
+}
+
 // Run once 5 minutes after startup, then every 24 hours
 setTimeout(() => {
     processAutoChargePayments();
+    processScheduledTierPayments();
 }, 300000);
 
 setInterval(() => {
     processAutoChargePayments();
+    processScheduledTierPayments();
 }, 24 * 60 * 60 * 1000);
 
 console.log('💳 Auto-charge balance payments scheduled: daily check for upcoming arrivals');
+console.log('📅 Scheduled tier payments: daily check for multi-tier payment schedules');

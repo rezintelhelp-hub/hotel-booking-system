@@ -1,6 +1,6 @@
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
- * @version 3.5.0
+ * @version 3.6.0
  */
 jQuery(document).ready(function($) {
     
@@ -3012,7 +3012,36 @@ jQuery(document).ready(function($) {
 
                 if (group.depositRule) {
                     var rule = group.depositRule;
-                    if (rule.deposit_type === 'percentage') {
+
+                    // Multi-tier payment schedule (schedule mode)
+                    if (rule.schedule_mode === 'schedule' && rule.payment_schedule && Array.isArray(rule.payment_schedule)) {
+                        var checkIn = group.checkIn || group.items?.[0]?.checkIn;
+                        var today = new Date();
+                        var arrival = checkIn ? new Date(checkIn) : today;
+                        var msPerDay = 86400000;
+                        var daysUntil = Math.floor((arrival - today) / msPerDay);
+
+                        var chargeNowPct = 0;
+                        var scheduledTiers = [];
+                        rule.payment_schedule.forEach(function(tier) {
+                            var isAtBooking = tier.days_before === null || tier.days_before === undefined;
+                            var hasPassed = !isAtBooking && daysUntil <= tier.days_before;
+                            if (isAtBooking || hasPassed) {
+                                chargeNowPct += parseFloat(tier.percentage) || 0;
+                            } else {
+                                scheduledTiers.push(tier);
+                            }
+                        });
+
+                        depositAmt = grandTotal * (chargeNowPct / 100);
+                        balanceAmt = grandTotal - depositAmt;
+
+                        // Store schedule info for checkout display
+                        group.paymentSchedule = rule.payment_schedule;
+                        group.paymentScheduleChargeNowPct = chargeNowPct;
+                        group.paymentScheduleScheduledTiers = scheduledTiers;
+
+                    } else if (rule.deposit_type === 'percentage') {
                         depositAmt = grandTotal * (rule.deposit_percentage / 100);
                         balanceAmt = grandTotal - depositAmt;
                     } else if (rule.deposit_type === 'fixed') {
@@ -3028,6 +3057,28 @@ jQuery(document).ready(function($) {
                 if (balanceAmt > 0) {
                     $('.gas-balance-row').show();
                     $('.gas-balance-amount-display').text(formatPrice(balanceAmt, group.currency));
+
+                    // Show schedule breakdown if multi-tier
+                    if (group.paymentScheduleScheduledTiers && group.paymentScheduleScheduledTiers.length > 0) {
+                        var schedHtml = '';
+                        group.paymentScheduleScheduledTiers.forEach(function(tier) {
+                            var tierAmt = grandTotal * (parseFloat(tier.percentage) / 100);
+                            schedHtml += '<div style="font-size:0.85em;color:#6b7280;margin-top:4px;">📅 ' + tier.percentage + '% (' + formatPrice(tierAmt, group.currency) + ') due ' + tier.days_before + ' days before check-in</div>';
+                        });
+                        $('.gas-balance-row').after('<div class="gas-schedule-breakdown">' + schedHtml + '</div>');
+                    }
+                } else {
+                    $('.gas-balance-row').hide();
+                }
+                // Remove old schedule breakdown before re-rendering
+                $('.gas-schedule-breakdown').remove();
+                if (group.paymentScheduleScheduledTiers && group.paymentScheduleScheduledTiers.length > 0 && balanceAmt > 0) {
+                    var schedHtml2 = '';
+                    group.paymentScheduleScheduledTiers.forEach(function(tier) {
+                        var tierAmt2 = grandTotal * (parseFloat(tier.percentage) / 100);
+                        schedHtml2 += '<div style="font-size:0.85em;color:#6b7280;margin-top:4px;">📅 ' + tier.percentage + '% (' + formatPrice(tierAmt2, group.currency) + ') due ' + tier.days_before + ' days before check-in</div>';
+                    });
+                    $('.gas-balance-row').after('<div class="gas-schedule-breakdown">' + schedHtml2 + '</div>');
                 }
             }
 
