@@ -459,6 +459,27 @@ jQuery(document).ready(function($) {
             });
         }
         
+        // Pre-fill dates from URL params (e.g. from offers page links)
+        var pageUrlParams = new URLSearchParams(window.location.search);
+        var urlCheckIn = pageUrlParams.get('check_in');
+        var urlPropertyId = pageUrlParams.get('property_id');
+
+        if (urlCheckIn && $('.gas-checkin').length) {
+            var checkinPicker = document.querySelector('.gas-checkin');
+            if (checkinPicker && checkinPicker._flatpickr) {
+                checkinPicker._flatpickr.setDate(urlCheckIn, true);
+            }
+        }
+
+        // Pre-filter property dropdown from URL
+        if (urlPropertyId) {
+            var propSelect = document.querySelector('.gas-property-filter, #gas-property-filter, select[name="property_id"]');
+            if (propSelect) {
+                propSelect.value = urlPropertyId;
+                propSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }
+
         // Search widget date pickers - initialize each widget separately
         var isMobile = window.innerWidth <= 768;
         
