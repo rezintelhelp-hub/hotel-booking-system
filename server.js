@@ -14439,6 +14439,12 @@ app.post('/api/accounts/:accountId/deposit-rules', async (req, res) => {
         } = req.body;
         const rule_name = mlStr(rawRuleName);
 
+        // Ensure schedule columns exist
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS schedule_mode VARCHAR(10) DEFAULT \'basic\'').catch(() => {});
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS payment_schedule JSONB').catch(() => {});
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS auto_charge_retry BOOLEAN DEFAULT false').catch(() => {});
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS max_retry_attempts INTEGER DEFAULT 3').catch(() => {});
+
         // Validate payment_schedule if provided
         if (schedule_mode === 'schedule' && payment_schedule) {
             const totalPct = payment_schedule.reduce((sum, t) => sum + parseFloat(t.percentage || 0), 0);
