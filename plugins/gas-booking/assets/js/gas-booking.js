@@ -525,11 +525,10 @@ jQuery(document).ready(function($) {
                                 (offer.description ? '<p style="color: #64748b; margin: 0.5rem 0; font-size: 0.95rem;">' + offer.description + '</p>' : '') +
                                 (dateText ? '<p style="color: #1e293b; font-weight: 600; margin: 1rem 0 0.25rem; font-size: 1rem;">Available: ' + dateText + '</p>' : '') +
                                 (propertyText ? '<p style="color: #64748b; margin: 0 0 0.75rem; font-size: 0.9rem;">' + propertyText + '</p>' : '') +
-                                '<p style="color: #94a3b8; font-size: 0.85rem; margin: 1rem 0 0;">Select your dates within this period to apply the discount</p>' +
                                 '<button onclick="document.getElementById(\'gas-offer-overlay\').remove()" style="' +
                                     'margin-top: 1.25rem; background: linear-gradient(135deg, #059669, #047857); color: white; ' +
                                     'border: none; padding: 12px 32px; border-radius: 10px; font-weight: 600; font-size: 1rem; cursor: pointer;">' +
-                                    'Browse Rooms</button>' +
+                                    'Select your dates within this period to view the discount</button>' +
                             '</div>' +
                         '</div>';
 
