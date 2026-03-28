@@ -459,26 +459,30 @@ jQuery(document).ready(function($) {
             });
         }
         
-        // Pre-fill dates from URL params (e.g. from offers page links)
-        var pageUrlParams = new URLSearchParams(window.location.search);
-        var urlCheckIn = pageUrlParams.get('check_in');
-        var urlPropertyId = pageUrlParams.get('property_id');
+        // Pre-fill dates and property from URL params (e.g. from offers page links)
+        setTimeout(function() {
+            var pageUrlParams = new URLSearchParams(window.location.search);
+            var urlCheckIn = pageUrlParams.get('check_in');
+            var urlPropertyId = pageUrlParams.get('property_id');
 
-        if (urlCheckIn && $('.gas-checkin').length) {
-            var checkinPicker = document.querySelector('.gas-checkin');
-            if (checkinPicker && checkinPicker._flatpickr) {
-                checkinPicker._flatpickr.setDate(urlCheckIn, true);
+            if (urlCheckIn) {
+                // Try all checkin pickers (room page + search widget)
+                document.querySelectorAll('.gas-checkin, .gas-search-checkin').forEach(function(el) {
+                    if (el._flatpickr) {
+                        el._flatpickr.setDate(urlCheckIn, true);
+                    }
+                });
             }
-        }
 
-        // Pre-filter property dropdown from URL
-        if (urlPropertyId) {
-            var propSelect = document.querySelector('.gas-property-filter, #gas-property-filter, select[name="property_id"]');
-            if (propSelect) {
-                propSelect.value = urlPropertyId;
-                propSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            // Pre-filter property dropdown from URL
+            if (urlPropertyId) {
+                var propSelect = document.querySelector('.gas-property-filter, #gas-property-filter, [name="property_id"], .gas-search-property');
+                if (propSelect) {
+                    propSelect.value = urlPropertyId;
+                    propSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                }
             }
-        }
+        }, 500);
 
         // Search widget date pickers - initialize each widget separately
         var isMobile = window.innerWidth <= 768;
@@ -2603,8 +2607,14 @@ jQuery(document).ready(function($) {
         var $rooms = $('.gas-room-card');
         if ($rooms.length === 0) return;
         
+        // Pass check_in from URL so future offers show when date is pre-filled
+        var offersUrl = gasBooking.apiUrl + '/api/public/client/' + gasBooking.clientId + '/offers';
+        var offersParams = new URLSearchParams(window.location.search);
+        var offerCheckIn = offersParams.get('check_in');
+        if (offerCheckIn) offersUrl += '?check_in=' + offerCheckIn + '&include_future=1';
+
         $.ajax({
-            url: gasBooking.apiUrl + '/api/public/client/' + gasBooking.clientId + '/offers',
+            url: offersUrl,
             method: 'GET',
             dataType: 'json',
             success: function(response) {
