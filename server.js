@@ -54570,6 +54570,9 @@ const SECTION_DEFAULTS = {
     'contact': '',
     'contact-sub': '',
     'faq-enabled': false
+  },
+  'custom-pages': {
+    'pages': []
   }
 };
 
@@ -61504,9 +61507,16 @@ app.post('/api/public/calculate-price', async (req, res) => {
         AND (valid_until IS NULL OR valid_until >= $4)
         AND (pricing_tier IS NULL OR pricing_tier = $5)
       ORDER BY priority DESC, discount_value DESC
-      LIMIT 1
     `, [unit_id, nights, check_in, check_out, requestedPricingTier, unitAccountId]);
-    
+
+    // Build all_offers array for the frontend rate selector
+    const allOffers = offers.rows.map(o => ({
+      id: o.id, name: o.name, description: o.description,
+      discount_type: o.discount_type, discount_value: o.discount_value,
+      pricing_tier: o.pricing_tier, price_per_night: o.price_per_night,
+      hide_discount_badge: o.hide_discount_badge
+    }));
+
     if (offers.rows[0]) {
       const offer = offers.rows[0];
       
@@ -61793,6 +61803,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       accommodation_total: accommodationTotal,
       offer_discount: discount,
       offer_applied: offerApplied,
+      all_offers: allOffers || [],
       voucher_discount: voucherDiscount,
       voucher_applied: voucherApplied,
       upsells_total: upsellsTotal,
@@ -80996,6 +81007,26 @@ app.get('/api/public/website/:blogId/page-sections/:slug', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      // Fallback: check website_settings for sb-sections (About page & custom page section builder)
+      const sectionKeys = ['page-' + slug, 'page-custom-' + slug];
+      for (const sectionKey of sectionKeys) {
+        const wsResult = await pool.query(
+          `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = $2`,
+          [websiteId, sectionKey]
+        );
+        if (wsResult.rows.length > 0) {
+          const ws = wsResult.rows[0].settings || {};
+          if (ws['sb-sections'] && ws['sb-mode'] === 'sections') {
+            let sections = ws['sb-sections'];
+            if (typeof sections === 'string') {
+              try { sections = JSON.parse(sections); } catch(e) { sections = []; }
+            }
+            if (Array.isArray(sections) && sections.length > 0) {
+              return res.json({ success: true, page_title: ws['title-en'] || '', sections: sections });
+            }
+          }
+        }
+      }
       return res.json({ success: false, sections: null });
     }
 
