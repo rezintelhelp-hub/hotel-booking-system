@@ -61504,9 +61504,16 @@ app.post('/api/public/calculate-price', async (req, res) => {
         AND (valid_until IS NULL OR valid_until >= $4)
         AND (pricing_tier IS NULL OR pricing_tier = $5)
       ORDER BY priority DESC, discount_value DESC
-      LIMIT 1
     `, [unit_id, nights, check_in, check_out, requestedPricingTier, unitAccountId]);
-    
+
+    // Build all_offers array for the frontend rate selector
+    const allOffers = offers.rows.map(o => ({
+      id: o.id, name: o.name, description: o.description,
+      discount_type: o.discount_type, discount_value: o.discount_value,
+      pricing_tier: o.pricing_tier, price_per_night: o.price_per_night,
+      hide_discount_badge: o.hide_discount_badge
+    }));
+
     if (offers.rows[0]) {
       const offer = offers.rows[0];
       
@@ -61793,6 +61800,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       accommodation_total: accommodationTotal,
       offer_discount: discount,
       offer_applied: offerApplied,
+      all_offers: allOffers || [],
       voucher_discount: voucherDiscount,
       voucher_applied: voucherApplied,
       upsells_total: upsellsTotal,
