@@ -54277,6 +54277,7 @@ const SECTION_DEFAULTS = {
     'menu-title-nl': '',
     'menu-title-de': '',
     'menu-order': '',
+    'style': 'grid',
     'columns': '4',
     'lightbox': true,
     'bg': '#ffffff',
