@@ -20398,43 +20398,47 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS max_retry_attempts INTEGER DEFAULT 3`).catch(() => {});
 
     // ── Payment Schedule: per-booking per-tier tracking table ──
-    await pool.query(`CREATE TABLE IF NOT EXISTS booking_payment_schedule (
-      id SERIAL PRIMARY KEY,
-      booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
-      tier_order INTEGER NOT NULL,
-      percentage DECIMAL(5,2) NOT NULL,
-      amount DECIMAL(10,2) NOT NULL,
-      days_before INTEGER,
-      due_date DATE,
-      status VARCHAR(20) DEFAULT 'pending',
-      stripe_payment_intent_id VARCHAR(100),
-      charged_at TIMESTAMP,
-      error_message TEXT,
-      retry_count INTEGER DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_bps_booking ON booking_payment_schedule(booking_id)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_bps_status_due ON booking_payment_schedule(status, due_date)`);
-    console.log('  ✓ Payment schedule schema ready');
+    try {
+      await pool.query(`CREATE TABLE IF NOT EXISTS booking_payment_schedule (
+        id SERIAL PRIMARY KEY,
+        booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+        tier_order INTEGER NOT NULL,
+        percentage DECIMAL(5,2) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        days_before INTEGER,
+        due_date DATE,
+        status VARCHAR(20) DEFAULT 'pending',
+        stripe_payment_intent_id VARCHAR(100),
+        charged_at TIMESTAMP,
+        error_message TEXT,
+        retry_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_bps_booking ON booking_payment_schedule(booking_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_bps_status_due ON booking_payment_schedule(status, due_date)`);
+      console.log('  ✓ Payment schedule schema ready');
+    } catch (e) { console.log('  ⚠ Payment schedule table skipped:', e.message); }
 
     // ── Media Library table ──
-    await pool.query(`CREATE TABLE IF NOT EXISTS gas_media_library (
-      id SERIAL PRIMARY KEY,
-      account_id INTEGER NOT NULL,
-      deployed_site_id INTEGER,
-      property_id INTEGER,
-      file_url TEXT NOT NULL,
-      file_name VARCHAR(255),
-      file_type VARCHAR(20) DEFAULT 'image',
-      file_size INTEGER,
-      thumbnail_url TEXT,
-      alt_text VARCHAR(500),
-      tags JSONB DEFAULT '[]',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_account ON gas_media_library(account_id)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_site ON gas_media_library(deployed_site_id)`);
-    console.log('  ✓ Media library schema ready');
+    try {
+      await pool.query(`CREATE TABLE IF NOT EXISTS gas_media_library (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER NOT NULL,
+        deployed_site_id INTEGER,
+        property_id INTEGER,
+        file_url TEXT NOT NULL,
+        file_name VARCHAR(255),
+        file_type VARCHAR(20) DEFAULT 'image',
+        file_size INTEGER,
+        thumbnail_url TEXT,
+        alt_text VARCHAR(500),
+        tags JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_account ON gas_media_library(account_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_site ON gas_media_library(deployed_site_id)`);
+      console.log('  ✓ Media library schema ready');
+    } catch (e) { console.log('  ⚠ Media library table skipped:', e.message); }
 
     // Create reviews table for storing reviews from channel managers
     await pool.query(`
