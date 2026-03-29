@@ -679,9 +679,9 @@ async function runMigrations() {
     
     // Check if migrations directory exists
     if (!fs.existsSync(migrationsDir)) {
-      console.log('📁 No migrations directory found, skipping migrations');
-      return;
-    }
+      console.log('📁 No migrations directory found, skipping file-based migrations');
+      // Don't return — inline migrations below still need to run
+    } else {
     
     const files = fs.readdirSync(migrationsDir)
       .filter(f => f.endsWith('.sql'))
@@ -727,8 +727,10 @@ async function runMigrations() {
       }
     }
 
+    } // end if migrations directory exists
+
     console.log('🎉 Migrations check complete!');
-    
+
     // ===== INLINE MIGRATIONS (no SQL files needed) =====
 
     // Media Library table
