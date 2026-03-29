@@ -59920,52 +59920,67 @@ Return ONLY the HTML content, nothing else.`;
         break;
       }
       case 'seo': {
-        const { page_type: seoPageType, content: seoContent, title: seoTitle, business_name: seoBiz, account_id: seoAcct, property_id: seoProp } = req.body;
+        const { page_type: seoPageType, content: seoContent, title: seoTitle, business_name: seoBiz, account_id: seoAcct, property_id: seoProp, site_url: seoSiteUrl } = req.body;
         let seoName = seoBiz || 'Our Property';
         let seoLoc = '';
         let seoPType = '';
         let seoPDesc = '';
+        let seoPropertyNames = '';
 
-        const seoPropQuery = seoProp
-            ? pool.query('SELECT name, city, state, country, property_type, description FROM properties WHERE id = $1', [seoProp])
-            : seoAcct
-              ? pool.query('SELECT name, city, state, country, property_type, description FROM properties WHERE account_id = $1 LIMIT 1', [seoAcct])
-              : null;
-        if (seoPropQuery) {
-            const seoPropResult = await seoPropQuery;
-            if (seoPropResult.rows[0]) {
-                const p = seoPropResult.rows[0];
-                seoName = p.name || seoBiz || 'Our Property';
-                seoLoc = [p.city, p.state, p.country].filter(Boolean).join(', ');
-                seoPType = p.property_type || '';
-                seoPDesc = p.description || '';
-            }
-        }
-        if (!seoLoc && seoAcct) {
+        // First get account name and location (most reliable for brand)
+        if (seoAcct) {
             const accR = await pool.query('SELECT name, city, country FROM accounts WHERE id = $1', [seoAcct]);
             if (accR.rows[0]) {
-                if (seoName === 'Our Property' && accR.rows[0].name) seoName = accR.rows[0].name;
+                if (accR.rows[0].name) seoName = accR.rows[0].name;
                 seoLoc = [accR.rows[0].city, accR.rows[0].country].filter(Boolean).join(', ');
             }
         }
 
-        userPrompt = `Generate SEO meta title and description for the ${seoPageType || 'about'} page of "${seoName}"${seoLoc ? ` in ${seoLoc}` : ''}.
+        // Then get property details for context
+        if (seoProp) {
+            const seoPropResult = await pool.query('SELECT name, city, state, country, property_type, description FROM properties WHERE id = $1', [seoProp]);
+            if (seoPropResult.rows[0]) {
+                const p = seoPropResult.rows[0];
+                if (!seoLoc) seoLoc = [p.city, p.state, p.country].filter(Boolean).join(', ');
+                seoPType = p.property_type || '';
+                seoPDesc = p.description || '';
+            }
+        } else if (seoAcct) {
+            // Get ALL properties for this account (not just LIMIT 1)
+            const propsR = await pool.query('SELECT name, city, state, country, property_type, description FROM properties WHERE account_id = $1 ORDER BY id LIMIT 5', [seoAcct]);
+            if (propsR.rows.length > 0) {
+                seoPropertyNames = propsR.rows.map(p => p.name).filter(Boolean).join(', ');
+                seoPType = propsR.rows[0].property_type || '';
+                seoPDesc = propsR.rows[0].description || '';
+                // Only use property location if account had none
+                if (!seoLoc) {
+                    seoLoc = [propsR.rows[0].city, propsR.rows[0].state, propsR.rows[0].country].filter(Boolean).join(', ');
+                }
+            }
+        }
 
-PROPERTY DETAILS:
-- Name: ${seoName}
+        // Override name with business_name if explicitly provided
+        if (seoBiz) seoName = seoBiz;
+
+        userPrompt = `Generate SEO meta title and description for the ${seoPageType || 'homepage'} of "${seoName}"${seoLoc ? ` in ${seoLoc}` : ''}.
+
+BRAND/BUSINESS DETAILS:
+- Brand Name: ${seoName}
 - Location: ${seoLoc || 'not specified'}
 - Type: ${seoPType || 'accommodation'}
+${seoPropertyNames ? `- Properties: ${seoPropertyNames}` : ''}
 ${seoPDesc ? `- Description: ${seoPDesc.substring(0, 300)}` : ''}
+${seoSiteUrl ? `- Website: ${seoSiteUrl}` : ''}
 
 PAGE TITLE: ${seoTitle || 'not set'}
 PAGE CONTENT (excerpt): ${(seoContent || '').substring(0, 500)}
 
-IMPORTANT: Use the EXACT property name "${seoName}" and location "${seoLoc || 'not specified'}" — do not guess or change them.
+CRITICAL: Use the EXACT brand name "${seoName}" and location "${seoLoc || 'not specified'}" — do NOT invent, guess, or change the name or location. If the location says "Cotswolds, United Kingdom" do NOT change it to anywhere else.
 
 Requirements:
 - Meta Title: 50-60 characters, include "${seoName}" and the location
-- Meta Description: 150-160 characters, mention the property, location, and include a call-to-action
-- Be specific to this property
+- Meta Description: 150-160 characters, mention the brand, location, and include a call-to-action like "Book direct"
+- Be specific to this business
 
 Return ONLY valid JSON with this exact structure, no other text:
 {"meta_title": "Your title here", "meta_description": "Your description here"}`;
