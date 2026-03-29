@@ -730,7 +730,48 @@ async function runMigrations() {
     console.log('🎉 Migrations check complete!');
     
     // ===== INLINE MIGRATIONS (no SQL files needed) =====
-    
+
+    // Media Library table
+    try {
+      await pool.query(`CREATE TABLE IF NOT EXISTS gas_media_library (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER NOT NULL,
+        deployed_site_id INTEGER,
+        property_id INTEGER,
+        file_url TEXT NOT NULL,
+        file_name VARCHAR(255),
+        file_type VARCHAR(20) DEFAULT 'image',
+        file_size INTEGER,
+        thumbnail_url TEXT,
+        alt_text VARCHAR(500),
+        tags JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_account ON gas_media_library(account_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_site ON gas_media_library(deployed_site_id)`);
+      console.log('  ✓ Media library table ready');
+    } catch (e) { console.log('  ⚠ Media library:', e.message); }
+
+    // Payment schedule tracking table
+    try {
+      await pool.query(`CREATE TABLE IF NOT EXISTS booking_payment_schedule (
+        id SERIAL PRIMARY KEY,
+        booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+        tier_order INTEGER NOT NULL,
+        percentage DECIMAL(5,2) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        days_before INTEGER,
+        due_date DATE,
+        status VARCHAR(20) DEFAULT 'pending',
+        stripe_payment_intent_id VARCHAR(100),
+        charged_at TIMESTAMP,
+        error_message TEXT,
+        retry_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`);
+      console.log('  ✓ Payment schedule table ready');
+    } catch (e) { console.log('  ⚠ Payment schedule:', e.message); }
+
     // Normalize JSONB language keys from uppercase to lowercase (EN→en, FR→fr, etc.)
     try {
       const normCheck = await pool.query(`SELECT id FROM _migrations WHERE name = 'normalize_jsonb_lang_keys'`);
