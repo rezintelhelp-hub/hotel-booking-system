@@ -111,11 +111,20 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
             case 'text-image':
                 $image = $section['image'] ?? '';
                 $image_position = $section['image_position'] ?? 'left';
+                $image_size = $section['image_size'] ?? 'large';
                 $img_order = ($image_position === 'right') ? 'order: 2;' : 'order: 1;';
                 $txt_order = ($image_position === 'right') ? 'order: 1;' : 'order: 2;';
+                // Set grid columns based on image size
+                if ($image_size === 'small') {
+                    $grid_cols = ($image_position === 'right') ? '1fr 300px' : '300px 1fr';
+                } elseif ($image_size === 'medium') {
+                    $grid_cols = ($image_position === 'right') ? '1fr 500px' : '500px 1fr';
+                } else {
+                    $grid_cols = '1fr 1fr';
+                }
                 ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-imgtext" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
-                    <div class="gas-ps-imgtext-grid" style="max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: center;">
+                    <div class="gas-ps-imgtext-grid" style="max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: <?php echo $grid_cols; ?>; gap: 32px; align-items: center;">
                         <?php if ($image) : ?><div style="<?php echo $img_order; ?>"><img src="<?php echo esc_url($image); ?>" alt="" style="width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);"></div><?php endif; ?>
                         <div style="<?php echo $txt_order; ?>">
                             <?php if ($heading) : ?><h2 style="font-size: 1.8rem; font-weight: 700; color: #1e293b; margin: 0 0 10px;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
