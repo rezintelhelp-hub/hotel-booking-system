@@ -20417,6 +20417,25 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_bps_status_due ON booking_payment_schedule(status, due_date)`);
     console.log('  ✓ Payment schedule schema ready');
 
+    // ── Media Library table ──
+    await pool.query(`CREATE TABLE IF NOT EXISTS gas_media_library (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL,
+      deployed_site_id INTEGER,
+      property_id INTEGER,
+      file_url TEXT NOT NULL,
+      file_name VARCHAR(255),
+      file_type VARCHAR(20) DEFAULT 'image',
+      file_size INTEGER,
+      thumbnail_url TEXT,
+      alt_text VARCHAR(500),
+      tags JSONB DEFAULT '[]',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_account ON gas_media_library(account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_site ON gas_media_library(deployed_site_id)`);
+    console.log('  ✓ Media library schema ready');
+
     // Create reviews table for storing reviews from channel managers
     await pool.query(`
       CREATE TABLE IF NOT EXISTS reviews (
@@ -70669,6 +70688,16 @@ app.post('/api/admin/website-builder/upload-image', (req, res, next) => {
       req.file.originalname
     );
 
+    // Log to media library
+    try {
+      const acctId = account_id || req.user?.account_id;
+      if (acctId) {
+        await pool.query(`INSERT INTO gas_media_library (account_id, deployed_site_id, file_url, file_name, file_type, file_size, thumbnail_url)
+          VALUES ($1, $2, $3, $4, 'image', $5, $6)`,
+          [acctId, deployed_site_id || null, results.large, req.file.originalname, req.file.size, results.thumbnail || null]);
+      }
+    } catch (mlErr) { console.error('Media library log error:', mlErr.message); }
+
     res.json({
       success: true,
       url: results.large, // Use large size for hero images
@@ -70676,6 +70705,107 @@ app.post('/api/admin/website-builder/upload-image', (req, res, next) => {
     });
   } catch (error) {
     console.error('Website image upload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ── Media Library endpoints ──
+
+// GET /api/admin/media-library — list media for account
+app.get('/api/admin/media-library', async (req, res) => {
+  try {
+    const accountId = req.query.account_id || req.user?.account_id;
+    if (!accountId) return res.status(400).json({ success: false, error: 'account_id required' });
+
+    const { deployed_site_id, file_type, search, limit = 50, offset = 0 } = req.query;
+
+    let where = 'WHERE m.account_id = $1';
+    const params = [accountId];
+    let paramIdx = 2;
+
+    if (deployed_site_id) {
+      where += ` AND (m.deployed_site_id = $${paramIdx} OR m.deployed_site_id IS NULL)`;
+      params.push(deployed_site_id);
+      paramIdx++;
+    }
+    if (file_type && file_type !== 'all') {
+      where += ` AND m.file_type = $${paramIdx}`;
+      params.push(file_type);
+      paramIdx++;
+    }
+    if (search) {
+      where += ` AND (m.file_name ILIKE $${paramIdx} OR m.alt_text ILIKE $${paramIdx})`;
+      params.push('%' + search + '%');
+      paramIdx++;
+    }
+
+    params.push(parseInt(limit), parseInt(offset));
+    const result = await pool.query(
+      `SELECT m.*, ds.site_url FROM gas_media_library m LEFT JOIN deployed_sites ds ON m.deployed_site_id = ds.id
+       ${where} ORDER BY m.created_at DESC LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`, params
+    );
+
+    // Also get count
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM gas_media_library m ${where}`, params.slice(0, paramIdx - 1)
+    );
+
+    res.json({ success: true, media: result.rows, total: parseInt(countResult.rows[0].total) });
+  } catch (error) {
+    console.error('Media library list error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/admin/media-library/property-images — get property images for media picker
+app.get('/api/admin/media-library/property-images', async (req, res) => {
+  try {
+    const accountId = req.query.account_id || req.user?.account_id;
+    if (!accountId) return res.status(400).json({ success: false, error: 'account_id required' });
+
+    const result = await pool.query(
+      `SELECT ri.id, ri.url as file_url, ri.caption as alt_text, r.name as room_name, p.name as property_name, p.id as property_id
+       FROM room_images ri
+       JOIN rooms r ON ri.room_id = r.id
+       JOIN properties p ON r.property_id = p.id
+       WHERE p.account_id = $1
+       ORDER BY p.name, r.name, ri.sort_order`, [accountId]
+    );
+
+    res.json({ success: true, images: result.rows });
+  } catch (error) {
+    console.error('Property images error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/admin/media-library/:id — delete media item
+app.delete('/api/admin/media-library/:id', async (req, res) => {
+  try {
+    const accountId = req.query.account_id || req.user?.account_id;
+    const result = await pool.query(
+      'DELETE FROM gas_media_library WHERE id = $1 AND account_id = $2 RETURNING *',
+      [req.params.id, accountId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/admin/media-library/:id — update alt text / tags
+app.put('/api/admin/media-library/:id', async (req, res) => {
+  try {
+    const accountId = req.query.account_id || req.user?.account_id;
+    const { alt_text, tags } = req.body;
+    const result = await pool.query(
+      'UPDATE gas_media_library SET alt_text = COALESCE($1, alt_text), tags = COALESCE($2, tags) WHERE id = $3 AND account_id = $4 RETURNING *',
+      [alt_text, tags ? JSON.stringify(tags) : null, req.params.id, accountId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, media: result.rows[0] });
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
