@@ -689,7 +689,7 @@ async function runMigrations() {
 
     if (files.length === 0) {
       console.log('📁 No migration files found');
-      return;
+      // Don't return — inline migrations below still need to run
     }
 
     console.log(`📁 Found ${files.length} migration files`);
