@@ -752,6 +752,16 @@ async function runMigrations() {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_account ON gas_media_library(account_id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_site ON gas_media_library(deployed_site_id)`);
       console.log('  ✓ Media library table ready');
+      await pool.query(`CREATE TABLE IF NOT EXISTS form_submissions (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER,
+        form_name VARCHAR(255),
+        recipient_email VARCHAR(255),
+        fields JSONB NOT NULL DEFAULT '{}',
+        ip_address VARCHAR(45),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`);
+      console.log('  ✓ Form submissions table ready');
     } catch (e) { console.log('  ⚠ Media library:', e.message); }
 
     // Payment schedule tracking table
@@ -18405,6 +18415,56 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         console.error('Error getting Stripe info:', error);
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// =====================================================
+// FORM SUBMISSION ENDPOINT (public — from section builder forms)
+// =====================================================
+app.post('/api/public/form-submission', async (req, res) => {
+  try {
+    const { client_id, form_name, recipient_email, fields } = req.body;
+    if (!fields || Object.keys(fields).length === 0) {
+      return res.json({ success: false, error: 'No form data submitted' });
+    }
+    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+
+    // Store submission
+    await pool.query(
+      `INSERT INTO form_submissions (account_id, form_name, recipient_email, fields, ip_address) VALUES ($1, $2, $3, $4, $5)`,
+      [client_id || null, form_name || 'Form', recipient_email || '', fields, ip]
+    );
+
+    // Send email to recipient if provided
+    if (recipient_email) {
+      let fieldRows = '';
+      Object.entries(fields).forEach(([key, value]) => {
+        fieldRows += `<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151;width:180px;">${key}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#475569;">${value}</td></tr>`;
+      });
+      const html = `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+          <h2 style="color:#1e293b;margin:0 0 16px;">New ${form_name || 'Form'} Submission</h2>
+          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+            ${fieldRows}
+          </table>
+          <p style="color:#94a3b8;font-size:0.8rem;margin-top:16px;">Submitted via GAS website form</p>
+        </div>
+      `;
+      try {
+        await sendEmail({
+          to: recipient_email,
+          subject: `New ${form_name || 'Form'} Submission`,
+          html
+        });
+      } catch (emailErr) {
+        console.error('Form submission email error:', emailErr.message);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Form submission error:', err);
+    res.json({ success: false, error: 'Submission failed' });
+  }
 });
 
 // =====================================================
