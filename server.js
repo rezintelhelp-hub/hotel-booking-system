@@ -19356,6 +19356,13 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 });
             }
             
+            // Send copy to GAS developer for monitoring
+            await sendEmail({
+                to: 'developer@gas.travel',
+                subject: `[GAS Booking] ${property?.name || 'Unknown'} - ${guest_first_name} ${guest_last_name} (Ref: ${groupBookingId})`,
+                html: emailHtml
+            });
+
             console.log(`Group booking confirmation email sent to ${guest_email}`);
         } catch (emailError) {
             console.error('Group booking email error:', emailError.message);
