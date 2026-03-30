@@ -81259,6 +81259,26 @@ app.get('/api/public/website/:blogId/page-sections/:slug', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      // Fallback: check website_settings for sb-sections (pages not yet migrated to page_sections)
+      const sectionKeys = ['page-' + slug, 'page-custom-' + slug];
+      for (const sectionKey of sectionKeys) {
+        const wsResult = await pool.query(
+          `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = $2`,
+          [websiteId, sectionKey]
+        );
+        if (wsResult.rows.length > 0) {
+          const ws = wsResult.rows[0].settings || {};
+          if (ws['sb-sections'] && ws['sb-mode'] === 'sections') {
+            let sections = ws['sb-sections'];
+            if (typeof sections === 'string') {
+              try { sections = JSON.parse(sections); } catch(e) { sections = []; }
+            }
+            if (Array.isArray(sections) && sections.length > 0) {
+              return res.json({ success: true, page_title: ws['title-en'] || '', sections: sections });
+            }
+          }
+        }
+      }
       return res.json({ success: false, sections: null });
     }
 
