@@ -2408,7 +2408,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
           <h2>${tr('no_rooms')}</h2>
         </div>`}
     </div>
-    ${!embed && !compact && showMap && mapPins.length > 0 ? '<div class="map-panel"><div id="property-map"></div></div>' : ''}
+    ${!compact && showMap && mapPins.length > 0 ? '<div class="map-panel"><div id="property-map"></div></div>' : ''}
   </div>
 
   <script>
@@ -2647,7 +2647,7 @@ ${embed ? `
       }
     });
 ` : ''}
-${mapPins.length > 0 && !embed && !compact && showMap ? `
+${mapPins.length > 0 && !compact && showMap ? `
     // === PROPERTY MAP ===
     (function() {
       var pins = ${mapDataJson};
