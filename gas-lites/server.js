@@ -2848,6 +2848,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     
     /* Gallery */
     .gallery { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; height: 450px; border-radius: var(--card-radius); overflow: hidden; margin-bottom: 24px; }
+    .gallery.gallery-full { grid-template-columns: 1fr; }
     .gallery-main { width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
     .gallery-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; }
     .gallery-thumb { width: 100%; height: 100%; object-fit: cover; cursor: pointer; transition: opacity 0.2s; }
@@ -3212,10 +3213,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   </header>
   
   <div class="container">
-    <div class="gallery">
+    <div class="gallery${images.length < 5 ? ' gallery-full' : ''}">
       ${images.length > 0 ? `
         <img src="${images[0].url}" alt="${escapeForHTML(title)}" class="gallery-main" onclick="openLightbox(0)">
-        <div class="gallery-grid">
+        ${images.length >= 5 ? `<div class="gallery-grid">
           ${images.slice(1, 5).map((img, i) => {
             if (i === 3 && images.length > 5) {
               return `<div class="gallery-more" onclick="openLightbox(4)">
@@ -3225,7 +3226,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             }
             return `<img src="${img.url}" alt="" class="gallery-thumb" onclick="openLightbox(${i + 1})">`;
           }).join('')}
-        </div>
+        </div>` : ''}
       ` : `<div style="background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:60px;grid-column:1/-1;">🏠</div>`}
     </div>
     
