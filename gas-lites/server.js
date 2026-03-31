@@ -912,11 +912,12 @@ app.get('/:slug', async (req, res) => {
       }
     }
     
+    const litesStyle = accountSettings.lites_style || {};
     res.send(renderFullPage({
       lite, images, amenities, reviews, availability,
       todayPrice, qrCode, liteUrl, showReviews,
       roomId, propertyId, accountId, activeOffer, lang, supportedLangs,
-      embed: isEmbed
+      embed: isEmbed, litesStyle
     }));
   } catch (error) {
     console.error('Lite page error:', error);
@@ -2266,7 +2267,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
     h1, h2, h3, h4, .room-name { font-family: '${headingFont}', system-ui, sans-serif; }
 
     /* Header */
-    .page-header { background: white; border-bottom: 1px solid #e2e8f0; padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+    .page-header { background: ${cardBg}; border-bottom: 1px solid #e2e8f0; padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
     .header-left { display: flex; align-items: center; gap: 0.75rem; }
     .header-left h1 { font-size: 1.2rem; font-weight: 700; }
     .nav-links { display: flex; align-items: center; gap: 1.5rem; }
@@ -2276,7 +2277,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
     .nav-links .nav-cta:hover { opacity: 0.9; color: white; }
 
     /* Search bar */
-    .search-bar { background: white; border-bottom: 1px solid #e2e8f0; padding: 0.75rem 1.5rem; position: sticky; top: 0; z-index: 100; }
+    .search-bar { background: ${cardBg}; border-bottom: 1px solid #e2e8f0; padding: 0.75rem 1.5rem; position: sticky; top: 0; z-index: 100; }
     .search-inner { max-width: 1400px; margin: 0 auto; display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; }
     .search-field { display: flex; flex-direction: column; gap: 0.2rem; flex: 1; min-width: 120px; }
     .search-field label { font-size: 0.65rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -2693,27 +2694,38 @@ ${showBranding ? `<div style="text-align:center;padding:1.5rem;font-size:0.75rem
 </html>`;
 }
 
-function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId, accountId, activeOffer, lang = 'en', supportedLangs = ['en', 'es', 'fr', 'de', 'nl'], embed = false }) {
+function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId, accountId, activeOffer, lang = 'en', supportedLangs = ['en', 'es', 'fr', 'de', 'nl'], embed = false, litesStyle = {} }) {
   // Validate language
   if (!LITE_TRANSLATIONS[lang]) lang = 'en';
-  
+
+  // Style settings from account lites_style (same as booking page)
+  const accent = litesStyle.btn_color || lite.accent_color || '#3b82f6';
+  const btnTextColor = litesStyle.btn_text_color || '#ffffff';
+  const btnRadius = litesStyle.btn_radius != null ? litesStyle.btn_radius : 6;
+  const pageBg = litesStyle.page_bg || '#f8fafc';
+  const cardBg = litesStyle.card_bg || '#ffffff';
+  const textColor = litesStyle.text_color || '#1e293b';
+  const headingFont = litesStyle.heading_font || 'Inter';
+  const bodyFont = litesStyle.body_font || 'Inter';
+  const cardRadius = litesStyle.card_radius != null ? litesStyle.card_radius : 10;
+  const showBranding = litesStyle.show_branding !== false;
+
   // Use custom_title only if it's different from room_name (i.e., truly custom)
   const effectiveCustomTitle = (lite.custom_title && lite.custom_title !== lite.room_name) ? lite.custom_title : null;
   const title = effectiveCustomTitle || lite.display_name || lite.room_name || lite.property_name;
-  
+
   // Short description for intro/tagline - with language support
   const rawShortDesc = lite.room_short_desc || lite.property_short_desc || '';
   const shortDescription = parseDescription(typeof rawShortDesc === 'object' ? (rawShortDesc[lang] || rawShortDesc.en || Object.values(rawShortDesc)[0]) : rawShortDesc);
-  
+
   // Full description for details tab - with language support
   const rawFullDesc = lite.room_full_desc || lite.property_full_desc || lite.property_desc || rawShortDesc || '';
   const description = parseDescription(typeof rawFullDesc === 'object' ? (rawFullDesc[lang] || rawFullDesc.en || Object.values(rawFullDesc)[0]) : rawFullDesc);
-  
+
   const currency = getCurrencySymbol(lite.currency);
   const currencyCode = lite.currency || 'USD';
   let price = todayPrice;
   let originalPrice = null;
-  const accent = lite.accent_color || '#3b82f6';
   
   // Filter AVAILABLE_LANGUAGES to only show supported ones
   const displayLanguages = AVAILABLE_LANGUAGES.filter(l => supportedLangs.includes(l.code));
@@ -2809,16 +2821,17 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   <meta property="og:title" content="${String(title).replace(/"/g, '&quot;')}">
   <meta property="og:image" content="${images[0]?.url || ''}">
   <meta property="og:url" content="${liteUrl}">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700${headingFont !== 'Inter' ? '&family=' + encodeURIComponent(headingFont) + ':wght@400;500;600;700' : ''}${bodyFont !== 'Inter' && bodyFont !== headingFont ? '&family=' + encodeURIComponent(bodyFont) + ':wght@400;500;600;700' : ''}&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   ${lang !== 'en' ? `<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/${lang === 'es' ? 'es' : lang === 'fr' ? 'fr' : lang === 'de' ? 'de' : lang === 'nl' ? 'nl' : 'default'}.js"></script>` : ''}
   <script src="https://js.stripe.com/v3/"></script>
   <style>
-    :root { --accent: ${accent}; }
+    :root { --accent: ${accent}; --btn-text: ${btnTextColor}; --btn-radius: ${btnRadius}px; --card-bg: ${cardBg}; --card-radius: ${cardRadius}px; --text-color: ${textColor}; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', system-ui, sans-serif; color: #1e293b; line-height: 1.6; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-    .page-wrapper { background: #f8fafc; margin: 0 auto; max-width: 1400px; min-height: 100vh; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
+    body { font-family: '${bodyFont}', system-ui, sans-serif; color: ${textColor}; line-height: 1.6; background: ${pageBg}; min-height: 100vh; }
+    h1, h2, h3, h4 { font-family: '${headingFont}', system-ui, sans-serif; }
+    .page-wrapper { background: ${pageBg}; margin: 0 auto; max-width: 1400px; min-height: 100vh; box-shadow: 0 0 60px rgba(0,0,0,0.1); }
     .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
     
     /* Language Switcher */
@@ -2941,7 +2954,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     /* Reviews */
     .reviews-summary { display: flex; align-items: center; gap: 20px; padding: 20px; background: linear-gradient(135deg, var(--accent), #8b5cf6); border-radius: 12px; color: white; margin-bottom: 24px; }
     .reviews-avg { font-size: 48px; font-weight: 700; line-height: 1; }
-    .review-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .review-card { background: var(--card-bg); border-radius: var(--card-radius); padding: 20px; margin-bottom: 16px; }
     .review-header { display: flex; justify-content: space-between; margin-bottom: 12px; }
     .reviewer-name { font-weight: 600; }
     .review-date { color: #64748b; font-size: 13px; }
@@ -2971,7 +2984,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
     
     /* Booking Card */
-    .booking-card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 24px; position: sticky; top: 80px; }
+    .booking-card { background: var(--card-bg); border-radius: var(--card-radius); box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 24px; position: sticky; top: 80px; }
     .price-display { margin-bottom: 20px; }
     .price-amount { font-size: 28px; font-weight: 700; }
     .price-period { color: #64748b; font-size: 14px; }
@@ -2986,7 +2999,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .availability-msg.error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
     .availability-msg.warning { background: #fffbeb; border: 1px solid #fde68a; color: #b45309; }
     .availability-msg.info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
-    .book-btn { width: 100%; padding: 16px; background: var(--accent); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
+    .book-btn { width: 100%; padding: 16px; background: var(--accent); color: var(--btn-text); border: none; border-radius: var(--btn-radius); font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
     .book-btn:hover { filter: brightness(0.95); }
     .book-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
     .btn-loading { display: none; }
@@ -3004,7 +3017,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .rate-options-section { margin: 16px 0; padding: 0; }
     .rate-options-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #64748b; }
     .rate-options-list { display: flex; flex-direction: column; gap: 10px; }
-    .rate-option { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; background: white; border: 2px solid #e2e8f0; border-radius: 12px; cursor: pointer; transition: all 0.2s; }
+    .rate-option { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; background: var(--card-bg); border: 2px solid #e2e8f0; border-radius: var(--card-radius); cursor: pointer; transition: all 0.2s; }
     .rate-option:hover { border-color: #cbd5e1; }
     .rate-option.selected { border-color: var(--accent); background: rgba(59, 130, 246, 0.02); }
     .rate-option-radio { width: 20px; height: 20px; border: 2px solid #cbd5e1; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
@@ -3060,7 +3073,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .voucher-row { display: flex; gap: 8px; margin-top: 10px; }
     .voucher-input { flex: 1; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; text-transform: uppercase; }
     .voucher-input:focus { outline: none; border-color: var(--accent); }
-    .voucher-apply-btn { padding: 10px 16px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; }
+    .voucher-apply-btn { padding: 10px 16px; background: var(--accent); color: var(--btn-text); border: none; border-radius: var(--btn-radius); font-weight: 600; font-size: 13px; cursor: pointer; }
     .voucher-apply-btn:hover { filter: brightness(0.9); }
     .voucher-applied { display: flex; align-items: center; justify-content: space-between; background: #dcfce7; border: 1px solid #86efac; padding: 10px 14px; border-radius: 6px; margin-top: 10px; }
     .voucher-name { font-size: 13px; font-weight: 600; color: #166534; }
@@ -3120,7 +3133,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .step-nav { display: flex; justify-content: space-between; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
     .btn-secondary { padding: 12px 20px; background: white; color: #1e293b; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
     .btn-secondary:hover { background: #f8fafc; }
-    .btn-primary { padding: 12px 20px; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .btn-primary { padding: 12px 20px; background: var(--accent); color: var(--btn-text); border: none; border-radius: var(--btn-radius); font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }
     .btn-primary:hover { filter: brightness(0.95); }
     .btn-primary:disabled { background: #cbd5e1; cursor: not-allowed; }
     
@@ -3610,7 +3623,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     </div>
   </div>
   
-  <footer class="footer">Powered by <a href="https://gas.travel">GAS.travel</a> • <a href="${liteUrl}/card">View Promo Card</a></footer>
+  ${showBranding ? `<footer class="footer">Powered by <a href="https://gas.travel">GAS.travel</a> • <a href="${liteUrl}/card">View Promo Card</a></footer>` : ''}
   </div><!-- end page-wrapper -->
   
   <script>
