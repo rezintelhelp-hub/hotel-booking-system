@@ -3,14 +3,14 @@
  * Plugin Name: GAS Hostvana
  * Plugin URI: https://gas.travel
  * Description: Guest messaging chat widget powered by Beds24. Floating chat bubble for website visitors to message property staff.
- * Version: 1.0.7
+ * Version: 1.0.8
  * Author: GAS - Guest Accommodation System
  * License: GPL v2 or later
  */
 
 if (!defined('ABSPATH')) exit;
 define('GAS_HOSTVANA_DEFAULT_API_URL', 'https://admin.gas.travel');
-define('GAS_HOSTVANA_VERSION', '1.0.7');
+define('GAS_HOSTVANA_VERSION', '1.0.8');
 
 class GAS_Hostvana {
     private static $instance = null;
@@ -305,12 +305,16 @@ class GAS_Hostvana {
 
         @media (max-width: 480px) {
             .gas-hostvana-panel {
-                width: calc(100vw - 16px);
-                height: calc(100vh - 120px);
-                bottom: 88px;
-                left: 8px;
-                right: 8px;
+                width: calc(100vw - 32px);
+                max-height: 420px;
+                height: auto;
+                bottom: 96px;
+                left: 16px;
+                right: 16px;
                 border-radius: 12px;
+            }
+            .gas-hostvana-messages {
+                max-height: 280px;
             }
         }
         </style>
