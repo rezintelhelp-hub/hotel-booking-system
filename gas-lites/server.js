@@ -2327,7 +2327,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
       .page-header { flex-direction: column; gap: 0.5rem; }
       .nav-links { gap: 1rem; }
       .search-inner { flex-direction: column; }
-      .search-field { min-width: 100%; }
+      .search-field { min-width: 100% !important; max-width: 100% !important; flex: 1 !important; }
       .check-btn { width: 100%; }
       .main-content { flex-direction: column; }
       .map-panel { position: relative; top: auto; height: 300px; min-width: auto; }
@@ -2365,11 +2365,11 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
           ${propOptionsHtml}
         </select>
       </div>
-      <div class="search-field" style="flex: 0.8; min-width: 85px; max-width: 110px;">
+      <div class="search-field search-date" style="flex: 1; min-width: 120px;">
         <label>${tr('check_in')}</label>
         <input type="text" id="checkin" placeholder="${tr('select_dates')}" readonly>
       </div>
-      <div class="search-field" style="flex: 0.8; min-width: 85px; max-width: 110px;">
+      <div class="search-field search-date" style="flex: 1; min-width: 120px;">
         <label>${tr('check_out')}</label>
         <input type="text" id="checkout" placeholder="${tr('select_dates')}" readonly>
       </div>
