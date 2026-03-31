@@ -15464,21 +15464,21 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
         gasRoomId = existingRoom.rows[0].id;
         await pool.query(`UPDATE bookable_units SET
           name = $1, max_guests = $2, base_price = $3, min_stay = $4,
-          description = $5, short_description = $6, display_name = $7,
-          amenities = $8, num_bedrooms = $9, num_bathrooms = $10,
+          description = $5, short_description = $6, full_description = $7, display_name = $8,
+          amenities = $9, num_bedrooms = $10, num_bathrooms = $11,
           cm_source = 'beds24-marketplace', updated_at = NOW()
-          WHERE id = $11`,
+          WHERE id = $12`,
           [roomName, maxGuests, rackRate, minStay, JSON.stringify(descML),
-           JSON.stringify(shortDescML), JSON.stringify(nameML),
+           JSON.stringify(shortDescML), JSON.stringify(descML), JSON.stringify(nameML),
            JSON.stringify(amenitiesList), numBedrooms || 1, numBathrooms || 1, gasRoomId]);
         roomsUpdated++;
       } else {
         const roomResult = await pool.query(`
           INSERT INTO bookable_units (property_id, cm_room_id, cm_source, name, max_guests, base_price, min_stay,
-            description, short_description, display_name, amenities, num_bedrooms, num_bathrooms, status, created_at)
-          VALUES ($1, $2, 'beds24-marketplace', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'available', NOW()) RETURNING id`,
+            description, short_description, full_description, display_name, amenities, num_bedrooms, num_bathrooms, status, created_at)
+          VALUES ($1, $2, 'beds24-marketplace', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'available', NOW()) RETURNING id`,
           [gasPropertyId, String(roomId), roomName, maxGuests, rackRate, minStay,
-           JSON.stringify(descML), JSON.stringify(shortDescML), JSON.stringify(nameML),
+           JSON.stringify(descML), JSON.stringify(shortDescML), JSON.stringify(descML), JSON.stringify(nameML),
            JSON.stringify(amenitiesList), numBedrooms || 1, numBathrooms || 1]);
         gasRoomId = roomResult.rows[0].id;
         roomsCreated++;
