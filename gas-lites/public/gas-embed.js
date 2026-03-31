@@ -15,7 +15,7 @@
  *   data-min-height (optional)  Minimum iframe height in px (default: 700)
  *   data-lang       (optional)  Language code e.g. "es", "de", "fr"
  *
- * Version: 1.1.0
+ * Version: 1.2.0
  * https://gas.travel
  */
 (function() {
@@ -51,6 +51,26 @@
     minHeight: parseInt(script.getAttribute('data-min-height')) || 700,
     lang: script.getAttribute('data-lang') || ''
   };
+
+  // Auto-detect language from host page if not explicitly set
+  if (!config.lang) {
+    // 1. Check URL path for language prefix (e.g. /fr/, /de/ — works with Webflow Localization)
+    var pathMatch = window.location.pathname.match(/^\/([a-z]{2})(\/|$)/);
+    if (pathMatch) {
+      config.lang = pathMatch[1];
+    }
+    // 2. Fall back to HTML lang attribute (works with Weglot and similar)
+    if (!config.lang) {
+      var htmlLang = document.documentElement.lang;
+      if (htmlLang) {
+        config.lang = htmlLang.substring(0, 2).toLowerCase();
+      }
+    }
+    // 3. Browser language as last resort (validated server-side against account's supported languages)
+    if (!config.lang) {
+      config.lang = (navigator.language || '').substring(0, 2).toLowerCase();
+    }
+  }
 
   // Determine embed server origin
   var origin = script.src.replace(/\/gas-embed\.js.*$/, '').replace(/\/embed\.js.*$/, '');
