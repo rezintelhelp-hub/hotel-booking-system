@@ -9086,11 +9086,11 @@ app.get('/api/gas-sync/properties/:propertyId/sync-status', async (req, res) => 
 */
 
 const SYNC_TIERS = [
-  { tier: 1, startDay: 0, endDay: 30, intervalMinutes: 15, roomsPerRun: 5, name: 'Immediate (0-30 days)' },
-  { tier: 2, startDay: 31, endDay: 90, intervalMinutes: 120, roomsPerRun: 5, name: 'Near-term (31-90 days)' },
-  { tier: 3, startDay: 91, endDay: 180, intervalMinutes: 360, roomsPerRun: 5, name: 'Medium-term (91-180 days)' },
+  { tier: 1, startDay: 0, endDay: 30, intervalMinutes: 180, roomsPerRun: 5, name: 'Immediate (0-30 days)' },
+  { tier: 2, startDay: 31, endDay: 90, intervalMinutes: 180, roomsPerRun: 5, name: 'Near-term (31-90 days)' },
+  { tier: 3, startDay: 91, endDay: 180, intervalMinutes: 720, roomsPerRun: 5, name: 'Medium-term (91-180 days)' },
   { tier: 4, startDay: 181, endDay: 365, intervalMinutes: 720, roomsPerRun: 5, name: 'Long-term (181-365 days)' },
-  { tier: 5, startDay: 366, endDay: 540, intervalMinutes: 1440, roomsPerRun: 3, name: 'Far-future (366-540 days)' }
+  { tier: 5, startDay: 366, endDay: 540, intervalMinutes: 10080, roomsPerRun: 3, name: 'Far-future (366-540 days)' }
 ];
 
 // Manual sync defaults - used when client clicks "Sync Prices"
@@ -74851,110 +74851,112 @@ async function runGasSyncScheduler() {
         if (row.price_linking) priceLinkingMap[parseInt(row.external_id)] = row.price_linking;
       }
 
-      // Only sync tier 1 (0-30 days) on the scheduled run — keeps it fast and light
-      const tier = SYNC_TIERS[0]; // Tier 1: 0-30 days, every 15 mins
-      const tierColumn = `tier${tier.tier}_synced_at`;
-      const cutoffTime = new Date(now.getTime() - tier.intervalMinutes * 60 * 1000);
+      // Run all tiers — each tier has its own interval so rooms only sync when due
+      // T1/T2: every 3 hrs, T3/T4: every 12 hrs, T5: once a week
+      for (const tier of SYNC_TIERS) {
+        const tierColumn = `tier${tier.tier}_synced_at`;
+        const cutoffTime = new Date(now.getTime() - tier.intervalMinutes * 60 * 1000);
 
-      const roomsResult = await pool.query(`
-        SELECT rt.id, rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
-        FROM gas_sync_room_types rt
-        JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
-        JOIN bookable_units bu ON bu.id = rt.gas_room_id
-        WHERE sp.connection_id = $1
-          AND rt.gas_room_id IS NOT NULL
-          AND (rt.${tierColumn} IS NULL OR rt.${tierColumn} < $2)
-        ORDER BY rt.${tierColumn} ASC NULLS FIRST
-        LIMIT 5
-      `, [conn.id, cutoffTime]);
+        const roomsResult = await pool.query(`
+          SELECT rt.id, rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
+          FROM gas_sync_room_types rt
+          JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+          JOIN bookable_units bu ON bu.id = rt.gas_room_id
+          WHERE sp.connection_id = $1
+            AND rt.gas_room_id IS NOT NULL
+            AND (rt.${tierColumn} IS NULL OR rt.${tierColumn} < $2)
+          ORDER BY rt.${tierColumn} ASC NULLS FIRST
+          LIMIT $3
+        `, [conn.id, cutoffTime, tier.roomsPerRun]);
 
-      if (roomsResult.rows.length === 0) continue;
+        if (roomsResult.rows.length === 0) continue;
 
-      for (const room of roomsResult.rows) {
-        try {
-          const beds24RoomId = parseInt(room.beds24_room_id);
-          const startDate = new Date(now.getTime() + tier.startDay * 24 * 60 * 60 * 1000);
-          const endDate = new Date(now.getTime() + tier.endDay * 24 * 60 * 60 * 1000);
-          const startDateStr = startDate.toISOString().split('T')[0];
-          const endDateStr = endDate.toISOString().split('T')[0];
+        for (const room of roomsResult.rows) {
+          try {
+            const beds24RoomId = parseInt(room.beds24_room_id);
+            const startDate = new Date(now.getTime() + tier.startDay * 24 * 60 * 60 * 1000);
+            const endDate = new Date(now.getTime() + tier.endDay * 24 * 60 * 60 * 1000);
+            const startDateStr = startDate.toISOString().split('T')[0];
+            const endDateStr = endDate.toISOString().split('T')[0];
 
-          const linking = priceLinkingMap[beds24RoomId];
+            const linking = priceLinkingMap[beds24RoomId];
 
-          const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
-            headers: { 'token': accessToken },
-            params: { roomId: beds24RoomId, startDate: startDateStr, endDate: endDateStr, includeNumAvail: true, includePrices: true, includeMinStay: true }
-          });
+            const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+              headers: { 'token': accessToken },
+              params: { roomId: beds24RoomId, startDate: startDateStr, endDate: endDateStr, includeNumAvail: true, includePrices: true, includeMinStay: true }
+            });
 
-          let calendarData = calResponse.data.data?.[0]?.calendar || [];
+            let calendarData = calResponse.data.data?.[0]?.calendar || [];
 
-          // Handle price linking from database if no prices
-          const hasNoPrices = calendarData.length === 0 || !calendarData.some(e => e.price1 || e.price2);
-          if (hasNoPrices && linking) {
-            const sourceRoomResult = await pool.query(`
-              SELECT rt.gas_room_id FROM gas_sync_room_types rt
-              JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
-              WHERE sp.connection_id = $1 AND rt.external_id = $2
-            `, [conn.id, String(linking.sourceRoomId)]);
-            const sourceGasRoomId = sourceRoomResult.rows[0]?.gas_room_id;
-            if (sourceGasRoomId) {
-              const sourcePricesResult = await pool.query(`
-                SELECT date, cm_price, min_stay FROM room_availability
-                WHERE room_id = $1 AND date >= $2 AND date <= $3 ORDER BY date
-              `, [sourceGasRoomId, startDateStr, endDateStr]);
-              const sourcePriceMap = {};
-              for (const row of sourcePricesResult.rows) {
-                sourcePriceMap[toDateStr(row.date)] = { price: parseFloat(row.cm_price) || null, minStay: row.min_stay || 1 };
-              }
-              const applyOffset = (price) => price ? (price * (linking.offsetMultiplier || 1)) + (linking.offsetAmount || 0) : null;
-              if (calendarData.length > 0) {
-                const expanded = [];
-                for (const entry of calendarData) {
-                  const f = new Date(entry.from), t = new Date(entry.to);
-                  for (let d = new Date(f); d <= t; d.setDate(d.getDate() + 1)) {
-                    const ds = d.toISOString().split('T')[0];
-                    const src = sourcePriceMap[ds];
-                    expanded.push({ from: ds, to: ds, numAvail: entry.numAvail, minStay: src?.minStay || entry.minStay || 1, price1: entry.price1 || entry.price2 || applyOffset(src?.price) });
-                  }
+            // Handle price linking from database if no prices
+            const hasNoPrices = calendarData.length === 0 || !calendarData.some(e => e.price1 || e.price2);
+            if (hasNoPrices && linking) {
+              const sourceRoomResult = await pool.query(`
+                SELECT rt.gas_room_id FROM gas_sync_room_types rt
+                JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+                WHERE sp.connection_id = $1 AND rt.external_id = $2
+              `, [conn.id, String(linking.sourceRoomId)]);
+              const sourceGasRoomId = sourceRoomResult.rows[0]?.gas_room_id;
+              if (sourceGasRoomId) {
+                const sourcePricesResult = await pool.query(`
+                  SELECT date, cm_price, min_stay FROM room_availability
+                  WHERE room_id = $1 AND date >= $2 AND date <= $3 ORDER BY date
+                `, [sourceGasRoomId, startDateStr, endDateStr]);
+                const sourcePriceMap = {};
+                for (const row of sourcePricesResult.rows) {
+                  sourcePriceMap[toDateStr(row.date)] = { price: parseFloat(row.cm_price) || null, minStay: row.min_stay || 1 };
                 }
-                calendarData = expanded;
-              } else {
-                calendarData = Object.entries(sourcePriceMap).map(([ds, data]) => ({ from: ds, to: ds, numAvail: 1, minStay: data.minStay, price1: applyOffset(data.price) }));
+                const applyOffset = (price) => price ? (price * (linking.offsetMultiplier || 1)) + (linking.offsetAmount || 0) : null;
+                if (calendarData.length > 0) {
+                  const expanded = [];
+                  for (const entry of calendarData) {
+                    const f = new Date(entry.from), t = new Date(entry.to);
+                    for (let d = new Date(f); d <= t; d.setDate(d.getDate() + 1)) {
+                      const ds = d.toISOString().split('T')[0];
+                      const src = sourcePriceMap[ds];
+                      expanded.push({ from: ds, to: ds, numAvail: entry.numAvail, minStay: src?.minStay || entry.minStay || 1, price1: entry.price1 || entry.price2 || applyOffset(src?.price) });
+                    }
+                  }
+                  calendarData = expanded;
+                } else {
+                  calendarData = Object.entries(sourcePriceMap).map(([ds, data]) => ({ from: ds, to: ds, numAvail: 1, minStay: data.minStay, price1: applyOffset(data.price) }));
+                }
               }
             }
-          }
 
-          // Write price & availability to room_availability
-          for (const entry of calendarData) {
-            const fromDate = new Date(entry.from), toDate = new Date(entry.to);
-            for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
-              const dateStr = d.toISOString().split('T')[0];
-              const numAvail = entry.numAvail || 0;
-              const price = (entry.price1 != null) ? entry.price1 : (entry.price2 != null) ? entry.price2 : null;
-              const minStay = entry.minStay || 1;
-              await pool.query(`
-                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
-                ON CONFLICT (room_id, date) DO UPDATE SET
-                  price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
-                  cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
-                  is_available = $4, is_blocked = $5,
-                  min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
-                  cm_min_stay = $6, source = 'beds24', updated_at = NOW()
-              `, [room.gas_room_id, dateStr, price, numAvail > 0 && price !== null, numAvail === 0, minStay]);
+            // Write price & availability to room_availability
+            for (const entry of calendarData) {
+              const fromDate = new Date(entry.from), toDate = new Date(entry.to);
+              for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
+                const numAvail = entry.numAvail || 0;
+                const price = (entry.price1 != null) ? entry.price1 : (entry.price2 != null) ? entry.price2 : null;
+                const minStay = entry.minStay || 1;
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+                  ON CONFLICT (room_id, date) DO UPDATE SET
+                    price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                    cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                    is_available = $4, is_blocked = $5,
+                    min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                    cm_min_stay = $6, source = 'beds24', updated_at = NOW()
+                `, [room.gas_room_id, dateStr, price, numAvail > 0 && price !== null, numAvail === 0, minStay]);
+              }
             }
+
+            // Update tier sync timestamp
+            await pool.query(`UPDATE gas_sync_room_types SET ${tierColumn} = NOW() WHERE id = $1`, [room.id]);
+            totalRoomsSynced++;
+
+            // Rate limit: 2 seconds between rooms
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } catch (roomError) {
+            totalErrors++;
+            if (roomError.response?.status === 429) break; // Stop if rate limited
           }
-
-          // Update tier sync timestamp
-          await pool.query(`UPDATE gas_sync_room_types SET ${tierColumn} = NOW() WHERE id = $1`, [room.id]);
-          totalRoomsSynced++;
-
-          // Rate limit: 2 seconds between rooms
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        } catch (roomError) {
-          totalErrors++;
-          if (roomError.response?.status === 429) break; // Stop if rate limited
         }
-      }
+      } // end tiers loop
 
       // 3 second pause between connections
       await new Promise(resolve => setTimeout(resolve, 3000));
