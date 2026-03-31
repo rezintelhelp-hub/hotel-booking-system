@@ -2922,7 +2922,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .meta-item { display: flex; align-items: center; gap: 8px; color: #475569; font-size: 0.9rem; }
     .meta-icon { opacity: 0.7; }
     .more-info { margin-top: 20px; }
-    .more-info summary { color: #667eea; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+    .more-info summary { color: var(--accent); cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 6px; }
     .more-info summary:hover { text-decoration: underline; }
     .more-info .more-content { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
     .meta-item { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #64748b; }
@@ -2969,7 +2969,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .calendar-day.available { background: #dcfce7; color: #166534; }
     .calendar-day.unavailable { background: #ffe4e6; color: #9f1239; }
     .calendar-day.empty { background: transparent; cursor: default; color: #cbd5e1; }
-    .calendar-day.today { border: 2px solid #3b82f6; }
+    .calendar-day.today { border: 2px solid var(--accent); }
     .calendar-day:hover:not(.empty):not(.unavailable) { background: #bbf7d0; }
     .calendar-day .price { font-size: 9px; opacity: 0.8; }
     .calendar-legend { display: flex; gap: 16px; margin-top: 16px; font-size: 12px; color: #64748b; }
@@ -2985,7 +2985,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .price-period { color: #64748b; font-size: 14px; }
     .date-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
     .date-field label { display: block; font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
-    .date-field input, .guest-field select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; cursor: pointer; background: white; }
+    .date-field input, .guest-field select { width: 100%; padding: 12px; border: 2px solid ${accent}4D; border-radius: var(--btn-radius); font-size: 14px; cursor: pointer; background: white; }
     .date-field input:focus, .guest-field select:focus { outline: none; border-color: var(--accent); }
     .guest-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
     .guest-field label { display: block; font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
