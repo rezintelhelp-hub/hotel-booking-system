@@ -13280,6 +13280,34 @@ app.get('/api/calry/integration-id/:pms', (req, res) => {
   }
 });
 
+// Get lites style settings for an account
+app.get('/api/accounts/:id/lites-style', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT settings FROM accounts WHERE id = $1', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Account not found' });
+    const settings = result.rows[0].settings || {};
+    res.json({ lites_style: settings.lites_style || {} });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Save lites style settings for an account
+app.put('/api/accounts/:id/lites-style', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { lites_style } = req.body;
+    await pool.query(
+      `UPDATE accounts SET settings = jsonb_set(COALESCE(settings, '{}'), '{lites_style}', $1::jsonb) WHERE id = $2`,
+      [JSON.stringify(lites_style), id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Update account
 app.put('/api/accounts/:id', async (req, res) => {
   try {
