@@ -2334,42 +2334,48 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
 
   <div class="search-bar" id="search">
     <div class="search-inner">
-      <div class="search-field" style="max-width: 150px;">
+      <div class="search-field" style="max-width: 120px;">
         <label>${tr('location')}</label>
         <select id="filterLocation" onchange="applyFilters()">
           <option value="">${tr('all_locations')}</option>
           ${cityOptionsHtml}
         </select>
       </div>
-      <div class="search-field" style="max-width: 200px;">
+      <div class="search-field" style="max-width: 140px;">
         <label>Property</label>
         <select id="filterProperty" onchange="applyFilters()">
           <option value="">${tr('all_properties')}</option>
           ${propOptionsHtml}
         </select>
       </div>
-      <div class="search-field">
+      <div class="search-field" style="min-width: 100px;">
         <label>${tr('check_in')}</label>
         <input type="text" id="checkin" placeholder="${tr('select_dates')}" readonly>
       </div>
-      <div class="search-field">
+      <div class="search-field" style="min-width: 100px;">
         <label>${tr('check_out')}</label>
         <input type="text" id="checkout" placeholder="${tr('select_dates')}" readonly>
       </div>
-      <div class="search-field" style="max-width: 100px;">
+      <div class="search-field" style="max-width: 80px;">
         <label>${tr('guests')}</label>
         <select id="guests">
-          ${[1,2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}"${n === 2 ? ' selected' : ''}>${n} ${n > 1 ? tr('guests_plural') : tr('guest')}</option>`).join('')}
+          ${[1,2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}"${n === 2 ? ' selected' : ''}>${n}</option>`).join('')}
         </select>
       </div>
-      <div class="search-field" style="max-width: 140px;">
+      <div class="search-field" style="max-width: 100px;">
         <label>Sort</label>
         <select id="sortBy" onchange="applyFilters()">
           <option value="">—</option>
-          <option value="price-asc">${tr('price_from')} ↑</option>
-          <option value="price-desc">${tr('price_from')} ↓</option>
+          <option value="price-asc">↑</option>
+          <option value="price-desc">↓</option>
         </select>
       </div>
+      ${displayLanguages.length > 1 ? `<div class="search-field" style="max-width: 90px;">
+        <label>${tr('select_language')}</label>
+        <select id="langSwitch" onchange="switchLang(this.value)">
+          ${displayLanguages.map(l => `<option value="${l.code}" ${l.code === lang ? 'selected' : ''}>${l.flag} ${l.code.toUpperCase()}</option>`).join('')}
+        </select>
+      </div>` : ''}
       <button class="check-btn" id="checkBtn" onclick="checkAvailability()">
         <span id="checkText">${tr('check_availability')}</span>
         <div class="spinner" id="checkSpinner"></div>
