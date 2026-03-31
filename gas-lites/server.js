@@ -2185,6 +2185,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
   const cardRadius = litesStyle.card_radius != null ? litesStyle.card_radius : 10;
   const showMap = litesStyle.show_map !== false;
   const showBranding = litesStyle.show_branding !== false;
+  const maxGuestsAcrossRooms = Math.max(10, ...rooms.map(r => parseInt(r.max_guests) || 0));
   const businessName = account.business_name || account.name || 'Book Your Stay';
   const logoHtml = account.logo_url
     ? `<img src="${account.logo_url}" alt="${escapeForHTML(businessName)}" style="height: 40px;">`
@@ -2376,7 +2377,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
       <div class="search-field" style="max-width: 65px;">
         <label>${tr('guests')}</label>
         <select id="guests">
-          ${[1,2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}"${n === 2 ? ' selected' : ''}>${n}</option>`).join('')}
+          ${Array.from({length: maxGuestsAcrossRooms}, (_, i) => i + 1).map(n => `<option value="${n}"${n === 2 ? ' selected' : ''}>${n}</option>`).join('')}
         </select>
       </div>
       <div class="search-field" style="max-width: 70px;">
