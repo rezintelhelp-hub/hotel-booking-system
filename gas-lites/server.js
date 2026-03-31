@@ -3636,7 +3636,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     const accountId = ${accountId || 'null'};
     const liteSlug = '${lite.slug}';
     let currentImage = 0;
-    let currentMonth = new Date();
+    let currentMonth = new Date(); currentMonth.setDate(1);
     let currentPricing = null;
     let selectedUpsells = [];
     let appliedVoucher = null;
