@@ -2291,8 +2291,8 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
     /* Main layout: cards + map sidebar */
     .main-content { max-width: 1400px; margin: 0 auto; padding: 1.25rem; display: flex; gap: 1.25rem; }
     .cards-panel { flex: 3; min-width: 0; }
-    .map-panel { flex: 1; min-width: 300px; position: sticky; top: 80px; height: calc(100vh - 100px); }
-    #property-map { height: 100%; border-radius: 12px; z-index: 0; }
+    .map-panel { flex: 1; min-width: 300px; position: ${embed ? 'relative' : 'sticky'}; top: ${embed ? 'auto' : '80px'}; height: ${embed ? '400px' : 'calc(100vh - 100px)'}; }
+    #property-map { height: 100%; border-radius: var(--card-radius); z-index: 0; }
     .room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
 
     /* Room cards */
