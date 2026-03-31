@@ -15166,10 +15166,10 @@ app.post('/api/accounts/:id/beds24v2/link', async (req, res) => {
       ON CONFLICT (code) DO UPDATE SET is_active = true
     `);
 
-    // Check for existing marketplace connection for this account
+    // Check for existing marketplace connection for this account + same propId
     const existing = await pool.query(
-      `SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = 'beds24-marketplace'`,
-      [accountId]
+      `SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = 'beds24-marketplace' AND credentials->>'propId' = $2`,
+      [accountId, String(propId)]
     );
 
     let connectionId;
