@@ -15359,22 +15359,39 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     const isApartmentType = !hotelTypes.includes(propTypeId);
     const propTexts = texts; // property-level texts
 
+    // Map propTypeId to GAS unit_type
+    const propTypeToUnitType = {
+      '1': 'apartment', '2': 'house', '3': 'condo', '4': 'loft', '5': 'townhouse',
+      '6': 'double', '7': 'studio', '8': 'apartment', '9': 'double', '11': 'double',
+      '15': 'double', '16': 'house', '17': 'dormitory', '30': 'villa', '32': 'house',
+      '35': 'chalet', '36': 'cottage', '40': 'bungalow'
+    };
+    const unitType = propTypeToUnitType[propTypeId] || 'apartment';
+
+    // Helper: strip HTML tags to plain text
+    function stripHtml(html) {
+      if (!html) return '';
+      return html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    }
+
     for (const [roomId, room] of Object.entries(roomIds)) {
       const roomTexts = room.texts || {};
-      const roomName = roomTexts.displayName?.EN || room.name || 'Room ' + roomId;
+      // Clean display name — strip " | 499123" suffix and HTML
+      let roomName = roomTexts.displayName?.EN || room.name || 'Room ' + roomId;
+      roomName = roomName.replace(/\s*\|\s*\d+$/, '').trim();
 
       // Description rules (matching old system):
       // Apartments/single room: propertyDescription1 + propertyDescription2
       // Hotels/aparthotels: roomDescription1 + auxiliaryText
       let roomDesc, roomDesc2;
       if (isApartmentType) {
-        roomDesc = propTexts.propertyDescription1?.EN || propTexts.propertyDescription2?.EN || '';
-        roomDesc2 = propTexts.propertyDescription2?.EN || '';
+        roomDesc = stripHtml(propTexts.propertyDescription1?.EN || propTexts.propertyDescription2?.EN || '');
+        roomDesc2 = stripHtml(propTexts.propertyDescription2?.EN || '');
       } else {
-        roomDesc = roomTexts.roomDescription1?.EN || '';
-        roomDesc2 = roomTexts.auxiliaryText?.EN || '';
+        roomDesc = stripHtml(roomTexts.roomDescription1?.EN || '');
+        roomDesc2 = stripHtml(roomTexts.auxiliaryText?.EN || '');
       }
-      const roomDescShort = roomTexts.roomShortDescription?.EN || roomDesc.substring(0, 200);
+      const roomDescShort = stripHtml(roomTexts.roomShortDescription?.EN || '') || roomDesc.substring(0, 200);
       const maxGuests = parseInt(room.maxGuests) || 2;
       const rackRate = room.rackRate ? parseFloat(room.rackRate) : 0;
       const minStay = parseInt(room.minStay) || 1;
@@ -15387,15 +15404,16 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
         const lk = langKey.toLowerCase();
         let descVal;
         if (isApartmentType) {
-          descVal = propTexts.propertyDescription1?.[langKey] || propTexts.propertyDescription2?.[langKey];
+          descVal = stripHtml(propTexts.propertyDescription1?.[langKey] || propTexts.propertyDescription2?.[langKey] || '');
         } else {
-          descVal = roomTexts.roomDescription1?.[langKey];
+          descVal = stripHtml(roomTexts.roomDescription1?.[langKey] || '');
         }
         if (descVal) descML[lk] = descVal;
-        const shortVal = roomTexts.roomShortDescription?.[langKey];
+        const shortVal = stripHtml(roomTexts.roomShortDescription?.[langKey] || '');
         if (shortVal) shortDescML[lk] = shortVal;
         else if (descVal) shortDescML[lk] = descVal.substring(0, 200);
-        if (roomTexts.displayName?.[langKey]) nameML[lk] = roomTexts.displayName[langKey];
+        const dispName = roomTexts.displayName?.[langKey];
+        if (dispName) nameML[lk] = dispName.replace(/\s*\|\s*\d+$/, '').trim();
       }
 
       // Parse featureCodes for amenities, bedrooms, bathrooms
@@ -15465,21 +15483,21 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
         await pool.query(`UPDATE bookable_units SET
           name = $1, max_guests = $2, base_price = $3, min_stay = $4,
           description = $5, short_description = $6, full_description = $7, display_name = $8,
-          amenities = $9, num_bedrooms = $10, num_bathrooms = $11,
+          amenities = $9, num_bedrooms = $10, num_bathrooms = $11, unit_type = $12,
           cm_source = 'beds24-marketplace', updated_at = NOW()
-          WHERE id = $12`,
+          WHERE id = $13`,
           [roomName, maxGuests, rackRate, minStay, JSON.stringify(descML),
            JSON.stringify(shortDescML), JSON.stringify(descML), JSON.stringify(nameML),
-           JSON.stringify(amenitiesList), numBedrooms || 1, numBathrooms || 1, gasRoomId]);
+           JSON.stringify(amenitiesList), numBedrooms || 1, numBathrooms || 1, unitType, gasRoomId]);
         roomsUpdated++;
       } else {
         const roomResult = await pool.query(`
           INSERT INTO bookable_units (property_id, cm_room_id, cm_source, name, max_guests, base_price, min_stay,
-            description, short_description, full_description, display_name, amenities, num_bedrooms, num_bathrooms, status, created_at)
-          VALUES ($1, $2, 'beds24-marketplace', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'available', NOW()) RETURNING id`,
+            description, short_description, full_description, display_name, amenities, num_bedrooms, num_bathrooms, unit_type, status, created_at)
+          VALUES ($1, $2, 'beds24-marketplace', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'available', NOW()) RETURNING id`,
           [gasPropertyId, String(roomId), roomName, maxGuests, rackRate, minStay,
            JSON.stringify(descML), JSON.stringify(shortDescML), JSON.stringify(descML), JSON.stringify(nameML),
-           JSON.stringify(amenitiesList), numBedrooms || 1, numBathrooms || 1]);
+           JSON.stringify(amenitiesList), numBedrooms || 1, numBathrooms || 1, unitType]);
         gasRoomId = roomResult.rows[0].id;
         roomsCreated++;
       }
