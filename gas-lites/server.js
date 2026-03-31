@@ -2291,7 +2291,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
     /* Main layout: cards + map sidebar */
     .main-content { max-width: 1400px; margin: 0 auto; padding: 1.25rem; display: flex; gap: 1.25rem; }
     .cards-panel { flex: 3; min-width: 0; }
-    .map-panel { flex: 1; min-width: 300px; position: sticky; top: 80px; height: calc(100vh - 100px); align-self: flex-start; }
+    .map-panel { flex: 1; min-width: 300px; position: sticky; top: ${embed ? '20px' : '80px'}; height: calc(100vh - ${embed ? '40px' : '100px'}); align-self: flex-start; }
     #property-map { height: 100%; border-radius: var(--card-radius); z-index: 0; }
     .room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
 
@@ -2621,14 +2621,8 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
     }
 ${embed ? `
     // === EMBED MODE ===
-    function reportHeight() {
-      var h = document.documentElement.scrollHeight;
-      window.parent.postMessage({ type: 'gas-embed-resize', height: h }, '*');
-    }
-    reportHeight();
-    window.addEventListener('resize', reportHeight);
-    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
-    setInterval(reportHeight, 500);
+    // Tell parent to use viewport height (not content height) so sticky map works
+    window.parent.postMessage({ type: 'gas-embed-fullscreen', fullscreen: true }, '*');
     document.addEventListener('click', function(e) {
       var link = e.target.closest('a');
       if (!link || !link.href) return;

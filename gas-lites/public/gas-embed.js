@@ -129,6 +129,12 @@
       iframe.style.height = Math.max(data.height, config.minHeight) + 'px';
     }
 
+    // Fullscreen mode — iframe fills parent viewport, scrolls internally (for sticky map)
+    if (data && data.type === 'gas-embed-fullscreen' && data.fullscreen) {
+      iframe.style.height = '100vh';
+      iframe.style.minHeight = '100vh';
+    }
+
     // Checkout / external links — open in parent window
     if (data && data.type === 'gas-embed-navigate' && data.url) {
       window.open(data.url, '_blank');
