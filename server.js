@@ -74799,44 +74799,175 @@ app.post('/api/gas-sync/cron/sync', async (req, res) => {
   }
 });
 
-// Internal scheduler for gas_sync_connections
-// - 2 connections per cycle, 5 min interval = ~75 min to cover all 46
-// - 1 second delay between rooms within a connection
-// - Incremental sync = 30 days (not full 365)
-const GAS_SYNC_CONNECTIONS_PER_CYCLE = 2;
+// Internal scheduler for price & availability sync
+// Calls the tiered availability sync which ONLY updates prices, availability, and min_stay
+// Does NOT sync properties, rooms, images, or descriptions
 const GAS_SYNC_CYCLE_MS = 5 * 60 * 1000; // 5 minutes
-const GAS_SYNC_ROOM_DELAY_MS = 1000; // 1 second between rooms
 
 async function runGasSyncScheduler() {
   try {
-    const dueConnections = await pool.query(`
-      SELECT id, account_id FROM gas_sync_connections
-      WHERE sync_enabled = true
-        AND status != 'syncing'
-        AND (next_sync_at IS NULL OR next_sync_at <= NOW())
-      ORDER BY
-        CASE WHEN account_id IN (98, 222, 224) THEN 0 ELSE 1 END,
-        next_sync_at ASC NULLS FIRST
-      LIMIT $1
-    `, [GAS_SYNC_CONNECTIONS_PER_CYCLE]);
-    if (dueConnections.rows.length === 0) return;
-    console.log(`[GAS Sync Scheduler] ${dueConnections.rows.length} connections due (accounts: ${dueConnections.rows.map(r => r.account_id).join(', ')})`);
-    for (const conn of dueConnections.rows) {
-      try {
-        await syncManager.syncConnection(conn.id, 'incremental');
-      } catch (error) {
-        console.error(`[GAS Sync Scheduler] Connection ${conn.id} (account ${conn.account_id}) failed:`, error.message);
+    console.log('[GAS Sync Scheduler] Running tiered price & availability sync...');
+    await ensureTierTrackingColumns();
+
+    const now = new Date();
+    let totalRoomsSynced = 0;
+    let totalErrors = 0;
+
+    // Get all active Beds24 connections
+    const connections = await pool.query(`
+      SELECT * FROM gas_sync_connections
+      WHERE adapter_code = 'beds24' AND sync_enabled = true AND status != 'syncing'
+    `);
+
+    for (const conn of connections.rows) {
+      let accessToken = conn.access_token;
+
+      // Refresh token — access tokens expire quickly
+      if (conn.refresh_token) {
+        try {
+          const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+            headers: { 'refreshToken': conn.refresh_token }
+          });
+          accessToken = tokenResponse.data.token;
+          await pool.query('UPDATE gas_sync_connections SET access_token = $1, last_sync_at = NOW() WHERE id = $2', [accessToken, conn.id]);
+        } catch (e) {
+          console.error(`[GAS Sync Scheduler] Token refresh failed for connection ${conn.id}: ${e.message}`);
+          totalErrors++;
+          continue;
+        }
       }
-      // Pause between connections to avoid hammering Beds24
-      if (dueConnections.rows.indexOf(conn) < dueConnections.rows.length - 1) {
-        await new Promise(r => setTimeout(r, 3000));
+
+      if (!accessToken) continue;
+
+      // Load price linking map
+      const priceLinkingMap = {};
+      const linkingResult = await pool.query(`
+        SELECT rt.external_id, rt.price_linking
+        FROM gas_sync_room_types rt
+        JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+        WHERE sp.connection_id = $1 AND rt.price_linking IS NOT NULL
+      `, [conn.id]);
+      for (const row of linkingResult.rows) {
+        if (row.price_linking) priceLinkingMap[parseInt(row.external_id)] = row.price_linking;
       }
+
+      // Only sync tier 1 (0-30 days) on the scheduled run — keeps it fast and light
+      const tier = SYNC_TIERS[0]; // Tier 1: 0-30 days, every 15 mins
+      const tierColumn = `tier${tier.tier}_synced_at`;
+      const cutoffTime = new Date(now.getTime() - tier.intervalMinutes * 60 * 1000);
+
+      const roomsResult = await pool.query(`
+        SELECT rt.id, rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
+        FROM gas_sync_room_types rt
+        JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+        JOIN bookable_units bu ON bu.id = rt.gas_room_id
+        WHERE sp.connection_id = $1
+          AND rt.gas_room_id IS NOT NULL
+          AND (rt.${tierColumn} IS NULL OR rt.${tierColumn} < $2)
+        ORDER BY rt.${tierColumn} ASC NULLS FIRST
+        LIMIT 5
+      `, [conn.id, cutoffTime]);
+
+      if (roomsResult.rows.length === 0) continue;
+
+      for (const room of roomsResult.rows) {
+        try {
+          const beds24RoomId = parseInt(room.beds24_room_id);
+          const startDate = new Date(now.getTime() + tier.startDay * 24 * 60 * 60 * 1000);
+          const endDate = new Date(now.getTime() + tier.endDay * 24 * 60 * 60 * 1000);
+          const startDateStr = startDate.toISOString().split('T')[0];
+          const endDateStr = endDate.toISOString().split('T')[0];
+
+          const linking = priceLinkingMap[beds24RoomId];
+
+          const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+            headers: { 'token': accessToken },
+            params: { roomId: beds24RoomId, startDate: startDateStr, endDate: endDateStr, includeNumAvail: true, includePrices: true, includeMinStay: true }
+          });
+
+          let calendarData = calResponse.data.data?.[0]?.calendar || [];
+
+          // Handle price linking from database if no prices
+          const hasNoPrices = calendarData.length === 0 || !calendarData.some(e => e.price1 || e.price2);
+          if (hasNoPrices && linking) {
+            const sourceRoomResult = await pool.query(`
+              SELECT rt.gas_room_id FROM gas_sync_room_types rt
+              JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+              WHERE sp.connection_id = $1 AND rt.external_id = $2
+            `, [conn.id, String(linking.sourceRoomId)]);
+            const sourceGasRoomId = sourceRoomResult.rows[0]?.gas_room_id;
+            if (sourceGasRoomId) {
+              const sourcePricesResult = await pool.query(`
+                SELECT date, cm_price, min_stay FROM room_availability
+                WHERE room_id = $1 AND date >= $2 AND date <= $3 ORDER BY date
+              `, [sourceGasRoomId, startDateStr, endDateStr]);
+              const sourcePriceMap = {};
+              for (const row of sourcePricesResult.rows) {
+                sourcePriceMap[toDateStr(row.date)] = { price: parseFloat(row.cm_price) || null, minStay: row.min_stay || 1 };
+              }
+              const applyOffset = (price) => price ? (price * (linking.offsetMultiplier || 1)) + (linking.offsetAmount || 0) : null;
+              if (calendarData.length > 0) {
+                const expanded = [];
+                for (const entry of calendarData) {
+                  const f = new Date(entry.from), t = new Date(entry.to);
+                  for (let d = new Date(f); d <= t; d.setDate(d.getDate() + 1)) {
+                    const ds = d.toISOString().split('T')[0];
+                    const src = sourcePriceMap[ds];
+                    expanded.push({ from: ds, to: ds, numAvail: entry.numAvail, minStay: src?.minStay || entry.minStay || 1, price1: entry.price1 || entry.price2 || applyOffset(src?.price) });
+                  }
+                }
+                calendarData = expanded;
+              } else {
+                calendarData = Object.entries(sourcePriceMap).map(([ds, data]) => ({ from: ds, to: ds, numAvail: 1, minStay: data.minStay, price1: applyOffset(data.price) }));
+              }
+            }
+          }
+
+          // Write price & availability to room_availability
+          for (const entry of calendarData) {
+            const fromDate = new Date(entry.from), toDate = new Date(entry.to);
+            for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+              const dateStr = d.toISOString().split('T')[0];
+              const numAvail = entry.numAvail || 0;
+              const price = (entry.price1 != null) ? entry.price1 : (entry.price2 != null) ? entry.price2 : null;
+              const minStay = entry.minStay || 1;
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+                ON CONFLICT (room_id, date) DO UPDATE SET
+                  price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                  cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                  is_available = $4, is_blocked = $5,
+                  min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                  cm_min_stay = $6, source = 'beds24', updated_at = NOW()
+              `, [room.gas_room_id, dateStr, price, numAvail > 0 && price !== null, numAvail === 0, minStay]);
+            }
+          }
+
+          // Update tier sync timestamp
+          await pool.query(`UPDATE gas_sync_room_types SET ${tierColumn} = NOW() WHERE id = $1`, [room.id]);
+          totalRoomsSynced++;
+
+          // Rate limit: 2 seconds between rooms
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (roomError) {
+          totalErrors++;
+          if (roomError.response?.status === 429) break; // Stop if rate limited
+        }
+      }
+
+      // 3 second pause between connections
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+
+    if (totalRoomsSynced > 0 || totalErrors > 0) {
+      console.log(`[GAS Sync Scheduler] Done: ${totalRoomsSynced} rooms synced, ${totalErrors} errors`);
     }
   } catch (error) {
     console.error('[GAS Sync Scheduler] Error:', error.message);
   }
 }
-// Re-enabled — per-account sync is required for all live sites using gas_sync_connections
+// Price & availability sync — runs every 5 minutes, only syncs prices/availability/min_stay
 setInterval(runGasSyncScheduler, GAS_SYNC_CYCLE_MS);
 setTimeout(runGasSyncScheduler, 30000);
 
