@@ -677,7 +677,8 @@ app.get('/book/:accountSlug', async (req, res) => {
     `, [account.id]);
 
     if (colorOverride) account.primary_color = colorOverride;
-    res.send(renderBookingPage({ account, rooms: roomsResult.rows, embed: isEmbed, compact: isCompact, lang, supportedLangs }));
+    const litesStyle = accountSettings.lites_style || {};
+    res.send(renderBookingPage({ account, rooms: roomsResult.rows, embed: isEmbed, compact: isCompact, lang, supportedLangs, litesStyle }));
   } catch (error) {
     console.error('Account booking page error:', error);
     res.status(500).send(renderError('Something went wrong'));
@@ -2171,8 +2172,18 @@ function renderError(msg) {
 // ============================================
 // ACCOUNT BOOKING PAGE RENDERER
 // ============================================
-function renderBookingPage({ account, rooms, embed = false, compact = false, lang = 'en', supportedLangs = ['en'] }) {
-  const accent = account.primary_color || '#3b82f6';
+function renderBookingPage({ account, rooms, embed = false, compact = false, lang = 'en', supportedLangs = ['en'], litesStyle = {} }) {
+  const accent = litesStyle.btn_color || account.primary_color || '#3b82f6';
+  const btnTextColor = litesStyle.btn_text_color || '#ffffff';
+  const btnRadius = litesStyle.btn_radius != null ? litesStyle.btn_radius : 6;
+  const pageBg = litesStyle.page_bg || '#f8fafc';
+  const cardBg = litesStyle.card_bg || '#ffffff';
+  const textColor = litesStyle.text_color || '#1e293b';
+  const headingFont = litesStyle.heading_font || 'Inter';
+  const bodyFont = litesStyle.body_font || 'Inter';
+  const cardRadius = litesStyle.card_radius != null ? litesStyle.card_radius : 10;
+  const showMap = litesStyle.show_map !== false;
+  const showBranding = litesStyle.show_branding !== false;
   const businessName = account.business_name || account.name || 'Book Your Stay';
   const logoHtml = account.logo_url
     ? `<img src="${account.logo_url}" alt="${escapeForHTML(businessName)}" style="height: 40px;">`
@@ -2184,6 +2195,9 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
     <select id="langSwitch" onchange="switchLang(this.value)" style="padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; cursor: pointer; background: white;">
       ${displayLanguages.map(l => `<option value="${l.code}" ${l.code === lang ? 'selected' : ''}>${l.flag} ${l.name}</option>`).join('')}
     </select>` : '';
+  // Build Google Fonts URL for custom fonts
+  const fontsToLoad = [...new Set([headingFont, bodyFont])].filter(f => f !== 'Inter');
+  const fontLink = fontsToLoad.length > 0 ? `<link href="https://fonts.googleapis.com/css2?family=${fontsToLoad.map(f => encodeURIComponent(f) + ':wght@400;500;600;700').join('&family=')}&display=swap" rel="stylesheet">` : '';
 
   // Dynamic filter options from data
   const uniqueCities = [...new Set(rooms.map(r => r.city).filter(Boolean))].sort();
@@ -2241,13 +2255,15 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
   <title>${escapeForHTML(businessName)} — ${tr('book_now')}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  ${fontLink}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', system-ui, sans-serif; background: ${embed ? 'transparent' : '#f8fafc'}; color: #1e293b; min-height: ${embed ? 'auto' : '100vh'}; }
+    body { font-family: '${bodyFont}', system-ui, sans-serif; background: ${embed ? 'transparent' : pageBg}; color: ${textColor}; min-height: ${embed ? 'auto' : '100vh'}; }
+    h1, h2, h3, h4, .room-name { font-family: '${headingFont}', system-ui, sans-serif; }
 
     /* Header */
     .page-header { background: white; border-bottom: 1px solid #e2e8f0; padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
@@ -2256,7 +2272,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
     .nav-links { display: flex; align-items: center; gap: 1.5rem; }
     .nav-links a { color: #475569; text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.2s; }
     .nav-links a:hover { color: #0f172a; }
-    .nav-links .nav-cta { background: ${accent}; color: white; padding: 0.5rem 1.25rem; border-radius: 8px; font-weight: 600; }
+    .nav-links .nav-cta { background: ${accent}; color: ${btnTextColor}; padding: 0.5rem 1.25rem; border-radius: ${btnRadius}px; font-weight: 600; }
     .nav-links .nav-cta:hover { opacity: 0.9; color: white; }
 
     /* Search bar */
@@ -2266,7 +2282,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
     .search-field label { font-size: 0.65rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
     .search-field input, .search-field select { padding: 0.5rem 0.6rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.85rem; font-family: inherit; background: white; }
     .search-field input:focus, .search-field select:focus { outline: none; border-color: ${accent}; box-shadow: 0 0 0 2px ${accent}22; }
-    .check-btn { padding: 0.5rem 1.25rem; background: ${accent}; color: white; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; font-family: inherit; transition: opacity 0.2s; height: 34px; align-self: flex-end; }
+    .check-btn { padding: 0.5rem 1.25rem; background: ${accent}; color: ${btnTextColor}; border: none; border-radius: ${btnRadius}px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; font-family: inherit; transition: opacity 0.2s; height: 34px; align-self: flex-end; }
     .check-btn:hover { opacity: 0.9; }
     .check-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .filter-count { font-size: 0.75rem; color: #94a3b8; padding: 0.5rem 0; white-space: nowrap; }
@@ -2279,7 +2295,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
     .room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
 
     /* Room cards */
-    .room-card { background: white; border-radius: 10px; overflow: hidden; border: 2px solid transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: all 0.3s; display: flex; flex-direction: column; }
+    .room-card { background: ${cardBg}; border-radius: ${cardRadius}px; overflow: hidden; border: 2px solid transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: all 0.3s; display: flex; flex-direction: column; }
     .room-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     .room-card.available { border-color: #22c55e; }
     .room-card.unavailable { opacity: 0.55; }
@@ -2298,7 +2314,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
     .room-price { font-size: 1.1rem; font-weight: 700; color: #0f172a; }
     .per-night { font-size: 0.75rem; font-weight: 400; color: #64748b; }
     .price-on-request { font-size: 0.8rem; font-weight: 500; color: #94a3b8; }
-    .book-btn { display: inline-block; padding: 0.4rem 1rem; background: ${accent}; color: white; text-decoration: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; transition: opacity 0.2s; }
+    .book-btn { display: inline-block; padding: 0.4rem 1rem; background: ${accent}; color: ${btnTextColor}; text-decoration: none; border-radius: ${btnRadius}px; font-size: 0.8rem; font-weight: 600; transition: opacity 0.2s; }
     .book-btn:hover { opacity: 0.9; }
     .book-btn.disabled { background: #e2e8f0; color: #94a3b8; cursor: default; pointer-events: none; }
     .empty-state { text-align: center; padding: 4rem 2rem; color: #64748b; }
@@ -2326,7 +2342,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
     </div>
     <nav class="nav-links">
       <a href="#roomGrid">Rooms</a>
-      <a href="#property-map">Map</a>
+      ${showMap ? '<a href="#property-map">Map</a>' : ''}
       ${langSwitcherHtml}
       <a href="#search" class="nav-cta" onclick="document.getElementById('checkin').focus(); return false;">${tr('book_now')}</a>
     </nav>
@@ -2391,7 +2407,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
           <h2>${tr('no_rooms')}</h2>
         </div>`}
     </div>
-    ${!embed && mapPins.length > 0 ? '<div class="map-panel"><div id="property-map"></div></div>' : ''}
+    ${!embed && !compact && showMap && mapPins.length > 0 ? '<div class="map-panel"><div id="property-map"></div></div>' : ''}
   </div>
 
   <script>
@@ -2630,7 +2646,7 @@ ${embed ? `
       }
     });
 ` : ''}
-${mapPins.length > 0 && !embed ? `
+${mapPins.length > 0 && !embed && !compact && showMap ? `
     // === PROPERTY MAP ===
     (function() {
       var pins = ${mapDataJson};
@@ -2672,6 +2688,7 @@ ${mapPins.length > 0 && !embed ? `
     })();
 ` : ''}
   </script>
+${showBranding ? `<div style="text-align:center;padding:1.5rem;font-size:0.75rem;color:#94a3b8;">Powered by <a href="https://gas.travel" style="color:#94a3b8;text-decoration:underline;" target="_blank">GAS.travel</a></div>` : ''}
 </body>
 </html>`;
 }
