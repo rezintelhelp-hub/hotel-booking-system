@@ -15347,23 +15347,29 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     let roomsCreated = 0, roomsUpdated = 0;
     const beds24RoomToGasRoom = {}; // maps Beds24 roomId → GAS bookable_unit id
 
+    const propTexts = texts; // property-level texts for fallback
     for (const [roomId, room] of Object.entries(roomIds)) {
       const roomTexts = room.texts || {};
       const roomName = roomTexts.displayName?.EN || room.name || 'Room ' + roomId;
-      const roomDesc = roomTexts.roomDescription1?.EN || '';
+      // Fallback chain: roomDescription1 → roomDescription2 → propertyDescription1
+      const roomDesc = roomTexts.roomDescription1?.EN || roomTexts.roomDescription2?.EN || propTexts.propertyDescription1?.EN || propTexts.propertyDescription2?.EN || '';
       const roomDescShort = roomTexts.roomShortDescription?.EN || roomDesc.substring(0, 200);
       const maxGuests = parseInt(room.maxGuests) || 2;
       const rackRate = room.rackRate ? parseFloat(room.rackRate) : 0;
       const minStay = parseInt(room.minStay) || 1;
 
-      // Build multilingual description objects
+      // Build multilingual description objects with fallback chain
       const descML = { en: roomDesc };
       const shortDescML = { en: roomDescShort };
       const nameML = { en: roomName };
       for (const langKey of ['FR', 'DE', 'ES', 'NL', 'IT', 'PT', 'SV', 'DA', 'NO']) {
-        if (roomTexts.roomDescription1?.[langKey]) descML[langKey.toLowerCase()] = roomTexts.roomDescription1[langKey];
-        if (roomTexts.roomShortDescription?.[langKey]) shortDescML[langKey.toLowerCase()] = roomTexts.roomShortDescription[langKey];
-        if (roomTexts.displayName?.[langKey]) nameML[langKey.toLowerCase()] = roomTexts.displayName[langKey];
+        const lk = langKey.toLowerCase();
+        const descVal = roomTexts.roomDescription1?.[langKey] || roomTexts.roomDescription2?.[langKey] || propTexts.propertyDescription1?.[langKey] || propTexts.propertyDescription2?.[langKey];
+        if (descVal) descML[lk] = descVal;
+        const shortVal = roomTexts.roomShortDescription?.[langKey];
+        if (shortVal) shortDescML[lk] = shortVal;
+        else if (descVal) shortDescML[lk] = descVal.substring(0, 200);
+        if (roomTexts.displayName?.[langKey]) nameML[lk] = roomTexts.displayName[langKey];
       }
 
       // Parse featureCodes for amenities, bedrooms, bathrooms
