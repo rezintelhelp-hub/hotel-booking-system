@@ -15347,24 +15347,45 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     let roomsCreated = 0, roomsUpdated = 0;
     const beds24RoomToGasRoom = {}; // maps Beds24 roomId → GAS bookable_unit id
 
-    const propTexts = texts; // property-level texts for fallback
+    // Determine property type — apartments/single room vs hotels/aparthotels
+    // propTypeId 16,32,15,36,40,30,35,11 = apartments/villas/single room → use property-level descriptions
+    // All others = hotels/aparthotels → use room-level descriptions
+    const propTypeId = String(propContent.propTypeId || '');
+    const isApartmentType = ['16','32','15','36','40','30','35','11'].includes(propTypeId);
+    const propTexts = texts; // property-level texts
+
     for (const [roomId, room] of Object.entries(roomIds)) {
       const roomTexts = room.texts || {};
       const roomName = roomTexts.displayName?.EN || room.name || 'Room ' + roomId;
-      // Fallback chain: roomDescription1 → roomDescription2 → propertyDescription1
-      const roomDesc = roomTexts.roomDescription1?.EN || roomTexts.roomDescription2?.EN || propTexts.propertyDescription1?.EN || propTexts.propertyDescription2?.EN || '';
+
+      // Description rules (matching old system):
+      // Apartments/single room: propertyDescription1 + propertyDescription2
+      // Hotels/aparthotels: roomDescription1 + auxiliaryText
+      let roomDesc, roomDesc2;
+      if (isApartmentType) {
+        roomDesc = propTexts.propertyDescription1?.EN || propTexts.propertyDescription2?.EN || '';
+        roomDesc2 = propTexts.propertyDescription2?.EN || '';
+      } else {
+        roomDesc = roomTexts.roomDescription1?.EN || '';
+        roomDesc2 = roomTexts.auxiliaryText?.EN || '';
+      }
       const roomDescShort = roomTexts.roomShortDescription?.EN || roomDesc.substring(0, 200);
       const maxGuests = parseInt(room.maxGuests) || 2;
       const rackRate = room.rackRate ? parseFloat(room.rackRate) : 0;
       const minStay = parseInt(room.minStay) || 1;
 
-      // Build multilingual description objects with fallback chain
+      // Build multilingual description objects using same property type logic
       const descML = { en: roomDesc };
       const shortDescML = { en: roomDescShort };
       const nameML = { en: roomName };
       for (const langKey of ['FR', 'DE', 'ES', 'NL', 'IT', 'PT', 'SV', 'DA', 'NO']) {
         const lk = langKey.toLowerCase();
-        const descVal = roomTexts.roomDescription1?.[langKey] || roomTexts.roomDescription2?.[langKey] || propTexts.propertyDescription1?.[langKey] || propTexts.propertyDescription2?.[langKey];
+        let descVal;
+        if (isApartmentType) {
+          descVal = propTexts.propertyDescription1?.[langKey] || propTexts.propertyDescription2?.[langKey];
+        } else {
+          descVal = roomTexts.roomDescription1?.[langKey];
+        }
         if (descVal) descML[lk] = descVal;
         const shortVal = roomTexts.roomShortDescription?.[langKey];
         if (shortVal) shortDescML[lk] = shortVal;
@@ -15373,7 +15394,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
       }
 
       // Parse featureCodes for amenities, bedrooms, bathrooms
-      const roomFeatures = room.featureCodes || propContent.featureCodes || [];
+      // ALWAYS use room-level featureCodes only (never property-level)
+      const roomFeatures = room.featureCodes || [];
       let amenitiesList = [];
       let numBedrooms = 0, numBathrooms = 0;
       const flatCodes = [];
