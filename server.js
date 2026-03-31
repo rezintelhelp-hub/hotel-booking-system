@@ -15422,7 +15422,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
             const pos = parseInt(mapping.position) || roomImgCounters[mapping.roomId];
             await pool.query(`
               INSERT INTO room_images (room_id, image_key, image_url, caption, display_order, upload_source, created_at)
-              VALUES ($1, $2, $3, $4, $5, 'beds24-marketplace', NOW())`,
+              VALUES ($1, $2, $3, $4, $5, 'beds24-marketplace', NOW())
+              ON CONFLICT (room_id, image_key) WHERE image_key IS NOT NULL DO NOTHING`,
               [gasRoomId, `beds24-${mapping.roomId}-${pos}`, img.url, caption, pos]);
             roomImagesImported++;
           }
