@@ -15517,6 +15517,127 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
           VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
           [syncPropertyId, parseInt(connectionId), String(roomId), gasRoomId, roomName, maxGuests]);
       }
+
+      // ===== AMENITIES: Map featureCodes to room_amenity_selections =====
+      for (const code of flatCodes) {
+        const c = code.trim().toUpperCase();
+        if (!c) continue;
+        const masterMatch = await pool.query(
+          `SELECT id FROM master_amenities WHERE beds24_code = $1 OR amenity_code = $1 OR UPPER(amenity_code) = UPPER($1) LIMIT 1`, [c]
+        );
+        if (masterMatch.rows.length > 0) {
+          await pool.query(
+            `INSERT INTO room_amenity_selections (room_id, amenity_id, display_order) VALUES ($1, $2, 0) ON CONFLICT (room_id, amenity_id) DO NOTHING`,
+            [gasRoomId, masterMatch.rows[0].id]
+          ).catch(() => {});
+        }
+      }
+
+      // ===== BEDROOMS: Parse structured featureCodes into property_bedrooms =====
+      const bedNames = {
+        'BED_KING': 'King Bed', 'BED_QUEEN': 'Queen Bed', 'BED_DOUBLE': 'Double Bed',
+        'BED_SINGLE': 'Single Bed', 'BED_TWIN': 'Twin Bed', 'BED_SOFA': 'Sofa Bed',
+        'BED_BUNK': 'Bunk Bed', 'BED_MURPHY': 'Murphy Bed', 'BED_FUTON': 'Futon',
+        'BED_CHILD': 'Child Bed', 'BED_CRIB': 'Crib', 'BED_TODDLER': 'Toddler Bed',
+        'BED_AIRMATTRESS': 'Air Mattress', 'BED_FLOORMATTRESS': 'Floor Mattress'
+      };
+      const bedroomDefs = [], bathroomDefs = [];
+      if (Array.isArray(roomFeatures)) {
+        for (const item of roomFeatures) {
+          const line = Array.isArray(item) ? item.join(' ') : String(item);
+          const parts = line.trim().toUpperCase().split(/\s+/);
+          if (parts.some(p => p.startsWith('BEDROOM'))) {
+            const isEnsuite = parts.some(p => p.includes('ENSUITE'));
+            const beds = parts.filter(p => p.startsWith('BED_'));
+            bedroomDefs.push({ isEnsuite, beds });
+          }
+          if (parts.some(p => p.startsWith('BATHROOM') || p === 'FULLBATH' || p === 'HALFBATH')) {
+            const features = parts.filter(p => p.startsWith('BATH_') && !p.startsWith('BATHROOM'));
+            const type = parts.find(p => p.startsWith('BATHROOM_'));
+            bathroomDefs.push({ type: type || 'BATHROOM', features });
+          }
+        }
+      }
+      // Create bedroom rows if none exist
+      if (bedroomDefs.length > 0) {
+        const existBd = await pool.query('SELECT COUNT(*) as c FROM property_bedrooms WHERE property_id = $1 AND room_id = $2', [gasPropertyId, gasRoomId]);
+        if (parseInt(existBd.rows[0].c) === 0) {
+          for (let i = 0; i < bedroomDefs.length; i++) {
+            const def = bedroomDefs[i];
+            const bdName = bedroomDefs.length === 1 ? 'Bedroom' : `Bedroom ${i + 1}`;
+            const bedCounts = {};
+            for (const bed of def.beds) { bedCounts[bed] = (bedCounts[bed] || 0) + 1; }
+            const bedConfig = Object.entries(bedCounts).map(([type, qty]) => ({
+              type, name: bedNames[type] || type.replace('BED_', '').replace(/_/g, ' '), quantity: qty
+            }));
+            await pool.query(
+              `INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, has_ensuite, display_order) VALUES ($1, $2, $3, $4, $5, $6)`,
+              [gasPropertyId, gasRoomId, bdName, JSON.stringify(bedConfig), def.isEnsuite, i]
+            ).catch(e => console.log('[MP Sync] bedroom create:', e.message));
+          }
+        }
+      }
+      // Create bathroom rows if none exist
+      const bathroomTypeMap = { 'BATHROOM_FULL': 'full', 'BATHROOM_HALF': 'half', 'BATHROOM_PRIVATE': 'full', 'BATHROOM_SHARED': 'shared', 'BATHROOM_ENSUITE': 'ensuite' };
+      const bathFeatureMap = { 'BATH_TUB': 'tub', 'BATH_SHOWER': 'shower', 'BATH_COMBO_TUB_SHOWER': 'combo', 'BATH_TOILET': 'toilet', 'BATH_BIDET': 'bidet', 'BATH_JACUZZI': 'jacuzzi' };
+      if (bathroomDefs.length > 0) {
+        const existBt = await pool.query('SELECT COUNT(*) as c FROM property_bathrooms WHERE property_id = $1 AND room_id = $2', [gasPropertyId, gasRoomId]);
+        if (parseInt(existBt.rows[0].c) === 0) {
+          for (let i = 0; i < bathroomDefs.length; i++) {
+            const def = bathroomDefs[i];
+            const btName = bathroomDefs.length === 1 ? 'Bathroom' : `Bathroom ${i + 1}`;
+            const btType = bathroomTypeMap[def.type] || 'full';
+            const btFeatures = {};
+            for (const f of def.features) { if (bathFeatureMap[f]) btFeatures[bathFeatureMap[f]] = true; }
+            await pool.query(
+              `INSERT INTO property_bathrooms (property_id, room_id, name, bathroom_type, features, quantity, display_order) VALUES ($1, $2, $3, $4, $5, 1, $6)`,
+              [gasPropertyId, gasRoomId, btName, btType, JSON.stringify(btFeatures), i]
+            ).catch(e => console.log('[MP Sync] bathroom create:', e.message));
+          }
+        }
+      }
+    }
+
+    // 3b. Sync T&Cs from property texts to property_terms
+    const cancellationML = {}, houseRulesML = {}, generalML = {}, locationML = {}, directionsML = {};
+    for (const langKey of ['EN', 'FR', 'DE', 'ES', 'NL', 'IT', 'PT', 'SV', 'DA', 'NO']) {
+      const lk = langKey.toLowerCase();
+      if (propTexts.cancellationPolicy?.[langKey]) cancellationML[lk] = stripHtml(propTexts.cancellationPolicy[langKey]);
+      if (propTexts.houseRules?.[langKey]) houseRulesML[lk] = stripHtml(propTexts.houseRules[langKey]);
+      if (propTexts.generalPolicy?.[langKey]) generalML[lk] = stripHtml(propTexts.generalPolicy[langKey]);
+      if (propTexts.locationDescription?.[langKey]) locationML[lk] = stripHtml(propTexts.locationDescription[langKey]);
+      if (propTexts.directions?.[langKey]) directionsML[lk] = stripHtml(propTexts.directions[langKey]);
+    }
+    // Upsert property_terms
+    const existingTerms = await pool.query('SELECT id FROM property_terms WHERE property_id = $1', [gasPropertyId]);
+    if (existingTerms.rows.length > 0) {
+      await pool.query(`UPDATE property_terms SET
+        cancellation_policy = $1, cancellation_policy_ml = $2,
+        additional_rules = $3, additional_rules_ml = $4,
+        terms_conditions = $5, terms_conditions_ml = $6,
+        area_info = $7, area_info_ml = $8,
+        directions = $9, directions_ml = $10,
+        checkin_from = $11, checkout_by = $12, updated_at = NOW()
+        WHERE property_id = $13`,
+        [cancellationML.en || '', JSON.stringify(cancellationML),
+         houseRulesML.en || '', JSON.stringify(houseRulesML),
+         generalML.en || '', JSON.stringify(generalML),
+         locationML.en || '', JSON.stringify(locationML),
+         directionsML.en || '', JSON.stringify(directionsML),
+         checkIn, checkOut, gasPropertyId]
+      ).catch(e => console.log('[MP Sync] terms update:', e.message));
+    } else {
+      await pool.query(`INSERT INTO property_terms (property_id, cancellation_policy, cancellation_policy_ml,
+        additional_rules, additional_rules_ml, terms_conditions, terms_conditions_ml,
+        area_info, area_info_ml, directions, directions_ml, checkin_from, checkout_by, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())`,
+        [gasPropertyId, cancellationML.en || '', JSON.stringify(cancellationML),
+         houseRulesML.en || '', JSON.stringify(houseRulesML),
+         generalML.en || '', JSON.stringify(generalML),
+         locationML.en || '', JSON.stringify(locationML),
+         directionsML.en || '', JSON.stringify(directionsML),
+         checkIn, checkOut]
+      ).catch(e => console.log('[MP Sync] terms create:', e.message));
     }
 
     // 4. Import ALL images from top-level images (hosted + external)
