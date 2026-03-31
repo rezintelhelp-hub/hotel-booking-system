@@ -2266,7 +2266,7 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
     .search-field label { font-size: 0.65rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
     .search-field input, .search-field select { padding: 0.5rem 0.6rem; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.85rem; font-family: inherit; background: white; }
     .search-field input:focus, .search-field select:focus { outline: none; border-color: ${accent}; box-shadow: 0 0 0 2px ${accent}22; }
-    .check-btn { padding: 0.5rem 1.25rem; background: ${accent}; color: white; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; font-family: inherit; transition: opacity 0.2s; }
+    .check-btn { padding: 0.5rem 1.25rem; background: ${accent}; color: white; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; font-family: inherit; transition: opacity 0.2s; height: 34px; align-self: flex-end; }
     .check-btn:hover { opacity: 0.9; }
     .check-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .filter-count { font-size: 0.75rem; color: #94a3b8; padding: 0.5rem 0; white-space: nowrap; }
