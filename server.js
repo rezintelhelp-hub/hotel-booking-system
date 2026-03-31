@@ -15241,10 +15241,11 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     let contentData;
     try {
       contentData = await beds24MarketplaceRequest('getPropertyContent', {
-        texts: ['EN'],
+        texts: ['EN', 'FR', 'DE', 'ES', 'NL', 'IT', 'PT', 'SV', 'DA', 'NO'],
         roomIds: true,
         images: true,
-        bookingData: true
+        bookingData: true,
+        featureCodes: true
       }, { propKey: targetPropKey });
     } catch (contentErr) {
       console.error('[Beds24 Marketplace Sync] getPropertyContent failed:', contentErr.message);
@@ -15281,8 +15282,16 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     const currency = propContent.currency || 'EUR';
     const checkIn = propContent.checkInStartHour ? `${propContent.checkInStartHour}:00` : '15:00';
     const checkOut = propContent.checkOutEndHour ? `${propContent.checkOutEndHour}:00` : '11:00';
+    const phone = propContent.phone || '';
+    const mobile = propContent.mobile || '';
     const texts = propContent.texts || {};
     const description = texts.propertyDescription1?.EN || texts.propertyDescription2?.EN || '';
+    // Build multilingual property description
+    const propDescML = { en: description };
+    for (const langKey of ['FR', 'DE', 'ES', 'NL', 'IT', 'PT', 'SV', 'DA', 'NO']) {
+      const val = texts.propertyDescription1?.[langKey] || texts.propertyDescription2?.[langKey];
+      if (val) propDescML[langKey.toLowerCase()] = val;
+    }
 
     console.log(`[Beds24 Marketplace Sync] Syncing "${propName}" (propId: ${targetPropId}) for account ${accountId}`);
 
@@ -15298,19 +15307,19 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
       await pool.query(`UPDATE properties SET
         name = $1, address = $2, city = $3, state = $4, country = $5, postal_code = $6,
         latitude = $7, longitude = $8, currency = $9, check_in_time = $10, check_out_time = $11,
-        description = $12, cm_source = 'beds24-marketplace', updated_at = NOW()
-        WHERE id = $13`,
+        description = $12, phone = $13, cm_source = 'beds24-marketplace', updated_at = NOW()
+        WHERE id = $14`,
         [propName, address, city, state, country, postcode, latitude, longitude, currency, checkIn, checkOut,
-         JSON.stringify({ en: description }), gasPropertyId]);
+         JSON.stringify(propDescML), phone || mobile, gasPropertyId]);
       console.log(`[Beds24 Marketplace Sync] Updated GAS property ${gasPropertyId}`);
     } else {
       const propResult = await pool.query(`
         INSERT INTO properties (account_id, user_id, cm_property_id, cm_source, name,
           address, city, state, country, postal_code, latitude, longitude, currency,
-          check_in_time, check_out_time, description, status, created_at)
-        VALUES ($1, 1, $2, 'beds24-marketplace', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', NOW()) RETURNING id`,
+          check_in_time, check_out_time, description, phone, status, created_at)
+        VALUES ($1, 1, $2, 'beds24-marketplace', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active', NOW()) RETURNING id`,
         [accountId, targetPropId, propName, address, city, state, country, postcode,
-         latitude, longitude, currency, checkIn, checkOut, JSON.stringify({ en: description })]);
+         latitude, longitude, currency, checkIn, checkOut, JSON.stringify(propDescML), phone || mobile]);
       gasPropertyId = propResult.rows[0].id;
       console.log(`[Beds24 Marketplace Sync] Created GAS property ${gasPropertyId}`);
     }
@@ -15342,9 +15351,75 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
       const roomTexts = room.texts || {};
       const roomName = roomTexts.displayName?.EN || room.name || 'Room ' + roomId;
       const roomDesc = roomTexts.roomDescription1?.EN || '';
-      const maxGuests = room.maxGuests || 2;
+      const roomDescShort = roomTexts.roomShortDescription?.EN || roomDesc.substring(0, 200);
+      const maxGuests = parseInt(room.maxGuests) || 2;
       const rackRate = room.rackRate ? parseFloat(room.rackRate) : 0;
-      const minStay = room.minStay || 1;
+      const minStay = parseInt(room.minStay) || 1;
+
+      // Build multilingual description objects
+      const descML = { en: roomDesc };
+      const shortDescML = { en: roomDescShort };
+      const nameML = { en: roomName };
+      for (const langKey of ['FR', 'DE', 'ES', 'NL', 'IT', 'PT', 'SV', 'DA', 'NO']) {
+        if (roomTexts.roomDescription1?.[langKey]) descML[langKey.toLowerCase()] = roomTexts.roomDescription1[langKey];
+        if (roomTexts.roomShortDescription?.[langKey]) shortDescML[langKey.toLowerCase()] = roomTexts.roomShortDescription[langKey];
+        if (roomTexts.displayName?.[langKey]) nameML[langKey.toLowerCase()] = roomTexts.displayName[langKey];
+      }
+
+      // Parse featureCodes for amenities, bedrooms, bathrooms
+      const roomFeatures = room.featureCodes || propContent.featureCodes || [];
+      let amenitiesList = [];
+      let numBedrooms = 0, numBathrooms = 0;
+      const flatCodes = [];
+      if (Array.isArray(roomFeatures)) {
+        for (const item of roomFeatures) {
+          if (Array.isArray(item)) flatCodes.push(...item);
+          else if (typeof item === 'string') flatCodes.push(...item.split(/[\s,]+/));
+        }
+      } else if (typeof roomFeatures === 'string') {
+        flatCodes.push(...roomFeatures.split(/[\s,]+/));
+      }
+      for (const code of flatCodes) {
+        const c = code.trim().toUpperCase();
+        if (!c) continue;
+        if (c.startsWith('BEDROOM') || c.startsWith('BED_')) numBedrooms = Math.max(numBedrooms, 1);
+        if (c.startsWith('BATHROOM') || c === 'BATH' || c === 'SHOWER') numBathrooms = Math.max(numBathrooms, 1);
+        // Map common codes to readable amenities
+        const amenityMap = {
+          'WIFI': 'WiFi', 'INTERNET': 'Internet', 'AIR_CONDITIONING': 'Air Conditioning',
+          'HEATING': 'Heating', 'KITCHEN': 'Kitchen', 'WASHER': 'Washer', 'DRYER': 'Dryer',
+          'PARKING': 'Parking', 'PARKING_POSSIBLE': 'Parking Available', 'FREE_PARKING': 'Free Parking',
+          'POOL': 'Pool', 'SWIMMING_POOL': 'Swimming Pool', 'HOT_TUB': 'Hot Tub', 'GYM': 'Gym',
+          'ELEVATOR': 'Elevator', 'BALCONY': 'Balcony', 'TERRACE': 'Terrace', 'GARDEN': 'Garden',
+          'TV': 'TV', 'CABLE_TV': 'Cable TV', 'DISHWASHER': 'Dishwasher', 'MICROWAVE': 'Microwave',
+          'OVEN': 'Oven', 'REFRIGERATOR': 'Refrigerator', 'FREEZER': 'Freezer', 'STOVE': 'Stove',
+          'COFFEE_MACHINE': 'Coffee Machine', 'KETTLE': 'Kettle', 'TOASTER': 'Toaster',
+          'HAIR_DRYER': 'Hair Dryer', 'IRON_BOARD': 'Iron & Board', 'SAFE': 'Safe',
+          'FIRE_EXTINGUISHER': 'Fire Extinguisher', 'SMOKE_DETECTOR': 'Smoke Detector',
+          'FIRST_AID': 'First Aid Kit', 'HANGERS': 'Hangers', 'LINENS': 'Linens',
+          'TOWELS': 'Towels', 'SHAMPOO': 'Shampoo', 'TOILETRIES': 'Toiletries',
+          'DESK': 'Desk', 'LAPTOP_FRIENDLY': 'Laptop Friendly Workspace',
+          'BBQ': 'BBQ', 'FIREPLACE': 'Fireplace', 'SAUNA': 'Sauna',
+          'PET_FRIENDLY': 'Pet Friendly', 'WHEELCHAIR': 'Wheelchair Accessible',
+          'LIVING_ROOM': 'Living Room', 'SITTING_AREA': 'Sitting Area',
+          'DECK_PATIO_UNCOVERED': 'Patio', 'DECK_PATIO_COVERED': 'Covered Patio',
+          'GAME_ROOM': 'Game Room', 'LOCK_BEDROOM': 'Lockable Bedroom',
+          'SHARED_KITCHEN': 'Shared Kitchen', 'KITCHEN_DINING_AREA': 'Dining Area',
+          'KITCHEN_DINING_ROOM': 'Dining Room', 'DISHES_UTENSILS': 'Dishes & Utensils'
+        };
+        if (amenityMap[c]) amenitiesList.push(amenityMap[c]);
+      }
+      // Count bedrooms from structured featureCodes (arrays with BEDROOM prefix)
+      if (Array.isArray(roomFeatures)) {
+        let bdCount = 0, btCount = 0;
+        for (const item of roomFeatures) {
+          const line = Array.isArray(item) ? item.join(' ') : String(item);
+          if (line.match(/BEDROOM/i)) bdCount++;
+          if (line.match(/BATHROOM/i)) btCount++;
+        }
+        if (bdCount > 0) numBedrooms = bdCount;
+        if (btCount > 0) numBathrooms = btCount;
+      }
 
       const existingRoom = await pool.query(
         'SELECT id FROM bookable_units WHERE cm_room_id = $1 AND property_id = $2',
@@ -15356,17 +15431,22 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
         gasRoomId = existingRoom.rows[0].id;
         await pool.query(`UPDATE bookable_units SET
           name = $1, max_guests = $2, base_price = $3, min_stay = $4,
-          description = $5, short_description = $6, cm_source = 'beds24-marketplace', updated_at = NOW()
-          WHERE id = $7`,
-          [roomName, maxGuests, rackRate, minStay, JSON.stringify({ en: roomDesc }),
-           JSON.stringify({ en: roomDesc.substring(0, 200) }), gasRoomId]);
+          description = $5, short_description = $6, display_name = $7,
+          amenities = $8, num_bedrooms = $9, num_bathrooms = $10,
+          cm_source = 'beds24-marketplace', updated_at = NOW()
+          WHERE id = $11`,
+          [roomName, maxGuests, rackRate, minStay, JSON.stringify(descML),
+           JSON.stringify(shortDescML), JSON.stringify(nameML),
+           JSON.stringify(amenitiesList), numBedrooms || 1, numBathrooms || 1, gasRoomId]);
         roomsUpdated++;
       } else {
         const roomResult = await pool.query(`
-          INSERT INTO bookable_units (property_id, cm_room_id, cm_source, name, max_guests, base_price, min_stay, description, short_description, status, created_at)
-          VALUES ($1, $2, 'beds24-marketplace', $3, $4, $5, $6, $7, $8, 'available', NOW()) RETURNING id`,
+          INSERT INTO bookable_units (property_id, cm_room_id, cm_source, name, max_guests, base_price, min_stay,
+            description, short_description, display_name, amenities, num_bedrooms, num_bathrooms, status, created_at)
+          VALUES ($1, $2, 'beds24-marketplace', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'available', NOW()) RETURNING id`,
           [gasPropertyId, String(roomId), roomName, maxGuests, rackRate, minStay,
-           JSON.stringify({ en: roomDesc }), JSON.stringify({ en: roomDesc.substring(0, 200) })]);
+           JSON.stringify(descML), JSON.stringify(shortDescML), JSON.stringify(nameML),
+           JSON.stringify(amenitiesList), numBedrooms || 1, numBathrooms || 1]);
         gasRoomId = roomResult.rows[0].id;
         roomsCreated++;
       }
