@@ -15351,7 +15351,12 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     // propTypeId 16,32,15,36,40,30,35,11 = apartments/villas/single room → use property-level descriptions
     // All others = hotels/aparthotels → use room-level descriptions
     const propTypeId = String(propContent.propTypeId || '');
-    const isApartmentType = ['16','32','15','36','40','30','35','11'].includes(propTypeId);
+    // propTypeId: 1=Apartment, 2=Home, 3=Condo, 4=Loft, 5=Townhouse, 7=Studio,
+    // 11=B&B, 15=GuestHouse, 16=HolidayHome, 17=Hostel, 30=Villa, 32=VacationRental,
+    // 35=Chalet, 36=Cottage, 40=Bungalow — all use property-level descriptions
+    // Hotel types (6=Hotel, 8=Aparthotel, 9=Resort, etc.) use room-level descriptions
+    const hotelTypes = ['6','8','9','10','12','13','14','18','19','20','21','22','23','24','25','26','27','28','29','31','33','34','37','38','39'];
+    const isApartmentType = !hotelTypes.includes(propTypeId);
     const propTexts = texts; // property-level texts
 
     for (const [roomId, room] of Object.entries(roomIds)) {
