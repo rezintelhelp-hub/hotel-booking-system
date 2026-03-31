@@ -2860,7 +2860,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     /* Lightbox */
     .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; align-items: center; justify-content: center; }
     .lightbox.active { display: flex; }
-    .lightbox img { max-width: 90vw; max-height: 90vh; object-fit: contain; }
+    .lightbox img { max-width: 80vw; max-height: 80vh; object-fit: contain; cursor: pointer; border-radius: var(--card-radius); }
     .lightbox-close { position: absolute; top: 20px; right: 20px; background: white; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 24px; cursor: pointer; }
     .lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); background: white; border: none; width: 50px; height: 50px; border-radius: 50%; font-size: 24px; cursor: pointer; }
     .lightbox-prev { left: 20px; }
@@ -3233,7 +3233,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     <div class="lightbox" id="lightbox">
       <button class="lightbox-close" onclick="closeLightbox()">×</button>
       <button class="lightbox-nav lightbox-prev" onclick="navLightbox(-1)">‹</button>
-      <img src="" id="lightbox-img" alt="">
+      <img src="" id="lightbox-img" alt="" onclick="closeLightbox()">
       <button class="lightbox-nav lightbox-next" onclick="navLightbox(1)">›</button>
     </div>
     
