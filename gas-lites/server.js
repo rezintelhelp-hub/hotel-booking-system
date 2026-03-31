@@ -129,7 +129,14 @@ const LITE_TRANSLATIONS = {
     more_info: 'More Information',
     book_nights: 'Book {n} nights',
     promo_code: 'Have a promo code?',
-    no_amenities: 'No amenities listed.'
+    no_amenities: 'No amenities listed.',
+    check_availability: 'Check Availability',
+    view_book: 'View & Book',
+    all_locations: 'All Locations',
+    all_properties: 'All Properties',
+    no_rooms: 'No rooms available',
+    checking: 'Checking...',
+    max_guests_msg: 'Max {n} guests'
   },
   fr: {
     gallery: 'Galerie',
@@ -206,7 +213,14 @@ const LITE_TRANSLATIONS = {
     more_info: 'Plus d\'informations',
     book_nights: 'Réserver {n} nuits',
     promo_code: 'Avez-vous un code promo?',
-    no_amenities: 'Aucun équipement listé.'
+    no_amenities: 'Aucun équipement listé.',
+    check_availability: 'Vérifier la disponibilité',
+    view_book: 'Voir & Réserver',
+    all_locations: 'Toutes les villes',
+    all_properties: 'Toutes les propriétés',
+    no_rooms: 'Aucune chambre disponible',
+    checking: 'Vérification...',
+    max_guests_msg: 'Max {n} voyageurs'
   },
   es: {
     gallery: 'Galería',
@@ -283,7 +297,14 @@ const LITE_TRANSLATIONS = {
     more_info: 'Más información',
     book_nights: 'Reservar {n} noches',
     promo_code: '¿Tienes un código promocional?',
-    no_amenities: 'No hay servicios listados.'
+    no_amenities: 'No hay servicios listados.',
+    check_availability: 'Comprobar disponibilidad',
+    view_book: 'Ver y Reservar',
+    all_locations: 'Todas las ciudades',
+    all_properties: 'Todas las propiedades',
+    no_rooms: 'No hay habitaciones disponibles',
+    checking: 'Comprobando...',
+    max_guests_msg: 'Máx {n} huéspedes'
   },
   de: {
     gallery: 'Galerie',
@@ -360,7 +381,14 @@ const LITE_TRANSLATIONS = {
     more_info: 'Mehr Informationen',
     book_nights: '{n} Nächte buchen',
     promo_code: 'Haben Sie einen Promo-Code?',
-    no_amenities: 'Keine Ausstattung aufgeführt.'
+    no_amenities: 'Keine Ausstattung aufgeführt.',
+    check_availability: 'Verfügbarkeit prüfen',
+    view_book: 'Ansehen & Buchen',
+    all_locations: 'Alle Orte',
+    all_properties: 'Alle Unterkünfte',
+    no_rooms: 'Keine Zimmer verfügbar',
+    checking: 'Wird geprüft...',
+    max_guests_msg: 'Max {n} Gäste'
   },
   nl: {
     gallery: 'Galerij',
@@ -437,7 +465,14 @@ const LITE_TRANSLATIONS = {
     more_info: 'Meer informatie',
     book_nights: '{n} nachten boeken',
     promo_code: 'Heb je een promotiecode?',
-    no_amenities: 'Geen voorzieningen vermeld.'
+    no_amenities: 'Geen voorzieningen vermeld.',
+    check_availability: 'Beschikbaarheid controleren',
+    view_book: 'Bekijk & Boek',
+    all_locations: 'Alle locaties',
+    all_properties: 'Alle accommodaties',
+    no_rooms: 'Geen kamers beschikbaar',
+    checking: 'Controleren...',
+    max_guests_msg: 'Max {n} gasten'
   }
 };
 
@@ -580,6 +615,8 @@ app.get('/book/:accountSlug', async (req, res) => {
   try {
     const { accountSlug } = req.params;
     const isEmbed = req.query.embed === '1';
+    const isCompact = req.query.compact === '1';
+    const colorOverride = req.query.color || '';
 
     // Allow embedding on any domain
     if (isEmbed) {
@@ -590,12 +627,12 @@ app.get('/book/:accountSlug', async (req, res) => {
     // Look up account by account_code first, then try numeric ID
     let accountResult;
     accountResult = await pool.query(
-      `SELECT id, name, business_name, logo_url, primary_color, account_code
+      `SELECT id, name, business_name, logo_url, primary_color, account_code, settings
        FROM accounts WHERE account_code = $1`, [accountSlug]
     );
     if (accountResult.rows.length === 0 && /^\d+$/.test(accountSlug)) {
       accountResult = await pool.query(
-        `SELECT id, name, business_name, logo_url, primary_color, account_code
+        `SELECT id, name, business_name, logo_url, primary_color, account_code, settings
          FROM accounts WHERE id = $1`, [parseInt(accountSlug)]
       );
     }
@@ -603,6 +640,21 @@ app.get('/book/:accountSlug', async (req, res) => {
       return res.status(404).send(renderError('Account not found'));
     }
     const account = accountResult.rows[0];
+
+    // Language detection: query param > browser Accept-Language > primary language
+    const accountSettings = account.settings || {};
+    const supportedLangs = accountSettings.supported_languages || ['en'];
+    const primaryLang = accountSettings.primary_language || 'en';
+    let lang = primaryLang;
+    if (req.query.lang && supportedLangs.includes(req.query.lang.toLowerCase().substring(0, 2))) {
+      lang = req.query.lang.toLowerCase().substring(0, 2);
+    } else if (!req.query.lang) {
+      const acceptLang = req.headers['accept-language'] || '';
+      const browserLang = acceptLang.split(',')[0]?.split('-')[0]?.toLowerCase();
+      if (browserLang && supportedLangs.includes(browserLang)) {
+        lang = browserLang;
+      }
+    }
 
     // Fetch all active rooms for this account with property info, images, lite slugs, and today's price
     const roomsResult = await pool.query(`
@@ -624,7 +676,8 @@ app.get('/book/:accountSlug', async (req, res) => {
         p.name, bu.name
     `, [account.id]);
 
-    res.send(renderBookingPage({ account, rooms: roomsResult.rows, embed: isEmbed }));
+    if (colorOverride) account.primary_color = colorOverride;
+    res.send(renderBookingPage({ account, rooms: roomsResult.rows, embed: isEmbed, compact: isCompact, lang, supportedLangs }));
   } catch (error) {
     console.error('Account booking page error:', error);
     res.status(500).send(renderError('Something went wrong'));
@@ -2118,13 +2171,19 @@ function renderError(msg) {
 // ============================================
 // ACCOUNT BOOKING PAGE RENDERER
 // ============================================
-function renderBookingPage({ account, rooms, embed = false }) {
+function renderBookingPage({ account, rooms, embed = false, compact = false, lang = 'en', supportedLangs = ['en'] }) {
   const accent = account.primary_color || '#3b82f6';
   const businessName = account.business_name || account.name || 'Book Your Stay';
   const logoHtml = account.logo_url
     ? `<img src="${account.logo_url}" alt="${escapeForHTML(businessName)}" style="height: 40px;">`
     : '';
   const defaultCurrency = getCurrencySymbol(rooms.length > 0 ? rooms[0].currency : 'USD');
+  const tr = (key) => t(key, lang);
+  const displayLanguages = AVAILABLE_LANGUAGES.filter(l => supportedLangs.includes(l.code));
+  const langSwitcherHtml = displayLanguages.length > 1 ? `
+    <select id="langSwitch" onchange="switchLang(this.value)" style="padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; cursor: pointer; background: white;">
+      ${displayLanguages.map(l => `<option value="${l.code}" ${l.code === lang ? 'selected' : ''}>${l.flag} ${l.name}</option>`).join('')}
+    </select>` : '';
 
   // Dynamic filter options from data
   const uniqueCities = [...new Set(rooms.map(r => r.city).filter(Boolean))].sort();
@@ -2147,8 +2206,8 @@ function renderBookingPage({ account, rooms, embed = false }) {
 
   const roomCardsHtml = rooms.map((r, i) => {
     const image = r.room_image || r.property_image || '';
-    const displayName = r.display_name ? (typeof r.display_name === 'object' ? (r.display_name.en || Object.values(r.display_name)[0]) : r.display_name) : r.room_name;
-    const liteUrl = r.lite_slug ? `/${r.lite_slug}` : `/${r.room_id}`;
+    const displayName = parseJsonTextField(r.display_name || r.room_name, lang);
+    const liteUrl = r.lite_slug ? `/${r.lite_slug}?lang=${lang}` : `/${r.room_id}?lang=${lang}`;
     const bedrooms = parseInt(r.num_bedrooms) || 0;
     const bathrooms = parseFloat(r.num_bathrooms) || 0;
     const bathroomsDisplay = bathrooms === Math.floor(bathrooms) ? Math.floor(bathrooms) : bathrooms.toFixed(1);
@@ -2167,19 +2226,19 @@ function renderBookingPage({ account, rooms, embed = false }) {
             ${bathrooms > 0 ? `<span class="meta-pill">🚿 ${bathroomsDisplay}</span>` : ''}
           </div>
           <div class="room-bottom">
-            <div class="room-price" id="price-${r.room_id}"><span class="price-on-request">Select dates</span></div>
-            <a href="${liteUrl}" class="book-btn" id="bookbtn-${r.room_id}">View & Book</a>
+            <div class="room-price" id="price-${r.room_id}"><span class="price-on-request">${tr('select_dates')}</span></div>
+            <a href="${liteUrl}" class="book-btn" id="bookbtn-${r.room_id}">${tr('book_now')}</a>
           </div>
         </div>
       </div>`;
   }).join('');
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeForHTML(businessName)} — Book Your Stay</title>
+  <title>${escapeForHTML(businessName)} — ${tr('book_now')}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -2268,50 +2327,51 @@ function renderBookingPage({ account, rooms, embed = false }) {
     <nav class="nav-links">
       <a href="#roomGrid">Rooms</a>
       <a href="#property-map">Map</a>
-      <a href="#search" class="nav-cta" onclick="document.getElementById('checkin').focus(); return false;">Book Now</a>
+      ${langSwitcherHtml}
+      <a href="#search" class="nav-cta" onclick="document.getElementById('checkin').focus(); return false;">${tr('book_now')}</a>
     </nav>
   </div>`}
 
   <div class="search-bar" id="search">
     <div class="search-inner">
       <div class="search-field" style="max-width: 150px;">
-        <label>Location</label>
+        <label>${tr('location')}</label>
         <select id="filterLocation" onchange="applyFilters()">
-          <option value="">All Locations</option>
+          <option value="">${tr('all_locations')}</option>
           ${cityOptionsHtml}
         </select>
       </div>
       <div class="search-field" style="max-width: 200px;">
         <label>Property</label>
         <select id="filterProperty" onchange="applyFilters()">
-          <option value="">All Properties</option>
+          <option value="">${tr('all_properties')}</option>
           ${propOptionsHtml}
         </select>
       </div>
       <div class="search-field">
-        <label>Check-in</label>
-        <input type="text" id="checkin" placeholder="Select date" readonly>
+        <label>${tr('check_in')}</label>
+        <input type="text" id="checkin" placeholder="${tr('select_dates')}" readonly>
       </div>
       <div class="search-field">
-        <label>Check-out</label>
-        <input type="text" id="checkout" placeholder="Select date" readonly>
+        <label>${tr('check_out')}</label>
+        <input type="text" id="checkout" placeholder="${tr('select_dates')}" readonly>
       </div>
       <div class="search-field" style="max-width: 100px;">
-        <label>Guests</label>
+        <label>${tr('guests')}</label>
         <select id="guests">
-          ${[1,2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}"${n === 2 ? ' selected' : ''}>${n} guest${n > 1 ? 's' : ''}</option>`).join('')}
+          ${[1,2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}"${n === 2 ? ' selected' : ''}>${n} ${n > 1 ? tr('guests_plural') : tr('guest')}</option>`).join('')}
         </select>
       </div>
       <div class="search-field" style="max-width: 140px;">
-        <label>Sort By</label>
+        <label>Sort</label>
         <select id="sortBy" onchange="applyFilters()">
-          <option value="">Default</option>
-          <option value="price-asc">Price: Low to High</option>
-          <option value="price-desc">Price: High to Low</option>
+          <option value="">—</option>
+          <option value="price-asc">${tr('price_from')} ↑</option>
+          <option value="price-desc">${tr('price_from')} ↓</option>
         </select>
       </div>
       <button class="check-btn" id="checkBtn" onclick="checkAvailability()">
-        <span id="checkText">Check Availability</span>
+        <span id="checkText">${tr('check_availability')}</span>
         <div class="spinner" id="checkSpinner"></div>
       </button>
       <span id="filterCount" class="filter-count"></span>
@@ -2322,14 +2382,31 @@ function renderBookingPage({ account, rooms, embed = false }) {
     <div class="cards-panel">
       ${rooms.length > 0 ? `<div class="room-grid" id="roomGrid">${roomCardsHtml}</div>` : `
         <div class="empty-state">
-          <h2>No rooms available</h2>
-          <p>This property hasn't listed any rooms yet.</p>
+          <h2>${tr('no_rooms')}</h2>
         </div>`}
     </div>
     ${!embed && mapPins.length > 0 ? '<div class="map-panel"><div id="property-map"></div></div>' : ''}
   </div>
 
   <script>
+    var currentLang = '${lang}';
+    var TRANSLATIONS = ${JSON.stringify({
+      available: tr('available'),
+      unavailable: tr('unavailable'),
+      check_availability: tr('check_availability'),
+      select_dates: tr('select_dates'),
+      book_now: tr('book_now'),
+      view_book: tr('view_book'),
+      nights: tr('nights'),
+      total: tr('total'),
+      checking: tr('checking'),
+      max_guests_msg: tr('max_guests_msg')
+    })};
+    function switchLang(newLang) {
+      var url = new URL(window.location.href);
+      url.searchParams.set('lang', newLang);
+      window.location.href = url.toString();
+    }
     var flatpickrCheckin = flatpickr('#checkin', {
       dateFormat: 'Y-m-d',
       altInput: true,
@@ -2406,7 +2483,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
       var guests = parseInt(document.getElementById('guests').value);
 
       if (!checkin || !checkout) {
-        alert('Please select check-in and check-out dates');
+        alert(TRANSLATIONS.select_dates);
         return;
       }
 
@@ -2430,7 +2507,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
           card.classList.remove('available');
           card.classList.add('unavailable');
           badge.className = 'avail-badge show-unavail';
-          badge.textContent = 'Max ' + maxGuests + ' guests';
+          badge.textContent = TRANSLATIONS.max_guests_msg.replace('{n}', maxGuests);
           card.dataset.availStatus = 'unavailable';
           return;
         }
@@ -2462,16 +2539,17 @@ function renderBookingPage({ account, rooms, embed = false }) {
             card.classList.add('available');
             card.classList.remove('unavailable');
             badge.className = 'avail-badge show-avail';
-            badge.textContent = 'Available';
+            badge.textContent = TRANSLATIONS.available;
             card.dataset.availStatus = 'available';
             // Update price to show total
             if (totalPrice > 0 && priceDiv) {
-              priceDiv.innerHTML = '${defaultCurrency}' + Math.round(totalPrice) + '<span class="per-night"> total (' + nights + ' nights)</span>';
+              priceDiv.innerHTML = '${defaultCurrency}' + Math.round(totalPrice) + '<span class="per-night"> ' + TRANSLATIONS.total + ' (' + nights + ' ' + TRANSLATIONS.nights + ')</span>';
               card.dataset.price = Math.round(totalPrice / nights);
             }
             // Update View & Book link with dates
             if (bookBtn && liteUrl) {
-              bookBtn.href = liteUrl + '?checkin=' + checkin + '&checkout=' + checkout + '&guests=' + guests;
+              var sep = liteUrl.indexOf('?') >= 0 ? '&' : '?';
+              bookBtn.href = liteUrl + sep + 'checkin=' + checkin + '&checkout=' + checkout + '&guests=' + guests;
             }
           } else if (dates.length === 0) {
             // No availability data at all — not necessarily unavailable, just no data
@@ -2484,7 +2562,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
             card.classList.remove('available');
             card.classList.add('unavailable');
             badge.className = 'avail-badge show-unavail';
-            badge.textContent = blockedNights > 0 ? 'Blocked' : 'Unavailable';
+            badge.textContent = TRANSLATIONS.unavailable;
             card.dataset.availStatus = 'unavailable';
           }
         } catch (err) {
