@@ -2935,9 +2935,9 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     
     /* Tabs */
     .tabs-nav { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 24px; }
-    .tab-btn { padding: 10px 20px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 14px; font-weight: 500; color: #64748b; cursor: pointer; border-radius: 25px; margin-right: 8px; margin-bottom: 8px; transition: all 0.2s; }
-    .tab-btn:hover { border-color: #667eea; color: #667eea; background: #f1f5f9; }
-    .tab-btn.active { background: #667eea; color: white; border-color: #667eea; }
+    .tab-btn { padding: 10px 20px; border: 1px solid #e2e8f0; background: ${cardBg}; font-size: 14px; font-weight: 500; color: #64748b; cursor: pointer; border-radius: var(--btn-radius); margin-right: 8px; margin-bottom: 8px; transition: all 0.2s; }
+    .tab-btn:hover { border-color: var(--accent); color: var(--accent); background: #f1f5f9; }
+    .tab-btn.active { background: var(--accent); color: var(--btn-text); border-color: var(--accent); }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
     
@@ -3205,8 +3205,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   ${offerBannerHtml}
   <header class="header">
     <div class="header-brand">
-      <a href="/" class="logo">GAS Lite</a>
-      ${(lite.account_display_name || lite.business_name) ? `<span class="header-presents">— <strong>${escapeForHTML(lite.account_display_name || lite.business_name)}</strong> Presents</span>` : ''}
+      <a href="javascript:history.back()" class="back-link" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:var(--accent);font-weight:600;font-size:14px;">← ${t('back', lang)}</a>
+      ${(lite.account_display_name || lite.business_name) ? `<span class="header-presents" style="color:#64748b;font-size:14px;">${escapeForHTML(lite.account_display_name || lite.business_name)}</span>` : ''}
     </div>
     <button class="share-btn" onclick="shareProperty()">📤 Share</button>
   </header>
