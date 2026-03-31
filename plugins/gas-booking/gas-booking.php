@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.2
+ * Version: 3.6.3
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.2');
+define('GAS_BOOKING_VERSION', '3.6.3');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -349,8 +349,8 @@ class GAS_Booking {
             return;
         }
         
-        // Fetch settings from GAS API
-        $response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config", array(
+        // Fetch settings from GAS API (with site_url for multi-site accounts)
+        $response = wp_remote_get($this->get_site_config_url(), array(
             'timeout' => 15,
             'sslverify' => true,
         ));
@@ -1091,18 +1091,18 @@ class GAS_Booking {
         }
         
         $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
-        $response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config", array(
+        $response = wp_remote_get($this->get_site_config_url(), array(
             'timeout' => 10,
             'sslverify' => false
         ));
-        
+
         if (is_wp_error($response)) {
             return array();
         }
-        
+
         $body = wp_remote_retrieve_body($response);
         $data = json_decode($body, true);
-        
+
         if (!$data || !isset($data['success']) || !$data['success']) {
             return array();
         }
@@ -1149,7 +1149,7 @@ class GAS_Booking {
         }
 
         $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
-        $response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config", array(
+        $response = wp_remote_get($this->get_site_config_url(), array(
             'timeout' => 10,
             'sslverify' => false
         ));
@@ -1672,7 +1672,7 @@ class GAS_Booking {
                     $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
                     
                     if (!empty($client_id)) {
-                        $response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config", array('timeout' => 30, 'sslverify' => false));
+                        $response = wp_remote_get($this->get_site_config_url(), array('timeout' => 30, 'sslverify' => false));
                         
                         if (!is_wp_error($response)) {
                             $data = json_decode(wp_remote_retrieve_body($response), true);
@@ -3588,7 +3588,7 @@ class GAS_Booking {
                 $client_id = get_option('gas_client_id', '');
                 if ($client_id) {
                     $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
-                    $response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config", array(
+                    $response = wp_remote_get($this->get_site_config_url(), array(
                         'timeout' => 5,
                         'headers' => array(
                             'Cache-Control' => 'no-cache',
@@ -3810,10 +3810,10 @@ class GAS_Booking {
                 // Fetch fresh
                 if ($client_id) {
                     $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
-                    $response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config", array(
+                    $response = wp_remote_get($this->get_site_config_url(), array(
                         'timeout' => 5,
                     ));
-                    
+
                     if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
                         $data = json_decode(wp_remote_retrieve_body($response), true);
                         if (!empty($data['config'])) {
@@ -3848,6 +3848,17 @@ class GAS_Booking {
     }
     
     /**
+     * Build site-config API URL with site_url param for multi-site account support.
+     * Without site_url, accounts with multiple deployed sites get the wrong settings.
+     */
+    public function get_site_config_url() {
+        $client_id = get_option('gas_client_id', '');
+        $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
+        $site_url = home_url('/');
+        return "{$api_url}/api/public/client/{$client_id}/site-config?site_url=" . urlencode($site_url);
+    }
+
+    /**
      * Get the effective button color - from API for GAS theme, or from WordPress option
      * This is used throughout the plugin for consistent button styling
      */
@@ -3867,9 +3878,8 @@ class GAS_Booking {
             $api_cache = get_transient($cache_key);
 
             if (!$api_cache) {
-                // Fetch fresh
-                $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
-                $response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config", array(
+                // Fetch fresh (with site_url for multi-site accounts)
+                $response = wp_remote_get($this->get_site_config_url(), array(
                     'timeout' => 5,
                 ));
 
@@ -4114,8 +4124,8 @@ class GAS_Booking {
                 return $cached;
             }
             
-            // First try site-config for manual override
-            $response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config", array('timeout' => 5, 'sslverify' => false));
+            // First try site-config for manual override (with site_url for multi-site accounts)
+            $response = wp_remote_get($this->get_site_config_url(), array('timeout' => 5, 'sslverify' => false));
             if (!is_wp_error($response)) {
                 $data = json_decode(wp_remote_retrieve_body($response), true);
                 if (!empty($data['website']['hero']['search-max-guests'])) {

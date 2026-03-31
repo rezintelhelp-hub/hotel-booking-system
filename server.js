@@ -74836,9 +74836,9 @@ async function runGasSyncScheduler() {
     console.error('[GAS Sync Scheduler] Error:', error.message);
   }
 }
-// DISABLED — tiered sync handles price/availability, full sync only on manual trigger
-// setInterval(runGasSyncScheduler, GAS_SYNC_CYCLE_MS);
-// setTimeout(runGasSyncScheduler, 30000);
+// Re-enabled — per-account sync is required for all live sites using gas_sync_connections
+setInterval(runGasSyncScheduler, GAS_SYNC_CYCLE_MS);
+setTimeout(runGasSyncScheduler, 30000);
 
 // =====================================================
 // SYNC COMPARISON & RECONCILIATION
