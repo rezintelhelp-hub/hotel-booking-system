@@ -15791,17 +15791,12 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace-pricing', asy
           console.log(`[Beds24 MP Pricing] getDailyPriceSetup failed for room ${room.beds24_room_id}: ${setupErr.message}`);
         }
 
-        // Debug: log raw response structure
-        const calKeys = Object.keys(calData || {});
-        console.log(`[Beds24 MP Pricing] Room ${room.beds24_room_id} raw response keys: ${calKeys.join(', ')}`);
-        console.log(`[Beds24 MP Pricing] Room ${room.beds24_room_id} raw sample (500 chars): ${JSON.stringify(calData).substring(0, 500)}`);
-
-        // Parse calendar — response may be { getRoomDates: { ... } } or flat { "20260401": { ... } }
+        // Parse calendar — response is flat { "20260401": { ... } } from rezintel.net endpoint
         const calendar = calData?.getRoomDates || calData || {};
         const dates = Object.keys(calendar).filter(k => /^\d{8}$/.test(k));
 
         if (dates.length === 0) {
-          console.log(`[Beds24 MP Pricing] Room ${room.beds24_room_id}: no calendar data returned (calendar keys: ${Object.keys(calendar).slice(0, 5).join(', ')})`);
+          console.log(`[Beds24 MP Pricing] Room ${room.beds24_room_id}: no calendar data returned`);
           pricingRoomsSynced++;
           continue;
         }
