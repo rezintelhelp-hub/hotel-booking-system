@@ -2726,17 +2726,20 @@ app.get('/api/gas-sync/property-by-gas-id/:gasPropertyId', async (req, res) => {
     // Try gas_sync_properties first (if table exists)
     try {
       const result = await pool.query(`
-        SELECT id, connection_id, cm_property_id, gas_property_id, name
-        FROM gas_sync_properties 
-        WHERE gas_property_id = $1
+        SELECT sp.id, sp.connection_id, sp.cm_property_id, sp.gas_property_id, sp.name,
+               c.adapter_code
+        FROM gas_sync_properties sp
+        JOIN gas_sync_connections c ON c.id = sp.connection_id
+        WHERE sp.gas_property_id = $1
       `, [gasPropertyId]);
-      
+
       if (result.rows.length > 0) {
-        return res.json({ 
-          success: true, 
+        return res.json({
+          success: true,
           syncPropertyId: result.rows[0].id,
           connectionId: result.rows[0].connection_id,
           cmPropertyId: result.rows[0].cm_property_id,
+          adapterCode: result.rows[0].adapter_code,
           name: result.rows[0].name
         });
       }
