@@ -124,6 +124,7 @@ const EMAIL_FROM = process.env.EMAIL_FROM || 'bookings@mg.gas.travel';
 
 // Category label translations for blog & attractions
 const CATEGORY_LABELS = {
+  // Slug keys (from Get Ideas path)
   museums: { en:'Museums & Galleries', es:'Museos y Galerías', fr:'Musées et Galeries', de:'Museen und Galerien', nl:'Musea en Galerijen' },
   landmarks: { en:'Landmarks & Monuments', es:'Monumentos y Lugares', fr:'Monuments et Sites', de:'Denkmäler und Sehenswürdigkeiten', nl:'Monumenten en Bezienswaardigheden' },
   parks: { en:'Parks & Gardens', es:'Parques y Jardines', fr:'Parcs et Jardins', de:'Parks und Gärten', nl:'Parken en Tuinen' },
@@ -143,7 +144,35 @@ const CATEGORY_LABELS = {
   seasonal: { en:'Seasonal Activities', es:'Actividades de Temporada', fr:'Activités Saisonnières', de:'Saisonale Aktivitäten', nl:'Seizoensactiviteiten' },
   holidays: { en:'Holiday Events', es:'Eventos Festivos', fr:'Événements de Fêtes', de:'Feiertage', nl:'Feestdagen' },
   family: { en:'Family Events', es:'Eventos Familiares', fr:'Événements Familiaux', de:'Familienveranstaltungen', nl:'Familie-evenementen' },
-  entertainment: { en:'Entertainment', es:'Entretenimiento', fr:'Divertissement', de:'Unterhaltung', nl:'Entertainment' }
+  entertainment: { en:'Entertainment', es:'Entretenimiento', fr:'Divertissement', de:'Unterhaltung', nl:'Entertainment' },
+  towns: { en:'Towns', es:'Pueblos y Ciudades', fr:'Villes et Villages', de:'Städte und Orte', nl:'Steden en Dorpen' },
+  traveltips: { en:'Travel Tips', es:'Consejos de Viaje', fr:'Conseils de Voyage', de:'Reisetipps', nl:'Reistips' },
+  general: { en:'General', es:'General', fr:'Général', de:'Allgemein', nl:'Algemeen' },
+  // Display name keys (from +New Post / AI Blog path — same translations)
+  'day trips': { en:'Day Trips', es:'Excursiones', fr:'Excursions', de:'Tagesausflüge', nl:'Dagtrips' },
+  'museums & galleries': { en:'Museums & Galleries', es:'Museos y Galerías', fr:'Musées et Galeries', de:'Museen und Galerien', nl:'Musea en Galerijen' },
+  'landmarks & monuments': { en:'Landmarks & Monuments', es:'Monumentos y Lugares', fr:'Monuments et Sites', de:'Denkmäler und Sehenswürdigkeiten', nl:'Monumenten en Bezienswaardigheden' },
+  'parks & gardens': { en:'Parks & Gardens', es:'Parques y Jardines', fr:'Parcs et Jardins', de:'Parks und Gärten', nl:'Parken en Tuinen' },
+  'beaches & coastline': { en:'Beaches & Coastline', es:'Playas y Costa', fr:'Plages et Littoral', de:'Strände und Küste', nl:'Stranden en Kust' },
+  'restaurants & dining': { en:'Restaurants & Dining', es:'Restaurantes y Gastronomía', fr:'Restaurants et Gastronomie', de:'Restaurants und Gastronomie', nl:'Restaurants en Eten' },
+  'cafes & coffee shops': { en:'Cafes & Coffee Shops', es:'Cafeterías', fr:'Cafés', de:'Cafés', nl:'Cafés' },
+  'nightlife & bars': { en:'Nightlife & Bars', es:'Vida Nocturna y Bares', fr:'Vie Nocturne et Bars', de:'Nachtleben und Bars', nl:'Nachtleven en Bars' },
+  'shopping & markets': { en:'Shopping & Markets', es:'Compras y Mercados', fr:'Shopping et Marchés', de:'Einkaufen und Märkte', nl:'Winkelen en Markten' },
+  'nature & outdoor': { en:'Nature & Outdoor', es:'Naturaleza y Aire Libre', fr:'Nature et Plein Air', de:'Natur und Outdoor', nl:'Natuur en Buiten' },
+  'festivals & celebrations': { en:'Festivals & Celebrations', es:'Festivales y Celebraciones', fr:'Festivals et Célébrations', de:'Feste und Feiern', nl:'Festivals en Vieringen' },
+  'concerts & live music': { en:'Concerts & Live Music', es:'Conciertos y Música', fr:'Concerts et Musique', de:'Konzerte und Musik', nl:'Concerten en Muziek' },
+  'theater & performances': { en:'Theater & Performances', es:'Teatro y Espectáculos', fr:'Théâtre et Spectacles', de:'Theater und Aufführungen', nl:'Theater en Voorstellingen' },
+  'sports events': { en:'Sports Events', es:'Eventos Deportivos', fr:'Événements Sportifs', de:'Sportveranstaltungen', nl:'Sportevenementen' },
+  'markets & fairs': { en:'Markets & Fairs', es:'Mercados y Ferias', fr:'Marchés et Foires', de:'Märkte und Messen', nl:'Markten en Beurzen' },
+  'cultural events': { en:'Cultural Events', es:'Eventos Culturales', fr:'Événements Culturels', de:'Kulturelle Veranstaltungen', nl:'Culturele Evenementen' },
+  'seasonal activities': { en:'Seasonal Activities', es:'Actividades de Temporada', fr:'Activités Saisonnières', de:'Saisonale Aktivitäten', nl:'Seizoensactiviteiten' },
+  'holiday events': { en:'Holiday Events', es:'Eventos Festivos', fr:'Événements de Fêtes', de:'Feiertage', nl:'Feestdagen' },
+  'family events': { en:'Family Events', es:'Eventos Familiares', fr:'Événements Familiaux', de:'Familienveranstaltungen', nl:'Familie-evenementen' },
+  'travel tips': { en:'Travel Tips', es:'Consejos de Viaje', fr:'Conseils de Voyage', de:'Reisetipps', nl:'Reistips' },
+  'historic sites': { en:'Historic Sites', es:'Sitios Históricos', fr:'Sites Historiques', de:'Historische Stätten', nl:'Historische Plaatsen' },
+  'food & drink': { en:'Food & Drink', es:'Gastronomía', fr:'Gastronomie', de:'Essen und Trinken', nl:'Eten en Drinken' },
+  'family fun': { en:'Family Fun', es:'Diversión Familiar', fr:'Divertissement Familial', de:'Familienspaß', nl:'Familieplezier' },
+  'sports & activities': { en:'Sports & Activities', es:'Deportes y Actividades', fr:'Sports et Activités', de:'Sport und Aktivitäten', nl:'Sport en Activiteiten' },
 };
 
 function getCategoryLabel(slug, lang) {
@@ -1076,11 +1105,14 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS content_ml JSONB`);
       await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS meta_title_ml JSONB`);
       await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS meta_description_ml JSONB`);
-      console.log('✅ blog_posts multilingual columns ensured');
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS category_ml JSONB`);
+      await pool.query(`ALTER TABLE blog_categories ADD COLUMN IF NOT EXISTS name_ml JSONB`);
+      await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS category_ml JSONB`);
+      console.log('✅ blog_posts multilingual columns ensured (incl category_ml)');
     } catch (blogMlError) {
       console.log('ℹ️  blog_posts multilingual columns:', blogMlError.message);
     }
-    
+
     // Property images table and columns
     try {
       await pool.query(`
