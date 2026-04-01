@@ -69759,7 +69759,7 @@ Provide the following information in JSON format:
 {
     "short_description": "1-2 sentence description for attraction cards (max 150 chars)",
     "description": "2-3 paragraph detailed description mentioning why visitors/guests would enjoy it, what to expect, and practical tips. Mention the property name naturally if provided.",
-    "category": "One of: Museums & Galleries, Historic Sites, Parks & Gardens, Beaches, Entertainment, Shopping, Food & Drink, Sports & Activities, Nightlife, Family Fun",
+    "category": "One of: museums, landmarks, towns, parks, beaches, entertainment, shopping, restaurants, cafes, nightlife, sports, nature, family (use 'towns' for towns/villages/cities, 'landmarks' for historic sites, 'restaurants' for dining, 'nature' for outdoors)",
     "distance": "Estimated distance/time from city center, e.g. '10 min walk' or '2 miles'",
     "address": "Full address if known, or best guess based on location",
     "website": "Official website URL if known, otherwise leave empty",
