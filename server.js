@@ -15796,8 +15796,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace-pricing', asy
         console.log(`[Beds24 MP Pricing] Room ${room.beds24_room_id} raw response keys: ${calKeys.join(', ')}`);
         console.log(`[Beds24 MP Pricing] Room ${room.beds24_room_id} raw sample (500 chars): ${JSON.stringify(calData).substring(0, 500)}`);
 
-        // Parse calendar — response is { getRoomDates: { "20260401": { i, p1..p16, x, m, o }, ... } }
-        const calendar = calData?.getRoomDates || {};
+        // Parse calendar — response may be { getRoomDates: { ... } } or flat { "20260401": { ... } }
+        const calendar = calData?.getRoomDates || calData || {};
         const dates = Object.keys(calendar).filter(k => /^\d{8}$/.test(k));
 
         if (dates.length === 0) {
@@ -75443,7 +75443,7 @@ async function runGasSyncScheduler() {
               incOverride: 1
             }, { propKey: targetPropKey });
 
-            const calendar = calData?.getRoomDates || {};
+            const calendar = calData?.getRoomDates || calData || {};
             const dates = Object.keys(calendar).filter(k => /^\d{8}$/.test(k));
 
             for (const dateKey of dates) {
