@@ -3,7 +3,7 @@
  * Plugin Name: GAS Blog
  * Plugin URI: https://gas.travel
  * Description: Display blog posts from GAS with Article schema markup for SEO. Colors controlled via GAS Admin.
- * Version: 2.7.0
+ * Version: 2.7.1
  * Author: GAS - Guest Accommodation System
  * License: GPL v2 or later
  */
@@ -116,7 +116,7 @@ class GAS_Blog {
         $cache_key = 'gas_blog_page_ts_' . $client_id;
         $page_data = get_transient($cache_key);
         if ($page_data === false) {
-            $url = trailingslashit($this->get_api_url()) . 'api/public/client/' . $client_id . '/site-config';
+            $url = trailingslashit($this->get_api_url()) . 'api/public/client/' . $client_id . '/site-config?site_url=' . urlencode(home_url('/'));
             $response = wp_remote_get($url, array('timeout' => 10));
             if (!is_wp_error($response)) {
                 $body = json_decode(wp_remote_retrieve_body($response), true);
