@@ -19546,14 +19546,32 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             let stripeVerified = false;
             let stripeIntentStatus = 'unknown';
             try {
-                // Get Stripe secret key for this property/account
-                const stripeKeyResult = await client.query(`
-                    SELECT COALESCE(p.stripe_secret_key, a.stripe_secret_key) as stripe_secret_key
-                    FROM properties p
-                    JOIN accounts a ON p.account_id = a.id
-                    WHERE p.id = $1
+                // Get Stripe secret key — check payment_configurations first, then legacy columns
+                let stripeSecretKey = null;
+                const pcResult = await client.query(`
+                    SELECT credentials FROM payment_configurations
+                    WHERE property_id = $1 AND provider = 'stripe' AND is_enabled = true LIMIT 1
                 `, [createdBookings[0].property_id]);
-                const stripeSecretKey = stripeKeyResult.rows[0]?.stripe_secret_key;
+                if (pcResult.rows.length > 0 && pcResult.rows[0].credentials?.secret_key) {
+                    stripeSecretKey = pcResult.rows[0].credentials.secret_key;
+                } else {
+                    // Fall back to account-level config
+                    const acctPcResult = await client.query(`
+                        SELECT pc.credentials FROM payment_configurations pc
+                        JOIN properties p ON pc.account_id = p.account_id
+                        WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1
+                    `, [createdBookings[0].property_id]);
+                    if (acctPcResult.rows.length > 0 && acctPcResult.rows[0].credentials?.secret_key) {
+                        stripeSecretKey = acctPcResult.rows[0].credentials.secret_key;
+                    } else {
+                        // Fall back to legacy columns
+                        const legacyResult = await client.query(`
+                            SELECT COALESCE(p.stripe_secret_key, a.stripe_secret_key) as stripe_secret_key
+                            FROM properties p JOIN accounts a ON p.account_id = a.id WHERE p.id = $1
+                        `, [createdBookings[0].property_id]);
+                        stripeSecretKey = legacyResult.rows[0]?.stripe_secret_key;
+                    }
+                }
                 if (stripeSecretKey) {
                     const verifyStripe = new (require('stripe'))(stripeSecretKey);
                     const intent = await verifyStripe.paymentIntents.retrieve(stripe_payment_intent_id);
