@@ -15706,6 +15706,112 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
       }
     }
 
+    // ===== 5. PRICING & AVAILABILITY SYNC via getRoomDates + getDailyPriceSetup =====
+    // Pulls full 732 days of daily prices, availability, min stay for every room
+    let pricingRoomsSynced = 0, pricingErrors = 0, totalDaysSynced = 0;
+    const PRICING_DAYS = 732; // 2 years — full pull on first/manual sync
+
+    for (const [beds24RoomId, gasRoomId] of Object.entries(beds24RoomToGasRoom)) {
+      try {
+        const fromDate = new Date();
+        const toDate = new Date(fromDate.getTime() + PRICING_DAYS * 24 * 60 * 60 * 1000);
+        const fromStr = fromDate.toISOString().split('T')[0].replace(/-/g, '');
+        const toStr = toDate.toISOString().split('T')[0].replace(/-/g, '');
+
+        console.log(`[Beds24 MP Pricing] Room ${beds24RoomId} (GAS ${gasRoomId}) — fetching ${PRICING_DAYS} days...`);
+
+        // getRoomDates: daily availability + prices for up to 16 rates
+        const calData = await beds24MarketplaceRequest('getRoomDates', {
+          roomId: beds24RoomId,
+          from: fromStr,
+          to: toStr,
+          incMultiplier: 1,
+          incOverride: 1
+        }, { propKey: targetPropKey });
+
+        // getDailyPriceSetup: min stay + min advance per rate
+        let priceSetup = {};
+        try {
+          const setupData = await beds24MarketplaceRequest('getDailyPriceSetup', {
+            roomId: beds24RoomId
+          }, { propKey: targetPropKey });
+          priceSetup = setupData?.getDailyPriceSetup || {};
+        } catch (setupErr) {
+          console.log(`[Beds24 MP Pricing] getDailyPriceSetup failed for room ${beds24RoomId}: ${setupErr.message}`);
+        }
+
+        // Parse calendar — response is { getRoomDates: { "20260401": { i, p1..p16, x, m, o }, ... } }
+        const calendar = calData?.getRoomDates || {};
+        const dates = Object.keys(calendar).filter(k => /^\d{8}$/.test(k));
+
+        if (dates.length === 0) {
+          console.log(`[Beds24 MP Pricing] Room ${beds24RoomId}: no calendar data returned`);
+          pricingRoomsSynced++;
+          continue;
+        }
+
+        // Get default min stay from priceSetup (rate 1 is primary)
+        const defaultMinStay = parseInt(priceSetup['1']?.minStay) || 1;
+
+        // Batch upsert — collect all values then write
+        let roomDaysSynced = 0;
+        for (const dateKey of dates) {
+          const day = calendar[dateKey];
+          const dateFormatted = `${dateKey.substring(0, 4)}-${dateKey.substring(4, 6)}-${dateKey.substring(6, 8)}`;
+          const inventory = parseInt(day.i) || 0;
+          const isAvailable = inventory > 0;
+          const isBlocked = inventory === 0;
+
+          // Find best price across all 16 rates (p1-p16), applying multiplier
+          const multiplier = parseFloat(day.x) || 100;
+          let bestPrice = null;
+          for (let r = 1; r <= 16; r++) {
+            const rawPrice = parseFloat(day[`p${r}`]);
+            if (rawPrice && rawPrice > 0) {
+              const effectivePrice = rawPrice * multiplier / 100;
+              if (bestPrice === null || effectivePrice < bestPrice) {
+                bestPrice = effectivePrice;
+              }
+            }
+          }
+
+          // Min stay from calendar day (m field) or from priceSetup
+          const minStay = parseInt(day.m) || defaultMinStay || 1;
+
+          await pool.query(`
+            INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+            VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-marketplace', NOW())
+            ON CONFLICT (room_id, date) DO UPDATE SET
+              price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+              cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+              direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.direct_price END,
+              is_available = $4, is_blocked = $5,
+              min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+              cm_min_stay = $6, source = 'beds24-marketplace', updated_at = NOW()
+          `, [gasRoomId, dateFormatted, bestPrice, isAvailable, isBlocked, minStay]);
+          roomDaysSynced++;
+        }
+
+        totalDaysSynced += roomDaysSynced;
+        pricingRoomsSynced++;
+        console.log(`[Beds24 MP Pricing] Room ${beds24RoomId}: ${roomDaysSynced} days synced (best price across rates)`);
+
+        // Rate limit: 2 seconds between rooms
+        if (Object.keys(beds24RoomToGasRoom).length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      } catch (roomPricingErr) {
+        pricingErrors++;
+        console.error(`[Beds24 MP Pricing] Room ${beds24RoomId} error: ${roomPricingErr.message}`);
+        if (roomPricingErr.response?.status === 429) {
+          console.log('[Beds24 MP Pricing] Rate limited — stopping pricing sync');
+          break;
+        }
+      }
+    }
+
+    console.log(`[Beds24 MP Pricing] Complete: ${pricingRoomsSynced} rooms, ${totalDaysSynced} days, ${pricingErrors} errors`);
+
     // Update connection sync time
     await pool.query(`
       UPDATE gas_sync_connections SET last_sync_at = NOW(), status = 'connected', updated_at = NOW() WHERE id = $1
@@ -15714,11 +15820,12 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     const stats = {
       property: propName, gasPropertyId, roomsCreated, roomsUpdated,
       totalRooms: Object.keys(roomIds).length,
-      roomImages: roomImagesImported, propertyImages: propImagesImported
+      roomImages: roomImagesImported, propertyImages: propImagesImported,
+      pricingRoomsSynced, totalDaysSynced, pricingErrors
     };
     console.log(`[Beds24 Marketplace Sync] Done:`, stats);
     res.json({ success: true, ...stats,
-      message: `Synced "${propName}" — ${roomsCreated} rooms created, ${roomsUpdated} updated, ${roomImagesImported + propImagesImported} images imported`
+      message: `Synced "${propName}" — ${roomsCreated} rooms created, ${roomsUpdated} updated, ${roomImagesImported + propImagesImported} images imported, ${pricingRoomsSynced} rooms pricing synced (${totalDaysSynced} days)`
     });
   } catch (error) {
     console.error('[Beds24 Marketplace Sync] Error:', error.message);
@@ -75235,6 +75342,107 @@ async function runGasSyncScheduler() {
           } catch (roomError) {
             totalErrors++;
             if (roomError.response?.status === 429) break; // Stop if rate limited
+          }
+        }
+      } // end tiers loop
+
+      // 3 second pause between connections
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+
+    // ===== MARKETPLACE CONNECTIONS (beds24-marketplace) — master key auth =====
+    // Uses getRoomDates via rezintel.net endpoint instead of V2 calendar API
+    const mpConnections = await pool.query(`
+      SELECT * FROM gas_sync_connections
+      WHERE adapter_code = 'beds24-marketplace' AND sync_enabled = true AND status != 'syncing'
+    `);
+
+    for (const conn of mpConnections.rows) {
+      const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : (conn.credentials || {});
+      const targetPropKey = creds.propKey;
+      if (!targetPropKey) {
+        console.log(`[GAS Sync Scheduler] Marketplace connection ${conn.id}: no propKey, skipping`);
+        continue;
+      }
+
+      for (const tier of SYNC_TIERS) {
+        const tierColumn = `tier${tier.tier}_synced_at`;
+        const cutoffTime = new Date(now.getTime() - tier.intervalMinutes * 60 * 1000);
+
+        const roomsResult = await pool.query(`
+          SELECT rt.id, rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
+          FROM gas_sync_room_types rt
+          JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+          JOIN bookable_units bu ON bu.id = rt.gas_room_id
+          WHERE sp.connection_id = $1
+            AND rt.gas_room_id IS NOT NULL
+            AND (rt.${tierColumn} IS NULL OR rt.${tierColumn} < $2)
+          ORDER BY rt.${tierColumn} ASC NULLS FIRST
+          LIMIT $3
+        `, [conn.id, cutoffTime, tier.roomsPerRun]);
+
+        if (roomsResult.rows.length === 0) continue;
+
+        for (const room of roomsResult.rows) {
+          try {
+            const startDate = new Date(now.getTime() + tier.startDay * 24 * 60 * 60 * 1000);
+            const endDate = new Date(now.getTime() + tier.endDay * 24 * 60 * 60 * 1000);
+            const fromStr = startDate.toISOString().split('T')[0].replace(/-/g, '');
+            const toStr = endDate.toISOString().split('T')[0].replace(/-/g, '');
+
+            // getRoomDates via marketplace master key
+            const calData = await beds24MarketplaceRequest('getRoomDates', {
+              roomId: room.beds24_room_id,
+              from: fromStr,
+              to: toStr,
+              incMultiplier: 1,
+              incOverride: 1
+            }, { propKey: targetPropKey });
+
+            const calendar = calData?.getRoomDates || {};
+            const dates = Object.keys(calendar).filter(k => /^\d{8}$/.test(k));
+
+            for (const dateKey of dates) {
+              const day = calendar[dateKey];
+              const dateFormatted = `${dateKey.substring(0, 4)}-${dateKey.substring(4, 6)}-${dateKey.substring(6, 8)}`;
+              const inventory = parseInt(day.i) || 0;
+              const multiplier = parseFloat(day.x) || 100;
+
+              // Best price across all 16 rates
+              let bestPrice = null;
+              for (let r = 1; r <= 16; r++) {
+                const rawPrice = parseFloat(day[`p${r}`]);
+                if (rawPrice && rawPrice > 0) {
+                  const effectivePrice = rawPrice * multiplier / 100;
+                  if (bestPrice === null || effectivePrice < bestPrice) bestPrice = effectivePrice;
+                }
+              }
+
+              const minStay = parseInt(day.m) || 1;
+
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-marketplace', NOW())
+                ON CONFLICT (room_id, date) DO UPDATE SET
+                  price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                  cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                  direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.direct_price END,
+                  is_available = $4, is_blocked = $5,
+                  min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                  cm_min_stay = $6, source = 'beds24-marketplace', updated_at = NOW()
+              `, [room.gas_room_id, dateFormatted, bestPrice, inventory > 0 && bestPrice !== null, inventory === 0, minStay]);
+            }
+
+            // Update tier sync timestamp
+            await pool.query(`UPDATE gas_sync_room_types SET ${tierColumn} = NOW() WHERE id = $1`, [room.id]);
+            totalRoomsSynced++;
+
+            // Rate limit: 2 seconds between rooms
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } catch (roomError) {
+            totalErrors++;
+            console.error(`[GAS Sync Scheduler] Marketplace room ${room.beds24_room_id} error: ${roomError.message}`);
+            if (roomError.response?.status === 429) break;
           }
         }
       } // end tiers loop
