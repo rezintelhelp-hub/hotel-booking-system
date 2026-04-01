@@ -21255,6 +21255,7 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS room_ids TEXT`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS image_url TEXT`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS category VARCHAR(50)`);
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS mandatory BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'manual'`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
     
@@ -41863,8 +41864,8 @@ app.post('/api/admin/upsells', async (req, res) => {
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     
-    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, category } = req.body;
-    
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, mandatory, is_external, vendor_id, category } = req.body;
+
     // Handle name/description being sent as objects from frontend
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (name_ml || (rawName ? { en: rawName } : null));
     const descObj = (typeof rawDesc === 'object' && rawDesc !== null) ? rawDesc : (description_ml || (rawDesc ? { en: rawDesc } : null));
@@ -41872,12 +41873,12 @@ app.post('/api/admin/upsells', async (req, res) => {
     const descJson = descObj ? JSON.stringify(descObj) : null;
     const englishName = mlStr(rawName) || '';
     const englishDesc = mlStr(rawDesc) || '';
-    
+
     const result = await pool.query(`
-      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, category)
-      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, mandatory, is_external, vendor_id, category)
+      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, property_id, room_id, room_ids, active !== false, is_external || false, vendor_id || null, category || null]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, property_id, room_id, room_ids, active !== false, mandatory || false, is_external || false, vendor_id || null, category || null]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -41891,8 +41892,8 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     
-    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, category } = req.body;
-    
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, mandatory, is_external, vendor_id, category } = req.body;
+
     // Handle name/description being sent as objects from frontend
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (name_ml || (rawName ? { en: rawName } : null));
     const descObj = (typeof rawDesc === 'object' && rawDesc !== null) ? rawDesc : (description_ml || (rawDesc ? { en: rawDesc } : null));
@@ -41900,7 +41901,7 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
     const descJson = descObj ? JSON.stringify(descObj) : null;
     const englishName = mlStr(rawName) || '';
     const englishDesc = mlStr(rawDesc) || '';
-    
+
     const result = await pool.query(`
       UPDATE upsells SET
         name = COALESCE($1, name),
@@ -41914,13 +41915,14 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
         room_id = $9,
         room_ids = $10,
         active = COALESCE($11, active),
-        is_external = COALESCE($12, is_external),
-        vendor_id = $13,
-        category = $14,
+        mandatory = COALESCE($12, mandatory),
+        is_external = COALESCE($13, is_external),
+        vendor_id = $14,
+        category = $15,
         updated_at = NOW()
-      WHERE id = $15
+      WHERE id = $16
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, category || null, req.params.id]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, property_id, room_id, room_ids, active, mandatory || false, is_external, vendor_id, category || null, req.params.id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
