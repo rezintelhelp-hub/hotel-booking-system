@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.4
+ * Version: 3.6.6
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -5498,7 +5498,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         }
         </style>
         
-        <div class="gas-rooms-page-wrapper">
+        <div class="gas-rooms-page-wrapper" translate="no">
         <?php if ($show_filters) :
             // Get translations for current language
             $t_filters = $this->get_translations()['filters'] ?? array();
@@ -6118,6 +6118,26 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 <div class="gas-gallery"></div>
                 
                 <!-- Lightbox for gallery -->
+                <style>
+                    .gas-lightbox { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.92); z-index:99999; }
+                    .gas-lightbox.active { display:block; }
+                    .gas-lightbox-content { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); max-width:80vw; max-height:80vh; }
+                    .gas-lightbox-content img { max-width:80vw; max-height:80vh; object-fit:contain; display:block; }
+                    .gas-lightbox-close { position:fixed; top:20px; right:24px; background:none; border:none; color:#fff; font-size:36px; cursor:pointer; z-index:100000; width:50px; height:50px; display:flex; align-items:center; justify-content:center; opacity:0.8; transition:opacity 0.2s; }
+                    .gas-lightbox-close:hover { opacity:1; }
+                    .gas-lightbox-nav { position:fixed; top:50%; transform:translateY(-50%); background:rgba(255,255,255,0.15); border:none; color:#fff; font-size:32px; cursor:pointer; z-index:100000; width:60px; height:80px; display:flex; align-items:center; justify-content:center; border-radius:8px; opacity:0.7; transition:opacity 0.2s, background 0.2s; }
+                    .gas-lightbox-nav:hover { opacity:1; background:rgba(255,255,255,0.25); }
+                    .gas-lightbox-prev { left:16px; }
+                    .gas-lightbox-next { right:16px; }
+                    .gas-lightbox-counter { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); color:#fff; font-size:0.9rem; opacity:0.7; z-index:100000; }
+                    .gas-gallery-main, .gas-gallery-thumb, .gas-gallery-more { cursor:pointer; }
+                    @media (max-width:768px) {
+                        .gas-lightbox-nav { width:48px; height:60px; font-size:24px; }
+                        .gas-lightbox-prev { left:8px; }
+                        .gas-lightbox-next { right:8px; }
+                        .gas-lightbox-content, .gas-lightbox-content img { max-width:95vw; max-height:80vh; }
+                    }
+                </style>
                 <div class="gas-lightbox">
                     <button class="gas-lightbox-close">&times;</button>
                     <button class="gas-lightbox-nav gas-lightbox-prev">&#8249;</button>
@@ -6462,7 +6482,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         ob_start();
         ?>
-        <div class="gas-checkout-page" 
+        <div class="gas-checkout-page" translate="no"
              data-unit-id="<?php echo esc_attr($unit_id); ?>"
              data-property-id="<?php echo esc_attr($property_id); ?>"
              data-checkin="<?php echo esc_attr($checkin); ?>"
@@ -7575,7 +7595,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         ob_start();
         ?>
-        <div class="gas-page gas-about-page">
+        <div class="gas-page gas-about-page" translate="no">
             <style>
                 .gas-page { max-width: 800px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
@@ -7619,7 +7639,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         ob_start();
         ?>
-        <div class="gas-page gas-contact-page">
+        <div class="gas-page gas-contact-page" translate="no">
             <style>
                 .gas-page { max-width: 900px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
@@ -7680,7 +7700,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         ob_start();
         ?>
-        <div class="gas-page gas-terms-page">
+        <div class="gas-page gas-terms-page" translate="no">
             <style>
                 .gas-page { max-width: 800px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
@@ -7703,7 +7723,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         ob_start();
         ?>
-        <div class="gas-page gas-privacy-page">
+        <div class="gas-page gas-privacy-page" translate="no">
             <style>
                 .gas-page { max-width: 800px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
@@ -7727,7 +7747,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         ob_start();
         ?>
-        <div class="gas-page gas-gallery-page">
+        <div class="gas-page gas-gallery-page" translate="no">
             <style>
                 .gas-page { max-width: 1200px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
@@ -7754,7 +7774,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         ob_start();
         ?>
-        <div class="gas-page gas-dining-page">
+        <div class="gas-page gas-dining-page" translate="no">
             <style>
                 .gas-page { max-width: 900px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
@@ -7785,7 +7805,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         ob_start();
         ?>
-        <div class="gas-page gas-properties-page">
+        <div class="gas-page gas-properties-page" translate="no">
             <style>
                 .gas-page { max-width: 1200px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }

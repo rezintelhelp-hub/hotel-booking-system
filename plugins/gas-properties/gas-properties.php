@@ -3,7 +3,7 @@
  * Plugin Name: GAS Properties
  * Plugin URI: https://gas.travel
  * Description: Display multi-property portfolio from GAS with LodgingBusiness schema markup. Colors controlled via GAS Admin.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: GAS - Guest Accommodation System
  * License: GPL v2 or later
  */
@@ -160,7 +160,7 @@ class GAS_Properties {
 
         ob_start();
         ?>
-        <div class="gas-properties-wrap" style="background:<?php echo $bg; ?>; font-family:<?php echo $body_font; ?>;">
+        <div class="gas-properties-wrap" translate="no" style="background:<?php echo $bg; ?>; font-family:<?php echo $body_font; ?>;">
             <style>
                 .gas-properties-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:24px; max-width:1200px; margin:0 auto; padding:0 20px; }
                 .gas-prop-card { background:<?php echo $card_bg; ?>; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); transition:transform 0.2s, box-shadow 0.2s; text-decoration:none; color:inherit; display:block; }
