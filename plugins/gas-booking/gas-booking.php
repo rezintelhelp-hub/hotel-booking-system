@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.3
+ * Version: 3.6.4
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -7776,6 +7776,12 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $button_color = $this->get_effective_button_color();
         $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
         $client_id = get_option('gas_client_id', '');
+
+        // Read page-specific button settings from API
+        $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+        $btn_bg = !empty($api['page_properties_btn_bg']) ? $api['page_properties_btn_bg'] : $button_color;
+        $btn_text_color = !empty($api['page_properties_btn_text_color']) ? $api['page_properties_btn_text_color'] : '#ffffff';
+        $btn_label = !empty($api['page_properties_btn_label']) ? $api['page_properties_btn_label'] : 'View Rooms';
         
         ob_start();
         ?>
@@ -7785,12 +7791,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; margin-bottom: 32px; }
                 .gas-properties-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 24px; }
-                .gas-property-card { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; }
+                .gas-property-card { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
                 .gas-property-card:hover { transform: translateY(-4px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15); }
-                .gas-property-image { width: 100%; height: 200px; object-fit: cover; }
+                .gas-property-image { width: 100%; height: 200px; object-fit: cover; background: #f1f5f9; }
                 .gas-property-info { padding: 20px; }
                 .gas-property-name { font-size: 1.25rem; font-weight: 600; color: #1e293b; margin-bottom: 8px; }
-                .gas-property-location { font-size: 0.9rem; color: #64748b; }
+                .gas-property-location { font-size: 0.9rem; color: #64748b; margin-bottom: 16px; }
+                .gas-property-cta { display: inline-block; padding: 10px 24px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; text-decoration: none; text-align: center; transition: opacity 0.2s; background: <?php echo esc_attr($btn_bg); ?>; color: <?php echo esc_attr($btn_text_color); ?>; }
+                .gas-property-cta:hover { opacity: 0.85; color: <?php echo esc_attr($btn_text_color); ?>; }
             </style>
             <h1 class="gas-page-title"><?php echo esc_html($title); ?></h1>
             <div class="gas-page-content"><?php echo wp_kses_post($content); ?></div>
@@ -7805,15 +7813,19 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 .then(data => {
                     const container = document.getElementById('gas-properties-list');
                     if (data.properties) if (data.properties.length > 0) {
-                        container.innerHTML = data.properties.map(p => `
-                            <div class="gas-property-card">
-                                <img src="${(p.images ? (p.images[0] ? p.images[0].url : '') : '')}" alt="${p.name}" class="gas-property-image">
-                                <div class="gas-property-info">
-                                    <div class="gas-property-name">${p.name}</div>
-                                    <div class="gas-property-location">${p.city || ''}, ${p.country || ''}</div>
-                                </div>
-                            </div>
-                        `).join('');
+                        container.innerHTML = data.properties.map(p => {
+                            const imgUrl = p.primary_image || (p.images ? (p.images[0] ? p.images[0].url : '') : '');
+                            const imgTag = imgUrl ? '<img src="' + imgUrl + '" alt="' + (p.name || '').replace(/"/g, '&quot;') + '" class="gas-property-image">' : '<div class="gas-property-image" style="display:flex;align-items:center;justify-content:center;font-size:3rem;">🏠</div>';
+                            const location = [p.city, p.country].filter(Boolean).join(', ');
+                            return '<div class="gas-property-card" onclick="window.location.href=\'/book-now/?property_id=' + p.id + '\'">' +
+                                imgTag +
+                                '<div class="gas-property-info">' +
+                                    '<div class="gas-property-name">' + (p.name || '') + '</div>' +
+                                    (location ? '<div class="gas-property-location">' + location + '</div>' : '') +
+                                    '<a href="/book-now/?property_id=' + p.id + '" class="gas-property-cta"><?php echo esc_js($btn_label); ?></a>' +
+                                '</div>' +
+                            '</div>';
+                        }).join('');
                     } else {
                         container.innerHTML = '<p style="color: #64748b; grid-column: 1 / -1; text-align: center;">No properties found.</p>';
                     }

@@ -1,6 +1,6 @@
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
- * @version 3.6.3
+ * @version 3.6.4
  */
 jQuery(document).ready(function($) {
     

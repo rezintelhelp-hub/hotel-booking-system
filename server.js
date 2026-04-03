@@ -5713,12 +5713,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         const roomPictures = room.pictures || room.images || room.photos || [];
         for (let i = 0; i < roomPictures.length; i++) {
           const pic = roomPictures[i];
-          const imageUrl = typeof pic === 'string' ? pic : (pic.url || pic.original || pic.large);
-          if (!imageUrl) continue;
-          
+          const rawUrl = typeof pic === 'string' ? pic : (pic.url || pic.original || pic.large);
+          if (!rawUrl) continue;
+          const imageUrl = cleanImageUrl(rawUrl);
+
           const imageKey = `calry_room_${gasRoomId}_${i}`;
           const caption = typeof pic === 'object' ? (pic.caption || pic.description || '') : '';
-          
+
           try {
             // Check if image exists first
             const existingImg = await pool.query(
@@ -5748,12 +5749,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         console.log('link-to-gas: Importing', propImages.length, 'Calry property images');
         for (let i = 0; i < propImages.length; i++) {
           const pic = propImages[i];
-          const imageUrl = typeof pic === 'string' ? pic : (pic.url || pic.original || pic.large || pic.medium);
-          if (!imageUrl) continue;
-          
+          const rawUrl = typeof pic === 'string' ? pic : (pic.url || pic.original || pic.large || pic.medium);
+          if (!rawUrl) continue;
+          const imageUrl = cleanImageUrl(rawUrl);
+
           const imageKey = `calry_prop_${gasPropertyId}_${i}`;
           const caption = typeof pic === 'object' ? (pic.caption || pic.description || '') : '';
-          
+
           try {
             // Check if image exists first
             const existingImg = await pool.query(
@@ -5808,8 +5810,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           `, [
             gasRoomId,
             img.external_id,
-            img.original_url,
-            img.thumbnail_url || img.original_url,
+            cleanImageUrl(img.original_url),
+            cleanImageUrl(img.thumbnail_url || img.original_url),
             img.caption || '',
             img.sort_order || 0
           ]);
@@ -7883,8 +7885,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
               prop.connection_id,
               prop.id,
               externalId,
-              photo.url,
-              photo.thumbnailUrl || photo.url,
+              cleanImageUrl(photo.url),
+              cleanImageUrl(photo.thumbnailUrl || photo.url),
               photo.caption || '',
               photo.order || i,
               'room',
@@ -7920,8 +7922,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
               prop.connection_id,
               prop.id,
               externalId,
-              photo.url,
-              photo.thumbnailUrl || photo.url,
+              cleanImageUrl(photo.url),
+              cleanImageUrl(photo.thumbnailUrl || photo.url),
               photo.caption || '',
               photo.order || i
             ]);
@@ -8001,8 +8003,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
           prop.connection_id,
           prop.id,
           `${prop.external_id}_img_${i}`,
-          image.url || image.imageUrl,
-          image.thumbnail || image.url || image.imageUrl,
+          cleanImageUrl(image.url || image.imageUrl),
+          cleanImageUrl(image.thumbnail || image.url || image.imageUrl),
           image.description || image.caption || '',
           i,
           image.roomId || null
@@ -15711,7 +15713,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
               INSERT INTO room_images (room_id, image_key, image_url, caption, display_order, upload_source, created_at)
               VALUES ($1, $2, $3, $4, $5, 'beds24-marketplace', NOW())
               ON CONFLICT (room_id, image_key) WHERE image_key IS NOT NULL DO NOTHING`,
-              [gasRoomId, `beds24-${mapping.roomId}-${pos}`, img.url, caption, pos]);
+              [gasRoomId, `beds24-${mapping.roomId}-${pos}`, cleanImageUrl(img.url), caption, pos]);
             roomImagesImported++;
           }
           assignedToRoom = true;
@@ -15732,7 +15734,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
               await pool.query(`
                 INSERT INTO property_images (property_id, image_key, image_url, caption, sort_order, created_at)
                 VALUES ($1, $2, $3, $4, $5, NOW())`,
-                [gasPropertyId, `beds24-prop-${targetPropId}-${pos}`, img.url, caption, pos]);
+                [gasPropertyId, `beds24-prop-${targetPropId}-${pos}`, cleanImageUrl(img.url), caption, pos]);
               propImagesImported++;
             }
             break; // only insert once per image for property
@@ -18677,6 +18679,7 @@ app.post('/api/payments/confirm', async (req, res) => {
             
             const paymentData = [{
               id: beds24Check.rows[0].beds24_booking_id,
+              apiSourceId: 70,
               payments: [{
                 description: paymentDesc,
                 amount: amount,
@@ -19020,6 +19023,7 @@ app.post('/api/public/payment-failed', async (req, res) => {
                 if (accessToken) {
                     const beds24Inquiry = [{
                         roomId: unit.beds24_room_id,
+                        apiSourceId: 70,
                         status: 'inquiry',
                         arrival: check_in,
                         departure: check_out,
@@ -19343,6 +19347,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                     
                     const beds24Booking = [{
                         roomId: beds24RoomId,
+                        apiSourceId: 70,
                         status: 'confirmed',
                         arrival: checkin,
                         departure: checkout,
@@ -20210,6 +20215,7 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
         // Build Beds24 booking payload
         const beds24Payload = {
             roomId: parseInt(beds24RoomId),
+            apiSourceId: 70,
             arrival: booking.arrival_date?.toISOString?.()?.split('T')[0] || booking.arrival_date,
             departure: booking.departure_date?.toISOString?.()?.split('T')[0] || booking.departure_date,
             numAdult: booking.num_adults || 2,
@@ -31312,6 +31318,7 @@ app.post('/api/db/book', async (req, res) => {
         
         const beds24Booking = [{
           roomId: beds24RoomId,
+          apiSourceId: 70,
           status: 'confirmed',
           arrival: check_in,
           departure: check_out,
@@ -34051,8 +34058,9 @@ async function linkSyncPropertyToGasInternal(syncPropertyId, accountId, calryPro
         const roomImages = roomRawData.pictures || roomRawData.images || [];
         for (let i = 0; i < Math.min(roomImages.length, 20); i++) {
           const img = roomImages[i];
-          const imageUrl = typeof img === 'string' ? img : (img.url || img.original);
-          if (!imageUrl) continue;
+          const rawImgUrl = typeof img === 'string' ? img : (img.url || img.original);
+          if (!rawImgUrl) continue;
+          const imageUrl = cleanImageUrl(rawImgUrl);
           const imageKey = `calry_${gasRoomId}_${i}`;
           try {
             // Check if image exists first
@@ -34147,9 +34155,10 @@ async function linkSyncPropertyToGasInternal(syncPropertyId, accountId, calryPro
     console.log(`  Syncing ${images.length} property images`);
     for (let i = 0; i < Math.min(images.length, 30); i++) {
       const img = images[i];
-      const imageUrl = typeof img === 'string' ? img : (img.url || img.original || img.large);
+      const rawImgUrl = typeof img === 'string' ? img : (img.url || img.original || img.large);
       const caption = typeof img === 'object' ? (img.caption || img.description || img.alt || '') : '';
-      if (!imageUrl) continue;
+      if (!rawImgUrl) continue;
+      const imageUrl = cleanImageUrl(rawImgUrl);
       const imageKey = `calry_${gasPropertyId}_${i}`;
       try {
         // Check if image exists first
@@ -36765,7 +36774,7 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
           if (photos.success && photos.data?.length > 0) {
             for (let i = 0; i < photos.data.length; i++) {
               const photo = photos.data[i];
-              const imageUrl = photo.url || photo.originalUrl || photo.thumbnailUrl;
+              const imageUrl = cleanImageUrl(photo.url || photo.originalUrl || photo.thumbnailUrl);
               if (imageUrl) {
                 await pool.query(`
                   INSERT INTO property_images (property_id, image_url, display_order, image_key, created_at)
@@ -36784,7 +36793,7 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                 INSERT INTO property_images (property_id, image_url, display_order, image_key, created_at)
                 VALUES ($1, $2, 0, $3, NOW())
                 ON CONFLICT (property_id, image_key) WHERE image_key IS NOT NULL DO UPDATE SET image_url = EXCLUDED.image_url
-              `, [gasPropertyId, pictureLink, `hf-${parent.external_id}-thumb`]);
+              `, [gasPropertyId, cleanImageUrl(pictureLink), `hf-${parent.external_id}-thumb`]);
               stats.images++;
               console.log(`[Hostfully import-to-gas] Used pictureLink fallback for ${parent.name}`);
             }
@@ -42315,6 +42324,7 @@ app.post('/api/admin/bookings', async (req, res) => {
               },
               body: JSON.stringify({
                 roomId: beds24RoomId,
+                apiSourceId: 70,
                 firstNight: check_in,
                 lastNight: new Date(new Date(check_out).getTime() - 24*60*60*1000).toISOString().split('T')[0],
                 numAdult: num_adults || 1,
@@ -42557,6 +42567,7 @@ app.put('/api/bookings/:id', async (req, res) => {
         if (accessToken) {
           const beds24Update = [{
             id: parseInt(existingBooking.beds24_booking_id),
+            apiSourceId: 70,
             status: status === 'cancelled' ? 'cancelled' : 'confirmed',
             arrival: arrival_date,
             departure: departure_date,
@@ -42622,6 +42633,7 @@ app.delete('/api/bookings/:id', async (req, res) => {
         if (accessToken) {
           const cancelResponse = await axios.post('https://beds24.com/api/v2/bookings', [{
             id: parseInt(booking.beds24_booking_id),
+            apiSourceId: 70,
             status: 'cancelled',
             allowWebhooks: true
           }], {
@@ -42957,6 +42969,7 @@ app.post('/api/bookings/:id/cancel', async (req, res) => {
           // Beds24 v2 API - POST to /bookings with status update
           const cancelResponse = await axios.post('https://beds24.com/api/v2/bookings', [{
             id: parseInt(booking.beds24_booking_id),
+            apiSourceId: 70,
             status: 'cancelled',
             allowWebhooks: true
           }], {
@@ -46068,6 +46081,29 @@ async function validateLandscape(buffer) {
 }
 
 /**
+ * Clean external image URLs — strip CDN compression/resize params
+ * so we always store the highest quality original.
+ * Covers Airbnb (muscache.com aki_policy), Booking.com (max300/square60 etc)
+ */
+function cleanImageUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  try {
+    const u = new URL(url);
+    // Airbnb / muscache — aki_policy forces compression
+    if (u.hostname.includes('muscache.com')) {
+      u.searchParams.delete('aki_policy');
+    }
+    // Booking.com — /max300/ /square60/ etc in path force resize
+    if (u.hostname.includes('bstatic.com')) {
+      u.pathname = u.pathname.replace(/\/(max\d+|square\d+)\//g, '/');
+    }
+    return u.toString();
+  } catch (e) {
+    return url; // not a valid URL, return as-is
+  }
+}
+
+/**
  * Process and upload image to R2 in multiple sizes
  * Returns URLs for all variants
  */
@@ -47324,7 +47360,7 @@ app.post('/api/admin/properties/:propertyId/images', async (req, res) => {
     await pool.query(`
       INSERT INTO property_images (property_id, image_key, image_url, url, thumbnail_url, display_order, is_active, created_at)
       VALUES ($1, $2, $3, $3, $4, $5, true, NOW())
-    `, [propertyId, 'copy-' + Date.now(), image_url, thumbnail_url || image_url, nextOrder]);
+    `, [propertyId, 'copy-' + Date.now(), cleanImageUrl(image_url), cleanImageUrl(thumbnail_url || image_url), nextOrder]);
     
     res.json({ success: true, added: 1 });
   } catch (error) {
@@ -58852,7 +58888,8 @@ app.post('/api/partner/:apiKey/property/:propertyId/images', async (req, res) =>
     
     for (const img of images) {
       if (!img.url) continue;
-      
+      const cleanUrl = cleanImageUrl(img.url);
+
       // Check if image with this external_id already exists
       if (img.external_id) {
         const existing = await pool.query(
@@ -58864,22 +58901,22 @@ app.post('/api/partner/:apiKey/property/:propertyId/images', async (req, res) =>
           await pool.query(`
             UPDATE property_images SET image_url = $1, url = $1, caption = $2, sort_order = $3, display_order = $3, is_primary = $4
             WHERE id = $5
-          `, [img.url, img.caption || null, img.sort_order || 0, img.is_primary || false, existing.rows[0].id]);
-          addedImages.push({ id: existing.rows[0].id, url: img.url, updated: true });
+          `, [cleanUrl, img.caption || null, img.sort_order || 0, img.is_primary || false, existing.rows[0].id]);
+          addedImages.push({ id: existing.rows[0].id, url: cleanUrl, updated: true });
           continue;
         }
       }
-      
+
       // Generate image_key from URL or external_id
       const imageKey = img.external_id || `elevate_${gasPropertyId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       const result = await pool.query(`
         INSERT INTO property_images (property_id, image_key, image_url, url, caption, sort_order, display_order, is_primary, external_id, is_active)
         VALUES ($1, $2, $3, $3, $4, $5, $5, $6, $7, true)
         RETURNING id
-      `, [gasPropertyId, imageKey, img.url, img.caption || null, img.sort_order || 0, img.is_primary || false, img.external_id || null]);
-      
-      addedImages.push({ id: result.rows[0].id, url: img.url });
+      `, [gasPropertyId, imageKey, cleanUrl, img.caption || null, img.sort_order || 0, img.is_primary || false, img.external_id || null]);
+
+      addedImages.push({ id: result.rows[0].id, url: cleanUrl });
     }
     
     res.json({ 
@@ -59001,32 +59038,33 @@ app.post('/api/partner/:apiKey/room/:roomId/images', async (req, res) => {
     
     for (const img of images) {
       if (!img.url) continue;
-      
+      const cleanUrl = cleanImageUrl(img.url);
+
       // Generate unique image key
       const imageKey = img.external_id || `elevate_room_${gasRoomId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       // Check if image with this key already exists
       const existing = await pool.query(
         'SELECT id FROM room_images WHERE room_id = $1 AND image_key = $2',
         [gasRoomId, imageKey]
       );
-      
+
       if (existing.rows.length > 0) {
         // Update existing
         await pool.query(`
           UPDATE room_images SET image_url = $1, caption = $2, display_order = $3, is_active = true
           WHERE id = $4
-        `, [img.url, img.caption || null, img.sort_order || 0, existing.rows[0].id]);
-        addedImages.push({ id: existing.rows[0].id, url: img.url, updated: true });
+        `, [cleanUrl, img.caption || null, img.sort_order || 0, existing.rows[0].id]);
+        addedImages.push({ id: existing.rows[0].id, url: cleanUrl, updated: true });
       } else {
         // Insert new
         const result = await pool.query(`
           INSERT INTO room_images (room_id, image_key, image_url, caption, display_order, upload_source, is_active, created_at)
           VALUES ($1, $2, $3, $4, $5, 'elevate', true, NOW())
           RETURNING id
-        `, [gasRoomId, imageKey, img.url, img.caption || null, img.sort_order || 0]);
-        
-        addedImages.push({ id: result.rows[0].id, url: img.url });
+        `, [gasRoomId, imageKey, cleanUrl, img.caption || null, img.sort_order || 0]);
+
+        addedImages.push({ id: result.rows[0].id, url: cleanUrl });
       }
     }
     
@@ -59625,6 +59663,7 @@ app.post('/api/admin/sync-payment-to-beds24', async (req, res) => {
     // Update the booking in Beds24 with the payment
     const paymentData = [{
       id: booking.beds24_booking_id,
+      apiSourceId: 70,
       payments: [{
         description: description || (payment_type === 'balance' ? 'Balance payment via Stripe' : 'Payment via Stripe'),
         amount: parseFloat(amount),
@@ -62779,6 +62818,7 @@ app.post('/api/public/book', async (req, res) => {
           const updatePayload = [{
             id: parseInt(hostvana_booking_id),
             roomId: cmData.beds24_room_id,
+            apiSourceId: 70,
             status: (function() {
               if (payment_method === 'pay_at_property' || payment_method === 'property') {
                 try {
@@ -62834,6 +62874,7 @@ app.post('/api/public/book', async (req, res) => {
         if (!beds24BookingId) {
         const beds24Booking = [{
           roomId: cmData.beds24_room_id,
+          apiSourceId: 70,
           status: (function() {
             // Check pay_property_mode - if bank_required, send as request
             if (payment_method === 'pay_at_property' || payment_method === 'property') {
@@ -76666,7 +76707,7 @@ app.post('/api/beds24-wizard/import', async (req, res) => {
                   INSERT INTO room_images (room_id, image_url, display_order, is_active, created_at)
                   VALUES ($1, $2, $3, true, NOW())
                   ON CONFLICT DO NOTHING
-                `, [gasRoomId, imageUrl, i]);
+                `, [gasRoomId, cleanImageUrl(imageUrl), i]);
                 imagesCreated++;
               } catch (imgErr) {
                 console.log('Image insert error:', imgErr.message);
@@ -78560,10 +78601,7 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
         
         // If no listingImages but has thumbnailUrl, use that (larger version)
         if (images.length === 0 && listing.thumbnailUrl) {
-          let fullSizeUrl = listing.thumbnailUrl;
-          if (fullSizeUrl.includes('aki_policy=')) {
-            fullSizeUrl = fullSizeUrl.replace(/\?aki_policy=\w+/, '');
-          }
+          const fullSizeUrl = cleanImageUrl(listing.thumbnailUrl);
           images.push({ id: 'thumb', url: fullSizeUrl, sortOrder: 1 });
         }
         
@@ -78581,7 +78619,7 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
                 await pool.query(`
                   INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, display_order, upload_source, is_active, created_at)
                   VALUES ($1, $2, $3, $4, $5, 'hostaway', true, NOW())
-                `, [gasRoomId, imageKey, img.url, img.url, img.sortOrder || i + 1]);
+                `, [gasRoomId, imageKey, cleanImageUrl(img.url), cleanImageUrl(img.url), img.sortOrder || i + 1]);
                 imagesCreated++;
               }
             } catch (imgErr) {
@@ -84203,6 +84241,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
       const bookingData = [{
         propId: parseInt(beds24PropId),
         roomId: parseInt(beds24RoomId),
+        apiSourceId: 70,
         status: 'inquiry',
         firstName: guestFirst,
         lastName: guestLast,

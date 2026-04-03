@@ -2582,6 +2582,9 @@ function developer_get_api_settings() {
         'page_properties_menu_title' => developer_get_ml_value($website_page_properties, 'menu_title', $lang) ?: 'Properties',
         'page_properties_enabled' => $website_page_properties['enabled'] ?? false,
         'page_properties_menu_order' => $website_page_properties['menu-order'] ?? 6,
+        'page_properties_btn_bg' => $website_page_properties['btn-bg'] ?? null,
+        'page_properties_btn_text_color' => $website_page_properties['btn-text-color'] ?? null,
+        'page_properties_btn_label' => $website_page_properties['btn-text-label'] ?? 'View Rooms',
         
         // Reviews Page - MULTILINGUAL
         'page_reviews_menu_title' => developer_get_ml_value($website_page_reviews, 'menu_title', $lang) ?: 'Reviews',
