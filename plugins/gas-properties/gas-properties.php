@@ -3,7 +3,7 @@
  * Plugin Name: GAS Properties
  * Plugin URI: https://gas.travel
  * Description: Display multi-property portfolio from GAS with LodgingBusiness schema markup. Colors controlled via GAS Admin.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: GAS - Guest Accommodation System
  * License: GPL v2 or later
  */
@@ -139,11 +139,20 @@ class GAS_Properties {
             return '<p style="text-align:center;color:#64748b;padding:40px;">GAS Properties: No client ID configured.</p>';
         }
 
+        // Override button colours from Web Builder (page-properties settings) if available
+        $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+        $wb_btn_bg = !empty($api['page_properties_btn_bg']) ? $api['page_properties_btn_bg'] : null;
+        $wb_btn_text = !empty($api['page_properties_btn_text_color']) ? $api['page_properties_btn_text_color'] : null;
+        $wb_btn_label = !empty($api['page_properties_btn_label']) ? $api['page_properties_btn_label'] : 'View Rooms';
+
         $accent = esc_attr($colors['accent']);
         $bg = esc_attr($colors['bg']);
         $card_bg = esc_attr($colors['card_bg']);
         $text = esc_attr($colors['text']);
         $text2 = esc_attr($colors['text_secondary']);
+        $button_bg = esc_attr($wb_btn_bg ?? $colors['button_bg'] ?? $accent);
+        $button_text = esc_attr($wb_btn_text ?? $colors['button_text'] ?? '#ffffff');
+        $btn_label = esc_html($wb_btn_label);
         $heading_font = esc_attr($fonts['heading']);
         $body_font = esc_attr($fonts['body']);
         $cols = intval($atts['columns']);
@@ -158,7 +167,8 @@ class GAS_Properties {
                 .gas-prop-card:hover { transform:translateY(-4px); box-shadow:0 10px 25px rgba(0,0,0,0.12); }
                 .gas-prop-img { width:100%; height:220px; object-fit:cover; }
                 .gas-prop-body { padding:20px; }
-                .gas-prop-type { display:inline-block; font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; padding:4px 10px; border-radius:6px; background:<?php echo $accent; ?>15; color:<?php echo $accent; ?>; margin-bottom:8px; }
+                .gas-prop-cta { display:inline-block; padding:10px 24px; border-radius:8px; font-size:0.9rem; font-weight:600; text-decoration:none; text-align:center; transition:opacity 0.2s; background:<?php echo $button_bg; ?>; color:<?php echo $button_text; ?>; margin-top:4px; }
+                .gas-prop-cta:hover { opacity:0.85; color:<?php echo $button_text; ?>; }
                 .gas-prop-name { font-size:1.25rem; font-weight:700; color:<?php echo $text; ?>; margin:0 0 6px; font-family:<?php echo $heading_font; ?>; }
                 .gas-prop-location { font-size:0.9rem; color:<?php echo $text2; ?>; margin:0 0 12px; }
                 .gas-prop-price { font-size:0.95rem; font-weight:600; color:<?php echo $accent; ?>; }
@@ -175,8 +185,9 @@ class GAS_Properties {
             var clientId = <?php echo json_encode($client_id); ?>;
             var lang = <?php echo json_encode($lang); ?>;
             var limit = <?php echo $limit; ?>;
+            var blogId = <?php echo json_encode(get_current_blog_id()); ?>;
 
-            fetch(apiUrl + '/api/public/client/' + clientId + '/properties?limit=' + limit + '&lang=' + lang)
+            fetch(apiUrl + '/api/public/client/' + clientId + '/properties?limit=' + limit + '&lang=' + lang + '&blog_id=' + blogId)
                 .then(function(r){ return r.json(); })
                 .then(function(data){
                     var container = document.getElementById('gas-properties-list');
@@ -194,18 +205,18 @@ class GAS_Properties {
                         var location = city + (city && country ? ', ' : '') + country;
                         var currency = p.currency || 'EUR';
                         var minPrice = p.min_price ? parseFloat(p.min_price) : 0;
-                        var link = p.website_url || '#';
+                        var link = "/book-now/?property_id=" + p.id;
 
-                        html += '<a class="gas-prop-card" href="' + link + '"' + (p.website_url ? ' target="_blank" rel="noopener"' : '') + ' itemscope itemtype="https://schema.org/LodgingBusiness">';
+                        html += '<a class="gas-prop-card" href="' + link + '" itemscope itemtype="https://schema.org/LodgingBusiness">';
                         if (img) html += '<img class="gas-prop-img" src="' + img + '" alt="' + (p.name || '') + '" itemprop="image">';
                         html += '<div class="gas-prop-body">';
-                        if (type) html += '<span class="gas-prop-type">' + type + '</span>';
                         html += '<h3 class="gas-prop-name" itemprop="name">' + (p.name || '') + '</h3>';
                         if (location) html += '<p class="gas-prop-location" itemprop="address">' + location + '</p>';
                         if (minPrice > 0) {
                             var sym = {EUR:'€',GBP:'£',USD:'$',CHF:'CHF'}[currency] || currency + ' ';
                             html += '<p class="gas-prop-price">From ' + sym + minPrice.toFixed(0) + '/night</p>';
                         }
+                        html += '<span class="gas-prop-cta"><?php echo esc_js($btn_label); ?></span>';
                         html += '</div></a>';
                     });
                     container.innerHTML = html;

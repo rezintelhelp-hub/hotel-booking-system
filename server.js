@@ -25279,13 +25279,33 @@ app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
 
     console.log(`Saving ${section} settings for deployed site ${deployedSiteId} (${site.site_name})`);
     console.log('Settings:', JSON.stringify(settings, null, 2));
-    
+
+    // MERGE: Load existing settings first so we don't wipe fields the UI didn't send
+    const existingResult = await pool.query(
+      'SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = $2',
+      [deployedSiteId, section]
+    );
+    let mergedSettings = settings;
+    if (existingResult.rows.length > 0 && existingResult.rows[0].settings) {
+      const existing = existingResult.rows[0].settings;
+      mergedSettings = { ...existing };
+      // Apply incoming values — but don't let empty strings overwrite non-empty image/url fields
+      for (const [key, value] of Object.entries(settings)) {
+        if (value === '' && existing[key] && (key.includes('image') || key.includes('url') || key.includes('logo'))) {
+          // Skip — don't blank out image/url/logo fields with empty strings
+          console.log(`[Settings merge] Preserving existing ${key}: ${existing[key]}`);
+          continue;
+        }
+        mergedSettings[key] = value;
+      }
+    }
+
     // UPSERT: Try update first, then insert
     const updateResult = await pool.query(`
-      UPDATE website_settings 
+      UPDATE website_settings
       SET settings = $1, updated_at = CURRENT_TIMESTAMP, sync_source = 'gas'
       WHERE deployed_site_id = $2 AND section = $3
-    `, [JSON.stringify(settings), deployedSiteId, section]);
+    `, [JSON.stringify(mergedSettings), deployedSiteId, section]);
     
     if (updateResult.rowCount === 0) {
       // No existing row, insert new one
