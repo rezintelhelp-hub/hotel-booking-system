@@ -19067,12 +19067,23 @@ app.post('/api/public/payment-failed', async (req, res) => {
                     }];
                     beds24Inquiry.forEach(b => b.allowWebhooks = true);
 
-                    const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Inquiry, {
-                        headers: getBeds24BookingHeaders(null, accessToken)
-                    });
-
-                    if (beds24Response.data?.[0]?.success) {
-                        console.log(`📋 Beds24 inquiry created for failed payment: ${beds24Response.data[0]?.new?.id}`);
+                    // Try V1 first
+                    const fpPropKey = await getBeds24PropKeyForRoom(pool, unit.id);
+                    let fpCreated = false;
+                    if (fpPropKey) {
+                      try {
+                        const v1Inq = beds24Inquiry.map(b => toV1BookingFields(b));
+                        const v1Res = await createBeds24BookingV1(fpPropKey, v1Inq);
+                        if (v1Res.success) { fpCreated = true; console.log(`📋 Beds24 V1 inquiry created for failed payment`); }
+                      } catch (v1Err) { console.error('[Beds24 V1] Failed payment inquiry error:', v1Err.message); }
+                    }
+                    if (!fpCreated) {
+                      const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Inquiry, {
+                          headers: getBeds24BookingHeaders(null, accessToken)
+                      });
+                      if (beds24Response.data?.[0]?.success) {
+                          console.log(`📋 Beds24 V2 inquiry created for failed payment: ${beds24Response.data[0]?.new?.id}`);
+                      }
                     }
                 }
             } catch (beds24Error) {
@@ -20256,14 +20267,32 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
         beds24Payload.allowWebhooks = true;
         console.log('[Beds24 Push] Payload:', JSON.stringify(beds24Payload));
 
-        const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', [beds24Payload], {
-            headers: getBeds24BookingHeaders(null, accessToken)
-        });
+        // Try V1 first
+        const pushPropKey = await getBeds24PropKeyForRoom(pool, booking.unit_id);
+        let newBeds24Id = null;
 
-        console.log('[Beds24 Push] Response:', JSON.stringify(beds24Response.data));
-        
-        const respData = Array.isArray(beds24Response.data) ? beds24Response.data[0] : beds24Response.data;
-        const newBeds24Id = respData?.id || respData?.bookingId || respData?.new?.id;
+        if (pushPropKey) {
+          try {
+            const v1Pay = [toV1BookingFields(beds24Payload)];
+            const v1Res = await createBeds24BookingV1(pushPropKey, v1Pay);
+            if (v1Res.success && v1Res.data) {
+              const bookData = Array.isArray(v1Res.data) ? v1Res.data[0] : v1Res.data;
+              newBeds24Id = bookData?.bookId || bookData?.id;
+              console.log('[Beds24 V1 Push] Created:', newBeds24Id);
+            }
+          } catch (v1Err) {
+            console.error('[Beds24 V1 Push] Error, falling back to V2:', v1Err.message);
+          }
+        }
+
+        if (!newBeds24Id) {
+          const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', [beds24Payload], {
+              headers: getBeds24BookingHeaders(null, accessToken)
+          });
+          console.log('[Beds24 V2 Push] Response:', JSON.stringify(beds24Response.data));
+          const respData = Array.isArray(beds24Response.data) ? beds24Response.data[0] : beds24Response.data;
+          newBeds24Id = respData?.id || respData?.bookingId || respData?.new?.id;
+        }
         if (newBeds24Id) {
             await pool.query('UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2', [newBeds24Id.toString(), bookingId]);
             
@@ -31383,23 +31412,41 @@ app.post('/api/db/book', async (req, res) => {
 
         console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
 
-        const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
-          headers: getBeds24BookingHeaders(null, accessToken)
-        });
+        // Try V1 first
+        const dbPropKey = await getBeds24PropKeyForRoom(pool, room_id);
+        let dbUsedV1 = false;
 
-        console.log('Beds24 booking response:', JSON.stringify(beds24Response.data));
-        
-        if (beds24Response.data && beds24Response.data[0]?.success) {
-          beds24BookingId = beds24Response.data[0]?.new?.id;
-          
-          if (beds24BookingId) {
+        if (dbPropKey) {
+          try {
+            const v1Booking = beds24Booking.map(b => toV1BookingFields(b));
+            const v1Result = await createBeds24BookingV1(dbPropKey, v1Booking);
+            if (v1Result.success && v1Result.data) {
+              const bookData = Array.isArray(v1Result.data) ? v1Result.data[0] : v1Result.data;
+              beds24BookingId = bookData?.bookId || bookData?.id;
+              dbUsedV1 = true;
+            }
+          } catch (v1Err) {
+            console.error('[Beds24 V1] Direct booking error, falling back to V2:', v1Err.message);
+          }
+        }
+
+        if (!dbUsedV1) {
+          const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
+            headers: getBeds24BookingHeaders(null, accessToken)
+          });
+          console.log('Beds24 V2 response:', JSON.stringify(beds24Response.data));
+          if (beds24Response.data && beds24Response.data[0]?.success) {
+            beds24BookingId = beds24Response.data[0]?.new?.id;
+          }
+        }
+
+        if (beds24BookingId) {
             await client.query(`
               UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2
             `, [beds24BookingId, booking.id]);
             booking.beds24_booking_id = beds24BookingId;
-          }
         }
-        
+
       } catch (beds24Error) {
         console.error('Error pushing to Beds24:', beds24Error.response?.data || beds24Error.message);
       }
@@ -37596,16 +37643,97 @@ app.post('/api/beds24/save-token', async (req, res) => {
   }
 });
 
-// Rezintel organization credentials for Beds24 V2 — PARKED for now
-// TODO: Implement marketplace auth properly to get apiSourceId 70
-// const BEDS24_ORG_TOKEN = 'IlHniASD2fWbpGtHHfjM93KqDFVc22yEqbS18foTIlU57MVcF0iy6OUipKglesX';
-// const BEDS24_ORG_ID = '70_rezintelnet';
-
-// Get Beds24 headers for booking writes — uses per-client access token
+// Get Beds24 headers for booking UPDATES — uses per-client access token (V2)
 function getBeds24BookingHeaders(beds24PropId, accessToken) {
   return {
     'Content-Type': 'application/json',
     'token': accessToken || ''
+  };
+}
+
+// Look up Beds24 prop_key for a GAS room ID (from gas_sync_properties)
+async function getBeds24PropKeyForRoom(pool, roomId) {
+  try {
+    const result = await pool.query(`
+      SELECT gsp.prop_key
+      FROM gas_sync_room_types gsrt
+      JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+      WHERE gsrt.gas_room_id = $1 AND gsp.prop_key IS NOT NULL AND gsp.prop_key != ''
+      LIMIT 1
+    `, [roomId]);
+    return result.rows[0]?.prop_key || null;
+  } catch (e) {
+    console.error('[Beds24 V1] prop_key lookup error:', e.message);
+    return null;
+  }
+}
+
+// Create a booking via Beds24 V1 channel partner endpoint (apiSourceId 70)
+// Falls back to V2 per-client token if prop_key not available
+async function createBeds24BookingV1(propKey, bookingArray) {
+  const user = process.env.BEDS24_MARKETPLACE_USER;
+  const pass = process.env.BEDS24_MARKETPLACE_PASS;
+  const apiKey = process.env.BEDS24_MASTER_API_KEY || process.env.BEDS24_MARKETPLACE_APIKEY;
+
+  if (!user || !pass || !apiKey || !propKey) {
+    return { success: false, error: 'V1 credentials or propKey not available' };
+  }
+
+  const payload = {
+    authentication: { apiKey, propKey: String(propKey) },
+    groupArray: bookingArray
+  };
+
+  console.log('[Beds24 V1] Creating booking via rezintel.net/setBooking, propKey:', propKey);
+
+  const response = await axios.post(
+    'https://api.beds24.com/rezintel.net/setBooking',
+    `json=${encodeURIComponent(JSON.stringify(payload))}`,
+    {
+      auth: { username: user, password: pass },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 30000
+    }
+  );
+
+  console.log('[Beds24 V1] Response:', JSON.stringify(response.data));
+  return { success: true, data: response.data };
+}
+
+// Convert V2 booking fields to V1 format
+function toV1BookingFields(v2) {
+  // V1 lastNight is inclusive (last night of stay), V2 departure is checkout day
+  // So lastNight = departure - 1 day
+  let lastNight = v2.departure || v2.check_out;
+  if (lastNight) {
+    const d = new Date(lastNight);
+    d.setDate(d.getDate() - 1);
+    lastNight = d.toISOString().split('T')[0];
+  }
+
+  return {
+    roomId: v2.roomId,
+    status: v2.status === 'confirmed' ? 1 : (v2.status === 'inquiry' || v2.status === 'request' ? 0 : (typeof v2.status === 'number' ? v2.status : 1)),
+    firstNight: v2.arrival || v2.check_in,
+    lastNight: lastNight,
+    guestFirstName: v2.firstName || v2.guest_first_name || '',
+    guestName: v2.lastName || v2.guest_last_name || '',
+    guestEmail: v2.email || v2.guest_email || '',
+    guestPhone: v2.phone || v2.mobile || v2.guest_phone || '',
+    guestAddress: v2.address || v2.guest_address || '',
+    guestCity: v2.city || v2.guest_city || '',
+    guestPostcode: v2.postcode || v2.guest_postcode || '',
+    guestCountry: v2.country || v2.guest_country || '',
+    numAdult: v2.numAdult || v2.num_adults || 1,
+    numChild: v2.numChild || v2.num_children || 0,
+    price: v2.price || 0,
+    deposit: v2.deposit || 0,
+    referer: v2.referer || 'GAS Direct',
+    refererEditable: v2.refererEditable || v2.referer || 'GAS Direct',
+    reference: v2.reference || '',
+    notes: v2.notes || '',
+    invoiceItems: v2.invoiceItems || undefined,
+    payments: v2.payments || undefined
   };
 }
 
@@ -62972,16 +63100,44 @@ app.post('/api/public/book', async (req, res) => {
 
         console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
 
-        const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
-          headers: getBeds24BookingHeaders(cmData.beds24_prop_id, accessToken)
-        });
+        // Try V1 channel partner endpoint (apiSourceId 70) if prop_key available
+        const propKey = await getBeds24PropKeyForRoom(pool, unit_id);
+        let beds24Response;
+        let usedV1 = false;
 
-        console.log('Beds24 response:', JSON.stringify(beds24Response.data));
+        if (propKey) {
+          try {
+            const v1Booking = beds24Booking.map(b => toV1BookingFields(b));
+            const v1Result = await createBeds24BookingV1(propKey, v1Booking);
+            if (v1Result.success && v1Result.data) {
+              const bookData = Array.isArray(v1Result.data) ? v1Result.data[0] : v1Result.data;
+              beds24BookingId = bookData?.bookId || bookData?.id;
+              if (beds24BookingId) {
+                await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24BookingId, newBooking.id]);
+              }
+              console.log('[Beds24 V1] Booking created:', beds24BookingId);
+              usedV1 = true;
+            } else {
+              console.log('[Beds24 V1] Failed, falling back to V2:', v1Result.error);
+            }
+          } catch (v1Err) {
+            console.error('[Beds24 V1] Error, falling back to V2:', v1Err.message);
+          }
+        }
 
-        if (beds24Response.data && beds24Response.data[0]?.success) {
-          beds24BookingId = beds24Response.data[0]?.new?.id;
-          if (beds24BookingId) {
-            await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24BookingId, newBooking.id]);
+        // V2 fallback (per-client token, apiSourceId 0)
+        if (!usedV1 && !beds24BookingId) {
+          beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
+            headers: getBeds24BookingHeaders(cmData.beds24_prop_id, accessToken)
+          });
+
+          console.log('Beds24 V2 response:', JSON.stringify(beds24Response.data));
+
+          if (beds24Response.data && beds24Response.data[0]?.success) {
+            beds24BookingId = beds24Response.data[0]?.new?.id;
+            if (beds24BookingId) {
+              await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24BookingId, newBooking.id]);
+            }
           }
         }
         } // end if (!beds24BookingId) — new booking creation
@@ -84540,16 +84696,51 @@ app.post('/api/hostvana/chat', async (req, res) => {
         refererEditable: 'RezIntel-MyStayMessaging'
       }];
 
-      console.log(`[HOSTVANA] Creating inquiry on Beds24 V2:`, JSON.stringify(bookingData));
+      console.log(`[HOSTVANA] Creating inquiry on Beds24:`, JSON.stringify(bookingData));
 
-      const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, {
-        headers: getBeds24BookingHeaders(beds24PropId, v2Token)
-      });
+      // Try V1 channel partner endpoint first (apiSourceId 70)
+      const hvPropKey = await getBeds24PropKeyForRoom(pool, row.unit_id);
+      let created = null;
 
-      console.log(`[HOSTVANA] Beds24 V2 booking response:`, JSON.stringify(response.data));
+      if (hvPropKey) {
+        try {
+          const v1Booking = [{
+            roomId: parseInt(beds24RoomId),
+            status: 0,
+            guestFirstName: guestFirst,
+            guestName: guestLast,
+            guestEmail: email || '',
+            guestPhone: phone || '',
+            firstNight: arrival || new Date().toISOString().split('T')[0],
+            lastNight: departure ? new Date(new Date(departure).getTime() - 86400000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            referer: 'RezIntel-MyStayMessaging',
+            numAdult: 1
+          }];
+          const v1Result = await createBeds24BookingV1(hvPropKey, v1Booking);
+          if (v1Result.success && v1Result.data) {
+            const bookData = Array.isArray(v1Result.data) ? v1Result.data[0] : v1Result.data;
+            if (bookData?.bookId) {
+              created = { id: bookData.bookId };
+              console.log(`[HOSTVANA V1] Created inquiry booking ${created.id}`);
+            }
+          }
+        } catch (v1Err) {
+          console.error('[HOSTVANA V1] Error, falling back to V2:', v1Err.message);
+        }
+      }
 
-      if (response.data && response.data.length > 0 && response.data[0].new) {
-        const created = response.data[0].new;
+      // V2 fallback
+      if (!created) {
+        const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, {
+          headers: getBeds24BookingHeaders(beds24PropId, v2Token)
+        });
+        console.log(`[HOSTVANA V2] Beds24 response:`, JSON.stringify(response.data));
+        if (response.data && response.data.length > 0 && response.data[0].new) {
+          created = response.data[0].new;
+        }
+      }
+
+      if (created) {
         console.log(`[HOSTVANA] Created inquiry booking ${created.id} for room ${beds24RoomId} on account ${accountId}`);
 
         // Add the guest message via POST /bookings/messages with source: guest
@@ -84570,8 +84761,8 @@ app.post('/api/hostvana/chat', async (req, res) => {
         });
       }
 
-      console.log(`[HOSTVANA] Unexpected Beds24 response — no 'new' booking returned`);
-      return res.status(502).json({ success: false, error: 'Failed to create booking on Beds24', beds24Response: response.data });
+      console.log(`[HOSTVANA] Unexpected Beds24 response — no booking created`);
+      return res.status(502).json({ success: false, error: 'Failed to create booking on Beds24' });
     }
 
     // Action: sendMessage — adds a guest message to an existing booking via V2
