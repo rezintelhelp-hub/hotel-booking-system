@@ -69201,9 +69201,10 @@ PAGE-SPECIFIC FOCUS:
 ${focus}
 
 RULES:
-- Meta Title: 50-60 characters. Include "${ctx.propertyName}"${ctx.location ? ' and "' + ctx.location.split(',')[0].trim() + '"' : ''}.
-- Meta Description: 150-160 characters. Must be UNIQUE to this page — do not repeat the same description as other pages.
-- Use ONLY facts from the data above. NEVER invent amenities, policies, prices, or features not listed.
+- Meta Title: 50-60 characters. MUST include "${ctx.propertyName}"${ctx.location ? ' and "' + ctx.location.split(',')[0].trim() + '"' : ''}. Example format: "Rooms & Rates | ${ctx.propertyName}${ctx.location ? ', ' + ctx.location.split(',')[0].trim() : ''}".
+- Meta Description: 150-160 characters. MUST mention the location${ctx.location ? ' (' + ctx.location + ')' : ''}. Must be UNIQUE to this page.
+- ALWAYS use the location, address, and other facts from the data above — they are real. Do NOT be vague about location when it is provided.
+- NEVER invent additional amenities, policies, prices, or features not listed in the data.
 - Use the EXACT property name and location — do not change or abbreviate them.
 - Write for humans first, search engines second. Be compelling, not stuffed with keywords.
 - Each page must have a distinctly different description that reflects its specific content.
@@ -69358,10 +69359,11 @@ QUESTION GUIDANCE:
 ${guidance}
 
 CRITICAL RULES:
-- Use ONLY facts from the data above. NEVER invent amenities, policies, prices, features, or details not provided.
-- If a piece of information is not in the data, write the answer in a way that directs the guest to contact the property or check the website rather than making something up.
+- ALWAYS use the facts provided above. The property name, location, address, rooms, amenities, prices — these are REAL DATA. Use them confidently in your answers. For example if the data says "Location: Lindau, CH" then answer location questions with "located in Lindau, Switzerland" — do NOT say "contact the property for location details".
+- NEVER invent additional amenities, policies, prices, or features that are NOT in the data above. Only state what is provided.
+- Only suggest contacting the property for genuinely missing information (e.g. specific policies not listed, availability for specific dates).
 - Use the EXACT property name "${ctx.propertyName}" — do not abbreviate or change it.
-- Answers must be 2-4 sentences. Be specific, helpful, and professional.
+- Answers must be 2-4 sentences. Be specific, confident, and helpful — not vague or hedging.
 - Questions must be what a REAL person would type into Google, not generic filler.
 - Each FAQ must be DIFFERENT from what other pages would have — these are for the "${page_type}" page specifically.
 
