@@ -410,8 +410,75 @@ class GAS_Hostvana {
                 }
             }
 
-            // Toggle panel
+            // Drag to move bubble
+            var isDragging = false, wasDragged = false, dragStartX, dragStartY, bubbleStartX, bubbleStartY;
+
+            function onDragStart(e) {
+                var touch = e.touches ? e.touches[0] : e;
+                isDragging = true;
+                wasDragged = false;
+                dragStartX = touch.clientX;
+                dragStartY = touch.clientY;
+                var rect = bubble.getBoundingClientRect();
+                bubbleStartX = rect.left;
+                bubbleStartY = rect.top;
+                bubble.style.transition = 'none';
+            }
+
+            function onDragMove(e) {
+                if (!isDragging) return;
+                var touch = e.touches ? e.touches[0] : e;
+                var dx = touch.clientX - dragStartX;
+                var dy = touch.clientY - dragStartY;
+                if (Math.abs(dx) > 5 || Math.abs(dy) > 5) wasDragged = true;
+                if (!wasDragged) return;
+                e.preventDefault();
+                var newX = bubbleStartX + dx;
+                var newY = bubbleStartY + dy;
+                // Keep within viewport
+                newX = Math.max(0, Math.min(window.innerWidth - 60, newX));
+                newY = Math.max(0, Math.min(window.innerHeight - 60, newY));
+                bubble.style.left = newX + 'px';
+                bubble.style.top = newY + 'px';
+                bubble.style.right = 'auto';
+                bubble.style.bottom = 'auto';
+            }
+
+            function onDragEnd() {
+                isDragging = false;
+                bubble.style.transition = 'transform 0.2s ease';
+                // Snap to nearest side
+                if (wasDragged) {
+                    var rect = bubble.getBoundingClientRect();
+                    var midX = window.innerWidth / 2;
+                    if (rect.left + 30 < midX) {
+                        bubble.style.left = '24px';
+                        bubble.style.right = 'auto';
+                    } else {
+                        bubble.style.left = 'auto';
+                        bubble.style.right = '24px';
+                    }
+                    // Update panel position to follow bubble
+                    if (bubble.style.right === '24px') {
+                        panel.style.right = '24px';
+                        panel.style.left = 'auto';
+                    } else {
+                        panel.style.left = '24px';
+                        panel.style.right = 'auto';
+                    }
+                }
+            }
+
+            bubble.addEventListener('mousedown', onDragStart);
+            document.addEventListener('mousemove', onDragMove);
+            document.addEventListener('mouseup', onDragEnd);
+            bubble.addEventListener('touchstart', onDragStart, { passive: false });
+            document.addEventListener('touchmove', onDragMove, { passive: false });
+            document.addEventListener('touchend', onDragEnd);
+
+            // Toggle panel — only on click, not after drag
             bubble.addEventListener('click', function() {
+                if (wasDragged) return;
                 panel.classList.toggle('open');
                 if (panel.classList.contains('open')) {
                     showWelcome();
