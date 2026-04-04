@@ -169,8 +169,10 @@ $client_id = get_option('gas_client_id', '');
 $site_config_cache = $client_id ? get_transient('gas_site_config_' . $client_id) : null;
 if (!empty($site_config_cache['website'])) {
     foreach ($site_config_cache['website'] as $section_key => $section_data) {
-        if (strpos($section_key, 'page-custom-') === 0 && !empty($section_data['enabled'])) {
+        if (strpos($section_key, 'page-custom-') === 0 && !empty($section_data['enabled']) && ($section_data['visibility'] ?? 'menu') !== 'hidden') {
             $slug = str_replace('page-custom-', '', $section_key);
+            $vis = $section_data['visibility'] ?? 'menu';
+            $parent_slug = $section_data['parent'] ?? '';
             $custom_title = '';
             if (function_exists('developer_get_ml_value')) {
                 $custom_title = developer_get_ml_value($section_data, 'menu_title', $lang);
@@ -182,7 +184,9 @@ if (!empty($site_config_cache['website'])) {
                 'title' => $custom_title,
                 'url' => home_url('/' . $slug . '/'),
                 'order' => $section_data['menu-order'] ?? 10,
-                'enabled' => true
+                'enabled' => true,
+                'parent' => $parent_slug,
+                'is_submenu' => ($vis === 'submenu')
             );
         }
     }
