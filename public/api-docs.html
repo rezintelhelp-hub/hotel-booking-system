@@ -372,7 +372,7 @@
         "openapi": "3.0.3",
         "info": {
             "title": "GAS Partner API",
-            "version": "7.10",
+            "version": "7.11",
             "description": `The **Global Accommodation System (GAS)** Partner API enables property management platforms to create tenants, push properties & rooms, manage pricing & availability, deploy booking websites, and handle the complete lifecycle of vacation rental businesses.\n\n## Two API Paths\n\n| Prefix | Auth Method | Used For |\n|--------|------------|----------|\n| \`/api/partner/*\` | X-API-Key header | Tenants, Websites, Room Types, Stripe, Domains, Content |\n| \`/api/partner/_KEY_/*\` | API key in URL path | Properties, Rooms, Images, Pricing, Availability |\n\n## Quick Start Workflow\n\n1. **Create Tenant** → 2. **Push Properties & Rooms** → 3. **Add Images** → 4. **Create Website** → 5. **Assign Rooms** → 6. **Deploy** → 7. **Configure Payments**\n\n## ID Terminology\n\n| Term | Description |\n|------|-------------|\n| \`tenant_id\` | Your unique reference for a client |\n| \`account_id\` | GAS internal database ID |\n| \`property_id\` | GAS database ID for a property |\n| \`unit_id\` | GAS database ID for a room (same as \`gas_room_id\`) |\n| \`external_id\` | Your reference for a room |\n\n**Note:** \`unit_id\` and \`gas_room_id\` are the same thing.\n\n---\n\n**Support:** steve@gas.travel`,
             "contact": {
                 "name": "GAS Support",
@@ -536,7 +536,10 @@
             { "name": "Pages", "description": "Create and manage custom website pages" },
             { "name": "Page Sections", "description": "Add, update, reorder, and delete sections within pages" },
             { "name": "Public", "description": "Public endpoints (no authentication required)" },
-            { "name": "Deposit Rules", "description": "Configure deposit rules and multi-tier payment schedules" }
+            { "name": "Deposit Rules", "description": "Configure deposit rules and multi-tier payment schedules" },
+            { "name": "Reservations", "description": "Create, list, update, and cancel reservations" },
+            { "name": "Availability & Rates", "description": "Manage availability blocks and rate rules" },
+            { "name": "Impressum", "description": "Legal disclosure page for DACH region (Germany, Austria, Switzerland)" }
         ],
         "paths": {
             // ===== TENANTS =====
@@ -2626,6 +2629,163 @@
                     },
                     "responses": {
                         "200": { "description": "Tier marked as paid", "content": { "application/json": { "example": { "success": true, "message": "Tier marked as paid" } } } }
+                    }
+                }
+            }
+        },
+
+            // ===== RESERVATIONS =====
+            "/api/partner/v1/reservations": {
+                "post": {
+                    "tags": ["Reservations"],
+                    "summary": "Create or Update Reservation",
+                    "description": "Creates a new reservation or updates an existing one (upsert by external_id). Automatically blocks availability dates.",
+                    "requestBody": {
+                        "content": { "application/json": { "example": {
+                            "external_id": "BKG-12345",
+                            "unit_external_id": "room-abc-123",
+                            "status": "confirmed",
+                            "check_in": "2026-06-15",
+                            "check_out": "2026-06-20",
+                            "guest_first_name": "Maria",
+                            "guest_last_name": "Schmidt",
+                            "guest_email": "maria@example.com",
+                            "guest_phone": "+49123456789",
+                            "num_adults": 2,
+                            "num_children": 1,
+                            "total_price": 750.00,
+                            "currency": "EUR",
+                            "source": "booking.com",
+                            "notes": "Late check-in requested",
+                            "special_requests": "Extra pillows"
+                        } } }
+                    },
+                    "responses": {
+                        "200": { "description": "Reservation created/updated", "content": { "application/json": { "example": { "success": true, "reservation": { "id": 456, "status": "confirmed" } } } } }
+                    }
+                },
+                "get": {
+                    "tags": ["Reservations"],
+                    "summary": "List Reservations",
+                    "description": "List all reservations for your tenants. Filter by property, room, date range, or status.",
+                    "parameters": [
+                        { "name": "unit_external_id", "in": "query", "schema": { "type": "string" }, "description": "Filter by room external ID" },
+                        { "name": "property_external_id", "in": "query", "schema": { "type": "string" }, "description": "Filter by property external ID" },
+                        { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "Reservations with check-out >= this date" },
+                        { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "Reservations with check-in <= this date" },
+                        { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["confirmed", "cancelled", "pending"] } }
+                    ],
+                    "responses": {
+                        "200": { "description": "Reservation list", "content": { "application/json": { "example": { "success": true, "reservations": [] } } } }
+                    }
+                }
+            },
+            "/api/partner/v1/reservations/{bookingId}": {
+                "put": {
+                    "tags": ["Reservations"],
+                    "summary": "Update Reservation",
+                    "description": "Update specific fields of a reservation. Automatically handles date changes (frees old dates, blocks new dates) and cancellation (frees dates).",
+                    "parameters": [
+                        { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": {
+                            "status": "confirmed",
+                            "check_in": "2026-06-16",
+                            "check_out": "2026-06-21",
+                            "total_price": 850.00,
+                            "notes": "Updated dates"
+                        } } }
+                    },
+                    "responses": {
+                        "200": { "description": "Reservation updated", "content": { "application/json": { "example": { "success": true, "message": "Reservation 456 updated", "updated_fields": ["check_in", "check_out", "total_price", "notes"] } } } }
+                    }
+                },
+                "delete": {
+                    "tags": ["Reservations"],
+                    "summary": "Cancel/Delete Reservation",
+                    "description": "Cancels a reservation and frees the blocked availability dates.",
+                    "parameters": [
+                        { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "responses": {
+                        "200": { "description": "Reservation cancelled", "content": { "application/json": { "example": { "success": true, "message": "Reservation cancelled" } } } }
+                    }
+                }
+            },
+
+            // ===== AVAILABILITY & RATES =====
+            "/api/partner/v1/availability": {
+                "post": {
+                    "tags": ["Availability & Rates"],
+                    "summary": "Push Availability",
+                    "description": "Create or update availability entries for a room. Upserts by room + date.",
+                    "requestBody": {
+                        "content": { "application/json": { "example": {
+                            "unit_external_id": "room-abc-123",
+                            "availability": [
+                                { "date": "2026-06-15", "available": true, "price": 150.00, "min_stay": 2, "max_stay": 14 },
+                                { "date": "2026-06-16", "available": true, "price": 150.00, "min_stay": 2 },
+                                { "date": "2026-06-17", "available": false }
+                            ]
+                        } } }
+                    },
+                    "responses": {
+                        "200": { "description": "Availability updated", "content": { "application/json": { "example": { "success": true, "updated": 3 } } } }
+                    }
+                },
+                "get": {
+                    "tags": ["Availability & Rates"],
+                    "summary": "Get Availability",
+                    "description": "Retrieve availability and pricing for a room over a date range.",
+                    "parameters": [
+                        { "name": "unit_external_id", "in": "query", "required": true, "schema": { "type": "string" } },
+                        { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "Defaults to today" },
+                        { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "Defaults to 365 days from today" }
+                    ],
+                    "responses": {
+                        "200": { "description": "Availability data", "content": { "application/json": { "example": { "success": true, "availability": [{ "date": "2026-06-15", "available": true, "price": "150.00", "min_stay": 2, "max_stay": 14 }] } } } }
+                    }
+                }
+            },
+
+            // ===== IMPRESSUM / LEGAL DISCLOSURE =====
+            "/api/partner/v1/websites/{websiteId}/page-impressum": {
+                "put": {
+                    "tags": ["Impressum"],
+                    "summary": "Update Impressum Page",
+                    "description": "Enable and configure the Impressum (legal disclosure) page. Required for websites targeting Germany, Austria, and Switzerland (DACH region). The Impressum link appears in the website footer when enabled.\n\nUse the generic section endpoint: `PUT /api/partner/v1/websites/{websiteId}/page-impressum`",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": {
+                            "settings": {
+                                "enabled": true,
+                                "menu-title-en": "Impressum",
+                                "menu-title-de": "Impressum",
+                                "title-en": "Impressum",
+                                "title-de": "Impressum",
+                                "content-en": "<p><strong>Company Name GmbH</strong><br>Street Address 1<br>12345 City, Germany</p><p>Email: info@example.com<br>Phone: +49 123 456 7890</p><p>Commercial Register: HRB 12345, Amtsgericht City<br>VAT ID: DE123456789<br>Managing Director: John Doe</p>",
+                                "content-de": "<p><strong>Firma GmbH</strong><br>Straße 1<br>12345 Stadt, Deutschland</p><p>E-Mail: info@example.com<br>Telefon: +49 123 456 7890</p><p>Handelsregister: HRB 12345, Amtsgericht Stadt<br>USt-IdNr.: DE123456789<br>Geschäftsführer: Max Mustermann</p>",
+                                "meta-title": "Impressum | Company Name",
+                                "meta-description": "Legal disclosure and company information for Company Name."
+                            }
+                        } } }
+                    },
+                    "responses": {
+                        "200": { "description": "Impressum settings saved", "content": { "application/json": { "example": { "success": true } } } }
+                    }
+                },
+                "get": {
+                    "tags": ["Impressum"],
+                    "summary": "Get Impressum Settings",
+                    "description": "Retrieve the current Impressum page settings for a website.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "responses": {
+                        "200": { "description": "Impressum settings", "content": { "application/json": { "example": { "success": true, "settings": { "enabled": true, "menu-title-en": "Impressum", "content-en": "<p>Company details...</p>" } } } } }
                     }
                 }
             }
