@@ -142,7 +142,7 @@ class GAS_Hostvana {
 
         // Only show on room and checkout pages
         $slug = get_post_field('post_name', get_queried_object_id());
-        $allowed_slugs = array('room', 'checkout', 'book-now');
+        $allowed_slugs = array('room', 'checkout');
         if (!in_array($slug, $allowed_slugs)) return;
 
         $position = get_option('gas_hostvana_widget_position', 'bottom-right');
