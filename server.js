@@ -37697,7 +37697,18 @@ async function createBeds24BookingV1(propKey, bookingArray) {
   );
 
   console.log('[Beds24 V1] Response:', JSON.stringify(response.data));
-  return { success: true, data: response.data };
+
+  // Check if Beds24 actually created the booking
+  const respData = response.data;
+  if (respData?.error) {
+    return { success: false, error: respData.error };
+  }
+  // V1 returns array of bookings with bookId, or error object
+  const bookings = Array.isArray(respData) ? respData : [respData];
+  if (bookings[0]?.bookId) {
+    return { success: true, data: respData };
+  }
+  return { success: false, error: 'No bookId in response', data: respData };
 }
 
 // Convert V2 booking fields to V1 format
