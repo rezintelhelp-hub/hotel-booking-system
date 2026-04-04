@@ -181,13 +181,16 @@ if (!empty($special_page) && isset($api[$hero_key])) {
     </div>
 </section>
 <?php else : ?>
-<!-- Simple header when hero is disabled -->
+<!-- No hero — just spacing for the fixed header -->
+<div style="padding-top: 100px;"></div>
+<?php /* Simple header disabled — hero off means no header at all
 <div style="padding-top: 120px; padding-bottom: 40px; text-align: center; background: <?php echo esc_attr($page_header_bg); ?>;">
     <h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: <?php echo esc_attr($page_header_text); ?>; margin: 0 0 8px;"><?php echo esc_html($page_title); ?></h1>
     <?php if ($page_subtitle) : ?>
         <p style="font-size: 1.15rem; color: <?php echo esc_attr($page_header_text); ?>; opacity: 0.8; margin: 0;"><?php echo esc_html($page_subtitle); ?></p>
     <?php endif; ?>
 </div>
+*/ ?>
 <?php endif; ?>
 
 <!-- Page Content -->
