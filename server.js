@@ -37602,12 +37602,40 @@ const BEDS24_ORG_TOKEN = 'IlHniASD2fWbpGtHHfjM93KqDFVc22yEqbS18foTIlU57MVcF0iy6O
 const BEDS24_ORG_ID = '70_rezintelnet';
 
 // Get Beds24 headers for booking creation (uses org credentials for apiSourceId 70)
-function getBeds24BookingHeaders(propertyToken) {
+// beds24PropId: the Beds24 property ID — appended as :p{id} to scope the org token
+// fallbackToken: per-client access token to use if no prop ID (non-marketplace properties)
+function getBeds24BookingHeaders(beds24PropId, fallbackToken) {
+  if (beds24PropId) {
+    // Marketplace property — use org credentials for apiSourceId 70
+    return {
+      'Content-Type': 'application/json',
+      'accept': 'application/json',
+      'token': BEDS24_ORG_TOKEN + ':p' + beds24PropId,
+      'organization': BEDS24_ORG_ID
+    };
+  }
+  // Non-marketplace — use per-client token (apiSourceId will be 0)
   return {
     'Content-Type': 'application/json',
-    'token': BEDS24_ORG_TOKEN + (propertyToken || ''),
-    'organization': BEDS24_ORG_ID
+    'accept': 'application/json',
+    'token': fallbackToken || ''
   };
+}
+
+// Helper to look up the Beds24 property ID from a GAS room ID
+async function getBeds24PropIdForRoom(pool, roomId) {
+  try {
+    const result = await pool.query(`
+      SELECT gsp.external_id as beds24_prop_id
+      FROM gas_sync_room_types gsrt
+      JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+      WHERE gsrt.gas_room_id = $1
+      LIMIT 1
+    `, [roomId]);
+    return result.rows[0]?.beds24_prop_id || null;
+  } catch (e) {
+    return null;
+  }
 }
 
 // Helper function to get Beds24 access token from refresh token
@@ -62804,7 +62832,8 @@ app.post('/api/public/book', async (req, res) => {
     // Get CM IDs for this unit
     const cmResult = await pool.query(`
       SELECT bu.beds24_room_id, bu.smoobu_id, bu.hostaway_listing_id,
-             p.account_id
+             p.account_id,
+             (SELECT gsp.external_id FROM gas_sync_room_types gsrt JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id WHERE gsrt.gas_room_id = bu.id LIMIT 1) as beds24_prop_id
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -62876,7 +62905,7 @@ app.post('/api/public/book', async (req, res) => {
           console.log('[HOSTVANA] PUT /bookings payload:', JSON.stringify(updatePayload));
 
           const updateRes = await axios.put('https://beds24.com/api/v2/bookings', updatePayload, {
-            headers: getBeds24BookingHeaders()
+            headers: getBeds24BookingHeaders(cmData.beds24_prop_id, accessToken)
           });
 
           console.log('[HOSTVANA] Beds24 update response:', JSON.stringify(updateRes.data));
@@ -62957,7 +62986,7 @@ app.post('/api/public/book', async (req, res) => {
         console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
 
         const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
-          headers: getBeds24BookingHeaders()
+          headers: getBeds24BookingHeaders(cmData.beds24_prop_id, accessToken)
         });
 
         console.log('Beds24 response:', JSON.stringify(beds24Response.data));
@@ -84462,7 +84491,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
       console.log(`[HOSTVANA] Creating inquiry on Beds24 V2:`, JSON.stringify(bookingData));
 
       const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, {
-        headers: getBeds24BookingHeaders()
+        headers: getBeds24BookingHeaders(beds24PropId)
       });
 
       console.log(`[HOSTVANA] Beds24 V2 booking response:`, JSON.stringify(response.data));
