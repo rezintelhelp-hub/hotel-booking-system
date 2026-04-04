@@ -68944,11 +68944,12 @@ app.get('/api/admin/content-ideas', async (req, res) => {
 // ============================================================
 // Shared helper: pull rich property context for AI prompts
 // ============================================================
-async function getPropertyContextForAI(pool, { account_id, property_id }) {
+async function getPropertyContextForAI(pool, { account_id, property_id, deployed_site_id }) {
   const ctx = {
     propertyName: '', location: '', address: '', propertyType: '',
     description: '', starRating: null,
     rooms: [], amenities: [], topAmenities: '',
+    pageContent: '',
     checkinFrom: '', checkoutBy: '', checkinInstructions: '', checkoutInstructions: '',
     cancellationPolicy: '',
     contactEmail: '', contactPhone: '',
@@ -69102,6 +69103,36 @@ async function getPropertyContextForAI(pool, { account_id, property_id }) {
     );
     ctx.blogTopics = blogs.rows.map(b => b.title);
 
+    // 8. Website content from Web Builder (the actual text on the site)
+    if (deployed_site_id) {
+      const ws = await pool.query(
+        'SELECT section, settings FROM website_settings WHERE deployed_site_id = $1',
+        [deployed_site_id]
+      );
+      const contentParts = [];
+      ws.rows.forEach(row => {
+        const s = row.settings;
+        if (!s || typeof s !== 'object') return;
+        const texts = [];
+        for (const [k, v] of Object.entries(s)) {
+          // Only grab English text fields (titles, text, subtitles, item texts, headlines)
+          if (typeof v === 'string' && v.length > 10 &&
+              (k.endsWith('-en') || k === 'headline-en' || k === 'subheadline-en') &&
+              !k.includes('color') && !k.includes('url') && !k.includes('image') &&
+              !k.includes('font') && !k.includes('icon') && !k.includes('label') &&
+              !k.includes('placeholder') && !k.includes('btn-text')) {
+            texts.push(v.substring(0, 200));
+          }
+        }
+        if (texts.length > 0) {
+          contentParts.push(`[${row.section}] ${texts.join(' | ')}`);
+        }
+      });
+      if (contentParts.length > 0) {
+        ctx.pageContent = contentParts.join('\n');
+      }
+    }
+
   } catch (e) {
     console.error('getPropertyContextForAI error:', e.message);
   }
@@ -69158,19 +69189,23 @@ function buildContextBlock(ctx) {
     block += '\n\nBLOG TOPICS: ' + ctx.blogTopics.join(', ');
   }
 
+  if (ctx.pageContent) {
+    block += '\n\nWEBSITE CONTENT (actual text displayed on the site):\n' + ctx.pageContent;
+  }
+
   return block;
 }
 
 // Generate SEO Meta Title & Description with AI
 app.post('/api/admin/generate-seo-meta', async (req, res) => {
     try {
-        const { page_type, business_name, account_id, property_id, page_content } = req.body;
+        const { page_type, business_name, account_id, property_id, page_content, deployed_site_id } = req.body;
 
         if (!page_type) {
             return res.json({ success: false, error: 'Page type required' });
         }
 
-        const ctx = await getPropertyContextForAI(pool, { account_id, property_id });
+        const ctx = await getPropertyContextForAI(pool, { account_id, property_id, deployed_site_id });
         if (business_name && !ctx.propertyName) ctx.propertyName = business_name;
         const contextBlock = buildContextBlock(ctx);
 
@@ -69254,13 +69289,13 @@ Return ONLY valid JSON with this exact structure, no other text:
 // Generate FAQ schemas with AI
 app.post('/api/admin/generate-faqs', async (req, res) => {
     try {
-        const { page_type, business_name, account_id, property_id } = req.body;
+        const { page_type, business_name, account_id, property_id, deployed_site_id } = req.body;
 
         if (!page_type) {
             return res.json({ success: false, error: 'Page type required' });
         }
 
-        const ctx = await getPropertyContextForAI(pool, { account_id, property_id });
+        const ctx = await getPropertyContextForAI(pool, { account_id, property_id, deployed_site_id });
         if (business_name && !ctx.propertyName) ctx.propertyName = business_name;
         const contextBlock = buildContextBlock(ctx);
 
@@ -69280,6 +69315,7 @@ app.post('/api/admin/generate-faqs', async (req, res) => {
         if (ctx.avgRating) availableData.push(`Guest rating: ${ctx.avgRating}/5 from ${ctx.reviewCount} reviews`);
         if (ctx.attractions.length > 0) availableData.push(`Nearby: ${ctx.attractions.map(a => a.name).join(', ')}`);
         availableData.push('Online booking available via the Book Now page');
+        if (ctx.pageContent) availableData.push(`\nWEBSITE CONTENT (actual text on the site):\n${ctx.pageContent}`);
 
         const pageTopics = {
             'homepage': 'the property overall — what it is, where it is, what it offers, how to book',
