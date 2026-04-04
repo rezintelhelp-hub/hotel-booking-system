@@ -140,6 +140,11 @@ class GAS_Hostvana {
         if (!get_option('gas_hostvana_license_key', '')) return;
         if (is_admin()) return;
 
+        // Only show on room and checkout pages
+        $slug = get_post_field('post_name', get_queried_object_id());
+        $allowed_slugs = array('room', 'checkout', 'book-now');
+        if (!in_array($slug, $allowed_slugs)) return;
+
         $position = get_option('gas_hostvana_widget_position', 'bottom-right');
         $color = esc_attr(get_option('gas_hostvana_widget_color', '#2563eb'));
         $welcome = esc_js(get_option('gas_hostvana_welcome_message', 'Hi! How can we help you?'));
@@ -195,6 +200,7 @@ class GAS_Hostvana {
             color: #fff;
             padding: 16px 20px;
             display: flex;
+            cursor: grab;
             align-items: center;
             justify-content: space-between;
             flex-shrink: 0;
@@ -495,6 +501,55 @@ class GAS_Hostvana {
                 panel.classList.remove('open');
                 stopPolling();
             });
+
+            // Drag to move panel via header
+            var panelHeader = panel.querySelector('.gas-hostvana-header');
+            var panelDragging = false, panelWasDragged = false, panelStartX, panelStartY, panelLeft, panelTop;
+
+            function onPanelDragStart(e) {
+                if (e.target.closest('#gasHostvanaClose')) return;
+                var touch = e.touches ? e.touches[0] : e;
+                panelDragging = true;
+                panelWasDragged = false;
+                panelStartX = touch.clientX;
+                panelStartY = touch.clientY;
+                var rect = panel.getBoundingClientRect();
+                panelLeft = rect.left;
+                panelTop = rect.top;
+                panel.style.transition = 'none';
+                panelHeader.style.cursor = 'grabbing';
+            }
+
+            function onPanelDragMove(e) {
+                if (!panelDragging) return;
+                var touch = e.touches ? e.touches[0] : e;
+                var dx = touch.clientX - panelStartX;
+                var dy = touch.clientY - panelStartY;
+                if (Math.abs(dx) > 5 || Math.abs(dy) > 5) panelWasDragged = true;
+                if (!panelWasDragged) return;
+                e.preventDefault();
+                var newX = panelLeft + dx;
+                var newY = panelTop + dy;
+                newX = Math.max(0, Math.min(window.innerWidth - panel.offsetWidth, newX));
+                newY = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, newY));
+                panel.style.left = newX + 'px';
+                panel.style.top = newY + 'px';
+                panel.style.right = 'auto';
+                panel.style.bottom = 'auto';
+            }
+
+            function onPanelDragEnd() {
+                panelDragging = false;
+                panel.style.transition = '';
+                panelHeader.style.cursor = 'grab';
+            }
+
+            panelHeader.addEventListener('mousedown', onPanelDragStart);
+            document.addEventListener('mousemove', onPanelDragMove);
+            document.addEventListener('mouseup', onPanelDragEnd);
+            panelHeader.addEventListener('touchstart', onPanelDragStart, { passive: false });
+            document.addEventListener('touchmove', onPanelDragMove, { passive: false });
+            document.addEventListener('touchend', onPanelDragEnd);
 
             // Send message
             function sendMessage() {
