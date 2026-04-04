@@ -69321,12 +69321,6 @@ Return ONLY a valid JSON array, no other text:
   {"question": "Question here?", "answer": "Answer here."}
 ]`;
 
-Return ONLY a valid JSON array, no other text:
-[
-  {"question": "Question here?", "answer": "Answer here."},
-  {"question": "Question here?", "answer": "Answer here."}
-]`;
-
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
             model: 'claude-sonnet-4-5-20250929',
             max_tokens: 2000,
