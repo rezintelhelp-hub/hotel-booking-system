@@ -186,6 +186,17 @@ class GAS_Properties {
             var lang = <?php echo json_encode($lang); ?>;
             var limit = <?php echo $limit; ?>;
             var blogId = <?php echo json_encode(get_current_blog_id()); ?>;
+            var translations = {
+                en: { from: 'From', night: '/night', viewDetails: '<?php echo esc_js($btn_label !== "View Rooms" ? $btn_label : "View Details"); ?>' },
+                de: { from: 'Ab', night: '/Nacht', viewDetails: 'Details ansehen' },
+                fr: { from: 'À partir de', night: '/nuit', viewDetails: 'Voir les détails' },
+                es: { from: 'Desde', night: '/noche', viewDetails: 'Ver detalles' },
+                nl: { from: 'Vanaf', night: '/nacht', viewDetails: 'Details bekijken' },
+                ja: { from: '', night: '/泊', viewDetails: '詳細を見る' },
+                it: { from: 'Da', night: '/notte', viewDetails: 'Vedi dettagli' },
+                pt: { from: 'A partir de', night: '/noite', viewDetails: 'Ver detalhes' }
+            };
+            var t = translations[lang] || translations['en'];
 
             fetch(apiUrl + '/api/public/client/' + clientId + '/properties?limit=' + limit + '&lang=' + lang + '&blog_id=' + blogId)
                 .then(function(r){ return r.json(); })
@@ -214,9 +225,9 @@ class GAS_Properties {
                         if (location) html += '<p class="gas-prop-location" itemprop="address">' + location + '</p>';
                         if (minPrice > 0) {
                             var sym = {EUR:'€',GBP:'£',USD:'$',CHF:'CHF'}[currency] || currency + ' ';
-                            html += '<p class="gas-prop-price">From ' + sym + minPrice.toFixed(0) + '/night</p>';
+                            html += '<p class="gas-prop-price">' + t.from + ' ' + sym + minPrice.toFixed(0) + t.night + '</p>';
                         }
-                        html += '<span class="gas-prop-cta"><?php echo esc_js($btn_label); ?></span>';
+                        html += '<span class="gas-prop-cta">' + t.viewDetails + '</span>';
                         html += '</div></a>';
                     });
                     container.innerHTML = html;
