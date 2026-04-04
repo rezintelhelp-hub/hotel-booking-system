@@ -69264,109 +69264,62 @@ app.post('/api/admin/generate-faqs', async (req, res) => {
         if (business_name && !ctx.propertyName) ctx.propertyName = business_name;
         const contextBlock = buildContextBlock(ctx);
 
-        // Page-specific FAQ guidance — tell the AI exactly what topics to cover
-        const faqGuidance = {
-            'homepage': `Generate FAQs a first-time visitor would ask:
-1. A question about what "${ctx.propertyName}" is and what it offers
-2. A question about the location and how to get there
-3. A question about booking — guests can book directly online via the Book Now page${ctx.priceRange ? ', pricing from ' + ctx.priceRange : ''}
-${ctx.topAmenities ? '4. A question about key amenities/facilities (' + ctx.topAmenities + ')' : '4. A question about amenities and facilities'}
-5. A question about ${ctx.checkinFrom ? 'check-in/check-out times (check-in from ' + ctx.checkinFrom + ', check-out by ' + ctx.checkoutBy + ')' : 'check-in/check-out arrangements'}`,
+        // Build a list of AVAILABLE data points so the AI only writes about what we have
+        const availableData = [];
+        if (ctx.propertyName) availableData.push(`Property name: ${ctx.propertyName}`);
+        if (ctx.location) availableData.push(`Location: ${ctx.location}`);
+        if (ctx.address) availableData.push(`Address: ${ctx.address}`);
+        if (ctx.rooms.length > 0) availableData.push(`${ctx.rooms.length} rooms/units: ${ctx.rooms.map(r => r.name + (r.guests ? ' (up to ' + r.guests + ' guests)' : '')).join(', ')}`);
+        if (ctx.priceRange) availableData.push(`Pricing: ${ctx.priceRange}`);
+        if (ctx.topAmenities) availableData.push(`Amenities: ${ctx.topAmenities}`);
+        if (ctx.checkinFrom) availableData.push(`Check-in: from ${ctx.checkinFrom}`);
+        if (ctx.checkoutBy) availableData.push(`Check-out: by ${ctx.checkoutBy}`);
+        if (ctx.cancellationPolicy) availableData.push(`Cancellation policy: ${ctx.cancellationPolicy}`);
+        if (ctx.contactEmail) availableData.push(`Email: ${ctx.contactEmail}`);
+        if (ctx.contactPhone) availableData.push(`Phone: ${ctx.contactPhone}`);
+        if (ctx.avgRating) availableData.push(`Guest rating: ${ctx.avgRating}/5 from ${ctx.reviewCount} reviews`);
+        if (ctx.attractions.length > 0) availableData.push(`Nearby: ${ctx.attractions.map(a => a.name).join(', ')}`);
+        availableData.push('Online booking available via the Book Now page');
 
-            'accommodation/rooms': `Generate FAQs about the rooms and accommodation:
-1. A question about room types available (${ctx.rooms.map(r => r.name).join(', ') || 'the accommodation options'})
-${ctx.priceRange ? '2. A question about pricing (' + ctx.priceRange + ')' : '2. A question about pricing and rates'}
-3. A question about room capacity and sleeping arrangements (${ctx.rooms.map(r => r.name + ': up to ' + r.guests + ' guests').join('; ') || 'guest capacity'})
-${ctx.topAmenities ? '4. A question about in-room amenities (' + ctx.topAmenities + ')' : '4. A question about what is included in the rooms'}
-5. A question about ${ctx.cancellationPolicy ? 'cancellation policy' : 'booking flexibility and modifications'}`,
-
-            'about us': `Generate FAQs about the property and its story:
-1. A question about what makes "${ctx.propertyName}" special or unique
-2. A question about the property's location${ctx.location ? ' in ' + ctx.location : ''} and surroundings
-3. A question about the type of experience offered (${ctx.propertyType})
-${ctx.avgRating ? '4. A question about guest satisfaction (rated ' + ctx.avgRating + '/5)' : '4. A question about the property\'s history or character'}
-5. A question about who the property is ideal for (families, couples, groups, etc.)`,
-
-            'photo gallery': `Generate FAQs about the property's appearance and facilities:
-1. A question about what the rooms/units look like
-2. A question about outdoor spaces, views, or surroundings
-3. A question about common areas and shared facilities
-${ctx.topAmenities ? '4. A question about specific facilities visible in photos (' + ctx.topAmenities + ')' : '4. A question about the property\'s setting and atmosphere'}
-5. A question about the property's overall style and decor`,
-
-            'blog': `Generate FAQs about the local area and travel planning:
-1. A question about the best time to visit${ctx.location ? ' ' + ctx.location : ''}
-2. A question about things to do${ctx.location ? ' near ' + ctx.location : ' nearby'}
-${ctx.attractions.length > 0 ? '3. A question about a specific attraction (' + ctx.attractions[0].name + ')' : '3. A question about local culture and experiences'}
-4. A question about travel tips for the area
-5. A question about how far the property is from key landmarks`,
-
-            'local attractions and things to do': `Generate FAQs about nearby attractions:
-${ctx.attractions.slice(0, 3).map((a, i) => `${i + 1}. A question about ${a.name}${a.distance ? ' (' + a.distance + ' away)' : ''}`).join('\n')}
-${ctx.attractions.length < 3 ? '1. A question about what there is to do nearby\n2. A question about family activities in the area\n3. A question about outdoor activities nearby' : ''}
-4. A question about getting around the area (transport, walking)
-5. A question about seasonal activities or events`,
-
-            'restaurant and dining': `Generate FAQs about dining:
-1. A question about on-site dining or kitchen facilities
-2. A question about nearby restaurants${ctx.location ? ' in ' + ctx.location : ''}
-3. A question about breakfast availability or arrangements
-4. A question about special dietary requirements or preferences
-5. A question about local food specialties${ctx.location ? ' in the ' + ctx.location + ' area' : ''}`,
-
-            'contact information': `Generate FAQs about contacting the property:
-1. A question about the best way to contact "${ctx.propertyName}"${ctx.contactEmail ? ' (email: available)' : ''}${ctx.contactPhone ? ' (phone: available)' : ''}
-2. A question about response times and when to expect a reply
-3. A question about making a booking enquiry or special request
-${ctx.checkinFrom ? '4. A question about check-in arrangements (from ' + ctx.checkinFrom + ')' : '4. A question about arrival and check-in procedures'}
-5. A question about getting directions to the property${ctx.address ? ' at ' + ctx.address : ''}`,
-
-            'terms and conditions': `Generate FAQs about booking terms:
-1. A question about the booking process and confirmation
-${ctx.cancellationPolicy ? '2. A question about the cancellation policy' : '2. A question about cancellations and refunds'}
-3. A question about payment methods and when payment is taken
-${ctx.checkinFrom ? '4. A question about check-in time (' + ctx.checkinFrom + ') and early/late arrival' : '4. A question about check-in and check-out times'}
-5. A question about house rules or guest responsibilities`,
-
-            'privacy policy': `Generate FAQs about data and privacy:
-1. A question about what personal data is collected when booking
-2. A question about how guest data is used and protected
-3. A question about cookies and website tracking
-4. A question about sharing data with third parties
-5. A question about guest rights regarding their personal data`,
-
-            'reviews': `Generate FAQs about reviews:
-${ctx.avgRating ? '1. A question about the overall guest rating (' + ctx.avgRating + '/5 from ' + ctx.reviewCount + ' reviews)' : '1. A question about guest satisfaction'}
-2. A question about what guests typically praise about the property
-3. A question about how to leave a review after staying
-4. A question about the authenticity/source of reviews
-5. A question about what makes repeat guests come back`,
-
-            'special offers': `Generate FAQs about offers and deals:
-1. A question about current special offers and promotions
-2. A question about how to get the best rate
-3. A question about long-stay or weekly discounts
-4. A question about seasonal pricing and peak/off-peak rates
-5. A question about group booking discounts or packages`
+        const pageTopics = {
+            'homepage': 'the property overall — what it is, where it is, what it offers, how to book',
+            'accommodation/rooms': 'the rooms and accommodation — room types, what is included, capacity, how to book',
+            'about us': 'the property story, character, location, and what makes it unique',
+            'photo gallery': 'the property appearance, rooms, surroundings, and facilities',
+            'blog': 'the local area, things to do, travel tips, and seasonal activities',
+            'local attractions and things to do': 'nearby places to visit, activities, and getting around',
+            'restaurant and dining': 'dining options, kitchens, local restaurants, and food',
+            'contact information': 'how to get in touch, make enquiries, and find the property',
+            'terms and conditions': 'booking terms, payment, cancellation, and house rules',
+            'privacy policy': 'data protection, privacy rights, and how guest data is handled',
+            'reviews': 'guest experiences, ratings, and feedback',
+            'special offers': 'deals, discounts, and best rates',
+            'properties': 'the range of properties available and what each offers'
         };
 
-        const guidance = faqGuidance[page_type] || `Generate 5 relevant FAQs about the ${page_type} page content. Each question should be specific to "${ctx.propertyName}" and factually accurate based on the data provided.`;
+        const topic = pageTopics[page_type] || `the ${page_type} page content`;
 
         const prompt = `Generate exactly 5 FAQs for the "${page_type}" page of "${ctx.propertyName}". These will be used as FAQ schema markup for SEO.
 
-${contextBlock}
+PAGE TOPIC: This page is about ${topic}.
 
-QUESTION GUIDANCE:
-${guidance}
+AVAILABLE DATA (use ONLY these facts in your answers):
+${availableData.map(d => '• ' + d).join('\n')}
 
-CRITICAL RULES:
-- ALWAYS use the facts provided above. The property name, location, address, rooms, amenities, prices — these are REAL DATA. Use them confidently in your answers. For example if the data says "Location: Lindau, CH" then answer location questions with "located in Lindau, Switzerland" — do NOT say "contact the property for location details".
-- NEVER invent additional amenities, policies, prices, or features that are NOT in the data above. Only state what is provided.
-- Only suggest contacting the property for genuinely missing information (e.g. specific policies not listed, availability for specific dates).
-- Use the EXACT property name "${ctx.propertyName}" — do not abbreviate or change it.
-- Answers must be 2-4 sentences. Be specific, confident, and helpful — not vague or hedging.
-- Questions must be what a REAL person would type into Google, not generic filler.
-- Each FAQ must be DIFFERENT from what other pages would have — these are for the "${page_type}" page specifically.
+ABSOLUTE RULES:
+- ONLY create questions that can be answered using the AVAILABLE DATA listed above.
+- NEVER create a question if the answer would be "not available", "not specified", "contact the property", or any variation of "we don't have that information". If you can't answer it from the data above, DO NOT include that question.
+- Use the data CONFIDENTLY. If it says "Location: Lindau, CH" then say "located in Lindau, Switzerland". If it says "6 rooms" then say "offers 6 apartments". Do not hedge.
+- Use the EXACT property name "${ctx.propertyName}".
+- Answers must be 2-4 sentences. Specific, confident, helpful.
+- Questions must be natural — what a real person would search on Google.
+- All 5 FAQs must be relevant to the "${page_type}" page specifically.
+
+Return ONLY a valid JSON array, no other text:
+[
+  {"question": "Question here?", "answer": "Answer here."},
+  {"question": "Question here?", "answer": "Answer here."}
+]`;
 
 Return ONLY a valid JSON array, no other text:
 [
