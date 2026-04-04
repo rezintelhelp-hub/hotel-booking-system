@@ -37651,19 +37651,33 @@ function getBeds24BookingHeaders(beds24PropId, accessToken) {
   };
 }
 
-// Look up Beds24 prop_key for a GAS room ID (from gas_sync_properties)
+// Look up Beds24 propKey for a GAS room ID
+// The V1 API needs the numeric Beds24 property ID as propKey (NOT the PK_uuid prop_key)
 async function getBeds24PropKeyForRoom(pool, roomId) {
   try {
-    const result = await pool.query(`
-      SELECT gsp.prop_key
-      FROM gas_sync_room_types gsrt
-      JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
-      WHERE gsrt.gas_room_id = $1 AND gsp.prop_key IS NOT NULL AND gsp.prop_key != ''
+    // First try: beds24_property_id from properties table (most reliable)
+    const propResult = await pool.query(`
+      SELECT p.beds24_property_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1 AND p.beds24_property_id IS NOT NULL
       LIMIT 1
     `, [roomId]);
-    return result.rows[0]?.prop_key || null;
+    if (propResult.rows[0]?.beds24_property_id) {
+      return propResult.rows[0].beds24_property_id;
+    }
+
+    // Second try: external_id from gas_sync_properties (the Beds24 property ID)
+    const syncResult = await pool.query(`
+      SELECT gsp.external_id
+      FROM gas_sync_room_types gsrt
+      JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+      WHERE gsrt.gas_room_id = $1 AND gsp.external_id IS NOT NULL
+      LIMIT 1
+    `, [roomId]);
+    return syncResult.rows[0]?.external_id || null;
   } catch (e) {
-    console.error('[Beds24 V1] prop_key lookup error:', e.message);
+    console.error('[Beds24 V1] propKey lookup error:', e.message);
     return null;
   }
 }
