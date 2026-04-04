@@ -69125,6 +69125,7 @@ function buildContextBlock(ctx) {
   if (ctx.cancellationPolicy) block += `\n- Cancellation policy: ${ctx.cancellationPolicy}`;
   if (ctx.contactEmail) block += `\n- Contact email: ${ctx.contactEmail}`;
   if (ctx.contactPhone) block += `\n- Contact phone: ${ctx.contactPhone}`;
+  block += `\n- Booking: Online booking available via the website's "Book Now" page. Guests can select dates, choose a room, and book directly online.`;
 
   if (ctx.rooms.length > 0) {
     block += '\n\nROOMS/UNITS:';
@@ -69268,7 +69269,7 @@ app.post('/api/admin/generate-faqs', async (req, res) => {
             'homepage': `Generate FAQs a first-time visitor would ask:
 1. A question about what "${ctx.propertyName}" is and what it offers
 2. A question about the location and how to get there
-3. A question about booking — how to reserve, ${ctx.priceRange ? 'pricing (' + ctx.priceRange + ')' : 'pricing'}
+3. A question about booking — guests can book directly online via the Book Now page${ctx.priceRange ? ', pricing from ' + ctx.priceRange : ''}
 ${ctx.topAmenities ? '4. A question about key amenities/facilities (' + ctx.topAmenities + ')' : '4. A question about amenities and facilities'}
 5. A question about ${ctx.checkinFrom ? 'check-in/check-out times (check-in from ' + ctx.checkinFrom + ', check-out by ' + ctx.checkoutBy + ')' : 'check-in/check-out arrangements'}`,
 
