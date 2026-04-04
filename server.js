@@ -18695,8 +18695,7 @@ app.post('/api/payments/confirm', async (req, res) => {
             
             const paymentData = [{
               id: beds24Check.rows[0].beds24_booking_id,
-              apiSourceId: 70,
-              payments: [{
+                payments: [{
                 description: paymentDesc,
                 amount: amount,
                 status: 'received',
@@ -18706,7 +18705,7 @@ app.post('/api/payments/confirm', async (req, res) => {
             paymentData.forEach(b => b.allowWebhooks = true);
 
             await axios.post('https://beds24.com/api/v2/bookings', paymentData, {
-              headers: { 'token': accessToken, 'Content-Type': 'application/json' }
+              headers: getBeds24BookingHeaders()
             });
             console.log(`Payment synced to Beds24 for booking ${booking_id}`);
           }
@@ -19039,8 +19038,7 @@ app.post('/api/public/payment-failed', async (req, res) => {
                 if (accessToken) {
                     const beds24Inquiry = [{
                         roomId: unit.beds24_room_id,
-                        apiSourceId: 70,
-                        status: 'inquiry',
+                                    status: 'inquiry',
                         arrival: check_in,
                         departure: check_out,
                         numAdult: parseInt(guests) || 1,
@@ -19070,7 +19068,7 @@ app.post('/api/public/payment-failed', async (req, res) => {
                     beds24Inquiry.forEach(b => b.allowWebhooks = true);
 
                     const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Inquiry, {
-                        headers: { 'token': accessToken, 'Content-Type': 'application/json' }
+                        headers: getBeds24BookingHeaders()
                     });
 
                     if (beds24Response.data?.[0]?.success) {
@@ -19363,8 +19361,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                     
                     const beds24Booking = [{
                         roomId: beds24RoomId,
-                        apiSourceId: 70,
-                        status: 'confirmed',
+                                    status: 'confirmed',
                         arrival: checkin,
                         departure: checkout,
                         numAdult: roomGuests,
@@ -19398,10 +19395,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                     console.log('Pushing group booking to Beds24:', JSON.stringify(beds24Booking));
 
                     const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
-                        headers: {
-                            'token': accessToken,
-                            'Content-Type': 'application/json'
-                        }
+                        headers: getBeds24BookingHeaders()
                     });
 
                     console.log('Beds24 response:', JSON.stringify(beds24Response.data));
@@ -20231,7 +20225,6 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
         // Build Beds24 booking payload
         const beds24Payload = {
             roomId: parseInt(beds24RoomId),
-            apiSourceId: 70,
             arrival: booking.arrival_date?.toISOString?.()?.split('T')[0] || booking.arrival_date,
             departure: booking.departure_date?.toISOString?.()?.split('T')[0] || booking.departure_date,
             numAdult: booking.num_adults || 2,
@@ -20264,7 +20257,7 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
         console.log('[Beds24 Push] Payload:', JSON.stringify(beds24Payload));
 
         const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', [beds24Payload], {
-            headers: { 'token': accessToken, 'Content-Type': 'application/json' }
+            headers: getBeds24BookingHeaders()
         });
 
         console.log('[Beds24 Push] Response:', JSON.stringify(beds24Response.data));
@@ -31354,7 +31347,6 @@ app.post('/api/db/book', async (req, res) => {
         
         const beds24Booking = [{
           roomId: beds24RoomId,
-          apiSourceId: 70,
           status: 'confirmed',
           arrival: check_in,
           departure: check_out,
@@ -31392,10 +31384,7 @@ app.post('/api/db/book', async (req, res) => {
         console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
 
         const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
-          headers: {
-            'token': accessToken,
-            'Content-Type': 'application/json'
-          }
+          headers: getBeds24BookingHeaders()
         });
 
         console.log('Beds24 booking response:', JSON.stringify(beds24Response.data));
@@ -37607,6 +37596,20 @@ app.post('/api/beds24/save-token', async (req, res) => {
   }
 });
 
+// Rezintel organization credentials for Beds24 V2
+// These give apiSourceId: 70 which triggers Beds24 webhooks
+const BEDS24_ORG_TOKEN = 'IlHniASD2fWbpGtHHfjM93KqDFVc22yEqbS18foTIlU57MVcF0iy6OUipKglesX';
+const BEDS24_ORG_ID = '70_rezintelnet';
+
+// Get Beds24 headers for booking creation (uses org credentials for apiSourceId 70)
+function getBeds24BookingHeaders(propertyToken) {
+  return {
+    'Content-Type': 'application/json',
+    'token': BEDS24_ORG_TOKEN + (propertyToken || ''),
+    'organization': BEDS24_ORG_ID
+  };
+}
+
 // Helper function to get Beds24 access token from refresh token
 async function getBeds24AccessToken(pool) {
   let refreshToken = null;
@@ -42354,13 +42357,9 @@ app.post('/api/admin/bookings', async (req, res) => {
           if (accessToken) {
             const beds24Response = await fetch('https://beds24.com/api/v2/bookings', {
               method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-              },
+              headers: getBeds24BookingHeaders(),
               body: JSON.stringify({
                 roomId: beds24RoomId,
-                apiSourceId: 70,
                 firstNight: check_in,
                 lastNight: new Date(new Date(check_out).getTime() - 24*60*60*1000).toISOString().split('T')[0],
                 numAdult: num_adults || 1,
@@ -42603,7 +42602,6 @@ app.put('/api/bookings/:id', async (req, res) => {
         if (accessToken) {
           const beds24Update = [{
             id: parseInt(existingBooking.beds24_booking_id),
-            apiSourceId: 70,
             status: status === 'cancelled' ? 'cancelled' : 'confirmed',
             arrival: arrival_date,
             departure: departure_date,
@@ -42621,10 +42619,7 @@ app.put('/api/bookings/:id', async (req, res) => {
           console.log('Updating Beds24 booking:', JSON.stringify(beds24Update));
 
           const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Update, {
-            headers: {
-              'token': accessToken,
-              'Content-Type': 'application/json'
-            }
+            headers: getBeds24BookingHeaders()
           });
 
           console.log('Beds24 update response:', JSON.stringify(beds24Response.data));
@@ -42669,14 +42664,10 @@ app.delete('/api/bookings/:id', async (req, res) => {
         if (accessToken) {
           const cancelResponse = await axios.post('https://beds24.com/api/v2/bookings', [{
             id: parseInt(booking.beds24_booking_id),
-            apiSourceId: 70,
             status: 'cancelled',
             allowWebhooks: true
           }], {
-            headers: {
-              'token': accessToken,
-              'Content-Type': 'application/json'
-            }
+            headers: getBeds24BookingHeaders()
           });
           console.log('Beds24 cancellation on delete:', JSON.stringify(cancelResponse.data));
         }
@@ -43005,14 +42996,10 @@ app.post('/api/bookings/:id/cancel', async (req, res) => {
           // Beds24 v2 API - POST to /bookings with status update
           const cancelResponse = await axios.post('https://beds24.com/api/v2/bookings', [{
             id: parseInt(booking.beds24_booking_id),
-            apiSourceId: 70,
             status: 'cancelled',
             allowWebhooks: true
           }], {
-            headers: {
-              'token': accessToken,
-              'Content-Type': 'application/json'
-            }
+            headers: getBeds24BookingHeaders()
           });
           console.log('Beds24 cancellation response:', JSON.stringify(cancelResponse.data));
         }
@@ -59699,7 +59686,6 @@ app.post('/api/admin/sync-payment-to-beds24', async (req, res) => {
     // Update the booking in Beds24 with the payment
     const paymentData = [{
       id: booking.beds24_booking_id,
-      apiSourceId: 70,
       payments: [{
         description: description || (payment_type === 'balance' ? 'Balance payment via Stripe' : 'Payment via Stripe'),
         amount: parseFloat(amount),
@@ -62854,7 +62840,6 @@ app.post('/api/public/book', async (req, res) => {
           const updatePayload = [{
             id: parseInt(hostvana_booking_id),
             roomId: cmData.beds24_room_id,
-            apiSourceId: 70,
             status: (function() {
               if (payment_method === 'pay_at_property' || payment_method === 'property') {
                 try {
@@ -62891,7 +62876,7 @@ app.post('/api/public/book', async (req, res) => {
           console.log('[HOSTVANA] PUT /bookings payload:', JSON.stringify(updatePayload));
 
           const updateRes = await axios.put('https://beds24.com/api/v2/bookings', updatePayload, {
-            headers: { 'token': accessToken, 'Content-Type': 'application/json' }
+            headers: getBeds24BookingHeaders()
           });
 
           console.log('[HOSTVANA] Beds24 update response:', JSON.stringify(updateRes.data));
@@ -62910,7 +62895,6 @@ app.post('/api/public/book', async (req, res) => {
         if (!beds24BookingId) {
         const beds24Booking = [{
           roomId: cmData.beds24_room_id,
-          apiSourceId: 70,
           status: (function() {
             // Check pay_property_mode - if bank_required, send as request
             if (payment_method === 'pay_at_property' || payment_method === 'property') {
@@ -62973,10 +62957,7 @@ app.post('/api/public/book', async (req, res) => {
         console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
 
         const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
-          headers: {
-            'token': accessToken,
-            'Content-Type': 'application/json'
-          }
+          headers: getBeds24BookingHeaders()
         });
 
         console.log('Beds24 response:', JSON.stringify(beds24Response.data));
@@ -84468,8 +84449,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
       const bookingData = [{
         propId: parseInt(beds24PropId),
         roomId: parseInt(beds24RoomId),
-        apiSourceId: 70,
-        status: 'inquiry',
+          status: 'inquiry',
         firstName: guestFirst,
         lastName: guestLast,
         email: email || '',
@@ -84482,7 +84462,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
       console.log(`[HOSTVANA] Creating inquiry on Beds24 V2:`, JSON.stringify(bookingData));
 
       const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, {
-        headers: { 'token': v2Token, 'Content-Type': 'application/json', 'accept': 'application/json' }
+        headers: getBeds24BookingHeaders()
       });
 
       console.log(`[HOSTVANA] Beds24 V2 booking response:`, JSON.stringify(response.data));
@@ -84495,7 +84475,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
         try {
           const msgPayload = [{ bookingId: created.id, message, source: 'guest' }];
           const msgRes = await axios.post('https://beds24.com/api/v2/bookings/messages', msgPayload, {
-            headers: { 'token': v2Token, 'Content-Type': 'application/json', 'accept': 'application/json' }
+            headers: getBeds24BookingHeaders()
           });
           console.log(`[HOSTVANA] Guest message added to booking ${created.id}:`, JSON.stringify(msgRes.data));
         } catch (msgErr) {
@@ -84526,7 +84506,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
 
       const msgPayload = [{ bookingId: parseInt(bookingId), message, source: 'guest' }];
       await axios.post('https://beds24.com/api/v2/bookings/messages', msgPayload, {
-        headers: { 'token': v2Token, 'Content-Type': 'application/json', 'accept': 'application/json' },
+        headers: getBeds24BookingHeaders(),
         timeout: 10000
       });
 
@@ -84546,7 +84526,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
       }
 
       const response = await axios.get(`https://beds24.com/api/v2/bookings/messages?bookingId=${bookingId}`, {
-        headers: { 'token': v2Token, 'accept': 'application/json' },
+        headers: getBeds24BookingHeaders(),
         timeout: 10000
       });
 
