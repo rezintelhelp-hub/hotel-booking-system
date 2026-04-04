@@ -7756,22 +7756,140 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
     
     public function impressum_shortcode($atts) {
         $title = get_option('gas_impressum_title', 'Impressum');
-        $content = get_option('gas_impressum_content', '<p>Legal disclosure information has not been configured yet.</p>');
+
+        // Read structured fields from API settings
+        $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+        $imp = array();
+        // Map from API settings (page_impressum_*) to local keys
+        foreach ($api as $k => $v) {
+            if (strpos($k, 'page_impressum_') === 0) {
+                $imp[str_replace('page_impressum_', '', $k)] = $v;
+            }
+        }
+
+        $company = $imp['company_name'] ?? '';
+        $entity = $imp['legal_entity'] ?? '';
+        $address = $imp['address'] ?? '';
+        $represented = $imp['represented_by'] ?? '';
+        $phone = $imp['phone'] ?? '';
+        $email = $imp['email'] ?? '';
+        $tax = $imp['tax_number'] ?? '';
+        $vat = $imp['vat_id'] ?? '';
+        $register = $imp['register'] ?? '';
+        $authority = $imp['authority'] ?? '';
+        $responsible = $imp['content_responsible'] ?? '';
+        $credits = $imp['credits'] ?? '';
+        $web_credits = $imp['website_credits'] ?? '';
+        $disc_content = !isset($imp['disclaimer_content']) || $imp['disclaimer_content'];
+        $disc_links = !isset($imp['disclaimer_links']) || $imp['disclaimer_links'];
+        $disc_copyright = !isset($imp['disclaimer_copyright']) || $imp['disclaimer_copyright'];
 
         ob_start();
         ?>
         <div class="gas-page gas-impressum-page" translate="no">
             <style>
                 .gas-page { max-width: 800px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
-                .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
-                .gas-page-content { font-size: 1rem; line-height: 1.8; color: #475569; }
-                .gas-page-content h2, .gas-page-content h3 { color: #1e293b; margin-top: 32px; margin-bottom: 16px; }
-                .gas-page-content p { margin-bottom: 16px; }
-                .gas-page-content ul, .gas-page-content ol { margin-bottom: 16px; padding-left: 24px; }
-                .gas-page-content li { margin-bottom: 8px; }
+                .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 32px; font-family: var(--gas-heading-font, inherit); }
+                .gas-impressum-section { margin-bottom: 28px; }
+                .gas-impressum-section h3 { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 8px; }
+                .gas-impressum-section p { font-size: 1rem; line-height: 1.7; color: #1e293b; margin-bottom: 4px; }
+                .gas-impressum-section a { color: #2563eb; text-decoration: none; }
+                .gas-impressum-section a:hover { text-decoration: underline; }
+                .gas-impressum-divider { height: 1px; background: #e2e8f0; margin: 32px 0; }
+                .gas-impressum-disclaimer h3 { font-size: 1rem; font-weight: 700; color: #1e293b; margin: 24px 0 8px; }
+                .gas-impressum-disclaimer p { font-size: 0.9rem; line-height: 1.8; color: #475569; margin-bottom: 12px; }
             </style>
             <h1 class="gas-page-title"><?php echo esc_html($title); ?></h1>
-            <div class="gas-page-content"><?php echo wp_kses_post($content); ?></div>
+
+            <?php if ($company || $entity || $address) : ?>
+            <div class="gas-impressum-section">
+                <h3>Anschrift und Betreiber</h3>
+                <?php if ($company) : ?><p><strong><?php echo esc_html($company); ?></strong></p><?php endif; ?>
+                <?php if ($entity) : ?><p><?php echo esc_html($entity); ?></p><?php endif; ?>
+                <?php if ($address) : ?><p><?php echo nl2br(esc_html($address)); ?></p><?php endif; ?>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($represented) : ?>
+            <div class="gas-impressum-section">
+                <h3>Vertreten durch</h3>
+                <p><?php echo esc_html($represented); ?></p>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($phone || $email) : ?>
+            <div class="gas-impressum-section">
+                <h3>Kontakt</h3>
+                <?php if ($phone) : ?><p>Telefon: <?php echo esc_html($phone); ?></p><?php endif; ?>
+                <?php if ($email) : ?><p>E-Mail: <a href="mailto:<?php echo esc_attr($email); ?>"><?php echo esc_html($email); ?></a></p><?php endif; ?>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($tax || $vat) : ?>
+            <div class="gas-impressum-section">
+                <h3>Steuernummer</h3>
+                <?php if ($tax) : ?><p><?php echo esc_html($tax); ?></p><?php endif; ?>
+                <?php if ($vat) : ?><p>USt-IdNr.: <?php echo esc_html($vat); ?></p><?php endif; ?>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($register) : ?>
+            <div class="gas-impressum-section">
+                <h3>Handelsregister</h3>
+                <p><?php echo esc_html($register); ?></p>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($authority) : ?>
+            <div class="gas-impressum-section">
+                <h3>Aufsichtsbehörde</h3>
+                <p><?php echo esc_html($authority); ?></p>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($responsible) : ?>
+            <div class="gas-impressum-section">
+                <h3>Verantwortlich für den Inhalt</h3>
+                <p>nach § 55 Abs. 2 RStV</p>
+                <p><?php echo esc_html($responsible); ?></p>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($credits) : ?>
+            <div class="gas-impressum-section">
+                <h3>Quellenangaben zu Bildern und Texten</h3>
+                <p><?php echo nl2br(esc_html($credits)); ?></p>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($web_credits) : ?>
+            <div class="gas-impressum-section">
+                <h3>Konzeption und Umsetzung der Website</h3>
+                <p><?php echo nl2br(esc_html($web_credits)); ?></p>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($disc_content || $disc_links || $disc_copyright) : ?>
+            <div class="gas-impressum-divider"></div>
+            <div class="gas-impressum-disclaimer">
+                <h2 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin-bottom: 16px;">Disclaimer</h2>
+
+                <?php if ($disc_content) : ?>
+                <h3>Haftung für Inhalte</h3>
+                <p>Als Diensteanbieter sind wir gemäß § 7 Abs.1 TMG für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich. Nach §§ 8 bis 10 TMG sind wir als Diensteanbieter jedoch nicht verpflichtet, übermittelte oder gespeicherte fremde Informationen zu überwachen oder nach Umständen zu forschen, die auf eine rechtswidrige Tätigkeit hinweisen. Verpflichtungen zur Entfernung oder Sperrung der Nutzung von Informationen nach den allgemeinen Gesetzen bleiben hiervon unberührt. Eine diesbezügliche Haftung ist jedoch erst ab dem Zeitpunkt der Kenntnis einer konkreten Rechtsverletzung möglich. Bei Bekanntwerden von entsprechenden Rechtsverletzungen werden wir diese Inhalte umgehend entfernen.</p>
+                <?php endif; ?>
+
+                <?php if ($disc_links) : ?>
+                <h3>Haftung für Links</h3>
+                <p>Unser Angebot enthält Links zu externen Webseiten Dritter, auf deren Inhalte wir keinen Einfluss haben. Deshalb können wir für diese fremden Inhalte auch keine Gewähr übernehmen. Für die Inhalte der verlinkten Seiten ist stets der jeweilige Anbieter oder Betreiber der Seiten verantwortlich. Die verlinkten Seiten wurden zum Zeitpunkt der Verlinkung auf mögliche Rechtsverstöße überprüft. Rechtswidrige Inhalte waren zum Zeitpunkt der Verlinkung nicht erkennbar. Eine permanente inhaltliche Kontrolle der verlinkten Seiten ist jedoch ohne konkrete Anhaltspunkte einer Rechtsverletzung nicht zumutbar. Bei Bekanntwerden von Rechtsverletzungen werden wir derartige Links umgehend entfernen.</p>
+                <?php endif; ?>
+
+                <?php if ($disc_copyright) : ?>
+                <h3>Urheberrecht</h3>
+                <p>Die durch die Seitenbetreiber erstellten Inhalte und Werke auf diesen Seiten unterliegen dem deutschen Urheberrecht. Die Vervielfältigung, Bearbeitung, Verbreitung und jede Art der Verwertung außerhalb der Grenzen des Urheberrechtes bedürfen der schriftlichen Zustimmung des jeweiligen Autors bzw. Erstellers. Downloads und Kopien dieser Seite sind nur für den privaten, nicht kommerziellen Gebrauch gestattet. Soweit die Inhalte auf dieser Seite nicht vom Betreiber erstellt wurden, werden die Urheberrechte Dritter beachtet. Insbesondere werden Inhalte Dritter als solche gekennzeichnet. Sollten Sie trotzdem auf eine Urheberrechtsverletzung aufmerksam werden, bitten wir um einen entsprechenden Hinweis. Bei Bekanntwerden von Rechtsverletzungen werden wir derartige Inhalte umgehend entfernen.</p>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
         </div>
         <?php
         return ob_get_clean();
