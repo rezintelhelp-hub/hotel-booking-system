@@ -2420,6 +2420,7 @@ function developer_get_api_settings() {
     $website_page_reviews = $website['page-reviews'] ?? array();
     $website_page_terms = $website['page-terms'] ?? array();
     $website_page_privacy = $website['page-privacy'] ?? array();
+    $website_page_impressum = $website['page-impressum'] ?? array();
     $website_footer = $website['footer'] ?? array();
     $website_currency = $website['currency'] ?? array();
 
@@ -2599,6 +2600,8 @@ function developer_get_api_settings() {
 
         // Privacy Page - MULTILINGUAL
         'page_privacy_menu_title' => developer_get_ml_value($website_page_privacy, 'menu_title', $lang) ?: 'Privacy',
+        'page_impressum_menu_title' => developer_get_ml_value($website_page_impressum, 'menu_title', $lang) ?: 'Impressum',
+        'page_impressum_enabled' => $website_page_impressum['enabled'] ?? false,
         'page_privacy_enabled' => true, // Always in footer
         'page_privacy_use_external' => $website_page_privacy['use-external'] ?? false,
         'page_privacy_external_url' => $website_page_privacy['external-url'] ?? '',

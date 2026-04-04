@@ -96,6 +96,10 @@ $legal_links = array(
     array('label' => $api_settings['page_terms_menu_title'] ?? 'Terms & Conditions', 'url' => $terms_url, 'external' => str_starts_with($terms_url, 'http')),
     array('label' => $api_settings['page_privacy_menu_title'] ?? 'Privacy Policy', 'url' => $privacy_url, 'external' => str_starts_with($privacy_url, 'http'))
 );
+// Add Impressum link if enabled
+if (!empty($api_settings['page_impressum_enabled'])) {
+    $legal_links[] = array('label' => $api_settings['page_impressum_menu_title'] ?? 'Impressum', 'url' => '/impressum/', 'external' => false);
+}
 
 // Check if attractions exist
 $has_attractions = $use_api ? ($site_config['features']['has_attractions'] ?? false) : false;

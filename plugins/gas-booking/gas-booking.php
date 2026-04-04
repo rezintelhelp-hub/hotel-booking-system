@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.6
+ * Version: 3.6.7
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -175,6 +175,7 @@ class GAS_Booking {
         add_shortcode('gas_contact', array($this, 'contact_shortcode'));
         add_shortcode('gas_terms', array($this, 'terms_shortcode'));
         add_shortcode('gas_privacy', array($this, 'privacy_shortcode'));
+        add_shortcode('gas_impressum', array($this, 'impressum_shortcode'));
         add_shortcode('gas_gallery', array($this, 'gallery_shortcode'));
         add_shortcode('gas_dining', array($this, 'dining_shortcode'));
         if (!shortcode_exists('gas_properties')) {
@@ -215,6 +216,7 @@ class GAS_Booking {
             'contact' => array('title' => 'Contact', 'content' => '[gas_contact]'),
             'terms' => array('title' => 'Terms & Conditions', 'content' => '[gas_terms]'),
             'privacy' => array('title' => 'Privacy Policy', 'content' => '[gas_privacy]'),
+            'impressum' => array('title' => 'Impressum', 'content' => '[gas_impressum]'),
         );
         
         foreach ($pages as $slug => $page_data) {
@@ -587,6 +589,14 @@ class GAS_Booking {
                 'shortcode' => '[gas_privacy]',
                 'menu_order' => 95
             ),
+            'impressum' => array(
+                'option_enabled' => 'gas_page_impressum_enabled',
+                'option_title' => 'gas_impressum_title',
+                'default_title' => 'Impressum',
+                'slug' => 'impressum',
+                'shortcode' => '[gas_impressum]',
+                'menu_order' => 96
+            ),
         );
         
         $menu_id = $this->get_primary_menu_id();
@@ -952,6 +962,7 @@ class GAS_Booking {
         register_setting('gas_booking_pages', 'gas_page_properties_enabled');
         register_setting('gas_booking_pages', 'gas_page_terms_enabled');
         register_setting('gas_booking_pages', 'gas_page_privacy_enabled');
+        register_setting('gas_booking_pages', 'gas_page_impressum_enabled');
         
         // Pages settings group - Content
         register_setting('gas_booking_pages', 'gas_about_title');
@@ -974,6 +985,8 @@ class GAS_Booking {
         register_setting('gas_booking_pages', 'gas_terms_content');
         register_setting('gas_booking_pages', 'gas_privacy_title');
         register_setting('gas_booking_pages', 'gas_privacy_content');
+        register_setting('gas_booking_pages', 'gas_impressum_title');
+        register_setting('gas_booking_pages', 'gas_impressum_content');
         
         // Footer settings group
         register_setting('gas_booking_footer', 'gas_footer_business_name');
@@ -1991,7 +2004,8 @@ class GAS_Booking {
                                     'attractions' => 'page_attractions',
                                     'dining' => 'page_dining',
                                     'terms' => 'page_terms',
-                                    'privacy' => 'page_privacy'
+                                    'privacy' => 'page_privacy',
+                                    'impressum' => 'page_impressum'
                                 );
                                 
                                 $page_seo_count = 0;
@@ -7740,6 +7754,29 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         return ob_get_clean();
     }
     
+    public function impressum_shortcode($atts) {
+        $title = get_option('gas_impressum_title', 'Impressum');
+        $content = get_option('gas_impressum_content', '<p>Legal disclosure information has not been configured yet.</p>');
+
+        ob_start();
+        ?>
+        <div class="gas-page gas-impressum-page" translate="no">
+            <style>
+                .gas-page { max-width: 800px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
+                .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
+                .gas-page-content { font-size: 1rem; line-height: 1.8; color: #475569; }
+                .gas-page-content h2, .gas-page-content h3 { color: #1e293b; margin-top: 32px; margin-bottom: 16px; }
+                .gas-page-content p { margin-bottom: 16px; }
+                .gas-page-content ul, .gas-page-content ol { margin-bottom: 16px; padding-left: 24px; }
+                .gas-page-content li { margin-bottom: 8px; }
+            </style>
+            <h1 class="gas-page-title"><?php echo esc_html($title); ?></h1>
+            <div class="gas-page-content"><?php echo wp_kses_post($content); ?></div>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
     public function gallery_shortcode($atts) {
         $title = get_option('gas_gallery_title', 'Gallery');
         $content = get_option('gas_gallery_content', '<p>Browse photos of our beautiful property.</p>');
