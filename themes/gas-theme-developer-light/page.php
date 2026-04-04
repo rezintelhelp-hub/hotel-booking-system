@@ -148,11 +148,9 @@ $hero_min_height = $page_hero_image ? '350px' : '250px';
 
 // Check hero enabled toggle for pages that support it — default ON when never set
 $hero_enabled = true;
-if ($special_page === 'about') {
-    $hero_val = $api['page_about_hero_enabled'] ?? true;
-    $hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
-} elseif ($special_page === 'contact') {
-    $hero_val = $api['page_contact_hero_enabled'] ?? true;
+$hero_key = 'page_' . str_replace('-', '_', $special_page) . '_hero_enabled';
+if (!empty($special_page) && isset($api[$hero_key])) {
+    $hero_val = $api[$hero_key];
     $hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
 }
 ?>
