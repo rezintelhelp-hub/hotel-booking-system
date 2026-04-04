@@ -83507,6 +83507,71 @@ app.post('/api/inbox/reply/email', async (req, res) => {
   }
 });
 
+// ============================================================
+// TEST: Beds24 V1 channel partner booking creation
+// Isolated test endpoint — does NOT affect any live flows
+// DELETE THIS after testing is complete
+// ============================================================
+app.post('/api/test/beds24-v1-booking', async (req, res) => {
+  try {
+    const { propKey, roomId } = req.body;
+    if (!propKey) return res.json({ success: false, error: 'propKey required' });
+
+    const user = process.env.BEDS24_MARKETPLACE_USER;
+    const pass = process.env.BEDS24_MARKETPLACE_PASS;
+    const apiKey = process.env.BEDS24_MASTER_API_KEY || process.env.BEDS24_MARKETPLACE_APIKEY;
+
+    if (!user || !pass || !apiKey) {
+      return res.json({ success: false, error: 'BEDS24_MARKETPLACE env vars not set' });
+    }
+
+    // Build a test inquiry booking — minimal, won't block dates
+    const bookingData = {
+      authentication: { apiKey, propKey: String(propKey) },
+      groupArray: [{
+        roomId: roomId ? parseInt(roomId) : undefined,
+        status: 0,  // 0 = inquiry in V1
+        guestFirstName: 'GAS',
+        guestName: 'Test Booking',
+        guestEmail: 'test@gas.travel',
+        firstNight: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        lastNight: new Date(Date.now() + 31 * 86400000).toISOString().split('T')[0],
+        numAdult: 1,
+        referer: 'GAS V1 Test',
+        notes: 'TEST — please delete. Testing V1 channel partner endpoint.'
+      }]
+    };
+
+    console.log('[TEST V1] Calling rezintel.net/setBooking with propKey:', propKey);
+    console.log('[TEST V1] Payload:', JSON.stringify(bookingData));
+
+    const response = await axios.post(
+      'https://api.beds24.com/rezintel.net/setBooking',
+      `json=${encodeURIComponent(JSON.stringify(bookingData))}`,
+      {
+        auth: { username: user, password: pass },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 30000
+      }
+    );
+
+    console.log('[TEST V1] Response:', JSON.stringify(response.data));
+
+    res.json({
+      success: true,
+      beds24_response: response.data,
+      message: 'V1 test booking created. Check Beds24 for apiSourceId. DELETE this booking after testing.'
+    });
+  } catch (error) {
+    console.error('[TEST V1] Error:', error.response?.data || error.message);
+    res.json({
+      success: false,
+      error: error.message,
+      beds24_error: error.response?.data || null
+    });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('🚀 Server running on port ' + PORT);
   console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
