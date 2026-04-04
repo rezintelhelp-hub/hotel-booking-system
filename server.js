@@ -12604,6 +12604,22 @@ app.post('/api/admin/accounts/:id/update-role', async (req, res) => {
   }
 });
 
+// Toggle account API status (active/paused)
+app.put('/api/admin/accounts/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!['active', 'paused'].includes(status)) {
+      return res.json({ success: false, error: 'Status must be active or paused' });
+    }
+    await pool.query('UPDATE accounts SET status = $1, updated_at = NOW() WHERE id = $2', [status, id]);
+    console.log(`Account ${id} API status changed to ${status}`);
+    res.json({ success: true, status });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Delete account (admin only)
 app.delete('/api/admin/accounts/:id', async (req, res) => {
   try {
