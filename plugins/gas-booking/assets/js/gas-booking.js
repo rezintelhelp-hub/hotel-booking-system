@@ -1,4 +1,11 @@
 /**
+ * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
+ * All rights reserved. Proprietary software — licensed for GAS platform use only.
+ * Unauthorized copying, redistribution, or deployment prohibited.
+ * Contact: steve@gas.travel | https://gas.travel
+ */
+
+/**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
  * @version 3.6.7
  */

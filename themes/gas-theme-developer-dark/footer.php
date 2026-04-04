@@ -1,6 +1,21 @@
 </main>
 
 <?php
+/**
+ * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
+ * All rights reserved.
+ *
+ * This software is proprietary and licensed exclusively for use on
+ * GAS-hosted infrastructure. Copying, redistribution, modification,
+ * reverse-engineering, or deployment on non-GAS servers is strictly
+ * prohibited without prior written consent from GAS.
+ *
+ * Unauthorized use may result in legal action under applicable
+ * intellectual property and copyright laws.
+ *
+ * Contact: steve@gas.travel | https://gas.travel
+ */
+
 // Get site configuration from GAS API
 $site_config = null;
 $gas_api_url = get_option('gas_api_url', '');
