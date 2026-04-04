@@ -68959,19 +68959,16 @@ async function getPropertyContextForAI(pool, { account_id, property_id }) {
   };
 
   try {
-    // 1. Property basics
-    const propQuery = property_id
-      ? pool.query('SELECT id, name, address, city, state, country, district, property_type, description, star_rating, contact_email, contact_phone FROM properties WHERE id = $1', [property_id])
-      : account_id
-        ? pool.query('SELECT id, name, address, city, state, country, district, property_type, description, star_rating, contact_email, contact_phone FROM properties WHERE account_id = $1 ORDER BY id LIMIT 1', [account_id])
-        : null;
-
+    // 1. Property basics — for multi-property accounts, use account name as brand
+    let allPropertyIds = [];
     let propId = null;
-    if (propQuery) {
-      const propResult = await propQuery;
+
+    if (property_id) {
+      const propResult = await pool.query('SELECT id, name, address, city, state, country, district, property_type, description, star_rating, contact_email, contact_phone FROM properties WHERE id = $1', [property_id]);
       if (propResult.rows[0]) {
         const p = propResult.rows[0];
         propId = p.id;
+        allPropertyIds = [p.id];
         ctx.propertyName = p.name || '';
         ctx.address = p.address || '';
         ctx.location = [p.city, p.state, p.country].filter(Boolean).join(', ');
@@ -68981,13 +68978,47 @@ async function getPropertyContextForAI(pool, { account_id, property_id }) {
         ctx.contactEmail = p.contact_email || '';
         ctx.contactPhone = p.contact_phone || '';
       }
+    } else if (account_id) {
+      // Get ALL properties for the account
+      const allProps = await pool.query(
+        'SELECT id, name, address, city, state, country, district, property_type, description, star_rating, contact_email, contact_phone FROM properties WHERE account_id = $1 ORDER BY id',
+        [account_id]
+      );
+      allPropertyIds = allProps.rows.map(p => p.id);
+
+      if (allProps.rows.length > 0) {
+        propId = allProps.rows[0].id;
+        // Use account name as brand for multi-property accounts
+        if (allProps.rows.length > 1) {
+          const accResult = await pool.query('SELECT name FROM accounts WHERE id = $1', [account_id]);
+          ctx.propertyName = accResult.rows[0]?.name || allProps.rows[0].name || '';
+        } else {
+          ctx.propertyName = allProps.rows[0].name || '';
+        }
+        // Collect unique locations across all properties
+        const locations = new Set();
+        allProps.rows.forEach(p => {
+          const loc = [p.city, p.country].filter(Boolean).join(', ');
+          if (loc) locations.add(loc);
+        });
+        ctx.location = [...locations].join(' & ');
+        ctx.address = allProps.rows[0].address || '';
+        ctx.propertyType = allProps.rows[0].property_type || 'accommodation';
+        // Combine descriptions
+        const descriptions = allProps.rows.map(p => p.description).filter(Boolean);
+        ctx.description = descriptions.length > 0 ? descriptions[0].substring(0, 500) : '';
+        ctx.starRating = allProps.rows[0].star_rating;
+        ctx.contactEmail = allProps.rows.find(p => p.contact_email)?.contact_email || '';
+        ctx.contactPhone = allProps.rows.find(p => p.contact_phone)?.contact_phone || '';
+      }
     }
     if (!propId) return ctx;
 
-    // 2. Rooms — names, capacity, pricing
+    // 2. Rooms — names, capacity, pricing (from all properties in account)
+    const propIdsForRooms = allPropertyIds.length > 0 ? allPropertyIds : [propId];
     const rooms = await pool.query(
-      "SELECT name, display_name, max_guests, num_bedrooms, num_bathrooms, base_price, currency, short_description FROM bookable_units WHERE property_id = $1 AND status != 'deleted' ORDER BY id LIMIT 15",
-      [propId]
+      "SELECT name, display_name, max_guests, num_bedrooms, num_bathrooms, base_price, currency, short_description FROM bookable_units WHERE property_id = ANY($1::int[]) AND status != 'deleted' ORDER BY id LIMIT 15",
+      [propIdsForRooms]
     );
     ctx.rooms = rooms.rows.map(r => {
       let displayName = r.name;
@@ -69018,13 +69049,13 @@ async function getPropertyContextForAI(pool, { account_id, property_id }) {
       ctx.priceRange = min === max ? `${sym}${min}/night` : `${sym}${min}–${sym}${max}/night`;
     }
 
-    // 3. Amenities
+    // 3. Amenities (across all properties)
     const amenities = await pool.query(
-      `SELECT ma.amenity_name, ma.category FROM master_amenities ma
+      `SELECT DISTINCT ma.amenity_name, ma.category FROM master_amenities ma
        JOIN property_amenities pa ON ma.id = pa.amenity_id
-       WHERE pa.property_id = $1 AND ma.is_active = true
+       WHERE pa.property_id = ANY($1::int[]) AND ma.is_active = true
        ORDER BY ma.category, ma.amenity_name LIMIT 30`,
-      [propId]
+      [propIdsForRooms]
     );
     ctx.amenities = amenities.rows.map(a => {
       const name = typeof a.amenity_name === 'object' ? (a.amenity_name.en || Object.values(a.amenity_name)[0]) : a.amenity_name;
@@ -69032,10 +69063,10 @@ async function getPropertyContextForAI(pool, { account_id, property_id }) {
     });
     ctx.topAmenities = ctx.amenities.slice(0, 12).map(a => a.name).join(', ');
 
-    // 4. Terms — check-in/out, cancellation
+    // 4. Terms — check-in/out, cancellation (first property that has them)
     const terms = await pool.query(
-      'SELECT checkin_from, checkout_by, check_in_instructions, check_out_instructions, cancellation_policy FROM property_terms WHERE property_id = $1',
-      [propId]
+      'SELECT checkin_from, checkout_by, check_in_instructions, check_out_instructions, cancellation_policy FROM property_terms WHERE property_id = ANY($1::int[]) LIMIT 1',
+      [propIdsForRooms]
     );
     if (terms.rows[0]) {
       ctx.checkinFrom = terms.rows[0].checkin_from || '';
@@ -69045,10 +69076,10 @@ async function getPropertyContextForAI(pool, { account_id, property_id }) {
       ctx.cancellationPolicy = (terms.rows[0].cancellation_policy || '').substring(0, 300);
     }
 
-    // 5. Reviews summary
+    // 5. Reviews summary (across all properties)
     const reviews = await pool.query(
-      'SELECT rating, title, comment FROM reviews WHERE property_id = $1 AND is_public = true ORDER BY review_date DESC LIMIT 10',
-      [propId]
+      'SELECT rating, title, comment FROM reviews WHERE property_id = ANY($1::int[]) AND is_public = true ORDER BY review_date DESC LIMIT 10',
+      [propIdsForRooms]
     );
     ctx.reviewCount = reviews.rows.length;
     if (reviews.rows.length > 0) {
@@ -69057,17 +69088,17 @@ async function getPropertyContextForAI(pool, { account_id, property_id }) {
       ctx.reviewHighlights = reviews.rows.filter(r => r.title || r.comment).slice(0, 3).map(r => (r.title || r.comment || '').substring(0, 100));
     }
 
-    // 6. Attractions
+    // 6. Attractions (across all properties)
     const attractions = await pool.query(
-      "SELECT name, category, distance_text FROM attractions WHERE property_id = $1 AND is_published = true ORDER BY display_order LIMIT 10",
-      [propId]
+      "SELECT DISTINCT ON (name) name, category, distance_text FROM attractions WHERE property_id = ANY($1::int[]) AND is_published = true ORDER BY name, display_order LIMIT 10",
+      [propIdsForRooms]
     );
     ctx.attractions = attractions.rows.map(a => ({ name: a.name, category: a.category, distance: a.distance_text }));
 
-    // 7. Blog topics
+    // 7. Blog topics (across all properties + account-level)
     const blogs = await pool.query(
-      "SELECT title, category FROM blog_posts WHERE property_id = $1 AND is_published = true ORDER BY published_at DESC LIMIT 5",
-      [propId]
+      "SELECT title, category FROM blog_posts WHERE (property_id = ANY($1::int[]) OR client_id = $2) AND is_published = true ORDER BY published_at DESC LIMIT 5",
+      [propIdsForRooms, account_id || 0]
     );
     ctx.blogTopics = blogs.rows.map(b => b.title);
 
