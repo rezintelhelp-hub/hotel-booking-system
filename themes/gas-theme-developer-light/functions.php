@@ -2634,6 +2634,8 @@ function developer_get_api_settings() {
         'page_privacy_menu_title' => developer_get_ml_value($website_page_privacy, 'menu_title', $lang) ?: 'Privacy',
         'page_impressum_menu_title' => developer_get_ml_value($website_page_impressum, 'menu_title', $lang) ?: 'Impressum',
         'page_impressum_enabled' => $website_page_impressum['enabled'] ?? false,
+        'page_impressum_source' => $website_page_impressum['source'] ?? 'structured',
+        'page_impressum_content' => developer_get_ml_value($website_page_impressum, 'content', $lang) ?: '',
         'page_impressum_company_name' => $website_page_impressum['company-name'] ?? '',
         'page_impressum_legal_entity' => $website_page_impressum['legal-entity'] ?? '',
         'page_impressum_address' => $website_page_impressum['address'] ?? '',

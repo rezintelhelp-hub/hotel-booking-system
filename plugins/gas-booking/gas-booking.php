@@ -7757,10 +7757,38 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
     public function impressum_shortcode($atts) {
         $title = get_option('gas_impressum_title', 'Impressum');
 
-        // Read structured fields from API settings
+        // Read from API settings
         $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+        $source = $api['page_impressum_source'] ?? 'structured';
+
+        // Custom content mode — render the user's own HTML
+        if ($source === 'custom') {
+            $custom_content = $api['page_impressum_content'] ?? '';
+            if (!empty($custom_content)) {
+                ob_start();
+                ?>
+                <div class="gas-page gas-impressum-page" translate="no">
+                    <style>
+                        .gas-page { max-width: 800px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
+                        .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 32px; font-family: var(--gas-heading-font, inherit); }
+                        .gas-page-content { font-size: 1rem; line-height: 1.8; color: #475569; }
+                        .gas-page-content h2 { font-size: 1.5rem; color: #1e293b; margin: 2rem 0 1rem; font-weight: 700; }
+                        .gas-page-content h3 { font-size: 1.2rem; color: #1e293b; margin: 1.5rem 0 0.75rem; font-weight: 600; }
+                        .gas-page-content p { margin-bottom: 1rem; }
+                        .gas-page-content hr { border: none; border-top: 1px solid #e2e8f0; margin: 2.5rem 0; }
+                        .gas-page-content a { color: #2563eb; text-decoration: none; }
+                        .gas-page-content a:hover { text-decoration: underline; }
+                    </style>
+                    <h1 class="gas-page-title"><?php echo esc_html($title); ?></h1>
+                    <div class="gas-page-content"><?php echo wp_kses_post($custom_content); ?></div>
+                </div>
+                <?php
+                return ob_get_clean();
+            }
+        }
+
+        // Structured fields mode
         $imp = array();
-        // Map from API settings (page_impressum_*) to local keys
         foreach ($api as $k => $v) {
             if (strpos($k, 'page_impressum_') === 0) {
                 $imp[str_replace('page_impressum_', '', $k)] = $v;
