@@ -18,6 +18,12 @@ if (in_array($page_slug_early, array('privacy', 'privacy-policy'))) {
     return;
 }
 
+// Impressum page — delegate to dedicated template before get_header()
+if (in_array($page_slug_early, array('impressum', 'legal-disclosure', 'legal-notice'))) {
+    require get_template_directory() . '/template-impressum.php';
+    return;
+}
+
 get_header();
 
 // Auto-detect page type by slug
