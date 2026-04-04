@@ -68941,6 +68941,194 @@ app.get('/api/admin/content-ideas', async (req, res) => {
     }
 });
 
+// ============================================================
+// Shared helper: pull rich property context for AI prompts
+// ============================================================
+async function getPropertyContextForAI(pool, { account_id, property_id }) {
+  const ctx = {
+    propertyName: '', location: '', address: '', propertyType: '',
+    description: '', starRating: null,
+    rooms: [], amenities: [], topAmenities: '',
+    checkinFrom: '', checkoutBy: '', checkinInstructions: '', checkoutInstructions: '',
+    cancellationPolicy: '',
+    contactEmail: '', contactPhone: '',
+    attractions: [],
+    reviewCount: 0, avgRating: null, reviewHighlights: [],
+    blogTopics: [],
+    priceRange: ''
+  };
+
+  try {
+    // 1. Property basics
+    const propQuery = property_id
+      ? pool.query('SELECT id, name, address, city, state, country, district, property_type, description, star_rating, contact_email, contact_phone FROM properties WHERE id = $1', [property_id])
+      : account_id
+        ? pool.query('SELECT id, name, address, city, state, country, district, property_type, description, star_rating, contact_email, contact_phone FROM properties WHERE account_id = $1 ORDER BY id LIMIT 1', [account_id])
+        : null;
+
+    let propId = null;
+    if (propQuery) {
+      const propResult = await propQuery;
+      if (propResult.rows[0]) {
+        const p = propResult.rows[0];
+        propId = p.id;
+        ctx.propertyName = p.name || '';
+        ctx.address = p.address || '';
+        ctx.location = [p.city, p.state, p.country].filter(Boolean).join(', ');
+        ctx.propertyType = p.property_type || 'accommodation';
+        ctx.description = (p.description || '').substring(0, 500);
+        ctx.starRating = p.star_rating;
+        ctx.contactEmail = p.contact_email || '';
+        ctx.contactPhone = p.contact_phone || '';
+      }
+    }
+    if (!propId) return ctx;
+
+    // 2. Rooms — names, capacity, pricing
+    const rooms = await pool.query(
+      "SELECT name, display_name, max_guests, num_bedrooms, num_bathrooms, base_price, currency, short_description FROM bookable_units WHERE property_id = $1 AND status != 'deleted' ORDER BY id LIMIT 15",
+      [propId]
+    );
+    ctx.rooms = rooms.rows.map(r => {
+      let displayName = r.name;
+      if (r.display_name) {
+        try {
+          const dn = typeof r.display_name === 'string' ? JSON.parse(r.display_name) : r.display_name;
+          displayName = dn.en || Object.values(dn)[0] || r.name;
+        } catch(e) {}
+      }
+      return {
+        name: displayName,
+        guests: r.max_guests,
+        bedrooms: r.num_bedrooms,
+        bathrooms: r.num_bathrooms,
+        price: r.base_price ? parseFloat(r.base_price) : null,
+        currency: r.currency || 'EUR',
+        description: (r.short_description || '').substring(0, 150)
+      };
+    });
+
+    // Price range
+    const prices = ctx.rooms.map(r => r.price).filter(Boolean);
+    if (prices.length > 0) {
+      const curr = ctx.rooms[0]?.currency || 'EUR';
+      const sym = { EUR: '€', GBP: '£', USD: '$', CHF: 'CHF ' }[curr] || curr + ' ';
+      const min = Math.min(...prices);
+      const max = Math.max(...prices);
+      ctx.priceRange = min === max ? `${sym}${min}/night` : `${sym}${min}–${sym}${max}/night`;
+    }
+
+    // 3. Amenities
+    const amenities = await pool.query(
+      `SELECT ma.amenity_name, ma.category FROM master_amenities ma
+       JOIN property_amenities pa ON ma.id = pa.amenity_id
+       WHERE pa.property_id = $1 AND ma.is_active = true
+       ORDER BY ma.category, ma.amenity_name LIMIT 30`,
+      [propId]
+    );
+    ctx.amenities = amenities.rows.map(a => {
+      const name = typeof a.amenity_name === 'object' ? (a.amenity_name.en || Object.values(a.amenity_name)[0]) : a.amenity_name;
+      return { name, category: a.category };
+    });
+    ctx.topAmenities = ctx.amenities.slice(0, 12).map(a => a.name).join(', ');
+
+    // 4. Terms — check-in/out, cancellation
+    const terms = await pool.query(
+      'SELECT checkin_from, checkout_by, check_in_instructions, check_out_instructions, cancellation_policy FROM property_terms WHERE property_id = $1',
+      [propId]
+    );
+    if (terms.rows[0]) {
+      ctx.checkinFrom = terms.rows[0].checkin_from || '';
+      ctx.checkoutBy = terms.rows[0].checkout_by || '';
+      ctx.checkinInstructions = (terms.rows[0].check_in_instructions || '').substring(0, 200);
+      ctx.checkoutInstructions = (terms.rows[0].check_out_instructions || '').substring(0, 200);
+      ctx.cancellationPolicy = (terms.rows[0].cancellation_policy || '').substring(0, 300);
+    }
+
+    // 5. Reviews summary
+    const reviews = await pool.query(
+      'SELECT rating, title, comment FROM reviews WHERE property_id = $1 AND is_public = true ORDER BY review_date DESC LIMIT 10',
+      [propId]
+    );
+    ctx.reviewCount = reviews.rows.length;
+    if (reviews.rows.length > 0) {
+      const ratings = reviews.rows.map(r => parseFloat(r.rating)).filter(r => !isNaN(r));
+      ctx.avgRating = ratings.length > 0 ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : null;
+      ctx.reviewHighlights = reviews.rows.filter(r => r.title || r.comment).slice(0, 3).map(r => (r.title || r.comment || '').substring(0, 100));
+    }
+
+    // 6. Attractions
+    const attractions = await pool.query(
+      "SELECT name, category, distance_text FROM attractions WHERE property_id = $1 AND is_published = true ORDER BY display_order LIMIT 10",
+      [propId]
+    );
+    ctx.attractions = attractions.rows.map(a => ({ name: a.name, category: a.category, distance: a.distance_text }));
+
+    // 7. Blog topics
+    const blogs = await pool.query(
+      "SELECT title, category FROM blog_posts WHERE property_id = $1 AND is_published = true ORDER BY published_at DESC LIMIT 5",
+      [propId]
+    );
+    ctx.blogTopics = blogs.rows.map(b => b.title);
+
+  } catch (e) {
+    console.error('getPropertyContextForAI error:', e.message);
+  }
+  return ctx;
+}
+
+// Build a context block string for AI prompts from property data
+function buildContextBlock(ctx) {
+  let block = `PROPERTY DETAILS:
+- Name: ${ctx.propertyName}
+- Location: ${ctx.location || 'not specified'}
+- Type: ${ctx.propertyType}`;
+
+  if (ctx.address) block += `\n- Address: ${ctx.address}`;
+  if (ctx.starRating) block += `\n- Star rating: ${ctx.starRating}`;
+  if (ctx.description) block += `\n- Description: ${ctx.description}`;
+  if (ctx.priceRange) block += `\n- Price range: ${ctx.priceRange}`;
+  if (ctx.topAmenities) block += `\n- Key amenities: ${ctx.topAmenities}`;
+  if (ctx.checkinFrom) block += `\n- Check-in from: ${ctx.checkinFrom}`;
+  if (ctx.checkoutBy) block += `\n- Check-out by: ${ctx.checkoutBy}`;
+  if (ctx.cancellationPolicy) block += `\n- Cancellation policy: ${ctx.cancellationPolicy}`;
+  if (ctx.contactEmail) block += `\n- Contact email: ${ctx.contactEmail}`;
+  if (ctx.contactPhone) block += `\n- Contact phone: ${ctx.contactPhone}`;
+
+  if (ctx.rooms.length > 0) {
+    block += '\n\nROOMS/UNITS:';
+    ctx.rooms.forEach(r => {
+      let line = `- ${r.name}`;
+      if (r.guests) line += ` (up to ${r.guests} guests`;
+      if (r.bedrooms) line += `, ${r.bedrooms} bed`;
+      if (r.bathrooms) line += `, ${r.bathrooms} bath`;
+      if (r.guests) line += ')';
+      if (r.price) line += ` — from ${r.currency} ${r.price}/night`;
+      block += '\n' + line;
+    });
+  }
+
+  if (ctx.avgRating) {
+    block += `\n\nREVIEWS: ${ctx.avgRating}/5 average from ${ctx.reviewCount} reviews`;
+    if (ctx.reviewHighlights.length > 0) {
+      block += '\nRecent highlights: ' + ctx.reviewHighlights.map(h => `"${h}"`).join('; ');
+    }
+  }
+
+  if (ctx.attractions.length > 0) {
+    block += '\n\nNEARBY ATTRACTIONS:';
+    ctx.attractions.slice(0, 5).forEach(a => {
+      block += `\n- ${a.name}${a.distance ? ` (${a.distance})` : ''}${a.category ? ` [${a.category}]` : ''}`;
+    });
+  }
+
+  if (ctx.blogTopics.length > 0) {
+    block += '\n\nBLOG TOPICS: ' + ctx.blogTopics.join(', ');
+  }
+
+  return block;
+}
+
 // Generate SEO Meta Title & Description with AI
 app.post('/api/admin/generate-seo-meta', async (req, res) => {
     try {
@@ -68950,68 +69138,44 @@ app.post('/api/admin/generate-seo-meta', async (req, res) => {
             return res.json({ success: false, error: 'Page type required' });
         }
 
-        // Get PROPERTY data (not account — account address is the owner, not the property)
-        let propertyName = business_name || '';
-        let location = '';
-        let propertyType = '';
-        let propertyDescription = '';
-        let propertyAddress = '';
-        let roomNames = [];
+        const ctx = await getPropertyContextForAI(pool, { account_id, property_id });
+        if (business_name && !ctx.propertyName) ctx.propertyName = business_name;
+        const contextBlock = buildContextBlock(ctx);
 
-        const propQuery = property_id
-            ? pool.query('SELECT name, address, city, state, country, property_type, description FROM properties WHERE id = $1', [property_id])
-            : account_id
-              ? pool.query('SELECT name, address, city, state, country, property_type, description FROM properties WHERE account_id = $1 LIMIT 1', [account_id])
-              : null;
+        // Page-specific focus instructions
+        const pageFocus = {
+            'homepage': `Focus on the overall value proposition. Mention the location, property type, and key selling points (e.g. "${ctx.topAmenities || 'great amenities'}"). Include a booking CTA.`,
+            'accommodation/rooms': `Focus on the accommodation offering. Mention ${ctx.rooms.length} room${ctx.rooms.length !== 1 ? 's' : ''}/unit${ctx.rooms.length !== 1 ? 's' : ''} available${ctx.priceRange ? ` starting from ${ctx.priceRange}` : ''}. Highlight room features and capacity. CTA: "Book your stay".`,
+            'about us': `Focus on what makes this property unique. Mention the location${ctx.description ? ' and character' : ''}. CTA: "Learn more about us".`,
+            'photo gallery': `Focus on the visual experience. Mention what guests can expect to see — the rooms, surroundings, and facilities. CTA: "View our gallery".`,
+            'blog': `Focus on travel tips, local guides, and things to do${ctx.location ? ' in ' + ctx.location : ''}. Position as a local knowledge resource. CTA: "Read our latest posts".`,
+            'local attractions and things to do': `Focus on ${ctx.attractions.length > 0 ? 'the ' + ctx.attractions.length + ' attractions and activities nearby' : 'nearby attractions and activities'}. Mention specific places if available. CTA: "Explore the area".`,
+            'restaurant and dining': `Focus on the dining experience — on-site restaurant, local restaurants, food culture${ctx.location ? ' in ' + ctx.location : ''}. CTA: "Discover dining options".`,
+            'contact information': `Focus on how to get in touch and make enquiries. ${ctx.contactEmail ? 'Mention email availability. ' : ''}${ctx.contactPhone ? 'Mention phone availability. ' : ''}CTA: "Get in touch".`,
+            'terms and conditions': `Keep it simple and professional. Mention booking terms, ${ctx.cancellationPolicy ? 'cancellation policy, ' : ''}and guest responsibilities.`,
+            'privacy policy': `Keep it simple and professional. Mention data protection and guest privacy commitment.`,
+            'reviews': `Focus on guest satisfaction. ${ctx.avgRating ? 'Mention ' + ctx.avgRating + '/5 average rating. ' : ''}${ctx.reviewCount > 0 ? 'Mention ' + ctx.reviewCount + ' guest reviews. ' : ''}CTA: "See what our guests say".`,
+            'special offers': `Focus on deals and value. Mention current offers and savings available. CTA: "View special offers".`,
+            'properties': `Focus on the range of properties available. Mention ${ctx.rooms.length} properties${ctx.location ? ' in ' + ctx.location : ''}. CTA: "Browse all properties".`
+        };
 
-        if (propQuery) {
-            const propResult = await propQuery;
-            if (propResult.rows[0]) {
-                const prop = propResult.rows[0];
-                propertyName = prop.name || business_name || 'our property';
-                propertyAddress = prop.address || '';
-                if (prop.city) location = prop.city;
-                if (prop.state) location += (location ? ', ' : '') + prop.state;
-                if (prop.country) location += (location ? ', ' : '') + prop.country;
-                propertyType = prop.property_type || '';
-                propertyDescription = prop.description || '';
-            }
-        }
+        const focus = pageFocus[page_type] || `Focus on the ${page_type} content. Be specific to this property.`;
 
-        // Get room names for context
-        const pid = property_id || (propQuery ? (await pool.query('SELECT id FROM properties WHERE account_id = $1 LIMIT 1', [account_id])).rows[0]?.id : null);
-        if (pid) {
-            const roomsResult = await pool.query(
-                "SELECT name, display_name FROM bookable_units WHERE property_id = $1 AND status != 'deleted' LIMIT 10",
-                [pid]
-            );
-            roomNames = roomsResult.rows.map(r => {
-                if (r.display_name) {
-                    try {
-                        const dn = typeof r.display_name === 'string' ? JSON.parse(r.display_name) : r.display_name;
-                        return dn.en || dn.es || Object.values(dn)[0] || r.name;
-                    } catch(e) { return r.name; }
-                }
-                return r.name;
-            });
-        }
+        const prompt = `Generate an SEO-optimized meta title and meta description for the "${page_type}" page of "${ctx.propertyName}".
 
-        const prompt = `Generate an SEO-optimized meta title and meta description for the ${page_type} page of "${propertyName}"${location ? ` located in ${location}` : ''}${propertyType ? ` (${propertyType})` : ''}.
+${contextBlock}
+${page_content ? `\nPAGE CONTENT:\n${page_content.substring(0, 500)}` : ''}
 
-PROPERTY DETAILS:
-- Name: ${propertyName}
-- Location: ${location || 'not specified'}
-- Address: ${propertyAddress || 'not specified'}
-- Type: ${propertyType || 'accommodation'}
-${propertyDescription ? `- Description: ${propertyDescription.substring(0, 300)}` : ''}
-${roomNames.length > 0 ? `- Rooms: ${roomNames.join(', ')}` : ''}
-${page_content ? `\nPAGE CONTENT:\n${page_content}` : ''}
+PAGE-SPECIFIC FOCUS:
+${focus}
 
-Requirements:
-- Meta Title: 50-60 characters, include "${propertyName}" and the location
-- Meta Description: 150-160 characters, mention the property, location, and include a call-to-action
-- Use the EXACT property name and location provided above — do not guess or change them
-- The SEO must accurately reflect this specific property and its real location
+RULES:
+- Meta Title: 50-60 characters. Include "${ctx.propertyName}"${ctx.location ? ' and "' + ctx.location.split(',')[0].trim() + '"' : ''}.
+- Meta Description: 150-160 characters. Must be UNIQUE to this page — do not repeat the same description as other pages.
+- Use ONLY facts from the data above. NEVER invent amenities, policies, prices, or features not listed.
+- Use the EXACT property name and location — do not change or abbreviate them.
+- Write for humans first, search engines second. Be compelling, not stuffed with keywords.
+- Each page must have a distinctly different description that reflects its specific content.
 
 Return ONLY valid JSON with this exact structure, no other text:
 {"meta_title": "Your title here", "meta_description": "Your description here"}`;
@@ -69027,10 +69191,9 @@ Return ONLY valid JSON with this exact structure, no other text:
                 'anthropic-version': '2023-06-01'
             }
         });
-        
+
         const responseText = claudeResponse.data.content[0].text;
-        
-        // Extract JSON from response
+
         let result;
         try {
             result = JSON.parse(responseText);
@@ -69042,13 +69205,13 @@ Return ONLY valid JSON with this exact structure, no other text:
                 throw new Error('Could not parse response');
             }
         }
-        
-        res.json({ 
-            success: true, 
+
+        res.json({
+            success: true,
             meta_title: result.meta_title,
             meta_description: result.meta_description
         });
-        
+
     } catch (error) {
         console.error('Error generating SEO meta:', error);
         res.json({ success: false, error: error.message });
@@ -69064,100 +69227,114 @@ app.post('/api/admin/generate-faqs', async (req, res) => {
             return res.json({ success: false, error: 'Page type required' });
         }
 
-        // ── Enrich context from PROPERTY data (not account) ──
-        let propertyName = business_name || 'our property';
-        let locationContext = '';
-        let propertyType = '';
-        let propertyDescription = '';
-        let roomSummary = '';
+        const ctx = await getPropertyContextForAI(pool, { account_id, property_id });
+        if (business_name && !ctx.propertyName) ctx.propertyName = business_name;
+        const contextBlock = buildContextBlock(ctx);
 
-        const propQuery = property_id
-            ? pool.query('SELECT id, name, city, state, country, property_type, description FROM properties WHERE id = $1', [property_id])
-            : account_id
-              ? pool.query('SELECT id, name, city, state, country, property_type, description FROM properties WHERE account_id = $1 LIMIT 1', [account_id])
-              : null;
+        // Page-specific FAQ guidance — tell the AI exactly what topics to cover
+        const faqGuidance = {
+            'homepage': `Generate FAQs a first-time visitor would ask:
+1. A question about what "${ctx.propertyName}" is and what it offers
+2. A question about the location and how to get there
+3. A question about booking — how to reserve, ${ctx.priceRange ? 'pricing (' + ctx.priceRange + ')' : 'pricing'}
+${ctx.topAmenities ? '4. A question about key amenities/facilities (' + ctx.topAmenities + ')' : '4. A question about amenities and facilities'}
+5. A question about ${ctx.checkinFrom ? 'check-in/check-out times (check-in from ' + ctx.checkinFrom + ', check-out by ' + ctx.checkoutBy + ')' : 'check-in/check-out arrangements'}`,
 
-        let propId = null;
-        if (propQuery) {
-            const propResult = await propQuery;
-            if (propResult.rows[0]) {
-                const prop = propResult.rows[0];
-                propId = prop.id;
-                propertyName = prop.name || business_name || 'our property';
-                const parts = [prop.city, prop.state, prop.country].filter(Boolean);
-                if (parts.length) locationContext = parts.join(', ');
-                propertyType = prop.property_type || '';
-                propertyDescription = prop.description || '';
-            }
-        }
+            'accommodation/rooms': `Generate FAQs about the rooms and accommodation:
+1. A question about room types available (${ctx.rooms.map(r => r.name).join(', ') || 'the accommodation options'})
+${ctx.priceRange ? '2. A question about pricing (' + ctx.priceRange + ')' : '2. A question about pricing and rates'}
+3. A question about room capacity and sleeping arrangements (${ctx.rooms.map(r => r.name + ': up to ' + r.guests + ' guests').join('; ') || 'guest capacity'})
+${ctx.topAmenities ? '4. A question about in-room amenities (' + ctx.topAmenities + ')' : '4. A question about what is included in the rooms'}
+5. A question about ${ctx.cancellationPolicy ? 'cancellation policy' : 'booking flexibility and modifications'}`,
 
-        // Fallback to accounts table if property gave no location
-        if (!locationContext && account_id) {
-            const accResult = await pool.query('SELECT name, city, country FROM accounts WHERE id = $1', [account_id]);
-            if (accResult.rows[0]) {
-                const acc = accResult.rows[0];
-                if (propertyName === 'our property' && acc.name) propertyName = acc.name;
-                const parts = [acc.city, acc.country].filter(Boolean);
-                if (parts.length) locationContext = parts.join(', ');
-            }
-        }
+            'about us': `Generate FAQs about the property and its story:
+1. A question about what makes "${ctx.propertyName}" special or unique
+2. A question about the property's location${ctx.location ? ' in ' + ctx.location : ''} and surroundings
+3. A question about the type of experience offered (${ctx.propertyType})
+${ctx.avgRating ? '4. A question about guest satisfaction (rated ' + ctx.avgRating + '/5)' : '4. A question about the property\'s history or character'}
+5. A question about who the property is ideal for (families, couples, groups, etc.)`,
 
-        // Fetch rooms for richer context
-        if (propId) {
-            const roomsResult = await pool.query(
-                "SELECT name, display_name FROM bookable_units WHERE property_id = $1 AND status != 'deleted' LIMIT 10",
-                [propId]
-            );
-            if (roomsResult.rows.length > 0) {
-                const names = roomsResult.rows.map(r => {
-                    if (r.display_name) {
-                        try {
-                            const dn = typeof r.display_name === 'string' ? JSON.parse(r.display_name) : r.display_name;
-                            return dn.en || Object.values(dn)[0] || r.name;
-                        } catch(e) { return r.name; }
-                    }
-                    return r.name;
-                });
-                roomSummary = names.join(', ');
-            }
-        }
+            'photo gallery': `Generate FAQs about the property's appearance and facilities:
+1. A question about what the rooms/units look like
+2. A question about outdoor spaces, views, or surroundings
+3. A question about common areas and shared facilities
+${ctx.topAmenities ? '4. A question about specific facilities visible in photos (' + ctx.topAmenities + ')' : '4. A question about the property\'s setting and atmosphere'}
+5. A question about the property's overall style and decor`,
 
-        const pageContexts = {
-            'homepage': 'homepage',
-            'accommodation/rooms': 'rooms and accommodation page',
-            'about us': 'about us page',
-            'photo gallery': 'photo gallery page',
-            'blog': 'blog page',
-            'local attractions and things to do': 'local attractions and things to do page',
-            'restaurant and dining': 'restaurant and dining page',
-            'contact information': 'contact page',
-            'terms and conditions': 'terms and conditions page',
-            'privacy policy': 'privacy policy page'
+            'blog': `Generate FAQs about the local area and travel planning:
+1. A question about the best time to visit${ctx.location ? ' ' + ctx.location : ''}
+2. A question about things to do${ctx.location ? ' near ' + ctx.location : ' nearby'}
+${ctx.attractions.length > 0 ? '3. A question about a specific attraction (' + ctx.attractions[0].name + ')' : '3. A question about local culture and experiences'}
+4. A question about travel tips for the area
+5. A question about how far the property is from key landmarks`,
+
+            'local attractions and things to do': `Generate FAQs about nearby attractions:
+${ctx.attractions.slice(0, 3).map((a, i) => `${i + 1}. A question about ${a.name}${a.distance ? ' (' + a.distance + ' away)' : ''}`).join('\n')}
+${ctx.attractions.length < 3 ? '1. A question about what there is to do nearby\n2. A question about family activities in the area\n3. A question about outdoor activities nearby' : ''}
+4. A question about getting around the area (transport, walking)
+5. A question about seasonal activities or events`,
+
+            'restaurant and dining': `Generate FAQs about dining:
+1. A question about on-site dining or kitchen facilities
+2. A question about nearby restaurants${ctx.location ? ' in ' + ctx.location : ''}
+3. A question about breakfast availability or arrangements
+4. A question about special dietary requirements or preferences
+5. A question about local food specialties${ctx.location ? ' in the ' + ctx.location + ' area' : ''}`,
+
+            'contact information': `Generate FAQs about contacting the property:
+1. A question about the best way to contact "${ctx.propertyName}"${ctx.contactEmail ? ' (email: available)' : ''}${ctx.contactPhone ? ' (phone: available)' : ''}
+2. A question about response times and when to expect a reply
+3. A question about making a booking enquiry or special request
+${ctx.checkinFrom ? '4. A question about check-in arrangements (from ' + ctx.checkinFrom + ')' : '4. A question about arrival and check-in procedures'}
+5. A question about getting directions to the property${ctx.address ? ' at ' + ctx.address : ''}`,
+
+            'terms and conditions': `Generate FAQs about booking terms:
+1. A question about the booking process and confirmation
+${ctx.cancellationPolicy ? '2. A question about the cancellation policy' : '2. A question about cancellations and refunds'}
+3. A question about payment methods and when payment is taken
+${ctx.checkinFrom ? '4. A question about check-in time (' + ctx.checkinFrom + ') and early/late arrival' : '4. A question about check-in and check-out times'}
+5. A question about house rules or guest responsibilities`,
+
+            'privacy policy': `Generate FAQs about data and privacy:
+1. A question about what personal data is collected when booking
+2. A question about how guest data is used and protected
+3. A question about cookies and website tracking
+4. A question about sharing data with third parties
+5. A question about guest rights regarding their personal data`,
+
+            'reviews': `Generate FAQs about reviews:
+${ctx.avgRating ? '1. A question about the overall guest rating (' + ctx.avgRating + '/5 from ' + ctx.reviewCount + ' reviews)' : '1. A question about guest satisfaction'}
+2. A question about what guests typically praise about the property
+3. A question about how to leave a review after staying
+4. A question about the authenticity/source of reviews
+5. A question about what makes repeat guests come back`,
+
+            'special offers': `Generate FAQs about offers and deals:
+1. A question about current special offers and promotions
+2. A question about how to get the best rate
+3. A question about long-stay or weekly discounts
+4. A question about seasonal pricing and peak/off-peak rates
+5. A question about group booking discounts or packages`
         };
 
-        const pageLabel = pageContexts[page_type] || `${page_type} page`;
+        const guidance = faqGuidance[page_type] || `Generate 5 relevant FAQs about the ${page_type} page content. Each question should be specific to "${ctx.propertyName}" and factually accurate based on the data provided.`;
 
-        const prompt = `Generate 5 frequently asked questions (FAQs) for the ${pageLabel} of "${propertyName}"${locationContext ? ` in ${locationContext}` : ''}.
+        const prompt = `Generate exactly 5 FAQs for the "${page_type}" page of "${ctx.propertyName}". These will be used as FAQ schema markup for SEO.
 
-PROPERTY DETAILS:
-- Name: ${propertyName}
-- Location: ${locationContext || 'not specified'}
-- Type: ${propertyType || 'accommodation'}
-${propertyDescription ? `- Description: ${propertyDescription.substring(0, 300)}` : ''}
-${roomSummary ? `- Rooms: ${roomSummary}` : ''}
+${contextBlock}
 
-IMPORTANT: Use the EXACT property name "${propertyName}" and location "${locationContext || 'not specified'}" — do not guess or change them.
+QUESTION GUIDANCE:
+${guidance}
 
-These FAQs will be used as structured data (FAQ schema) for SEO purposes.
+CRITICAL RULES:
+- Use ONLY facts from the data above. NEVER invent amenities, policies, prices, features, or details not provided.
+- If a piece of information is not in the data, write the answer in a way that directs the guest to contact the property or check the website rather than making something up.
+- Use the EXACT property name "${ctx.propertyName}" — do not abbreviate or change it.
+- Answers must be 2-4 sentences. Be specific, helpful, and professional.
+- Questions must be what a REAL person would type into Google, not generic filler.
+- Each FAQ must be DIFFERENT from what other pages would have — these are for the "${page_type}" page specifically.
 
-Requirements:
-- Questions should be what real guests/visitors would ask about this specific property
-- Answers should reference the actual property name, location, and accommodation types
-- Answers should be helpful, concise (2-3 sentences max), and professional
-- Focus on practical information guests need
-- Avoid generic filler content
-
-Return ONLY a valid JSON array with this exact structure, no other text:
+Return ONLY a valid JSON array, no other text:
 [
   {"question": "Question here?", "answer": "Answer here."},
   {"question": "Question here?", "answer": "Answer here."}
@@ -69174,16 +69351,13 @@ Return ONLY a valid JSON array with this exact structure, no other text:
                 'anthropic-version': '2023-06-01'
             }
         });
-        
+
         const responseText = claudeResponse.data.content[0].text;
-        
-        // Extract JSON from response
+
         let faqs;
         try {
-            // Try to parse directly
             faqs = JSON.parse(responseText);
         } catch (e) {
-            // Try to extract JSON from response
             const jsonMatch = responseText.match(/\[[\s\S]*\]/);
             if (jsonMatch) {
                 faqs = JSON.parse(jsonMatch[0]);
@@ -69191,13 +69365,13 @@ Return ONLY a valid JSON array with this exact structure, no other text:
                 throw new Error('Could not parse FAQ response');
             }
         }
-        
+
         if (!Array.isArray(faqs)) {
             throw new Error('Invalid FAQ format');
         }
-        
+
         res.json({ success: true, faqs });
-        
+
     } catch (error) {
         console.error('Error generating FAQs:', error);
         res.json({ success: false, error: error.message });
