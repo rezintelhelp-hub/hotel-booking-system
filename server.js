@@ -37596,26 +37596,15 @@ app.post('/api/beds24/save-token', async (req, res) => {
   }
 });
 
-// Rezintel organization credentials for Beds24 V2
-// These give apiSourceId: 70 which triggers Beds24 webhooks
-const BEDS24_ORG_TOKEN = 'IlHniASD2fWbpGtHHfjM93KqDFVc22yEqbS18foTIlU57MVcF0iy6OUipKglesX';
-const BEDS24_ORG_ID = '70_rezintelnet';
+// Rezintel organization credentials for Beds24 V2 — PARKED for now
+// TODO: Implement marketplace auth properly to get apiSourceId 70
+// const BEDS24_ORG_TOKEN = 'IlHniASD2fWbpGtHHfjM93KqDFVc22yEqbS18foTIlU57MVcF0iy6OUipKglesX';
+// const BEDS24_ORG_ID = '70_rezintelnet';
 
-// Get Beds24 headers for booking creation
-// If beds24PropId is provided: uses org credentials for apiSourceId 70 (marketplace)
-// Otherwise: uses accessToken from per-client connection (apiSourceId 0, invite code)
+// Get Beds24 headers for booking writes — uses per-client access token
 function getBeds24BookingHeaders(beds24PropId, accessToken) {
-  if (beds24PropId) {
-    return {
-      'Content-Type': 'application/json',
-      'accept': 'application/json',
-      'token': BEDS24_ORG_TOKEN + ':p' + beds24PropId,
-      'organization': BEDS24_ORG_ID
-    };
-  }
   return {
     'Content-Type': 'application/json',
-    'accept': 'application/json',
     'token': accessToken || ''
   };
 }
