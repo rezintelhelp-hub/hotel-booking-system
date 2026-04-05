@@ -6030,6 +6030,41 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             }
         }
         
+        // Auto-filter from URL parameters on page load
+        (function() {
+            var params = new URLSearchParams(window.location.search);
+            var urlLocation = params.get('location');
+            var urlProperty = params.get('property');
+            if (urlLocation || urlProperty) {
+                document.addEventListener('DOMContentLoaded', function() {
+                    if (urlLocation) {
+                        var locSelect = document.querySelector('.gas-filter-location');
+                        if (locSelect) {
+                            // Find matching option (case-insensitive)
+                            for (var i = 0; i < locSelect.options.length; i++) {
+                                if (locSelect.options[i].value.toLowerCase() === urlLocation.toLowerCase()) {
+                                    locSelect.value = locSelect.options[i].value;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (urlProperty) {
+                        var propSelect = document.querySelector('.gas-filter-property');
+                        if (propSelect) {
+                            for (var i = 0; i < propSelect.options.length; i++) {
+                                if (propSelect.options[i].value.toLowerCase() === urlProperty.toLowerCase()) {
+                                    propSelect.value = propSelect.options[i].value;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    gasApplyFilters();
+                });
+            }
+        })();
+
         function gasShowAllAmenities(element) {
             var amenities = [];
             try {
