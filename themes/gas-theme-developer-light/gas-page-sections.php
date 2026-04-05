@@ -173,7 +173,8 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-cards" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
                     <div style="max-width: 1200px; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
-                        <div class="gas-ps-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px;">
+                        <?php $card_count = count($cards); $card_cols = $card_count <= 2 ? $card_count : 3; ?>
+                        <div class="gas-ps-cards-grid" style="display: grid; grid-template-columns: repeat(<?php echo $card_cols; ?>, 1fr); gap: 24px;">
                             <?php foreach ($cards as $card) : ?>
                                 <div style="background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
                                     <?php if (!empty($card['image'])) : ?><img src="<?php echo esc_url($card['image']); ?>" alt="" style="width: 100%; height: 200px; object-fit: cover;"><?php endif; ?>
