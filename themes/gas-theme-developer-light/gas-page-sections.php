@@ -180,7 +180,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                                     <?php if (!empty($card['image'])) : ?><img src="<?php echo esc_url($card['image']); ?>" alt="" style="width: 100%; height: 200px; object-fit: cover;"><?php endif; ?>
                                     <div style="padding: 24px;">
                                         <?php if (!empty(gas_ps_field($card, 'title', $lang))) : ?><h3 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0 0 8px;"><?php echo esc_html(gas_ps_field($card, 'title', $lang)); ?></h3><?php endif; ?>
-                                        <?php if (!empty(gas_ps_field($card, 'body', $lang))) : ?><p style="color: #64748b; margin: 0; line-height: 1.6;"><?php echo esc_html(gas_ps_field($card, 'body', $lang)); ?></p><?php endif; ?>
+                                        <?php $card_body = gas_ps_field($card, 'description', $lang) ?: gas_ps_field($card, 'body', $lang); if (!empty($card_body)) : ?><p style="color: #64748b; margin: 0; line-height: 1.6;"><?php echo wp_kses_post($card_body); ?></p><?php endif; ?>
                                         <?php if (!empty($card['link'])) : ?><a href="<?php echo esc_url($card['link']); ?>" style="display: inline-block; margin-top: 12px; color: <?php echo esc_attr($primary_color); ?>; font-weight: 600; text-decoration: none;"><?php echo esc_html(gas_ps_field($card, 'link_text', $lang, 'Learn more')); ?> &rarr;</a><?php endif; ?>
                                     </div>
                                 </div>
