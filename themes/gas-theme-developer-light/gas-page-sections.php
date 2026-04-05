@@ -168,7 +168,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 <?php endif; break;
 
             case 'cards':
-                $cards = $section['cards'] ?? array();
+                $cards = $section['items'] ?? $section['cards'] ?? array();
                 if (!empty($cards)) : ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-cards" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
                     <div style="max-width: 1200px; margin: 0 auto;">
