@@ -181,7 +181,17 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                                     <div style="padding: 24px;">
                                         <?php if (!empty(gas_ps_field($card, 'title', $lang))) : ?><h3 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0 0 8px;"><?php echo esc_html(gas_ps_field($card, 'title', $lang)); ?></h3><?php endif; ?>
                                         <?php $card_body = gas_ps_field($card, 'description', $lang) ?: gas_ps_field($card, 'body', $lang); if (!empty($card_body)) : ?><div style="color: #475569; margin: 0; line-height: 1.7; font-size: 0.95rem;"><?php echo wp_kses_post($card_body); ?></div><?php endif; ?>
-                                        <?php $cta_link = $card['cta_link'] ?? $card['link'] ?? ''; $cta_text = gas_ps_field($card, 'cta_text', $lang) ?: gas_ps_field($card, 'link_text', $lang, ''); if (!empty($cta_link) && !empty($cta_text)) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; margin-top: 16px; padding: 10px 24px; background: <?php echo esc_attr($primary_color); ?>; color: #fff; font-weight: 600; text-decoration: none; border-radius: 8px; transition: opacity 0.2s;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
+                                        <?php
+                                        $cta_link = $card['cta_link'] ?? $card['link'] ?? '';
+                                        $cta_text = gas_ps_field($card, 'cta_text', $lang);
+                                        if (empty($cta_text)) {
+                                            // Fallback: try other languages
+                                            foreach (array('en','fr','de','es','nl','ja') as $fl) {
+                                                if (!empty($card['cta_text_' . $fl])) { $cta_text = $card['cta_text_' . $fl]; break; }
+                                            }
+                                        }
+                                        if (empty($cta_text)) $cta_text = gas_ps_field($card, 'link_text', $lang, '');
+                                        if (!empty($cta_link) && !empty($cta_text)) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; margin-top: 16px; padding: 10px 24px; background: <?php echo esc_attr($primary_color); ?>; color: #fff; font-weight: 600; text-decoration: none; border-radius: 8px; transition: opacity 0.2s;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
