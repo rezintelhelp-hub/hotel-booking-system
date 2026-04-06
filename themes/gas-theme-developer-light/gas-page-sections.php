@@ -69,6 +69,9 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     // AND the hero-enabled toggle is not turned off in Web Builder
     $has_hero_section = in_array('hero', array_column($sections, 'type'));
     $hero_enabled = true;
+    $ps_page_settings = null;
+
+    // Check hero-enabled from the API settings (standard pages)
     if (isset($ws_api)) {
         $hero_key = 'page_' . str_replace('-', '_', $page_slug) . '_hero_enabled';
         if (isset($ws_api[$hero_key])) {
@@ -76,11 +79,26 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
             $hero_enabled = !($hv === false || $hv === 'false' || $hv === '0' || $hv === 0);
         }
     }
+
+    // For all pages (especially custom), check the raw site config via cached transient
+    // developer_get_api_settings() already fetched and cached the full config
+    $client_id_ps = get_option('gas_client_id', '');
+    $raw_site_config = get_transient('gas_site_config_' . $client_id_ps);
+    if ($raw_site_config) {
+        $website_raw = $raw_site_config['website'] ?? array();
+        // Try custom page key first, then standard page key
+        $ps_page_settings = $website_raw['page-custom-' . $page_slug] ?? $website_raw['page-' . $page_slug] ?? null;
+        if ($ps_page_settings && isset($ps_page_settings['hero-enabled'])) {
+            $hv = $ps_page_settings['hero-enabled'];
+            $hero_enabled = !($hv === false || $hv === 'false' || $hv === '0' || $hv === 0);
+        }
+    }
     if (!$has_hero_section && $hero_enabled) {
-        // Get hero image and colours from page settings
-        $ps_hero_image = $ws_api['page_' . str_replace('-', '_', $page_slug) . '_hero_image'] ?? '';
-        $ps_header_bg = $ws_api['page_' . str_replace('-', '_', $page_slug) . '_header_bg'] ?? '#1e293b';
-        $ps_header_text = $ws_api['page_' . str_replace('-', '_', $page_slug) . '_header_text'] ?? '#ffffff';
+        // Get hero image and colours from page settings (raw config for custom pages, ws_api for standard)
+        $pk = 'page_' . str_replace('-', '_', $page_slug);
+        $ps_hero_image = $ps_page_settings['hero-image-url'] ?? ($ws_api[$pk . '_hero_image'] ?? '');
+        $ps_header_bg = $ps_page_settings['header-bg'] ?? ($ws_api[$pk . '_header_bg'] ?? '#1e293b');
+        $ps_header_text = $ps_page_settings['header-text'] ?? ($ws_api[$pk . '_header_text'] ?? '#ffffff');
     ?>
     <section class="gas-ps-hero" style="position: relative; min-height: 250px; height: 35vh; display: flex; align-items: center; justify-content: center; background: <?php echo esc_attr($ps_header_bg); ?>; overflow: hidden;">
         <?php if ($ps_hero_image) : ?>
