@@ -2936,6 +2936,7 @@ function developer_get_api_settings() {
         'rooms_columns' => $website_rooms['columns'] ?? '3',
         'rooms_layout_style' => $website_rooms['layout-style'] ?? 'auto',
         'rooms_show_map' => $website_rooms['show-map'] ?? false,
+        'rooms_map_zoom' => intval($website_rooms['map-zoom'] ?? 14),
         'rooms_show_search' => $website_rooms['show-search'] ?? true,
         'rooms_show_amenity_filter' => $website_rooms['show-amenity-filter'] ?? true,
         'rooms_show_location_filter' => $website_rooms['show-location-filter'] ?? true,

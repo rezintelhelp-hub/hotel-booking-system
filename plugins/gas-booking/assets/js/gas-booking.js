@@ -2966,10 +2966,11 @@ jQuery(document).ready(function($) {
         });
         
         // Fit map to bounds
+        var mapZoom = (typeof gasRoomsConfig !== 'undefined' && gasRoomsConfig.mapZoom) ? gasRoomsConfig.mapZoom : 14;
         if (bounds.length === 1) {
-            roomsMap.setView(bounds[0], 15);
+            roomsMap.setView(bounds[0], mapZoom);
         } else {
-            roomsMap.fitBounds(bounds, { padding: [30, 30] });
+            roomsMap.fitBounds(bounds, { padding: [30, 30], maxZoom: mapZoom });
         }
         
         // Card hover interaction

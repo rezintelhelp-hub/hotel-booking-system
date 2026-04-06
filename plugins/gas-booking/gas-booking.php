@@ -4510,6 +4510,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             'primary_color' => !empty($license_display['primary_color']) ? $license_display['primary_color'] : '#2563eb',
             'text_color' => '',
             'card_style' => !empty($license_display['card_style']) ? $license_display['card_style'] : 'default',
+            'map_zoom' => 14,
         ), $atts);
         
         // Override with theme API settings if available
@@ -4525,6 +4526,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             }
             if (isset($api_settings['rooms_show_map'])) {
                 $atts['show_map'] = $api_settings['rooms_show_map'] ? 'true' : 'false';
+            }
+            if (isset($api_settings['rooms_map_zoom'])) {
+                $atts['map_zoom'] = intval($api_settings['rooms_map_zoom']);
             }
             if (isset($api_settings['rooms_show_amenity_filter'])) {
                 $atts['show_amenity_filter'] = $api_settings['rooms_show_amenity_filter'] ? 'true' : 'false';
@@ -5852,7 +5856,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             'apiUrl' => $api_url,
             'currency' => $currency,
             'roomUrlBase' => $room_url_base,
-            'showMap' => $show_map && $has_coordinates
+            'showMap' => $show_map && $has_coordinates,
+            'mapZoom' => intval($atts['map_zoom'])
         )); ?>;
         
         <?php if ($show_map && $has_coordinates) : ?>
