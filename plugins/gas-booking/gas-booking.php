@@ -5636,13 +5636,18 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     <?php if ($use_row_layout) : ?>
                     <!-- Row Layout for 1-2 rooms -->
                     <div class="gas-rooms-row-layout">
-                        <?php foreach ($rooms as $room) : 
-                            $url_separator = (strpos($room_url_base, '?') !== false) ? '&' : '?';
-                            $room_url = $room_url_base . $url_separator . 'unit_id=' . $room['id'];
-                            if ($checkin) $room_url .= '&checkin=' . urlencode($checkin);
-                            if ($checkout) $room_url .= '&checkout=' . urlencode($checkout);
-                            if ($guests) $room_url .= '&guests=' . intval($guests);
-                            
+                        <?php foreach ($rooms as $room) :
+                            $external_url = $room['external_booking_url'] ?? '';
+                            if (!empty($external_url)) {
+                                $room_url = $external_url;
+                            } else {
+                                $url_separator = (strpos($room_url_base, '?') !== false) ? '&' : '?';
+                                $room_url = $room_url_base . $url_separator . 'unit_id=' . $room['id'];
+                                if ($checkin) $room_url .= '&checkin=' . urlencode($checkin);
+                                if ($checkout) $room_url .= '&checkout=' . urlencode($checkout);
+                                if ($guests) $room_url .= '&guests=' . intval($guests);
+                            }
+
                             $price = floatval($room['price'] ?? 0);
                             $max_guests = intval($room['max_guests'] ?? $room['max_adults'] ?? 2);
                             $bedrooms = intval($room['num_bedrooms'] ?? $room['bedroom_count'] ?? 0);
@@ -5717,7 +5722,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                             <span><?php echo esc_html($t_booking['select_dates'] ?? 'Select dates'); ?></span>
                                         <?php endif; ?>
                                     </div>
-                                    <a href="<?php echo esc_url($room_url); ?>" class="gas-row-view-btn" <?php if ($has_dates) : ?>style="background: #6366f1; pointer-events: none;"<?php endif; ?>><?php echo $has_dates ? esc_html($checking_text) : esc_html($view_book_text); ?></a>
+                                    <a href="<?php echo esc_url($room_url); ?>" class="gas-row-view-btn" <?php if (!empty($external_url)) echo 'target="_blank" rel="noopener"'; ?> <?php if ($has_dates && empty($external_url)) : ?>style="background: #6366f1; pointer-events: none;"<?php endif; ?>><?php echo $has_dates && empty($external_url) ? esc_html($checking_text) : esc_html($view_book_text); ?></a>
                                 </div>
                             </div>
                         </div>
@@ -5735,13 +5740,18 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         }
                         // Show all priced rooms, but at least 9 total
                         $initial_load = max(9, $priced_count);
-                        foreach ($rooms as $room) : 
-                            $url_separator = (strpos($room_url_base, '?') !== false) ? '&' : '?';
-                            $room_url = $room_url_base . $url_separator . 'unit_id=' . $room['id'];
-                            if ($checkin) $room_url .= '&checkin=' . urlencode($checkin);
-                            if ($checkout) $room_url .= '&checkout=' . urlencode($checkout);
-                            if ($guests) $room_url .= '&guests=' . intval($guests);
-                            
+                        foreach ($rooms as $room) :
+                            $external_url = $room['external_booking_url'] ?? '';
+                            if (!empty($external_url)) {
+                                $room_url = $external_url;
+                            } else {
+                                $url_separator = (strpos($room_url_base, '?') !== false) ? '&' : '?';
+                                $room_url = $room_url_base . $url_separator . 'unit_id=' . $room['id'];
+                                if ($checkin) $room_url .= '&checkin=' . urlencode($checkin);
+                                if ($checkout) $room_url .= '&checkout=' . urlencode($checkout);
+                                if ($guests) $room_url .= '&guests=' . intval($guests);
+                            }
+
                             $price = floatval($room['price'] ?? 0);
                             $max_guests = intval($room['max_guests'] ?? $room['max_adults'] ?? 2);
                             $bedrooms = intval($room['num_bedrooms'] ?? $room['bedroom_count'] ?? 0);
@@ -5808,7 +5818,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                             <span><?php echo esc_html($t_booking['select_dates'] ?? 'Select dates'); ?></span>
                                         <?php endif; ?>
                                     </div>
-                                    <a href="<?php echo esc_url($room_url); ?>" class="gas-view-btn" <?php if ($has_dates) : ?>style="background: #6366f1; pointer-events: none;"<?php endif; ?>><?php echo $has_dates ? esc_html($checking_text) : esc_html($view_book_text); ?></a>
+                                    <a href="<?php echo esc_url($room_url); ?>" class="gas-view-btn" <?php if (!empty($external_url)) echo 'target="_blank" rel="noopener"'; ?> <?php if ($has_dates && empty($external_url)) : ?>style="background: #6366f1; pointer-events: none;"<?php endif; ?>><?php echo $has_dates && empty($external_url) ? esc_html($checking_text) : esc_html($view_book_text); ?></a>
                                 </div>
                             </div>
                         </div>

@@ -1017,6 +1017,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS num_bathrooms DECIMAL(3,1) DEFAULT 1`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT NULL`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS cm_source VARCHAR(50)`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS external_booking_url TEXT`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS repuso_widget_id VARCHAR(255)`);
       console.log('✅ Occupancy pricing columns ensured on bookable_units');
     } catch (occError) {
@@ -30429,6 +30430,51 @@ app.post('/api/db/properties', async (req, res) => {
     const propCurrency = currency || getCurrencyFromCountry(country) || null;
     const result = await pool.query(`INSERT INTO properties (name, description, address, city, country, property_type, star_rating, currency) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`, [name, description, address, city, country, property_type, star_rating, propCurrency]);
     res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create property manually (admin)
+app.post('/api/admin/properties', async (req, res) => {
+  try {
+    const { account_id, name, address, city, state, country, postal_code, currency, property_type, description, contact_email, contact_phone, latitude, longitude } = req.body;
+    if (!account_id || !name) return res.json({ success: false, error: 'account_id and name required' });
+
+    const propCurrency = currency || getCurrencyFromCountry(country) || 'EUR';
+    const result = await pool.query(`
+      INSERT INTO properties (account_id, name, description, address, city, state, country, postal_code, currency, property_type, contact_email, contact_phone, latitude, longitude, status, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', NOW())
+      RETURNING *
+    `, [account_id, name, description || '', address || '', city || '', state || '', country || '', postal_code || '', propCurrency, property_type || 'vacation_rental', contact_email || '', contact_phone || '', latitude || null, longitude || null]);
+
+    console.log(`[Admin] Property created: ${result.rows[0].id} "${name}" for account ${account_id}`);
+    res.json({ success: true, property: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create room manually (admin)
+app.post('/api/admin/properties/:propertyId/rooms', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const { name, max_guests, bedrooms, bathrooms, base_price, currency, description, room_type, external_booking_url } = req.body;
+    if (!name) return res.json({ success: false, error: 'name required' });
+
+    // Verify property exists
+    const prop = await pool.query('SELECT id, currency FROM properties WHERE id = $1', [propertyId]);
+    if (prop.rows.length === 0) return res.json({ success: false, error: 'Property not found' });
+
+    const roomCurrency = currency || prop.rows[0].currency || 'EUR';
+    const result = await pool.query(`
+      INSERT INTO bookable_units (property_id, name, max_guests, num_bedrooms, num_bathrooms, base_price, currency, short_description, room_type, external_booking_url, status, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', NOW(), NOW())
+      RETURNING *
+    `, [propertyId, name, max_guests || 2, bedrooms || 1, bathrooms || 1, base_price || 0, roomCurrency, description || '', room_type || 'entire_home', external_booking_url || null]);
+
+    console.log(`[Admin] Room created: ${result.rows[0].id} "${name}" for property ${propertyId}`);
+    res.json({ success: true, room: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -65871,7 +65917,8 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         p.currency,
         (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_active = true ORDER BY is_primary DESC, display_order ASC LIMIT 1) as image_url,
         (SELECT COALESCE(standard_price, cm_price) FROM room_availability WHERE room_id = bu.id AND date = $2 LIMIT 1) as todays_rate,
-        (SELECT pc.payment_account_id FROM payment_configurations pc WHERE pc.property_id = p.id AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1) as payment_account_id
+        (SELECT pc.payment_account_id FROM payment_configurations pc WHERE pc.property_id = p.id AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1) as payment_account_id,
+        bu.external_booking_url
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       WHERE p.account_id = $1
