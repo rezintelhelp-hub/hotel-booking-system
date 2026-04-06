@@ -30446,7 +30446,7 @@ app.post('/api/admin/properties', async (req, res) => {
       INSERT INTO properties (account_id, name, description, address, city, state, country, postal_code, currency, property_type, contact_email, contact_phone, latitude, longitude, status, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', NOW())
       RETURNING *
-    `, [account_id, name, description || '', address || '', city || '', state || '', country || '', postal_code || '', propCurrency, property_type || 'vacation_rental', contact_email || '', contact_phone || '', latitude || null, longitude || null]);
+    `, [account_id, name, description ? JSON.stringify(description) : null, address || '', city || '', state || '', country || '', postal_code || '', propCurrency, property_type || 'vacation_rental', contact_email || '', contact_phone || '', latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null]);
 
     console.log(`[Admin] Property created: ${result.rows[0].id} "${name}" for account ${account_id}`);
     res.json({ success: true, property: result.rows[0] });
