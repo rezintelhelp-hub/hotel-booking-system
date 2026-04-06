@@ -37,6 +37,7 @@ jQuery(document).ready(function($) {
     }
     
     var currentLanguage = getCurrentLanguage();
+    var dateLocale = { en: 'en-GB', fr: 'fr-FR', de: 'de-DE', es: 'es-ES', nl: 'nl-NL', ja: 'ja-JP', it: 'it-IT', pt: 'pt-PT' }[currentLanguage] || 'en-GB';
     
     // Override with PHP-provided language if available
     if (typeof gasBooking !== 'undefined' && gasBooking.currentLanguage) {
@@ -509,8 +510,8 @@ jQuery(document).ready(function($) {
 
                         var dateText = '';
                         if (offer.valid_from || offer.valid_until) {
-                            var fromStr = offer.valid_from ? new Date(offer.valid_from).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-                            var untilStr = offer.valid_until ? new Date(offer.valid_until).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+                            var fromStr = offer.valid_from ? new Date(offer.valid_from).toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+                            var untilStr = offer.valid_until ? new Date(offer.valid_until).toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
                             if (fromStr && untilStr) dateText = fromStr + ' — ' + untilStr;
                             else if (untilStr) dateText = 'Until ' + untilStr;
                         }
@@ -1408,7 +1409,7 @@ jQuery(document).ready(function($) {
                                 starsR += i <= Math.round(stars5r) ? '★' : '☆';
                             }
                             var initial = (r.guest_name || 'G').charAt(0).toUpperCase();
-                            var date = r.review_date ? new Date(r.review_date).toLocaleDateString('en-US', {month: 'short', year: 'numeric'}) : '';
+                            var date = r.review_date ? new Date(r.review_date).toLocaleDateString(dateLocale, {month: 'short', year: 'numeric'}) : '';
                             var sourceColor = getSourceColor(r.channel_name || '');
                             
                             listHtml += '<div class="gas-review-card" style="background: ' + colors.card_bg + '; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">';
@@ -3320,11 +3321,11 @@ jQuery(document).ready(function($) {
             // Update dates
             if (cart[0].checkin) {
                 var checkinDate = new Date(cart[0].checkin + 'T12:00:00');
-                $('.gas-checkin-display').text(checkinDate.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'}));
+                $('.gas-checkin-display').text(checkinDate.toLocaleDateString(dateLocale, {weekday:'short', month:'short', day:'numeric', year:'numeric'}));
             }
             if (cart[0].checkout) {
                 var checkoutDate = new Date(cart[0].checkout + 'T12:00:00');
-                $('.gas-checkout-display').text(checkoutDate.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'}));
+                $('.gas-checkout-display').text(checkoutDate.toLocaleDateString(dateLocale, {weekday:'short', month:'short', day:'numeric', year:'numeric'}));
             }
             
             // Update total (before taxes - will be updated after tax fetch)
@@ -5739,7 +5740,7 @@ jQuery(document).ready(function($) {
                         var formatDate = function(dateStr) {
                             var d = new Date(dateStr + 'T12:00:00');
                             var options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
-                            return d.toLocaleDateString('en-GB', options);
+                            return d.toLocaleDateString(dateLocale, options);
                         };
                         $('.gas-conf-checkin').text(formatDate(checkoutData.checkin));
                         $('.gas-conf-checkout').text(formatDate(checkoutData.checkout));
