@@ -150,10 +150,13 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 <?php break;
 
             case 'text':
+                $text_align = $section['text_align'] ?? 'center';
+                $content_width = $section['content_width'] ?? 'normal';
+                $max_w = $content_width === 'wide' ? '1100px' : ($content_width === 'full' ? '100%' : '800px');
                 ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-text" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
-                    <div style="max-width: 800px; margin: 0 auto;">
-                        <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 12px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
+                    <div style="max-width: <?php echo $max_w; ?>; margin: 0 auto;">
+                        <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 12px; text-align: <?php echo esc_attr($text_align); ?>;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                         <?php if ($body) : ?><div class="gas-ps-body"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
                     </div>
                 </section>
