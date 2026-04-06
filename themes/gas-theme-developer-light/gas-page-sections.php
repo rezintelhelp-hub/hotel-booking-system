@@ -80,12 +80,24 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
         }
     }
 
-    // For all pages (especially custom), check the raw site config via cached transient
-    // developer_get_api_settings() already fetched and cached the full config
+    // For all pages (especially custom), fetch the raw site config directly
+    // The developer_get_api_settings() mapped array doesn't include custom page keys
     $client_id_ps = get_option('gas_client_id', '');
-    $raw_site_config = get_transient('gas_site_config_' . $client_id_ps);
-    if ($raw_site_config) {
-        $website_raw = $raw_site_config['website'] ?? array();
+    $api_url_ps = get_option('gas_api_url', 'https://admin.gas.travel');
+    $site_url_ps = home_url('/');
+    $raw_cfg_key = 'gas_raw_website_config_' . get_current_blog_id();
+    $website_raw = get_transient($raw_cfg_key);
+    if (!$website_raw) {
+        $cfg_response = wp_remote_get("{$api_url_ps}/api/public/client/{$client_id_ps}/site-config?site_url=" . urlencode($site_url_ps), array('timeout' => 10, 'sslverify' => true));
+        if (!is_wp_error($cfg_response)) {
+            $cfg_body = json_decode(wp_remote_retrieve_body($cfg_response), true);
+            if (!empty($cfg_body['success'])) {
+                $website_raw = $cfg_body['config']['website'] ?? array();
+                set_transient($raw_cfg_key, $website_raw, 300); // 5 min cache
+            }
+        }
+    }
+    if ($website_raw) {
         // Try custom page key first, then standard page key
         $ps_page_settings = $website_raw['page-custom-' . $page_slug] ?? $website_raw['page-' . $page_slug] ?? null;
         if ($ps_page_settings && isset($ps_page_settings['hero-enabled'])) {
