@@ -30471,7 +30471,7 @@ app.post('/api/admin/properties/:propertyId/rooms', async (req, res) => {
       INSERT INTO bookable_units (property_id, name, max_guests, num_bedrooms, num_bathrooms, base_price, currency, short_description, room_type, external_booking_url, status, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', NOW(), NOW())
       RETURNING *
-    `, [propertyId, name, max_guests || 2, bedrooms || 1, bathrooms || 1, base_price || 0, roomCurrency, description || '', room_type || 'entire_home', external_booking_url || null]);
+    `, [propertyId, name, max_guests || 2, bedrooms || 1, bathrooms || 1, base_price || 0, roomCurrency, description ? JSON.stringify(description) : null, room_type || 'entire_home', external_booking_url || null]);
 
     console.log(`[Admin] Room created: ${result.rows[0].id} "${name}" for property ${propertyId}`);
     res.json({ success: true, room: result.rows[0] });
