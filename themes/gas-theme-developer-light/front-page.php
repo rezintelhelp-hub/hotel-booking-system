@@ -162,9 +162,30 @@ $sr = hexdec(substr($search_hex, 0, 2));
 $sg = hexdec(substr($search_hex, 2, 2));
 $sb = hexdec(substr($search_hex, 4, 2));
 $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
+
+// --- Section ordering system ---
+// Default positions: Hero=1, Intro=3, Featured=5, USP=7, About=9, Services=11, Reviews=13, CTA=15
+// Even numbers (2,4,6,8,10,12,14) available for Image Row sections
+$section_positions = array(
+    'intro'    => intval($api['section_order_intro'] ?? 3),
+    'featured' => intval($api['section_order_featured'] ?? 5),
+    'usp'      => intval($api['section_order_usp'] ?? 7),
+    'about'    => intval($api['section_order_about'] ?? 9),
+    'services' => intval($api['section_order_services'] ?? 11),
+    'reviews'  => intval($api['section_order_reviews'] ?? 13),
+    'cta'      => intval($api['section_order_cta'] ?? 15),
+);
+
+// Image Row sections (3 available, even positions)
+for ($ir = 1; $ir <= 3; $ir++) {
+    $ir_key = 'image_row_' . $ir;
+    $section_positions[$ir_key] = intval($api['section_order_' . $ir_key] ?? (90 + $ir)); // default off-screen
+}
+
+$homepage_sections = array(); // position => html
 ?>
 
-<!-- Hero Section -->
+<!-- Hero Section (always position 1) -->
 <section class="developer-hero" <?php if ($hero_background_type === 'slider') : ?>data-slider-duration="<?php echo esc_attr($hero_slider_duration); ?>" data-slider-transition="<?php echo esc_attr($hero_slider_transition); ?>"<?php endif; ?>>
     <?php if ($hero_video_url && $hero_background_type === 'video') : ?>
         <!-- Video Background -->
@@ -264,6 +285,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
 </style>
 <?php endif; ?>
 
+<?php ob_start(); ?>
 <?php if ($intro_enabled && ($intro_title || $intro_text)) : ?>
 <!-- Intro Section -->
 <section class="developer-section developer-intro" style="background: <?php echo esc_attr($intro_bg); ?>; color: <?php echo esc_attr($intro_text_color); ?>;">
@@ -284,7 +306,9 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
     </div>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['intro']] = ob_get_clean(); ?>
 
+<?php ob_start(); ?>
 <?php if ($featured_enabled) : ?>
 <!-- Featured Properties -->
 <section class="developer-section developer-featured" style="background-color: <?php echo esc_attr($featured_bg); ?>;">
@@ -325,7 +349,9 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
     </div>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['featured']] = ob_get_clean(); ?>
 
+<?php ob_start(); ?>
 <?php if ($usp_enabled && count($usp_items) > 0) : ?>
 <!-- USP / What We Offer Section -->
 <section class="developer-section developer-usp" style="background: <?php echo esc_attr($usp_bg); ?>; --usp-card-title-size: <?php echo esc_attr($usp_card_title_size); ?>px;">
@@ -361,7 +387,9 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
     </div>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['usp']] = ob_get_clean(); ?>
 
+<?php ob_start(); ?>
 <?php if ($about_enabled) : ?>
 <!-- About Section -->
 <section class="developer-section developer-section-alt" style="background-color: <?php echo esc_attr($about_bg); ?>;">
@@ -441,7 +469,9 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
 <?php endif; ?>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['about']] = ob_get_clean(); ?>
 
+<?php ob_start(); ?>
 <?php
 // Services Section settings (with API override)
 $services_enabled = $api['services_enabled'] ?? false;
@@ -499,7 +529,9 @@ for ($i = 1; $i <= 8; $i++) {
     </div>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['services']] = ob_get_clean(); ?>
 
+<?php ob_start(); ?>
 <?php
 // Reviews Section (API override → theme_mod fallback)
 $reviews_enabled = $api['reviews_enabled'] ?? get_theme_mod('developer_reviews_enabled', false);
@@ -777,7 +809,9 @@ if (!is_wp_error($hostaway_response)) {
     </div>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['reviews']] = ob_get_clean(); ?>
 
+<?php ob_start(); ?>
 <?php
 // CTA Section settings (with API override)
 $cta_enabled = $api['cta_section_enabled'] ?? get_theme_mod('developer_cta_enabled', true);
@@ -807,5 +841,68 @@ if ($cta_enabled) :
     </div>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['cta']] = ob_get_clean(); ?>
+
+<?php
+// --- Image Row Sections (1-3) ---
+// Each can hold 1-3 images with optional title and button
+for ($ir = 1; $ir <= 3; $ir++) {
+    $ir_prefix = 'image_row_' . $ir . '_';
+    $ir_enabled = $api[$ir_prefix . 'enabled'] ?? false;
+    if (!$ir_enabled && $ir_enabled !== 'true' && $ir_enabled !== '1') continue;
+
+    $ir_heading = $api[$ir_prefix . 'heading'] ?? '';
+    $ir_bg = $api[$ir_prefix . 'bg'] ?? '#ffffff';
+    $ir_items = array();
+    for ($j = 1; $j <= 3; $j++) {
+        $img = $api[$ir_prefix . 'image_' . $j] ?? '';
+        if (empty($img)) continue;
+        $ir_items[] = array(
+            'image' => $img,
+            'title' => $api[$ir_prefix . 'title_' . $j] ?? '',
+            'btn_text' => $api[$ir_prefix . 'btn_text_' . $j] ?? '',
+            'btn_link' => $api[$ir_prefix . 'btn_link_' . $j] ?? '',
+        );
+    }
+    if (empty($ir_items)) continue;
+
+    $ir_cols = count($ir_items);
+    ob_start();
+    ?>
+    <!-- Image Row <?php echo $ir; ?> -->
+    <section class="developer-section developer-image-row" style="padding: 40px 24px; background: <?php echo esc_attr($ir_bg); ?>;">
+        <div class="developer-container" style="max-width: 1200px; margin: 0 auto;">
+            <?php if ($ir_heading) : ?>
+                <h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 24px; text-align: center;"><?php echo esc_html($ir_heading); ?></h2>
+            <?php endif; ?>
+            <div style="display: grid; grid-template-columns: repeat(<?php echo $ir_cols; ?>, 1fr); gap: 24px;">
+                <?php foreach ($ir_items as $iri) : ?>
+                <div style="text-align: center;">
+                    <img src="<?php echo esc_url($iri['image']); ?>" alt="<?php echo esc_attr($iri['title']); ?>" style="width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                    <?php if ($iri['title']) : ?>
+                        <h3 style="font-size: 1.2rem; font-weight: 600; color: #1e293b; margin: 16px 0 8px;"><?php echo esc_html($iri['title']); ?></h3>
+                    <?php endif; ?>
+                    <?php if ($iri['btn_text'] && $iri['btn_link']) :
+                        $ir_external = preg_match('#^https?://#i', $iri['btn_link']);
+                        $ir_href = $ir_external ? $iri['btn_link'] : home_url($iri['btn_link']);
+                        $ir_target = $ir_external ? ' target="_blank" rel="noopener noreferrer"' : '';
+                    ?>
+                        <a href="<?php echo esc_url($ir_href); ?>"<?php echo $ir_target; ?> class="developer-btn" style="display: inline-block; margin-top: 8px; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;"><?php echo esc_html($iri['btn_text']); ?></a>
+                    <?php endif; ?>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </section>
+    <?php
+    $homepage_sections[$section_positions['image_row_' . $ir]] = ob_get_clean();
+}
+
+// --- Sort all sections by position and output ---
+ksort($homepage_sections);
+foreach ($homepage_sections as $html) {
+    echo $html;
+}
+?>
 
 <?php get_footer(); ?>
