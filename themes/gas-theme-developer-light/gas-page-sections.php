@@ -66,19 +66,38 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     $lang = function_exists('developer_get_current_language') ? developer_get_current_language() : substr(get_locale(), 0, 2);
 
     // Only render the page title hero if sections don't already contain a hero
+    // AND the hero-enabled toggle is not turned off in Web Builder
     $has_hero_section = in_array('hero', array_column($sections, 'type'));
-    if (!$has_hero_section) {
+    $hero_enabled = true;
+    if (isset($ws_api)) {
+        $hero_key = 'page_' . str_replace('-', '_', $page_slug) . '_hero_enabled';
+        if (isset($ws_api[$hero_key])) {
+            $hv = $ws_api[$hero_key];
+            $hero_enabled = !($hv === false || $hv === 'false' || $hv === '0' || $hv === 0);
+        }
+    }
+    if (!$has_hero_section && $hero_enabled) {
+        // Get hero image and colours from page settings
+        $ps_hero_image = $ws_api['page_' . str_replace('-', '_', $page_slug) . '_hero_image'] ?? '';
+        $ps_header_bg = $ws_api['page_' . str_replace('-', '_', $page_slug) . '_header_bg'] ?? '#1e293b';
+        $ps_header_text = $ws_api['page_' . str_replace('-', '_', $page_slug) . '_header_text'] ?? '#ffffff';
     ?>
-    <section class="gas-ps-hero" style="position: relative; min-height: 250px; height: 35vh; display: flex; align-items: center; justify-content: center; background: #1e293b; overflow: hidden;">
+    <section class="gas-ps-hero" style="position: relative; min-height: 250px; height: 35vh; display: flex; align-items: center; justify-content: center; background: <?php echo esc_attr($ps_header_bg); ?>; overflow: hidden;">
+        <?php if ($ps_hero_image) : ?>
+        <div style="position: absolute; inset: 0; background-image: url('<?php echo esc_url($ps_hero_image); ?>'); background-size: cover; background-position: center;"></div>
+        <?php endif; ?>
         <div style="position: absolute; top: 0; left: 0; right: 0; height: 150px; background: linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 100%); pointer-events: none; z-index: 1;"></div>
         <div style="position: relative; z-index: 2; text-align: center; padding: 0 24px;">
-            <h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 700; color: #fff; text-shadow: 0 2px 20px rgba(0,0,0,0.3); margin: 0 0 12px;"><?php echo esc_html($page_title); ?></h1>
+            <h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 700; color: <?php echo esc_attr($ps_header_text); ?>; text-shadow: 0 2px 20px rgba(0,0,0,0.3); margin: 0 0 12px;"><?php echo esc_html($page_title); ?></h1>
             <?php if ($page_subtitle) : ?>
-                <p style="font-size: clamp(1.1rem, 2vw, 1.35rem); color: #fff; opacity: 0.9; margin: 0; max-width: 600px; margin: 0 auto; text-shadow: 0 1px 10px rgba(0,0,0,0.2);"><?php echo esc_html($page_subtitle); ?></p>
+                <p style="font-size: clamp(1.1rem, 2vw, 1.35rem); color: <?php echo esc_attr($ps_header_text); ?>; opacity: 0.9; margin: 0; max-width: 600px; margin: 0 auto; text-shadow: 0 1px 10px rgba(0,0,0,0.2);"><?php echo esc_html($page_subtitle); ?></p>
             <?php endif; ?>
         </div>
     </section>
     <?php
+    } elseif (!$has_hero_section) {
+        // Hero disabled — just add spacing for the fixed header
+        echo '<div style="padding-top: 100px;"></div>';
     }
 
     // Render each section
