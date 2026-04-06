@@ -63843,12 +63843,12 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
     const { unitId } = req.params;
     
     const upsells = await pool.query(`
-      SELECT id, name, description, category, price, charge_type as price_type
+      SELECT id, name, description, category, price, charge_type as price_type, COALESCE(mandatory, false) as mandatory
       FROM upsells
       WHERE active = true
         AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
         AND (room_id IS NULL OR room_id = $1)
-      ORDER BY category, name
+      ORDER BY mandatory DESC, category, name
     `, [unitId]);
     
     res.json({ success: true, upsells: upsells.rows });
@@ -66395,6 +66395,7 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
         u.property_id,
         u.room_id,
         u.room_ids,
+        COALESCE(u.mandatory, false) as mandatory,
         p.name as property_name
       FROM upsells u
       LEFT JOIN properties p ON u.property_id = p.id

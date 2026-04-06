@@ -7190,6 +7190,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-upsell-card.selected { border-color: <?php echo esc_attr($button_color); ?>; background: <?php echo esc_attr($button_color); ?>08; }
         .gas-upsell-check { position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; border: 2px solid #d1d5db; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-size: 12px; color: transparent; }
         .gas-upsell-card.selected .gas-upsell-check { background: <?php echo esc_attr($button_color); ?>; border-color: <?php echo esc_attr($button_color); ?>; color: white; }
+        .gas-upsell-card.mandatory { cursor: default; opacity: 0.95; }
+        .gas-upsell-card.mandatory::after { content: 'Included'; position: absolute; top: 8px; left: 10px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: <?php echo esc_attr($button_color); ?>; }
         .gas-upsell-image { width: 80px; height: 80px; margin: 0 auto 12px; border-radius: 8px; overflow: hidden; }
         .gas-upsell-image img { width: 100%; height: 100%; object-fit: cover; }
         .gas-upsell-icon { width: 60px; height: 60px; margin: 0 auto 12px; background: #f1f5f9; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; }

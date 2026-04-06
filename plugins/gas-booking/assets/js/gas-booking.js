@@ -4106,7 +4106,8 @@ jQuery(document).ready(function($) {
                                     default: priceLabel = '';
                                 }
 
-                                html += '<div class="gas-upsell-card" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '">';
+                                var isMandatory = upsell.mandatory === true || upsell.mandatory === 'true';
+                                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + '" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-mandatory="' + isMandatory + '">';
 
                                 // Icon based on name
                                 var icon = '✨';
@@ -4341,6 +4342,8 @@ jQuery(document).ready(function($) {
             // Upsell selection for group bookings — per-group
             $(document).on('click', '.gas-upsell-card', function() {
                 var $card = $(this);
+                // Mandatory upsells can't be deselected
+                if ($card.data('mandatory') === true || $card.data('mandatory') === 'true') return;
                 $card.toggleClass('selected');
                 var upsellGroup = getCurrentGroup();
 
@@ -5064,8 +5067,9 @@ jQuery(document).ready(function($) {
                     default: priceLabel = '';
                 }
                 
-                html += '<div class="gas-upsell-card" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '">';
-                
+                var isMandatory = upsell.mandatory === true || upsell.mandatory === 'true';
+                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + '" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-mandatory="' + isMandatory + '">';
+
                 // Image if available
                 if (upsell.image_url) {
                     html += '<div class="gas-upsell-image"><img src="' + upsell.image_url + '" alt="' + upsell.name + '" /></div>';
@@ -5108,6 +5112,7 @@ jQuery(document).ready(function($) {
         // Upsell click handler
         $(document).on('click', '.gas-upsell-card', function() {
             var $card = $(this);
+            if ($card.data('mandatory') === true || $card.data('mandatory') === 'true') return;
             var upsellId = $card.data('upsell-id');
             var price = $card.data('price');
             var chargeType = $card.data('charge-type');
