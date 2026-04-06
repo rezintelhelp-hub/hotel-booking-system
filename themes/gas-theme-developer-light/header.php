@@ -216,19 +216,62 @@ usort($menu_items, function($a, $b) {
     return intval($a['order'] ?? 99) - intval($b['order'] ?? 99);
 });
 
-// Helper function to output menu items
+// Helper function to output menu items (with dropdown support for sub-menu items)
 function developer_output_nav_items($menu_items) {
+    $current_url = trailingslashit(home_url(add_query_arg(array(), $GLOBALS['wp']->request)));
+
+    // Group children by parent slug
+    $children = array();
+    $top_level = array();
     foreach ($menu_items as $item) {
+        if (!empty($item['is_submenu']) && !empty($item['parent'])) {
+            $children[$item['parent']][] = $item;
+        } else {
+            $top_level[] = $item;
+        }
+    }
+
+    // Map top-level items by their URL slug for parent matching
+    $slug_map = array();
+    foreach ($top_level as $item) {
+        $slug = trim(str_replace(home_url(), '', $item['url']), '/');
+        $slug_map[$slug] = true;
+    }
+
+    // Output top-level items, wrapping parents in dropdowns
+    foreach ($top_level as $item) {
+        $slug = trim(str_replace(home_url(), '', $item['url']), '/');
         $is_active = '';
         if (!empty($item['is_home']) && is_front_page()) {
             $is_active = ' class="active"';
-        } elseif (!empty($item['url'])) {
-            $current_url = trailingslashit(home_url(add_query_arg(array(), $GLOBALS['wp']->request)));
-            if (trailingslashit($item['url']) === $current_url) {
-                $is_active = ' class="active"';
+        } elseif (trailingslashit($item['url']) === $current_url) {
+            $is_active = ' class="active"';
+        }
+
+        if (!empty($children[$slug])) {
+            // Parent with children — render dropdown
+            echo '<div class="developer-nav-dropdown">';
+            echo '<a href="' . esc_url($item['url']) . '" class="developer-nav-parent">' . esc_html($item['title']) . ' <span class="developer-nav-arrow">▾</span></a>';
+            echo '<div class="developer-nav-submenu">';
+            foreach ($children[$slug] as $child) {
+                $child_active = (trailingslashit($child['url']) === $current_url) ? ' class="active"' : '';
+                echo '<a href="' . esc_url($child['url']) . '"' . $child_active . '>' . esc_html($child['title']) . '</a>';
+            }
+            echo '</div></div>';
+        } else {
+            // Regular item
+            echo '<a href="' . esc_url($item['url']) . '"' . $is_active . '>' . esc_html($item['title']) . '</a>';
+        }
+    }
+
+    // Output orphaned sub-menu items (parent doesn't exist) as flat links
+    foreach ($children as $parent_slug => $kids) {
+        if (empty($slug_map[$parent_slug])) {
+            foreach ($kids as $child) {
+                $child_active = (trailingslashit($child['url']) === $current_url) ? ' class="active"' : '';
+                echo '<a href="' . esc_url($child['url']) . '"' . $child_active . '>' . esc_html($child['title']) . '</a>';
             }
         }
-        echo '<a href="' . esc_url($item['url']) . '"' . $is_active . '>' . esc_html($item['title']) . '</a>';
     }
 }
 

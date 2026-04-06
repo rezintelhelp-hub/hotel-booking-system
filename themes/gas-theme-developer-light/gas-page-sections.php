@@ -65,70 +65,11 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     // Detect current language using GAS language system (URL param / cookie / site primary)
     $lang = function_exists('developer_get_current_language') ? developer_get_current_language() : substr(get_locale(), 0, 2);
 
-    // Only render the page title hero if sections don't already contain a hero
-    // AND the hero-enabled toggle is not turned off in Web Builder
+    // Section builder pages: no automatic hero. If the client wants a hero, they add
+    // a Hero section in the builder. No toggle needed, no caching issues.
     $has_hero_section = in_array('hero', array_column($sections, 'type'));
-    $hero_enabled = true;
-    $ps_page_settings = null;
-
-    // Check hero-enabled from the API settings (standard pages)
-    if (isset($ws_api)) {
-        $hero_key = 'page_' . str_replace('-', '_', $page_slug) . '_hero_enabled';
-        if (isset($ws_api[$hero_key])) {
-            $hv = $ws_api[$hero_key];
-            $hero_enabled = !($hv === false || $hv === 'false' || $hv === '0' || $hv === 0);
-        }
-    }
-
-    // For all pages (especially custom), fetch the raw site config directly
-    // The developer_get_api_settings() mapped array doesn't include custom page keys
-    $client_id_ps = get_option('gas_client_id', '');
-    $api_url_ps = get_option('gas_api_url', 'https://admin.gas.travel');
-    $site_url_ps = home_url('/');
-    $raw_cfg_key = 'gas_raw_website_config_' . get_current_blog_id();
-    $website_raw = get_transient($raw_cfg_key);
-    if (!$website_raw) {
-        $cfg_response = wp_remote_get("{$api_url_ps}/api/public/client/{$client_id_ps}/site-config?site_url=" . urlencode($site_url_ps), array('timeout' => 10, 'sslverify' => true));
-        if (!is_wp_error($cfg_response)) {
-            $cfg_body = json_decode(wp_remote_retrieve_body($cfg_response), true);
-            if (!empty($cfg_body['success'])) {
-                $website_raw = $cfg_body['config']['website'] ?? array();
-                set_transient($raw_cfg_key, $website_raw, 300); // 5 min cache
-            }
-        }
-    }
-    if ($website_raw) {
-        // Try custom page key first, then standard page key
-        $ps_page_settings = $website_raw['page-custom-' . $page_slug] ?? $website_raw['page-' . $page_slug] ?? null;
-        if ($ps_page_settings && isset($ps_page_settings['hero-enabled'])) {
-            $hv = $ps_page_settings['hero-enabled'];
-            $hero_enabled = !($hv === false || $hv === 'false' || $hv === '0' || $hv === 0);
-        }
-    }
-    if (!$has_hero_section && $hero_enabled) {
-        // Get hero image, colours, height, padding from page settings
-        $pk = 'page_' . str_replace('-', '_', $page_slug);
-        $ps_hero_image = $ps_page_settings['hero-image-url'] ?? ($ws_api[$pk . '_hero_image'] ?? '');
-        $ps_header_bg = $ps_page_settings['header-bg'] ?? ($ws_api[$pk . '_header_bg'] ?? '#1e293b');
-        $ps_header_text = $ps_page_settings['header-text'] ?? ($ws_api[$pk . '_header_text'] ?? '#ffffff');
-        $ps_hero_height = $ps_page_settings['hero-height'] ?? ($ws_api[$pk . '_hero_height'] ?? '35');
-        $ps_hero_padding = $ps_page_settings['hero-padding'] ?? ($ws_api[$pk . '_hero_padding'] ?? '0');
-    ?>
-    <section class="gas-ps-hero" style="position: relative; min-height: 200px; height: <?php echo intval($ps_hero_height); ?>vh; display: flex; align-items: center; justify-content: center; background: <?php echo esc_attr($ps_header_bg); ?>; overflow: hidden;">
-        <?php if ($ps_hero_image) : ?>
-        <div style="position: absolute; inset: 0; background-image: url('<?php echo esc_url($ps_hero_image); ?>'); background-size: cover; background-position: center;"></div>
-        <?php endif; ?>
-        <div style="position: absolute; top: 0; left: 0; right: 0; height: 150px; background: linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 100%); pointer-events: none; z-index: 1;"></div>
-        <div style="position: relative; z-index: 2; text-align: center; padding: <?php echo intval($ps_hero_padding); ?>px 24px 0;">
-            <h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 700; color: <?php echo esc_attr($ps_header_text); ?>; text-shadow: 0 2px 20px rgba(0,0,0,0.3); margin: 0 0 12px;"><?php echo esc_html($page_title); ?></h1>
-            <?php if ($page_subtitle) : ?>
-                <p style="font-size: clamp(1.1rem, 2vw, 1.35rem); color: <?php echo esc_attr($ps_header_text); ?>; opacity: 0.9; margin: 0; max-width: 600px; margin: 0 auto; text-shadow: 0 1px 10px rgba(0,0,0,0.2);"><?php echo esc_html($page_subtitle); ?></p>
-            <?php endif; ?>
-        </div>
-    </section>
-    <?php
-    } elseif (!$has_hero_section) {
-        // Hero disabled — just add spacing for the fixed header
+    if (!$has_hero_section) {
+        // Just add spacing for the fixed header
         echo '<div style="padding-top: 100px;"></div>';
     }
 
