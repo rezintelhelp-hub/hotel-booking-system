@@ -4829,6 +4829,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-rooms-page-wrapper > .gas-date-filter:first-child {
             margin-top: 60px !important;
         }
+        /* When filters are hidden, add top spacing so cards don't overlap fixed header */
+        .gas-rooms-page-wrapper > .gas-rooms-wrapper:first-child {
+            margin-top: 80px !important;
+        }
+        .developer-section .gas-rooms-page-wrapper > .gas-rooms-wrapper:first-child,
+        .developer-featured .gas-rooms-page-wrapper > .gas-rooms-wrapper:first-child {
+            margin-top: 0 !important;
+        }
         /* No top margin when in featured/developer sections */
         .developer-section .gas-date-filter,
         .developer-featured .gas-date-filter {

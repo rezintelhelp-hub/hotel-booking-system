@@ -2721,6 +2721,7 @@ function developer_get_api_settings() {
         'hero_subtitle_color' => $website_hero['subtitle-color'] ?? null,
         'hero_badge' => developer_get_ml_value($website_hero, 'button_text', $lang),
         'hero_show_badge' => $website_hero['show-badge'] ?? true,
+        'hero_show_search' => $website_hero['show-search'] ?? true,
         'hero_badge_link' => $website_hero['button-link'] ?? $website_hero['badge-link'] ?? null,
         'hero_badge_bg' => $website_hero['badge-bg'] ?? null,
         'hero_badge_text' => $website_hero['badge-text'] ?? null,

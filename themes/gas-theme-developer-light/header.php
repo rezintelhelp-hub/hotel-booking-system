@@ -53,7 +53,10 @@ if (isset($_GET['debug_menu']) && $_GET['debug_menu'] == '1') {
 }
 
 $cta_text = $api_settings['cta_text'] ?? get_theme_mod('developer_header_cta_label', 'Book Now');
-$cta_link = $api_settings['cta_link'] ?? get_theme_mod('developer_header_cta_link', '/book-now/');
+$cta_link_raw = $api_settings['cta_link'] ?? get_theme_mod('developer_header_cta_link', '/book-now/');
+$cta_is_external = preg_match('#^https?://#i', $cta_link_raw);
+$cta_link = $cta_is_external ? $cta_link_raw : home_url($cta_link_raw);
+$cta_target = $cta_is_external ? ' target="_blank" rel="noopener noreferrer"' : '';
 
 // Get logo from API, fallback to theme_mod, then WP custom logo
 // If API explicitly sets empty string, respect it (logo was removed)
@@ -305,10 +308,10 @@ function developer_output_logo($api_logo_image, $site_name, $api_logo_light_imag
                     $right_items = array_slice($menu_items, $half);
                     developer_output_nav_items($right_items);
                     ?>
-                    <a href="<?php echo esc_url(home_url($cta_link)); ?>" class="developer-nav-cta"><?php echo esc_html($cta_text); ?></a>
+                    <a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a>
                     <?php echo developer_language_switcher(); ?>
                </nav>
-                
+
                 <button class="developer-menu-toggle" aria-label="Toggle menu">
                     <span></span>
                     <span></span>
@@ -332,7 +335,7 @@ function developer_output_logo($api_logo_image, $site_name, $api_logo_light_imag
                 <nav class="developer-nav developer-nav-stacked">
                     <?php developer_output_nav_items($menu_items); ?>
                     <?php if (!$menu_has_cta) : ?>
-                    <a href="<?php echo esc_url(home_url($cta_link)); ?>" class="developer-nav-cta"><?php echo esc_html($cta_text); ?></a>
+                    <a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a>
                     <?php endif; ?>
                     <?php echo developer_language_switcher(); ?>
                 </nav>
@@ -354,7 +357,7 @@ function developer_output_logo($api_logo_image, $site_name, $api_logo_light_imag
                 <nav class="developer-nav">
                     <?php developer_output_nav_items($menu_items); ?>
                     <?php if (!$menu_has_cta) : ?>
-                    <a href="<?php echo esc_url(home_url($cta_link)); ?>" class="developer-nav-cta"><?php echo esc_html($cta_text); ?></a>
+                    <a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a>
                     <?php endif; ?>
                     <?php echo developer_language_switcher(); ?>
                 </nav>

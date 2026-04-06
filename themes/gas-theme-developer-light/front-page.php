@@ -206,9 +206,11 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
         <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo nl2br(esc_html($hero_subtitle)); ?></p>
         
         <!-- GAS Search Widget with custom styling -->
+        <?php $show_search = $api['hero_show_search'] ?? true; ?>
+        <?php if ($show_search && $show_search !== 'false') : ?>
         <div class="developer-search-wrapper" style="background: <?php echo esc_attr($search_bg_rgba); ?>; border-radius: <?php echo esc_attr($search_radius); ?>px; max-width: <?php echo esc_attr($search_max_width); ?>px; transform: scale(<?php echo esc_attr($search_scale / 100); ?>); transform-origin: center top;">
             <?php if (shortcode_exists('gas_search')) : ?>
-                <?php 
+                <?php
                 $sc_attrs = 'layout="horizontal" max_width="100%" primary_color="' . esc_attr($search_btn_bg) . '" text_color="' . esc_attr($search_btn_text) . '" label_color="' . esc_attr($search_label_color) . '" background_color="transparent"';
                 if (!empty($search_checkin_label)) $sc_attrs .= ' checkin_label="' . esc_attr($search_checkin_label) . '"';
                 if (!empty($search_checkout_label)) $sc_attrs .= ' checkout_label="' . esc_attr($search_checkout_label) . '"';
@@ -216,7 +218,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
                 if (!empty($search_btn_label)) $sc_attrs .= ' button_text="' . esc_attr($search_btn_label) . '"';
                 if (!empty($search_date_placeholder)) $sc_attrs .= ' date_placeholder="' . esc_attr($search_date_placeholder) . '"';
                 if (!empty($search_guest_singular)) $sc_attrs .= ' guest_singular="' . esc_attr($search_guest_singular) . '"';
-                echo do_shortcode('[gas_search ' . $sc_attrs . ']'); 
+                echo do_shortcode('[gas_search ' . $sc_attrs . ']');
                 ?>
             <?php else : ?>
                 <div style="padding: 24px 32px; text-align: center;">
@@ -224,11 +226,12 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
                 </div>
             <?php endif; ?>
         </div>
-        
-        <?php if ($search_below_text) : ?>
+        <?php endif; ?>
+
+        <?php if (($show_search && $show_search !== 'false') && $search_below_text) : ?>
             <p class="developer-search-below-text"><?php echo esc_html($search_below_text); ?></p>
         <?php endif; ?>
-        
+
         <?php if ($hero_badge_1 || $hero_badge_2 || $hero_badge_3) : ?>
         <div class="developer-hero-features" style="color: <?php echo esc_attr($hero_trust_text_color); ?>;">
             <?php if ($hero_badge_1) : ?>
