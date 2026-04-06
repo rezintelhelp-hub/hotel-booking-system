@@ -157,9 +157,11 @@ if (strlen($overlay_hex) === 7 && $overlay_hex[0] === '#') {
     $overlay_r = 30; $overlay_g = 41; $overlay_b = 59;
 }
 
-// Determine hero height based on whether there's an image
-$hero_height = $page_hero_image ? '50vh' : '35vh';
-$hero_min_height = $page_hero_image ? '350px' : '250px';
+// Determine hero height — use Web Builder setting if available, else defaults
+$custom_hero_height = $api[$page_settings_key . '_hero_height'] ?? null;
+$custom_hero_padding = $api[$page_settings_key . '_hero_padding'] ?? '0';
+$hero_height = $custom_hero_height ? $custom_hero_height . 'vh' : ($page_hero_image ? '50vh' : '35vh');
+$hero_min_height = $page_hero_image ? '350px' : '200px';
 
 // Check hero enabled toggle for pages that support it — default ON when never set
 $hero_enabled = true;
@@ -187,7 +189,7 @@ if (!empty($special_page) && isset($api[$hero_key])) {
     <div style="position: absolute; top: 0; left: 0; right: 0; height: 150px; background: linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 100%); pointer-events: none; z-index: 1;"></div>
     
     <!-- Content -->
-    <div class="developer-page-hero-content" style="position: relative; z-index: 2; text-align: center; padding: 80px 24px 0; max-width: 900px;">
+    <div class="developer-page-hero-content" style="position: relative; z-index: 2; text-align: center; padding: <?php echo intval($custom_hero_padding) > 0 ? intval($custom_hero_padding) : 80; ?>px 24px 0; max-width: 900px;">
         <h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 700; color: <?php echo esc_attr($page_header_text); ?>; margin: 0 0 16px; text-shadow: 0 2px 20px rgba(0,0,0,0.3);"><?php echo esc_html($page_title); ?></h1>
         
         <?php if ($page_subtitle) : ?>

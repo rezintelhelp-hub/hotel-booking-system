@@ -2493,6 +2493,8 @@ function developer_get_api_settings() {
         'page_about_bg' => $website_page_about['bg'] ?? null,
         'page_about_header_bg' => $website_page_about['header-bg'] ?? null,
         'page_about_header_text' => $website_page_about['header-text'] ?? null,
+        'page_about_hero_height' => $website_page_about['hero-height'] ?? null,
+        'page_about_hero_padding' => $website_page_about['hero-padding'] ?? null,
         'page_about_title_color' => $website_page_about['title-color'] ?? null,
         'page_about_text_color' => $website_page_about['text-color'] ?? null,
         'page_about_meta_title' => $website_page_about['meta-title'] ?? '',
