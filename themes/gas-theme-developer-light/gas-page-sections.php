@@ -178,6 +178,44 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 </section>
                 <?php break;
 
+            case 'videos':
+                $videos = $section['videos'] ?? array();
+                $videos = array_filter($videos); // remove empties
+                if (!empty($videos)) :
+                    $vid_count = count($videos);
+                    $vid_cols = $vid_count >= 3 ? 3 : $vid_count;
+                ?>
+                <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-videos" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
+                    <div style="max-width: 1200px; margin: 0 auto;">
+                        <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
+                        <div style="display: grid; grid-template-columns: repeat(<?php echo $vid_cols; ?>, 1fr); gap: 24px;">
+                            <?php foreach ($videos as $vid_url) :
+                                // Extract embed URL from various formats
+                                $embed_url = '';
+                                if (preg_match('/src=["\']([^"\']+)["\']/', $vid_url, $m)) {
+                                    // Full iframe embed code — extract src
+                                    $embed_url = $m[1];
+                                } elseif (preg_match('/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/', $vid_url, $m)) {
+                                    // YouTube URL
+                                    $embed_url = 'https://www.youtube.com/embed/' . $m[1];
+                                } elseif (preg_match('/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/', $vid_url, $m)) {
+                                    // Already an embed URL
+                                    $embed_url = 'https://www.youtube.com/embed/' . $m[1];
+                                } elseif (preg_match('/vimeo\.com\/(\d+)/', $vid_url, $m)) {
+                                    // Vimeo URL
+                                    $embed_url = 'https://player.vimeo.com/video/' . $m[1];
+                                }
+                                if ($embed_url) :
+                            ?>
+                            <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                                <iframe src="<?php echo esc_url($embed_url); ?>" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; border-radius: 12px;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                            </div>
+                            <?php endif; endforeach; ?>
+                        </div>
+                    </div>
+                </section>
+                <?php endif; break;
+
             case 'gallery':
                 $images = $section['images'] ?? array();
                 if (!empty($images)) : ?>
