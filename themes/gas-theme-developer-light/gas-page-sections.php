@@ -144,6 +144,16 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                         <div style="<?php echo $txt_order; ?>">
                             <?php if ($heading) : ?><h2 style="font-size: 1.8rem; font-weight: 700; color: #1e293b; margin: 0 0 10px;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                             <?php if ($body) : ?><div class="gas-ps-body"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
+                            <?php
+                            $cta_text = gas_ps_field($section, 'cta_text', $lang);
+                            $cta_link = $section['cta_link'] ?? '';
+                            if ($cta_text && $cta_link) :
+                                $cta_external = preg_match('#^https?://#i', $cta_link);
+                                $cta_href = $cta_external ? $cta_link : home_url($cta_link);
+                                $cta_target = $cta_external ? ' target="_blank" rel="noopener noreferrer"' : '';
+                            ?>
+                            <a href="<?php echo esc_url($cta_href); ?>"<?php echo $cta_target; ?> style="display: inline-block; margin-top: 16px; background: <?php echo esc_attr($primary_color); ?>; color: #fff; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 600;"><?php echo esc_html($cta_text); ?></a>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </section>
