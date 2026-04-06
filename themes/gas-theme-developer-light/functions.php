@@ -2855,6 +2855,7 @@ function developer_get_api_settings() {
         'reviews_btn_color' => $website_reviews['btn-color'] ?? ($website_reviews['star-color'] ?? '#fbbf24'),
         'reviews_btn_text_color' => $website_reviews['btn-text-color'] ?? '#ffffff',
         'reviews_btn_text' => developer_get_ml_value($website_reviews, 'btn-text', $lang) ?: 'View All Reviews',
+        'reviews_btn_link' => $website_reviews['btn-link'] ?? '/reviews/',
         'review1_name' => $website_reviews['review1-name'] ?? '',
         'review1_source' => $website_reviews['review1-source'] ?? '',
         'review1_text' => $website_reviews['review1-text'] ?? '',

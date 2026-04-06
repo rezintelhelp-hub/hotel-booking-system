@@ -619,9 +619,13 @@ if (!is_wp_error($repuso_response)) {
             $btn_color = $api['reviews_btn_color'] ?? $reviews_star_color;
             $btn_text_color = $api['reviews_btn_text_color'] ?? '#ffffff';
             $btn_text = $api['reviews_btn_text'] ?? 'View All Reviews';
+            $btn_link_raw = $api['reviews_btn_link'] ?? '/reviews/';
+            $btn_is_external = preg_match('#^https?://#i', $btn_link_raw);
+            $btn_href = $btn_is_external ? $btn_link_raw : home_url($btn_link_raw);
+            $btn_target = $btn_is_external ? ' target="_blank" rel="noopener noreferrer"' : '';
         ?>
         <div style="text-align: center; margin-top: 2rem;">
-            <a href="/reviews/" style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
+            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
         </div>
         <?php endif; ?>
     </div>
@@ -703,9 +707,13 @@ if (!is_wp_error($hostaway_response)) {
             $btn_color = $api['reviews_btn_color'] ?? $reviews_star_color;
             $btn_text_color = $api['reviews_btn_text_color'] ?? '#ffffff';
             $btn_text = $api['reviews_btn_text'] ?? 'View All Reviews';
+            $btn_link_raw = $api['reviews_btn_link'] ?? '/reviews/';
+            $btn_is_external = preg_match('#^https?://#i', $btn_link_raw);
+            $btn_href = $btn_is_external ? $btn_link_raw : home_url($btn_link_raw);
+            $btn_target = $btn_is_external ? ' target="_blank" rel="noopener noreferrer"' : '';
         ?>
         <div style="text-align: center; margin-top: 2rem;">
-            <a href="/reviews/" style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
+            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
         </div>
         <?php endif; ?>
     </div>
