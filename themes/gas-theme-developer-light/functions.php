@@ -2770,6 +2770,8 @@ function developer_get_api_settings() {
         'about_btn_bg' => $website_about['btn-bg'] ?? null,
         'about_btn_text_color' => $website_about['btn-text-color'] ?? null,
         'about_show_btn' => $website_about['show-btn'] ?? true,
+        'about_features_enabled' => $website_about['features-enabled'] ?? true,
+        'about_tick_color' => $website_about['tick-color'] ?? '#10b981',
         'about_feature_1' => developer_get_ml_value($website_about, 'feature-1', $lang),
         'about_feature_2' => developer_get_ml_value($website_about, 'feature-2', $lang),
         'about_feature_3' => developer_get_ml_value($website_about, 'feature-3', $lang),

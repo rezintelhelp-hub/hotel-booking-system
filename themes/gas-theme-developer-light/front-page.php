@@ -1,20 +1,5 @@
 <?php
 /**
- * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
- * All rights reserved.
- *
- * This software is proprietary and licensed exclusively for use on
- * GAS-hosted infrastructure. Copying, redistribution, modification,
- * reverse-engineering, or deployment on non-GAS servers is strictly
- * prohibited without prior written consent from GAS.
- *
- * Unauthorized use may result in legal action under applicable
- * intellectual property and copyright laws.
- *
- * Contact: steve@gas.travel | https://gas.travel
- */
-
-/**
  * Homepage Template
  *
  * @package GAS_Developer
@@ -62,6 +47,7 @@ $search_below_text = $api['hero_search_below_text'] ?? get_theme_mod('developer_
 $search_max_width = $api['hero_search_max_width'] ?? get_theme_mod('developer_search_max_width', '900');
 $search_padding = $api['hero_search_padding'] ?? get_theme_mod('developer_search_padding', '24');
 $search_scale = $api['hero_search_scale'] ?? get_theme_mod('developer_search_scale', '100');
+$search_offset = $api["hero_search_offset"] ?? "0";
 
 // Search label translations (with API override)
 $search_checkin_label = $api['hero_search_checkin_label'] ?? '';
@@ -150,12 +136,16 @@ $about_title_color = $api['about_title_color'] ?? get_theme_mod('developer_about
 $about_text_color = $api['about_text_color'] ?? get_theme_mod('developer_about_text_color', '#475569');
 
 // About features (editable) - with API multilingual override
+$about_features_enabled = $api['about_features_enabled'] ?? true;
+$about_tick_color = $api['about_tick_color'] ?? '#10b981';
 $about_feature_1 = $api['about_feature_1'] ?? get_theme_mod('developer_about_feature_1', 'Spacious Bedrooms');
 $about_feature_2 = $api['about_feature_2'] ?? get_theme_mod('developer_about_feature_2', 'Luxury Bathrooms');
 $about_feature_3 = $api['about_feature_3'] ?? get_theme_mod('developer_about_feature_3', 'Prime Locations');
 $about_feature_4 = $api['about_feature_4'] ?? get_theme_mod('developer_about_feature_4', 'Full Amenities');
 $about_feature_5 = $api['about_feature_5'] ?? get_theme_mod('developer_about_feature_5', 'Entertainment Areas');
 $about_feature_6 = $api['about_feature_6'] ?? get_theme_mod('developer_about_feature_6', 'Private Parking');
+
+// About FAQ
 
 // Calculate overlay opacity (convert percentage to decimal)
 $overlay_opacity = $hero_opacity / 100;
@@ -213,7 +203,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
         <?php endif; ?>
         
         <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;"><?php echo esc_html($hero_title); ?></h1>
-        <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo esc_html($hero_subtitle); ?></p>
+        <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo nl2br(esc_html($hero_subtitle)); ?></p>
         
         <!-- GAS Search Widget with custom styling -->
         <div class="developer-search-wrapper" style="background: <?php echo esc_attr($search_bg_rgba); ?>; border-radius: <?php echo esc_attr($search_radius); ?>px; max-width: <?php echo esc_attr($search_max_width); ?>px; transform: scale(<?php echo esc_attr($search_scale / 100); ?>); transform-origin: center top;">
@@ -264,6 +254,13 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
     </div>
 </section>
 
+<?php if ($search_offset && intval($search_offset) !== 0) : ?>
+<style>
+.developer-hero { overflow: visible !important; padding-bottom: <?php echo abs(intval($search_offset)); ?>px !important; }
+.developer-search-wrapper { transform: scale(<?php echo esc_attr($search_scale / 100); ?>) translateY(<?php echo intval($search_offset); ?>px) !important; transform-origin: center top; position: relative; z-index: 10; }
+</style>
+<?php endif; ?>
+
 <?php if ($intro_enabled && ($intro_title || $intro_text)) : ?>
 <!-- Intro Section -->
 <section class="developer-section developer-intro" style="background: <?php echo esc_attr($intro_bg); ?>; color: <?php echo esc_attr($intro_text_color); ?>;">
@@ -273,7 +270,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
                 <h2 style="color: <?php echo esc_attr($intro_text_color); ?>; font-size: <?php echo esc_attr($intro_title_size); ?>px;"><?php echo esc_html($intro_title); ?></h2>
             <?php endif; ?>
             <?php if ($intro_text) : ?>
-                <p style="font-size: <?php echo esc_attr($intro_text_size); ?>px;"><?php echo nl2br(esc_html($intro_text)); ?></p>
+                <p style="font-size: <?php echo esc_attr($intro_text_size); ?>px;"><?php echo nl2br(wp_kses_post($intro_text)); ?></p>
             <?php endif; ?>
             <?php 
             $intro_show_btn = $api['intro_show_btn'] ?? null;
@@ -291,7 +288,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
     <div class="developer-container">
         <div class="developer-section-header">
             <h2 style="color: <?php echo esc_attr($featured_title_color); ?>;"><?php echo esc_html($featured_title); ?></h2>
-            <p style="color: <?php echo esc_attr($featured_subtitle_color); ?>;"><?php echo esc_html($featured_subtitle); ?></p>
+            <p style="color: <?php echo esc_attr($featured_subtitle_color); ?>;"><?php echo nl2br(esc_html($featured_subtitle)); ?></p>
         </div>
         
         <?php 
@@ -390,23 +387,25 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
             
             <div class="developer-about-content">
                 <h2 style="font-size: <?php echo esc_attr($about_title_size); ?>px; color: <?php echo esc_attr($about_title_color); ?>;"><?php echo esc_html($about_title); ?></h2>
-                <p style="font-size: <?php echo esc_attr($about_text_size); ?>px; color: <?php echo esc_attr($about_text_color); ?>;"><?php echo nl2br(esc_html($about_text)); ?></p>
+                <p style="font-size: <?php echo esc_attr($about_text_size); ?>px; color: <?php echo esc_attr($about_text_color); ?>;"><?php echo nl2br(wp_kses_post($about_text)); ?></p>
                 
+                <?php if ($about_features_enabled && $about_features_enabled !== 'false' && $about_features_enabled !== false) : ?>
                 <div class="developer-features-list">
-                    <?php 
+                    <?php
                     $features = array($about_feature_1, $about_feature_2, $about_feature_3, $about_feature_4, $about_feature_5, $about_feature_6);
                     foreach ($features as $feature) :
                         if (!empty($feature)) :
                     ?>
                     <div class="developer-feature-item">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <svg fill="none" stroke="<?php echo esc_attr($about_tick_color); ?>" viewBox="0 0 24 24" style="color: <?php echo esc_attr($about_tick_color); ?>;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                         <span><?php echo esc_html($feature); ?></span>
                     </div>
-                    <?php 
+                    <?php
                         endif;
-                    endforeach; 
+                    endforeach;
                     ?>
                 </div>
+                <?php endif; ?>
                 
                 <?php 
                 $about_show_btn = $api['about_show_btn'] ?? true;
@@ -774,7 +773,7 @@ if ($cta_enabled) :
     <div class="developer-container">
         <div class="developer-cta-content">
             <h2 style="color: <?php echo esc_attr($cta_text_color); ?>; font-size: <?php echo esc_attr($cta_title_size); ?>px;"><?php echo esc_html($cta_title); ?></h2>
-            <p style="color: <?php echo esc_attr($cta_text_color); ?>; opacity: 0.9; font-size: <?php echo esc_attr($cta_text_size); ?>px;"><?php echo esc_html($cta_text); ?></p>
+            <p style="color: <?php echo esc_attr($cta_text_color); ?>; opacity: 0.9; font-size: <?php echo esc_attr($cta_text_size); ?>px;"><?php echo nl2br(esc_html($cta_text)); ?></p>
             <?php if ($cta_btn_text) : ?>
                 <a href="<?php echo esc_url(home_url($cta_btn_url)); ?>" class="developer-btn" style="background: <?php echo esc_attr($cta_btn_bg); ?> !important; color: <?php echo esc_attr($cta_btn_text_color); ?> !important;"><?php echo esc_html($cta_btn_text); ?></a>
             <?php endif; ?>
