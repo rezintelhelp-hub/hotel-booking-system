@@ -282,8 +282,66 @@ async function sendEmail({ to, subject, html, from = EMAIL_FROM }) {
   }
 }
 
+// Get email branding for an account — colours, logo, name, from address
+async function getEmailBranding(pool, accountId) {
+  const branding = {
+    accountName: '',
+    slug: '',
+    primaryColor: '#10b981',
+    logoUrl: '',
+    contactEmail: '',
+    contactPhone: '',
+    fromEmail: EMAIL_FROM,
+    fromName: 'GAS Bookings',
+    footerText: ''
+  };
+
+  try {
+    // Get account info
+    const acc = await pool.query('SELECT name, email, phone, contact_name FROM accounts WHERE id = $1', [accountId]);
+    if (acc.rows[0]) {
+      branding.accountName = acc.rows[0].name || '';
+      branding.fromName = acc.rows[0].name || 'GAS Bookings';
+      branding.contactEmail = acc.rows[0].email || '';
+      branding.contactPhone = acc.rows[0].phone || '';
+    }
+
+    // Get deployed site for slug + website settings
+    const ds = await pool.query('SELECT id, slug, site_url FROM deployed_sites WHERE account_id = $1 ORDER BY id LIMIT 1', [accountId]);
+    if (ds.rows[0]) {
+      branding.slug = ds.rows[0].slug || '';
+      if (branding.slug) {
+        branding.fromEmail = `${branding.slug}@${MAILGUN_DOMAIN}`;
+      }
+
+      // Get styles from website_settings
+      const styles = await pool.query("SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'styles'", [ds.rows[0].id]);
+      if (styles.rows[0]?.settings) {
+        const s = styles.rows[0].settings;
+        branding.primaryColor = s['primary-color'] || s['btn-primary-bg'] || '#10b981';
+      }
+
+      // Get logo from header settings
+      const header = await pool.query("SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'header'", [ds.rows[0].id]);
+      if (header.rows[0]?.settings) {
+        branding.logoUrl = header.rows[0].settings['logo-image-url'] || '';
+      }
+
+      // Get footer text
+      const footer = await pool.query("SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'footer'", [ds.rows[0].id]);
+      if (footer.rows[0]?.settings) {
+        branding.footerText = footer.rows[0].settings['copyright-en'] || '';
+      }
+    }
+  } catch (e) {
+    console.error('getEmailBranding error:', e.message);
+  }
+
+  return branding;
+}
+
 // Generate booking confirmation email HTML
-function generateBookingConfirmationEmail(booking, property, room, paymentSchedule) {
+function generateBookingConfirmationEmail(booking, property, room, paymentSchedule, branding) {
   const formatDate = (dateStr) => {
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -292,6 +350,14 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
   const depositPaid = booking.deposit_amount && parseFloat(booking.deposit_amount) > 0;
   const balanceDue = booking.balance_amount && parseFloat(booking.balance_amount) > 0;
   const cardOnFile = !depositPaid && balanceDue && booking.stripe_setup_intent_id;
+
+  const b = branding || {};
+  const brandColor = b.primaryColor || '#10b981';
+  const brandName = b.accountName || property?.name || 'Your Host';
+  const brandLogo = b.logoUrl || '';
+  const brandContact = b.contactEmail || property?.email || EMAIL_FROM;
+  const brandPhone = b.contactPhone || '';
+  const brandFooter = b.footerText || '';
 
   return `
 <!DOCTYPE html>
@@ -308,8 +374,8 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
           <!-- Header -->
           <tr>
-            <td style="background: linear-gradient(135deg, #10b981, #059669); padding: 40px; text-align: center;">
-              <div style="width: 60px; height: 60px; background: white; border-radius: 50%; margin: 0 auto 16px; line-height: 60px; font-size: 30px;">✓</div>
+            <td style="background: ${brandColor}; padding: 40px; text-align: center;">
+              ${brandLogo ? `<img src="${brandLogo}" alt="${brandName}" style="max-height: 60px; max-width: 200px; margin-bottom: 16px;">` : `<div style="width: 60px; height: 60px; background: white; border-radius: 50%; margin: 0 auto 16px; line-height: 60px; font-size: 30px;">✓</div>`}
               <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Booking Confirmed!</h1>
               <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">Thank you for your reservation</p>
             </td>
@@ -318,11 +384,11 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
           <!-- Booking Reference -->
           <tr>
             <td style="padding: 32px 40px 0;">
-              <table width="100%" style="background: #f0fdf4; border: 2px solid #10b981; border-radius: 12px; padding: 20px; text-align: center;">
+              <table width="100%" style="background: ${brandColor}11; border: 2px solid ${brandColor}; border-radius: 12px; padding: 20px; text-align: center;">
                 <tr>
                   <td>
-                    <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #059669;">Booking Reference</span>
-                    <div style="font-size: 28px; font-weight: 700; color: #047857; margin-top: 4px;">${booking.id}</div>
+                    <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: ${brandColor};">Booking Reference</span>
+                    <div style="font-size: 28px; font-weight: 700; color: ${brandColor}; margin-top: 4px;">${booking.id}</div>
                   </td>
                 </tr>
               </table>
@@ -419,14 +485,18 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
           <tr>
             <td style="background: #f8fafc; padding: 24px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
               <p style="margin: 0 0 8px; font-size: 14px; color: #64748b;">Questions about your booking?</p>
-              <p style="margin: 0; font-size: 14px; color: #64748b;">Contact us at <a href="mailto:${property?.email || EMAIL_FROM}" style="color: #10b981;">${property?.email || EMAIL_FROM}</a></p>
+              <p style="margin: 0 0 4px; font-size: 14px; color: #64748b;">Contact us at <a href="mailto:${brandContact || property?.email || EMAIL_FROM}" style="color: ${brandColor || '#10b981'};">${brandContact || property?.email || EMAIL_FROM}</a></p>
+              ${brandPhone ? `<p style="margin: 0; font-size: 14px; color: #64748b;">${brandPhone}</p>` : ''}
             </td>
           </tr>
         </table>
-        
-        <!-- Unsubscribe -->
+
+        <!-- Footer branding -->
         <p style="text-align: center; margin-top: 24px; font-size: 12px; color: #94a3b8;">
-          This is a transactional email regarding your booking.
+          ${brandFooter || `&copy; ${new Date().getFullYear()} ${brandName || property?.name || 'Your Host'}. All rights reserved.`}
+        </p>
+        <p style="text-align: center; margin-top: 4px; font-size: 11px; color: #cbd5e1;">
+          Powered by <a href="https://gas.travel" style="color: #cbd5e1;">GAS</a>
         </p>
       </td>
     </tr>
@@ -639,14 +709,18 @@ function generateGroupBookingConfirmationEmail(groupBookingId, bookings, rooms, 
           <tr>
             <td style="background: #f8fafc; padding: 24px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
               <p style="margin: 0 0 8px; font-size: 14px; color: #64748b;">Questions about your booking?</p>
-              <p style="margin: 0; font-size: 14px; color: #64748b;">Contact us at <a href="mailto:${property?.email || EMAIL_FROM}" style="color: #10b981;">${property?.email || EMAIL_FROM}</a></p>
+              <p style="margin: 0 0 4px; font-size: 14px; color: #64748b;">Contact us at <a href="mailto:${brandContact || property?.email || EMAIL_FROM}" style="color: ${brandColor || '#10b981'};">${brandContact || property?.email || EMAIL_FROM}</a></p>
+              ${brandPhone ? `<p style="margin: 0; font-size: 14px; color: #64748b;">${brandPhone}</p>` : ''}
             </td>
           </tr>
         </table>
-        
-        <!-- Unsubscribe -->
+
+        <!-- Footer branding -->
         <p style="text-align: center; margin-top: 24px; font-size: 12px; color: #94a3b8;">
-          This is a transactional email regarding your booking.
+          ${brandFooter || `&copy; ${new Date().getFullYear()} ${brandName || property?.name || 'Your Host'}. All rights reserved.`}
+        </p>
+        <p style="text-align: center; margin-top: 4px; font-size: 11px; color: #cbd5e1;">
+          Powered by <a href="https://gas.travel" style="color: #cbd5e1;">GAS</a>
         </p>
       </td>
     </tr>
@@ -63290,13 +63364,17 @@ app.post('/api/public/book', async (req, res) => {
         if (schedRows.rows.length > 0) emailPaymentSchedule = schedRows.rows;
       } catch (e) { /* ignore — table may not exist yet */ }
 
-      const emailHtml = generateBookingConfirmationEmail(bookingForEmail, property, room, emailPaymentSchedule);
+      // Get email branding for this account
+      const emailBranding = await getEmailBranding(pool, property.account_id || newBooking.account_id);
+      const emailHtml = generateBookingConfirmationEmail(bookingForEmail, property, room, emailPaymentSchedule, emailBranding);
+      const brandedFrom = `${emailBranding.fromName} <${emailBranding.fromEmail}>`;
 
       // Send to guest
       await sendEmail({
         to: guest_email,
         subject: `Booking Confirmed - ${property?.name || 'Your Reservation'} (Ref: ${newBooking.id})`,
-        html: emailHtml
+        html: emailHtml,
+        from: brandedFrom
       });
 
       // Also send to property owner if different email
@@ -63304,7 +63382,8 @@ app.post('/api/public/book', async (req, res) => {
         await sendEmail({
           to: property.account_email,
           subject: `New Booking - ${guest_first_name} ${guest_last_name} (Ref: ${newBooking.id})`,
-          html: emailHtml
+          html: emailHtml,
+          from: brandedFrom
         });
       }
     } catch (emailError) {
