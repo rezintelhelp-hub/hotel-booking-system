@@ -463,7 +463,16 @@ jQuery(document).ready(function($) {
                 altInput: true,
                 altFormat: 'd M Y',
                 disableMobile: true,
-                locale: flatpickrLocale
+                locale: flatpickrLocale,
+                onChange: function(selectedDates, dateStr, instance) {
+                    // When checkout date is selected on room detail page, switch to availability tab
+                    var checkinInput = instance.element.closest('.gas-room-widget, .gas-booking-card')?.querySelector('.gas-checkin');
+                    if (!checkinInput) checkinInput = document.querySelector('.gas-checkin');
+                    if (checkinInput && checkinInput.value && dateStr) {
+                        var availTab = document.querySelector('.gas-tab-btn[data-tab="availability"]');
+                        if (availTab) availTab.click();
+                    }
+                }
             });
         }
         
