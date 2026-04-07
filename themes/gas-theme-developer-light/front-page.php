@@ -877,7 +877,16 @@ for ($ir = 1; $ir <= 3; $ir++) {
 
     $ir_cols = count($ir_items);
     ob_start();
-    ?>
+    if ($ir === 1) : // Output responsive CSS once ?>
+    <style>
+    @media (max-width: 768px) {
+        .developer-image-row-grid { grid-template-columns: 1fr !important; }
+    }
+    @media (min-width: 769px) and (max-width: 1024px) {
+        .developer-image-row-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    }
+    </style>
+    <?php endif; ?>
     <!-- Image Row <?php echo $ir; ?> -->
     <section class="developer-section developer-image-row" style="padding: 40px 24px; background: <?php echo esc_attr($ir_bg); ?>;">
         <div class="developer-container" style="max-width: 1200px; margin: 0 auto;">
@@ -889,7 +898,7 @@ for ($ir = 1; $ir <= 3; $ir++) {
             <?php else : ?>
                 <div style="margin-bottom: 24px;"></div>
             <?php endif; ?>
-            <div style="display: grid; grid-template-columns: repeat(<?php echo $ir_cols; ?>, 1fr); gap: 24px;">
+            <div class="developer-image-row-grid" style="display: grid; grid-template-columns: repeat(<?php echo $ir_cols; ?>, 1fr); gap: 24px;">
                 <?php foreach ($ir_items as $iri) :
                     $card_bg_style = !empty($iri['card_bg']) ? 'background:' . esc_attr($iri['card_bg']) . ';padding:24px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.06);' : '';
                 ?>
