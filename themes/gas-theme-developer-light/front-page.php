@@ -961,7 +961,7 @@ if ($badge_enabled && $badge_enabled !== 'false' && $badge_enabled !== '0') {
                 <?php endif; ?>
                 <div style="display: flex; justify-content: center; align-items: center; gap: 32px; flex-wrap: wrap;">
                     <?php foreach ($badge_items as $badge_img) : ?>
-                    <img src="<?php echo esc_url($badge_img); ?>" alt="" style="height: 40px; width: auto; opacity: 0.7; filter: grayscale(30%); transition: all 0.3s;" onmouseover="this.style.opacity='1';this.style.filter='none'" onmouseout="this.style.opacity='0.7';this.style.filter='grayscale(30%)'">
+                    <img src="<?php echo esc_url($badge_img); ?>" alt="" style="height: 70px; width: auto; opacity: 0.7; filter: grayscale(30%); transition: all 0.3s;" onmouseover="this.style.opacity='1';this.style.filter='none'" onmouseout="this.style.opacity='0.7';this.style.filter='grayscale(30%)'">
                     <?php endforeach; ?>
                 </div>
             </div>
