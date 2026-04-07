@@ -89,13 +89,15 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 $cta_text = gas_ps_field($section, 'cta_text', $lang);
                 $cta_link = $section['cta_link'] ?? '';
                 $has_img = !empty($image);
+                $hero_min_h = $section['min_height'] ?? ($has_img ? '60vh' : '40vh');
+                $hero_pad_top = intval($section['header_top_padding'] ?? 40);
                 ?>
-                <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-hero-section" style="position: relative; min-height: <?php echo $has_img ? '60vh' : '40vh'; ?>; display: flex; align-items: center; justify-content: center; overflow: hidden; <?php echo $has_img ? '' : 'background: #1e293b;'; ?>">
+                <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-hero-section" style="position: relative; min-height: <?php echo esc_attr($hero_min_h); ?>; display: flex; align-items: center; justify-content: center; overflow: hidden; <?php echo $has_img ? '' : 'background: #1e293b;'; ?>">
                     <?php if ($has_img) : ?>
                         <div style="position: absolute; inset: 0; background-image: url('<?php echo esc_url($image); ?>'); background-size: cover; background-position: center;"></div>
                         <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.45);"></div>
                     <?php endif; ?>
-                    <div style="position: relative; z-index: 2; text-align: center; padding: 40px 24px; max-width: 900px;">
+                    <div style="position: relative; z-index: 2; text-align: center; padding: <?php echo $hero_pad_top; ?>px 24px 40px; max-width: 900px;">
                         <?php if ($heading) : ?><h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2rem, 4vw, 3.5rem); font-weight: 700; color: #fff; margin: 0 0 16px; text-shadow: 0 2px 15px rgba(0,0,0,0.3);"><?php echo esc_html($heading); ?></h1><?php endif; ?>
                         <?php if ($subheading) : ?><p style="font-size: 1.25rem; color: #fff; opacity: 0.9; margin: 0 0 24px;"><?php echo esc_html($subheading); ?></p><?php endif; ?>
                         <?php if ($body) : ?><div class="gas-ps-body" style="color: #fff; opacity: 0.9;"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
