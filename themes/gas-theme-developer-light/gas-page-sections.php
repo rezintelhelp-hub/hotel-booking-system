@@ -266,7 +266,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-cards" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
                     <div style="max-width: 1200px; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 8px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
-                        <?php $cards_subtitle = gas_ps_field($section, 'subtitle', $lang); if ($cards_subtitle) : ?>
+                        <?php $cards_subtitle = gas_ps_field($section, 'subheading', $lang) ?: gas_ps_field($section, 'subtitle', $lang); if ($cards_subtitle) : ?>
                             <p style="color: #64748b; text-align: center; margin: 0 0 24px; font-size: 1rem; line-height: 1.6; max-width: 700px; margin-left: auto; margin-right: auto;"><?php echo esc_html($cards_subtitle); ?></p>
                         <?php endif; ?>
                         <?php $card_count = count($cards); $card_cols = $card_count <= 2 ? $card_count : 3; ?>
