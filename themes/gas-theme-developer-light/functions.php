@@ -3004,6 +3004,8 @@ function developer_get_api_settings() {
         'image_row_1_btn_text_3' => developer_get_ml_value($website['image-row-1'] ?? array(), 'btn-text-3', $lang),
         'image_row_1_btn_link_3' => ($website['image-row-1'] ?? array())['btn-link-3'] ?? '',
         'image_row_1_card_bg_3' => ($website['image-row-1'] ?? array())['card-bg-3'] ?? '',
+        'image_row_1_row_btn_text' => developer_get_ml_value($website['image-row-1'] ?? array(), 'row-btn-text', $lang),
+        'image_row_1_row_btn_link' => ($website['image-row-1'] ?? array())['row-btn-link'] ?? '',
         'section_order_image_row_1' => ($website['image-row-1'] ?? array())['position'] ?? null,
 
         'image_row_2_enabled' => ($website['image-row-2'] ?? array())['enabled'] ?? false,
@@ -3028,6 +3030,8 @@ function developer_get_api_settings() {
         'image_row_2_btn_text_3' => developer_get_ml_value($website['image-row-2'] ?? array(), 'btn-text-3', $lang),
         'image_row_2_btn_link_3' => ($website['image-row-2'] ?? array())['btn-link-3'] ?? '',
         'image_row_2_card_bg_3' => ($website['image-row-2'] ?? array())['card-bg-3'] ?? '',
+        'image_row_2_row_btn_text' => developer_get_ml_value($website['image-row-2'] ?? array(), 'row-btn-text', $lang),
+        'image_row_2_row_btn_link' => ($website['image-row-2'] ?? array())['row-btn-link'] ?? '',
         'section_order_image_row_2' => ($website['image-row-2'] ?? array())['position'] ?? null,
 
         'image_row_3_enabled' => ($website['image-row-3'] ?? array())['enabled'] ?? false,
@@ -3052,6 +3056,8 @@ function developer_get_api_settings() {
         'image_row_3_btn_text_3' => developer_get_ml_value($website['image-row-3'] ?? array(), 'btn-text-3', $lang),
         'image_row_3_btn_link_3' => ($website['image-row-3'] ?? array())['btn-link-3'] ?? '',
         'image_row_3_card_bg_3' => ($website['image-row-3'] ?? array())['card-bg-3'] ?? '',
+        'image_row_3_row_btn_text' => developer_get_ml_value($website['image-row-3'] ?? array(), 'row-btn-text', $lang),
+        'image_row_3_row_btn_link' => ($website['image-row-3'] ?? array())['row-btn-link'] ?? '',
         'section_order_image_row_3' => ($website['image-row-3'] ?? array())['position'] ?? null,
     );
     

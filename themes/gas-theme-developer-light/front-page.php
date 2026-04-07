@@ -908,6 +908,18 @@ for ($ir = 1; $ir <= 3; $ir++) {
                 </div>
                 <?php endforeach; ?>
             </div>
+            <?php
+            $ir_row_btn_text = $api[$ir_prefix . 'row_btn_text'] ?? '';
+            $ir_row_btn_link = $api[$ir_prefix . 'row_btn_link'] ?? '';
+            if ($ir_row_btn_text && $ir_row_btn_link) :
+                $ir_row_external = preg_match('#^https?://#i', $ir_row_btn_link);
+                $ir_row_href = $ir_row_external ? $ir_row_btn_link : home_url($ir_row_btn_link);
+                $ir_row_target = $ir_row_external ? ' target="_blank" rel="noopener noreferrer"' : '';
+            ?>
+            <div style="text-align: center; margin-top: 2rem;">
+                <a href="<?php echo esc_url($ir_row_href); ?>"<?php echo $ir_row_target; ?> class="developer-btn" style="display: inline-block; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 600;"><?php echo esc_html($ir_row_btn_text); ?></a>
+            </div>
+            <?php endif; ?>
         </div>
     </section>
     <?php
