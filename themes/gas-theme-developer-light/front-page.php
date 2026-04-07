@@ -176,8 +176,8 @@ $section_positions = array(
     'cta'      => intval($api['section_order_cta'] ?? 15),
 );
 
-// Image Row sections (3 available, even positions)
-for ($ir = 1; $ir <= 3; $ir++) {
+// Image Row sections (4 available, even positions)
+for ($ir = 1; $ir <= 4; $ir++) {
     $ir_key = 'image_row_' . $ir;
     $section_positions[$ir_key] = intval($api['section_order_' . $ir_key] ?? (90 + $ir)); // default off-screen
 }
@@ -844,9 +844,9 @@ if ($cta_enabled) :
 <?php $homepage_sections[$section_positions['cta']] = ob_get_clean(); ?>
 
 <?php
-// --- Image Row Sections (1-3) ---
+// --- Image Row Sections (1-4) ---
 // Each can hold 1-3 images with optional title and button
-for ($ir = 1; $ir <= 3; $ir++) {
+for ($ir = 1; $ir <= 4; $ir++) {
     $ir_prefix = 'image_row_' . $ir . '_';
     $ir_enabled = $api[$ir_prefix . 'enabled'] ?? false;
     if (!$ir_enabled && $ir_enabled !== 'true' && $ir_enabled !== '1') continue;
@@ -938,6 +938,37 @@ for ($ir = 1; $ir <= 3; $ir++) {
     </section>
     <?php
     $homepage_sections[$section_positions['image_row_' . $ir]] = ob_get_clean();
+}
+
+// --- Badge Row Section ---
+$badge_enabled = $api['badge_row_enabled'] ?? false;
+if ($badge_enabled && $badge_enabled !== 'false' && $badge_enabled !== '0') {
+    $badge_heading = $api['badge_row_heading'] ?? '';
+    $badge_bg = $api['badge_row_bg'] ?? '#f8fafc';
+    $badge_items = array();
+    for ($bi = 1; $bi <= 5; $bi++) {
+        $bimg = $api['badge_row_image_' . $bi] ?? '';
+        if ($bimg) $badge_items[] = $bimg;
+    }
+    if (!empty($badge_items)) {
+        $badge_pos = intval($api['section_order_badge_row'] ?? 16);
+        ob_start();
+        ?>
+        <section class="developer-section developer-badge-row" style="padding: 30px 24px; background: <?php echo esc_attr($badge_bg); ?>;">
+            <div class="developer-container" style="max-width: 1000px; margin: 0 auto; text-align: center;">
+                <?php if ($badge_heading) : ?>
+                    <p style="font-size: 0.9rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 16px;"><?php echo esc_html($badge_heading); ?></p>
+                <?php endif; ?>
+                <div style="display: flex; justify-content: center; align-items: center; gap: 32px; flex-wrap: wrap;">
+                    <?php foreach ($badge_items as $badge_img) : ?>
+                    <img src="<?php echo esc_url($badge_img); ?>" alt="" style="height: 40px; width: auto; opacity: 0.7; filter: grayscale(30%); transition: all 0.3s;" onmouseover="this.style.opacity='1';this.style.filter='none'" onmouseout="this.style.opacity='0.7';this.style.filter='grayscale(30%)'">
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </section>
+        <?php
+        $homepage_sections[$badge_pos] = ob_get_clean();
+    }
 }
 
 // --- Sort all sections by position and output ---
