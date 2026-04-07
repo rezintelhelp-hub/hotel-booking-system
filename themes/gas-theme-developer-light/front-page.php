@@ -853,6 +853,7 @@ for ($ir = 1; $ir <= 3; $ir++) {
 
     $ir_heading = $api[$ir_prefix . 'heading'] ?? '';
     $ir_bg = $api[$ir_prefix . 'bg'] ?? '#ffffff';
+    $ir_align = $api[$ir_prefix . 'text_align'] ?? 'center';
     $ir_items = array();
     for ($j = 1; $j <= 3; $j++) {
         $img = $api[$ir_prefix . 'image_' . $j] ?? '';
@@ -887,7 +888,7 @@ for ($ir = 1; $ir <= 3; $ir++) {
                 <?php foreach ($ir_items as $iri) :
                     $card_bg_style = !empty($iri['card_bg']) ? 'background:' . esc_attr($iri['card_bg']) . ';padding:24px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.06);' : '';
                 ?>
-                <div style="text-align: center; <?php echo $card_bg_style; ?>">
+                <div style="text-align: <?php echo esc_attr($ir_align); ?>; <?php echo $card_bg_style; ?>">
                     <?php if ($iri['image']) : ?>
                     <img src="<?php echo esc_url($iri['image']); ?>" alt="<?php echo esc_attr($iri['title']); ?>" style="width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
                     <?php endif; ?>
