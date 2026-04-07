@@ -868,6 +868,7 @@ for ($ir = 1; $ir <= 3; $ir++) {
                 'text' => $text,
                 'btn_text' => $btn_text,
                 'btn_link' => $btn_link,
+                'card_bg' => $api[$ir_prefix . 'card_bg_' . $j] ?? '',
             );
         }
     }
@@ -883,8 +884,10 @@ for ($ir = 1; $ir <= 3; $ir++) {
                 <h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 24px; text-align: center;"><?php echo esc_html($ir_heading); ?></h2>
             <?php endif; ?>
             <div style="display: grid; grid-template-columns: repeat(<?php echo $ir_cols; ?>, 1fr); gap: 24px;">
-                <?php foreach ($ir_items as $iri) : ?>
-                <div style="text-align: center;">
+                <?php foreach ($ir_items as $iri) :
+                    $card_bg_style = !empty($iri['card_bg']) ? 'background:' . esc_attr($iri['card_bg']) . ';padding:24px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.06);' : '';
+                ?>
+                <div style="text-align: center; <?php echo $card_bg_style; ?>">
                     <?php if ($iri['image']) : ?>
                     <img src="<?php echo esc_url($iri['image']); ?>" alt="<?php echo esc_attr($iri['title']); ?>" style="width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
                     <?php endif; ?>
