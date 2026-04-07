@@ -616,7 +616,7 @@ if (!is_wp_error($repuso_response)) {
                 <div style="flex: 0 0 25%; min-width: 260px; padding: 0 8px; box-sizing: border-box;">
                     <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: 12px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                         <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $r_stars; ?></div>
-                        <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px; line-height: 1.5; flex: 1; margin: 0 0 12px 0; overflow: hidden; opacity: 0.9;">"<?php echo esc_html($r_text); ?>"</p>
+                        <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 0.95rem; line-height: 1.6; flex: 1; margin: 0 0 12px 0; overflow: hidden; opacity: 0.9;">"<?php echo esc_html($r_text); ?>"</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
                             <div style="font-weight: 600; color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px;"><?php echo esc_html($r_name); ?></div>
                             <?php if ($r_source) : ?><div style="font-size: 12px; color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($r_source); ?></div><?php endif; ?>
@@ -657,7 +657,7 @@ if (!is_wp_error($repuso_response)) {
             $btn_target = $btn_is_external ? ' target="_blank" rel="noopener noreferrer"' : '';
         ?>
         <div style="text-align: center; margin-top: 2rem;">
-            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
+            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 8px; font-weight: 600; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
         </div>
         <?php endif; ?>
     </div>
@@ -704,7 +704,7 @@ if (!is_wp_error($hostaway_response)) {
                 <div style="flex: 0 0 25%; min-width: 260px; padding: 0 8px; box-sizing: border-box;">
                     <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: 12px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                         <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $h_stars; ?></div>
-                        <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px; line-height: 1.5; flex: 1; margin: 0 0 12px 0; overflow: hidden; opacity: 0.9;">"<?php echo esc_html($h_text); ?>"</p>
+                        <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 0.95rem; line-height: 1.6; flex: 1; margin: 0 0 12px 0; overflow: hidden; opacity: 0.9;">"<?php echo esc_html($h_text); ?>"</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
                             <div style="font-weight: 600; color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px;"><?php echo esc_html($h_name); ?></div>
                             <?php if ($h_meta) : ?><div style="font-size: 12px; color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($h_meta); ?></div><?php endif; ?>
@@ -745,7 +745,7 @@ if (!is_wp_error($hostaway_response)) {
             $btn_target = $btn_is_external ? ' target="_blank" rel="noopener noreferrer"' : '';
         ?>
         <div style="text-align: center; margin-top: 2rem;">
-            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
+            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 8px; font-weight: 600; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
         </div>
         <?php endif; ?>
     </div>
@@ -803,7 +803,7 @@ if (!is_wp_error($hostaway_response)) {
             $btn_target = $btn_is_external ? ' target="_blank" rel="noopener noreferrer"' : '';
         ?>
         <div style="text-align: center; margin-top: 2rem;">
-            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
+            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 8px; font-weight: 600; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
         </div>
         <?php endif; ?>
     </div>
@@ -891,16 +891,16 @@ for ($ir = 1; $ir <= 4; $ir++) {
     <section class="developer-section developer-image-row" style="padding: 40px 24px; background: <?php echo esc_attr($ir_bg); ?>;">
         <div class="developer-container" style="max-width: 1200px; margin: 0 auto;">
             <?php if ($ir_heading) : ?>
-                <h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 8px; text-align: center;"><?php echo esc_html($ir_heading); ?></h2>
+                <h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($ir_heading); ?></h2>
             <?php endif; ?>
             <?php $ir_desc = $api[$ir_prefix . 'description'] ?? ''; if ($ir_desc) : ?>
-                <p style="color: #475569; line-height: 1.7; margin: 0 0 24px; text-align: center; max-width: 800px; margin-left: auto; margin-right: auto;"><?php echo nl2br(esc_html($ir_desc)); ?></p>
+                <p style="color: #475569; line-height: 1.6; margin: 0 0 24px; text-align: center; max-width: 800px; margin-left: auto; margin-right: auto; font-size: 1rem;"><?php echo nl2br(esc_html($ir_desc)); ?></p>
             <?php else : ?>
                 <div style="margin-bottom: 24px;"></div>
             <?php endif; ?>
             <div class="developer-image-row-grid" style="display: grid; grid-template-columns: repeat(<?php echo $ir_cols; ?>, 1fr); gap: 24px;">
                 <?php foreach ($ir_items as $iri) :
-                    $card_bg_style = !empty($iri['card_bg']) ? 'background:' . esc_attr($iri['card_bg']) . ';padding:24px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.06);' : '';
+                    $card_bg_style = !empty($iri['card_bg']) ? 'background:' . esc_attr($iri['card_bg']) . ';padding:24px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.06);' : '';
                 ?>
                 <div style="text-align: <?php echo esc_attr($ir_align); ?>; <?php echo $card_bg_style; ?>">
                     <?php if ($iri['image']) : ?>
@@ -910,14 +910,14 @@ for ($ir = 1; $ir <= 4; $ir++) {
                         <h3 style="font-size: 1.2rem; font-weight: 600; color: #1e293b; margin: 16px 0 8px;"><?php echo esc_html($iri['title']); ?></h3>
                     <?php endif; ?>
                     <?php if ($iri['text']) : ?>
-                        <p style="color: #475569; line-height: 1.7; margin: 0 0 12px;"><?php echo nl2br(esc_html($iri['text'])); ?></p>
+                        <p style="color: #475569; line-height: 1.6; margin: 0 0 12px; font-size: 1rem;"><?php echo nl2br(esc_html($iri['text'])); ?></p>
                     <?php endif; ?>
                     <?php if ($iri['btn_text'] && $iri['btn_link']) :
                         $ir_external = preg_match('#^https?://#i', $iri['btn_link']);
                         $ir_href = $ir_external ? $iri['btn_link'] : home_url($iri['btn_link']);
                         $ir_target = $ir_external ? ' target="_blank" rel="noopener noreferrer"' : '';
                     ?>
-                        <a href="<?php echo esc_url($ir_href); ?>"<?php echo $ir_target; ?> class="developer-btn" style="display: inline-block; margin-top: 8px; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;"><?php echo esc_html($iri['btn_text']); ?></a>
+                        <a href="<?php echo esc_url($ir_href); ?>"<?php echo $ir_target; ?> class="developer-btn" style="display: inline-block; margin-top: 8px; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;"><?php echo esc_html($iri['btn_text']); ?></a>
                     <?php endif; ?>
                 </div>
                 <?php endforeach; ?>
