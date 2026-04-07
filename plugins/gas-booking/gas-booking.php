@@ -6058,12 +6058,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             var params = new URLSearchParams(window.location.search);
             var urlLocation = params.get('location');
             var urlProperty = params.get('property');
-            if (urlLocation || urlProperty) {
+            var urlAmenity = params.get('amenity') || params.get('amenities');
+            var urlBedrooms = params.get('bedrooms');
+            if (urlLocation || urlProperty || urlAmenity || urlBedrooms) {
                 document.addEventListener('DOMContentLoaded', function() {
                     if (urlLocation) {
                         var locSelect = document.querySelector('.gas-filter-location');
                         if (locSelect) {
-                            // Find matching option (case-insensitive)
                             for (var i = 0; i < locSelect.options.length; i++) {
                                 if (locSelect.options[i].value.toLowerCase() === urlLocation.toLowerCase()) {
                                     locSelect.value = locSelect.options[i].value;
@@ -6081,6 +6082,23 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     break;
                                 }
                             }
+                        }
+                    }
+                    if (urlAmenity) {
+                        var amenities = urlAmenity.split(',');
+                        amenities.forEach(function(code) {
+                            var cb = document.querySelector('.gas-amenity-dropdown input[value="' + code.trim() + '"]');
+                            if (cb) cb.checked = true;
+                        });
+                    }
+                    if (urlBedrooms) {
+                        // Hide rooms with fewer bedrooms than requested
+                        var minBeds = parseInt(urlBedrooms);
+                        if (minBeds > 0) {
+                            document.querySelectorAll('.gas-room-card, .gas-room-row').forEach(function(card) {
+                                var beds = parseInt(card.querySelector('.gas-room-meta span:nth-child(2)')?.textContent) || 0;
+                                if (beds < minBeds) card.style.display = 'none';
+                            });
                         }
                     }
                     gasApplyFilters();
