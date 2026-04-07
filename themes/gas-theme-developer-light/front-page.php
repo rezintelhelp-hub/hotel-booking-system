@@ -882,7 +882,12 @@ for ($ir = 1; $ir <= 3; $ir++) {
     <section class="developer-section developer-image-row" style="padding: 40px 24px; background: <?php echo esc_attr($ir_bg); ?>;">
         <div class="developer-container" style="max-width: 1200px; margin: 0 auto;">
             <?php if ($ir_heading) : ?>
-                <h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 24px; text-align: center;"><?php echo esc_html($ir_heading); ?></h2>
+                <h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 8px; text-align: <?php echo esc_attr($ir_align); ?>;"><?php echo esc_html($ir_heading); ?></h2>
+            <?php endif; ?>
+            <?php $ir_desc = $api[$ir_prefix . 'description'] ?? ''; if ($ir_desc) : ?>
+                <p style="color: #475569; line-height: 1.7; margin: 0 0 24px; text-align: <?php echo esc_attr($ir_align); ?>; max-width: 800px; <?php echo $ir_align === 'center' ? 'margin-left: auto; margin-right: auto;' : ''; ?>"><?php echo nl2br(esc_html($ir_desc)); ?></p>
+            <?php else : ?>
+                <div style="margin-bottom: 24px;"></div>
             <?php endif; ?>
             <div style="display: grid; grid-template-columns: repeat(<?php echo $ir_cols; ?>, 1fr); gap: 24px;">
                 <?php foreach ($ir_items as $iri) :
