@@ -1688,6 +1688,19 @@ const uploadFile = multer({
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true }));
+// Lightweight cookie parser (no dependency needed)
+app.use((req, res, next) => {
+  req.cookies = {};
+  const cookieHeader = req.headers.cookie;
+  if (cookieHeader) {
+    cookieHeader.split(';').forEach(c => {
+      const [name, ...rest] = c.trim().split('=');
+      req.cookies[name] = decodeURIComponent(rest.join('='));
+    });
+  }
+  next();
+});
 
 // Handle JSON parse errors gracefully
 app.use((err, req, res, next) => {
@@ -1718,7 +1731,89 @@ app.get('/', (req, res) => {
 app.get('/privacy', (req, res) => res.sendFile('privacy.html', { root: 'public' }));
 app.get('/terms', (req, res) => res.sendFile('terms.html', { root: 'public' }));
 app.get('/data-deletion', (req, res) => res.sendFile('data-deletion.html', { root: 'public' }));
-app.get('/api/docs', (req, res) => res.sendFile('api-docs.html', { root: 'public' }));
+// --- API Docs: Registration + API Key Gate ---
+
+// Login page
+app.get('/api/docs/login', (req, res) => {
+  const error = req.query.error ? '<p style="color:#ef4444;margin-bottom:1rem;">Invalid or inactive API key. Please check your key and try again.</p>' : '';
+  res.send(`<!DOCTYPE html><html><head><title>GAS API Documentation — Login</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}.card{background:#fff;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:2.5rem;max-width:440px;width:100%}h1{font-size:1.5rem;color:#1e293b;margin-bottom:0.5rem}p.sub{color:#64748b;margin-bottom:1.5rem;font-size:0.9rem}label{display:block;font-weight:600;color:#374151;margin-bottom:6px;font-size:0.9rem}input{width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:1rem;margin-bottom:1rem}button{width:100%;padding:12px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer}button:hover{opacity:0.9}a{color:#7c3aed;text-decoration:none;font-weight:500}.footer{text-align:center;margin-top:1.5rem;font-size:0.85rem;color:#94a3b8}</style></head><body><div class="card"><h1>GAS Partner API</h1><p class="sub">Enter your API key to access the documentation.</p>${error}<form method="POST" action="/api/docs/login"><label>API Key</label><input type="text" name="key" placeholder="gas_xxxxxxxxxxxx" required autofocus><button type="submit">Access Documentation</button></form><div class="footer"><a href="/api/docs/register">Don't have a key? Register here</a></div></div></body></html>`);
+});
+
+// Login POST — validate key and set cookie
+app.post('/api/docs/login', async (req, res) => {
+  try {
+    const key = (req.body.key || '').trim();
+    if (!key) return res.redirect('/api/docs/login?error=1');
+    const result = await pool.query('SELECT id, name, is_active FROM partners WHERE api_key = $1', [key]);
+    if (result.rows.length === 0 || !result.rows[0].is_active) {
+      return res.redirect('/api/docs/login?error=1');
+    }
+    // Set cookie valid for 30 days
+    res.cookie('gas_docs_key', key, { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax' });
+    res.redirect('/api/docs');
+  } catch (e) {
+    res.redirect('/api/docs/login?error=1');
+  }
+});
+
+// Registration page
+app.get('/api/docs/register', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><title>GAS API — Register</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}.card{background:#fff;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:2.5rem;max-width:500px;width:100%}h1{font-size:1.5rem;color:#1e293b;margin-bottom:0.5rem}p.sub{color:#64748b;margin-bottom:1.5rem;font-size:0.9rem}label{display:block;font-weight:600;color:#374151;margin-bottom:6px;font-size:0.9rem}input,textarea{width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:1rem;margin-bottom:1rem;font-family:inherit}textarea{resize:vertical}button{width:100%;padding:12px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer}button:hover{opacity:0.9}a{color:#7c3aed;text-decoration:none;font-weight:500}.footer{text-align:center;margin-top:1.5rem;font-size:0.85rem;color:#94a3b8}</style></head><body><div class="card"><h1>Register for API Access</h1><p class="sub">Complete this form to request access to the GAS Partner API documentation and endpoints.</p><form method="POST" action="/api/docs/register"><label>Your Name *</label><input type="text" name="name" required placeholder="Jane Smith"><label>Company *</label><input type="text" name="company" required placeholder="Acme Travel Ltd"><label>Email *</label><input type="email" name="email" required placeholder="jane@acme.com"><label>Reason for Access</label><textarea name="reason" rows="3" placeholder="Briefly describe your integration use case..."></textarea><button type="submit">Submit Registration</button></form><div class="footer"><a href="/api/docs/login">Already have a key? Login here</a></div></div></body></html>`);
+});
+
+// Registration POST — create inactive partner
+app.post('/api/docs/register', async (req, res) => {
+  try {
+    const { name, company, email, reason } = req.body;
+    if (!name || !company || !email) {
+      return res.status(400).send('Name, company and email are required');
+    }
+    // Check if email already registered
+    const existing = await pool.query('SELECT id FROM partners WHERE contact_email = $1', [email]);
+    if (existing.rows.length > 0) {
+      return res.send(`<!DOCTYPE html><html><head><title>Already Registered</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}.card{background:#fff;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:2.5rem;max-width:440px;width:100%;text-align:center}h1{font-size:1.5rem;color:#1e293b;margin-bottom:1rem}p{color:#64748b;margin-bottom:1rem}a{color:#7c3aed;text-decoration:none;font-weight:500}</style></head><body><div class="card"><h1>Already Registered</h1><p>This email is already registered. If you've been approved, <a href="/api/docs/login">login with your API key</a>. Otherwise, please wait for approval.</p></div></body></html>`);
+    }
+    // Generate API key and code
+    const apiKey = 'gas_' + require('crypto').randomBytes(20).toString('hex');
+    const code = company.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 30);
+    await pool.query(`
+      INSERT INTO partners (name, code, contact_name, contact_email, api_key, is_active, notes, created_at)
+      VALUES ($1, $2, $3, $4, $5, false, $6, NOW())
+      ON CONFLICT (code) DO NOTHING
+    `, [company, code + '-' + Date.now().toString(36), name, email, apiKey, reason || '']);
+
+    // Slack notification
+    if (process.env.SLACK_WEBHOOK_URL) {
+      try {
+        await axios.post(process.env.SLACK_WEBHOOK_URL, {
+          text: `🔑 *New API Docs Registration*\n*Name:* ${name}\n*Company:* ${company}\n*Email:* ${email}\n*Reason:* ${reason || 'Not provided'}\n\n_Pending approval in GAS Admin → Partners_`
+        });
+      } catch (e) {}
+    }
+    console.log(`[API Docs] New registration: ${name} (${company}) - ${email}`);
+
+    res.send(`<!DOCTYPE html><html><head><title>Registration Submitted</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}.card{background:#fff;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:2.5rem;max-width:440px;width:100%;text-align:center}.icon{font-size:3rem;margin-bottom:1rem}h1{font-size:1.5rem;color:#1e293b;margin-bottom:1rem}p{color:#64748b;margin-bottom:1rem;line-height:1.6}</style></head><body><div class="card"><div class="icon">✅</div><h1>Registration Submitted</h1><p>Thank you for registering. Your request is being reviewed and you will receive your API key by email once approved.</p><p style="font-size:0.85rem;color:#94a3b8;">This usually takes less than 24 hours.</p></div></body></html>`);
+  } catch (e) {
+    console.error('[API Docs] Registration error:', e);
+    res.status(500).send('Registration failed. Please try again.');
+  }
+});
+
+// Swagger docs — gated by API key (cookie or query param)
+app.get('/api/docs', async (req, res) => {
+  try {
+    const key = req.cookies?.gas_docs_key || req.query.key || req.headers['x-partner-key'] || '';
+    if (!key) return res.redirect('/api/docs/login');
+    const result = await pool.query('SELECT id, is_active FROM partners WHERE api_key = $1', [key]);
+    if (result.rows.length === 0 || !result.rows[0].is_active) {
+      res.clearCookie('gas_docs_key');
+      return res.redirect('/api/docs/login?error=1');
+    }
+    res.sendFile('api-docs.html', { root: 'public' });
+  } catch (e) {
+    res.redirect('/api/docs/login');
+  }
+});
 
 app.use(express.static('public'));
 
