@@ -1286,19 +1286,28 @@ jQuery(document).ready(function($) {
     // Tabs
     $(document).on('click', '.gas-tab-btn', function() {
         var tab = $(this).data('tab');
-        
+
         $('.gas-tab-btn').removeClass('active');
         $(this).addClass('active');
-        
+
         $('.gas-tab-content').removeClass('active');
         $('.gas-tab-content[data-tab="' + tab + '"]').addClass('active');
-        
+
         // Load reviews when Reviews tab is clicked
         if (tab === 'reviews' && !window.gasReviewsLoaded) {
             var unitId = $('.gas-room-widget').data('unit-id');
             loadRoomReviews(unitId);
         }
     });
+
+    // Auto-switch to tab from URL param (e.g. ?tab=availability)
+    (function() {
+        var params = new URLSearchParams(window.location.search);
+        var tabParam = params.get('tab');
+        if (tabParam && $('.gas-tab-btn[data-tab="' + tabParam + '"]').length) {
+            $('.gas-tab-btn[data-tab="' + tabParam + '"]').trigger('click');
+        }
+    })();
     
     // Pre-load reviews check to hide/show tab before user interaction
     function preloadReviewsCheck(unitId) {

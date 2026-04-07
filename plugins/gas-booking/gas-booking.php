@@ -5666,6 +5666,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 if ($checkin) $room_url .= '&checkin=' . urlencode($checkin);
                                 if ($checkout) $room_url .= '&checkout=' . urlencode($checkout);
                                 if ($guests) $room_url .= '&guests=' . intval($guests);
+                                if ($checkin && $checkout) $room_url .= '&tab=availability';
                             }
 
                             $price = floatval($room['price'] ?? 0);
@@ -5770,6 +5771,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 if ($checkin) $room_url .= '&checkin=' . urlencode($checkin);
                                 if ($checkout) $room_url .= '&checkout=' . urlencode($checkout);
                                 if ($guests) $room_url .= '&guests=' . intval($guests);
+                                if ($checkin && $checkout) $room_url .= '&tab=availability';
                             }
 
                             $price = floatval($room['price'] ?? 0);
