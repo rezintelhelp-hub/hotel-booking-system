@@ -67,7 +67,8 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
 
     // Section builder pages: no automatic hero. If the client wants a hero, they add
     // a Hero section in the builder. No toggle needed, no caching issues.
-    $has_hero_section = in_array('hero', array_column($sections, 'type'));
+    $section_types = array_column($sections, 'type');
+    $has_hero_section = in_array('hero', $section_types) || in_array('hero_slider', $section_types);
     if (!$has_hero_section) {
         // Just add spacing for the fixed header
         echo '<div style="padding-top: 100px;"></div>';
@@ -105,6 +106,46 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                     </div>
                 </section>
                 <?php break;
+
+            case 'hero_slider':
+                $slides = $section['images'] ?? array();
+                $subheading = gas_ps_field($section, 'subheading', $lang);
+                $cta_text = gas_ps_field($section, 'cta_text', $lang);
+                $cta_link = $section['cta_link'] ?? '';
+                $slide_duration = intval($section['slide_duration'] ?? 5) * 1000;
+                $hero_min_h = $section['min_height'] ?? '60vh';
+                $hero_pad_top = intval($section['header_top_padding'] ?? 80);
+                $slider_id = 'gas-hero-slider-' . ($section['id'] ?? rand(1000,9999));
+                if (!empty($slides)) :
+                ?>
+                <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-hero-section" style="position: relative; min-height: <?php echo esc_attr($hero_min_h); ?>; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                    <!-- Slider backgrounds -->
+                    <?php foreach ($slides as $si => $slide_url) :
+                        $slide_src = is_array($slide_url) ? ($slide_url['url'] ?? $slide_url['src'] ?? '') : $slide_url;
+                        if (!$slide_src) continue;
+                    ?>
+                    <div class="<?php echo $slider_id; ?>-slide" style="position: absolute; inset: 0; background-image: url('<?php echo esc_url($slide_src); ?>'); background-size: cover; background-position: center; opacity: <?php echo $si === 0 ? '1' : '0'; ?>; transition: opacity 1s ease;"></div>
+                    <?php endforeach; ?>
+                    <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.4);"></div>
+                    <div style="position: relative; z-index: 2; text-align: center; padding: <?php echo $hero_pad_top; ?>px 24px 40px; max-width: 900px;">
+                        <?php if ($heading) : ?><h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2rem, 4vw, 3.5rem); font-weight: 700; color: #fff; margin: 0 0 16px; text-shadow: 0 2px 15px rgba(0,0,0,0.3);"><?php echo esc_html($heading); ?></h1><?php endif; ?>
+                        <?php if ($subheading) : ?><p style="font-size: 1.25rem; color: #fff; opacity: 0.9; margin: 0 0 24px;"><?php echo esc_html($subheading); ?></p><?php endif; ?>
+                        <?php if ($cta_text && $cta_link) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; background: <?php echo esc_attr($primary_color); ?>; color: #fff; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 600;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
+                    </div>
+                </section>
+                <script>
+                (function() {
+                    var slides = document.querySelectorAll('.<?php echo $slider_id; ?>-slide');
+                    if (slides.length < 2) return;
+                    var current = 0;
+                    setInterval(function() {
+                        slides[current].style.opacity = '0';
+                        current = (current + 1) % slides.length;
+                        slides[current].style.opacity = '1';
+                    }, <?php echo $slide_duration; ?>);
+                })();
+                </script>
+                <?php endif; break;
 
             case 'text':
                 $text_align = $section['text_align'] ?? 'center';
