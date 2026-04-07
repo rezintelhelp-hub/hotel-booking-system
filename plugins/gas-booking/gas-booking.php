@@ -6856,6 +6856,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                                 $sms_text = $checkout_settings['sms_consent_text'] ?: 'I agree to receive SMS text messages regarding my stay (Msg&Data rates may apply, reply STOP to opt out)';
                                                 // Auto-link URLs and render line breaks
                                                 $sms_text = esc_html($sms_text);
+                                                $sms_text = str_replace('\n', "\n", $sms_text);
                                                 $sms_text = preg_replace('/(https?:\/\/[^\s<)]+)/', '<a href="$1" target="_blank" rel="noopener" style="color: #2563eb; text-decoration: underline;">$1</a>', $sms_text);
                                                 $sms_text = nl2br($sms_text);
                                                 echo $sms_text;
