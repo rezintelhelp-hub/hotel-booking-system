@@ -856,13 +856,20 @@ for ($ir = 1; $ir <= 3; $ir++) {
     $ir_items = array();
     for ($j = 1; $j <= 3; $j++) {
         $img = $api[$ir_prefix . 'image_' . $j] ?? '';
-        if (empty($img)) continue;
-        $ir_items[] = array(
-            'image' => $img,
-            'title' => $api[$ir_prefix . 'title_' . $j] ?? '',
-            'btn_text' => $api[$ir_prefix . 'btn_text_' . $j] ?? '',
-            'btn_link' => $api[$ir_prefix . 'btn_link_' . $j] ?? '',
-        );
+        $title = $api[$ir_prefix . 'title_' . $j] ?? '';
+        $text = $api[$ir_prefix . 'text_' . $j] ?? '';
+        $btn_text = $api[$ir_prefix . 'btn_text_' . $j] ?? '';
+        $btn_link = $api[$ir_prefix . 'btn_link_' . $j] ?? '';
+        // Include item if it has any content at all
+        if ($img || $title || $text || $btn_text) {
+            $ir_items[] = array(
+                'image' => $img,
+                'title' => $title,
+                'text' => $text,
+                'btn_text' => $btn_text,
+                'btn_link' => $btn_link,
+            );
+        }
     }
     if (empty($ir_items)) continue;
 
@@ -878,9 +885,14 @@ for ($ir = 1; $ir <= 3; $ir++) {
             <div style="display: grid; grid-template-columns: repeat(<?php echo $ir_cols; ?>, 1fr); gap: 24px;">
                 <?php foreach ($ir_items as $iri) : ?>
                 <div style="text-align: center;">
+                    <?php if ($iri['image']) : ?>
                     <img src="<?php echo esc_url($iri['image']); ?>" alt="<?php echo esc_attr($iri['title']); ?>" style="width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                    <?php endif; ?>
                     <?php if ($iri['title']) : ?>
                         <h3 style="font-size: 1.2rem; font-weight: 600; color: #1e293b; margin: 16px 0 8px;"><?php echo esc_html($iri['title']); ?></h3>
+                    <?php endif; ?>
+                    <?php if ($iri['text']) : ?>
+                        <p style="color: #475569; line-height: 1.7; margin: 0 0 12px;"><?php echo nl2br(esc_html($iri['text'])); ?></p>
                     <?php endif; ?>
                     <?php if ($iri['btn_text'] && $iri['btn_link']) :
                         $ir_external = preg_match('#^https?://#i', $iri['btn_link']);
