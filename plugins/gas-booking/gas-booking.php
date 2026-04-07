@@ -6085,11 +6085,24 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         }
                     }
                     if (urlAmenity) {
-                        var amenities = urlAmenity.split(',');
+                        var amenities = urlAmenity.split(',').map(function(c) { return c.trim().toUpperCase(); });
+                        // Try to check the amenity filter checkboxes (case-insensitive)
+                        var anyChecked = false;
                         amenities.forEach(function(code) {
-                            var cb = document.querySelector('.gas-amenity-dropdown input[value="' + code.trim() + '"]');
-                            if (cb) cb.checked = true;
+                            document.querySelectorAll('.gas-amenity-dropdown input[type="checkbox"]').forEach(function(cb) {
+                                if (cb.value.toUpperCase() === code) { cb.checked = true; anyChecked = true; }
+                            });
                         });
+                        // If no checkboxes found (filters hidden), filter cards directly
+                        if (!anyChecked) {
+                            document.querySelectorAll('.gas-room-card, .gas-room-row').forEach(function(card) {
+                                try {
+                                    var cardAmenities = JSON.parse(card.dataset.amenities || '[]').map(function(a) { return a.toUpperCase(); });
+                                    var matches = amenities.every(function(a) { return cardAmenities.includes(a); });
+                                    if (!matches) card.style.display = 'none';
+                                } catch(e) {}
+                            });
+                        }
                     }
                     if (urlBedrooms) {
                         // Hide rooms with fewer bedrooms than requested
