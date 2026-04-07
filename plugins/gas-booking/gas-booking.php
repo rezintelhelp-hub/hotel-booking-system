@@ -456,6 +456,14 @@ class GAS_Booking {
                 'parent_slug' => null,
                 'template' => 'template-contact.php'
             ),
+            'page-reviews' => array(
+                'slug' => 'reviews',
+                'default_title' => 'Reviews',
+                'shortcode' => '',
+                'default_menu_order' => 75,
+                'parent_slug' => null,
+                'template' => 'template-reviews.php'
+            ),
         );
         
         // Get menu
