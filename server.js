@@ -28234,21 +28234,32 @@ app.post('/api/deployed-sites/connect-domain', async (req, res) => {
     // Call the VPS API to set up Nginx, SSL, and WordPress
     const SITES_VPS_URL = 'https://sites.gas.travel/gas-api.php';
     
-    const vpsResponse = await fetch(SITES_VPS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': VPS_DEPLOY_API_KEY
-      },
-      body: JSON.stringify({
-        action: 'connect-custom-domain',
-        blog_id: blogId,
-        domain: cleanDomain
-      })
-    });
-    
-    const vpsData = await vpsResponse.json();
-    console.log(`[Custom Domain] VPS response:`, vpsData);
+    console.log(`[Custom Domain] Calling VPS API: ${SITES_VPS_URL} with key: ${VPS_DEPLOY_API_KEY.substring(0, 8)}...`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout for SSL cert
+    let vpsData;
+    try {
+      const vpsResponse = await fetch(SITES_VPS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': VPS_DEPLOY_API_KEY
+        },
+        body: JSON.stringify({
+          action: 'connect-custom-domain',
+          blog_id: blogId,
+          domain: cleanDomain
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      vpsData = await vpsResponse.json();
+      console.log(`[Custom Domain] VPS response:`, vpsData);
+    } catch (fetchErr) {
+      clearTimeout(timeout);
+      console.error(`[Custom Domain] VPS fetch error:`, fetchErr.message);
+      return res.json({ success: false, error: 'VPS connection failed: ' + fetchErr.message });
+    }
     
     if (vpsData.success) {
       // Update the deployed_sites table — also update site_url so site-config
