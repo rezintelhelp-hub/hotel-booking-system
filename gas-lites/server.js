@@ -3405,8 +3405,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               <div class="date-field"><label>${t('check_out', lang)}</label><input type="text" id="checkout" placeholder="${t('select_dates', lang)}" readonly></div>
             </div>
             <div class="guest-fields">
-              <div class="guest-field"><label>${t('guests', lang)}</label><select id="adults">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
-              <div class="guest-field"><label>${lang === 'en' ? 'Children' : t('guests', lang)} <span class="child-age-hint">(${lang === 'en' ? 'under 12' : '<12'})</span></label><select id="children">${[0,1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
+              <div class="guest-field"><label>${t('guests', lang)}</label><select id="adults">${Array.from({length: Math.min(parseInt(lite.max_guests) || 8, 20)}, (_, i) => i + 1).map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
+              <div class="guest-field"><label>${lang === 'en' ? 'Children' : t('guests', lang)} <span class="child-age-hint">(${lang === 'en' ? 'under 12' : '<12'})</span></label><select id="children">${Array.from({length: Math.min((parseInt(lite.max_guests) || 8) + 1, 11)}, (_, i) => i).map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
             </div>
             
             <!-- Min stay / availability message -->
@@ -3703,9 +3703,18 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         }
       });
       
-      // Guest field changes
-      document.getElementById('adults').addEventListener('change', () => { if (document.getElementById('checkout').value) fetchPricing(); });
-      document.getElementById('children').addEventListener('change', () => { if (document.getElementById('checkout').value) fetchPricing(); });
+      // Guest field changes — cap total at max_guests
+      var maxGuests = ${parseInt(lite.max_guests) || 99};
+      function capGuests() {
+        var adults = parseInt(document.getElementById('adults').value) || 1;
+        var children = parseInt(document.getElementById('children').value) || 0;
+        if (adults + children > maxGuests) {
+          document.getElementById('children').value = Math.max(0, maxGuests - adults);
+        }
+        if (document.getElementById('checkout').value) fetchPricing();
+      }
+      document.getElementById('adults').addEventListener('change', capGuests);
+      document.getElementById('children').addEventListener('change', capGuests);
       
       // Email match check
       document.getElementById('confirmEmail').addEventListener('input', checkEmailMatch);
