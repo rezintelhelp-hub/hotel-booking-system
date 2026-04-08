@@ -1434,8 +1434,9 @@ app.get('/api/upsells/:roomId', async (req, res) => {
     }
     
     const result = await pool.query(`
-      SELECT u.id, u.name, u.description, u.price, u.charge_type, u.max_quantity, 
-             u.image_url, u.category, u.property_id, u.room_id, u.room_ids
+      SELECT u.id, u.name, u.description, u.price, u.charge_type, u.max_quantity,
+             u.image_url, u.category, u.property_id, u.room_id, u.room_ids,
+             u.mandatory, u.min_nights, u.max_nights
       FROM upsells u
       LEFT JOIN properties p ON u.property_id = p.id
       WHERE u.active = true
@@ -4192,15 +4193,27 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         if (data.success && data.upsells && data.upsells.length > 0) {
           const list = document.getElementById('upsellsList');
           let html = '';
-          
+
+          // Filter by night range if dates are selected
+          const bNights = currentPricing ? currentPricing.nights : 0;
+          const filterByNights = (arr) => arr.filter(u => {
+            if (bNights > 0) {
+              if (u.min_nights && bNights < u.min_nights) return false;
+              if (u.max_nights && bNights > u.max_nights) return false;
+            }
+            return true;
+          });
+
           // If we have categories, group them
           if (data.upsells_by_category && Object.keys(data.upsells_by_category).length > 1) {
             for (const [category, upsells] of Object.entries(data.upsells_by_category)) {
+              const filtered = filterByNights(upsells);
+              if (filtered.length === 0) continue;
               html += '<div class="upsell-category">' + category + '</div>';
-              html += upsells.map(u => renderUpsellItem(u)).join('');
+              html += filtered.map(u => renderUpsellItem(u)).join('');
             }
           } else {
-            html = data.upsells.map(u => renderUpsellItem(u)).join('');
+            html = filterByNights(data.upsells).map(u => renderUpsellItem(u)).join('');
           }
           
           list.innerHTML = html;
