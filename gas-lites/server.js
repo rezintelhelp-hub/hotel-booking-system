@@ -1387,7 +1387,13 @@ app.get('/api/pricing/:roomId', async (req, res) => {
 
     // Calculate totals from calendar pricing only
     const nightlyTotal = nights.reduce((sum, n) => sum + parseFloat(n.price), 0);
-    const cleaningFee = parseFloat(room.cleaning_fee) || 0;
+
+    // Check if a cleaning upsell exists for this property — if so, suppress the Beds24 cleaning_fee
+    const cleaningUpsellCheck = await pool.query(
+      `SELECT id FROM upsells WHERE active = true AND property_id = (SELECT property_id FROM bookable_units WHERE id = $1) AND (LOWER(name) LIKE '%cleaning%' OR category = 'cleaning') LIMIT 1`,
+      [roomId]
+    );
+    const cleaningFee = cleaningUpsellCheck.rows.length > 0 ? 0 : (parseFloat(room.cleaning_fee) || 0);
     const totalGuests = parseInt(adults || 1) + parseInt(children || 0);
     const extraGuestFee = 0;
 
