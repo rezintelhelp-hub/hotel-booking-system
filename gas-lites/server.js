@@ -514,6 +514,7 @@ async function ensureLitesTable() {
     )
   `);
   await pool.query(`ALTER TABLE gas_lites ADD COLUMN IF NOT EXISTS room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE`);
+  await pool.query(`ALTER TABLE gas_lites ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 1`);
   console.log('✅ gas_lites table ready');
 }
 
@@ -671,8 +672,9 @@ app.get('/book/:accountSlug', async (req, res) => {
       JOIN properties p ON bu.property_id = p.id
       LEFT JOIN gas_lites l ON l.room_id = bu.id AND l.active = true
       WHERE p.account_id = $1 AND bu.status IN ('active', 'available')
+        AND COALESCE(l.sort_order, 1) > 0
       ORDER BY
-        (SELECT price FROM room_availability WHERE room_id = bu.id AND date = CURRENT_DATE AND is_available = true AND price > 0 LIMIT 1) IS NOT NULL DESC,
+        COALESCE(l.sort_order, 999) ASC,
         p.name, bu.name
     `, [account.id]);
 
@@ -1291,14 +1293,14 @@ app.get('/api/account/:accountId', async (req, res) => {
 
 app.post('/api/lites', async (req, res) => {
   try {
-    const { property_id, room_id, account_id, slug, custom_title, custom_tagline, theme, accent_color } = req.body;
+    const { property_id, room_id, account_id, slug, custom_title, custom_tagline, theme, accent_color, sort_order } = req.body;
     const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
     const existing = await pool.query('SELECT id FROM gas_lites WHERE slug = $1', [cleanSlug]);
     if (existing.rows.length > 0) return res.json({ success: false, error: 'Slug taken' });
     const result = await pool.query(`
-      INSERT INTO gas_lites (property_id, room_id, account_id, slug, custom_title, custom_tagline, theme, accent_color)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
-    `, [property_id, room_id, account_id, cleanSlug, custom_title, custom_tagline, theme || 'default', accent_color || '#3b82f6']);
+      INSERT INTO gas_lites (property_id, room_id, account_id, slug, custom_title, custom_tagline, theme, accent_color, sort_order)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
+    `, [property_id, room_id, account_id, cleanSlug, custom_title, custom_tagline, theme || 'default', accent_color || '#3b82f6', sort_order ?? 1]);
     res.json({ success: true, lite: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -1307,12 +1309,12 @@ app.post('/api/lites', async (req, res) => {
 
 app.put('/api/lites/:id', async (req, res) => {
   try {
-    const { slug, custom_title, custom_tagline, theme, accent_color, active } = req.body;
+    const { slug, custom_title, custom_tagline, theme, accent_color, active, sort_order } = req.body;
     const result = await pool.query(`
       UPDATE gas_lites SET slug = COALESCE($1, slug), custom_title = $2, custom_tagline = $3,
       theme = COALESCE($4, theme), accent_color = COALESCE($5, accent_color),
-      active = COALESCE($6, active), updated_at = NOW() WHERE id = $7 RETURNING *
-    `, [slug?.toLowerCase(), custom_title, custom_tagline, theme, accent_color, active, req.params.id]);
+      active = COALESCE($6, active), sort_order = COALESCE($7, sort_order), updated_at = NOW() WHERE id = $8 RETURNING *
+    `, [slug?.toLowerCase(), custom_title, custom_tagline, theme, accent_color, active, sort_order, req.params.id]);
     res.json({ success: true, lite: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
