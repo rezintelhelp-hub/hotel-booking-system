@@ -1941,7 +1941,8 @@ app.get('/api/validate-code/:code', async (req, res) => {
     }
     res.json({ success: false, error: 'Invalid code' });
   } catch (e) {
-    res.json({ success: false, error: 'Error validating code' });
+    console.error('Validate code error:', e.message);
+    res.json({ success: false, error: 'Error validating code: ' + e.message });
   }
 });
 
