@@ -4193,7 +4193,6 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           html += '<div class="rate-option-info">';
           html += '<div class="rate-option-name">Standard Rate</div>';
           html += '<div class="rate-option-features">';
-          html += '<div class="rate-option-feature positive">✓ Free cancellation</div>';
           html += '</div>';
           html += '</div>';
           html += '</div>';
@@ -4210,7 +4209,6 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             html += '<div class="rate-option-info">';
             html += '<div class="rate-option-name">' + (offer.name || 'Special Offer').replace(/</g, '&lt;') + '<span class="rate-option-badge">Save ' + savingsPercent + '%</span></div>';
             html += '<div class="rate-option-features">';
-            html += '<div class="rate-option-feature negative">✗ Non-refundable</div>';
             html += '</div>';
             html += '</div>';
             html += '</div>';
