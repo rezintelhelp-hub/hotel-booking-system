@@ -1899,6 +1899,52 @@ app.post('/api/voucher/validate', async (req, res) => {
 });
 
 // Get active offers for Lite with eligibility check
+// Validate offer/voucher code (for top-of-page promo input)
+app.get('/api/validate-code/:code', async (req, res) => {
+  try {
+    const code = req.params.code.toUpperCase();
+    // Check offers table
+    const offerRes = await pool.query(`
+      SELECT id, name, discount_type, discount_value, price_per_night, offer_code
+      FROM offers WHERE UPPER(offer_code) = $1 AND active = true
+      AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
+      AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
+      LIMIT 1
+    `, [code]);
+    if (offerRes.rows.length > 0) {
+      const o = offerRes.rows[0];
+      return res.json({ success: true, type: 'offer', discount_type: o.discount_type, discount_value: o.discount_value, price_per_night: o.price_per_night, name: o.name, code: o.offer_code });
+    }
+    // Check vouchers table
+    const vRes = await pool.query(`
+      SELECT id, name, code, discount_type, discount_value, max_discount
+      FROM vouchers WHERE UPPER(code) = $1 AND active = true
+      AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
+      AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
+      LIMIT 1
+    `, [code]);
+    if (vRes.rows.length > 0) {
+      const v = vRes.rows[0];
+      return res.json({ success: true, type: 'voucher', discount_type: v.discount_type, discount_value: v.discount_value, max_discount: v.max_discount, name: v.name, code: v.code });
+    }
+    // Check campaigns
+    const cRes = await pool.query(`
+      SELECT id, name, discount_type, discount_value, custom_price, offer_code
+      FROM turbine_campaigns WHERE UPPER(offer_code) = $1 AND status != 'archived'
+      AND (start_date IS NULL OR start_date <= CURRENT_DATE)
+      AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+      LIMIT 1
+    `, [code]);
+    if (cRes.rows.length > 0) {
+      const c = cRes.rows[0];
+      return res.json({ success: true, type: 'campaign', discount_type: c.discount_type, discount_value: c.discount_value, name: c.name, code: c.offer_code });
+    }
+    res.json({ success: false, error: 'Invalid code' });
+  } catch (e) {
+    res.json({ success: false, error: 'Error validating code' });
+  }
+});
+
 app.get('/api/offers/:propertyId', async (req, res) => {
   try {
     const { checkin, checkout, roomId, accountId } = req.query;
@@ -2420,6 +2466,16 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
       </button>
       <span id="filterCount" class="filter-count"></span>
     </div>
+    <div id="promoBar" style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+      <span style="font-size: 0.85rem; color: #64748b;">🎟️ ${tr('promo_code')}</span>
+      <input type="text" id="topPromoCode" placeholder="Enter code" style="padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.85rem; width: 140px; text-transform: uppercase;">
+      <button onclick="applyTopPromo()" style="padding: 6px 14px; background: ${account.primary_color || '#3b82f6'}; color: white; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; font-weight: 600;">Apply</button>
+      <span id="promoMsg" style="font-size: 0.8rem; color: #64748b;"></span>
+    </div>
+    <div id="promoBanner" style="display: none; margin-top: 8px; padding: 10px 16px; background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; font-size: 0.9rem; color: #166534; font-weight: 500;">
+      <span id="promoBannerText"></span>
+      <button onclick="clearTopPromo()" style="float: right; background: none; border: none; color: #dc2626; cursor: pointer; font-size: 0.85rem;">✕ Remove</button>
+    </div>
   </div>
 
   <div class="main-content">
@@ -2474,6 +2530,116 @@ function renderBookingPage({ account, rooms, embed = false, compact = false, lan
       altFormat: 'd M Y',
       minDate: new Date().fp_incr(1)
     });
+
+    // --- Promo/Agent Code at top of page ---
+    var activePromo = null; // { type: 'voucher'|'offer', discount_type, discount_value, name, code }
+
+    async function applyTopPromo() {
+      const code = document.getElementById('topPromoCode').value.trim();
+      const msg = document.getElementById('promoMsg');
+      if (!code) { msg.textContent = 'Enter a code'; msg.style.color = '#dc2626'; return; }
+      msg.textContent = 'Checking...'; msg.style.color = '#64748b';
+
+      try {
+        const res = await fetch('/api/validate-code/' + encodeURIComponent(code));
+        const data = await res.json();
+        if (data.success) {
+          activePromo = {
+            type: data.type, code,
+            discount_type: data.discount_type || 'percentage',
+            discount_value: parseFloat(data.discount_value || 0),
+            price_per_night: data.price_per_night ? parseFloat(data.price_per_night) : null,
+            name: data.name || code
+          };
+          showPromoBanner();
+        } else {
+          msg.textContent = 'Invalid code'; msg.style.color = '#dc2626';
+          activePromo = null;
+        }
+      } catch (e) {
+        msg.textContent = 'Error checking code'; msg.style.color = '#dc2626';
+      }
+    }
+
+    function showPromoBanner() {
+      const msg = document.getElementById('promoMsg');
+      msg.textContent = '';
+      const banner = document.getElementById('promoBanner');
+      const text = document.getElementById('promoBannerText');
+      if (activePromo.discount_type === 'percentage') {
+        text.textContent = '✅ Code ' + activePromo.code.toUpperCase() + ' applied — ' + activePromo.discount_value + '% off all rooms';
+      } else if (activePromo.price_per_night) {
+        text.textContent = '✅ Code ' + activePromo.code.toUpperCase() + ' applied — Special rate active';
+      } else {
+        text.textContent = '✅ Code ' + activePromo.code.toUpperCase() + ' applied — ' + activePromo.name;
+      }
+      banner.style.display = 'block';
+      applyPromoToCards();
+    }
+
+    function clearTopPromo() {
+      activePromo = null;
+      document.getElementById('promoBanner').style.display = 'none';
+      document.getElementById('topPromoCode').value = '';
+      // Remove strikethrough from all cards
+      document.querySelectorAll('.room-card .promo-price').forEach(el => el.remove());
+      document.querySelectorAll('.room-card .original-price').forEach(el => { el.style.textDecoration = 'none'; el.style.color = ''; });
+    }
+
+    function applyPromoToCards() {
+      if (!activePromo) return;
+      document.querySelectorAll('.room-card').forEach(card => {
+        const priceEl = card.querySelector('.room-price span, .room-price');
+        if (!priceEl) return;
+        const priceText = priceEl.textContent;
+        const priceMatch = priceText.match(/[\\d,.]+/);
+        if (!priceMatch) return;
+        const originalPrice = parseFloat(priceMatch[0].replace(',', ''));
+        if (!originalPrice || originalPrice <= 0) return;
+
+        let newPrice = originalPrice;
+        if (activePromo.price_per_night) {
+          newPrice = activePromo.price_per_night;
+        } else if (activePromo.discount_type === 'percentage') {
+          newPrice = originalPrice * (1 - activePromo.discount_value / 100);
+        } else {
+          newPrice = originalPrice - activePromo.discount_value;
+        }
+        newPrice = Math.max(0, Math.round(newPrice));
+
+        // Don't duplicate
+        if (card.querySelector('.promo-price')) return;
+
+        // Add strikethrough + new price
+        priceEl.classList.add('original-price');
+        priceEl.style.textDecoration = 'line-through';
+        priceEl.style.color = '#94a3b8';
+        priceEl.style.fontSize = '0.85em';
+        const newEl = document.createElement('span');
+        newEl.className = 'promo-price';
+        newEl.style.cssText = 'color: #16a34a; font-weight: 700; font-size: 1.1em; margin-left: 6px;';
+        newEl.textContent = priceText.replace(priceMatch[0], newPrice);
+        priceEl.parentNode.insertBefore(newEl, priceEl.nextSibling);
+
+        // Update book button link to include promo code
+        const bookBtn = card.querySelector('.book-btn');
+        if (bookBtn) {
+          const href = bookBtn.getAttribute('href');
+          const sep = href.includes('?') ? '&' : '?';
+          bookBtn.setAttribute('href', href + sep + 'offer=' + encodeURIComponent(activePromo.code));
+        }
+      });
+    }
+
+    // Check URL for pre-applied code
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var code = params.get('code') || params.get('promo') || params.get('offer');
+      if (code) {
+        document.getElementById('topPromoCode').value = code;
+        setTimeout(applyTopPromo, 500);
+      }
+    })();
 
     function applyFilters() {
       var loc = document.getElementById('filterLocation').value;
