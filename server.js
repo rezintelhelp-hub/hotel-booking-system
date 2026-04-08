@@ -41321,7 +41321,7 @@ app.post('/api/admin/offers', async (req, res) => {
       min_advance_days, max_advance_days,
       valid_from, valid_until, valid_days_of_week,
       allowed_checkin_days, allowed_checkout_days,
-      stackable, priority, active, pricing_tier, price_per_night
+      stackable, priority, active, pricing_tier, price_per_night, offer_code
     } = req.body;
     const name = mlStr(rawName);
     const description = mlStr(rawDesc);
@@ -41351,8 +41351,8 @@ app.post('/api/admin/offers', async (req, res) => {
           min_advance_days, max_advance_days,
           valid_from, valid_until, valid_days_of_week,
           allowed_checkin_days, allowed_checkout_days,
-          stackable, priority, active, pricing_tier
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+          stackable, priority, active, pricing_tier, offer_code
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -41362,7 +41362,7 @@ app.post('/api/admin/offers', async (req, res) => {
         min_advance_days || null, max_advance_days || null,
         valid_from || null, valid_until || null, valid_days_of_week || null,
         allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
-        stackable || false, priority || 0, active !== false, pricing_tier || 'standard'
+        stackable || false, priority || 0, active !== false, pricing_tier || 'standard', offer_code || null
       ]);
     } catch (colErr) {
       // Fallback without array columns
@@ -41406,7 +41406,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
       valid_from, valid_until, valid_days_of_week,
       allowed_checkin_days, allowed_checkout_days,
       stackable, priority, active,
-      available_website, available_agents, pricing_tier
+      available_website, available_agents, pricing_tier, offer_code
     } = req.body;
     const name = mlStr(rawName);
     const description = mlStr(rawDesc);
@@ -41444,8 +41444,9 @@ app.put('/api/admin/offers/:id', async (req, res) => {
           available_agents = COALESCE($26, available_agents),
           pricing_tier = COALESCE($27, pricing_tier),
           account_id = COALESCE($28, account_id),
+          offer_code = $29,
           updated_at = NOW()
-        WHERE id = $29
+        WHERE id = $30
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -41457,7 +41458,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         allowed_checkin_days, allowed_checkout_days,
         stackable, priority, active,
         available_website, available_agents, pricing_tier || 'standard',
-        account_id || null,
+        account_id || null, offer_code || null,
         req.params.id
       ]);
     } catch (colErr) {
