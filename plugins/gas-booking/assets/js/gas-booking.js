@@ -4117,7 +4117,19 @@ jQuery(document).ready(function($) {
                             var html = '';
                             var perNight = '/' + t('booking', 'night', 'night');
                             var perGuest = '/' + t('booking', 'guest', 'guest');
+                            // Calculate nights for night-range filtering
+                            var bookingNights = 0;
+                            var ci = ug?.checkin || document.querySelector('.gas-checkin')?.value;
+                            var co = ug?.checkout || document.querySelector('.gas-checkout')?.value;
+                            if (ci && co) {
+                                bookingNights = Math.round((new Date(co) - new Date(ci)) / (1000 * 60 * 60 * 24));
+                            }
                             response.upsells.forEach(function(upsell) {
+                                // Filter by night range if set
+                                if (bookingNights > 0) {
+                                    if (upsell.min_nights && bookingNights < upsell.min_nights) return;
+                                    if (upsell.max_nights && bookingNights > upsell.max_nights) return;
+                                }
                                 var priceLabel = '';
                                 switch(upsell.charge_type) {
                                     case 'per_night': priceLabel = perNight; break;
