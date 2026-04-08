@@ -1487,7 +1487,8 @@ app.get('/api/taxes/:roomId', async (req, res) => {
     const roomRes = await pool.query(`
       SELECT bu.property_id, p.account_id,
              p.tourist_tax_enabled, p.tourist_tax_type, p.tourist_tax_amount,
-             p.tourist_tax_name, p.tourist_tax_max_nights, p.tourist_tax_exempt_children
+             p.tourist_tax_name, p.tourist_tax_max_nights, p.tourist_tax_exempt_children,
+             p.tourist_tax_max_amount
       FROM bookable_units bu 
       JOIN properties p ON bu.property_id = p.id 
       WHERE bu.id = $1
@@ -1519,15 +1520,18 @@ app.get('/api/taxes/:roomId', async (req, res) => {
           let taxAmount = 0;
           const taxType = tax.amount_type || tax.charge_per || 'fixed';
           const taxRate = parseFloat(tax.amount) || 0;
-          
+          const maxAmountCap = tax.max_amount ? parseFloat(tax.max_amount) : null;
+          const taxableNights = tax.max_nights ? Math.min(numNights, tax.max_nights) : numNights;
+
           if (taxType === 'percentage') {
-            taxAmount = subTotal * (taxRate / 100);
+            const perNightRate = (subTotal / numNights) * (taxRate / 100);
+            const cappedRate = maxAmountCap ? Math.min(perNightRate, maxAmountCap) : perNightRate;
+            taxAmount = cappedRate * taxableNights * numGuests;
           } else if (taxType === 'per_night') {
-            const taxableNights = tax.max_nights ? Math.min(numNights, tax.max_nights) : numNights;
             taxAmount = taxRate * taxableNights;
           } else if (taxType === 'per_person_per_night' || taxType === 'per_guest_per_night') {
-            const taxableNights = tax.max_nights ? Math.min(numNights, tax.max_nights) : numNights;
-            taxAmount = taxRate * taxableNights * numGuests;
+            const cappedRate = maxAmountCap ? Math.min(taxRate, maxAmountCap) : taxRate;
+            taxAmount = cappedRate * taxableNights * numGuests;
           } else if (taxType === 'per_booking' || taxType === 'fixed') {
             taxAmount = taxRate;
           } else {
@@ -1555,19 +1559,26 @@ app.get('/api/taxes/:roomId', async (req, res) => {
         : numNights;
       let touristTaxAmount = 0;
       
+      const ptMaxCap = property.tourist_tax_max_amount ? parseFloat(property.tourist_tax_max_amount) : null;
       switch (property.tourist_tax_type) {
-        case 'per_guest_per_night':
-          touristTaxAmount = parseFloat(property.tourist_tax_amount) * taxableNights * numGuests;
+        case 'per_guest_per_night': {
+          const ptRate = parseFloat(property.tourist_tax_amount);
+          const ptCapped = ptMaxCap ? Math.min(ptRate, ptMaxCap) : ptRate;
+          touristTaxAmount = ptCapped * taxableNights * numGuests;
           break;
+        }
         case 'per_night':
           touristTaxAmount = parseFloat(property.tourist_tax_amount) * taxableNights;
           break;
         case 'per_booking':
           touristTaxAmount = parseFloat(property.tourist_tax_amount);
           break;
-        case 'percentage':
-          touristTaxAmount = subTotal * (parseFloat(property.tourist_tax_amount) / 100);
+        case 'percentage': {
+          const ptPctRate = (subTotal / numNights) * (parseFloat(property.tourist_tax_amount) / 100);
+          const ptPctCapped = ptMaxCap ? Math.min(ptPctRate, ptMaxCap) : ptPctRate;
+          touristTaxAmount = ptPctCapped * taxableNights * numGuests;
           break;
+        }
         default:
           touristTaxAmount = parseFloat(property.tourist_tax_amount) * taxableNights * numGuests;
       }
