@@ -62605,7 +62605,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       SELECT * FROM offers
       WHERE active = true
         AND account_id = $6
-        AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
+        AND property_id = (SELECT property_id FROM bookable_units WHERE id = $1)
         AND (room_id IS NULL OR room_id = $1)
         AND (min_nights IS NULL OR min_nights <= $2)
         AND (valid_from IS NULL OR valid_from <= $3)
@@ -64018,7 +64018,7 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
       SELECT id, name, description, category, price, charge_type as price_type, COALESCE(mandatory, false) as mandatory
       FROM upsells
       WHERE active = true
-        AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
+        AND property_id = (SELECT property_id FROM bookable_units WHERE id = $1)
         AND (room_id IS NULL OR room_id = $1)
       ORDER BY mandatory DESC, category, name
     `, [unitId]);
