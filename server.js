@@ -30473,18 +30473,34 @@ app.get('/api/db/gas-lites', async (req, res) => {
     const result = await pool.query(`
       SELECT bu.id as room_id, bu.name as room_name, bu.display_name, bu.max_guests,
              p.id as property_id, p.name as property_name, p.city, p.country,
-             gl.slug as lite_slug, gl.active as lite_active, gl.views as lite_views
+             gl.id as lite_id, gl.slug as lite_slug, gl.active as lite_active, gl.views as lite_views,
+             COALESCE(gl.sort_order, 1) as sort_order
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       LEFT JOIN gas_lites gl ON gl.room_id = bu.id AND gl.active = true
       WHERE p.account_id = $1 AND bu.status IN ('active', 'available')
-      ORDER BY p.name, bu.name
+      ORDER BY COALESCE(gl.sort_order, 999) ASC, p.name, bu.name
     `, [accountId]);
 
     res.json({ rooms: result.rows, account_code: accountCode });
   } catch (error) {
     console.error('Error loading gas_lites:', error);
     res.status(500).json({ error: 'Failed to load lites' });
+  }
+});
+
+// Update sort order for a gas lite card
+app.put('/api/db/gas-lites/:liteId/sort-order', async (req, res) => {
+  try {
+    const { sort_order } = req.body;
+    const result = await pool.query(
+      'UPDATE gas_lites SET sort_order = $1, updated_at = NOW() WHERE id = $2 RETURNING id, sort_order',
+      [parseInt(sort_order) || 0, req.params.liteId]
+    );
+    if (result.rows.length === 0) return res.json({ success: false, error: 'Lite not found' });
+    res.json({ success: true, sort_order: result.rows[0].sort_order });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
   }
 });
 
