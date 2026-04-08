@@ -21307,6 +21307,8 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_name VARCHAR(100) DEFAULT 'Tourist Tax'`);
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_max_nights INTEGER`); // NULL = no max
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_exempt_children BOOLEAN DEFAULT true`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_max_amount DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE taxes ADD COLUMN IF NOT EXISTS max_amount DECIMAL(10,2)`);
     
     // Add description columns to properties and bookable_units for website display
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS short_description TEXT`);
@@ -42534,10 +42536,10 @@ app.post('/api/admin/taxes', async (req, res) => {
     // user_id = creator (account_id)
     // Visibility is handled by GET which checks property ownership
     const result = await pool.query(`
-      INSERT INTO taxes (name, name_ml, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, user_id)
-      VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      INSERT INTO taxes (name, name_ml, country, amount_type, currency, amount, charge_per, max_nights, max_amount, min_age, star_tier, season_start, season_end, property_id, room_id, active, user_id)
+      VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
-    `, [name, nameJson, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active !== false, account_id]);
+    `, [name, nameJson, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, property_id, room_id, active !== false, account_id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -42563,17 +42565,18 @@ app.put('/api/admin/taxes/:id', async (req, res) => {
         amount = COALESCE($6, amount),
         charge_per = COALESCE($7, charge_per),
         max_nights = $8,
-        min_age = $9,
-        star_tier = $10,
-        season_start = $11,
-        season_end = $12,
-        property_id = $13,
-        room_id = $14,
-        active = COALESCE($15, active),
+        max_amount = $9,
+        min_age = $10,
+        star_tier = $11,
+        season_start = $12,
+        season_end = $13,
+        property_id = $14,
+        room_id = $15,
+        active = COALESCE($16, active),
         updated_at = NOW()
-      WHERE id = $16
+      WHERE id = $17
       RETURNING *
-    `, [name, nameJson, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, req.params.id]);
+    `, [name, nameJson, country, amount_type, currency, amount, charge_per, max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, property_id, room_id, active, req.params.id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -62797,24 +62800,22 @@ app.post('/api/public/calculate-price', async (req, res) => {
       const taxType = tax.tax_type || tax.amount_type || tax.charge_per || 'fixed';
       const taxRate = parseFloat(tax.rate || tax.amount) || 0;
       
+      const taxableNights = (tax.max_nights && nights > tax.max_nights) ? tax.max_nights : nights;
+      const maxAmountCap = tax.max_amount ? parseFloat(tax.max_amount) : null;
+
       if (taxType === 'percentage') {
-        taxAmount = subtotalAfterDiscounts * (taxRate / 100);
+        // Percentage tax — calculate per person per night, then apply cap
+        const perNightRate = (subtotalAfterDiscounts / nights) * (taxRate / 100);
+        const cappedRate = maxAmountCap ? Math.min(perNightRate, maxAmountCap) : perNightRate;
+        taxAmount = cappedRate * taxableNights * (guests || 1);
       } else if (taxType === 'per_night' || taxType === 'per_room_per_night' || taxType === 'per_booking_per_night') {
-        taxAmount = taxRate * nights;
+        taxAmount = taxRate * taxableNights;
       } else if (taxType === 'per_person_per_night') {
-        taxAmount = taxRate * nights * (guests || 1);
+        const cappedRate = maxAmountCap ? Math.min(taxRate, maxAmountCap) : taxRate;
+        taxAmount = cappedRate * taxableNights * (guests || 1);
       } else {
         // Fixed amount (per_booking or default)
         taxAmount = taxRate;
-      }
-      
-      // Apply max_nights limit if set
-      if (tax.max_nights && nights > tax.max_nights) {
-        if (taxType === 'per_night' || taxType === 'per_room_per_night' || taxType === 'per_booking_per_night') {
-          taxAmount = taxRate * tax.max_nights;
-        } else if (taxType === 'per_person_per_night') {
-          taxAmount = taxRate * tax.max_nights * (guests || 1);
-        }
       }
       
       taxTotal += taxAmount;
@@ -62833,20 +62834,23 @@ app.post('/api/public/calculate-price', async (req, res) => {
           p.tourist_tax_amount,
           p.tourist_tax_name,
           p.tourist_tax_max_nights,
-          p.tourist_tax_exempt_children
+          p.tourist_tax_exempt_children,
+          p.tourist_tax_max_amount
         FROM properties p
         JOIN bookable_units bu ON bu.property_id = p.id
         WHERE bu.id = $1
       `, [unit_id]);
-      
+
       if (propertyTax.rows[0] && propertyTax.rows[0].tourist_tax_enabled) {
         const pt = propertyTax.rows[0];
         const taxableNights = pt.tourist_tax_max_nights ? Math.min(nights, pt.tourist_tax_max_nights) : nights;
+        const maxAmountCap = pt.tourist_tax_max_amount ? parseFloat(pt.tourist_tax_max_amount) : null;
         let touristTaxAmount = 0;
-        
+
         switch (pt.tourist_tax_type) {
           case 'per_guest_per_night':
-            touristTaxAmount = parseFloat(pt.tourist_tax_amount) * taxableNights * (guests || 1);
+            const cappedRate = maxAmountCap ? Math.min(parseFloat(pt.tourist_tax_amount), maxAmountCap) : parseFloat(pt.tourist_tax_amount);
+            touristTaxAmount = cappedRate * taxableNights * (guests || 1);
             break;
           case 'per_night':
             touristTaxAmount = parseFloat(pt.tourist_tax_amount) * taxableNights;
@@ -62855,7 +62859,9 @@ app.post('/api/public/calculate-price', async (req, res) => {
             touristTaxAmount = parseFloat(pt.tourist_tax_amount);
             break;
           case 'percentage':
-            touristTaxAmount = accommodationTotal * (parseFloat(pt.tourist_tax_amount) / 100);
+            const perNightPct = (accommodationTotal / nights) * (parseFloat(pt.tourist_tax_amount) / 100);
+            const cappedPct = maxAmountCap ? Math.min(perNightPct, maxAmountCap) : perNightPct;
+            touristTaxAmount = cappedPct * taxableNights * (guests || 1);
             break;
           default:
             touristTaxAmount = parseFloat(pt.tourist_tax_amount) * taxableNights * (guests || 1);
