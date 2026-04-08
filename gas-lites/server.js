@@ -1440,7 +1440,7 @@ app.get('/api/upsells/:roomId', async (req, res) => {
       FROM upsells u
       LEFT JOIN properties p ON u.property_id = p.id
       WHERE u.active = true
-        AND (p.account_id = $1 OR u.property_id IS NULL OR u.property_id = $2)
+        AND (p.account_id = $1 OR u.property_id = $2)
         AND (
           u.room_id IS NULL 
           OR u.room_id = $3
