@@ -63922,9 +63922,15 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
   const fees = [];
   const taxes = [];
   
-  // Add cleaning fee from unit
+  // Add cleaning fee from unit — suppress if a cleaning upsell exists for this property
   if (unit.cleaning_fee && parseFloat(unit.cleaning_fee) > 0) {
-    fees.push({ type: 'cleaning_fee', name: 'Cleaning Fee', amount: parseFloat(unit.cleaning_fee) });
+    const cleaningUpsellExists = await pool.query(
+      `SELECT id FROM upsells WHERE active = true AND property_id = $1 AND (LOWER(name) LIKE '%cleaning%' OR category = 'cleaning') LIMIT 1`,
+      [unit.property_id]
+    );
+    if (cleaningUpsellExists.rows.length === 0) {
+      fees.push({ type: 'cleaning_fee', name: 'Cleaning Fee', amount: parseFloat(unit.cleaning_fee) });
+    }
   }
   
   // Get fees from GAS fees table - property-level (room_id IS NULL) or this specific room
