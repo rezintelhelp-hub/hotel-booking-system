@@ -1670,11 +1670,13 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024, // 10MB max
   },
   fileFilter: (req, file, cb) => {
-    // Accept images only
-    if (!file.mimetype.startsWith('image/')) {
-      return cb(new Error('Only image files are allowed!'), false);
+    // Accept images and common document types (PDF, Word, Excel, CSV, text, zip)
+    const allowedTypes = ['image/', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats', 'application/vnd.ms-excel', 'text/csv', 'text/plain', 'application/zip'];
+    if (allowedTypes.some(t => file.mimetype.startsWith(t))) {
+      cb(null, true);
+    } else {
+      return cb(new Error('File type not allowed: ' + file.mimetype), false);
     }
-    cb(null, true);
   },
 });
 
