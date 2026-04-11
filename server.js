@@ -23872,9 +23872,10 @@ function hasPartnerPermission(req, permission) {
 // =====================================================
 // BACKWARDS-COMPATIBLE ALIAS: /api/elevate/* → /api/partner/*
 // =====================================================
-app.use('/api/elevate', (req, res, next) => {
+app.use('/api/elevate/', (req, res, next) => {
+    // Rewrite /api/elevate/v1/x → /api/partner/v1/x
     req.url = '/api/partner' + req.url;
-    next();
+    req.app.handle(req, res, next);
 });
 
 // =====================================================
