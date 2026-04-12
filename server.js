@@ -19324,19 +19324,19 @@ app.post('/api/public/form-submission', async (req, res) => {
 // =====================================================
 app.post('/api/public/payment-failed', async (req, res) => {
     try {
-        const { unit_id, check_in, check_out, guests, guest_first_name, guest_last_name, 
+        const { unit_id, check_in, check_out, guests, guest_first_name, guest_last_name,
                 guest_email, guest_phone, guest_address, guest_city, guest_postcode, guest_country,
-                total_price, payment_type, error_message, source_site_url } = req.body;
-        
+                total_price, payment_type, error_message, source_site_url, lang } = req.body;
+
         if (!unit_id || !guest_email) {
             return res.json({ success: false, error: 'Missing required fields' });
         }
-        
+
         // Get property/room/owner info
         const unitResult = await pool.query(`
             SELECT bu.id, bu.name as room_name, bu.beds24_room_id, bu.hostaway_listing_id,
                    p.id as property_id, p.name as property_name, p.account_id,
-                   a.email as owner_email, a.name as owner_name, a.contact_name,
+                   a.email as owner_email, a.name as owner_name, a.contact_name, a.settings,
                    COALESCE(p.currency, a.default_currency) as currency
             FROM bookable_units bu
             LEFT JOIN properties p ON bu.property_id = p.id
@@ -19350,47 +19350,111 @@ app.post('/api/public/payment-failed', async (req, res) => {
         
         const unit = unitResult.rows[0];
         const currency = unit.currency || 'EUR';
-        
-        console.log(`⚠️ Payment failed for ${guest_first_name} ${guest_last_name} - ${unit.property_name} / ${unit.room_name}`);
-        
+
+        // Determine owner language from account settings
+        const ownerSettings = typeof unit.settings === 'string' ? JSON.parse(unit.settings || '{}') : (unit.settings || {});
+        const ownerLang = ownerSettings.default_language || ownerSettings.language || 'en';
+
+        // Translations for the failed payment email
+        const emailT = {
+            en: {
+                subject: `Failed Payment — ${guest_first_name} ${guest_last_name} tried to book ${unit.room_name}`,
+                heading: 'Failed Payment — Booking Opportunity',
+                subheading: 'A guest tried to book but payment failed. Contact them to complete the booking.',
+                guestDetails: 'Guest Details', guest: 'Guest', email: 'Email', phone: 'Phone',
+                bookingDetails: 'Booking Details', property: 'Property', room: 'Room',
+                checkIn: 'Check-in', checkOut: 'Check-out', guests: 'Guests', total: 'Total',
+                paymentFailed: 'Payment Failed',
+                tip: 'Reply to this guest quickly before they book elsewhere. Offer them an alternative payment method such as bank transfer.',
+                tipLabel: 'Tip'
+            },
+            de: {
+                subject: `Fehlgeschlagene Zahlung — ${guest_first_name} ${guest_last_name} wollte ${unit.room_name} buchen`,
+                heading: 'Fehlgeschlagene Zahlung — Buchungsanfrage',
+                subheading: 'Ein Gast hat versucht zu buchen, aber die Zahlung ist fehlgeschlagen. Kontaktieren Sie ihn, um die Buchung abzuschliessen.',
+                guestDetails: 'Gastdaten', guest: 'Gast', email: 'E-Mail', phone: 'Telefon',
+                bookingDetails: 'Buchungsdetails', property: 'Unterkunft', room: 'Zimmer',
+                checkIn: 'Anreise', checkOut: 'Abreise', guests: 'Gaeste', total: 'Gesamt',
+                paymentFailed: 'Zahlung fehlgeschlagen',
+                tip: 'Antworten Sie diesem Gast schnell, bevor er woanders bucht. Bieten Sie eine alternative Zahlungsmethode wie Bankueberweisung an.',
+                tipLabel: 'Tipp'
+            },
+            fr: {
+                subject: `Paiement echoue — ${guest_first_name} ${guest_last_name} a tente de reserver ${unit.room_name}`,
+                heading: 'Paiement echoue — Opportunite de reservation',
+                subheading: 'Un client a tente de reserver mais le paiement a echoue. Contactez-le pour finaliser la reservation.',
+                guestDetails: 'Coordonnees du client', guest: 'Client', email: 'E-mail', phone: 'Telephone',
+                bookingDetails: 'Details de la reservation', property: 'Propriete', room: 'Chambre',
+                checkIn: 'Arrivee', checkOut: 'Depart', guests: 'Voyageurs', total: 'Total',
+                paymentFailed: 'Paiement echoue',
+                tip: 'Repondez rapidement a ce client avant qu\'il reserve ailleurs. Proposez un mode de paiement alternatif comme le virement bancaire.',
+                tipLabel: 'Conseil'
+            },
+            es: {
+                subject: `Pago fallido — ${guest_first_name} ${guest_last_name} intento reservar ${unit.room_name}`,
+                heading: 'Pago fallido — Oportunidad de reserva',
+                subheading: 'Un huesped intento reservar pero el pago fallo. Contactelo para completar la reserva.',
+                guestDetails: 'Datos del huesped', guest: 'Huesped', email: 'Correo', phone: 'Telefono',
+                bookingDetails: 'Detalles de la reserva', property: 'Propiedad', room: 'Habitacion',
+                checkIn: 'Entrada', checkOut: 'Salida', guests: 'Huespedes', total: 'Total',
+                paymentFailed: 'Pago fallido',
+                tip: 'Responda a este huesped rapidamente antes de que reserve en otro lugar. Ofrezcale un metodo de pago alternativo como transferencia bancaria.',
+                tipLabel: 'Consejo'
+            },
+            nl: {
+                subject: `Betaling mislukt — ${guest_first_name} ${guest_last_name} probeerde ${unit.room_name} te boeken`,
+                heading: 'Betaling mislukt — Boekingskans',
+                subheading: 'Een gast probeerde te boeken maar de betaling is mislukt. Neem contact op om de boeking te voltooien.',
+                guestDetails: 'Gastgegevens', guest: 'Gast', email: 'E-mail', phone: 'Telefoon',
+                bookingDetails: 'Boekingsdetails', property: 'Accommodatie', room: 'Kamer',
+                checkIn: 'Inchecken', checkOut: 'Uitchecken', guests: 'Gasten', total: 'Totaal',
+                paymentFailed: 'Betaling mislukt',
+                tip: 'Reageer snel op deze gast voordat hij elders boekt. Bied een alternatieve betaalmethode aan zoals bankoverschrijving.',
+                tipLabel: 'Tip'
+            }
+        };
+        const t = emailT[ownerLang] || emailT.en;
+
+        console.log(`⚠️ Payment failed for ${guest_first_name} ${guest_last_name} - ${unit.property_name} / ${unit.room_name} (owner lang: ${ownerLang})`);
+
         // 1. SEND EMAIL TO PROPERTY OWNER
         if (unit.owner_email) {
             try {
                 await sendEmail({
                     to: [unit.owner_email, 'development@gas.travel'],
-                    subject: `⚠️ Failed Payment — ${guest_first_name} ${guest_last_name} tried to book ${unit.room_name}`,
+                    subject: `⚠️ ${t.subject}`,
                     html: `
                         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                             <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-                                <h2 style="margin: 0;">⚠️ Failed Payment — Booking Opportunity</h2>
-                                <p style="margin: 5px 0 0; opacity: 0.9;">A guest tried to book but payment failed. Contact them to complete the booking.</p>
+                                <h2 style="margin: 0;">⚠️ ${t.heading}</h2>
+                                <p style="margin: 5px 0 0; opacity: 0.9;">${t.subheading}</p>
                             </div>
                             <div style="background: #fff; border: 1px solid #e5e7eb; padding: 20px; border-radius: 0 0 8px 8px;">
-                                <h3 style="color: #1e293b; margin-top: 0;">Guest Details</h3>
+                                <h3 style="color: #1e293b; margin-top: 0;">${t.guestDetails}</h3>
                                 <table style="width: 100%; border-collapse: collapse;">
-                                    <tr><td style="padding: 6px 0; color: #6b7280; width: 35%;">Guest:</td><td style="padding: 6px 0; font-weight: 600;">${guest_first_name} ${guest_last_name}</td></tr>
-                                    <tr><td style="padding: 6px 0; color: #6b7280;">Email:</td><td style="padding: 6px 0;"><a href="mailto:${guest_email}" style="color: #2563eb;">${guest_email}</a></td></tr>
-                                    ${guest_phone ? `<tr><td style="padding: 6px 0; color: #6b7280;">Phone:</td><td style="padding: 6px 0;"><a href="tel:${guest_phone}" style="color: #2563eb;">${guest_phone}</a></td></tr>` : ''}
+                                    <tr><td style="padding: 6px 0; color: #6b7280; width: 35%;">${t.guest}:</td><td style="padding: 6px 0; font-weight: 600;">${guest_first_name} ${guest_last_name}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">${t.email}:</td><td style="padding: 6px 0;"><a href="mailto:${guest_email}" style="color: #2563eb;">${guest_email}</a></td></tr>
+                                    ${guest_phone ? `<tr><td style="padding: 6px 0; color: #6b7280;">${t.phone}:</td><td style="padding: 6px 0;"><a href="tel:${guest_phone}" style="color: #2563eb;">${guest_phone}</a></td></tr>` : ''}
                                 </table>
-                                
-                                <h3 style="color: #1e293b; margin-top: 16px;">Booking Details</h3>
+
+                                <h3 style="color: #1e293b; margin-top: 16px;">${t.bookingDetails}</h3>
                                 <table style="width: 100%; border-collapse: collapse;">
-                                    <tr><td style="padding: 6px 0; color: #6b7280; width: 35%;">Property:</td><td style="padding: 6px 0; font-weight: 600;">${unit.property_name}</td></tr>
-                                    <tr><td style="padding: 6px 0; color: #6b7280;">Room:</td><td style="padding: 6px 0; font-weight: 600;">${unit.room_name}</td></tr>
-                                    <tr><td style="padding: 6px 0; color: #6b7280;">Check-in:</td><td style="padding: 6px 0;">${check_in}</td></tr>
-                                    <tr><td style="padding: 6px 0; color: #6b7280;">Check-out:</td><td style="padding: 6px 0;">${check_out}</td></tr>
-                                    <tr><td style="padding: 6px 0; color: #6b7280;">Guests:</td><td style="padding: 6px 0;">${guests || 'N/A'}</td></tr>
-                                    <tr><td style="padding: 6px 0; color: #6b7280;">Total:</td><td style="padding: 6px 0; font-weight: 600;">${currency} ${total_price || 'N/A'}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280; width: 35%;">${t.property}:</td><td style="padding: 6px 0; font-weight: 600;">${unit.property_name}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">${t.room}:</td><td style="padding: 6px 0; font-weight: 600;">${unit.room_name}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">${t.checkIn}:</td><td style="padding: 6px 0;">${check_in}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">${t.checkOut}:</td><td style="padding: 6px 0;">${check_out}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">${t.guests}:</td><td style="padding: 6px 0;">${guests || 'N/A'}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">${t.total}:</td><td style="padding: 6px 0; font-weight: 600;">${currency} ${total_price || 'N/A'}</td></tr>
                                 </table>
-                                
+
                                 <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; margin-top: 16px;">
-                                    <p style="margin: 0; color: #991b1b; font-size: 0.9rem;"><strong>Payment Failed:</strong> ${payment_type === 'card' ? 'Stripe card payment' : payment_type === 'setup_intent' ? 'Card guarantee' : 'Payment processing'} — ${error_message || 'Guest sent enquiry — requested alternative payment'}</p>
+                                    <p style="margin: 0; color: #991b1b; font-size: 0.9rem;"><strong>${t.paymentFailed}:</strong> ${payment_type === 'card' ? 'Stripe' : payment_type === 'setup_intent' ? 'Card guarantee' : 'Payment'} — ${error_message || t.subheading}</p>
                                 </div>
-                                
+
                                 <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 12px; margin-top: 12px;">
-                                    <p style="margin: 0; color: #92400e; font-size: 0.9rem;">💡 <strong>Tip:</strong> Reply to this guest quickly before they book elsewhere. Offer them an alternative payment method such as bank transfer.</p>
+                                    <p style="margin: 0; color: #92400e; font-size: 0.9rem;">💡 <strong>${t.tipLabel}:</strong> ${t.tip}</p>
                                 </div>
-                                
+
                                 ${source_site_url ? `<p style="margin-top: 12px; font-size: 0.8rem; color: #9ca3af;">Source: ${source_site_url}</p>` : ''}
                             </div>
                         </div>
