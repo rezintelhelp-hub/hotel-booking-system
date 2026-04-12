@@ -12226,14 +12226,18 @@ app.post('/api/accounts/change-password', async (req, res) => {
 // Step 1: Create account during onboarding
 app.post('/api/onboarding/create-account', async (req, res) => {
   try {
-    const { name, email, password, channel_manager, business_name } = req.body;
-    
+    const { name, email, password, channel_manager, business_name, terms_accepted } = req.body;
+
     if (!name || !email || !password) {
       return res.json({ success: false, error: 'Name, email, and password are required' });
     }
-    
+
     if (password.length < 8) {
       return res.json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+
+    if (!terms_accepted) {
+      return res.json({ success: false, error: 'You must accept the Terms and Conditions and Privacy Policy to register' });
     }
     
     // Check if email already exists
@@ -12259,9 +12263,10 @@ app.post('/api/onboarding/create-account', async (req, res) => {
     const result = await pool.query(`
       INSERT INTO accounts (
         name, email, password_hash, business_name, role, parent_id,
-        account_code, api_key, api_key_created_at, status
+        account_code, api_key, api_key_created_at, status,
+        terms_accepted, terms_accepted_at, terms_version
       )
-      VALUES ($1, $2, $3, $4, 'admin', $5, $6, $7, NOW(), 'active')
+      VALUES ($1, $2, $3, $4, 'admin', $5, $6, $7, NOW(), 'active', true, NOW(), 'v1.0')
       RETURNING id, public_id, name, email, role, business_name, account_code
     `, [name, email.toLowerCase().trim(), passwordHash, business_name || name, parentId, accountCode, apiKey]);
     
@@ -15249,6 +15254,9 @@ app.get('/api/setup-accounts-billing', async (req, res) => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS blog_preview_count INTEGER DEFAULT 0`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS attractions_preview_count INTEGER DEFAULT 0`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS social_preview_count INTEGER DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS terms_accepted BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS terms_version VARCHAR(10) DEFAULT 'v1.0'`).catch(() => {});
     console.log('✅ billing + subscription columns added to accounts');
 
     // Billing invoices table
@@ -29894,9 +29902,12 @@ app.get('/api/admin/billing/overview', async (req, res) => {
 // POST /api/register — create account, send welcome email
 app.post('/api/register', async (req, res) => {
   try {
-    const { name, email, password, company_name, phone } = req.body;
+    const { name, email, password, company_name, phone, terms_accepted } = req.body;
     if (!email || !password || !name) {
       return res.status(400).json({ success: false, error: 'Name, email and password are required' });
+    }
+    if (!terms_accepted) {
+      return res.status(400).json({ success: false, error: 'You must accept the Terms and Conditions and Privacy Policy to register' });
     }
 
     // Check if email already registered
@@ -29914,8 +29925,8 @@ app.post('/api/register', async (req, res) => {
 
     // Create account with status = 'free'
     const result = await pool.query(`
-      INSERT INTO accounts (name, email, password_hash, business_name, phone, role, status, account_status, api_key, api_key_created_at, created_at)
-      VALUES ($1, $2, $3, $4, $5, 'admin', 'active', 'free', $6, NOW(), NOW())
+      INSERT INTO accounts (name, email, password_hash, business_name, phone, role, status, account_status, api_key, api_key_created_at, terms_accepted, terms_accepted_at, terms_version, created_at)
+      VALUES ($1, $2, $3, $4, $5, 'admin', 'active', 'free', $6, NOW(), true, NOW(), 'v1.0', NOW())
       RETURNING id, name, email, api_key, account_status
     `, [name.trim(), email.toLowerCase().trim(), passwordHash, company_name || '', phone || '', apiKey]);
 
