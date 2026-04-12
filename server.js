@@ -117,6 +117,138 @@ try {
   SyncManager = class { constructor() {} };
 }
 
+// GAS Pricing Calculator — incremental room pricing (Master Build Plan Part 2)
+function calculateGASPrice(product, roomCount) {
+  const bases = {
+    gas_direct_monthly:  { base: 19.00, included: 5  },
+    web_builder:         { base: 29.00, included: 10 },
+    pro_builder:         { base: 59.00, included: 10 },
+    agent_gas_direct:    { base: 38.00, included: 5  },
+    agent_web_builder:   { base: 58.00, included: 10 },
+    agent_pro_builder:   { base: 118.00, included: 10 },
+  };
+
+  const tiers = {
+    gas_direct_monthly:  [[6,20,1.50],[21,50,1.25],[51,100,1.00],[101,null,0.75]],
+    web_builder:         [[11,20,1.50],[21,50,1.25],[51,100,1.00],[101,null,0.75]],
+    pro_builder:         [[11,20,1.50],[21,50,1.25],[51,100,1.00],[101,null,0.75]],
+    agent_gas_direct:    [[6,20,1.50],[21,50,1.25],[51,100,1.00],[101,null,0.75]],
+    agent_web_builder:   [[11,20,1.50],[21,50,1.25],[51,100,1.00],[101,null,0.75]],
+    agent_pro_builder:   [[11,20,1.50],[21,50,1.25],[51,100,1.00],[101,null,0.75]],
+  };
+
+  if (!bases[product]) return { base: 0, room_charge: 0, total: 0 };
+  const config = bases[product];
+  const productTiers = tiers[product] || [];
+
+  let total = config.base;
+  let roomCharge = 0;
+  let above = roomCount - config.included;
+
+  if (above > 0 && productTiers.length) {
+    let remaining = above;
+    for (const [min, max, rate] of productTiers) {
+      if (remaining <= 0) break;
+      const tierStart = min - config.included;
+      const tierEnd = max ? max - config.included : Infinity;
+      const tierSize = tierEnd - Math.max(0, tierStart - 1);
+      const roomsInTier = Math.min(remaining, tierSize);
+      if (roomsInTier > 0) {
+        roomCharge += roomsInTier * rate;
+        remaining -= roomsInTier;
+      }
+    }
+    total += roomCharge;
+  }
+
+  return {
+    base: config.base,
+    room_charge: parseFloat(roomCharge.toFixed(2)),
+    total: parseFloat(total.toFixed(2)),
+    rooms_above_base: Math.max(0, roomCount - config.included)
+  };
+}
+
+// GAS Subscription Access Control Middleware (Master Build Plan Part 3)
+async function checkGASAccess(accountId, requiredFeature) {
+  const account = await pool.query(
+    'SELECT account_status, subscription_grace_until FROM accounts WHERE id = $1',
+    [accountId]
+  );
+
+  if (!account.rows[0]) return { allowed: false, reason: 'account_not_found' };
+
+  const { account_status, subscription_grace_until } = account.rows[0];
+
+  // Legacy accounts bypass all checks
+  if (account_status === 'legacy') return { allowed: true, reason: 'legacy' };
+
+  // Free features always allowed
+  const FREE_FEATURES = [
+    'dashboard', 'bookings', 'guests', 'rooms',
+    'cm_sync', 'gas_direct_commission'
+  ];
+  if (FREE_FEATURES.includes(requiredFeature)) return { allowed: true, reason: 'free' };
+
+  // Active subscription
+  if (account_status === 'active') {
+    const flag = await pool.query(
+      'SELECT enabled FROM gas_feature_flags WHERE account_id = $1 AND feature = $2',
+      [accountId, requiredFeature]
+    );
+    if (flag.rows[0]?.enabled) return { allowed: true, reason: 'active' };
+    return { allowed: false, reason: 'feature_not_enabled' };
+  }
+
+  // Grace period
+  if (account_status === 'suspended' && subscription_grace_until) {
+    if (new Date() < new Date(subscription_grace_until)) {
+      return { allowed: true, reason: 'grace_period' };
+    }
+  }
+
+  return { allowed: false, reason: 'not_subscribed' };
+}
+
+// API Key validation middleware (Master Build Plan Part 3)
+async function validateAPIKey(req, res, next) {
+  const apiKey = req.headers['x-gas-api-key'];
+  if (!apiKey) return res.status(401).json({ error: 'API key required' });
+
+  const account = await pool.query(
+    `SELECT a.id, a.account_status, a.api_key_active
+     FROM accounts a
+     WHERE a.api_key = $1`,
+    [apiKey]
+  );
+
+  if (!account.rows[0]) return res.status(401).json({ error: 'Invalid API key' });
+
+  const acc = account.rows[0];
+
+  // Legacy bypass
+  if (acc.account_status === 'legacy') { req.accountId = acc.id; return next(); }
+
+  // Must have active API key flag
+  if (!acc.api_key_active) return res.status(403).json({ error: 'API access not active. Please check your subscription.' });
+
+  if (acc.account_status !== 'active') {
+    return res.status(403).json({ error: 'Subscription required for API access.' });
+  }
+
+  req.accountId = acc.id;
+  next();
+}
+
+// WP Plugin Licence key generation (Master Build Plan Part 4)
+function generateLicenceKey() {
+  const segments = [];
+  for (let i = 0; i < 4; i++) {
+    segments.push(Math.random().toString(36).substr(2, 5).toUpperCase());
+  }
+  return 'GAS-' + segments.join('-');
+}
+
 // Email configuration - Mailgun
 const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || 'mg.gas.travel';
@@ -1733,6 +1865,14 @@ app.get('/', (req, res) => {
 app.get('/privacy', (req, res) => res.sendFile('privacy.html', { root: 'public' }));
 app.get('/terms', (req, res) => res.sendFile('terms.html', { root: 'public' }));
 app.get('/data-deletion', (req, res) => res.sendFile('data-deletion.html', { root: 'public' }));
+
+// Master Build Plan Part 12 — new page routes
+app.get('/register', (req, res) => res.sendFile('register.html', { root: 'public' }));
+app.get('/onboarding', (req, res) => res.sendFile('onboarding.html', { root: 'public' }));
+app.get('/pricing', (req, res) => res.sendFile('pricing.html', { root: 'public' }));
+app.get('/partners', (req, res) => res.sendFile('partners.html', { root: 'public' }));
+app.get('/for-destinations', (req, res) => res.sendFile('for-destinations.html', { root: 'public' }));
+
 // --- API Docs: Registration + API Key Gate ---
 
 // Login page
@@ -15050,7 +15190,23 @@ app.get('/api/setup-accounts-billing', async (req, res) => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_billing_customer_id VARCHAR(100)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_billing_payment_method_id VARCHAR(100)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_mandate_status VARCHAR(20) DEFAULT 'none'`).catch(() => {});
-    console.log('✅ billing columns added to accounts');
+    // Part 1.1 — Master Build Plan: account status, subscription, integrations
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_status VARCHAR(20) DEFAULT 'free'`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS legacy_note TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS subscription_grace_until TIMESTAMPTZ`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(100)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_price_id VARCHAR(100)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS wp_plugin_licence_key VARCHAR(100)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS wp_plugin_licence_active BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS api_key_active BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS hostvana_api_key VARCHAR(100)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS hostvana_connected BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS repuso_widget_key VARCHAR(100)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS repuso_connected BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS blog_preview_count INTEGER DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS attractions_preview_count INTEGER DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS social_preview_count INTEGER DEFAULT 0`).catch(() => {});
+    console.log('✅ billing + subscription columns added to accounts');
 
     // Billing invoices table
     await pool.query(`
@@ -18179,7 +18335,7 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
           product: sub.product,
           label: sub.product === 'blog' ? 'Blog' :
                  sub.product === 'attractions' ? 'Attractions' :
-                 sub.product === 'lites' ? 'Lites / Social' :
+                 sub.product === 'lites' ? 'GAS Direct / Social' :
                  sub.product === 'reviews' ? 'Reviews (Repuso)' : sub.product,
           quantity: sub.quantity || 0,
           tier: sub.tier,
@@ -22067,7 +22223,7 @@ BOOKINGS AND REVENUE: View bookings and manage all revenue tools.
 
 MARKETING: Manage features and marketing content that appears on booking pages.
 
-TURBINES: Advanced tools — Connections, Campaigns, Generator, GAS Lites (lightweight embeddable booking widget), Properties display settings with colour presets.
+TURBINES: Advanced tools — Connections, Campaigns, Generator, GAS Direct (lightweight embeddable booking widget), Properties display settings with colour presets.
 
 GENERATORS: AI-powered content tools — Blog post generator, Attractions content for your area, Reviews management.
 
@@ -22835,15 +22991,20 @@ app.get('/api/setup-billing', async (req, res) => {
         name VARCHAR(100) NOT NULL,
         slug VARCHAR(100) UNIQUE NOT NULL,
         description TEXT,
-        price_monthly DECIMAL(10,2) NOT NULL,
+        price_monthly DECIMAL(10,2) NOT NULL DEFAULT 0,
         price_yearly DECIMAL(10,2),
-        currency VARCHAR(3) DEFAULT 'GBP',
+        currency VARCHAR(3) DEFAULT 'USD',
         max_properties INTEGER,
         features JSONB DEFAULT '[]',
         is_active BOOLEAN DEFAULT true,
         stripe_price_id_monthly VARCHAR(255),
         stripe_price_id_yearly VARCHAR(255),
         sort_order INTEGER DEFAULT 0,
+        product VARCHAR(50),
+        base_price_usd DECIMAL(10,2) DEFAULT 0,
+        base_units INTEGER DEFAULT 0,
+        billing_period VARCHAR(20) DEFAULT 'monthly',
+        stripe_price_id VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -22994,16 +23155,41 @@ app.get('/api/setup-billing', async (req, res) => {
       )
     `);
     
-    // Insert default plans if empty
-    const planCheck = await pool.query('SELECT COUNT(*) FROM billing_plans');
+    // Seed billing_plans with GAS product suite (Master Build Plan Part 1.2)
+    // Add new columns if migrating from old schema
+    await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS product VARCHAR(50)`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS base_price_usd DECIMAL(10,2) DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS base_units INTEGER DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS billing_period VARCHAR(20) DEFAULT 'monthly'`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS stripe_price_id VARCHAR(255)`).catch(() => {});
+    // Drop old slug unique constraint if it exists (we're replacing slugs)
+    await pool.query(`ALTER TABLE billing_plans DROP CONSTRAINT IF EXISTS billing_plans_slug_key`).catch(() => {});
+    // Check if new products already seeded
+    const planCheck = await pool.query("SELECT COUNT(*) FROM billing_plans WHERE product IS NOT NULL");
     if (parseInt(planCheck.rows[0].count) === 0) {
+      // Remove old seed data (Starter/Professional/Business/Enterprise)
+      await pool.query(`DELETE FROM billing_subscriptions`).catch(() => {});
+      await pool.query(`DELETE FROM billing_plans`).catch(() => {});
       await pool.query(`
-        INSERT INTO billing_plans (name, slug, description, price_monthly, price_yearly, max_properties, features, sort_order) VALUES
-        ('Starter', 'starter', 'Perfect for single properties', 29.00, 290.00, 1, '{"properties": 1, "websites": 1, "booking_plugin": true, "theme": "basic", "blog_module": false, "attractions_module": false, "reviews_widget": false, "support": "email", "free_trial": false, "white_label": false, "features_list": ["1 property", "1 website", "Booking plugin", "Basic theme", "Email support"]}', 1),
-        ('Professional', 'professional', 'For growing businesses', 59.00, 590.00, 10, '{"properties": 10, "websites": 1, "booking_plugin": true, "theme": "standard", "blog_module": true, "attractions_module": false, "reviews_widget": false, "support": "email", "free_trial": true, "white_label": false, "features_list": ["Up to 10 properties", "1 website", "Booking plugin", "All standard themes", "Blog module", "Email support", "14-day free trial"]}', 2),
-        ('Business', 'business', 'For established operators', 99.00, 990.00, 50, '{"properties": 50, "websites": 1, "booking_plugin": true, "theme": "standard", "blog_module": true, "attractions_module": true, "reviews_widget": false, "support": "priority", "free_trial": true, "white_label": false, "features_list": ["Up to 50 properties", "1 website", "Booking plugin", "All standard themes", "Blog module", "Attractions module", "Priority support", "14-day free trial"]}', 3),
-        ('Enterprise', 'enterprise', 'Unlimited scale', 199.00, 1990.00, NULL, '{"properties": null, "websites": 10, "booking_plugin": true, "theme": "premium", "blog_module": true, "attractions_module": true, "reviews_widget": true, "support": "dedicated", "free_trial": true, "white_label": true, "features_list": ["Unlimited properties", "Up to 10 websites", "Booking plugin", "All themes including premium", "Blog module", "Attractions module", "Reviews widget", "Dedicated support", "White-label option", "14-day free trial"]}', 4)
+        INSERT INTO billing_plans (name, slug, description, price_monthly, product, base_price_usd, base_units, billing_period, is_active, sort_order) VALUES
+        ('GAS Direct — Commission',   'gas-direct-commission',   'Commission-based direct booking pages',         0.00,  'gas_direct_commission',  0.00,   5,  'monthly',  true, 1),
+        ('GAS Direct — Monthly',      'gas-direct-monthly',      'Monthly direct booking pages',                 19.00,  'gas_direct_monthly',    19.00,   5,  'monthly',  true, 2),
+        ('Web Builder',               'web-builder',             'Fully hosted branded websites',                29.00,  'web_builder',           29.00,  10,  'monthly',  true, 3),
+        ('Pro Builder',               'pro-builder',             'Advanced site builder with WYSIWYG',           59.00,  'pro_builder',           59.00,  10,  'monthly',  true, 4),
+        ('Blog + Attractions AI',     'blog-attractions',        'AI-generated SEO content',                     19.99,  'blog_attractions',      19.99,   0,  'monthly',  true, 5),
+        ('Social Campaign Manager',   'social-campaign',         'Social media campaign and card generator',     19.99,  'social_campaign',       19.99,   0,  'monthly',  true, 6),
+        ('WP Plugin Licence',         'wp-plugin-licence',       'WordPress booking plugin licence',             19.99,  'wp_plugin_licence',     19.99,   0,  'monthly',  true, 7),
+        ('Support Bundle 2hr',        'support-2hr',             '2 hours of support',                          49.00,  'support_2hr',           49.00,   0,  'one_time', true, 8),
+        ('Support Bundle 5hr',        'support-5hr',             '5 hours of support',                          99.00,  'support_5hr',           99.00,   0,  'one_time', true, 9),
+        ('Support Bundle 10hr',       'support-10hr',            '10 hours of support',                        179.00,  'support_10hr',         179.00,   0,  'one_time', true, 10),
+        ('White-label API Starter',   'api-licence-starter',     'API access — up to 200 rooms',               250.00,  'api_licence_starter',  250.00, 200,  'monthly',  true, 11),
+        ('White-label API Growth',    'api-licence-growth',      'API access — up to 500 rooms',               500.00,  'api_licence_growth',   500.00, 500,  'monthly',  true, 12),
+        ('White-label API Scale',     'api-licence-scale',       'API access — unlimited rooms',                 0.00,  'api_licence_scale',      0.00,   0,  'monthly',  true, 13),
+        ('GAS Direct — Agent',        'agent-gas-direct',        'Agent: direct booking pages',                 38.00,  'agent_gas_direct',      38.00,   5,  'monthly',  true, 14),
+        ('Web Builder — Agent',       'agent-web-builder',       'Agent: branded websites',                     58.00,  'agent_web_builder',     58.00,  10,  'monthly',  true, 15),
+        ('Pro Builder — Agent',       'agent-pro-builder',       'Agent: advanced site builder',               118.00,  'agent_pro_builder',    118.00,  10,  'monthly',  true, 16)
       `);
+      console.log('✅ billing_plans seeded with GAS product suite');
     }
     
     // Insert default credit packages if empty
@@ -23034,6 +23220,63 @@ app.get('/api/setup-billing', async (req, res) => {
       `);
     }
     
+    // Part 1.3 — Room pricing tiers (incremental per-room pricing)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gas_room_tiers (
+        id SERIAL PRIMARY KEY,
+        product VARCHAR(50) NOT NULL,
+        min_rooms INT NOT NULL,
+        max_rooms INT,
+        price_per_room DECIMAL(10,4) NOT NULL
+      )
+    `);
+    const tierCheck = await pool.query('SELECT COUNT(*) FROM gas_room_tiers');
+    if (parseInt(tierCheck.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO gas_room_tiers (product, min_rooms, max_rooms, price_per_room) VALUES
+        ('gas_direct_monthly',  6,   20,  1.50),
+        ('gas_direct_monthly',  21,  50,  1.25),
+        ('gas_direct_monthly',  51,  100, 1.00),
+        ('gas_direct_monthly',  101, NULL, 0.75),
+        ('web_builder',         11,  20,  1.50),
+        ('web_builder',         21,  50,  1.25),
+        ('web_builder',         51,  100, 1.00),
+        ('web_builder',         101, NULL, 0.75),
+        ('pro_builder',         11,  20,  1.50),
+        ('pro_builder',         21,  50,  1.25),
+        ('pro_builder',         51,  100, 1.00),
+        ('pro_builder',         101, NULL, 0.75),
+        ('agent_gas_direct',    6,   20,  1.50),
+        ('agent_gas_direct',    21,  50,  1.25),
+        ('agent_gas_direct',    51,  100, 1.00),
+        ('agent_gas_direct',    101, NULL, 0.75),
+        ('agent_web_builder',   11,  20,  1.50),
+        ('agent_web_builder',   21,  50,  1.25),
+        ('agent_web_builder',   51,  100, 1.00),
+        ('agent_web_builder',   101, NULL, 0.75),
+        ('agent_pro_builder',   11,  20,  1.50),
+        ('agent_pro_builder',   21,  50,  1.25),
+        ('agent_pro_builder',   51,  100, 1.00),
+        ('agent_pro_builder',   101, NULL, 0.75)
+      `);
+      console.log('✅ gas_room_tiers seeded');
+    }
+
+    // Part 1.4 — Feature flags table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gas_feature_flags (
+        id SERIAL PRIMARY KEY,
+        account_id INT REFERENCES accounts(id),
+        feature VARCHAR(50) NOT NULL,
+        enabled BOOLEAN DEFAULT false,
+        enabled_by VARCHAR(20) DEFAULT 'system',
+        enabled_at TIMESTAMPTZ,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(account_id, feature)
+      )
+    `);
+    console.log('✅ gas_feature_flags table ensured');
+
     // Deliverables tracking - what templates/plugins have been delivered to each account
     await pool.query(`
       CREATE TABLE IF NOT EXISTS billing_deliverables (
@@ -29187,7 +29430,17 @@ app.post('/api/webhooks/stripe-billing', async (req, res) => {
                 UPDATE gas_billing_invoices
                 SET status = 'failed', updated_at = NOW()
                 WHERE stripe_invoice_id = $1
-            `, [invoice.id]);
+            `, [invoice.id]).catch(() => {});
+            // Suspend account with 3-day grace period
+            const accountId = invoice.subscription_details?.metadata?.gas_account_id || invoice.metadata?.gas_account_id;
+            if (accountId) {
+                const graceUntil = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+                await pool.query(`
+                    UPDATE accounts SET account_status = 'suspended', subscription_grace_until = $1, updated_at = NOW()
+                    WHERE id = $2
+                `, [graceUntil, accountId]);
+                console.log('[BILLING] Account suspended with grace until:', graceUntil, 'for account:', accountId);
+            }
             console.log('[BILLING] Invoice payment failed:', invoice.id);
         }
 
@@ -29222,6 +29475,58 @@ app.post('/api/webhooks/stripe-billing', async (req, res) => {
                     }
                 }
             }
+        }
+
+        // Master Build Plan Part 5 — subscription lifecycle events
+        if (event.type === 'customer.subscription.created') {
+            const sub = event.data.object;
+            const accountId = sub.metadata?.gas_account_id;
+            if (accountId) {
+                await pool.query(`
+                    UPDATE accounts SET account_status = 'active', stripe_subscription_id = $1, updated_at = NOW()
+                    WHERE id = $2
+                `, [sub.id, accountId]);
+                console.log('[BILLING] Subscription created for account:', accountId);
+            }
+        }
+
+        if (event.type === 'customer.subscription.deleted') {
+            const sub = event.data.object;
+            const accountId = sub.metadata?.gas_account_id;
+            if (accountId) {
+                await pool.query(`
+                    UPDATE accounts SET account_status = 'cancelled', updated_at = NOW()
+                    WHERE id = $1
+                `, [accountId]);
+                // Disable paid feature flags — keep data intact
+                await pool.query(`
+                    UPDATE gas_feature_flags SET enabled = false, updated_at = NOW()
+                    WHERE account_id = $1 AND enabled_by = 'payment'
+                `, [accountId]);
+                console.log('[BILLING] Subscription cancelled for account:', accountId);
+            }
+        }
+
+        if (event.type === 'invoice.payment_succeeded') {
+            const invoice = event.data.object;
+            const accountId = invoice.subscription_details?.metadata?.gas_account_id || invoice.metadata?.gas_account_id;
+            if (accountId) {
+                await pool.query(`
+                    UPDATE accounts SET account_status = 'active', subscription_grace_until = NULL, updated_at = NOW()
+                    WHERE id = $1
+                `, [accountId]);
+                // Re-enable feature flags if suspended
+                await pool.query(`
+                    UPDATE gas_feature_flags SET enabled = true, updated_at = NOW()
+                    WHERE account_id = $1 AND enabled_by = 'payment'
+                `, [accountId]);
+            }
+            // Also update gas_billing_invoices if exists
+            await pool.query(`
+                UPDATE gas_billing_invoices SET status = 'paid', paid_at = NOW(), updated_at = NOW()
+                WHERE stripe_invoice_id = $1
+            `, [invoice.id]).catch(() => {});
+            console.log('[BILLING] Payment succeeded:', invoice.id);
         }
 
         res.json({ received: true });
@@ -29472,6 +29777,425 @@ app.get('/api/admin/billing/overview', async (req, res) => {
     });
   } catch (error) {
     res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// REGISTRATION & BILLING — Master Build Plan Parts 4–5
+// =====================================================
+
+// POST /api/register — create account, send welcome email
+app.post('/api/register', async (req, res) => {
+  try {
+    const { name, email, password, company_name, phone } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ success: false, error: 'Name, email and password are required' });
+    }
+
+    // Check if email already registered
+    const existing = await pool.query('SELECT id FROM accounts WHERE email = $1', [email.toLowerCase().trim()]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ success: false, error: 'An account with this email already exists' });
+    }
+
+    // Hash password with bcrypt
+    const bcrypt = require('bcryptjs');
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Generate API key
+    const apiKey = 'gas_' + crypto.randomBytes(20).toString('hex');
+
+    // Create account with status = 'free'
+    const result = await pool.query(`
+      INSERT INTO accounts (name, email, password_hash, business_name, phone, role, status, account_status, api_key, api_key_created_at, created_at)
+      VALUES ($1, $2, $3, $4, $5, 'admin', 'active', 'free', $6, NOW(), NOW())
+      RETURNING id, name, email, api_key, account_status
+    `, [name.trim(), email.toLowerCase().trim(), passwordHash, company_name || '', phone || '', apiKey]);
+
+    const account = result.rows[0];
+
+    // Create default feature flags (free features enabled)
+    const freeFeatures = ['dashboard', 'bookings', 'guests', 'rooms', 'cm_sync', 'gas_direct_commission'];
+    for (const feature of freeFeatures) {
+      await pool.query(`
+        INSERT INTO gas_feature_flags (account_id, feature, enabled, enabled_by, enabled_at)
+        VALUES ($1, $2, true, 'system', NOW())
+        ON CONFLICT (account_id, feature) DO NOTHING
+      `, [account.id, feature]);
+    }
+
+    // Generate session token
+    const sessionToken = generateSessionToken();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await pool.query(`
+      INSERT INTO account_sessions (account_id, token, expires_at) VALUES ($1, $2, $3)
+    `, [account.id, sessionToken, expiresAt]);
+
+    // Send welcome email (non-blocking)
+    try {
+      const mailgun = require('mailgun-js')({ apiKey: MAILGUN_API_KEY, domain: MAILGUN_DOMAIN });
+      mailgun.messages().send({
+        from: EMAIL_FROM,
+        to: account.email,
+        subject: 'Welcome to GAS — Global Accommodation Systems',
+        html: `<h2>Welcome to GAS, ${account.name}!</h2>
+               <p>Your account has been created. You can now:</p>
+               <ul>
+                 <li>Connect your channel manager</li>
+                 <li>Set up direct booking pages</li>
+                 <li>Build your branded website</li>
+               </ul>
+               <p><a href="https://admin.gas.travel/gas-admin.html">Go to your dashboard</a></p>
+               <p>— The GAS Team</p>`
+      });
+    } catch (emailErr) {
+      console.log('[REGISTER] Welcome email failed:', emailErr.message);
+    }
+
+    res.json({
+      success: true,
+      account_id: account.id,
+      token: sessionToken,
+      api_key: account.api_key,
+      account_status: 'free'
+    });
+  } catch (err) {
+    console.error('[REGISTER] Error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/billing/calculate-price — live price calculator
+app.post('/api/billing/calculate-price', async (req, res) => {
+  try {
+    const { product, room_count } = req.body;
+    if (!product) return res.status(400).json({ error: 'product is required' });
+    const pricing = calculateGASPrice(product, room_count || 0);
+    res.json({ success: true, ...pricing, product, room_count: room_count || 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/billing/create-subscription — Stripe subscription creation
+app.post('/api/billing/create-subscription', async (req, res) => {
+  try {
+    const { account_id, product, room_count, payment_method_id } = req.body;
+    if (!account_id || !product) {
+      return res.status(400).json({ error: 'account_id and product are required' });
+    }
+
+    const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [account_id]);
+    if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
+    const acc = account.rows[0];
+
+    // Get plan details
+    const plan = await pool.query('SELECT * FROM billing_plans WHERE product = $1 AND is_active = true', [product]);
+    if (!plan.rows.length) return res.status(404).json({ error: 'Product not found' });
+    const planRow = plan.rows[0];
+
+    // Calculate price
+    const pricing = calculateGASPrice(product, room_count || 0);
+
+    // Create/get Stripe customer
+    const stripeInstance = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    let customerId = acc.stripe_billing_customer_id;
+    if (!customerId) {
+      const customer = await stripeInstance.customers.create({
+        name: acc.company_name || acc.name,
+        email: acc.email,
+        metadata: { gas_account_id: String(account_id) }
+      });
+      customerId = customer.id;
+      await pool.query('UPDATE accounts SET stripe_billing_customer_id = $1 WHERE id = $2', [customerId, account_id]);
+    }
+
+    // Attach payment method if provided
+    if (payment_method_id) {
+      await stripeInstance.paymentMethods.attach(payment_method_id, { customer: customerId });
+      await stripeInstance.customers.update(customerId, {
+        invoice_settings: { default_payment_method: payment_method_id }
+      });
+    }
+
+    // Create Stripe subscription with calculated price
+    const subscription = await stripeInstance.subscriptions.create({
+      customer: customerId,
+      items: [{
+        price_data: {
+          currency: 'usd',
+          product_data: { name: planRow.name, metadata: { gas_product: product } },
+          unit_amount: Math.round(pricing.total * 100),
+          recurring: planRow.billing_period === 'monthly' ? { interval: 'month' } : undefined
+        }
+      }],
+      metadata: { gas_account_id: String(account_id), gas_product: product, room_count: String(room_count || 0) }
+    });
+
+    // Update account
+    await pool.query(`
+      UPDATE accounts SET
+        account_status = 'active',
+        stripe_subscription_id = $1,
+        stripe_price_id = $2,
+        updated_at = NOW()
+      WHERE id = $3
+    `, [subscription.id, planRow.stripe_price_id, account_id]);
+
+    // Enable feature flags for this product
+    const productFeatures = {
+      gas_direct_monthly: ['gas_direct', 'booking_pages', 'qr_codes'],
+      web_builder: ['gas_direct', 'booking_pages', 'qr_codes', 'web_builder', 'website'],
+      pro_builder: ['gas_direct', 'booking_pages', 'qr_codes', 'web_builder', 'pro_builder', 'website', 'wysiwyg'],
+      blog_attractions: ['blog', 'attractions', 'ai_content'],
+      social_campaign: ['social_campaign', 'social_cards'],
+      wp_plugin_licence: ['wp_plugin'],
+      api_licence_starter: ['api_access'],
+      api_licence_growth: ['api_access'],
+      api_licence_scale: ['api_access'],
+      agent_gas_direct: ['gas_direct', 'booking_pages', 'qr_codes', 'agency'],
+      agent_web_builder: ['gas_direct', 'booking_pages', 'qr_codes', 'web_builder', 'website', 'agency'],
+      agent_pro_builder: ['gas_direct', 'booking_pages', 'qr_codes', 'web_builder', 'pro_builder', 'website', 'wysiwyg', 'agency'],
+    };
+
+    const features = productFeatures[product] || [];
+    for (const feature of features) {
+      await pool.query(`
+        INSERT INTO gas_feature_flags (account_id, feature, enabled, enabled_by, enabled_at)
+        VALUES ($1, $2, true, 'payment', NOW())
+        ON CONFLICT (account_id, feature) DO UPDATE SET enabled = true, enabled_by = 'payment', enabled_at = NOW(), updated_at = NOW()
+      `, [account_id, feature]);
+    }
+
+    // Generate licence key for WP plugin product
+    if (product === 'wp_plugin_licence') {
+      const licenceKey = generateLicenceKey();
+      await pool.query('UPDATE accounts SET wp_plugin_licence_key = $1, wp_plugin_licence_active = true WHERE id = $2', [licenceKey, account_id]);
+    }
+
+    // Activate API key for API products
+    if (product.startsWith('api_licence_')) {
+      await pool.query('UPDATE accounts SET api_key_active = true WHERE id = $1', [account_id]);
+    }
+
+    res.json({
+      success: true,
+      subscription_id: subscription.id,
+      product,
+      pricing,
+      account_status: 'active'
+    });
+  } catch (err) {
+    console.error('[BILLING] create-subscription error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/billing/wp-plugin-licence — generate WP plugin licence key
+app.post('/api/billing/wp-plugin-licence', async (req, res) => {
+  try {
+    const { account_id } = req.body;
+    const account = await pool.query('SELECT account_status, wp_plugin_licence_key, wp_plugin_licence_active FROM accounts WHERE id = $1', [account_id]);
+    if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
+    const acc = account.rows[0];
+
+    // Check access
+    const access = await checkGASAccess(account_id, 'wp_plugin');
+    if (!access.allowed) return res.status(403).json({ error: 'WP Plugin licence requires an active subscription', reason: access.reason });
+
+    // Return existing key or generate new one
+    let licenceKey = acc.wp_plugin_licence_key;
+    if (!licenceKey) {
+      licenceKey = generateLicenceKey();
+      await pool.query('UPDATE accounts SET wp_plugin_licence_key = $1, wp_plugin_licence_active = true WHERE id = $2', [licenceKey, account_id]);
+    }
+
+    res.json({ success: true, licence_key: licenceKey, active: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/billing/activate-feature — activate feature flag on payment
+app.post('/api/billing/activate-feature', async (req, res) => {
+  try {
+    const { account_id, feature } = req.body;
+    if (!account_id || !feature) return res.status(400).json({ error: 'account_id and feature required' });
+
+    await pool.query(`
+      INSERT INTO gas_feature_flags (account_id, feature, enabled, enabled_by, enabled_at)
+      VALUES ($1, $2, true, 'payment', NOW())
+      ON CONFLICT (account_id, feature) DO UPDATE SET enabled = true, enabled_by = 'payment', enabled_at = NOW(), updated_at = NOW()
+    `, [account_id, feature]);
+
+    res.json({ success: true, feature, enabled: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/billing/my-subscription — current account subscription status
+app.get('/api/billing/my-subscription', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    if (!accountId) return res.status(400).json({ error: 'account_id required' });
+
+    const account = await pool.query(`
+      SELECT id, name, email, account_status, stripe_subscription_id, stripe_price_id,
+             wp_plugin_licence_key, wp_plugin_licence_active, api_key_active,
+             hostvana_connected, repuso_connected, subscription_grace_until
+      FROM accounts WHERE id = $1
+    `, [accountId]);
+    if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
+
+    const flags = await pool.query('SELECT feature, enabled FROM gas_feature_flags WHERE account_id = $1', [accountId]);
+
+    res.json({
+      success: true,
+      account: account.rows[0],
+      features: flags.rows.reduce((acc, f) => { acc[f.feature] = f.enabled; return acc; }, {})
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/billing/cancel — cancel subscription
+app.post('/api/billing/cancel', async (req, res) => {
+  try {
+    const { account_id } = req.body;
+    const account = await pool.query('SELECT stripe_subscription_id, account_status FROM accounts WHERE id = $1', [account_id]);
+    if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
+    const acc = account.rows[0];
+
+    // Cancel Stripe subscription if exists
+    if (acc.stripe_subscription_id) {
+      const stripeInstance = require('stripe')(process.env.STRIPE_SECRET_KEY);
+      await stripeInstance.subscriptions.cancel(acc.stripe_subscription_id);
+    }
+
+    // Set status to cancelled, disable paid features
+    await pool.query(`
+      UPDATE accounts SET account_status = 'cancelled', stripe_subscription_id = NULL, updated_at = NOW()
+      WHERE id = $1
+    `, [account_id]);
+
+    // Disable all paid feature flags (keep free ones)
+    await pool.query(`
+      UPDATE gas_feature_flags SET enabled = false, updated_at = NOW()
+      WHERE account_id = $1 AND enabled_by = 'payment'
+    `, [account_id]);
+
+    res.json({ success: true, account_status: 'cancelled' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/partner/hostvana/connect — save Hostvana API key
+app.post('/api/partner/hostvana/connect', async (req, res) => {
+  try {
+    const { account_id, hostvana_api_key } = req.body;
+    if (!account_id || !hostvana_api_key) return res.status(400).json({ error: 'account_id and hostvana_api_key required' });
+
+    // Store key and mark connected
+    await pool.query(`
+      UPDATE accounts SET hostvana_api_key = $1, hostvana_connected = true, updated_at = NOW()
+      WHERE id = $2
+    `, [hostvana_api_key, account_id]);
+
+    // Enable feature flag
+    await pool.query(`
+      INSERT INTO gas_feature_flags (account_id, feature, enabled, enabled_by, enabled_at)
+      VALUES ($1, 'hostvana', true, 'system', NOW())
+      ON CONFLICT (account_id, feature) DO UPDATE SET enabled = true, updated_at = NOW()
+    `, [account_id]);
+
+    res.json({ success: true, connected: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/partner/repuso/connect — save Repuso widget key
+app.post('/api/partner/repuso/connect', async (req, res) => {
+  try {
+    const { account_id, repuso_widget_key } = req.body;
+    if (!account_id || !repuso_widget_key) return res.status(400).json({ error: 'account_id and repuso_widget_key required' });
+
+    await pool.query(`
+      UPDATE accounts SET repuso_widget_key = $1, repuso_connected = true, updated_at = NOW()
+      WHERE id = $2
+    `, [repuso_widget_key, account_id]);
+
+    await pool.query(`
+      INSERT INTO gas_feature_flags (account_id, feature, enabled, enabled_by, enabled_at)
+      VALUES ($1, 'repuso', true, 'system', NOW())
+      ON CONFLICT (account_id, feature) DO UPDATE SET enabled = true, updated_at = NOW()
+    `, [account_id]);
+
+    res.json({ success: true, connected: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/partner/hostvana/status
+app.get('/api/partner/hostvana/status', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    const result = await pool.query('SELECT hostvana_connected, hostvana_api_key FROM accounts WHERE id = $1', [accountId]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Account not found' });
+    res.json({ success: true, connected: result.rows[0].hostvana_connected || false });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/partner/repuso/status
+app.get('/api/partner/repuso/status', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    const result = await pool.query('SELECT repuso_connected, repuso_widget_key FROM accounts WHERE id = $1', [accountId]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Account not found' });
+    res.json({ success: true, connected: result.rows[0].repuso_connected || false });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/admin/accounts/:id/status — master admin account status change
+app.put('/api/admin/accounts/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, legacy_note } = req.body;
+    const validStatuses = ['free', 'active', 'legacy', 'suspended', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Must be one of: ' + validStatuses.join(', ') });
+    }
+
+    await pool.query(`
+      UPDATE accounts SET account_status = $1, legacy_note = $2, updated_at = NOW()
+      WHERE id = $3
+    `, [status, legacy_note || null, id]);
+
+    // Legacy accounts: enable all features
+    if (status === 'legacy') {
+      const allFeatures = ['gas_direct', 'booking_pages', 'qr_codes', 'web_builder', 'pro_builder',
+        'website', 'wysiwyg', 'blog', 'attractions', 'ai_content', 'social_campaign', 'social_cards',
+        'wp_plugin', 'api_access', 'agency'];
+      for (const feature of allFeatures) {
+        await pool.query(`
+          INSERT INTO gas_feature_flags (account_id, feature, enabled, enabled_by, enabled_at)
+          VALUES ($1, $2, true, 'master_admin', NOW())
+          ON CONFLICT (account_id, feature) DO UPDATE SET enabled = true, enabled_by = 'master_admin', enabled_at = NOW(), updated_at = NOW()
+        `, [id, feature]);
+      }
+    }
+
+    res.json({ success: true, account_status: status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -67955,12 +68679,25 @@ app.post('/api/admin/branding', async (req, res) => {
 // AI Generate Blog Post from Keyword
 app.post('/api/admin/blog/generate', async (req, res) => {
     try {
-        const { keyword, property_id, language = 'en', event_date, event_location, event_description } = req.body;
-        
+        const { keyword, property_id, language = 'en', event_date, event_location, event_description, account_id } = req.body;
+
         if (!keyword) {
             return res.json({ success: false, error: 'keyword is required' });
         }
-        
+
+        // Freemium gate: 3 free blog generations (Master Build Plan Step 11)
+        if (account_id) {
+            const access = await checkGASAccess(account_id, 'blog');
+            if (!access.allowed) {
+                const countResult = await pool.query('SELECT blog_preview_count FROM accounts WHERE id = $1', [account_id]);
+                const count = countResult.rows[0]?.blog_preview_count || 0;
+                if (count >= 3) {
+                    return res.json({ success: false, error: 'freemium_limit', message: 'You have used your 3 free blog generations. Subscribe to Blog + Attractions AI to continue.', preview_count: count });
+                }
+                await pool.query('UPDATE accounts SET blog_preview_count = blog_preview_count + 1 WHERE id = $1', [account_id]);
+            }
+        }
+
         // Get property details for context
         let propertyContext = '';
         let propertyName = '';
@@ -70510,10 +71247,23 @@ app.get('/api/admin/attractions/:id', async (req, res) => {
 // AI Generate Attraction Details
 app.post('/api/admin/attractions/ai-generate', async (req, res) => {
     try {
-        const { attraction_name, property_name, property_city } = req.body;
-        
+        const { attraction_name, property_name, property_city, account_id } = req.body;
+
         if (!attraction_name) {
             return res.json({ success: false, error: 'Attraction name required' });
+        }
+
+        // Freemium gate: 3 free attraction generations (Master Build Plan Step 11)
+        if (account_id) {
+            const access = await checkGASAccess(account_id, 'attractions');
+            if (!access.allowed) {
+                const countResult = await pool.query('SELECT attractions_preview_count FROM accounts WHERE id = $1', [account_id]);
+                const count = countResult.rows[0]?.attractions_preview_count || 0;
+                if (count >= 3) {
+                    return res.json({ success: false, error: 'freemium_limit', message: 'You have used your 3 free attraction generations. Subscribe to Blog + Attractions AI to continue.', preview_count: count });
+                }
+                await pool.query('UPDATE accounts SET attractions_preview_count = attractions_preview_count + 1 WHERE id = $1', [account_id]);
+            }
         }
         
         const prompt = `You are a local travel expert. Generate detailed information about this attraction for a vacation rental website.
@@ -81179,8 +81929,21 @@ app.delete('/api/turbines/campaigns/:id', async (req, res) => {
 app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
   try {
     const { id } = req.params;
-    const { test_email } = req.body; // Optional - send test to single email
-    
+    const { test_email, account_id } = req.body; // Optional - send test to single email
+
+    // Freemium gate: social campaign send requires subscription (Master Build Plan Step 11)
+    if (account_id && !test_email) {
+      const access = await checkGASAccess(account_id, 'social_campaign');
+      if (!access.allowed) {
+        const countResult = await pool.query('SELECT social_preview_count FROM accounts WHERE id = $1', [account_id]);
+        const count = countResult.rows[0]?.social_preview_count || 0;
+        if (count >= 5) {
+          return res.json({ success: false, error: 'freemium_limit', message: 'You have used your 5 free social sends. Subscribe to Social Campaign Manager to continue.', preview_count: count });
+        }
+        await pool.query('UPDATE accounts SET social_preview_count = social_preview_count + 1 WHERE id = $1', [account_id]);
+      }
+    }
+
     // Get campaign details
     const campaignResult = await pool.query(`
       SELECT c.*, p.name as property_name, p.address as property_address,

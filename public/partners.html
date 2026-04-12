@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Partners — GAS</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', -apple-system, sans-serif; color: #0f172a; line-height: 1.6; }
+        .nav { background: #0f172a; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .nav a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; }
+        .nav-logo { color: white !important; font-weight: 700; font-size: 1.1rem; }
+        .nav-links { display: flex; gap: 2rem; align-items: center; }
+        .nav-cta { background: #7c3aed; color: white !important; padding: 0.5rem 1.25rem; border-radius: 8px; }
+        .hero { background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); color: white; padding: 6rem 2rem; text-align: center; }
+        .hero h1 { font-family: 'DM Serif Display', serif; font-size: 2.5rem; margin-bottom: 1rem; }
+        .hero p { font-size: 1.15rem; opacity: 0.7; max-width: 600px; margin: 0 auto; }
+        .section-inner { max-width: 900px; margin: 0 auto; padding: 4rem 2rem; }
+        .section-title { font-family: 'DM Serif Display', serif; font-size: 1.8rem; margin-bottom: 1.5rem; }
+        .partner-types { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2rem; }
+        .partner-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 2rem; }
+        .partner-card h3 { margin-bottom: 0.75rem; }
+        .partner-card p { color: #64748b; font-size: 0.95rem; line-height: 1.7; }
+        .contact-cta { text-align: center; margin-top: 3rem; }
+        .btn { display: inline-block; padding: 0.75rem 2rem; background: #1e3a5f; color: white; border-radius: 8px; text-decoration: none; font-weight: 500; }
+        footer { background: #0f172a; color: white; text-align: center; padding: 2rem; font-size: 0.85rem; opacity: 0.5; }
+        @media (max-width: 768px) { .partner-types { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/" class="nav-logo">gas.travel</a>
+        <div class="nav-links">
+            <a href="/#products">Products</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/for-destinations">For Destinations</a>
+            <a href="/partners">Partners</a>
+            <a href="/login.html">Log In</a>
+            <a href="/register" class="nav-cta">Register Free</a>
+        </div>
+    </nav>
+
+    <div class="hero">
+        <h1>Building the infrastructure layer for independent accommodation worldwide.</h1>
+        <p>We're looking for partners and investors who share our vision of an independent travel sector.</p>
+    </div>
+
+    <div class="section-inner">
+        <h2 class="section-title">Partner with GAS</h2>
+        <div class="partner-types">
+            <div class="partner-card">
+                <h3>Channel Manager Partners</h3>
+                <p>Integrate your PMS or channel manager with GAS. Give your clients access to direct booking infrastructure, branded websites, and AI content tools — all through a single API connection.</p>
+            </div>
+            <div class="partner-card">
+                <h3>Agency Partners</h3>
+                <p>White-label the GAS platform for your clients. Offer branded websites, booking engines, and property management tools under your own brand with agent pricing.</p>
+            </div>
+            <div class="partner-card">
+                <h3>Technology Partners</h3>
+                <p>Build on the GAS API. Create integrations, extensions, and custom solutions for the independent accommodation market. Access to 33 channel managers through one platform.</p>
+            </div>
+            <div class="partner-card">
+                <h3>Investment</h3>
+                <p>GAS addresses a $4.2B market opportunity. 165,000+ reachable operators across 33 channel managers. 70 live clients and growing. We're raising to accelerate.</p>
+            </div>
+        </div>
+
+        <div class="contact-cta">
+            <p style="color: #64748b; margin-bottom: 1rem;">Interested in working together?</p>
+            <a href="mailto:steve@gas.travel" class="btn">Contact Steve Driver</a>
+        </div>
+    </div>
+
+    <footer>&copy; 2026 Global Accommodation Systems. gas.travel</footer>
+</body>
+</html>

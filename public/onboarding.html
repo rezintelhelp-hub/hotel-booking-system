@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome — GAS</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', -apple-system, sans-serif; color: #0f172a; line-height: 1.6; background: #f8fafc; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+        .card { background: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); max-width: 560px; width: 100%; padding: 3rem; text-align: center; }
+        h1 { font-family: 'DM Serif Display', serif; font-size: 1.8rem; margin-bottom: 0.5rem; }
+        .subtitle { color: #64748b; margin-bottom: 2rem; }
+        .steps { text-align: left; margin: 2rem 0; }
+        .step { display: flex; gap: 1rem; align-items: flex-start; padding: 1rem 0; border-bottom: 1px solid #f1f5f9; }
+        .step-num { width: 36px; min-width: 36px; height: 36px; border-radius: 50%; background: #1e3a5f; color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.9rem; }
+        .step h3 { font-size: 0.95rem; margin-bottom: 0.15rem; }
+        .step p { font-size: 0.85rem; color: #64748b; }
+        .btn { display: inline-block; padding: 0.75rem 2rem; background: linear-gradient(135deg, #7c3aed, #6d28d9); color: white; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 1rem; margin-top: 1rem; }
+        .btn:hover { opacity: 0.9; }
+        .skip { display: block; margin-top: 1rem; color: #94a3b8; font-size: 0.85rem; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Welcome to GAS</h1>
+        <p class="subtitle">Your account is ready. Here's how to get started.</p>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">1</div>
+                <div>
+                    <h3>Connect your channel manager</h3>
+                    <p>Sync your properties from Beds24, Hostaway, Smoobu, or any of our 33 supported CMs.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <div>
+                    <h3>Check your properties</h3>
+                    <p>Review your rooms, photos, and pricing. Everything syncs automatically.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <div>
+                    <h3>Choose your products</h3>
+                    <p>Start with free direct booking pages, or add a branded website, blog AI, or social tools.</p>
+                </div>
+            </div>
+        </div>
+
+        <a href="/gas-admin.html" class="btn">Go to Dashboard</a>
+        <a href="/pricing" class="skip">See all products and pricing</a>
+    </div>
+</body>
+</html>

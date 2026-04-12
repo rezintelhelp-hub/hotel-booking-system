@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>For Destinations — GAS</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', -apple-system, sans-serif; color: #0f172a; line-height: 1.6; }
+        .nav { background: #0f172a; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .nav a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; }
+        .nav-logo { color: white !important; font-weight: 700; font-size: 1.1rem; }
+        .nav-links { display: flex; gap: 2rem; align-items: center; }
+        .nav-cta { background: #7c3aed; color: white !important; padding: 0.5rem 1.25rem; border-radius: 8px; }
+        .hero { background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); color: white; padding: 6rem 2rem; text-align: center; }
+        .hero h1 { font-family: 'DM Serif Display', serif; font-size: 2.5rem; margin-bottom: 1rem; }
+        .hero p { font-size: 1.15rem; opacity: 0.7; max-width: 650px; margin: 0 auto; }
+        .section-inner { max-width: 900px; margin: 0 auto; padding: 4rem 2rem; }
+        .section-title { font-family: 'DM Serif Display', serif; font-size: 1.8rem; margin-bottom: 1.5rem; }
+        .features { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2rem; }
+        .feature { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; }
+        .feature h3 { font-size: 1rem; margin-bottom: 0.5rem; }
+        .feature p { color: #64748b; font-size: 0.9rem; line-height: 1.7; }
+        .use-cases { margin-top: 3rem; }
+        .use-case { padding: 1.5rem 0; border-bottom: 1px solid #e2e8f0; }
+        .use-case h3 { font-size: 1rem; margin-bottom: 0.25rem; }
+        .use-case p { color: #64748b; font-size: 0.9rem; }
+        .btn { display: inline-block; padding: 0.75rem 2rem; background: #1e3a5f; color: white; border-radius: 8px; text-decoration: none; font-weight: 500; }
+        footer { background: #0f172a; color: white; text-align: center; padding: 2rem; font-size: 0.85rem; opacity: 0.5; }
+        @media (max-width: 768px) { .features { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/" class="nav-logo">gas.travel</a>
+        <div class="nav-links">
+            <a href="/#products">Products</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/for-destinations">For Destinations</a>
+            <a href="/partners">Partners</a>
+            <a href="/login.html">Log In</a>
+            <a href="/register" class="nav-cta">Register Free</a>
+        </div>
+    </nav>
+
+    <div class="hero">
+        <h1>Build a destination portal pulling from all 33 channel managers in one place.</h1>
+        <p>For local authorities, tourist boards, travel agents, and web developers who want to showcase accommodation across an entire region.</p>
+    </div>
+
+    <div class="section-inner">
+        <h2 class="section-title">One platform. Every property.</h2>
+        <p style="color: #64748b; font-size: 1.05rem; margin-bottom: 1rem;">GAS connects to 33 channel managers. That means you can pull availability, pricing, and content from independent properties across your destination — regardless of what PMS or channel manager each property uses.</p>
+
+        <div class="features">
+            <div class="feature">
+                <h3>Destination Portals</h3>
+                <p>Build a branded accommodation portal for your region. Properties from multiple channel managers, one unified search experience.</p>
+            </div>
+            <div class="feature">
+                <h3>Real-time Availability</h3>
+                <p>Live availability and pricing synced from each property's channel manager. No manual updates, no stale inventory.</p>
+            </div>
+            <div class="feature">
+                <h3>White-label API</h3>
+                <p>Full API access to build custom experiences. Embed search widgets, build mobile apps, or power your existing website.</p>
+            </div>
+            <div class="feature">
+                <h3>Multi-language</h3>
+                <p>6 languages built in. Serve international visitors in their own language with no extra configuration.</p>
+            </div>
+        </div>
+
+        <div class="use-cases">
+            <h2 class="section-title">Who is this for?</h2>
+            <div class="use-case">
+                <h3>Tourist Boards & Local Authorities</h3>
+                <p>Promote all accommodation in your region through a single portal. Support independent operators without picking favourites.</p>
+            </div>
+            <div class="use-case">
+                <h3>Travel Agents & DMCs</h3>
+                <p>Access independent inventory across 33 channel managers. Book directly with properties, earn commission, build relationships.</p>
+            </div>
+            <div class="use-case">
+                <h3>Web Developers & Agencies</h3>
+                <p>Build accommodation websites for your clients using the GAS API. White-label everything under your own brand.</p>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 3rem;">
+            <a href="mailto:steve@gas.travel" class="btn">Talk to us about your destination</a>
+        </div>
+    </div>
+
+    <footer>&copy; 2026 Global Accommodation Systems. gas.travel</footer>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pricing — GAS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', -apple-system, sans-serif; color: #0f172a; line-height: 1.6; }
+        .nav { background: #0f172a; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .nav a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; }
+        .nav-logo { color: white !important; font-weight: 700; font-size: 1.1rem; }
+        .nav-links { display: flex; gap: 2rem; align-items: center; }
+        .nav-cta { background: #7c3aed; color: white !important; padding: 0.5rem 1.25rem; border-radius: 8px; }
+        .section-inner { max-width: 1100px; margin: 0 auto; padding: 4rem 2rem; }
+        .section-title { font-family: 'DM Serif Display', serif; font-size: 2.2rem; margin-bottom: 1rem; }
+        .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+        .price-card { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 2rem; text-align: center; }
+        .price-card h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+        .price-amount { font-family: 'DM Serif Display', serif; font-size: 2.5rem; margin: 1rem 0 0.25rem; }
+        .price-unit { font-size: 0.85rem; color: #64748b; margin-bottom: 1rem; }
+        .price-desc { font-size: 0.9rem; color: #64748b; margin-bottom: 1.5rem; }
+        .price-cta { display: inline-block; padding: 0.6rem 1.5rem; background: #1e3a5f; color: white; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 0.9rem; }
+        .price-card.featured { border-color: #7c3aed; box-shadow: 0 4px 20px rgba(124,58,237,0.15); }
+        .price-card.featured .price-cta { background: #7c3aed; }
+        .addons { margin-top: 3rem; }
+        .addon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+        .addon-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; }
+        .addon-card h4 { font-size: 0.95rem; margin-bottom: 0.25rem; }
+        .addon-price { font-weight: 600; color: #7c3aed; }
+        .addon-desc { font-size: 0.8rem; color: #64748b; }
+        footer { background: #0f172a; color: white; text-align: center; padding: 2rem; font-size: 0.85rem; opacity: 0.5; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/" class="nav-logo">gas.travel</a>
+        <div class="nav-links">
+            <a href="/#products">Products</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/for-destinations">For Destinations</a>
+            <a href="/partners">Partners</a>
+            <a href="/login.html">Log In</a>
+            <a href="/register" class="nav-cta">Register Free</a>
+        </div>
+    </nav>
+
+    <div class="section-inner" style="text-align: center;">
+        <h1 class="section-title">Start free. Scale as you grow.</h1>
+        <p style="color: #64748b; font-size: 1.1rem; max-width: 600px; margin: 0 auto;">Every account starts free. Add products as you need them. No lock-in, cancel anytime.</p>
+
+        <div class="pricing-grid">
+            <div class="price-card">
+                <h3>Free Account</h3>
+                <div class="price-amount">$0</div>
+                <div class="price-unit">forever</div>
+                <div class="price-desc">Dashboard, bookings, guests, rooms, CM sync. Commission-based direct booking pages.</div>
+                <a href="/register" class="price-cta">Register Free</a>
+            </div>
+            <div class="price-card">
+                <h3>GAS Direct</h3>
+                <div class="price-amount">$19</div>
+                <div class="price-unit">per month (5 rooms included)</div>
+                <div class="price-desc">Direct booking pages, QR codes, no commission. Extra rooms from $1.50/mo.</div>
+                <a href="/register" class="price-cta">Get Started</a>
+            </div>
+            <div class="price-card featured">
+                <h3>Web Builder</h3>
+                <div class="price-amount">$29</div>
+                <div class="price-unit">per month (10 rooms included)</div>
+                <div class="price-desc">Fully hosted branded website with booking engine. Extra rooms from $1.50/mo.</div>
+                <a href="/register" class="price-cta">Get Started</a>
+            </div>
+            <div class="price-card">
+                <h3>Pro Builder</h3>
+                <div class="price-amount">$59</div>
+                <div class="price-unit">per month (10 rooms included)</div>
+                <div class="price-desc">Advanced site builder, WYSIWYG editor, premium design. Extra rooms from $1.50/mo.</div>
+                <a href="/register" class="price-cta">Get Started</a>
+            </div>
+        </div>
+
+        <div class="addons">
+            <h2 class="section-title" style="font-size: 1.6rem;">Add-ons</h2>
+            <div class="addon-grid">
+                <div class="addon-card">
+                    <h4>Blog + Attractions AI</h4>
+                    <div class="addon-price">$19.99/mo</div>
+                    <div class="addon-desc">AI-generated SEO content for your blog and local attractions pages.</div>
+                </div>
+                <div class="addon-card">
+                    <h4>Social Campaign Manager</h4>
+                    <div class="addon-price">$19.99/mo</div>
+                    <div class="addon-desc">Create, schedule, and publish social media campaigns.</div>
+                </div>
+                <div class="addon-card">
+                    <h4>WP Plugin Licence</h4>
+                    <div class="addon-price">$19.99/mo</div>
+                    <div class="addon-desc">Booking plugin for your own WordPress site.</div>
+                </div>
+                <div class="addon-card">
+                    <h4>Support Bundles</h4>
+                    <div class="addon-price">From $49</div>
+                    <div class="addon-desc">2hr ($49), 5hr ($99), or 10hr ($179) support packages.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="addons">
+            <h2 class="section-title" style="font-size: 1.6rem;">White-label API</h2>
+            <div class="addon-grid">
+                <div class="addon-card">
+                    <h4>API Starter</h4>
+                    <div class="addon-price">$250/mo</div>
+                    <div class="addon-desc">Up to 200 rooms. Full API access.</div>
+                </div>
+                <div class="addon-card">
+                    <h4>API Growth</h4>
+                    <div class="addon-price">$500/mo</div>
+                    <div class="addon-desc">Up to 500 rooms. Full API access.</div>
+                </div>
+                <div class="addon-card">
+                    <h4>API Scale</h4>
+                    <div class="addon-price">Custom</div>
+                    <div class="addon-desc">Unlimited rooms. Custom pricing.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>&copy; 2026 Global Accommodation Systems. gas.travel</footer>
+</body>
+</html>
