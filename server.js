@@ -83710,8 +83710,8 @@ app.get('/api/pro-builder/sites/:blog_id/pages', async (req, res) => {
 });
 
 // ─── Pro Builder: Section Parser Helper ───────────────────────────────
-const containerBlocks = ['cover', 'columns', 'column', 'group', 'buttons'];
-const topLevelBlocks = ['cover', 'columns', 'group', 'shortcode', 'heading', 'paragraph', 'image', 'buttons', 'spacer', 'html'];
+const containerBlocks = ['cover', 'columns', 'column', 'group', 'buttons', 'query', 'post-template'];
+const topLevelBlocks = ['cover', 'columns', 'group', 'shortcode', 'heading', 'paragraph', 'image', 'buttons', 'spacer', 'html', 'query', 'latest-posts', 'search', 'post-template', 'separator', 'list', 'quote', 'table', 'video', 'embed', 'gallery'];
 
 function parseSections(rawContent) {
   const sections = [];
