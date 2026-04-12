@@ -1298,6 +1298,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS ai_generated BOOLEAN DEFAULT false`);
       await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS source_keyword VARCHAR(255)`);
       await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS language VARCHAR(10) DEFAULT 'en'`);
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS gallery_images JSONB DEFAULT '[]'`);
       await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS featured_image TEXT`);
       await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS event_date TIMESTAMP`);
       console.log('✅ blog_posts enhanced columns ensured');
@@ -69455,7 +69456,7 @@ app.post('/api/admin/blog', async (req, res) => {
             author_name, author_image_url,
             read_time_minutes, is_featured, is_published, published_at,
             scheduled_at, ai_generated, source_keyword, language,
-            faq_schema,
+            faq_schema, gallery_images,
             // Multilingual fields
             title_ml, excerpt_ml, content_ml, meta_title_ml, meta_description_ml
         } = req.body;
@@ -69510,9 +69511,9 @@ app.post('/api/admin/blog', async (req, res) => {
                 is_featured, is_published, published_at,
                 scheduled_at, ai_generated, source_keyword, language,
                 title_ml, excerpt_ml, content_ml, meta_title_ml, meta_description_ml,
-                faq_schema
+                faq_schema, gallery_images
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
             RETURNING *
         `, [
             client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
@@ -69525,7 +69526,8 @@ app.post('/api/admin/blog', async (req, res) => {
             content_ml ? JSON.stringify(content_ml) : null,
             meta_title_ml ? JSON.stringify(meta_title_ml) : null,
             meta_description_ml ? JSON.stringify(meta_description_ml) : null,
-            faq_schema ? JSON.stringify(faq_schema) : null
+            faq_schema ? JSON.stringify(faq_schema) : null,
+            gallery_images ? JSON.stringify(gallery_images) : '[]'
         ]);
         
         res.json({ success: true, post: result.rows[0] });
@@ -69550,11 +69552,11 @@ app.put('/api/admin/blog/:id', async (req, res) => {
             meta_title, meta_description,
             author_name, author_image_url,
             read_time_minutes, is_featured, is_published, published_at,
-            faq_schema,
+            faq_schema, gallery_images,
             // Multilingual fields
             title_ml, excerpt_ml, content_ml, meta_title_ml, meta_description_ml
         } = req.body;
-        
+
         const result = await pool.query(`
             UPDATE blog_posts SET
                 property_id = COALESCE($1, property_id),
@@ -69579,8 +69581,9 @@ app.put('/api/admin/blog/:id', async (req, res) => {
                 meta_title_ml = $20,
                 meta_description_ml = $21,
                 faq_schema = $22,
+                gallery_images = $23,
                 updated_at = NOW()
-            WHERE id = $23
+            WHERE id = $24
             RETURNING *
         `, [
             property_id, title, slug, excerpt, content, featured_image_url,
@@ -69593,6 +69596,7 @@ app.put('/api/admin/blog/:id', async (req, res) => {
             meta_title_ml ? JSON.stringify(meta_title_ml) : null,
             meta_description_ml ? JSON.stringify(meta_description_ml) : null,
             faq_schema ? JSON.stringify(faq_schema) : null,
+            gallery_images ? JSON.stringify(gallery_images) : '[]',
             id
         ]);
         
