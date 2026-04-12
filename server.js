@@ -30317,6 +30317,66 @@ app.put('/api/admin/accounts/:id/status', async (req, res) => {
   }
 });
 
+// GET /api/admin/accounts/:id/features — get feature flags for account
+app.get('/api/admin/accounts/:id/features', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT feature, enabled FROM gas_feature_flags WHERE account_id = $1', [id]);
+    const features = {};
+    result.rows.forEach(r => { features[r.feature] = r.enabled; });
+    res.json({ success: true, features });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/admin/accounts/:id/features — set feature flags for account
+app.put('/api/admin/accounts/:id/features', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { features } = req.body;
+    if (!features || typeof features !== 'object') {
+      return res.status(400).json({ error: 'features object required' });
+    }
+
+    for (const [feature, enabled] of Object.entries(features)) {
+      await pool.query(`
+        INSERT INTO gas_feature_flags (account_id, feature, enabled, enabled_by, enabled_at, updated_at)
+        VALUES ($1, $2, $3, 'master_admin', NOW(), NOW())
+        ON CONFLICT (account_id, feature) DO UPDATE SET enabled = $3, enabled_by = 'master_admin', updated_at = NOW()
+      `, [id, feature, !!enabled]);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// One-time: enable all features for all existing accounts
+app.get('/api/admin/enable-all-features', async (req, res) => {
+  try {
+    const accounts = await pool.query('SELECT id FROM accounts');
+    const allFeatures = ['gas_direct', 'booking_pages', 'qr_codes', 'web_builder', 'pro_builder',
+      'website', 'wysiwyg', 'blog', 'attractions', 'ai_content', 'social_campaign', 'social_cards',
+      'wp_plugin', 'api_access', 'agency', 'reviews', 'dashboard', 'bookings', 'guests', 'rooms', 'cm_sync'];
+    let count = 0;
+    for (const acc of accounts.rows) {
+      for (const feature of allFeatures) {
+        await pool.query(`
+          INSERT INTO gas_feature_flags (account_id, feature, enabled, enabled_by, enabled_at, updated_at)
+          VALUES ($1, $2, true, 'master_admin', NOW(), NOW())
+          ON CONFLICT (account_id, feature) DO UPDATE SET enabled = true, enabled_by = 'master_admin', updated_at = NOW()
+        `, [acc.id, feature]);
+      }
+      count++;
+    }
+    res.json({ success: true, accounts_updated: count, features_per_account: allFeatures.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // =====================================================
 // WEBSITE TEMPLATES MANAGEMENT
 // =====================================================
