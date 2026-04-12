@@ -19384,7 +19384,7 @@ app.post('/api/public/payment-failed', async (req, res) => {
                                 </table>
                                 
                                 <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; margin-top: 16px;">
-                                    <p style="margin: 0; color: #991b1b; font-size: 0.9rem;"><strong>Payment Failed:</strong> ${payment_type === 'card' ? 'Stripe card payment' : 'Card guarantee (Enigma)'} — ${error_message || 'Unknown error'}</p>
+                                    <p style="margin: 0; color: #991b1b; font-size: 0.9rem;"><strong>Payment Failed:</strong> ${payment_type === 'card' ? 'Stripe card payment' : payment_type === 'setup_intent' ? 'Card guarantee' : 'Payment processing'} — ${error_message || 'Guest sent enquiry — requested alternative payment'}</p>
                                 </div>
                                 
                                 <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 12px; margin-top: 12px;">
@@ -20412,7 +20412,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
             
             paymentIntent = await accountStripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
-                currency: (currency || 'usd').toLowerCase(),
+                currency: (effectiveCurrency || 'eur').toLowerCase(),
                 metadata: {
                     property_id: property_id,
                     guest_email: booking_data?.email || '',
