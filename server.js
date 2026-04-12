@@ -1872,6 +1872,49 @@ app.get('/onboarding', (req, res) => res.sendFile('onboarding.html', { root: 'pu
 app.get('/pricing', (req, res) => res.sendFile('pricing.html', { root: 'public' }));
 app.get('/partners', (req, res) => res.sendFile('partners.html', { root: 'public' }));
 app.get('/for-destinations', (req, res) => res.sendFile('for-destinations.html', { root: 'public' }));
+app.get('/contact', (req, res) => res.sendFile('contact.html', { root: 'public' }));
+
+// Enquiry form submission — stores to gas_enquiries table
+app.post('/api/enquiries', async (req, res) => {
+  try {
+    const { first_name, last_name, email, company, interest, properties, message } = req.body;
+    if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gas_enquiries (
+        id SERIAL PRIMARY KEY,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        email VARCHAR(255) NOT NULL,
+        company VARCHAR(255),
+        interest VARCHAR(50),
+        properties VARCHAR(20),
+        message TEXT,
+        status VARCHAR(20) DEFAULT 'new',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      INSERT INTO gas_enquiries (first_name, last_name, email, company, interest, properties, message)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [first_name, last_name, email, company || '', interest || '', properties || '', message || '']);
+
+    // Notify via Slack
+    try {
+      const slackUrl = process.env.SLACK_WEBHOOK_URL;
+      if (slackUrl) {
+        const axios = require('axios');
+        await axios.post(slackUrl, { text: `New GAS enquiry from ${first_name} ${last_name} (${email}) — Interest: ${interest || 'not specified'}, Properties: ${properties || 'n/a'}, Company: ${company || 'n/a'}` });
+      }
+    } catch (slackErr) { console.log('[ENQUIRY] Slack notify failed:', slackErr.message); }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ENQUIRY] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // --- API Docs: Registration + API Key Gate ---
 

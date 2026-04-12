@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact — GAS</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', -apple-system, sans-serif; color: #0f172a; line-height: 1.6; background: #f8fafc; }
+        .nav { background: #0f172a; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .nav a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; }
+        .nav-logo { color: white !important; font-weight: 700; font-size: 1.1rem; }
+        .nav-links { display: flex; gap: 2rem; align-items: center; }
+        .nav-cta { background: #7c3aed; color: white !important; padding: 0.5rem 1.25rem; border-radius: 8px; }
+        .container { max-width: 600px; margin: 3rem auto; padding: 0 2rem; }
+        h1 { font-family: 'DM Serif Display', serif; font-size: 2rem; margin-bottom: 0.5rem; }
+        .subtitle { color: #64748b; margin-bottom: 2rem; }
+        .form-group { margin-bottom: 1.25rem; }
+        label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.4rem; color: #374151; }
+        input, select, textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1rem; font-family: inherit; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
+        textarea { resize: vertical; min-height: 120px; }
+        .btn { width: 100%; padding: 0.85rem; background: linear-gradient(135deg, #7c3aed, #6d28d9); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .success-msg { display: none; text-align: center; padding: 3rem 0; }
+        .success-msg h2 { font-family: 'DM Serif Display', serif; font-size: 1.6rem; margin-bottom: 0.5rem; color: #166534; }
+        .success-msg p { color: #64748b; }
+        footer { background: #0f172a; color: white; text-align: center; padding: 2rem; font-size: 0.85rem; opacity: 0.5; margin-top: 4rem; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/" class="nav-logo">gas.travel</a>
+        <div class="nav-links">
+            <a href="/#products">Products</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/for-destinations">For Destinations</a>
+            <a href="/partners">Partners</a>
+            <a href="/login.html">Log In</a>
+            <a href="/register" class="nav-cta">Register Free</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="contact-form-container">
+            <h1>Get in touch</h1>
+            <p class="subtitle">Tell us about your project and we'll get back to you within 24 hours.</p>
+
+            <form id="contact-form" onsubmit="submitEnquiry(event)">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label>First Name *</label>
+                        <input type="text" id="eq-first-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name *</label>
+                        <input type="text" id="eq-last-name" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="eq-email" required>
+                </div>
+                <div class="form-group">
+                    <label>Company / Organisation</label>
+                    <input type="text" id="eq-company">
+                </div>
+                <div class="form-group">
+                    <label>I'm interested in</label>
+                    <select id="eq-interest">
+                        <option value="">Select...</option>
+                        <option value="operator">I'm a property operator</option>
+                        <option value="destination">Destination portal / tourist board</option>
+                        <option value="agency">Travel agency / DMC</option>
+                        <option value="developer">Web developer / agency</option>
+                        <option value="partner">Channel manager partnership</option>
+                        <option value="api">White-label API</option>
+                        <option value="investment">Investment</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>How many properties?</label>
+                    <select id="eq-properties">
+                        <option value="">Select...</option>
+                        <option value="1-5">1-5</option>
+                        <option value="6-20">6-20</option>
+                        <option value="21-50">21-50</option>
+                        <option value="51-100">51-100</option>
+                        <option value="100+">100+</option>
+                        <option value="n/a">Not applicable</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Message</label>
+                    <textarea id="eq-message" placeholder="Tell us about your project, your goals, or any questions you have..."></textarea>
+                </div>
+                <button type="submit" class="btn" id="eq-submit-btn">Send Enquiry</button>
+            </form>
+        </div>
+
+        <div id="contact-success" class="success-msg">
+            <h2>Thank you!</h2>
+            <p>We've received your enquiry and will be in touch within 24 hours.</p>
+            <a href="/" style="display: inline-block; margin-top: 1.5rem; color: #7c3aed; text-decoration: none; font-weight: 500;">Back to homepage</a>
+        </div>
+    </div>
+
+    <footer>&copy; 2026 Global Accommodation Systems. gas.travel</footer>
+
+    <script>
+        // Pre-fill interest from URL param
+        const params = new URLSearchParams(window.location.search);
+        const interest = params.get('interest');
+        if (interest) document.getElementById('eq-interest').value = interest;
+
+        async function submitEnquiry(e) {
+            e.preventDefault();
+            const btn = document.getElementById('eq-submit-btn');
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+
+            const data = {
+                first_name: document.getElementById('eq-first-name').value,
+                last_name: document.getElementById('eq-last-name').value,
+                email: document.getElementById('eq-email').value,
+                company: document.getElementById('eq-company').value,
+                interest: document.getElementById('eq-interest').value,
+                properties: document.getElementById('eq-properties').value,
+                message: document.getElementById('eq-message').value
+            };
+
+            try {
+                const res = await fetch('/api/enquiries', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    document.getElementById('contact-form-container').style.display = 'none';
+                    document.getElementById('contact-success').style.display = 'block';
+                } else {
+                    alert('Something went wrong. Please try again.');
+                    btn.disabled = false;
+                    btn.textContent = 'Send Enquiry';
+                }
+            } catch (err) {
+                alert('Connection error. Please try again.');
+                btn.disabled = false;
+                btn.textContent = 'Send Enquiry';
+            }
+        }
+    </script>
+</body>
+</html>
