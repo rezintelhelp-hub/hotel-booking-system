@@ -20196,7 +20196,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 await client.query('RELEASE SAVEPOINT payment_schedule_insert');
             } catch (schedError) {
                 await client.query('ROLLBACK TO SAVEPOINT payment_schedule_insert');
-                console.log('Could not create payment schedule rows:', schedError.message);
+                console.error('[Payment Schedule] ERROR creating schedule rows:', schedError.message, schedError.stack);
             }
         }
 
@@ -30353,6 +30353,57 @@ app.put('/api/admin/accounts/:id/features', async (req, res) => {
   }
 });
 
+// One-time: backfill payment schedules for ALL bookings missing them (global fix)
+app.get('/api/admin/fix-missing-schedules', async (req, res) => {
+  try {
+    // Find ALL confirmed/pending bookings with no schedule rows
+    const bookings = await pool.query(`
+      SELECT b.id, b.property_id, b.grand_total, b.arrival_date, b.created_at, b.stripe_payment_method_id, p.account_id
+      FROM bookings b
+      JOIN properties p ON b.property_id = p.id
+      LEFT JOIN booking_payment_schedule bps ON bps.booking_id = b.id
+      WHERE b.status IN ('confirmed', 'pending') AND bps.id IS NULL
+      AND b.arrival_date >= NOW()
+      ORDER BY b.arrival_date ASC
+    `);
+
+    // Get all active deposit rules indexed by property_id and account_id
+    const rules = await pool.query('SELECT * FROM deposit_rules WHERE is_active = true ORDER BY property_id NULLS LAST');
+    const rulesByProperty = {};
+    const rulesByAccount = {};
+    for (const r of rules.rows) {
+      if (r.property_id) rulesByProperty[r.property_id] = r;
+      else if (r.account_id && !rulesByAccount[r.account_id]) rulesByAccount[r.account_id] = r;
+    }
+
+    let fixed = 0;
+    let skipped = 0;
+    for (const booking of bookings.rows) {
+      const rule = rulesByProperty[booking.property_id] || rulesByAccount[booking.account_id];
+      if (!rule) { skipped++; continue; }
+
+      const total = parseFloat(booking.grand_total) || 0;
+      if (total <= 0 || !booking.arrival_date) { skipped++; continue; }
+
+      const schedule = calculatePaymentScheduleForBooking(rule, total, booking.arrival_date, booking.created_at);
+      for (const tier of schedule.tiers) {
+        const tierStatus = tier.status === 'charge_now' ? 'pending' : tier.status;
+        await pool.query(`
+          INSERT INTO booking_payment_schedule (booking_id, tier_order, percentage, amount, days_before, due_date, status)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT DO NOTHING
+        `, [booking.id, tier.tier_order, tier.percentage, tier.amount, tier.days_before, tier.due_date, tierStatus]);
+      }
+      await pool.query('UPDATE bookings SET deposit_rule_id = $1 WHERE id = $2', [rule.id, booking.id]);
+      fixed++;
+    }
+
+    res.json({ success: true, bookings_fixed: fixed, skipped_no_rule: skipped, total_checked: bookings.rows.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // One-time: enable all features for all existing accounts
 app.get('/api/admin/enable-all-features', async (req, res) => {
   try {
@@ -31026,13 +31077,21 @@ function calculatePaymentScheduleForBooking(rule, totalAmount, arrivalDate, book
     // Multi-tier schedule from JSONB
     tiers = rule.payment_schedule.map(t => ({ ...t }));
   } else {
-    // Legacy: synthesize 2-tier schedule from deposit_percentage + balance_due_days
-    const pct = parseFloat(rule.deposit_percentage) || 25;
+    // Legacy: synthesize schedule from deposit_percentage + balance_due_days
+    const pct = parseFloat(rule.deposit_percentage);
     const daysBefore = parseInt(rule.balance_due_days) || 14;
-    tiers = [
-      { order: 1, percentage: pct, days_before: null },
-      { order: 2, percentage: 100 - pct, days_before: daysBefore }
-    ];
+    if (pct > 0) {
+      // Two tiers: deposit now + balance later
+      tiers = [
+        { order: 1, percentage: pct, days_before: null },
+        { order: 2, percentage: 100 - pct, days_before: daysBefore }
+      ];
+    } else {
+      // 0% deposit: single tier, full charge at X days before check-in
+      tiers = [
+        { order: 1, percentage: 100, days_before: daysBefore }
+      ];
+    }
   }
 
   // Sort by order
