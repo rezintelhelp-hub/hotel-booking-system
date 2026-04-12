@@ -276,7 +276,7 @@ class GAS_Blog {
         if (!empty($gallery) && is_array($gallery)) {
             $cols = count($gallery) === 1 ? '1fr' : 'repeat(2, 1fr)';
             echo '<div style="display:grid;grid-template-columns:'.$cols.';gap:12px;margin-top:30px;">';
-            foreach ($gallery as $img) { echo '<img src="'.esc_url($img).'" style="width:100%;border-radius:8px;object-fit:cover;">'; }
+            foreach ($gallery as $img) { echo '<img src="'.esc_url($img).'" style="width:100%;border-radius:'.$cr.';object-fit:cover;">'; }
             echo '</div>';
         }
         echo '</article>'; get_footer();
