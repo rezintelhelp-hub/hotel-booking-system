@@ -65033,7 +65033,8 @@ const GAS_TRANSLATIONS = {
         "bank_transfer_details": "Bank Transfer Details",
         "loading_card_form": "Loading secure card form...",
         "card_form_not_loaded": "Card form not loaded. Please re-select Card Guarantee.",
-        "confirm_booking": "Confirm Booking"
+        "confirm_booking": "Confirm Booking",
+        "trouble_paying": "Having trouble paying? Send an enquiry instead"
       },
       "property": {
         "property": "Property",
@@ -65347,7 +65348,8 @@ const GAS_TRANSLATIONS = {
         "bank_transfer_details": "Coordonnées bancaires",
         "loading_card_form": "Chargement du formulaire sécurisé...",
         "card_form_not_loaded": "Formulaire non chargé. Veuillez resélectionner Garantie par carte.",
-        "confirm_booking": "Confirmer la réservation"
+        "confirm_booking": "Confirmer la réservation",
+        "trouble_paying": "Des difficultés pour payer ? Envoyez une demande à la place"
       },
       "property": {
         "property": "Propriété",
@@ -65658,7 +65660,8 @@ const GAS_TRANSLATIONS = {
         "bank_transfer_details": "Datos de transferencia bancaria",
         "loading_card_form": "Cargando formulario seguro...",
         "card_form_not_loaded": "Formulario no cargado. Por favor reseleccione Garantía con tarjeta.",
-        "confirm_booking": "Confirmar reserva"
+        "confirm_booking": "Confirmar reserva",
+        "trouble_paying": "¿Problemas para pagar? Envíe una consulta en su lugar"
       },
       "property": {
         "property": "Propiedad",
@@ -65971,7 +65974,8 @@ const GAS_TRANSLATIONS = {
         "bank_transfer_details": "Bankgegevens",
         "loading_card_form": "Beveiligd kaartformulier laden...",
         "card_form_not_loaded": "Kaartformulier niet geladen. Selecteer opnieuw Kaartgarantie.",
-        "confirm_booking": "Boeking bevestigen"
+        "confirm_booking": "Boeking bevestigen",
+        "trouble_paying": "Problemen met betalen? Stuur een aanvraag"
       },
       "property": {
         "property": "Accommodatie",
@@ -66282,7 +66286,8 @@ const GAS_TRANSLATIONS = {
         "bank_transfer_details": "Bankverbindung",
         "loading_card_form": "Sicheres Kartenformular wird geladen...",
         "card_form_not_loaded": "Kartenformular nicht geladen. Bitte wählen Sie Kartengarantie erneut.",
-        "confirm_booking": "Buchung bestätigen"
+        "confirm_booking": "Buchung bestätigen",
+        "trouble_paying": "Probleme beim Bezahlen? Senden Sie stattdessen eine Anfrage"
       },
       "property": {
         "property": "Unterkunft",
@@ -66596,7 +66601,8 @@ const GAS_TRANSLATIONS = {
         "bank_transfer_details": "振込先情報",
         "loading_card_form": "セキュアカードフォームを読み込み中...",
         "card_form_not_loaded": "カードフォームが読み込まれていません。カード保証を再選択してください。",
-        "confirm_booking": "予約を確定"
+        "confirm_booking": "予約を確定",
+        "trouble_paying": "お支払いに問題がありますか？代わりにお問い合わせを送信してください"
       },
       "property": {
         "property": "施設",
