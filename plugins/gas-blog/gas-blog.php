@@ -3,7 +3,7 @@
  * Plugin Name: GAS Blog
  * Plugin URI: https://gas.travel
  * Description: Display blog posts from GAS with Article schema markup for SEO. Colors controlled via GAS Admin.
- * Version: 2.7.1
+ * Version: 2.9.0
  * Author: GAS - Guest Accommodation System
  * License: GPL v2 or later
  */
@@ -40,7 +40,7 @@ class GAS_Blog {
         $cached = get_transient('gas_blog_colors');
         if ($cached !== false) { $this->colors_cache = $cached; return $cached; }
         
-        $defaults = array('accent'=>'#667eea','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#e0e7ff','category_text'=>'#4338ca');
+        $defaults = array('accent'=>'#667eea','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#e0e7ff','category_text'=>'#4338ca','card_radius'=>'12');
         $client_id = get_option('gas_blog_client_id') ?: get_option('gas_client_id', '');
         if ($client_id) {
             $url = trailingslashit($this->get_api_url()).'api/public/client/'.$client_id.'/app-settings/blog';
@@ -132,7 +132,7 @@ class GAS_Blog {
         return array('title' => $title, 'subtitle' => $subtitle);
     }
     public function add_admin_menu() { add_options_page('GAS Blog', 'GAS Blog', 'manage_options', 'gas-blog', array($this, 'settings_page')); }
-    public function register_settings() { foreach(array('api_url','client_id','property_name','page_url','posts_per_page') as $s) register_setting('gas_blog_settings','gas_blog_'.$s); }
+    public function register_settings() { foreach(array('api_url','client_id','property_name','page_url','back_url','posts_per_page') as $s) register_setting('gas_blog_settings','gas_blog_'.$s); }
     
     public function settings_page() {
         $c = $this->get_colors(); ?>
@@ -147,6 +147,7 @@ class GAS_Blog {
                     <tr><th>Client ID</th><td><input type="text" name="gas_blog_client_id" value="<?php echo esc_attr(get_option('gas_blog_client_id')); ?>" class="regular-text"/></td></tr>
                     <tr><th>Property Name</th><td><input type="text" name="gas_blog_property_name" value="<?php echo esc_attr(get_option('gas_blog_property_name', get_bloginfo('name'))); ?>" class="regular-text"/></td></tr>
                     <tr><th>Blog Page URL</th><td><input type="text" name="gas_blog_page_url" value="<?php echo esc_attr(get_option('gas_blog_page_url','/blog/')); ?>" class="regular-text"/></td></tr>
+                    <tr><th>Back Button URL</th><td><input type="text" name="gas_blog_back_url" value="<?php echo esc_attr(get_option('gas_blog_back_url','')); ?>" class="regular-text" placeholder="Leave empty to use Blog Page URL"/><p class="description">Where the ← Back link goes on single posts (e.g. /hostel-life/)</p></td></tr>
                     <tr><th>Posts Per Page</th><td><input type="number" name="gas_blog_posts_per_page" value="<?php echo esc_attr(get_option('gas_blog_posts_per_page','9')); ?>" class="small-text"/></td></tr>
                 </table>
                 <h2>🎨 Colors (from GAS Admin)</h2>
@@ -238,7 +239,8 @@ class GAS_Blog {
         $lang = $this->get_current_language();
         $all_label = array('en'=>'All','es'=>'Todos','fr'=>'Tous','de'=>'Alle','nl'=>'Alle')[$lang] ?? 'All';
         get_header();
-        echo '<style>.gas-bp{max-width:1200px;margin:0 auto;padding:120px 20px 40px;background:'.$c['bg'].';min-height:60vh;'.$bf.'}.gas-bt{font-size:2.5rem;margin:0 0 10px;color:'.$c['text'].';'.$hf.'}.gas-bs{color:'.$c['text_secondary'].';margin:0 0 30px}.gas-bg{display:grid;gap:30px;grid-template-columns:repeat(3,1fr)}.gas-bc{background:'.$c['card_bg'].';border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s}.gas-bc:hover{transform:translateY(-4px);box-shadow:0 8px 25px rgba(0,0,0,0.12)}.gas-bc a{text-decoration:none;color:inherit;display:block}.gas-bi{width:100%;height:200px;object-fit:cover}.gas-bo{padding:20px}.gas-bn{margin:0 0 10px;font-size:1.2rem;color:'.$c['text'].';'.$hf.'}.gas-bd{color:'.$c['text_secondary'].';font-size:.95rem;margin:0}.gas-bb{background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:2px 10px;border-radius:12px;font-size:.8rem}.gas-bm{display:flex;gap:10px;font-size:.8rem;color:'.$c['text_secondary'].';margin-bottom:10px}.gas-bf{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:30px}.gas-bl{padding:8px 16px;border-radius:20px;text-decoration:none}.gas-bl.active{background:'.$c['accent'].';color:#fff}.gas-bl:not(.active){background:#f3f4f6;color:#374151}@media(max-width:900px){.gas-bg{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.gas-bg{grid-template-columns:1fr}}</style>';
+        $cr = intval($c['card_radius'] ?? 12).'px';
+        echo '<style>.gas-bp{max-width:1200px;margin:0 auto;padding:120px 20px 40px;background:'.$c['bg'].';min-height:60vh;'.$bf.'}.gas-bt{font-size:2.5rem;margin:0 0 10px;color:'.$c['text'].';'.$hf.'}.gas-bs{color:'.$c['text_secondary'].';margin:0 0 30px}.gas-bg{display:grid;gap:30px;grid-template-columns:repeat(3,1fr)}.gas-bc{background:'.$c['card_bg'].';border-radius:'.$cr.';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s}.gas-bc:hover{transform:translateY(-4px);box-shadow:0 8px 25px rgba(0,0,0,0.12)}.gas-bc a{text-decoration:none;color:inherit;display:block}.gas-bi{width:100%;height:200px;object-fit:cover}.gas-bo{padding:20px}.gas-bn{margin:0 0 10px;font-size:1.2rem;color:'.$c['text'].';'.$hf.'}.gas-bd{color:'.$c['text_secondary'].';font-size:.95rem;margin:0}.gas-bb{background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:2px 10px;border-radius:12px;font-size:.8rem}.gas-bm{display:flex;gap:10px;font-size:.8rem;color:'.$c['text_secondary'].';margin-bottom:10px}.gas-bf{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:30px}.gas-bl{padding:8px 16px;border-radius:20px;text-decoration:none}.gas-bl.active{background:'.$c['accent'].';color:#fff}.gas-bl:not(.active){background:#f3f4f6;color:#374151}@media(max-width:900px){.gas-bg{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.gas-bg{grid-template-columns:1fr}}</style>';
         $ps = $this->get_page_title_subtitle();
         $page_title = $ps['title'] ?: 'Blog';
         $page_sub = $ps['subtitle'] ?: 'Latest news from '.esc_html($prop);
@@ -258,13 +260,26 @@ class GAS_Blog {
     
     private function render_single($p) {
         $c = $this->get_colors(); $f = $this->get_fonts(); $hf = $this->font_css($f['heading']); $bf = $this->font_css($f['body']); get_header();
-        echo '<style>.gas-sp{max-width:800px;margin:0 auto;padding:120px 20px 40px;background:'.$c['bg'].';'.$bf.'}.gas-st{font-size:2.5rem;margin:0 0 15px;color:'.$c['text'].';'.$hf.'}.gas-sm{color:'.$c['text_secondary'].';margin-bottom:30px}.gas-si{width:100%;border-radius:12px;margin-bottom:30px}.gas-sc{font-size:1.1rem;line-height:1.8;color:'.$c['text'].'}.gas-sb{display:inline-block;margin-bottom:20px;color:'.$c['text_secondary'].';text-decoration:none}</style>';
+        $cr = intval($c['card_radius'] ?? 12).'px';
+        echo '<style>.gas-sp{max-width:800px;margin:0 auto;padding:120px 20px 40px;background:'.$c['bg'].';'.$bf.'}.gas-st{font-size:2.5rem;margin:0 0 15px;color:'.$c['text'].';'.$hf.'}.gas-sm{color:'.$c['text_secondary'].';margin-bottom:30px}.gas-si{width:100%;border-radius:'.$cr.';margin-bottom:30px}.gas-sc{font-size:1.1rem;line-height:1.8;color:'.$c['text'].'}.gas-sb{display:inline-block;margin-bottom:20px;color:'.$c['text_secondary'].';text-decoration:none}</style>';
         echo '<script type="application/ld+json">'.wp_json_encode(array('@context'=>'https://schema.org','@type'=>'Article','headline'=>$p['title'],'description'=>$p['excerpt']??'','image'=>$p['featured_image_url']??''),JSON_UNESCAPED_SLASHES).'</script>';
-        echo '<article class="gas-sp"><a href="'.esc_url(home_url('/blog/')).'" class="gas-sb">← Back</a>';
+        $back_path = get_option('gas_blog_back_url', '') ?: get_option('gas_blog_page_url', '/blog/');
+        $back_url = home_url('/'.trim($back_path, '/').'/');
+        echo '<article class="gas-sp"><a href="'.esc_url($back_url).'" class="gas-sb">← Back</a>';
         if (!empty($p['category'])) echo ' <span style="background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:4px 12px;border-radius:20px;font-size:.85rem">'.esc_html($p['category']).'</span>';
         echo '<h1 class="gas-st">'.esc_html($p['title']).'</h1><div class="gas-sm">'; if (!empty($p['published_at'])) echo date('F j, Y',strtotime($p['published_at'])); echo '</div>';
         if (!empty($p['featured_image_url'])) echo '<img src="'.esc_url($p['featured_image_url']).'" class="gas-si">';
-        echo '<div class="gas-sc">'.wp_kses_post($p['content'] ?? '').'</div></article>'; get_footer();
+        echo '<div class="gas-sc">'.wp_kses_post($p['content'] ?? '').'</div>';
+        // Gallery images
+        $gallery = $p['gallery_images'] ?? [];
+        if (is_string($gallery)) { $gallery = json_decode($gallery, true) ?: []; }
+        if (!empty($gallery) && is_array($gallery)) {
+            $cols = count($gallery) === 1 ? '1fr' : 'repeat(2, 1fr)';
+            echo '<div style="display:grid;grid-template-columns:'.$cols.';gap:12px;margin-top:30px;">';
+            foreach ($gallery as $img) { echo '<img src="'.esc_url($img).'" style="width:100%;border-radius:8px;object-fit:cover;">'; }
+            echo '</div>';
+        }
+        echo '</article>'; get_footer();
     }
     
     public function blog_shortcode($atts) {
@@ -272,8 +287,9 @@ class GAS_Blog {
         $c = $this->get_colors();
         $posts = $this->fetch_posts(array('limit'=>$atts['limit'],'category'=>$atts['category']));
         if (is_wp_error($posts) || empty($posts)) return '<p>No posts found.</p>';
-        $h = '<style>.gas-sc-bc:hover{transform:translateY(-4px)!important}@media(max-width:900px){.gas-sc-bg{grid-template-columns:repeat(2,1fr)!important}}@media(max-width:600px){.gas-sc-bg{grid-template-columns:1fr!important}}</style><div class="gas-sc-bg" style="display:grid;gap:30px;grid-template-columns:repeat('.$atts['columns'].',1fr)">';
-        foreach ($posts as $p) { $h .= '<article class="gas-sc-bc" style="background:'.$c['card_bg'].';border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s"><a href="'.esc_url(home_url('/blog/'.$p['slug'])).'" style="text-decoration:none;color:inherit;display:block">'; if (!empty($p['featured_image_url'])) $h .= '<img src="'.esc_url($p['featured_image_url']).'" style="width:100%;height:200px;object-fit:cover">'; $h .= '<div style="padding:20px"><h3 style="margin:0 0 10px;font-size:1.2rem;color:'.$c['text'].'">'.esc_html($p['title']).'</h3>'; if (!empty($p['excerpt'])) $h .= '<p style="color:'.$c['text_secondary'].';margin:0">'.esc_html(wp_trim_words($p['excerpt'],20)).'</p>'; $h .= '</div></a></article>'; }
+        $h = '<style>.gas-sc-bc:hover{transform:translateY(-4px)!important}@media(max-width:900px){.gas-sc-bg{grid-template-columns:repeat(2,1fr)!important}}@media(max-width:600px){.gas-sc-bg{grid-template-columns:1fr!important}}</style><div class="gas-sc-bg" style="display:grid;gap:30px;grid-template-columns:repeat('.$atts['columns'].',1fr);max-width:1200px;margin:0 auto;padding:0 20px">';
+        $cr = intval($c['card_radius'] ?? 12).'px';
+        foreach ($posts as $p) { $h .= '<article class="gas-sc-bc" style="background:'.$c['card_bg'].';border-radius:'.$cr.';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s"><a href="'.esc_url(home_url('/blog/'.$p['slug'])).'" style="text-decoration:none;color:inherit;display:block">'; if (!empty($p['featured_image_url'])) $h .= '<img src="'.esc_url($p['featured_image_url']).'" style="width:100%;height:200px;object-fit:cover">'; $h .= '<div style="padding:20px"><h3 style="margin:0 0 10px;font-size:1.2rem;color:'.$c['text'].'">'.esc_html($p['title']).'</h3>'; if (!empty($p['excerpt'])) $h .= '<p style="color:'.$c['text_secondary'].';margin:0">'.esc_html(wp_trim_words($p['excerpt'],20)).'</p>'; $h .= '</div></a></article>'; }
         return $h.'</div>';
     }
     
