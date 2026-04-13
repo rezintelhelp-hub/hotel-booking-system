@@ -379,18 +379,19 @@ const CALRY_INTEGRATION_IDS = {
 };
 
 // Send email via Mailgun API
-async function sendEmail({ to, subject, html, from = EMAIL_FROM }) {
+async function sendEmail({ to, subject, html, from = EMAIL_FROM, replyTo }) {
   if (!MAILGUN_API_KEY) {
     console.log('⚠️ Email not sent - MAILGUN_API_KEY not configured');
     return { success: false, error: 'Email not configured' };
   }
-  
+
   try {
     const formData = new URLSearchParams();
     formData.append('from', from);
     formData.append('to', Array.isArray(to) ? to.join(',') : to);
     formData.append('subject', subject);
     formData.append('html', html);
+    if (replyTo) formData.append('h:Reply-To', replyTo);
     
     const response = await axios.post(
       `https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`,
@@ -470,6 +471,20 @@ async function getEmailBranding(pool, accountId, propertyId) {
       if (footer.rows[0]?.settings) {
         branding.footerText = footer.rows[0].settings['copyright-en'] || '';
       }
+
+      // Get email settings (per-site notification email, header style, times, text)
+      const emailSettings = await pool.query("SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'email'", [ds.rows[0].id]);
+      if (emailSettings.rows[0]?.settings) {
+        const es = emailSettings.rows[0].settings;
+        branding.notificationEmail = es['notification-email'] || '';
+        branding.replyTo = es['reply-to'] || '';
+        branding.headerStyle = es['header-style'] || 'logo-on-colour';
+        branding.confirmationTitle = es['confirmation-title'] || '';
+        branding.confirmationSubtitle = es['confirmation-subtitle'] || '';
+        branding.checkinTime = es['checkin-time'] || '';
+        branding.checkoutTime = es['checkout-time'] || '';
+        branding.footerMessage = es['footer-message'] || '';
+      }
     }
   } catch (e) {
     console.error('getEmailBranding error:', e.message);
@@ -496,6 +511,12 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
   const brandContact = b.contactEmail || property?.email || EMAIL_FROM;
   const brandPhone = b.contactPhone || '';
   const brandFooter = b.footerText || '';
+  const headerStyle = b.headerStyle || 'logo-on-colour';
+  const confirmTitle = b.confirmationTitle || 'Booking Confirmed!';
+  const confirmSubtitle = b.confirmationSubtitle || 'Thank you for your reservation';
+  const checkinTime = b.checkinTime || '3:00 PM';
+  const checkoutTime = b.checkoutTime || '11:00 AM';
+  const footerMsg = b.footerMessage || 'Questions about your booking?';
 
   return `
 <!DOCTYPE html>
@@ -511,13 +532,31 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
           <!-- Header -->
+          ${headerStyle === 'logo-on-white' && brandLogo ? `
+          <tr>
+            <td style="background: #ffffff; padding: 24px 40px; text-align: center; border-bottom: 1px solid #e2e8f0;">
+              <img src="${brandLogo}" alt="${brandName}" style="max-height: 60px; max-width: 200px;">
+            </td>
+          </tr>
+          <tr>
+            <td style="background: ${brandColor}; padding: 24px 40px; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">${confirmTitle}</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">${confirmSubtitle}</p>
+            </td>
+          </tr>` : headerStyle === 'colour-only' ? `
+          <tr>
+            <td style="background: ${brandColor}; padding: 40px; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">${confirmTitle}</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">${confirmSubtitle}</p>
+            </td>
+          </tr>` : `
           <tr>
             <td style="background: ${brandColor}; padding: 40px; text-align: center;">
               ${brandLogo ? `<img src="${brandLogo}" alt="${brandName}" style="max-height: 60px; max-width: 200px; margin-bottom: 16px;">` : `<div style="width: 60px; height: 60px; background: white; border-radius: 50%; margin: 0 auto 16px; line-height: 60px; font-size: 30px;">✓</div>`}
-              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Booking Confirmed!</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">Thank you for your reservation</p>
+              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">${confirmTitle}</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">${confirmSubtitle}</p>
             </td>
-          </tr>
+          </tr>`}
           
           <!-- Booking Reference -->
           <tr>
@@ -549,13 +588,13 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
                   <td width="45%" style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
                     <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; display: block;">Check-in</span>
                     <strong style="font-size: 14px; color: #1e293b; display: block; margin: 4px 0;">${formatDate(booking.arrival_date)}</strong>
-                    <span style="font-size: 12px; color: #64748b;">From 3:00 PM</span>
+                    <span style="font-size: 12px; color: #64748b;">From ${checkinTime}</span>
                   </td>
                   <td width="10%" style="text-align: center; color: #cbd5e1; font-size: 20px;">→</td>
                   <td width="45%" style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
                     <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; display: block;">Check-out</span>
                     <strong style="font-size: 14px; color: #1e293b; display: block; margin: 4px 0;">${formatDate(booking.departure_date)}</strong>
-                    <span style="font-size: 12px; color: #64748b;">By 11:00 AM</span>
+                    <span style="font-size: 12px; color: #64748b;">By ${checkoutTime}</span>
                   </td>
                 </tr>
               </table>
@@ -622,7 +661,7 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
           <!-- Footer -->
           <tr>
             <td style="background: #f8fafc; padding: 24px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
-              <p style="margin: 0 0 8px; font-size: 14px; color: #64748b;">Questions about your booking?</p>
+              <p style="margin: 0 0 8px; font-size: 14px; color: #64748b;">${footerMsg}</p>
               <p style="margin: 0 0 4px; font-size: 14px; color: #64748b;">Contact us at <a href="mailto:${brandContact || property?.email || EMAIL_FROM}" style="color: ${brandColor || '#10b981'};">${brandContact || property?.email || EMAIL_FROM}</a></p>
               ${brandPhone ? `<p style="margin: 0; font-size: 14px; color: #64748b;">${brandPhone}</p>` : ''}
             </td>
@@ -64520,17 +64559,20 @@ app.post('/api/public/book', async (req, res) => {
       const brandedFrom = `${emailBranding.fromName} <${emailBranding.fromEmail}>`;
 
       // Send to guest
+      const emailReplyTo = emailBranding.replyTo || emailBranding.contactEmail || '';
       await sendEmail({
         to: guest_email,
         subject: `Booking Confirmed - ${property?.name || 'Your Reservation'} (Ref: ${newBooking.id})`,
         html: emailHtml,
-        from: brandedFrom
+        from: brandedFrom,
+        replyTo: emailReplyTo || undefined
       });
 
-      // Also send to property owner if different email
-      if (property?.account_email && property.account_email !== guest_email) {
+      // Also send to property owner — use per-site notification email if set
+      const ownerEmail = emailBranding.notificationEmail || property?.account_email;
+      if (ownerEmail && ownerEmail !== guest_email) {
         await sendEmail({
-          to: property.account_email,
+          to: ownerEmail,
           subject: `New Booking - ${guest_first_name} ${guest_last_name} (Ref: ${newBooking.id})`,
           html: emailHtml,
           from: brandedFrom
