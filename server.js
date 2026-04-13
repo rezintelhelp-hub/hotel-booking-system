@@ -73233,9 +73233,9 @@ app.post('/api/admin/website-builder/:section', async (req, res) => {
       return res.json({ success: false, error: 'account_id required' });
     }
     
-    // Try update first
+    // Try update first — only touch account-level rows, never site-specific ones
     const updateResult = await pool.query(
-      'UPDATE website_settings SET settings = $1, updated_at = CURRENT_TIMESTAMP WHERE account_id = $2 AND section = $3',
+      'UPDATE website_settings SET settings = $1, updated_at = CURRENT_TIMESTAMP WHERE account_id = $2 AND section = $3 AND deployed_site_id IS NULL',
       [JSON.stringify(settings), accountId, section]
     );
     
