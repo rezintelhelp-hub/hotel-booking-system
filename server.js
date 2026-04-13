@@ -64194,6 +64194,38 @@ app.post('/api/public/book', async (req, res) => {
       console.log(`[Stripe] SetupIntent stored for booking ${newBooking.id}: ${stripe_setup_intent_id}`);
     }
 
+    // ── Payment Schedule: create booking_payment_schedule rows ──
+    try {
+      const schedRuleResult = await pool.query(`
+        SELECT dr.* FROM deposit_rules dr
+        LEFT JOIN properties p ON p.id = $1
+        WHERE (dr.property_id = $1 OR (dr.property_id IS NULL AND dr.account_id = p.account_id))
+        AND dr.is_active = true
+        ORDER BY dr.property_id NULLS LAST, dr.created_at DESC LIMIT 1
+      `, [newBooking.property_id]);
+
+      if (schedRuleResult.rows.length > 0) {
+        const schedRule = schedRuleResult.rows[0];
+        const bookingTotal = parseFloat(total_price) || 0;
+        if (bookingTotal > 0 && check_in) {
+          const schedule = calculatePaymentScheduleForBooking(schedRule, bookingTotal, check_in, new Date().toISOString());
+          for (const tier of schedule.tiers) {
+            const tierStatus = (tier.status === 'charge_now' || tier.status === 'rolled_up') ? 'charged' : 'pending';
+            const tierPi = tierStatus === 'charged' ? (stripe_payment_intent_id || null) : null;
+            await pool.query(`
+              INSERT INTO booking_payment_schedule
+                (booking_id, tier_order, percentage, amount, days_before, due_date, status, stripe_payment_intent_id, charged_at)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, ${tierStatus === 'charged' ? 'NOW()' : 'NULL'})
+            `, [newBooking.id, tier.tier_order, tier.percentage, tier.amount, tier.days_before, tier.due_date, tierStatus, tierPi]);
+          }
+          console.log(`[Payment Schedule] Created ${schedule.tiers.length} tier(s) for booking ${newBooking.id}`);
+        }
+      }
+    } catch (schedErr) {
+      console.error('[Payment Schedule] Error creating schedule:', schedErr.message);
+      // Don't fail the booking
+    }
+
     // Block availability for these dates
     console.log(`Blocking dates for unit ${unit_id} from ${check_in} to ${check_out}`);
     
