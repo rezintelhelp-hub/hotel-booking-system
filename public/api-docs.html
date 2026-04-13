@@ -1604,6 +1604,23 @@
                     "responses": { "200": { "description": "Meta updated" } }
                 }
             },
+            "/api/partner/websites/{websiteId}/languages": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Language Settings",
+                    "description": "Returns the website's language configuration including primary language and supported languages.\n\nAll multilingual text fields in the API use a language suffix convention: append `-{lang_code}` to field names (e.g. `headline-en`, `headline-de`, `subheadline-fr`).\n\nSupported language codes: `en`, `fr`, `es`, `de`, `nl`, `it`, `pt`, `pl`, `ru`, `ja`, `zh`.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Language settings", "content": { "application/json": { "example": { "success": true, "primary_language": "de", "supported_languages": ["en", "de"], "available_languages": [ { "code": "en", "name": "English", "flag": "🇬🇧" }, { "code": "de", "name": "German", "flag": "🇩🇪" } ], "field_suffix_convention": "Append -{lang_code} to field names, e.g. headline-en, headline-de" } } } } }
+                },
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Language Settings",
+                    "description": "Update the primary language and supported languages for a website.\n\n- `primary_language` — The owner's main language (content source for translations)\n- `supported_languages` — Array of enabled language codes (max 4). Primary language is automatically included.\n\nValid codes: `en`, `fr`, `es`, `de`, `nl`, `it`, `pt`, `pl`, `ru`, `ja`, `zh`.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "example": { "primary_language": "de", "supported_languages": ["en", "de"] } } } },
+                    "responses": { "200": { "description": "Language settings updated", "content": { "application/json": { "example": { "success": true, "primary_language": "de", "supported_languages": ["en", "de"] } } } } }
+                }
+            },
             "/api/partner/websites/{websiteId}/styles": {
                 "get": {
                     "tags": ["Websites"],

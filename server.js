@@ -29563,10 +29563,21 @@ app.post('/api/admin/billing/generate-invoice', async (req, res) => {
     }
 });
 
-// Stripe billing webhook handler
-app.post('/api/webhooks/stripe-billing', async (req, res) => {
+// Stripe billing webhook handler — signature verification required
+app.post('/api/webhooks/stripe-billing', express.raw({ type: 'application/json' }), async (req, res) => {
     try {
-        const event = req.body;
+        const webhookSecret = process.env.STRIPE_BILLING_WEBHOOK_SECRET;
+        let event;
+
+        if (webhookSecret) {
+            const sig = req.headers['stripe-signature'];
+            const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
+            const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+            event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+        } else {
+            console.warn('[BILLING] WARNING: STRIPE_BILLING_WEBHOOK_SECRET not set — skipping signature verification');
+            event = JSON.parse(Buffer.isBuffer(req.body) ? req.body.toString('utf8') : req.body);
+        }
 
         if (event.type === 'invoice.paid') {
             const invoice = event.data.object;
@@ -54337,6 +54348,123 @@ app.put('/api/partner/websites/:websiteId/hero/meta', async (req, res) => {
     
   } catch (error) {
     console.error('Partner API update hero meta error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// PARTNER: LANGUAGE SETTINGS
+// =========================================================
+
+// GET /api/partner/websites/:websiteId/languages - Get language configuration
+app.get('/api/partner/websites/:websiteId/languages', async (req, res) => {
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+
+    const siteResult = await pool.query(
+      'SELECT ds.account_id, a.settings FROM deployed_sites ds JOIN accounts a ON ds.account_id = a.id WHERE ds.id = $1',
+      [deployedSiteId]
+    );
+    if (siteResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Site not found' });
+
+    const acctSettings = siteResult.rows[0].settings || {};
+    const primaryLang = acctSettings.primary_language || 'en';
+    const supportedLangs = acctSettings.supported_languages || ['en'];
+
+    const langInfo = {
+      en: { name: 'English', flag: '🇬🇧' }, fr: { name: 'French', flag: '🇫🇷' },
+      es: { name: 'Spanish', flag: '🇪🇸' }, de: { name: 'German', flag: '🇩🇪' },
+      nl: { name: 'Dutch', flag: '🇳🇱' }, it: { name: 'Italian', flag: '🇮🇹' },
+      pt: { name: 'Portuguese', flag: '🇵🇹' }, ja: { name: 'Japanese', flag: '🇯🇵' },
+      zh: { name: 'Chinese', flag: '🇨🇳' }, ru: { name: 'Russian', flag: '🇷🇺' },
+      pl: { name: 'Polish', flag: '🇵🇱' }
+    };
+
+    res.json({
+      success: true,
+      primary_language: primaryLang,
+      supported_languages: supportedLangs,
+      available_languages: supportedLangs.map(code => ({
+        code,
+        name: (langInfo[code] || {}).name || code.toUpperCase(),
+        flag: (langInfo[code] || {}).flag || ''
+      })),
+      field_suffix_convention: 'Append -{lang_code} to field names, e.g. headline-en, headline-de'
+    });
+
+  } catch (error) {
+    console.error('Partner API get languages error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/languages - Update language configuration
+app.put('/api/partner/websites/:websiteId/languages', async (req, res) => {
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+
+    const siteResult = await pool.query(
+      'SELECT ds.account_id FROM deployed_sites ds WHERE ds.id = $1',
+      [deployedSiteId]
+    );
+    if (siteResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Site not found' });
+
+    const accountId = siteResult.rows[0].account_id;
+    const { primary_language, supported_languages } = req.body;
+
+    const validLangs = ['en', 'es', 'fr', 'de', 'nl', 'it', 'pt', 'pl', 'ru', 'ja', 'zh'];
+
+    if (primary_language && !validLangs.includes(primary_language)) {
+      return res.status(400).json({ success: false, error: `Invalid primary_language. Valid: ${validLangs.join(', ')}` });
+    }
+    if (supported_languages) {
+      if (!Array.isArray(supported_languages) || supported_languages.length > 4) {
+        return res.status(400).json({ success: false, error: 'supported_languages must be an array with max 4 languages' });
+      }
+      const invalid = supported_languages.filter(l => !validLangs.includes(l));
+      if (invalid.length > 0) {
+        return res.status(400).json({ success: false, error: `Invalid languages: ${invalid.join(', ')}. Valid: ${validLangs.join(', ')}` });
+      }
+    }
+
+    // Load existing account settings and merge
+    const acctResult = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
+    const acctSettings = (acctResult.rows[0]?.settings) || {};
+
+    if (primary_language) acctSettings.primary_language = primary_language;
+    if (supported_languages) acctSettings.supported_languages = supported_languages;
+
+    // Ensure primary is in supported
+    if (acctSettings.primary_language && acctSettings.supported_languages && !acctSettings.supported_languages.includes(acctSettings.primary_language)) {
+      acctSettings.supported_languages.unshift(acctSettings.primary_language);
+    }
+
+    await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(acctSettings), accountId]);
+
+    res.json({
+      success: true,
+      primary_language: acctSettings.primary_language || 'en',
+      supported_languages: acctSettings.supported_languages || ['en']
+    });
+
+  } catch (error) {
+    console.error('Partner API update languages error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

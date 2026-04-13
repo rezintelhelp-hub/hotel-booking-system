@@ -356,9 +356,12 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     /* Hybrid body — baseline defaults that WYSIWYG inline styles override */
     .gas-ps-body {
         font-family: var(--developer-font) !important;
-        font-size: 1.05rem;
-        line-height: 1.6;
+        font-size: 1.05rem !important;
+        line-height: 1.6 !important;
         color: #475569;
+    }
+    .gas-ps-body span, .gas-ps-body div {
+        font-size: inherit !important;
     }
     .gas-ps-body p { margin: 0 0 0.6em; }
     .gas-ps-body h2, .gas-ps-body h3 { margin: 0.8em 0 0.4em; }

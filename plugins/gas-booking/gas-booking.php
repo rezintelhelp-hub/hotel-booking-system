@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.7
+ * Version: 3.6.8
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -26,7 +26,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.3');
+define('GAS_BOOKING_VERSION', '3.6.8');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4679,20 +4679,20 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         // Randomize if requested
         if ($random) {
             shuffle($rooms);
+        } else {
+            // Sort rooms: available (has price) first, then price-on-request
+            usort($rooms, function($a, $b) {
+                $price_a = floatval($a['price'] ?? $a['base_price'] ?? 0);
+                $price_b = floatval($b['price'] ?? $b['base_price'] ?? 0);
+                $has_price_a = $price_a > 0 ? 0 : 1;
+                $has_price_b = $price_b > 0 ? 0 : 1;
+                if ($has_price_a !== $has_price_b) {
+                    return $has_price_a - $has_price_b;
+                }
+                // Within same group, sort by price ascending
+                return $price_a - $price_b;
+            });
         }
-        
-        // Sort rooms: available (has price) first, then price-on-request
-        usort($rooms, function($a, $b) {
-            $price_a = floatval($a['price'] ?? $a['base_price'] ?? 0);
-            $price_b = floatval($b['price'] ?? $b['base_price'] ?? 0);
-            $has_price_a = $price_a > 0 ? 0 : 1;
-            $has_price_b = $price_b > 0 ? 0 : 1;
-            if ($has_price_a !== $has_price_b) {
-                return $has_price_a - $has_price_b;
-            }
-            // Within same group, sort by price ascending
-            return $price_a - $price_b;
-        });
         
         // Limit number of rooms if specified
         // Skip limit on booking/accommodation pages - always show all rooms
