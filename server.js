@@ -415,7 +415,7 @@ async function sendEmail({ to, subject, html, from = EMAIL_FROM }) {
 }
 
 // Get email branding for an account — colours, logo, name, from address
-async function getEmailBranding(pool, accountId) {
+async function getEmailBranding(pool, accountId, propertyId) {
   const branding = {
     accountName: '',
     slug: '',
@@ -438,8 +438,14 @@ async function getEmailBranding(pool, accountId) {
       branding.contactPhone = acc.rows[0].phone || '';
     }
 
-    // Get deployed site for slug + website settings
-    const ds = await pool.query('SELECT id, slug, site_url FROM deployed_sites WHERE account_id = $1 ORDER BY id LIMIT 1', [accountId]);
+    // Get deployed site matching the property — fall back to first site for account
+    let ds;
+    if (propertyId) {
+      ds = await pool.query("SELECT id, slug, site_url FROM deployed_sites WHERE account_id = $1 AND (property_id = $2 OR property_ids @> to_jsonb($2::int)) ORDER BY id LIMIT 1", [accountId, propertyId]);
+    }
+    if (!ds || ds.rows.length === 0) {
+      ds = await pool.query('SELECT id, slug, site_url FROM deployed_sites WHERE account_id = $1 ORDER BY id LIMIT 1', [accountId]);
+    }
     if (ds.rows[0]) {
       branding.slug = ds.rows[0].slug || '';
       if (branding.slug) {
@@ -64509,7 +64515,7 @@ app.post('/api/public/book', async (req, res) => {
       } catch (e) { /* ignore — table may not exist yet */ }
 
       // Get email branding for this account
-      const emailBranding = await getEmailBranding(pool, property.account_id || newBooking.account_id);
+      const emailBranding = await getEmailBranding(pool, property.account_id || newBooking.account_id, property.id);
       const emailHtml = generateBookingConfirmationEmail(bookingForEmail, property, room, emailPaymentSchedule, emailBranding);
       const brandedFrom = `${emailBranding.fromName} <${emailBranding.fromEmail}>`;
 
