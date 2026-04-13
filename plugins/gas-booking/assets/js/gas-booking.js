@@ -437,6 +437,10 @@ jQuery(document).ready(function($) {
                 altFormat: 'd M Y',
                 disableMobile: true,
                 locale: flatpickrLocale,
+                onOpen: function() {
+                    var availTab = document.querySelector('.gas-tab-btn[data-tab="availability"]');
+                    if (availTab && !availTab.classList.contains('active')) availTab.click();
+                },
                 onChange: function(selectedDates, dateStr, instance) {
                     // Update checkout min date and auto-open
                     var checkoutInput = instance.element.closest('.gas-room-widget, .gas-booking-card')?.querySelector('.gas-checkout');
