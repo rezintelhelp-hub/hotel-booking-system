@@ -31001,10 +31001,20 @@ app.post('/api/account/:accountId/set-direct-payment', async (req, res) => {
     }
     if (!currentSettings.payment_methods) currentSettings.payment_methods = {};
     currentSettings.payment_methods.pay_at_property = true;
-    
+
     await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(currentSettings), accountId]);
-    
-    res.json({ success: true, message: 'Direct payment settings updated' });
+
+    // Also update property_payment_settings for all properties in this account
+    const props = await pool.query('SELECT id FROM properties WHERE account_id = $1', [accountId]);
+    for (const prop of props.rows) {
+      await pool.query(`
+        INSERT INTO property_payment_settings (property_id, accepted_methods, bank_details, payment_enabled, updated_at)
+        VALUES ($1, $2, $3, true, NOW())
+        ON CONFLICT (property_id) DO UPDATE SET accepted_methods = $2, bank_details = $3, payment_enabled = true, updated_at = NOW()
+      `, [prop.id, JSON.stringify(['pay_at_property']), JSON.stringify(bank_details || {})]);
+    }
+
+    res.json({ success: true, message: 'Direct payment settings updated for ' + props.rows.length + ' properties' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -31031,10 +31041,20 @@ app.post('/api/account/:accountId/set-card-guarantee', async (req, res) => {
     };
     if (!currentSettings.payment_methods) currentSettings.payment_methods = {};
     currentSettings.payment_methods.card_guarantee = true;
-    
+
     await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(currentSettings), accountId]);
-    
-    res.json({ success: true, message: 'Card guarantee settings updated' });
+
+    // Also update property_payment_settings for all properties in this account
+    const props = await pool.query('SELECT id FROM properties WHERE account_id = $1', [accountId]);
+    for (const prop of props.rows) {
+      await pool.query(`
+        INSERT INTO property_payment_settings (property_id, accepted_methods, bank_details, payment_enabled, updated_at)
+        VALUES ($1, $2, $3, true, NOW())
+        ON CONFLICT (property_id) DO UPDATE SET accepted_methods = $2, bank_details = COALESCE(property_payment_settings.bank_details, $3), payment_enabled = true, updated_at = NOW()
+      `, [prop.id, JSON.stringify(['card_guarantee']), JSON.stringify({ card_guarantee: { enabled: true, api_key, checkout_id, label: label || 'Card Guarantee' } })]);
+    }
+
+    res.json({ success: true, message: 'Card guarantee applied to ' + props.rows.length + ' properties' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
