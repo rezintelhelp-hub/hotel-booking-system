@@ -479,11 +479,6 @@ async function getEmailBranding(pool, accountId, propertyId) {
         branding.notificationEmail = es['notification-email'] || '';
         branding.replyTo = es['reply-to'] || '';
         branding.headerStyle = es['header-style'] || 'logo-on-colour';
-        branding.confirmationTitle = es['confirmation-title'] || '';
-        branding.confirmationSubtitle = es['confirmation-subtitle'] || '';
-        branding.checkinTime = es['checkin-time'] || '';
-        branding.checkoutTime = es['checkout-time'] || '';
-        branding.footerMessage = es['footer-message'] || '';
       }
     }
   } catch (e) {
@@ -512,11 +507,6 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
   const brandPhone = b.contactPhone || '';
   const brandFooter = b.footerText || '';
   const headerStyle = b.headerStyle || 'logo-on-colour';
-  const confirmTitle = b.confirmationTitle || 'Booking Confirmed!';
-  const confirmSubtitle = b.confirmationSubtitle || 'Thank you for your reservation';
-  const checkinTime = b.checkinTime || '3:00 PM';
-  const checkoutTime = b.checkoutTime || '11:00 AM';
-  const footerMsg = b.footerMessage || 'Questions about your booking?';
 
   return `
 <!DOCTYPE html>
@@ -540,21 +530,21 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
           </tr>
           <tr>
             <td style="background: ${brandColor}; padding: 24px 40px; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">${confirmTitle}</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">${confirmSubtitle}</p>
+              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Booking Confirmed!</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">Thank you for your reservation</p>
             </td>
           </tr>` : headerStyle === 'colour-only' ? `
           <tr>
             <td style="background: ${brandColor}; padding: 40px; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">${confirmTitle}</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">${confirmSubtitle}</p>
+              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Booking Confirmed!</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">Thank you for your reservation</p>
             </td>
           </tr>` : `
           <tr>
             <td style="background: ${brandColor}; padding: 40px; text-align: center;">
               ${brandLogo ? `<img src="${brandLogo}" alt="${brandName}" style="max-height: 60px; max-width: 200px; margin-bottom: 16px;">` : `<div style="width: 60px; height: 60px; background: white; border-radius: 50%; margin: 0 auto 16px; line-height: 60px; font-size: 30px;">✓</div>`}
-              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">${confirmTitle}</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">${confirmSubtitle}</p>
+              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Booking Confirmed!</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">Thank you for your reservation</p>
             </td>
           </tr>`}
           
@@ -588,13 +578,11 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
                   <td width="45%" style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
                     <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; display: block;">Check-in</span>
                     <strong style="font-size: 14px; color: #1e293b; display: block; margin: 4px 0;">${formatDate(booking.arrival_date)}</strong>
-                    <span style="font-size: 12px; color: #64748b;">From ${checkinTime}</span>
                   </td>
                   <td width="10%" style="text-align: center; color: #cbd5e1; font-size: 20px;">→</td>
                   <td width="45%" style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
                     <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; display: block;">Check-out</span>
                     <strong style="font-size: 14px; color: #1e293b; display: block; margin: 4px 0;">${formatDate(booking.departure_date)}</strong>
-                    <span style="font-size: 12px; color: #64748b;">By ${checkoutTime}</span>
                   </td>
                 </tr>
               </table>
@@ -661,7 +649,7 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
           <!-- Footer -->
           <tr>
             <td style="background: #f8fafc; padding: 24px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
-              <p style="margin: 0 0 8px; font-size: 14px; color: #64748b;">${footerMsg}</p>
+              <p style="margin: 0 0 8px; font-size: 14px; color: #64748b;">Questions about your booking?</p>
               <p style="margin: 0 0 4px; font-size: 14px; color: #64748b;">Contact us at <a href="mailto:${brandContact || property?.email || EMAIL_FROM}" style="color: ${brandColor || '#10b981'};">${brandContact || property?.email || EMAIL_FROM}</a></p>
               ${brandPhone ? `<p style="margin: 0; font-size: 14px; color: #64748b;">${brandPhone}</p>` : ''}
             </td>
