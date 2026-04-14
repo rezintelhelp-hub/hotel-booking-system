@@ -48,10 +48,10 @@ $company_label = $api['footer_company_number_label'] ?? '';
 $tax_number = $api['footer_tax_number'] ?? '';
 $tax_label = $api['footer_tax_number_label'] ?? '';
 
-// Legal pages
+// Legal pages — Terms and Privacy always shown, Impressum only if enabled
 $legal_links = array();
-if (!empty($api['page_terms_enabled'])) $legal_links[] = array('url' => home_url('/terms/'), 'label' => 'Terms');
-if (!empty($api['page_privacy_enabled'])) $legal_links[] = array('url' => home_url('/privacy-policy/'), 'label' => 'Privacy Policy');
+$legal_links[] = array('url' => home_url('/terms/'), 'label' => 'Terms & Conditions');
+$legal_links[] = array('url' => home_url('/privacy-policy/'), 'label' => 'Privacy Policy');
 if (!empty($api['page_impressum_enabled'])) $legal_links[] = array('url' => home_url('/impressum/'), 'label' => 'Impressum');
 ?>
 
