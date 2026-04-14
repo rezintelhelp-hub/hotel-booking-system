@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.8
+ * Version: 3.6.9
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -3462,7 +3462,7 @@ class GAS_Booking {
         wp_enqueue_script('gas-booking', GAS_BOOKING_PLUGIN_URL . 'assets/js/gas-booking.js', array('jquery', 'flatpickr', 'leaflet', 'stripe-js'), time(), true);
         
         // Read spinner style and currency settings from theme API settings if available
-        $spinner_style = 'compass';
+        $spinner_style = 'circles';
         $currency_mode = 'property';
         $site_currency = '';
         if (function_exists('developer_get_api_settings')) {
@@ -3929,7 +3929,10 @@ class GAS_Booking {
                 }
             }
 
-            if (!empty($api_cache['website']['styles']['btn-primary-bg'])) {
+            // Pro-settings override takes priority
+            if (!empty($api_cache['website']['pro-settings']['book-btn-bg'])) {
+                $button_color = $api_cache['website']['pro-settings']['book-btn-bg'];
+            } elseif (!empty($api_cache['website']['styles']['btn-primary-bg'])) {
                 $button_color = $api_cache['website']['styles']['btn-primary-bg'];
             } elseif (!empty($api_cache['website']['featured']['btn-bg'])) {
                 $button_color = $api_cache['website']['featured']['btn-bg'];
@@ -4600,7 +4603,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             if (!empty($api_settings['page_rooms_search_btn_text'])) {
                 $atts['text_color'] = $api_settings['page_rooms_search_btn_text'];
             }
-            if (!empty($api_settings['rooms_card_radius'])) {
+            if (isset($api_settings['rooms_card_radius']) && $api_settings['rooms_card_radius'] !== null) {
                 $atts['card_radius'] = $api_settings['rooms_card_radius'];
             }
             if (!empty($api_settings['rooms_book_btn_bg'])) {
@@ -4609,7 +4612,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             if (!empty($api_settings['rooms_book_btn_text'])) {
                 $atts['book_btn_text'] = $api_settings['rooms_book_btn_text'];
             }
-            if (!empty($api_settings['rooms_btn_radius'])) {
+            if (isset($api_settings['rooms_btn_radius']) && $api_settings['rooms_btn_radius'] !== null) {
                 $atts['btn_radius'] = $api_settings['rooms_btn_radius'];
             }
             if (isset($api_settings['rooms_show_map'])) {

@@ -46,7 +46,7 @@ jQuery(document).ready(function($) {
     
     // Spinner builder — compass, circles, or none
     function buildSpinnerHtml() {
-        var style = (typeof gasBooking !== 'undefined' && gasBooking.spinnerStyle) ? gasBooking.spinnerStyle : 'compass';
+        var style = (typeof gasBooking !== 'undefined' && gasBooking.spinnerStyle) ? gasBooking.spinnerStyle : 'circles';
         if (style === 'none') return '';
         var inner = '';
         if (style === 'circles') {
