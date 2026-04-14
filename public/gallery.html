@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gallery — Live Client Sites — GAS</title>
+    <meta name="description" content="Browse live websites built and powered by GAS — the Global Accommodation System for independent hotels, villas, and guest houses.">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', -apple-system, sans-serif; color: #0f172a; line-height: 1.6; }
+        .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 1.25rem 3rem; display: flex; justify-content: space-between; align-items: center; transition: all 0.4s ease; }
+        .nav.scrolled { background: rgba(255,255,255,0.95); backdrop-filter: blur(20px); box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 0.85rem 3rem; }
+        .nav a { text-decoration: none; color: rgba(255,255,255,0.8); font-size: 0.85rem; font-weight: 500; letter-spacing: 0.5px; transition: color 0.3s; }
+        .nav.scrolled a { color: #334155; }
+        .nav-logo { color: white !important; font-weight: 700; font-size: 1.3rem; letter-spacing: 2px; transition: color 0.4s; }
+        .nav.scrolled .nav-logo { color: #0f172a !important; }
+        .nav-links { display: flex; gap: 2rem; align-items: center; }
+        .nav-cta { padding: 0.5rem 1.5rem !important; border: 1.5px solid rgba(255,255,255,0.6) !important; border-radius: 6px; transition: all 0.3s !important; }
+        .nav.scrolled .nav-cta { border-color: #1e3a5f !important; color: #1e3a5f !important; }
+        .hero { background: linear-gradient(180deg, #0f172a 0%, #1e3a5f 100%); color: white; height: 50vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; text-align: center; }
+        .hero h1 { font-family: 'DM Serif Display', serif; font-size: 2.8rem; font-weight: 400; letter-spacing: 0.02em; line-height: 1.3; margin-bottom: 1rem; max-width: 700px; }
+        .hero p { font-size: 1.15rem; opacity: 0.7; max-width: 600px; margin: 0 auto; }
+        .gallery-section { max-width: 1200px; margin: 0 auto; padding: 4rem 2rem; }
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 2rem; }
+        .gallery-card { border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; transition: transform 0.3s, box-shadow 0.3s; background: #fff; }
+        .gallery-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
+        .gallery-card-image { width: 100%; height: 220px; object-fit: cover; background: #f1f5f9; display: block; }
+        .gallery-card-body { padding: 1.5rem; }
+        .gallery-card-name { font-family: 'DM Serif Display', serif; font-size: 1.3rem; margin-bottom: 0.25rem; }
+        .gallery-card-url { color: #64748b; font-size: 0.85rem; margin-bottom: 1rem; display: block; }
+        .gallery-card-link { display: inline-block; padding: 0.5rem 1.5rem; background: #1e3a5f; color: white; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 0.85rem; transition: background 0.3s; }
+        .gallery-card-link:hover { background: #2d5a8e; }
+        .gallery-loading { text-align: center; padding: 4rem; color: #94a3b8; font-size: 1.1rem; }
+        footer { background: #0f172a; color: white; text-align: center; padding: 2rem; font-size: 0.85rem; opacity: 0.5; }
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2rem; }
+            .gallery-grid { grid-template-columns: 1fr; }
+            .nav { padding: 1rem 1.5rem; }
+            .nav-links { gap: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav" id="mainNav">
+        <a href="/" class="nav-logo">gas.travel</a>
+        <div class="nav-links">
+            <a href="/#products">Products</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/for-destinations">For Destinations</a>
+            <a href="/partners">Partners</a>
+            <a href="/gallery">Gallery</a>
+            <a href="/login.html">Log In</a>
+            <a href="/register" class="nav-cta">Register Free</a>
+        </div>
+    </nav>
+
+    <div class="hero" style="position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; opacity: 0.25;">
+            <img src="/hero-globe.png" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: center center;">
+        </div>
+        <h1 style="position: relative; z-index: 1;">Powering independent accommodation worldwide.</h1>
+        <p style="position: relative; z-index: 1;">Real websites, real bookings, real businesses — all built on GAS.</p>
+    </div>
+
+    <div class="gallery-section">
+        <div class="gallery-grid" id="galleryGrid">
+            <div class="gallery-loading">Loading live sites...</div>
+        </div>
+    </div>
+
+    <footer>&copy; 2026 Global Accommodation Systems. gas.travel</footer>
+
+    <script>
+        const nav = document.getElementById('mainNav');
+        window.addEventListener('scroll', () => { nav.classList.toggle('scrolled', window.scrollY > 80); });
+
+        async function loadGallery() {
+            try {
+                const res = await fetch('/api/public/gallery');
+                const data = await res.json();
+                if (!data.success || !data.sites.length) {
+                    document.getElementById('galleryGrid').innerHTML = '<p style="text-align:center;color:#94a3b8;">No sites to display yet.</p>';
+                    return;
+                }
+                document.getElementById('galleryGrid').innerHTML = data.sites.map(site => `
+                    <div class="gallery-card">
+                        ${site.hero_image
+                            ? `<img src="${site.hero_image}" alt="${site.site_name}" class="gallery-card-image" loading="lazy">`
+                            : `<div class="gallery-card-image" style="display:flex;align-items:center;justify-content:center;font-size:2rem;color:#94a3b8;background:linear-gradient(135deg,#f1f5f9,#e2e8f0);">${site.site_name.charAt(0)}</div>`
+                        }
+                        <div class="gallery-card-body">
+                            <div class="gallery-card-name">${site.site_name}</div>
+                            <span class="gallery-card-url">${site.domain}</span>
+                            <a href="${site.site_url}" target="_blank" rel="noopener" class="gallery-card-link">Visit Site</a>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('galleryGrid').innerHTML = '<p style="text-align:center;color:#94a3b8;">Unable to load gallery.</p>';
+            }
+        }
+        loadGallery();
+    </script>
+</body>
+</html>

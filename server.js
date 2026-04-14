@@ -87196,6 +87196,40 @@ app.post('/api/languages/:code', async (req, res) => {
   }
 });
 
+// GET /api/public/gallery - Live client sites with custom domains
+app.get('/api/public/gallery', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT ds.id, ds.site_name, ds.site_url,
+             ws.settings->>'image-url' AS hero_image,
+             ws_slide.settings->>'slide-1-url' AS slide_image
+      FROM deployed_sites ds
+      LEFT JOIN website_settings ws ON ws.deployed_site_id = ds.id AND ws.section = 'hero'
+      LEFT JOIN website_settings ws_slide ON ws_slide.deployed_site_id = ds.id AND ws_slide.section = 'hero'
+      WHERE ds.site_url IS NOT NULL
+        AND ds.site_url NOT LIKE '%sites.gas.travel%'
+        AND ds.site_status IS DISTINCT FROM 'frozen'
+      ORDER BY ds.site_name
+    `);
+
+    const sites = result.rows.map(row => {
+      const url = row.site_url.replace(/\/$/, '');
+      const domain = url.replace(/^https?:\/\//, '');
+      return {
+        site_name: row.site_name,
+        site_url: row.site_url,
+        domain,
+        hero_image: row.hero_image || row.slide_image || null
+      };
+    });
+
+    res.json({ success: true, sites });
+  } catch (error) {
+    console.error('Gallery API error:', error);
+    res.json({ success: false, sites: [] });
+  }
+});
+
 // GET /api/public/languages - Public endpoint for websites/widgets
 app.get('/api/public/languages', (req, res) => {
   // Return languages that have translations in the combined file

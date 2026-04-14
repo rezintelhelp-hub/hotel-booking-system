@@ -189,7 +189,9 @@ $all_links = array_merge($quick_links, $legal_links);
                 <?php else : ?>
                     <h3 style="color: <?php echo esc_attr($footer_text); ?>; margin-bottom: 0;"><?php echo esc_html($business_name); ?></h3>
                 <?php endif; ?>
-                <p style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php bloginfo('description'); ?></p>
+                <?php if (!empty($api['footer_description'])) : ?>
+                <p style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($api['footer_description']); ?></p>
+                <?php endif; ?>
 
                 <?php if ($facebook || $instagram || $twitter || $youtube || $linkedin || $tiktok || $pinterest || $tripadvisor) : ?>
                 <div class="developer-footer-social">
