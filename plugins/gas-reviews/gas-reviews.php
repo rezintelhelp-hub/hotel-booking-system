@@ -176,9 +176,16 @@ class GAS_Reviews {
             'columns' => 3,
             'widget_id' => '',
             'room_id' => '',
+            'card_bg' => '',
+            'text_color' => '',
+            'star_color' => '',
         ), $atts, 'gas_reviews');
 
         $colors = $this->get_colors();
+        // Allow shortcode attribute overrides for Pro Builder integration
+        if (!empty($atts['card_bg'])) $colors['card_bg'] = $atts['card_bg'];
+        if (!empty($atts['text_color'])) { $colors['text'] = $atts['text_color']; $colors['text_secondary'] = $atts['text_color']; }
+        if (!empty($atts['star_color'])) $colors['star'] = $atts['star_color'];
         $fonts = $this->get_fonts();
         $api_url = $this->get_api_url();
         $client_id = $this->get_client_id();
