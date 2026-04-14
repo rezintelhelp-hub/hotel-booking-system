@@ -4524,8 +4524,40 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         // Override with theme API settings if available
         // Only apply page-rooms settings when show_map uses default (true)
         // Featured section passes show_map="false" explicitly, so it keeps its own settings
-        if (function_exists('developer_get_api_settings') && $atts['show_map'] === 'true') {
+        // Try theme API function first, fall back to direct Railway API call for pro-settings
+        $api_settings = null;
+        if (function_exists('developer_get_api_settings')) {
             $api_settings = developer_get_api_settings();
+        } else {
+            // Burger/custom theme — fetch pro-settings from Railway site-config API
+            $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
+            $client_id = get_option('gas_client_id', '');
+            $cache_key = 'gas_booking_pro_settings_' . get_current_blog_id();
+            $cached = get_transient($cache_key);
+            if ($cached !== false) {
+                $api_settings = $cached;
+            } elseif ($client_id) {
+                $site_url = home_url('/');
+                $resp = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config?site_url=" . urlencode($site_url), array('timeout' => 5));
+                if (!is_wp_error($resp) && wp_remote_retrieve_response_code($resp) === 200) {
+                    $body = json_decode(wp_remote_retrieve_body($resp), true);
+                    $s = $body['config']['website']['pro-settings'] ?? array();
+                    $r = $body['config']['website']['page-rooms'] ?? array();
+                    $api_settings = array(
+                        'rooms_filter_bg' => $s['filter-bg'] ?: ($r['filter-bg'] ?? null),
+                        'page_rooms_search_btn_bg' => $s['search-btn-bg'] ?: ($r['search-btn-bg'] ?? null),
+                        'page_rooms_search_btn_text' => $s['search-btn-text'] ?: ($r['search-btn-text'] ?? null),
+                        'rooms_card_radius' => $s['card-radius'] ?? null,
+                        'rooms_book_btn_bg' => $s['book-btn-bg'] ?? null,
+                        'rooms_book_btn_text' => $s['book-btn-text'] ?? null,
+                        'rooms_btn_radius' => $s['btn-radius'] ?? null,
+                        'rooms_show_map' => $s['show-map'] ?? 'true',
+                    );
+                    set_transient($cache_key, $api_settings, 300);
+                }
+            }
+        }
+        if ($api_settings && $atts['show_map'] !== 'false') {
             if (!empty($api_settings['rooms_columns'])) {
                 $atts['columns'] = intval($api_settings['rooms_columns']);
             }
@@ -4577,6 +4609,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             if (!empty($api_settings['rooms_book_btn_text'])) {
                 $atts['book_btn_text'] = $api_settings['rooms_book_btn_text'];
             }
+            if (!empty($api_settings['rooms_btn_radius'])) {
+                $atts['btn_radius'] = $api_settings['rooms_btn_radius'];
+            }
             if (isset($api_settings['rooms_show_map'])) {
                 $show_map_val = $api_settings['rooms_show_map'];
                 $atts['show_map'] = ($show_map_val === 'false' || $show_map_val === false) ? 'false' : 'true';
@@ -4597,6 +4632,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $filter_bg = $atts['filter_bg'] ?? '';
         $filter_text = $atts['filter_text'] ?? '';
         $card_radius = $atts['card_radius'] ?? '12';
+        $btn_radius = $atts['btn_radius'] ?? '8';
         $book_btn_bg = $atts['book_btn_bg'] ?? '';
         $book_btn_text = $atts['book_btn_text'] ?? '';
 
@@ -5256,7 +5292,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             background: <?php echo !empty($book_btn_bg) ? esc_attr($book_btn_bg) : esc_attr($this->get_effective_button_color()); ?>;
             color: <?php echo !empty($book_btn_text) ? esc_attr($book_btn_text) : 'white'; ?> !important;
             padding: 10px 20px;
-            border-radius: <?php echo intval($card_radius); ?>px;
+            border-radius: <?php echo intval($btn_radius); ?>px;
             text-decoration: none;
             font-weight: 600;
             font-size: 14px;
