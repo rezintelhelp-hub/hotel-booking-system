@@ -2510,6 +2510,8 @@ function developer_get_api_settings() {
         
         // Rooms Page - MULTILINGUAL
         'page_rooms_menu_title' => developer_get_ml_value($website_rooms, 'menu_title', $lang) ?: 'Rooms',
+        'page_rooms_title' => developer_get_ml_value($website_rooms, 'title', $lang) ?: 'Book Your Stay',
+        'page_rooms_subtitle' => developer_get_ml_value($website_rooms, 'subtitle', $lang),
         'page_rooms_enabled' => true, // Always enabled
         'page_rooms_menu_order' => $website_rooms['menu-order'] ?? 1,
         'page_rooms_transparent_header' => $website_rooms['transparent-header'] ?? false,
