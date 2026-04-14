@@ -4568,6 +4568,19 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             if (!empty($api_settings['page_rooms_search_btn_text'])) {
                 $atts['text_color'] = $api_settings['page_rooms_search_btn_text'];
             }
+            if (!empty($api_settings['rooms_card_radius'])) {
+                $atts['card_radius'] = $api_settings['rooms_card_radius'];
+            }
+            if (!empty($api_settings['rooms_book_btn_bg'])) {
+                $atts['book_btn_bg'] = $api_settings['rooms_book_btn_bg'];
+            }
+            if (!empty($api_settings['rooms_book_btn_text'])) {
+                $atts['book_btn_text'] = $api_settings['rooms_book_btn_text'];
+            }
+            if (isset($api_settings['rooms_show_map'])) {
+                $show_map_val = $api_settings['rooms_show_map'];
+                $atts['show_map'] = ($show_map_val === 'false' || $show_map_val === false) ? 'false' : 'true';
+            }
         }
         
         $client_id = $atts['client_id'];
@@ -4583,7 +4596,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $show_guest_filter = isset($atts['show_guest_filter']) ? $atts['show_guest_filter'] === 'true' : true;
         $filter_bg = $atts['filter_bg'] ?? '';
         $filter_text = $atts['filter_text'] ?? '';
-        
+        $card_radius = $atts['card_radius'] ?? '12';
+        $book_btn_bg = $atts['book_btn_bg'] ?? '';
+        $book_btn_text = $atts['book_btn_text'] ?? '';
+
         // Get room IDs - from shortcode attribute, license, or from deployed site config
         $room_ids = array();
         if (!empty($atts['room_ids'])) {
@@ -5103,7 +5119,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         }
         .gas-room-card {
             border: 1px solid #e0e0e0;
-            border-radius: 12px;
+            border-radius: <?php echo intval($card_radius); ?>px;
             overflow: hidden;
             background: #fff;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
@@ -5237,10 +5253,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             gap: 2px;
         }
         .gas-view-btn {
-            background: <?php echo esc_attr($this->get_effective_button_color()); ?>;
-            color: white !important;
+            background: <?php echo !empty($book_btn_bg) ? esc_attr($book_btn_bg) : esc_attr($this->get_effective_button_color()); ?>;
+            color: <?php echo !empty($book_btn_text) ? esc_attr($book_btn_text) : 'white'; ?> !important;
             padding: 10px 20px;
-            border-radius: 8px;
+            border-radius: <?php echo intval($card_radius); ?>px;
             text-decoration: none;
             font-weight: 600;
             font-size: 14px;

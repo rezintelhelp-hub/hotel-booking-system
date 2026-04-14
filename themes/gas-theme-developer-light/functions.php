@@ -2512,8 +2512,8 @@ function developer_get_api_settings() {
         'page_rooms_enabled' => true, // Always enabled
         'page_rooms_menu_order' => $website_rooms['menu-order'] ?? 1,
         'page_rooms_transparent_header' => $website_rooms['transparent-header'] ?? false,
-        'page_rooms_search_btn_bg' => $website_rooms['search-btn-bg'] ?? '',
-        'page_rooms_search_btn_text' => $website_rooms['search-btn-text'] ?? '',
+        'page_rooms_search_btn_bg' => ($website['pro-settings'] ?? [])['search-btn-bg'] ?: ($website_rooms['search-btn-bg'] ?? ''),
+        'page_rooms_search_btn_text' => ($website['pro-settings'] ?? [])['search-btn-text'] ?: ($website_rooms['search-btn-text'] ?? ''),
         'page_rooms_meta_title' => $website_rooms['meta-title'] ?? '',
         'page_rooms_meta_description' => $website_rooms['meta-description'] ?? '',
 
@@ -2950,10 +2950,14 @@ function developer_get_api_settings() {
         'rooms_show_property_filter' => $website_rooms['show-property-filter'] ?? true,
         'rooms_show_date_filters' => $website_rooms['show-date-filters'] ?? true,
         'rooms_show_guest_filter' => $website_rooms['show-guest-filter'] ?? true,
-        'rooms_filter_bg' => $website_rooms['filter-bg'] ?? null,
+        'rooms_filter_bg' => ($website['pro-settings'] ?? [])['filter-bg'] ?: ($website_rooms['filter-bg'] ?? null),
         'rooms_filter_text' => $website_rooms['filter-text'] ?? null,
         'rooms_bg_color' => $website_rooms['bg'] ?? $website_rooms['bg-color'] ?? null,
         'rooms_text_color' => $website_rooms['text-color'] ?? null,
+        'rooms_card_radius' => ($website['pro-settings'] ?? [])['card-radius'] ?? null,
+        'rooms_show_map' => ($website['pro-settings'] ?? [])['show-map'] ?? 'true',
+        'rooms_book_btn_bg' => ($website['pro-settings'] ?? [])['book-btn-bg'] ?? null,
+        'rooms_book_btn_text' => ($website['pro-settings'] ?? [])['book-btn-text'] ?? null,
         
         // Footer - MULTILINGUAL
         'footer_heading_quicklinks' => developer_get_ml_value($website_footer, 'heading-quicklinks', $lang),
