@@ -87132,8 +87132,19 @@ app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
                 [accountId, app]
             );
             
-            if (result.rows.length > 0 && result.rows[0].settings?.colors) {
-                res.json({ success: true, colors: result.rows[0].settings.colors, fonts: result.rows[0].settings.fonts || {} });
+            if (result.rows.length > 0 && result.rows[0].settings) {
+                const s = result.rows[0].settings;
+                const response = { success: true, colors: s.colors || defaults[app], fonts: s.fonts || {} };
+                // Include reviews-specific fields for the gas-reviews plugin
+                if (app === 'reviews') {
+                    response.source = s.source || 'manual';
+                    response.repuso_widget_id = s.repuso_widget_id || '';
+                    response.hostaway_property_id = s.hostaway_property_id || '';
+                    response.title = s.title || '';
+                    response.subtitle = s.subtitle || '';
+                    response.manual_reviews = s.manual_reviews || [];
+                }
+                res.json(response);
             } else {
                 res.json({ success: true, colors: defaults[app], fonts: {} });
             }
