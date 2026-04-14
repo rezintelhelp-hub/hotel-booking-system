@@ -25508,29 +25508,32 @@ app.put('/api/partner/v1/websites/:websiteId/:section', authenticatePartner, asy
   
   try {
     const { websiteId, section } = req.params;
-    const settings = req.body;
-    
+    let settings = req.body;
+
     // Verify website belongs to partner's client
     const wsResult = await pool.query(`
       SELECT ds.id FROM deployed_sites ds
       JOIN accounts a ON ds.account_id = a.id
       WHERE ds.id = $1 AND a.partner_id = $2
     `, [websiteId, req.partner.id]);
-    
+
     if (wsResult.rows.length === 0) {
       return res.json({ success: false, error: 'Website not found' });
     }
-    
+
     // Valid sections
     const validSections = [
       'header', 'hero', 'intro', 'featured', 'about', 'services',
       'reviews', 'contact', 'footer', 'colors', 'seo'
     ];
-    
+
     if (!validSections.includes(section)) {
       return res.json({ success: false, error: `Invalid section. Must be one of: ${validSections.join(', ')}` });
     }
-    
+
+    // Remap -en fields to account's primary language
+    settings = await remapPartnerLanguageFields(settings, parseInt(websiteId));
+
     // Log history before overwriting
     const existingResult = await pool.query(
       'SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = $2',
@@ -25888,6 +25891,60 @@ async function logSettingsHistory(deployedSiteId, accountId, section, oldSetting
     `, [deployedSiteId, accountId, section, JSON.stringify(old), JSON.stringify(nw), changedFields, syncSource || 'unknown']);
   } catch (e) {
     console.error('Failed to log settings history:', e.message);
+  }
+}
+
+// Remap partner settings to account's primary language
+// Partners send fields like headline-en, title-en etc. If the account's primary
+// language is DE, we remap headline-en → headline-de so content lands in the right field.
+// Fields that already have the correct suffix or are non-text (colours, URLs, booleans) pass through.
+async function remapPartnerLanguageFields(settings, deployedSiteId) {
+  try {
+    const acctResult = await pool.query(
+      'SELECT a.settings FROM accounts a JOIN deployed_sites ds ON ds.account_id = a.id WHERE ds.id = $1',
+      [deployedSiteId]
+    );
+    if (acctResult.rows.length === 0) return settings;
+    const primaryLang = acctResult.rows[0].settings?.primary_language || 'en';
+    if (primaryLang === 'en') return settings; // No remapping needed
+
+    // Known language suffixes
+    const langCodes = ['en', 'fr', 'es', 'de', 'nl', 'it', 'pt', 'pl', 'ru', 'ja', 'zh'];
+    const langSuffixRegex = new RegExp(`-(${langCodes.join('|')})$`);
+
+    // Keys that should NOT be remapped (non-text: colours, urls, images, booleans, numbers)
+    const skipPatterns = ['color', 'bg', 'url', 'image', 'logo', 'icon', 'font', 'size', 'width',
+      'height', 'radius', 'opacity', 'spacing', 'offset', 'scale', 'duration', 'transition',
+      'max-guests', 'enabled', 'show-', 'position', 'layout', 'style', 'type', 'config', 'categories'];
+
+    const remapped = {};
+    for (const [key, value] of Object.entries(settings)) {
+      // Only remap fields ending in -en (the default partner sends)
+      if (key.endsWith('-en')) {
+        const baseKey = key.slice(0, -3); // Remove -en
+        // Skip non-text fields
+        const isSkip = skipPatterns.some(p => baseKey.includes(p));
+        if (isSkip) {
+          remapped[key] = value;
+          continue;
+        }
+        // Check if partner also sent the primary lang version — if so, don't overwrite
+        const primaryKey = baseKey + '-' + primaryLang;
+        if (settings[primaryKey] !== undefined) {
+          remapped[key] = value; // Keep the -en version as-is
+        } else {
+          // Remap: headline-en → headline-de (and don't keep -en copy)
+          remapped[primaryKey] = value;
+          console.log(`[Partner lang remap] ${key} → ${primaryKey} (primary: ${primaryLang})`);
+        }
+      } else {
+        remapped[key] = value;
+      }
+    }
+    return remapped;
+  } catch (e) {
+    console.error('Partner language remap error:', e.message);
+    return settings; // Fall back to original on error
   }
 }
 
@@ -54099,18 +54156,30 @@ app.get('/api/partner/websites/:websiteId/hero', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
     }
     
+    // Get account's primary language
+    const siteResult = await pool.query(
+      'SELECT ds.account_id, a.settings as acct_settings FROM deployed_sites ds JOIN accounts a ON ds.account_id = a.id WHERE ds.id = $1',
+      [deployedSiteId]
+    );
+    const primaryLang = siteResult.rows[0]?.acct_settings?.primary_language || 'en';
+    const pl = primaryLang; // shorthand
+
     const heroResult = await pool.query(
       `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'hero'`,
       [deployedSiteId]
     );
-    
+
     const s = heroResult.rows.length > 0 ? heroResult.rows[0].settings : {};
-    
+
+    // Helper: get field value using primary language, falling back to -en, then unsuffixed
+    const t = (base) => s[`${base}-${pl}`] || s[`${base}-en`] || s[base] || '';
+
     res.json({
       success: true,
       website_id: parseInt(req.params.websiteId),
-      headline: s['headline-en'] || '',
-      subheadline: s['subheadline-en'] || '',
+      primary_language: pl,
+      headline: t('headline'),
+      subheadline: t('subheadline'),
       image_url: s['image-url'] || '',
       mobile_image_url: s['mobile-image-url'] || '',
       video_url: s['video-url'] || '',
@@ -54128,16 +54197,16 @@ app.get('/api/partner/websites/:websiteId/hero', async (req, res) => {
         transition: s['slider-transition'] || 'fade'
       },
       badge: {
-        text: s['button-text-en'] || s['button-text'] || null,
+        text: t('button-text') || null,
         link: s['button-link'] || null,
         bg_color: s['badge-bg'] || null,
         text_color: s['badge-text'] || null,
         border_color: s['badge-border'] || null
       },
       trust_badges: {
-        badge_1: s['trust-1-en'] || s['trust-1'] || null,
-        badge_2: s['trust-2-en'] || s['trust-2'] || null,
-        badge_3: s['trust-3-en'] || s['trust-3'] || null,
+        badge_1: t('trust-1') || null,
+        badge_2: t('trust-2') || null,
+        badge_3: t('trust-3') || null,
         text_color: s['trust-text-color'] || '#ffffff'
       },
       search: {
@@ -54151,14 +54220,14 @@ app.get('/api/partner/websites/:websiteId/hero', async (req, res) => {
         padding: s['search-padding'] || '20',
         scale: s['search-scale'] || '100',
         max_width: s['search-max-width'] || '900',
-        btn_label: s['search-btn-label-en'] || 'Search',
-        checkin_label: s['search-checkin-label-en'] || 'Check In',
-        checkout_label: s['search-checkout-label-en'] || 'Check Out',
-        guests_label: s['search-guests-label-en'] || 'Guests',
-        date_placeholder: s['search-date-placeholder-en'] || 'Select date',
-        guest_singular: s['search-guest-singular-en'] || 'Guest'
+        btn_label: t('search-btn-label') || 'Search',
+        checkin_label: t('search-checkin-label') || 'Check In',
+        checkout_label: t('search-checkout-label') || 'Check Out',
+        guests_label: t('search-guests-label') || 'Guests',
+        date_placeholder: t('search-date-placeholder') || 'Select date',
+        guest_singular: t('search-guest-singular') || 'Guest'
       },
-      menu_title: s['menu-title-en'] || 'Home',
+      menu_title: t('menu-title') || 'Home',
       faq_enabled: s['faq-enabled'] || false,
       meta: {
         title: s['meta-title'] || null,
