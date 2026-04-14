@@ -25531,6 +25531,14 @@ app.put('/api/partner/v1/websites/:websiteId/:section', authenticatePartner, asy
       return res.json({ success: false, error: `Invalid section. Must be one of: ${validSections.join(', ')}` });
     }
     
+    // Log history before overwriting
+    const existingResult = await pool.query(
+      'SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = $2',
+      [websiteId, section]
+    );
+    const oldSettings = existingResult.rows.length > 0 ? existingResult.rows[0].settings : null;
+    await logSettingsHistory(parseInt(websiteId), null, section, oldSettings, settings, 'partner');
+
     // Upsert website settings
     const result = await pool.query(`
       INSERT INTO website_settings (deployed_site_id, section, settings)
@@ -25540,7 +25548,7 @@ app.put('/api/partner/v1/websites/:websiteId/:section', authenticatePartner, asy
         updated_at = NOW()
       RETURNING *
     `, [websiteId, section, JSON.stringify(settings)]);
-    
+
     res.json({ success: true, section, settings: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -25861,6 +25869,28 @@ async function checkSiteFrozenByBlogId(blogId) {
   return { frozen: result.rows[0].site_status === 'frozen' };
 }
 
+// Log settings change to history table for audit/recovery
+async function logSettingsHistory(deployedSiteId, accountId, section, oldSettings, newSettings, syncSource) {
+  try {
+    // Find which fields actually changed
+    const changedFields = [];
+    const old = oldSettings || {};
+    const nw = newSettings || {};
+    for (const key of new Set([...Object.keys(old), ...Object.keys(nw)])) {
+      if (JSON.stringify(old[key]) !== JSON.stringify(nw[key])) {
+        changedFields.push(key);
+      }
+    }
+    if (changedFields.length === 0) return; // No actual changes
+    await pool.query(`
+      INSERT INTO website_settings_history (deployed_site_id, account_id, section, old_settings, new_settings, changed_fields, sync_source)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [deployedSiteId, accountId, section, JSON.stringify(old), JSON.stringify(nw), changedFields, syncSource || 'unknown']);
+  } catch (e) {
+    console.error('Failed to log settings history:', e.message);
+  }
+}
+
 // SAVE settings for a deployed site
 app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
   try {
@@ -25912,6 +25942,10 @@ app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
         mergedSettings[key] = value;
       }
     }
+
+    // Log history before overwriting
+    const oldSettings = existingResult.rows.length > 0 ? existingResult.rows[0].settings : null;
+    await logSettingsHistory(deployedSiteId, site.account_id, section, oldSettings, mergedSettings, 'gas');
 
     // UPSERT: Try update first, then insert
     const updateResult = await pool.query(`
@@ -54176,6 +54210,8 @@ app.put('/api/partner/websites/:websiteId/hero/badge', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No fields provided. Use: text, link, bg_color, text_color, border_color' });
     }
     
+    const oldHeroSettings = heroResult.rows.length > 0 ? heroResult.rows[0].settings : null;
+    await logSettingsHistory(deployedSiteId, site.account_id, 'hero', oldHeroSettings, settings, 'partner');
     if (heroResult.rows.length > 0) {
       await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'hero'`, [JSON.stringify(settings), deployedSiteId]);
     } else {
@@ -54287,6 +54323,8 @@ app.put('/api/partner/websites/:websiteId/hero/search', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No fields provided. Use: btn_bg, btn_text, label_color, max_guests, bg, opacity, radius, padding, scale, max_width' });
     }
     
+    const oldHeroSettings = heroResult.rows.length > 0 ? heroResult.rows[0].settings : null;
+    await logSettingsHistory(deployedSiteId, site.account_id, 'hero', oldHeroSettings, settings, 'partner');
     if (heroResult.rows.length > 0) {
       await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'hero'`, [JSON.stringify(settings), deployedSiteId]);
     } else {
@@ -54336,6 +54374,8 @@ app.put('/api/partner/websites/:websiteId/hero/meta', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No fields provided. Use: meta_title, meta_description' });
     }
     
+    const oldHeroSettings = heroResult.rows.length > 0 ? heroResult.rows[0].settings : null;
+    await logSettingsHistory(deployedSiteId, site.account_id, 'hero', oldHeroSettings, settings, 'partner');
     if (heroResult.rows.length > 0) {
       await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'hero'`, [JSON.stringify(settings), deployedSiteId]);
     } else {
@@ -54598,6 +54638,8 @@ app.put('/api/partner/websites/:websiteId/styles', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No fields provided. Use: primary_color, secondary_color, accent_color, link_color, heading_font, subheading_font, body_font, title_size, subheading_size, body_size, btn_primary_bg, btn_primary_text, btn_radius, featured_bg, about_bg, testimonials_bg, cta_bg, section_spacing, spinner_style, custom_css' });
     }
     
+    const oldStylesSettings = stylesResult.rows.length > 0 ? stylesResult.rows[0].settings : null;
+    await logSettingsHistory(deployedSiteId, site.account_id, 'styles', oldStylesSettings, settings, 'partner');
     if (stylesResult.rows.length > 0) {
       await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'styles'`, [JSON.stringify(settings), deployedSiteId]);
     } else {
@@ -73120,6 +73162,21 @@ pool.query(`
     UNIQUE(account_id, section)
   )
 `).catch(err => console.log('Website settings table may already exist'));
+
+// Create website_settings_history table — audit log for all changes
+pool.query(`
+  CREATE TABLE IF NOT EXISTS website_settings_history (
+    id SERIAL PRIMARY KEY,
+    deployed_site_id INTEGER,
+    account_id INTEGER,
+    section VARCHAR(100),
+    old_settings JSONB,
+    new_settings JSONB,
+    changed_fields TEXT[],
+    sync_source VARCHAR(50),
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )
+`).catch(err => console.log('website_settings_history table may already exist'));
 
 // Migrate old client_id to account_id if needed
 pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS account_id INTEGER`).catch(() => {});
