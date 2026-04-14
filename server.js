@@ -1907,6 +1907,7 @@ app.get('/pricing', (req, res) => res.sendFile('pricing.html', { root: 'public' 
 app.get('/partners', (req, res) => res.sendFile('partners.html', { root: 'public' }));
 app.get('/for-destinations', (req, res) => res.sendFile('for-destinations.html', { root: 'public' }));
 app.get('/contact', (req, res) => res.sendFile('contact.html', { root: 'public' }));
+app.get('/gallery', (req, res) => res.sendFile('gallery.html', { root: 'public' }));
 
 // Enquiry form submission — stores to gas_enquiries table
 app.post('/api/enquiries', async (req, res) => {
