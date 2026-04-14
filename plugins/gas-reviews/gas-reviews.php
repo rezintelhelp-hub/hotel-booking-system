@@ -179,6 +179,8 @@ class GAS_Reviews {
             'card_bg' => '',
             'text_color' => '',
             'star_color' => '',
+            'layout' => 'grid',
+            'card_radius' => '12',
         ), $atts, 'gas_reviews');
 
         $colors = $this->get_colors();
@@ -214,12 +216,23 @@ class GAS_Reviews {
         $room_id = sanitize_text_field($atts['room_id']);
         $uid = 'gas-reviews-' . wp_rand(1000, 9999);
 
+        $layout = sanitize_text_field($atts['layout']);
+        $card_radius = intval($atts['card_radius']);
+
         ob_start();
         ?>
         <div class="gas-reviews-wrap" style="background:<?php echo $bg; ?>; font-family:<?php echo $body_font; ?>;">
             <style>
                 .gas-reviews-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:20px; max-width:1200px; margin:0 auto; padding:0 20px; }
-                .gas-review-card { background:<?php echo $card_bg; ?>; border-radius:14px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); border:1px solid rgba(0,0,0,0.06); }
+                .gas-reviews-slider-wrap { position:relative; overflow:hidden; padding:0 60px; max-width:1200px; margin:0 auto; }
+                .gas-reviews-slider { display:flex; transition:transform 0.5s ease; }
+                .gas-reviews-slider > div { flex:0 0 25%; min-width:260px; padding:0 8px; box-sizing:border-box; }
+                .gas-review-nav { position:absolute; top:50%; transform:translateY(-50%); width:44px; height:44px; border-radius:50%; background:<?php echo $star_color; ?>; border:2px solid <?php echo $star_color; ?>; cursor:pointer; font-size:20px; color:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); z-index:10; transition:all 0.3s; }
+                .gas-review-nav:hover { background:<?php echo $card_bg; ?>; color:<?php echo $star_color; ?>; }
+                .gas-review-nav.prev { left:0; }
+                .gas-review-nav.next { right:0; }
+                .gas-review-card { background:<?php echo $card_bg; ?>; border-radius:<?php echo $card_radius; ?>px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); border:1px solid rgba(0,0,0,0.06); }
+                .gas-review-slider-card { background:<?php echo $card_bg; ?>; border-radius:<?php echo $card_radius; ?>px; padding:20px; height:260px; display:flex; flex-direction:column; border:1px solid rgba(255,255,255,0.08); }
                 .gas-review-header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
                 .gas-review-avatar { width:44px; height:44px; border-radius:50%; background:<?php echo $accent; ?>15; display:flex; align-items:center; justify-content:center; font-size:1.1rem; font-weight:700; color:<?php echo $accent; ?>; flex-shrink:0; }
                 .gas-review-meta { flex:1; }
@@ -229,11 +242,22 @@ class GAS_Reviews {
                 .gas-review-text { font-size:0.9rem; line-height:1.7; color:<?php echo $text; ?>; }
                 .gas-review-source { display:inline-block; font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; padding:3px 8px; border-radius:4px; background:<?php echo $accent; ?>10; color:<?php echo $accent; ?>; margin-top:10px; }
                 .gas-reviews-loading { text-align:center; padding:60px 20px; color:<?php echo $text2; ?>; }
-                @media (max-width:768px) { .gas-reviews-grid { grid-template-columns:1fr; } }
+                @media (max-width:768px) { .gas-reviews-grid { grid-template-columns:1fr; } .gas-reviews-slider > div { flex:0 0 100%; min-width:100%; } .gas-reviews-slider-wrap { padding:0 40px; } }
+                @media (max-width:1024px) and (min-width:769px) { .gas-reviews-slider > div { flex:0 0 50%; } }
             </style>
+            <?php if ($layout === 'slider') : ?>
+            <div class="gas-reviews-slider-wrap">
+                <div class="gas-reviews-slider" id="<?php echo esc_attr($uid); ?>">
+                    <div class="gas-reviews-loading">Loading reviews...</div>
+                </div>
+                <button class="gas-review-nav prev" onclick="gasRevSlide_<?php echo esc_attr($uid); ?>(-1)">&#8249;</button>
+                <button class="gas-review-nav next" onclick="gasRevSlide_<?php echo esc_attr($uid); ?>(1)">&#8250;</button>
+            </div>
+            <?php else : ?>
             <div class="gas-reviews-grid" id="<?php echo esc_attr($uid); ?>">
                 <div class="gas-reviews-loading" style="grid-column:1/-1;">Loading reviews...</div>
             </div>
+            <?php endif; ?>
         </div>
         <script>
         (function(){
@@ -243,6 +267,8 @@ class GAS_Reviews {
             var roomId = <?php echo json_encode($room_id); ?>;
             var limit = <?php echo $limit; ?>;
             var starColor = <?php echo json_encode($star_color); ?>;
+            var layout = <?php echo json_encode($layout); ?>;
+            var cardRadius = <?php echo json_encode($card_radius); ?>;
 
             var fetchUrl = '';
             if (widgetId) {
@@ -280,36 +306,67 @@ class GAS_Reviews {
                     var container = document.getElementById(containerId);
                     var reviews = data.reviews || [];
                     if (reviews.length === 0) {
-                        container.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:#64748b;padding:40px;">No reviews yet.</p>';
+                        container.innerHTML = '<p style="text-align:center;color:#64748b;padding:40px;">No reviews yet.</p>';
                         return;
                     }
                     var html = '';
-                    reviews.forEach(function(r){
-                        var name = r.reviewer_name || r.guest_name || 'Guest';
-                        var initial = name.charAt(0).toUpperCase();
-                        var rating = r.rating || 0;
-                        var ratingScale = r.rating_scale || 5;
-                        var text = r.text || r.comment || '';
-                        var source = r.source || r.channel_name || '';
-                        var date = r.date || r.review_date || '';
-                        if (text.length > 250) text = text.substring(0, 247) + '...';
 
-                        html += '<div class="gas-review-card" itemscope itemtype="https://schema.org/Review">';
-                        html += '<div class="gas-review-header">';
-                        html += '<div class="gas-review-avatar">' + initial + '</div>';
-                        html += '<div class="gas-review-meta">';
-                        html += '<div class="gas-review-name" itemprop="author">' + name + '</div>';
-                        if (date) html += '<div class="gas-review-date">' + formatDate(date) + '</div>';
-                        html += '</div></div>';
-                        if (rating > 0) html += '<div class="gas-review-stars">' + renderStars(rating, ratingScale) + '</div>';
-                        if (text) html += '<div class="gas-review-text" itemprop="reviewBody">' + text + '</div>';
-                        if (source) html += '<span class="gas-review-source">' + source + '</span>';
-                        html += '</div>';
-                    });
-                    container.innerHTML = html;
+                    if (layout === 'slider') {
+                        // Slider layout — horizontal scrolling cards
+                        reviews.forEach(function(r){
+                            var name = r.reviewer_name || r.guest_name || 'Guest';
+                            var rating = r.rating || 5;
+                            var ratingScale = r.rating_scale || 5;
+                            var text = r.text || r.comment || '';
+                            var source = r.source || r.channel_name || '';
+                            if (text.length > 160) text = text.substring(0, 157) + '...';
+                            html += '<div><div class="gas-review-slider-card">';
+                            html += '<div class="gas-review-stars" style="margin-bottom:10px;">' + renderStars(rating, ratingScale) + '</div>';
+                            html += '<p style="flex:1;margin:0 0 12px;overflow:hidden;opacity:0.9;font-size:0.95rem;line-height:1.6;">&ldquo;' + text + '&rdquo;</p>';
+                            html += '<div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:12px;margin-top:auto;">';
+                            html += '<div style="font-weight:600;font-size:14px;">' + name + '</div>';
+                            if (source) html += '<div style="font-size:12px;opacity:0.6;margin-top:2px;">' + source + '</div>';
+                            html += '</div></div></div>';
+                        });
+                        container.innerHTML = html;
+                        // Auto-slide
+                        var pos = 0;
+                        var total = reviews.length;
+                        var visible = window.innerWidth < 768 ? 1 : window.innerWidth < 1024 ? 2 : window.innerWidth < 1280 ? 3 : 4;
+                        var max = Math.max(0, total - visible);
+                        window['gasRevSlide_' + containerId] = function(dir) {
+                            pos = Math.max(0, Math.min(max, pos + dir));
+                            container.style.transform = 'translateX(-' + (pos * (100 / total)) + '%)';
+                        };
+                        setInterval(function() { pos = pos >= max ? 0 : pos + 1; container.style.transform = 'translateX(-' + (pos * (100 / total)) + '%)'; }, 5000);
+                    } else {
+                        // Grid layout — card grid
+                        reviews.forEach(function(r){
+                            var name = r.reviewer_name || r.guest_name || 'Guest';
+                            var initial = name.charAt(0).toUpperCase();
+                            var rating = r.rating || 0;
+                            var ratingScale = r.rating_scale || 5;
+                            var text = r.text || r.comment || '';
+                            var source = r.source || r.channel_name || '';
+                            var date = r.date || r.review_date || '';
+                            if (text.length > 250) text = text.substring(0, 247) + '...';
+                            html += '<div class="gas-review-card" itemscope itemtype="https://schema.org/Review">';
+                            html += '<div class="gas-review-header">';
+                            html += '<div class="gas-review-avatar">' + initial + '</div>';
+                            html += '<div class="gas-review-meta">';
+                            html += '<div class="gas-review-name" itemprop="author">' + name + '</div>';
+                            if (date) html += '<div class="gas-review-date">' + formatDate(date) + '</div>';
+                            html += '</div></div>';
+                            if (rating > 0) html += '<div class="gas-review-stars">' + renderStars(rating, ratingScale) + '</div>';
+                            if (text) html += '<div class="gas-review-text" itemprop="reviewBody">' + text + '</div>';
+                            if (source) html += '<span class="gas-review-source">' + source + '</span>';
+                            html += '</div>';
+                        });
+                        container.innerHTML = html;
+                    }
                 })
                 .catch(function(e){
-                    document.getElementById(containerId).innerHTML = '<p style="grid-column:1/-1;text-align:center;color:#ef4444;padding:40px;">Error loading reviews.</p>';
+                    document.getElementById(containerId).innerHTML = '<p style="text-align:center;color:#ef4444;padding:40px;">Error loading reviews.</p>';
                 });
         })();
         </script>
