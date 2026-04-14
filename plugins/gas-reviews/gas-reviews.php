@@ -176,6 +176,7 @@ class GAS_Reviews {
             'columns' => 3,
             'widget_id' => '',
             'room_id' => '',
+            'bg_color' => '',
             'card_bg' => '',
             'text_color' => '',
             'star_color' => '',
@@ -185,6 +186,7 @@ class GAS_Reviews {
 
         $colors = $this->get_colors();
         // Allow shortcode attribute overrides for Pro Builder integration
+        if (!empty($atts['bg_color'])) $colors['bg'] = $atts['bg_color'];
         if (!empty($atts['card_bg'])) $colors['card_bg'] = $atts['card_bg'];
         if (!empty($atts['text_color'])) { $colors['text'] = $atts['text_color']; $colors['text_secondary'] = $atts['text_color']; }
         if (!empty($atts['star_color'])) $colors['star'] = $atts['star_color'];
@@ -214,25 +216,25 @@ class GAS_Reviews {
         $body_font = esc_attr($fonts['body']);
         $limit = intval($atts['limit']);
         $room_id = sanitize_text_field($atts['room_id']);
-        $uid = 'gas-reviews-' . wp_rand(1000, 9999);
+        $uid = 'gasreviews' . wp_rand(1000, 9999);
 
         $layout = sanitize_text_field($atts['layout']);
         $card_radius = intval($atts['card_radius']);
 
         ob_start();
         ?>
-        <div class="gas-reviews-wrap" style="background:<?php echo $bg; ?>; font-family:<?php echo $body_font; ?>;">
+        <div class="gas-reviews-wrap" style="background:<?php echo $bg; ?>; font-family:<?php echo $body_font; ?>; padding:40px 0;">
             <style>
                 .gas-reviews-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:20px; max-width:1200px; margin:0 auto; padding:0 20px; }
-                .gas-reviews-slider-wrap { position:relative; overflow:hidden; padding:0 60px; max-width:1200px; margin:0 auto; }
-                .gas-reviews-slider { display:flex; transition:transform 0.5s ease; }
-                .gas-reviews-slider > div { flex:0 0 25%; min-width:260px; padding:0 8px; box-sizing:border-box; }
+                .gas-reviews-slider-wrap { position:relative; overflow:hidden; margin:0 16px; padding:16px 50px; }
+                .gas-reviews-slider { display:flex; transition:transform 0.5s ease; padding:16px 0; }
+                .gas-reviews-slider > div { flex:0 0 25%; min-width:220px; padding:0 16px; box-sizing:border-box; }
                 .gas-review-nav { position:absolute; top:50%; transform:translateY(-50%); width:44px; height:44px; border-radius:50%; background:<?php echo $star_color; ?>; border:2px solid <?php echo $star_color; ?>; cursor:pointer; font-size:20px; color:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); z-index:10; transition:all 0.3s; }
                 .gas-review-nav:hover { background:<?php echo $card_bg; ?>; color:<?php echo $star_color; ?>; }
                 .gas-review-nav.prev { left:0; }
                 .gas-review-nav.next { right:0; }
                 .gas-review-card { background:<?php echo $card_bg; ?>; border-radius:<?php echo $card_radius; ?>px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); border:1px solid rgba(0,0,0,0.06); }
-                .gas-review-slider-card { background:<?php echo $card_bg; ?>; border-radius:<?php echo $card_radius; ?>px; padding:20px; height:260px; display:flex; flex-direction:column; border:1px solid rgba(255,255,255,0.08); }
+                .gas-review-slider-card { background:<?php echo $card_bg; ?>; border-radius:<?php echo $card_radius; ?>px; padding:24px; height:280px; display:flex; flex-direction:column; justify-content:flex-start; overflow:hidden; text-align:left; box-shadow:0 4px 20px rgba(0,0,0,0.15); }
                 .gas-review-header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
                 .gas-review-avatar { width:44px; height:44px; border-radius:50%; background:<?php echo $accent; ?>15; display:flex; align-items:center; justify-content:center; font-size:1.1rem; font-weight:700; color:<?php echo $accent; ?>; flex-shrink:0; }
                 .gas-review-meta { flex:1; }
@@ -241,9 +243,11 @@ class GAS_Reviews {
                 .gas-review-stars { font-size:1.1rem; letter-spacing:1px; margin-bottom:10px; }
                 .gas-review-text { font-size:0.9rem; line-height:1.7; color:<?php echo $text; ?>; }
                 .gas-review-source { display:inline-block; font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; padding:3px 8px; border-radius:4px; background:<?php echo $accent; ?>10; color:<?php echo $accent; ?>; margin-top:10px; }
+                .gas-reviews-wrap { width:calc(100% - 200px) !important; max-width:calc(100% - 200px) !important; margin-left:auto !important; margin-right:auto !important; }
+                .gas-reviews-wrap p, .gas-reviews-wrap h2, .gas-reviews-wrap h3 { padding-left:0 !important; padding-right:0 !important; }
                 .gas-reviews-loading { text-align:center; padding:60px 20px; color:<?php echo $text2; ?>; }
-                @media (max-width:768px) { .gas-reviews-grid { grid-template-columns:1fr; } .gas-reviews-slider > div { flex:0 0 100%; min-width:100%; } .gas-reviews-slider-wrap { padding:0 40px; } }
-                @media (max-width:1024px) and (min-width:769px) { .gas-reviews-slider > div { flex:0 0 50%; } }
+                @media (max-width:768px) { .gas-reviews-wrap { padding:24px 0 !important; } .gas-reviews-grid { grid-template-columns:1fr; } .gas-reviews-slider > div { flex:0 0 100%; min-width:100%; } .gas-reviews-slider-wrap { padding:0 40px; } }
+                @media (max-width:1024px) and (min-width:769px) { .gas-reviews-slider > div { flex:0 0 50%; min-width:auto; } }
             </style>
             <?php if ($layout === 'slider') : ?>
             <div class="gas-reviews-slider-wrap">
@@ -319,11 +323,11 @@ class GAS_Reviews {
                             var ratingScale = r.rating_scale || 5;
                             var text = r.text || r.comment || '';
                             var source = r.source || r.channel_name || '';
-                            if (text.length > 160) text = text.substring(0, 157) + '...';
+                            if (text.length > 300) text = text.substring(0, 297) + '...';
                             html += '<div><div class="gas-review-slider-card">';
                             html += '<div class="gas-review-stars" style="margin-bottom:10px;">' + renderStars(rating, ratingScale) + '</div>';
-                            html += '<p style="flex:1;margin:0 0 12px;overflow:hidden;opacity:0.9;font-size:0.95rem;line-height:1.6;">&ldquo;' + text + '&rdquo;</p>';
-                            html += '<div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:12px;margin-top:auto;">';
+                            html += '<p style="margin:0;font-size:1rem;line-height:1.6;text-align:left;">&ldquo;' + text + '&rdquo;</p>';
+                            html += '<div style="padding-top:12px;margin-top:16px;">';
                             html += '<div style="font-weight:600;font-size:14px;">' + name + '</div>';
                             if (source) html += '<div style="font-size:12px;opacity:0.6;margin-top:2px;">' + source + '</div>';
                             html += '</div></div></div>';

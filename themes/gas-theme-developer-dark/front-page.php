@@ -117,6 +117,7 @@ $usp_bg = $api['usp_bg'] ?? '#f1f0eb';
 $usp_title_color = $api['usp_title_color'] ?? '#1e293b';
 $usp_text_color = $api['usp_text_color'] ?? '#64748b';
 $usp_card_bg = $api['usp_card_bg'] ?? '#ffffff';
+$usp_bottom_bg = $api['usp_bottom_bg'] ?? '#ffffff';
 $usp_card_title_size = $api['usp_card_title_size'] ?? '18';
 $usp_items = array();
 for ($i = 1; $i <= 6; $i++) {
@@ -328,7 +329,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
 
 <?php if ($usp_enabled && count($usp_items) > 0) : ?>
 <!-- USP / What We Offer Section -->
-<section class="developer-section developer-usp" style="background: <?php echo esc_attr($usp_bg); ?>; --usp-card-title-size: <?php echo esc_attr($usp_card_title_size); ?>px;">
+<section class="developer-section developer-usp" style="background: <?php echo esc_attr($usp_bg); ?>; --usp-card-title-size: <?php echo esc_attr($usp_card_title_size); ?>px; --usp-bottom-bg: <?php echo esc_attr($usp_bottom_bg); ?>;">
     <div class="developer-container">
         <?php if ($usp_title) : ?>
             <h2 class="developer-section-title" style="color: <?php echo esc_attr($usp_title_color); ?>;"><?php echo esc_html($usp_title); ?></h2>

@@ -2841,6 +2841,7 @@ function developer_get_api_settings() {
         'usp_title_color' => $website_usp['title-color'] ?? '#1e293b',
         'usp_text_color' => $website_usp['text-color'] ?? '#64748b',
         'usp_card_bg' => $website_usp['card-bg'] ?? '#ffffff',
+        'usp_bottom_bg' => $website_usp['bottom-bg'] ?? '#ffffff',
         'usp_card_title_size' => $website_usp['card-title-size'] ?? '18',
         'usp_item_1_icon' => $website_usp['item-1-icon'] ?? '',
         'usp_item_1_image' => $website_usp['item-1-image-url'] ?? '',

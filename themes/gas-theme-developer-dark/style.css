@@ -1112,6 +1112,22 @@ img {
     margin-bottom: calc(32px + var(--developer-section-spacing, 20px));
 }
 
+.developer-usp::after {
+    content: '';
+    position: absolute;
+    bottom: calc(-32px - var(--developer-section-spacing, 20px));
+    left: 0;
+    right: 0;
+    height: calc(50% + 32px + var(--developer-section-spacing, 20px));
+    background: var(--usp-bottom-bg, #ffffff);
+    z-index: 1;
+}
+
+.developer-usp .developer-container {
+    position: relative;
+    z-index: 2;
+}
+
 .developer-usp-grid {
     display: grid;
     gap: 32px;
