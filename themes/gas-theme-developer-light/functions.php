@@ -2468,7 +2468,7 @@ function developer_get_api_settings() {
         'btn_secondary_text' => $website_styles['btn-secondary-text'] ?? null,
         'btn_radius' => $website_styles['btn-radius'] ?? null,
         'section_spacing' => $website_styles['section-spacing'] ?? null,
-        'spinner_style' => $website_styles['spinner-style'] ?? 'compass',
+        'spinner_style' => $website_styles['spinner-style'] ?? 'circles',
         'custom_css' => $website_styles['custom-css'] ?? null,
 
         // Currency
