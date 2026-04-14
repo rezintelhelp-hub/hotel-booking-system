@@ -87228,7 +87228,7 @@ app.get('/api/public/gallery', async (req, res) => {
       site_name: 'RocketStay',
       site_url: 'https://book.rocketstay.com/',
       domain: 'book.rocketstay.com',
-      hero_image: null
+      hero_image: 'https://book.rocketstay.com/wp-content/uploads/2026/02/LARGE-HORIZONTAL-2.webp'
     });
 
     // Shuffle the full array so custom server sites mix in randomly
