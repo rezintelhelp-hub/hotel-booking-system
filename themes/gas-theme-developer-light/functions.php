@@ -2967,7 +2967,45 @@ function developer_get_api_settings() {
         'footer_text' => $website_footer['text'] ?? $website_footer['text-color'] ?? null,
         'footer_layout' => $website_footer['layout'] ?? 'default',
         'footer_show_powered_by' => $website_footer['show-powered-by'] ?? true,
-        
+
+        // Footer Band 1: CTA
+        'footer_cta_enabled' => $website_footer['cta-enabled'] ?? false,
+        'footer_cta_heading' => $website_footer['cta-heading'] ?? '',
+        'footer_cta_text' => $website_footer['cta-text'] ?? '',
+        'footer_cta_btn_text' => $website_footer['cta-btn-text'] ?? '',
+        'footer_cta_btn_link' => $website_footer['cta-btn-link'] ?? '',
+        'footer_cta_btn_bg' => $website_footer['cta-btn-bg'] ?? '#ffffff',
+        'footer_cta_btn_style' => $website_footer['cta-btn-style'] ?? 'outline',
+        'footer_cta_bg' => $website_footer['cta-bg'] ?? '#1e293b',
+        'footer_cta_text_color' => $website_footer['cta-text-color'] ?? '#ffffff',
+
+        // Footer Band 2: Info / Partners
+        'footer_info_heading' => $website_footer['info-heading'] ?? '',
+        'footer_info_bg' => $website_footer['info-bg'] ?? '',
+        'footer_info_text_color' => $website_footer['info-text-color'] ?? '#1a1a1a',
+        'footer_partner_logo_1' => $website_footer['partner-logo-1-image-url'] ?? '',
+        'footer_partner_logo_2' => $website_footer['partner-logo-2-image-url'] ?? '',
+        'footer_partner_logo_3' => $website_footer['partner-logo-3-image-url'] ?? '',
+        'footer_partner_logo_4' => $website_footer['partner-logo-4-image-url'] ?? '',
+        'footer_partner_logo_5' => $website_footer['partner-logo-5-image-url'] ?? '',
+        'footer_partner_logo_6' => $website_footer['partner-logo-6-image-url'] ?? '',
+        'footer_partner_logo_7' => $website_footer['partner-logo-7-image-url'] ?? '',
+        'footer_partner_logo_8' => $website_footer['partner-logo-8-image-url'] ?? '',
+
+        // Footer Social (also used by burger theme)
+        'footer_social_facebook' => $website_footer['social-facebook'] ?? '',
+        'footer_social_instagram' => $website_footer['social-instagram'] ?? '',
+        'footer_social_twitter' => $website_footer['social-twitter'] ?? '',
+        'footer_social_youtube' => $website_footer['social-youtube'] ?? '',
+        'footer_social_linkedin' => $website_footer['social-linkedin'] ?? '',
+        'footer_social_tiktok' => $website_footer['social-tiktok'] ?? '',
+        'footer_social_pinterest' => $website_footer['social-pinterest'] ?? '',
+        'footer_social_tripadvisor' => $website_footer['social-tripadvisor'] ?? '',
+
+        // Aliases for burger theme compatibility
+        'footer_bg_color' => $website_footer['bg'] ?? $website_footer['bg-color'] ?? '#1a1a1a',
+        'footer_text_color' => $website_footer['text'] ?? $website_footer['text-color'] ?? '#ffffff',
+
         // Language settings from account
         'supported_languages' => $config['languages']['supported'] ?? array('en'),
         'primary_language' => $config['languages']['primary'] ?? 'en',
