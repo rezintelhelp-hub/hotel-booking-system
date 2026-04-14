@@ -87197,20 +87197,19 @@ app.post('/api/languages/:code', async (req, res) => {
   }
 });
 
-// GET /api/public/gallery - Live client sites with custom domains
+// GET /api/public/gallery - Live client sites for portfolio
 app.get('/api/public/gallery', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT ds.id, ds.site_name, ds.site_url,
              ws.settings->>'image-url' AS hero_image,
-             ws_slide.settings->>'slide-1-url' AS slide_image
+             ws.settings->>'slide-1-url' AS slide_image
       FROM deployed_sites ds
       LEFT JOIN website_settings ws ON ws.deployed_site_id = ds.id AND ws.section = 'hero'
-      LEFT JOIN website_settings ws_slide ON ws_slide.deployed_site_id = ds.id AND ws_slide.section = 'hero'
       WHERE ds.site_url IS NOT NULL
         AND ds.site_url NOT LIKE '%sites.gas.travel%'
         AND ds.site_status IS DISTINCT FROM 'frozen'
-      ORDER BY ds.site_name
+      ORDER BY RANDOM()
     `);
 
     const sites = result.rows.map(row => {
@@ -87223,6 +87222,20 @@ app.get('/api/public/gallery', async (req, res) => {
         hero_image: row.hero_image || row.slide_image || null
       };
     });
+
+    // Add sites on custom servers (not in deployed_sites)
+    sites.push({
+      site_name: 'RocketStay',
+      site_url: 'https://book.rocketstay.com/',
+      domain: 'book.rocketstay.com',
+      hero_image: null
+    });
+
+    // Shuffle the full array so custom server sites mix in randomly
+    for (let i = sites.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [sites[i], sites[j]] = [sites[j], sites[i]];
+    }
 
     res.json({ success: true, sites });
   } catch (error) {
