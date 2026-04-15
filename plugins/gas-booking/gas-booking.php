@@ -4635,6 +4635,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $show_filters = $atts['show_filters'] === 'true';
         $show_amenity_filter = $atts['show_amenity_filter'] === 'true';
         $show_location_filter = $atts['show_location_filter'] === 'true';
+        // debug removed
         $show_property_filter = isset($atts['show_property_filter']) ? $atts['show_property_filter'] === 'true' : true;
         $show_date_filters = isset($atts['show_date_filters']) ? $atts['show_date_filters'] === 'true' : true;
         $show_guest_filter = isset($atts['show_guest_filter']) ? $atts['show_guest_filter'] === 'true' : true;
