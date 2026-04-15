@@ -3891,6 +3891,10 @@ class GAS_Booking {
             if (!empty($api_cache['website']['styles']['btn-radius'])) {
                 $btn_radius = $api_cache['website']['styles']['btn-radius'];
             }
+            // Page-rooms btn-radius overrides global styles btn-radius for the plugin
+            if (!empty($api_cache['website']['page-rooms']['btn-radius'])) {
+                $btn_radius = $api_cache['website']['page-rooms']['btn-radius'];
+            }
         } else {
             // Get from Customizer
             $btn_bg = get_theme_mod('gas_booking_btn_bg', '#2563eb');
@@ -4575,6 +4579,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         'rooms_book_btn_bg' => $s['book-btn-bg'] ?? null,
                         'rooms_book_btn_text' => $s['book-btn-text'] ?? null,
                         'rooms_btn_radius' => $s['btn-radius'] ?? null,
+                        'page_rooms_btn_radius' => $r['btn-radius'] ?? null,
                         'rooms_show_map' => $s['show-map'] ?? 'true',
                         'rooms_show_filters' => isset($s['show-filters']) ? ($s['show-filters'] === 'true') : null,
                         'rooms_show_date_filters' => isset($s['show-date-filters']) ? ($s['show-date-filters'] === 'true') : null,
@@ -4641,6 +4646,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             }
             if (isset($api_settings['rooms_btn_radius']) && $api_settings['rooms_btn_radius'] !== null) {
                 $atts['btn_radius'] = $api_settings['rooms_btn_radius'];
+            } elseif (isset($api_settings['page_rooms_btn_radius']) && $api_settings['page_rooms_btn_radius'] !== null && $api_settings['page_rooms_btn_radius'] !== '') {
+                $atts['btn_radius'] = $api_settings['page_rooms_btn_radius'];
             } elseif (isset($api_settings['btn_radius']) && $api_settings['btn_radius'] !== null) {
                 $atts['btn_radius'] = $api_settings['btn_radius'];
             }
@@ -6303,6 +6310,19 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             if (!empty($pro_cache['rooms_book_btn_text'])) $book_btn_text = $pro_cache['rooms_book_btn_text'];
             if (isset($pro_cache['rooms_btn_radius']) && $pro_cache['rooms_btn_radius'] !== null) $book_btn_radius = $pro_cache['rooms_btn_radius'];
             if (isset($pro_cache['rooms_card_radius']) && $pro_cache['rooms_card_radius'] !== null) $card_radius_booking = $pro_cache['rooms_card_radius'];
+            // Page-rooms btn-radius fallback (standard Web Builder)
+            if ($book_btn_radius === '' && isset($pro_cache['page_rooms_btn_radius']) && $pro_cache['page_rooms_btn_radius'] !== null && $pro_cache['page_rooms_btn_radius'] !== '') {
+                $book_btn_radius = $pro_cache['page_rooms_btn_radius'];
+            }
+        }
+        // Also check standard theme API settings for btn_radius
+        if ($book_btn_radius === '' && function_exists('developer_get_api_settings')) {
+            $dev_api = developer_get_api_settings();
+            if (isset($dev_api['page_rooms_btn_radius']) && $dev_api['page_rooms_btn_radius'] !== null && $dev_api['page_rooms_btn_radius'] !== '') {
+                $book_btn_radius = $dev_api['page_rooms_btn_radius'];
+            } elseif (isset($dev_api['btn_radius']) && $dev_api['btn_radius'] !== null) {
+                $book_btn_radius = $dev_api['btn_radius'];
+            }
         }
 
         ob_start();
