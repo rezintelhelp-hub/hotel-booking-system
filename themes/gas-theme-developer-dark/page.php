@@ -45,6 +45,11 @@ $api = function_exists('developer_get_api_settings') ? developer_get_api_setting
 // Get primary color for accents
 $primary_color = $api['primary_color'] ?? get_theme_mod('developer_primary_color', '#2563eb');
 
+// Border radius settings
+$btn_radius  = $api['btn_radius'] ?? '8';
+$card_radius = $api['card_radius'] ?? 12;
+$lg_radius   = $api['lg_radius'] ?? 16;
+
 // --- GAS Page Sections: check for custom sections before default rendering ---
 require_once get_template_directory() . '/gas-page-sections.php';
 if (gas_render_page_sections($page_slug, $primary_color)) {
@@ -218,7 +223,7 @@ if ($special_page === 'about') {
                     if (empty($story)) $story = $api['about_text'] ?? get_theme_mod('developer_about_text', '');
                     
                     // Common image styles
-                    $img_style_base = 'max-width: 380px; width: 45%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); margin-bottom: 1rem;';
+                    $img_style_base = 'max-width: 380px; width: 45%; border-radius: ' . esc_attr($lg_radius) . 'px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); margin-bottom: 1rem;';
                     $img_style_left = $img_style_base . ' float: left; margin-right: 2rem;';
                     $img_style_right = $img_style_base . ' float: right; margin-left: 2rem;';
                 ?>
@@ -289,18 +294,18 @@ if ($special_page === 'about') {
                                 <h2 style="font-size: 1.5rem; font-weight: 700; color: <?php echo esc_attr($page_title_color); ?>; margin: 0 0 24px;"><?php echo esc_html($ct['send_heading']); ?></h2>
                                 <form style="display: flex; flex-direction: column; gap: 20px;">
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                                        <div><label style="display: block; font-weight: 600; margin-bottom: 6px;"><?php echo esc_html($ct['name']); ?> *</label><input type="text" required style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px;"></div>
-                                        <div><label style="display: block; font-weight: 600; margin-bottom: 6px;"><?php echo esc_html($ct['email']); ?> *</label><input type="email" required style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px;"></div>
+                                        <div><label style="display: block; font-weight: 600; margin-bottom: 6px;"><?php echo esc_html($ct['name']); ?> *</label><input type="text" required style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: <?php echo esc_attr($btn_radius); ?>px;"></div>
+                                        <div><label style="display: block; font-weight: 600; margin-bottom: 6px;"><?php echo esc_html($ct['email']); ?> *</label><input type="email" required style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: <?php echo esc_attr($btn_radius); ?>px;"></div>
                                     </div>
-                                    <div><label style="display: block; font-weight: 600; margin-bottom: 6px;"><?php echo esc_html($ct['message']); ?> *</label><textarea rows="5" required style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px;"></textarea></div>
-                                    <button type="submit" style="background: <?php echo esc_attr($primary_color); ?>; color: white; border: none; padding: 16px 32px; border-radius: 10px; font-weight: 600; cursor: pointer;"><?php echo esc_html($ct['send']); ?></button>
+                                    <div><label style="display: block; font-weight: 600; margin-bottom: 6px;"><?php echo esc_html($ct['message']); ?> *</label><textarea rows="5" required style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: <?php echo esc_attr($btn_radius); ?>px;"></textarea></div>
+                                    <button type="submit" style="background: <?php echo esc_attr($primary_color); ?>; color: white; border: none; padding: 16px 32px; border-radius: <?php echo esc_attr($btn_radius); ?>px; font-weight: 600; cursor: pointer;"><?php echo esc_html($ct['send']); ?></button>
                                 </form>
                             </div>
                             <div>
                                 <h2 style="font-size: 1.5rem; font-weight: 700; color: <?php echo esc_attr($page_title_color); ?>; margin: 0 0 24px;"><?php echo esc_html($ct['touch']); ?></h2>
-                                <?php if ($phone) : ?><div style="display: flex; gap: 16px; margin-bottom: 20px;"><div style="width: 50px; height: 50px; background: <?php echo esc_attr($primary_color); ?>15; border-radius: 12px; display: flex; align-items: center; justify-content: center;">📞</div><div><strong><?php echo esc_html($ct['phone']); ?></strong><br><a href="tel:<?php echo preg_replace('/[^0-9+]/', '', $phone); ?>" style="color: <?php echo esc_attr($primary_color); ?>;"><?php echo esc_html($phone); ?></a></div></div><?php endif; ?>
-                                <?php if ($email) : ?><div style="display: flex; gap: 16px; margin-bottom: 20px;"><div style="width: 50px; height: 50px; background: <?php echo esc_attr($primary_color); ?>15; border-radius: 12px; display: flex; align-items: center; justify-content: center;">✉️</div><div><strong><?php echo esc_html($ct['email_label']); ?></strong><br><a href="mailto:<?php echo esc_attr($email); ?>" style="color: <?php echo esc_attr($primary_color); ?>;"><?php echo esc_html($email); ?></a></div></div><?php endif; ?>
-                                <?php if ($address) : ?><div style="display: flex; gap: 16px;"><div style="width: 50px; height: 50px; background: <?php echo esc_attr($primary_color); ?>15; border-radius: 12px; display: flex; align-items: center; justify-content: center;">📍</div><div><strong><?php echo esc_html($ct['address']); ?></strong><br><?php echo nl2br(esc_html($address)); ?></div></div><?php endif; ?>
+                                <?php if ($phone) : ?><div style="display: flex; gap: 16px; margin-bottom: 20px;"><div style="width: 50px; height: 50px; background: <?php echo esc_attr($primary_color); ?>15; border-radius: <?php echo esc_attr($card_radius); ?>px; display: flex; align-items: center; justify-content: center;">📞</div><div><strong><?php echo esc_html($ct['phone']); ?></strong><br><a href="tel:<?php echo preg_replace('/[^0-9+]/', '', $phone); ?>" style="color: <?php echo esc_attr($primary_color); ?>;"><?php echo esc_html($phone); ?></a></div></div><?php endif; ?>
+                                <?php if ($email) : ?><div style="display: flex; gap: 16px; margin-bottom: 20px;"><div style="width: 50px; height: 50px; background: <?php echo esc_attr($primary_color); ?>15; border-radius: <?php echo esc_attr($card_radius); ?>px; display: flex; align-items: center; justify-content: center;">✉️</div><div><strong><?php echo esc_html($ct['email_label']); ?></strong><br><a href="mailto:<?php echo esc_attr($email); ?>" style="color: <?php echo esc_attr($primary_color); ?>;"><?php echo esc_html($email); ?></a></div></div><?php endif; ?>
+                                <?php if ($address) : ?><div style="display: flex; gap: 16px;"><div style="width: 50px; height: 50px; background: <?php echo esc_attr($primary_color); ?>15; border-radius: <?php echo esc_attr($card_radius); ?>px; display: flex; align-items: center; justify-content: center;">📍</div><div><strong><?php echo esc_html($ct['address']); ?></strong><br><?php echo nl2br(esc_html($address)); ?></div></div><?php endif; ?>
                             </div>
                         </div>
                     </div>

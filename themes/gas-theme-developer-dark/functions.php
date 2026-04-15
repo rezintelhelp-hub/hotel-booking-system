@@ -2473,6 +2473,8 @@ function developer_get_api_settings() {
         'btn_secondary_bg' => $website_styles['btn-secondary-bg'] ?? null,
         'btn_secondary_text' => $website_styles['btn-secondary-text'] ?? null,
         'btn_radius' => $website_styles['btn-radius'] ?? null,
+        'card_radius' => (intval($website_styles['btn-radius'] ?? 8) > 0) ? intval($website_styles['btn-radius'] ?? 8) + 4 : 0,
+        'lg_radius' => (intval($website_styles['btn-radius'] ?? 8) > 0) ? intval($website_styles['btn-radius'] ?? 8) * 2 : 0,
         'section_spacing' => $website_styles['section-spacing'] ?? null,
         'spinner_style' => $website_styles['spinner-style'] ?? 'circles',
 
@@ -2940,6 +2942,8 @@ function developer_developer_custom_css() {
     $subheading_size = $api['subheading_size'] ?? get_theme_mod('developer_subheading_size', '32');
     $body_text_size = $api['body_size'] ?? get_theme_mod('developer_body_text_size', '16');
     $btn_radius = $api['btn_radius'] ?? get_theme_mod('developer_btn_radius', '8');
+    $card_radius = $api['card_radius'] ?? (intval($btn_radius) > 0 ? intval($btn_radius) + 4 : 0);
+    $lg_radius = $api['lg_radius'] ?? (intval($btn_radius) > 0 ? intval($btn_radius) * 2 : 0);
     $link_color = $api['link_color'] ?? get_theme_mod('developer_link_color', '#2563eb');
     $section_spacing = !empty($api['section_spacing']) ? intval($api['section_spacing']) : 20;
     $custom_css = get_theme_mod('developer_custom_css', '');
@@ -3056,6 +3060,8 @@ function developer_developer_custom_css() {
             --developer-btn-secondary-bg: ' . esc_attr($btn_secondary_bg) . ';
             --developer-btn-secondary-text: ' . esc_attr($btn_secondary_text) . ';
             --developer-btn-radius: ' . esc_attr($btn_radius) . 'px;
+            --developer-radius: ' . esc_attr($btn_radius) . 'px;
+            --developer-radius-lg: ' . esc_attr($lg_radius) . 'px;
             --developer-link-color: ' . esc_attr($link_color) . ';
             --developer-section-spacing: ' . esc_attr($section_spacing) . 'px;
         }

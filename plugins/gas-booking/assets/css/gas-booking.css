@@ -345,7 +345,7 @@
     padding: 10px 20px;
     background: #f1f5f9;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--gas-radius);
     font-size: 14px;
     font-weight: 500;
     color: #94a3b8;
@@ -459,7 +459,7 @@
     padding: 8px 16px;
     background: var(--gas-bg);
     border: 1px solid var(--gas-border);
-    border-radius: 6px;
+    border-radius: var(--gas-radius);
     font-size: 14px;
     color: var(--gas-text);
 }
@@ -517,7 +517,7 @@
     height: 28px;
     border: 1px solid var(--gas-border);
     background: white;
-    border-radius: 4px;
+    border-radius: var(--gas-radius);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -549,7 +549,7 @@
     align-items: center;
     justify-content: center;
     font-size: 11px;
-    border-radius: 4px;
+    border-radius: var(--gas-radius);
 }
 
 .gas-calendar-day.available {
@@ -770,7 +770,7 @@
 
 /* Leaflet popup styling */
 .gas-map .leaflet-popup-content-wrapper {
-    border-radius: 8px;
+    border-radius: var(--gas-radius);
 }
 
 .gas-map .leaflet-popup-content {
@@ -1747,7 +1747,7 @@
 
 /* Rooms map popup styling */
 .gas-rooms-map .leaflet-popup-content-wrapper {
-    border-radius: 12px;
+    border-radius: var(--gas-radius-lg);
     box-shadow: 0 4px 20px rgba(0,0,0,0.15);
 }
 
@@ -1768,7 +1768,7 @@
     width: 100%;
     height: 120px;
     object-fit: cover;
-    border-radius: 8px;
+    border-radius: var(--gas-radius);
     margin-bottom: 10px;
 }
 
@@ -1804,7 +1804,7 @@
     background: #667eea;
     color: white !important;
     padding: 8px 16px;
-    border-radius: 8px;
+    border-radius: var(--gas-radius);
     text-decoration: none !important;
     font-size: 13px;
     font-weight: 600;
@@ -1849,7 +1849,7 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     padding: 4px 10px;
-    border-radius: 20px;
+    border-radius: var(--gas-radius-lg);
     margin-bottom: 8px;
 }
 
@@ -1935,7 +1935,7 @@
     gap: 12px;
     padding: 12px;
     background: var(--gas-bg);
-    border-radius: 8px;
+    border-radius: var(--gas-radius);
     border: 1px solid var(--gas-border);
     transition: all 0.2s;
     cursor: pointer;
@@ -1955,7 +1955,7 @@
     width: 20px;
     height: 20px;
     border: 2px solid var(--gas-border);
-    border-radius: 4px;
+    border-radius: var(--gas-radius);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2019,7 +2019,7 @@
     height: 24px;
     border: 1px solid var(--gas-border);
     background: white;
-    border-radius: 4px;
+    border-radius: var(--gas-radius);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -2069,7 +2069,7 @@
     flex: 1;
     padding: 10px 12px;
     border: 1px solid var(--gas-border);
-    border-radius: 6px;
+    border-radius: var(--gas-radius);
     font-size: 14px;
     text-transform: uppercase;
 }
@@ -2084,7 +2084,7 @@
     background: var(--gas-primary);
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--gas-radius);
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
@@ -2102,7 +2102,7 @@
     background: #dcfce7;
     border: 1px solid #86efac;
     padding: 10px 14px;
-    border-radius: 6px;
+    border-radius: var(--gas-radius);
     margin-top: 10px;
 }
 
@@ -2251,7 +2251,7 @@
     font-size: 11px;
     font-weight: 700;
     padding: 2px 8px;
-    border-radius: 20px;
+    border-radius: var(--gas-radius-lg);
 }
 
 .gas-rate-features {
@@ -2332,7 +2332,7 @@
     background: rgba(0,0,0,0.7);
     color: white;
     padding: 8px 16px;
-    border-radius: 4px;
+    border-radius: var(--gas-radius);
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.5px;
@@ -2388,7 +2388,7 @@
     background: #fff;
     border: 1px solid #d1d5db;
     border-top: none;
-    border-radius: 0 0 8px 8px;
+    border-radius: 0 0 var(--gas-radius) var(--gas-radius);
     max-height: 220px;
     overflow-y: auto;
     z-index: 1000;
@@ -2422,7 +2422,7 @@
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     padding: 40px 50px;
-    border-radius: 20px;
+    border-radius: var(--gas-radius-lg);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     animation: gas-spinner-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

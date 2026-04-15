@@ -10,6 +10,11 @@ get_header();
 // Get API settings (overrides theme_mod values)
 $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
 
+// Border-radius settings (from API)
+$btn_radius = $api['btn_radius'] ?? '8';
+$card_radius = $api['card_radius'] ?? 12;
+$lg_radius = $api['lg_radius'] ?? 16;
+
 // Hero settings (with API override)
 $hero_bg = $api['hero_image'] ?? get_theme_mod('developer_hero_bg', '');
 $hero_video_url = $api['hero_video_url'] ?? get_theme_mod('developer_hero_video_url', '');
@@ -337,7 +342,7 @@ $homepage_sections = array(); // position => html
             $shortcode .= ']';
             echo do_shortcode($shortcode);
         else : ?>
-            <div style="text-align: center; padding: 60px; background: #f8fafc; border-radius: 12px;">
+            <div style="text-align: center; padding: 60px; background: #f8fafc; border-radius: <?php echo esc_attr($card_radius); ?>px;">
                 <p style="color: #64748b; margin: 0;">Property listings will appear here when GAS Booking plugin is activated.</p>
             </div>
         <?php endif; ?>
@@ -413,7 +418,7 @@ $homepage_sections = array(); // position => html
                 <?php elseif ($about_image) : ?>
                     <img src="<?php echo esc_url($about_image); ?>" alt="<?php echo esc_attr($about_title); ?>">
                 <?php else : ?>
-                    <div style="width: 100%; height: 500px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 48px; border-radius: 16px;">🏠</div>
+                    <div style="width: 100%; height: 500px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 48px; border-radius: <?php echo esc_attr($lg_radius); ?>px;">🏠</div>
                 <?php endif; ?>
             </div>
             
@@ -615,7 +620,7 @@ if (!is_wp_error($repuso_response)) {
                     $r_source = $rev['source'] ?? '';
                 ?>
                 <div style="flex: 0 0 25%; min-width: 260px; padding: 0 8px; box-sizing: border-box;">
-                    <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: 12px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
+                    <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                         <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $r_stars; ?></div>
                         <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 0.95rem; line-height: 1.6; flex: 1; margin: 0 0 12px 0; overflow: hidden; opacity: 0.9;">"<?php echo esc_html($r_text); ?>"</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
@@ -658,7 +663,7 @@ if (!is_wp_error($repuso_response)) {
             $btn_target = $btn_is_external ? ' target="_blank" rel="noopener noreferrer"' : '';
         ?>
         <div style="text-align: center; margin-top: 2rem;">
-            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 8px; font-weight: 600; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
+            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; font-weight: 600; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
         </div>
         <?php endif; ?>
     </div>
@@ -703,7 +708,7 @@ if (!is_wp_error($hostaway_response)) {
                     $h_meta = $h_date . ($h_source ? ' · ' . $h_source : '');
                 ?>
                 <div style="flex: 0 0 25%; min-width: 260px; padding: 0 8px; box-sizing: border-box;">
-                    <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: 12px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
+                    <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                         <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $h_stars; ?></div>
                         <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 0.95rem; line-height: 1.6; flex: 1; margin: 0 0 12px 0; overflow: hidden; opacity: 0.9;">"<?php echo esc_html($h_text); ?>"</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
@@ -746,7 +751,7 @@ if (!is_wp_error($hostaway_response)) {
             $btn_target = $btn_is_external ? ' target="_blank" rel="noopener noreferrer"' : '';
         ?>
         <div style="text-align: center; margin-top: 2rem;">
-            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 8px; font-weight: 600; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
+            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; font-weight: 600; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
         </div>
         <?php endif; ?>
     </div>
@@ -804,7 +809,7 @@ if (!is_wp_error($hostaway_response)) {
             $btn_target = $btn_is_external ? ' target="_blank" rel="noopener noreferrer"' : '';
         ?>
         <div style="text-align: center; margin-top: 2rem;">
-            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 8px; font-weight: 600; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
+            <a href="<?php echo esc_url($btn_href); ?>"<?php echo $btn_target; ?> style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; font-weight: 600; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
         </div>
         <?php endif; ?>
     </div>
@@ -901,11 +906,11 @@ for ($ir = 1; $ir <= 4; $ir++) {
             <?php endif; ?>
             <div class="developer-image-row-grid" style="display: grid; grid-template-columns: repeat(<?php echo $ir_cols; ?>, 1fr); gap: 24px;">
                 <?php foreach ($ir_items as $iri) :
-                    $card_bg_style = !empty($iri['card_bg']) ? 'background:' . esc_attr($iri['card_bg']) . ';padding:24px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.06);' : '';
+                    $card_bg_style = !empty($iri['card_bg']) ? 'background:' . esc_attr($iri['card_bg']) . ';padding:24px;border-radius:' . esc_attr($card_radius) . 'px;box-shadow:0 4px 20px rgba(0,0,0,0.06);' : '';
                 ?>
                 <div style="text-align: <?php echo esc_attr($ir_align); ?>; <?php echo $card_bg_style; ?>">
                     <?php if ($iri['image']) : ?>
-                    <img src="<?php echo esc_url($iri['image']); ?>" alt="<?php echo esc_attr($iri['title']); ?>" style="width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                    <img src="<?php echo esc_url($iri['image']); ?>" alt="<?php echo esc_attr($iri['title']); ?>" style="width: 100%; border-radius: <?php echo esc_attr($card_radius); ?>px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
                     <?php endif; ?>
                     <?php if ($iri['title']) : ?>
                         <h3 style="font-size: 1.2rem; font-weight: 600; color: #1e293b; margin: 16px 0 8px;"><?php echo esc_html($iri['title']); ?></h3>
@@ -918,7 +923,7 @@ for ($ir = 1; $ir <= 4; $ir++) {
                         $ir_href = $ir_external ? $iri['btn_link'] : home_url($iri['btn_link']);
                         $ir_target = $ir_external ? ' target="_blank" rel="noopener noreferrer"' : '';
                     ?>
-                        <a href="<?php echo esc_url($ir_href); ?>"<?php echo $ir_target; ?> class="developer-btn" style="display: inline-block; margin-top: 8px; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;"><?php echo esc_html($iri['btn_text']); ?></a>
+                        <a href="<?php echo esc_url($ir_href); ?>"<?php echo $ir_target; ?> class="developer-btn" style="display: inline-block; margin-top: 8px; padding: 12px 32px; border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 600;"><?php echo esc_html($iri['btn_text']); ?></a>
                     <?php endif; ?>
                 </div>
                 <?php endforeach; ?>
@@ -932,7 +937,7 @@ for ($ir = 1; $ir <= 4; $ir++) {
                 $ir_row_target = $ir_row_external ? ' target="_blank" rel="noopener noreferrer"' : '';
             ?>
             <div style="text-align: center; margin-top: 2rem;">
-                <a href="<?php echo esc_url($ir_row_href); ?>"<?php echo $ir_row_target; ?> class="developer-btn" style="display: inline-block; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 600;"><?php echo esc_html($ir_row_btn_text); ?></a>
+                <a href="<?php echo esc_url($ir_row_href); ?>"<?php echo $ir_row_target; ?> class="developer-btn" style="display: inline-block; padding: 14px 36px; border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 600;"><?php echo esc_html($ir_row_btn_text); ?></a>
             </div>
             <?php endif; ?>
         </div>

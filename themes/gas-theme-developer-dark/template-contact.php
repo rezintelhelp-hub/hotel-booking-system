@@ -101,6 +101,11 @@ $grid_cols = $active_cards >= 2 ? '1fr 1fr' : '1fr';
 // Theme colors
 $accent = $api['accent_color'] ?? '#10b981';
 $button_color = $api['page_contact_button_color'] ?? $accent;
+
+// Border radius settings
+$btn_radius  = $api['btn_radius'] ?? '8';
+$card_radius = $api['card_radius'] ?? 12;
+$lg_radius   = $api['lg_radius'] ?? 16;
 ?>
 
 <style>
@@ -134,7 +139,7 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
 /* Shared card style */
 .gas-contact-card {
     background: var(--developer-card-bg, #fff);
-    border-radius: 16px;
+    border-radius: <?php echo esc_attr($lg_radius); ?>px;
     padding: 2rem;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     border: 1px solid var(--developer-border, #e2e8f0);
@@ -148,7 +153,7 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
 
 /* Details card */
 .gas-contact-item { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem; }
-.gas-contact-icon { width: 40px; height: 40px; min-width: 40px; border-radius: 10px; background: <?php echo esc_attr($accent); ?>15; display: flex; align-items: center; justify-content: center; }
+.gas-contact-icon { width: 40px; height: 40px; min-width: 40px; border-radius: <?php echo esc_attr($btn_radius); ?>px; background: <?php echo esc_attr($accent); ?>15; display: flex; align-items: center; justify-content: center; }
 .gas-contact-icon svg { width: 20px; height: 20px; stroke: <?php echo esc_attr($accent); ?>; fill: none; }
 .gas-contact-item-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--developer-text-light, #64748b); margin: 0 0 0.2rem; font-weight: 600; }
 .gas-contact-item-value { color: var(--developer-text, #1e293b); font-size: 0.95rem; line-height: 1.5; }
@@ -159,7 +164,7 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
 .gas-contact-directions-btn {
     display: inline-flex; align-items: center; gap: 0.5rem;
     padding: 0.75rem 1.5rem; background: <?php echo esc_attr($button_color); ?>; color: #fff;
-    border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 1rem;
+    border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 600; font-size: 1rem;
     transition: opacity 0.2s;
 }
 .gas-contact-directions-btn:hover { opacity: 0.9; color: #fff; text-decoration: none; }
@@ -169,14 +174,14 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
 /* Map card — fills height to match neighbour */
 .gas-contact-card--map { display: flex; flex-direction: column; }
 .gas-contact-card--map h2 { flex-shrink: 0; }
-.gas-contact-map-frame { flex: 1; border-radius: 12px; overflow: hidden; border: 1px solid var(--developer-border, #e2e8f0); }
+.gas-contact-map-frame { flex: 1; border-radius: <?php echo esc_attr($card_radius); ?>px; overflow: hidden; border: 1px solid var(--developer-border, #e2e8f0); }
 .gas-contact-map-frame iframe { width: 100%; height: 100%; min-height: <?php echo intval($map_height); ?>px; border: 0; display: block; }
 
 /* Form card */
 .gas-contact-form .gas-form-group { margin-bottom: 1rem; }
 .gas-contact-form .gas-form-group label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--developer-text, #1e293b); margin-bottom: 0.35rem; }
 .gas-contact-form input, .gas-contact-form textarea {
-    width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--developer-border, #e2e8f0); border-radius: 10px;
+    width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--developer-border, #e2e8f0); border-radius: <?php echo esc_attr($btn_radius); ?>px;
     font-size: 0.95rem; font-family: inherit; background: var(--developer-bg, #fff); color: var(--developer-text, #1e293b);
     transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box;
 }
@@ -186,7 +191,7 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
 .gas-contact-form textarea { resize: vertical; min-height: 120px; }
 .gas-contact-form button {
     width: 100%; padding: 0.85rem; background: <?php echo esc_attr($button_color); ?>; color: #fff; border: none;
-    border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+    border-radius: <?php echo esc_attr($btn_radius); ?>px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
 }
 .gas-contact-form button:hover { opacity: 0.9; }
 .gas-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }

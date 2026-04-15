@@ -65,6 +65,12 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     // Detect current language using GAS language system (URL param / cookie / site primary)
     $lang = function_exists('developer_get_current_language') ? developer_get_current_language() : substr(get_locale(), 0, 2);
 
+    // Radius variables from API settings (fallback to sensible defaults)
+    $radius_api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+    $btn_radius = $radius_api['btn_radius'] ?? '8';
+    $card_radius = $radius_api['card_radius'] ?? '12';
+    $lg_radius = $radius_api['lg_radius'] ?? '16';
+
     // Only render the page title hero if sections don't already contain a hero
     $has_hero_section = in_array('hero', array_column($sections, 'type'));
     if (!$has_hero_section) {
@@ -107,7 +113,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                         <?php if ($heading) : ?><h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2rem, 4vw, 3.5rem); font-weight: 700; color: #fff; margin: 0 0 16px; text-shadow: 0 2px 15px rgba(0,0,0,0.3);"><?php echo esc_html($heading); ?></h1><?php endif; ?>
                         <?php if ($subheading) : ?><p style="font-size: 1.25rem; color: #fff; opacity: 0.9; margin: 0 0 24px;"><?php echo esc_html($subheading); ?></p><?php endif; ?>
                         <?php if ($body) : ?><div class="gas-ps-body" style="color: #fff; opacity: 0.9;"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
-                        <?php if ($cta_text && $cta_link) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; background: <?php echo esc_attr($primary_color); ?>; color: #fff; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 600;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
+                        <?php if ($cta_text && $cta_link) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; background: <?php echo esc_attr($primary_color); ?>; color: #fff; padding: 14px 36px; border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 600;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                     </div>
                 </section>
                 <?php break;
@@ -140,7 +146,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-imgtext" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
                     <div class="gas-ps-imgtext-grid" style="max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: <?php echo $grid_cols; ?>; gap: 32px; align-items: center;">
-                        <?php if ($image) : ?><div style="<?php echo $img_order; ?>"><img src="<?php echo esc_url($image); ?>" alt="" style="width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);"></div><?php endif; ?>
+                        <?php if ($image) : ?><div style="<?php echo $img_order; ?>"><img src="<?php echo esc_url($image); ?>" alt="" style="width: 100%; border-radius: <?php echo esc_attr($lg_radius); ?>px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);"></div><?php endif; ?>
                         <div style="<?php echo $txt_order; ?>">
                             <?php if ($heading) : ?><h2 style="font-size: 1.8rem; font-weight: 700; color: #1e293b; margin: 0 0 10px;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                             <?php if ($body) : ?><div class="gas-ps-body"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
@@ -160,7 +166,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                                 $src = is_array($img) ? ($img['url'] ?? $img['src'] ?? '') : $img;
                                 $alt = is_array($img) ? ($img['alt'] ?? '') : '';
                             ?>
-                                <img src="<?php echo esc_url($src); ?>" alt="<?php echo esc_attr($alt); ?>" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
+                                <img src="<?php echo esc_url($src); ?>" alt="<?php echo esc_attr($alt); ?>" style="width: 100%; height: 250px; object-fit: cover; border-radius: <?php echo esc_attr($card_radius); ?>px;">
                             <?php endforeach; ?>
                         </div>
                     </div>
@@ -175,7 +181,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                         <div class="gas-ps-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px;">
                             <?php foreach ($cards as $card) : ?>
-                                <div style="background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
+                                <div style="background: #fff; border-radius: <?php echo esc_attr($lg_radius); ?>px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
                                     <?php if (!empty($card['image'])) : ?><img src="<?php echo esc_url($card['image']); ?>" alt="" style="width: 100%; height: 200px; object-fit: cover;"><?php endif; ?>
                                     <div style="padding: 24px;">
                                         <?php if (!empty(gas_ps_field($card, 'title', $lang))) : ?><h3 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0 0 8px;"><?php echo esc_html(gas_ps_field($card, 'title', $lang)); ?></h3><?php endif; ?>
@@ -198,7 +204,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                     <div style="max-width: 700px; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2.2rem; font-weight: 700; color: #fff; margin: 0 0 12px;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                         <?php if ($body) : ?><p style="font-size: 1.1rem; color: rgba(255,255,255,0.9); margin: 0 0 20px; line-height: 1.6;"><?php echo esc_html($body); ?></p><?php endif; ?>
-                        <?php if ($cta_text && $cta_link) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; background: #fff; color: <?php echo esc_attr($bg_color); ?>; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 1.1rem;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
+                        <?php if ($cta_text && $cta_link) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; background: #fff; color: <?php echo esc_attr($bg_color); ?>; padding: 16px 40px; border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 700; font-size: 1.1rem;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                     </div>
                 </section>
                 <?php break;
@@ -234,7 +240,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 if (!empty($items)) : ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-imgfaq" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
                     <div class="gas-ps-imgtext-grid" style="max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start;">
-                        <?php if ($image) : ?><div style="<?php echo $img_order; ?>"><img src="<?php echo esc_url($image); ?>" alt="" style="width: 100%; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);"></div><?php endif; ?>
+                        <?php if ($image) : ?><div style="<?php echo $img_order; ?>"><img src="<?php echo esc_url($image); ?>" alt="" style="width: 100%; border-radius: <?php echo esc_attr($lg_radius); ?>px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);"></div><?php endif; ?>
                         <div style="<?php echo $faq_order; ?>">
                             <?php if ($heading) : ?><h2 style="font-size: 1.8rem; font-weight: 700; color: #1e293b; margin: 0 0 16px;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                             <?php foreach ($items as $i => $item) :
@@ -260,7 +266,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                         <div class="gas-ps-testimonials-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
                             <?php foreach ($items as $item) : ?>
-                                <div style="background: #fff; padding: 32px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+                                <div style="background: #fff; padding: 32px; border-radius: <?php echo esc_attr($lg_radius); ?>px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
                                     <?php $t_text = gas_ps_field($item, 'text', $lang); if (!empty($t_text)) : ?><p style="font-size: 1.05rem; line-height: 1.7; color: #475569; font-style: italic; margin: 0 0 16px;">"<?php echo esc_html($t_text); ?>"</p><?php endif; ?>
                                     <div style="font-weight: 600; color: #1e293b;"><?php echo esc_html(gas_ps_field($item, 'name', $lang)); ?></div>
                                     <?php $t_role = gas_ps_field($item, 'role', $lang); if (!empty($t_role)) : ?><div style="font-size: 0.9rem; color: #94a3b8;"><?php echo esc_html($t_role); ?></div><?php endif; ?>
@@ -279,7 +285,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-map" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
                     <div style="max-width: 1100px; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
-                        <div style="border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                        <div style="border-radius: <?php echo esc_attr($lg_radius); ?>px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
                             <iframe src="https://www.google.com/maps?q=<?php echo esc_attr($lat); ?>,<?php echo esc_attr($lng); ?>&z=<?php echo intval($zoom); ?>&output=embed" width="100%" height="450" style="border: 0; display: block;" allowfullscreen loading="lazy"></iframe>
                         </div>
                     </div>
@@ -302,7 +308,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-video" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
                     <div style="max-width: 900px; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
-                        <div style="position: relative; padding-bottom: 56.25%; height: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                        <div style="position: relative; padding-bottom: 56.25%; height: 0; border-radius: <?php echo esc_attr($lg_radius); ?>px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
                             <iframe src="<?php echo esc_url($embed_url); ?>" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allowfullscreen loading="lazy"></iframe>
                         </div>
                     </div>

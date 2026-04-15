@@ -41,6 +41,11 @@ $btn_color        = $api['reviews_btn_color'] ?? $star_color;
 $btn_text_color   = $api['reviews_btn_text_color'] ?? '#ffffff';
 $primary_color    = $api['primary_color'] ?? '#2563eb';
 
+// Border radius settings
+$btn_radius  = $api['btn_radius'] ?? '8';
+$card_radius = $api['card_radius'] ?? 12;
+$lg_radius   = $api['lg_radius'] ?? 16;
+
 // Legacy boolean compat
 if ($reviews_source === true || $reviews_source === '1' || $reviews_source === 'true') {
     $reviews_source = 'gas_reviews';
@@ -131,7 +136,7 @@ if ($reviews_source === 'repuso' && $reviews_app_code) {
                 $date = !empty($rev['date']) ? date('M Y', strtotime($rev['date'])) : '';
                 $meta = $date . ($source ? ($date ? ' · ' : '') . $source : '');
             ?>
-            <div class="gas-review-card" style="background: <?php echo esc_attr($card_bg); ?>; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
+            <div class="gas-review-card" style="background: <?php echo esc_attr($card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 24px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                 <div style="color: <?php echo esc_attr($star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 12px;"><?php echo $stars . $empty; ?></div>
                 <p style="color: <?php echo esc_attr($text_color); ?>; font-size: 14px; line-height: 1.6; flex: 1; margin: 0 0 16px 0; opacity: 0.9;">"<?php echo esc_html($text); ?>"</p>
                 <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
@@ -145,7 +150,7 @@ if ($reviews_source === 'repuso' && $reviews_app_code) {
         <?php if ($data_endpoint && count($reviews) >= $per_page) : ?>
         <div id="gas-load-more-wrap" style="text-align: center; margin-top: 2.5rem;">
             <button id="gas-load-more-btn" onclick="gasLoadMoreReviews()"
-                style="display: inline-block; padding: 14px 36px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; border: 2px solid <?php echo esc_attr($btn_color); ?>; border-radius: 6px; font-weight: 600; font-size: 1rem; cursor: pointer; transition: all 0.3s ease;">
+                style="display: inline-block; padding: 14px 36px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; border: 2px solid <?php echo esc_attr($btn_color); ?>; border-radius: <?php echo esc_attr($btn_radius); ?>px; font-weight: 600; font-size: 1rem; cursor: pointer; transition: all 0.3s ease;">
                 Load More Reviews
             </button>
         </div>
@@ -186,7 +191,7 @@ if ($reviews_source === 'repuso' && $reviews_app_code) {
 
                             var card = document.createElement('div');
                             card.className = 'gas-review-card';
-                            card.style.cssText = 'background:' + cardBg + ';border-radius:12px;padding:24px;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,0.08);opacity:0;transform:translateY(12px);transition:all 0.4s ease;';
+                            card.style.cssText = 'background:' + cardBg + ';border-radius:<?php echo esc_attr($card_radius); ?>px;padding:24px;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,0.08);opacity:0;transform:translateY(12px);transition:all 0.4s ease;';
                             card.innerHTML = '<div style="color:' + starColor + ';font-size:18px;letter-spacing:1px;margin-bottom:12px;">' + stars + '</div>'
                                 + '<p style="color:' + textColor + ';font-size:14px;line-height:1.6;flex:1;margin:0 0 16px 0;opacity:0.9;">"' + text.replace(/</g,'&lt;') + '"</p>'
                                 + '<div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:12px;margin-top:auto;">'

@@ -26,7 +26,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.8');
+define('GAS_BOOKING_VERSION', '3.6.9');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3779,6 +3779,8 @@ class GAS_Booking {
     --gas-btn-bg: {$buttons['btn_bg']};
     --gas-btn-text: {$buttons['btn_text']};
     --gas-btn-radius: {$buttons['btn_radius']}px;
+    --gas-radius: {$buttons['btn_radius']}px;
+    --gas-radius-lg: " . (intval($buttons['btn_radius']) > 0 ? intval($buttons['btn_radius']) + 4 : 0) . "px;
     --gas-primary: {$buttons['btn_bg']};
     --gas-primary-dark: {$buttons['btn_bg']};
 }
@@ -3827,6 +3829,16 @@ class GAS_Booking {
 [class*=\"gas-\"] .btn-primary:hover,
 [class*=\"gas-\"] button.primary:hover {
     filter: brightness(0.9);
+}
+/* Override JS-generated inline border-radius on dynamic elements */
+.gas-offer-overlay > div,
+.gas-min-stay-warning,
+.gas-group-room-item,
+.gas-payment-group-card,
+.gas-bank-detail-container,
+.gas-bank-account-card,
+.gas-enquiry-confirmation {
+    border-radius: var(--gas-radius-lg) !important;
 }
 </style>";
         
@@ -6590,7 +6602,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <div style="font-size: 14px; color: #0369a1; margin-bottom: 10px;">
                                         ✓ <span class="gas-cart-count">0</span> <?php echo esc_html($t_booking['rooms_in_cart'] ?? 'room(s) in cart'); ?>
                                     </div>
-                                    <a href="#" class="gas-view-cart-link" style="display: block; background: #0ea5e9; color: white; padding: 12px 20px; border-radius: 6px; font-weight: 600; text-decoration: none; margin-bottom: 8px;"><?php echo esc_html($t_booking['go_to_cart'] ?? 'Go to Cart'); ?></a>
+                                    <a href="#" class="gas-view-cart-link" style="display: block; background: #0ea5e9; color: white; padding: 12px 20px; border-radius: var(--gas-btn-radius, 6px); font-weight: 600; text-decoration: none; margin-bottom: 8px;"><?php echo esc_html($t_booking['go_to_cart'] ?? 'Go to Cart'); ?></a>
                                     <div style="font-size: 13px; color: #64748b;">
                                         <a href="#" class="gas-add-another-link" style="color: #0369a1; text-decoration: none;">+ <?php echo esc_html($t_booking['add_another_room'] ?? 'Add another room'); ?></a>
                                         <span style="margin: 0 8px;">|</span>
@@ -8223,7 +8235,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 .gas-property-info { padding: 20px; }
                 .gas-property-name { font-size: 1.25rem; font-weight: 600; color: #1e293b; margin-bottom: 8px; }
                 .gas-property-location { font-size: 0.9rem; color: #64748b; margin-bottom: 16px; }
-                .gas-property-cta { display: inline-block; padding: 10px 24px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; text-decoration: none; text-align: center; transition: opacity 0.2s; background: <?php echo esc_attr($btn_bg); ?>; color: <?php echo esc_attr($btn_text_color); ?>; }
+                .gas-property-cta { display: inline-block; padding: 10px 24px; border-radius: var(--gas-btn-radius, 8px); font-size: 0.9rem; font-weight: 600; text-decoration: none; text-align: center; transition: opacity 0.2s; background: <?php echo esc_attr($btn_bg); ?>; color: <?php echo esc_attr($btn_text_color); ?>; }
                 .gas-property-cta:hover { opacity: 0.85; color: <?php echo esc_attr($btn_text_color); ?>; }
             </style>
             <h1 class="gas-page-title"><?php echo esc_html($title); ?></h1>
