@@ -4555,6 +4555,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         'rooms_book_btn_text' => $s['book-btn-text'] ?? null,
                         'rooms_btn_radius' => $s['btn-radius'] ?? null,
                         'rooms_show_map' => $s['show-map'] ?? 'true',
+                        'rooms_show_filters' => ($s['show-filters'] ?? null) !== null ? ($s['show-filters'] === 'true') : ($r['show-filters'] ?? true),
+                        'rooms_show_date_filters' => ($s['show-date-filters'] ?? null) !== null ? ($s['show-date-filters'] === 'true') : ($r['show-date-filters'] ?? true),
+                        'rooms_show_guest_filter' => ($s['show-guest-filter'] ?? null) !== null ? ($s['show-guest-filter'] === 'true') : ($r['show-guest-filter'] ?? true),
+                        'rooms_show_amenity_filter' => ($s['show-amenity-filter'] ?? null) !== null ? ($s['show-amenity-filter'] === 'true') : ($r['show-amenity-filter'] ?? true),
+                        'rooms_show_property_filter' => ($s['show-property-filter'] ?? null) !== null ? ($s['show-property-filter'] === 'true') : ($r['show-property-filter'] ?? true),
                     );
                     set_transient($cache_key, $api_settings, 300);
                 }
