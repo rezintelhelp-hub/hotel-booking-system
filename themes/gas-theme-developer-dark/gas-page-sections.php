@@ -185,8 +185,20 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                                     <?php if (!empty($card['image'])) : ?><img src="<?php echo esc_url($card['image']); ?>" alt="" style="width: 100%; height: 200px; object-fit: cover;"><?php endif; ?>
                                     <div style="padding: 24px;">
                                         <?php if (!empty(gas_ps_field($card, 'title', $lang))) : ?><h3 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0 0 8px;"><?php echo esc_html(gas_ps_field($card, 'title', $lang)); ?></h3><?php endif; ?>
-                                        <?php if (!empty(gas_ps_field($card, 'body', $lang))) : ?><p style="color: #64748b; margin: 0; line-height: 1.6;"><?php echo esc_html(gas_ps_field($card, 'body', $lang)); ?></p><?php endif; ?>
-                                        <?php if (!empty($card['link'])) : ?><a href="<?php echo esc_url($card['link']); ?>" style="display: inline-block; margin-top: 12px; color: <?php echo esc_attr($primary_color); ?>; font-weight: 600; text-decoration: none;"><?php echo esc_html(gas_ps_field($card, 'link_text', $lang, 'Learn more')); ?> &rarr;</a><?php endif; ?>
+                                        <?php $card_body = gas_ps_field($card, 'description', $lang) ?: gas_ps_field($card, 'body', $lang); if (!empty($card_body)) : ?><div style="color: #64748b; margin: 0; line-height: 1.6; font-size: 0.95rem;"><?php echo wp_kses_post($card_body); ?></div><?php endif; ?>
+                                        <?php
+                                        $cta_link = $card['cta_link'] ?? $card['link'] ?? '';
+                                        $cta_text = gas_ps_field($card, 'cta_text', $lang);
+                                        if (empty($cta_text)) {
+                                            foreach (array('en','fr','de','es','nl','ja') as $fl) {
+                                                if (!empty($card['cta_text_' . $fl])) { $cta_text = $card['cta_text_' . $fl]; break; }
+                                            }
+                                        }
+                                        if (empty($cta_text)) $cta_text = gas_ps_field($card, 'link_text', $lang, '');
+                                        $cta_size = $card['cta_size'] ?? 'sm';
+                                        $cta_pad = $cta_size === 'lg' ? '16px 40px' : ($cta_size === 'md' ? '12px 32px' : '8px 20px');
+                                        $cta_font = $cta_size === 'lg' ? '1.05rem' : ($cta_size === 'md' ? '0.95rem' : '0.85rem');
+                                        if (!empty($cta_link) && !empty($cta_text)) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; margin-top: 16px; padding: <?php echo $cta_pad; ?>; font-size: <?php echo $cta_font; ?>; background: <?php echo esc_attr($primary_color); ?>; color: #fff; font-weight: 600; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; transition: opacity 0.2s;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>

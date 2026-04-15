@@ -292,7 +292,10 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                                             }
                                         }
                                         if (empty($cta_text)) $cta_text = gas_ps_field($card, 'link_text', $lang, '');
-                                        if (!empty($cta_link) && !empty($cta_text)) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; margin-top: 16px; padding: 12px 32px; background: <?php echo esc_attr($primary_color); ?>; color: #fff; font-weight: 600; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; transition: opacity 0.2s;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
+                                        $cta_size = $card['cta_size'] ?? 'sm';
+                                        $cta_pad = $cta_size === 'lg' ? '16px 40px' : ($cta_size === 'md' ? '12px 32px' : '8px 20px');
+                                        $cta_font = $cta_size === 'lg' ? '1.05rem' : ($cta_size === 'md' ? '0.95rem' : '0.85rem');
+                                        if (!empty($cta_link) && !empty($cta_text)) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; margin-top: 16px; padding: <?php echo $cta_pad; ?>; font-size: <?php echo $cta_font; ?>; background: <?php echo esc_attr($primary_color); ?>; color: #fff; font-weight: 600; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; transition: opacity 0.2s;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
