@@ -1118,7 +1118,7 @@ img {
     bottom: calc(-32px - var(--developer-section-spacing, 20px));
     left: 0;
     right: 0;
-    height: calc(50% + 32px + var(--developer-section-spacing, 20px));
+    height: calc(35% + 32px + var(--developer-section-spacing, 20px));
     background: var(--usp-bottom-bg, #ffffff);
     z-index: 1;
 }
