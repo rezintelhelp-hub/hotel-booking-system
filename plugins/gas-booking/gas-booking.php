@@ -3888,11 +3888,11 @@ class GAS_Booking {
             if (!empty($api_cache['website']['styles']['btn-primary-text'])) {
                 $btn_text = $api_cache['website']['styles']['btn-primary-text'];
             }
-            if (!empty($api_cache['website']['styles']['btn-radius'])) {
+            if (isset($api_cache['website']['styles']['btn-radius']) && $api_cache['website']['styles']['btn-radius'] !== '') {
                 $btn_radius = $api_cache['website']['styles']['btn-radius'];
             }
             // Page-rooms btn-radius overrides global styles btn-radius for the plugin
-            if (!empty($api_cache['website']['page-rooms']['btn-radius'])) {
+            if (isset($api_cache['website']['page-rooms']['btn-radius']) && $api_cache['website']['page-rooms']['btn-radius'] !== '') {
                 $btn_radius = $api_cache['website']['page-rooms']['btn-radius'];
             }
         } else {
@@ -5332,7 +5332,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             background: <?php echo !empty($book_btn_bg) ? esc_attr($book_btn_bg) : esc_attr($this->get_effective_button_color()); ?>;
             color: <?php echo !empty($book_btn_text) ? esc_attr($book_btn_text) : 'white'; ?> !important;
             padding: 10px 20px;
-            border-radius: <?php echo intval($btn_radius); ?>px;
+            border-radius: var(--gas-btn-radius, <?php echo intval($btn_radius); ?>px);
             text-decoration: none;
             font-weight: 600;
             font-size: 14px;
