@@ -4566,14 +4566,17 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 }
             }
         }
-        if ($api_settings && $atts['show_map'] !== 'false') {
+        // Remember if shortcode explicitly set show_map to false (e.g. featured section)
+        $shortcode_show_map = $atts['show_map'];
+        if ($api_settings) {
             if (!empty($api_settings['rooms_columns'])) {
                 $atts['columns'] = intval($api_settings['rooms_columns']);
             }
             if (!empty($api_settings['rooms_layout_style'])) {
                 $atts['layout'] = $api_settings['rooms_layout_style'];
             }
-            if (isset($api_settings['rooms_show_map'])) {
+            // Only override show_map from API if shortcode didn't explicitly disable it
+            if (isset($api_settings['rooms_show_map']) && $shortcode_show_map !== 'false') {
                 $atts['show_map'] = $api_settings['rooms_show_map'] ? 'true' : 'false';
             }
             if (isset($api_settings['rooms_map_zoom'])) {
