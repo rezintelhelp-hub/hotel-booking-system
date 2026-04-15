@@ -1124,7 +1124,7 @@ img {
     bottom: calc(-32px - var(--developer-section-spacing, 20px));
     left: 0;
     right: 0;
-    height: calc(35% + 32px + var(--developer-section-spacing, 20px));
+    height: calc(15% + 32px + var(--developer-section-spacing, 20px));
     background: var(--usp-bottom-bg, #ffffff);
     z-index: 1;
 }
@@ -1145,7 +1145,7 @@ img {
 
 .developer-usp-card {
     background: white;
-    border-radius: 16px;
+    border-radius: var(--developer-radius-lg);
     padding: 40px 32px;
     box-shadow: 0 4px 24px rgba(0,0,0,0.06);
     transition: var(--developer-transition);
@@ -1246,7 +1246,7 @@ img {
 }
 
 .developer-services-card {
-    border-radius: 12px;
+    border-radius: var(--developer-radius-lg);
     padding: 32px 28px;
     transition: background 0.3s ease, transform 0.3s ease;
     cursor: default;

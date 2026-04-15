@@ -4968,7 +4968,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             width: 100% !important;
             padding: 8px 10px !important;
             border: 1px solid #ddd !important;
-            border-radius: 6px !important;
+            border-radius: var(--gas-btn-radius, 6px) !important;
             font-size: 13px !important;
             box-sizing: border-box !important;
             height: 38px !important;
@@ -4978,7 +4978,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             color: <?php echo esc_attr(!empty($atts['text_color']) ? $atts['text_color'] : 'white'); ?> !important;
             border: none !important;
             padding: 0 16px !important;
-            border-radius: 6px !important;
+            border-radius: var(--gas-btn-radius, 6px) !important;
             font-weight: 600 !important;
             cursor: pointer !important;
             font-size: 13px !important;

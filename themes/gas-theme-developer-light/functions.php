@@ -2511,7 +2511,7 @@ function developer_get_api_settings() {
         'page_rooms_menu_title' => developer_get_ml_value($website_rooms, 'menu_title', $lang) ?: 'Rooms',
         'page_rooms_title' => developer_get_ml_value($website_rooms, 'title', $lang) ?: 'Book Your Stay',
         'page_rooms_subtitle' => developer_get_ml_value($website_rooms, 'subtitle', $lang),
-        'page_rooms_enabled' => true, // Always enabled
+        'page_rooms_enabled' => $website_rooms['enabled'] ?? true,
         'page_rooms_menu_order' => $website_rooms['menu-order'] ?? 1,
         'page_rooms_transparent_header' => $website_rooms['transparent-header'] ?? false,
         'page_rooms_search_btn_bg' => ($website['pro-settings'] ?? [])['search-btn-bg'] ?: ($website_rooms['search-btn-bg'] ?? ''),
@@ -3918,6 +3918,51 @@ function developer_setup_primary_menu($custom_items = array()) {
         'message' => 'Menu created with ' . count($added_items) . ' items'
     );
 }
+
+/**
+ * Hide menu items for disabled pages based on API settings
+ */
+add_filter('wp_nav_menu_objects', function($items) {
+    $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+
+    // Map page slugs to their enabled setting
+    $disabled_slugs = array();
+    if (isset($api['page_rooms_enabled']) && ($api['page_rooms_enabled'] === false || $api['page_rooms_enabled'] === 'false')) {
+        $disabled_slugs[] = 'book-now';
+        $disabled_slugs[] = 'rooms';
+    }
+    if (isset($api['page_about_enabled']) && ($api['page_about_enabled'] === false || $api['page_about_enabled'] === 'false')) {
+        $disabled_slugs[] = 'about';
+    }
+    if (isset($api['page_contact_enabled']) && ($api['page_contact_enabled'] === false || $api['page_contact_enabled'] === 'false')) {
+        $disabled_slugs[] = 'contact';
+    }
+    if (isset($api['page_blog_enabled']) && ($api['page_blog_enabled'] === false || $api['page_blog_enabled'] === 'false')) {
+        $disabled_slugs[] = 'blog';
+    }
+    if (isset($api['page_gallery_enabled']) && ($api['page_gallery_enabled'] === false || $api['page_gallery_enabled'] === 'false')) {
+        $disabled_slugs[] = 'gallery';
+    }
+    if (isset($api['page_attractions_enabled']) && ($api['page_attractions_enabled'] === false || $api['page_attractions_enabled'] === 'false')) {
+        $disabled_slugs[] = 'attractions';
+    }
+    if (isset($api['page_dining_enabled']) && ($api['page_dining_enabled'] === false || $api['page_dining_enabled'] === 'false')) {
+        $disabled_slugs[] = 'dining';
+    }
+    if (isset($api['page_offers_enabled']) && ($api['page_offers_enabled'] === false || $api['page_offers_enabled'] === 'false')) {
+        $disabled_slugs[] = 'offers';
+    }
+    if (isset($api['page_reviews_enabled']) && ($api['page_reviews_enabled'] === false || $api['page_reviews_enabled'] === 'false')) {
+        $disabled_slugs[] = 'reviews';
+    }
+
+    if (empty($disabled_slugs)) return $items;
+
+    return array_filter($items, function($item) use ($disabled_slugs) {
+        $url_path = trim(parse_url($item->url, PHP_URL_PATH), '/');
+        return !in_array($url_path, $disabled_slugs);
+    });
+});
 
 /**
  * Custom Walker for Navigation
