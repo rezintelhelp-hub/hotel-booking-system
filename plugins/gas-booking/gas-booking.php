@@ -4555,28 +4555,19 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         'rooms_book_btn_text' => $s['book-btn-text'] ?? null,
                         'rooms_btn_radius' => $s['btn-radius'] ?? null,
                         'rooms_show_map' => $s['show-map'] ?? 'true',
-                        'rooms_show_filters' => ($s['show-filters'] ?? null) !== null ? ($s['show-filters'] === 'true') : ($r['show-filters'] ?? true),
-                        'rooms_show_date_filters' => ($s['show-date-filters'] ?? null) !== null ? ($s['show-date-filters'] === 'true') : ($r['show-date-filters'] ?? true),
-                        'rooms_show_guest_filter' => ($s['show-guest-filter'] ?? null) !== null ? ($s['show-guest-filter'] === 'true') : ($r['show-guest-filter'] ?? true),
-                        'rooms_show_amenity_filter' => ($s['show-amenity-filter'] ?? null) !== null ? ($s['show-amenity-filter'] === 'true') : ($r['show-amenity-filter'] ?? true),
-                        'rooms_show_location_filter' => ($s['show-location-filter'] ?? null) !== null ? ($s['show-location-filter'] === 'true') : ($r['show-location-filter'] ?? true),
-                        'rooms_show_property_filter' => ($s['show-property-filter'] ?? null) !== null ? ($s['show-property-filter'] === 'true') : ($r['show-property-filter'] ?? true),
                     );
                     set_transient($cache_key, $api_settings, 300);
                 }
             }
         }
-        // Remember if shortcode explicitly set show_map to false (e.g. featured section)
-        $shortcode_show_map = $atts['show_map'];
-        if ($api_settings) {
+        if ($api_settings && $atts['show_map'] !== 'false') {
             if (!empty($api_settings['rooms_columns'])) {
                 $atts['columns'] = intval($api_settings['rooms_columns']);
             }
             if (!empty($api_settings['rooms_layout_style'])) {
                 $atts['layout'] = $api_settings['rooms_layout_style'];
             }
-            // Only override show_map from API if shortcode didn't explicitly disable it
-            if (isset($api_settings['rooms_show_map']) && $shortcode_show_map !== 'false') {
+            if (isset($api_settings['rooms_show_map'])) {
                 $atts['show_map'] = $api_settings['rooms_show_map'] ? 'true' : 'false';
             }
             if (isset($api_settings['rooms_map_zoom'])) {
