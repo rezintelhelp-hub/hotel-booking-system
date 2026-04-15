@@ -4629,6 +4629,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             }
             if (isset($api_settings['rooms_btn_radius']) && $api_settings['rooms_btn_radius'] !== null) {
                 $atts['btn_radius'] = $api_settings['rooms_btn_radius'];
+            } elseif (isset($api_settings['btn_radius']) && $api_settings['btn_radius'] !== null) {
+                $atts['btn_radius'] = $api_settings['btn_radius'];
             }
             if (isset($api_settings['rooms_show_map'])) {
                 $show_map_val = $api_settings['rooms_show_map'];
