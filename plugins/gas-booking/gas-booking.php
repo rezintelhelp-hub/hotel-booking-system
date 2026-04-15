@@ -3534,15 +3534,21 @@ class GAS_Booking {
             }
         }
         
-        // Inject button colour/radius/text override from API + Pro Builder settings
+        // Inject button colour override from API + Pro Builder settings (if set)
         $btn_color = $this->get_effective_button_color();
         $pro_s = get_transient('gas_booking_pro_settings_' . get_current_blog_id());
-        $global_btn_text = ($pro_s && !empty($pro_s['rooms_book_btn_text'])) ? $pro_s['rooms_book_btn_text'] : 'white';
-        $global_btn_radius = ($pro_s && isset($pro_s['rooms_btn_radius']) && $pro_s['rooms_btn_radius'] !== null) ? intval($pro_s['rooms_btn_radius']) : 8;
         if ($btn_color) {
             $custom_css .= "/* button colour from API */\n";
             $custom_css .= ":root { --gas-primary: {$btn_color} !important; --gas-primary-dark: {$btn_color} !important; }\n";
-            $custom_css .= ".gas-view-btn, .gas-row-view-btn, .gas-book-btn, .gas-check-btn { background: {$btn_color} !important; color: {$global_btn_text} !important; border-radius: {$global_btn_radius}px !important; }\n\n";
+            $btn_rule = ".gas-view-btn, .gas-row-view-btn, .gas-book-btn, .gas-check-btn { background: {$btn_color} !important;";
+            if ($pro_s && !empty($pro_s['rooms_book_btn_text'])) $btn_rule .= " color: {$pro_s['rooms_book_btn_text']} !important;";
+            if ($pro_s && isset($pro_s['rooms_btn_radius']) && $pro_s['rooms_btn_radius'] !== null) $btn_rule .= " border-radius: " . intval($pro_s['rooms_btn_radius']) . "px !important;";
+            $btn_rule .= " }\n";
+            $custom_css .= $btn_rule;
+            if ($pro_s && isset($pro_s['rooms_card_radius']) && $pro_s['rooms_card_radius'] !== null) {
+                $cr = intval($pro_s['rooms_card_radius']);
+                $custom_css .= ".gas-room-card { border-radius: {$cr}px !important; }\n";
+            }
         }
 
         if (!empty($custom_css)) {
@@ -6275,12 +6281,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $button_color = $this->get_effective_button_color();
 
         // Read Pro Builder settings for text colour and radius
-        $book_btn_text = 'white';
-        $book_btn_radius = '8';
+        $book_btn_text = '';
+        $book_btn_radius = '';
+        $card_radius_booking = '';
         $pro_cache = get_transient('gas_booking_pro_settings_' . get_current_blog_id());
         if ($pro_cache) {
             if (!empty($pro_cache['rooms_book_btn_text'])) $book_btn_text = $pro_cache['rooms_book_btn_text'];
             if (isset($pro_cache['rooms_btn_radius']) && $pro_cache['rooms_btn_radius'] !== null) $book_btn_radius = $pro_cache['rooms_btn_radius'];
+            if (isset($pro_cache['rooms_card_radius']) && $pro_cache['rooms_card_radius'] !== null) $card_radius_booking = $pro_cache['rooms_card_radius'];
         }
 
         ob_start();
@@ -6293,8 +6301,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         }
         .gas-book-btn {
             background: <?php echo esc_attr($button_color); ?> !important;
-            color: <?php echo esc_attr($book_btn_text); ?> !important;
-            border-radius: <?php echo intval($book_btn_radius); ?>px !important;
+            <?php if ($book_btn_text) : ?>color: <?php echo esc_attr($book_btn_text); ?> !important;<?php endif; ?>
+            <?php if ($book_btn_radius !== '') : ?>border-radius: <?php echo intval($book_btn_radius); ?>px !important;<?php endif; ?>
         }
         .gas-book-btn:hover:not(:disabled) {
             background: <?php echo esc_attr($button_color); ?> !important;
@@ -6302,20 +6310,23 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         }
         .gas-tab-btn.active {
             background: <?php echo esc_attr($button_color); ?> !important;
-            color: <?php echo esc_attr($book_btn_text); ?> !important;
-            border-radius: <?php echo intval($book_btn_radius); ?>px !important;
+            color: white !important;
         }
-        .gas-tab-btn {
-            border-radius: <?php echo intval($book_btn_radius); ?>px !important;
-        }
+        <?php if ($book_btn_radius !== '') : ?>
+        .gas-tab-btn { border-radius: <?php echo intval($book_btn_radius); ?>px !important; }
+        <?php endif; ?>
         .gas-submit-btn {
             background: <?php echo esc_attr($button_color); ?> !important;
-            color: <?php echo esc_attr($book_btn_text); ?> !important;
-            border-radius: <?php echo intval($book_btn_radius); ?>px !important;
+            <?php if ($book_btn_text) : ?>color: <?php echo esc_attr($book_btn_text); ?> !important;<?php endif; ?>
+            <?php if ($book_btn_radius !== '') : ?>border-radius: <?php echo intval($book_btn_radius); ?>px !important;<?php endif; ?>
         }
         .gas-submit-btn:hover {
             filter: brightness(0.9);
         }
+        <?php if ($card_radius_booking !== '') : ?>
+        .gas-booking-card { border-radius: <?php echo intval($card_radius_booking); ?>px !important; }
+        .gas-room-card { border-radius: <?php echo intval($card_radius_booking); ?>px !important; }
+        <?php endif; ?>
         </style>
         <div class="gas-room-widget" data-unit-id="<?php echo esc_attr($unit_id); ?>" data-checkin="<?php echo esc_attr($checkin); ?>" data-checkout="<?php echo esc_attr($checkout); ?>" data-guests="<?php echo esc_attr($guests); ?>" data-show-map="<?php echo $show_map ? 'true' : 'false'; ?>">
             <div class="gas-room-loading">
