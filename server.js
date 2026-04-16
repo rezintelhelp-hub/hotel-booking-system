@@ -14081,8 +14081,7 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
         body: JSON.stringify(Object.assign({
           request_id: 'gas-confirm-' + id + '-' + Date.now(),
-          payment_consent_id: account.airwallex_payment_consent_id,
-          triggered_by: 'merchant'
+          payment_consent_id: account.airwallex_payment_consent_id
         }, account.airwallex_payment_method_id ? { payment_method: { id: account.airwallex_payment_method_id } } : {}))
       });
       const confirmData = await confirmRes.json();
