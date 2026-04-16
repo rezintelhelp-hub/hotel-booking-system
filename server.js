@@ -20750,6 +20750,28 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
                 vatRate: 0
             }]
         };
+
+        // Include payments if any amount has been paid
+        const paidAmount = parseFloat(booking.deposit_amount || 0) + parseFloat(booking.balance_paid || 0);
+        if (paidAmount > 0) {
+            beds24Payload.payments = [];
+            if (parseFloat(booking.deposit_amount || 0) > 0) {
+                beds24Payload.payments.push({
+                    description: 'Deposit via GAS',
+                    amount: parseFloat(booking.deposit_amount),
+                    status: 'received',
+                    date: booking.deposit_paid_at ? new Date(booking.deposit_paid_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+                });
+            }
+            if (parseFloat(booking.balance_paid || 0) > 0) {
+                beds24Payload.payments.push({
+                    description: 'Balance via GAS',
+                    amount: parseFloat(booking.balance_paid),
+                    status: 'received',
+                    date: new Date().toISOString().split('T')[0]
+                });
+            }
+        }
         
         beds24Payload.allowWebhooks = true;
         console.log('[Beds24 Push] Payload:', JSON.stringify(beds24Payload));
@@ -32769,13 +32791,21 @@ app.post('/api/db/book', async (req, res) => {
         // Use property-specific token lookup for GasSync connections
         const accessToken = await getBeds24AccessTokenForProperty(pool, property_id, room_id);
         
-        // Build payments array if deposit was paid
+        // Build payments array for any collected payment
         const payments = [];
         if (stripe_payment_intent_id && deposit_amount && parseFloat(deposit_amount) > 0) {
           payments.push({
             description: 'Deposit via Stripe (GAS)',
             amount: parseFloat(deposit_amount),
             status: 'received',
+            date: new Date().toISOString().split('T')[0]
+          });
+        } else if (parseFloat(total_price) > 0 && payment_method !== 'no_payment' && payment_method !== 'card_guarantee') {
+          // Full payment or bank transfer — record as paid
+          payments.push({
+            description: payment_method === 'bank_transfer' ? 'Bank Transfer (GAS)' : 'Payment via GAS',
+            amount: parseFloat(total_price),
+            status: payment_method === 'bank_transfer' ? 'pending' : 'received',
             date: new Date().toISOString().split('T')[0]
           });
         }
