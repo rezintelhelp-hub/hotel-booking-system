@@ -30683,9 +30683,38 @@ app.get('/api/account/:accountId/entitlements', async (req, res) => {
     const planFeatures = subResult.rows[0]?.features || {};
     const featureOverrides = subResult.rows[0]?.feature_overrides || {};
     const planSlug = subResult.rows[0]?.plan_slug || 'none';
-    
-    // Merge plan features with overrides (overrides take precedence)
-    const mergedFeatures = { ...planFeatures, ...featureOverrides };
+
+    // Get master admin feature flags (gas_feature_flags table)
+    const flagsResult = await pool.query(
+      'SELECT feature, enabled FROM gas_feature_flags WHERE account_id = $1 AND enabled = true',
+      [accountId]
+    );
+    const adminFlags = {};
+    // Map flag names to entitlement names used by the frontend
+    const flagNameMap = {
+      'blog': 'blog_module',
+      'attractions': 'attractions_module',
+      'reviews': 'reviews_widget',
+      'ai_content': 'ai_content',
+      'social_campaign': 'social_campaign',
+      'web_builder': 'web_builder',
+      'pro_builder': 'pro_builder',
+      'gas_direct': 'gas_direct',
+      'wp_plugin': 'wp_plugin',
+      'api_access': 'api_access',
+      'website': 'website',
+      'agency': 'agency'
+    };
+    flagsResult.rows.forEach(r => {
+      adminFlags[r.feature] = true;
+      // Also set the mapped name if different
+      if (flagNameMap[r.feature] && flagNameMap[r.feature] !== r.feature) {
+        adminFlags[flagNameMap[r.feature]] = true;
+      }
+    });
+
+    // Merge: plan features < subscription overrides < master admin flags (admin flags win)
+    const mergedFeatures = { ...planFeatures, ...featureOverrides, ...adminFlags };
     
     // Get delivered items
     const deliveredResult = await pool.query(`
