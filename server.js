@@ -20690,10 +20690,8 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
         
         const booking = bookingResult.rows[0];
         
-        // Already pushed?
-        if (booking.beds24_booking_id) {
-            return res.json({ success: false, error: `Booking already in Beds24 as ${booking.beds24_booking_id}` });
-        }
+        // If already in Beds24, update it (re-push with payment data)
+        const isUpdate = !!booking.beds24_booking_id;
         
         // Find beds24_room_id — legacy column first, then GasSync
         let beds24RoomId = booking.beds24_room_id;
@@ -20773,8 +20771,13 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
             }
         }
         
+        // If updating existing Beds24 booking, include its ID
+        if (isUpdate) {
+            beds24Payload.id = parseInt(booking.beds24_booking_id);
+        }
+
         beds24Payload.allowWebhooks = true;
-        console.log('[Beds24 Push] Payload:', JSON.stringify(beds24Payload));
+        console.log(`[Beds24 ${isUpdate ? 'Update' : 'Push'}] Payload:`, JSON.stringify(beds24Payload));
 
         // V2 primary (per-client token)
         let newBeds24Id = null;
