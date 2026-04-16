@@ -174,6 +174,13 @@ $hero_key = 'page_' . str_replace('-', '_', $special_page) . '_hero_enabled';
 if (!empty($special_page) && isset($api[$hero_key])) {
     $hero_val = $api[$hero_key];
     $hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
+} elseif (empty($special_page)) {
+    // Custom pages — check hero-enabled from custom_page_settings
+    $cp_settings = ($api['custom_page_settings'] ?? array())[$page_slug] ?? array();
+    if (!empty($cp_settings)) {
+        $hero_val = $cp_settings['hero-enabled'] ?? true;
+        $hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
+    }
 }
 ?>
 

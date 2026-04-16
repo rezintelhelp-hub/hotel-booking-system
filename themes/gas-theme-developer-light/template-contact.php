@@ -236,19 +236,8 @@ $lg_radius   = $api['lg_radius'] ?? 16;
 </section>
 <?php endif; ?>
 
-<div class="gas-contact-page" <?php if ($hero_enabled) echo 'style="padding-top: 40px;"'; ?>>
+<div class="gas-contact-page" style="padding-top: <?php echo $hero_enabled ? '40px' : '20px'; ?>;">
     <div class="gas-contact-container">
-
-        <?php if (!$hero_enabled) : ?>
-        <div class="gas-contact-header">
-            <h1><?php echo $page_title ? esc_html($page_title) : the_title('', '', false); ?></h1>
-            <?php if ($page_subtitle): ?>
-                <p><?php echo esc_html($page_subtitle); ?></p>
-            <?php elseif ($business): ?>
-                <p><?php echo esc_html($business); ?></p>
-            <?php endif; ?>
-        </div>
-        <?php endif; ?>
 
         <div class="gas-contact-grid">
 

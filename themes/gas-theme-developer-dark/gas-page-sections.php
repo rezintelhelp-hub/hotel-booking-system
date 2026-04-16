@@ -71,9 +71,26 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     $card_radius = $radius_api['card_radius'] ?? '12';
     $lg_radius = $radius_api['lg_radius'] ?? '16';
 
+    // Check hero-enabled from custom page settings
+    $hero_enabled_ps = true;
+    if (function_exists('developer_get_api_settings')) {
+        $ps_api = developer_get_api_settings();
+        $cp_hero_settings = ($ps_api['custom_page_settings'] ?? array())[$page_slug] ?? array();
+        if (!empty($cp_hero_settings)) {
+            $hv = $cp_hero_settings['hero-enabled'] ?? true;
+            $hero_enabled_ps = !($hv === false || $hv === 'false' || $hv === '0' || $hv === 0);
+        }
+    }
+
     // Only render the page title hero if sections don't already contain a hero
     $has_hero_section = in_array('hero', array_column($sections, 'type'));
-    if (!$has_hero_section) {
+
+    if (!$hero_enabled_ps) {
+        // Hero disabled — no spacer, content starts right after header
+        // Remove hero sections from the list so they don't render below
+        $sections = array_filter($sections, function($s) { return ($s['type'] ?? '') !== 'hero'; });
+        $sections = array_values($sections);
+    } elseif (!$has_hero_section) {
     ?>
     <section class="gas-ps-hero" style="position: relative; min-height: 250px; height: 35vh; display: flex; align-items: center; justify-content: center; background: #1e293b; overflow: hidden;">
         <div style="position: absolute; top: 0; left: 0; right: 0; height: 150px; background: linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 100%); pointer-events: none; z-index: 1;"></div>

@@ -168,6 +168,13 @@ if ($special_page === 'about') {
 } elseif ($special_page === 'contact') {
     $hero_val = $api['page_contact_hero_enabled'] ?? true;
     $hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
+} elseif (empty($special_page)) {
+    // Custom pages — check hero-enabled from custom_page_settings
+    $cp_settings = ($api['custom_page_settings'] ?? array())[$page_slug] ?? array();
+    if (!empty($cp_settings)) {
+        $hero_val = $cp_settings['hero-enabled'] ?? true;
+        $hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
+    }
 }
 ?>
 
@@ -196,18 +203,10 @@ if ($special_page === 'about') {
         <?php endif; ?>
     </div>
 </section>
-<?php else : ?>
-<!-- Simple header when hero is disabled -->
-<div style="padding-top: 120px; padding-bottom: 40px; text-align: center; background: <?php echo esc_attr($page_header_bg); ?>;">
-    <h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: <?php echo esc_attr($page_header_text); ?>; margin: 0 0 8px;"><?php echo esc_html($page_title); ?></h1>
-    <?php if ($page_subtitle) : ?>
-        <p style="font-size: 1.15rem; color: <?php echo esc_attr($page_header_text); ?>; opacity: 0.8; margin: 0;"><?php echo esc_html($page_subtitle); ?></p>
-    <?php endif; ?>
-</div>
 <?php endif; ?>
 
 <!-- Page Content -->
-<div class="developer-page-content" style="background-color: <?php echo esc_attr($page_bg); ?>; padding: 60px 0;">
+<div class="developer-page-content" style="background-color: <?php echo esc_attr($page_bg); ?>; padding: <?php echo $hero_enabled ? '60px' : '90px'; ?> 0 60px 0;">
     <div class="developer-container">
         <?php while (have_posts()) : the_post(); ?>
             <div class="developer-page-body" style="max-width: <?php echo esc_attr($max_width); ?>; margin: 0 auto; padding: 0 24px;">

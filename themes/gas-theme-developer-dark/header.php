@@ -176,9 +176,32 @@ if ($contact_enabled && $contact_enabled !== 'false' && $contact_enabled !== fal
     );
 }
 
+// Custom pages from Web Builder
+$custom_pages = $api_settings['custom_pages'] ?? array();
+foreach ($custom_pages as $cp) {
+    $cp_visibility = $cp['visibility'] ?? 'menu';
+    if ($cp_visibility === 'menu' || $cp_visibility === 'both') {
+        $menu_items[] = array(
+            'title' => $cp['title'] ?? ucfirst($cp['slug'] ?? ''),
+            'url' => home_url('/' . ($cp['slug'] ?? '') . '/'),
+            'order' => $cp['menu_order'] ?? 6,
+            'enabled' => true
+        );
+    }
+}
+
 // Sort menu items by order
 usort($menu_items, function($a, $b) {
     return intval($a['order'] ?? 99) - intval($b['order'] ?? 99);
+});
+
+// De-duplicate menu items by URL
+$seen_urls = array();
+$menu_items = array_filter($menu_items, function($item) use (&$seen_urls) {
+    $url = trailingslashit($item['url'] ?? '');
+    if (isset($seen_urls[$url])) return false;
+    $seen_urls[$url] = true;
+    return true;
 });
 
 // Helper function to output menu items

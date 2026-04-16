@@ -2678,6 +2678,21 @@ function developer_get_api_settings() {
         'page_privacy_use_external' => $website_page_privacy['use-external'] ?? false,
         'page_privacy_external_url' => $website_page_privacy['external-url'] ?? '',
         
+        // Custom Pages (from Web Builder)
+        'custom_pages' => ($website['custom-pages'] ?? array())['pages'] ?? array(),
+        // Custom page settings keyed by slug (for hero-enabled, etc.)
+        'custom_page_settings' => (function() use ($website) {
+            $settings = array();
+            $pages = ($website['custom-pages'] ?? array())['pages'] ?? array();
+            foreach ($pages as $cp) {
+                $slug = $cp['slug'] ?? '';
+                if ($slug) {
+                    $settings[$slug] = $website['page-custom-' . $slug] ?? array();
+                }
+            }
+            return $settings;
+        })(),
+
         // CTA Button (Header) - use multilingual lookup for text
         'cta_text' => developer_get_ml_value($website_header, 'cta-button-text', $lang) ?: ($website_header['cta-button-text'] ?? null),
         'cta_link' => $website_header['cta-link'] ?? '/book-now/',

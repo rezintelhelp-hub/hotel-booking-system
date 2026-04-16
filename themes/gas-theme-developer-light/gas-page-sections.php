@@ -71,12 +71,26 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     $card_radius = $radius_api['card_radius'] ?? '12';
     $lg_radius = $radius_api['lg_radius'] ?? '16';
 
-    // Section builder pages: no automatic hero. If the client wants a hero, they add
-    // a Hero section in the builder. No toggle needed, no caching issues.
+    // Check hero-enabled from custom page settings
+    $hero_enabled_ps = true;
+    if (function_exists('developer_get_api_settings')) {
+        $ps_api = developer_get_api_settings();
+        $cp_hero_settings = ($ps_api['custom_page_settings'] ?? array())[$page_slug] ?? array();
+        if (!empty($cp_hero_settings)) {
+            $hv = $cp_hero_settings['hero-enabled'] ?? true;
+            $hero_enabled_ps = !($hv === false || $hv === 'false' || $hv === '0' || $hv === 0);
+        }
+    }
+
     $section_types = array_column($sections, 'type');
     $has_hero_section = in_array('hero', $section_types) || in_array('hero_slider', $section_types);
-    if (!$has_hero_section) {
-        // Just add spacing for the fixed header
+
+    if (!$hero_enabled_ps) {
+        // Hero disabled — no spacer, content starts right after header
+        $sections = array_filter($sections, function($s) { return !in_array($s['type'] ?? '', array('hero', 'hero_slider')); });
+        $sections = array_values($sections);
+    } elseif (!$has_hero_section) {
+        // No hero section in builder — just add spacing for fixed header
         echo '<div style="padding-top: 100px;"></div>';
     }
 
