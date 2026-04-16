@@ -20771,40 +20771,67 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
             }
         }
         
-        // If updating existing Beds24 booking, include its ID
-        if (isUpdate) {
-            beds24Payload.id = parseInt(booking.beds24_booking_id);
-        }
+        // Use booking_ref if available
+        const bookingRef = booking.booking_ref || ('GAS-' + String(bookingId).padStart(4, '0'));
+        beds24Payload.referer = `GAS Direct - ${bookingRef}`;
+        beds24Payload.refererEditable = `GAS Direct - ${bookingRef}`;
+        beds24Payload.reference = bookingRef;
+        beds24Payload.notes = `Booked via GAS | Ref: ${bookingRef}`;
 
         beds24Payload.allowWebhooks = true;
-        console.log(`[Beds24 ${isUpdate ? 'Update' : 'Push'}] Payload:`, JSON.stringify(beds24Payload));
 
-        // V2 primary (per-client token)
         let newBeds24Id = null;
-        if (accessToken) {
-          const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', [beds24Payload], {
-              headers: getBeds24BookingHeaders(null, accessToken)
-          });
-          console.log('[Beds24 V2 Push] Response:', JSON.stringify(beds24Response.data));
-          const respData = Array.isArray(beds24Response.data) ? beds24Response.data[0] : beds24Response.data;
-          newBeds24Id = respData?.id || respData?.bookingId || respData?.new?.id;
-        }
-        // V1 fallback (master key only)
-        if (!newBeds24Id) {
-          const pushPropKey = await getBeds24PropKeyForRoom(pool, booking.unit_id);
-          if (pushPropKey) {
-            try {
-              const v1Pay = [toV1BookingFields(beds24Payload)];
-              const v1Res = await createBeds24BookingV1(pushPropKey, v1Pay);
-              if (v1Res.success && v1Res.data) {
-                const bookData = Array.isArray(v1Res.data) ? v1Res.data[0] : v1Res.data;
-                newBeds24Id = bookData?.bookId || bookData?.id;
-                console.log('[Beds24 V1 fallback Push] Created:', newBeds24Id);
-              }
-            } catch (v1Err) {
-              console.error('[Beds24 V1 fallback Push] Error:', v1Err.message);
+
+        if (isUpdate) {
+            // UPDATE existing Beds24 booking — only send id + fields to update, never create new
+            const updatePayload = [{
+                id: parseInt(booking.beds24_booking_id),
+                status: 'confirmed',
+                price: beds24Payload.price,
+                reference: bookingRef,
+                invoiceItems: beds24Payload.invoiceItems,
+                allowWebhooks: true
+            }];
+            if (beds24Payload.payments) {
+                updatePayload[0].payments = beds24Payload.payments;
             }
-          }
+            console.log('[Beds24 Update] Payload:', JSON.stringify(updatePayload));
+
+            const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', updatePayload, {
+                headers: getBeds24BookingHeaders(null, accessToken)
+            });
+            console.log('[Beds24 Update] Response:', JSON.stringify(beds24Response.data));
+            newBeds24Id = booking.beds24_booking_id;
+        } else {
+            // CREATE new booking in Beds24
+            console.log('[Beds24 Push] Payload:', JSON.stringify(beds24Payload));
+
+            // V2 primary (per-client token)
+            if (accessToken) {
+              const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', [beds24Payload], {
+                  headers: getBeds24BookingHeaders(null, accessToken)
+              });
+              console.log('[Beds24 V2 Push] Response:', JSON.stringify(beds24Response.data));
+              const respData = Array.isArray(beds24Response.data) ? beds24Response.data[0] : beds24Response.data;
+              newBeds24Id = respData?.id || respData?.bookingId || respData?.new?.id;
+            }
+            // V1 fallback (master key only)
+            if (!newBeds24Id) {
+              const pushPropKey = await getBeds24PropKeyForRoom(pool, booking.unit_id);
+              if (pushPropKey) {
+                try {
+                  const v1Pay = [toV1BookingFields(beds24Payload)];
+                  const v1Res = await createBeds24BookingV1(pushPropKey, v1Pay);
+                  if (v1Res.success && v1Res.data) {
+                    const bookData = Array.isArray(v1Res.data) ? v1Res.data[0] : v1Res.data;
+                    newBeds24Id = bookData?.bookId || bookData?.id;
+                    console.log('[Beds24 V1 fallback Push] Created:', newBeds24Id);
+                  }
+                } catch (v1Err) {
+                  console.error('[Beds24 V1 fallback Push] Error:', v1Err.message);
+                }
+              }
+            }
         }
         if (newBeds24Id) {
             await pool.query('UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2', [newBeds24Id.toString(), bookingId]);
@@ -21454,6 +21481,26 @@ app.get('/api/setup-database', async (req, res) => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cm_sync_status VARCHAR(20) DEFAULT 'pending'`);
+    // Booking reference number
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_ref VARCHAR(20)`);
+    // Backfill existing bookings without a ref
+    await pool.query(`UPDATE bookings SET booking_ref = 'GAS-' || LPAD(id::text, 4, '0') WHERE booking_ref IS NULL`);
+    // Auto-generate booking_ref on insert via trigger
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION set_booking_ref() RETURNS TRIGGER AS $$
+      BEGIN
+        IF NEW.booking_ref IS NULL THEN
+          NEW.booking_ref := 'GAS-' || LPAD(NEW.id::text, 4, '0');
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+    await pool.query(`
+      DROP TRIGGER IF EXISTS trg_booking_ref ON bookings;
+      CREATE TRIGGER trg_booking_ref BEFORE INSERT ON bookings
+      FOR EACH ROW EXECUTE FUNCTION set_booking_ref();
+    `);
     // Add beds24_booking_id column if it doesn't exist
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS beds24_booking_id VARCHAR(50)`);
     // Add smoobu_booking_id column
@@ -32828,12 +32875,12 @@ app.post('/api/db/book', async (req, res) => {
           city: guest_city || '',
           country: guest_country || '',
           postcode: guest_postcode || '',
-          referer: `GAS Direct - GAS-${booking.id}`,
-          refererEditable: `GAS Direct - GAS-${booking.id}`,
-          reference: `GAS-${booking.id}`,
-          notes: payment_method === 'card_guarantee' 
-            ? `Booked via GAS | Card Guarantee on file | Ref: GAS-${booking.id}` 
-            : `Booked via GAS | Ref: GAS-${booking.id}`,
+          referer: `GAS Direct - ${booking.booking_ref || 'GAS-' + String(booking.id).padStart(4, '0')}`,
+          refererEditable: `GAS Direct - ${booking.booking_ref || 'GAS-' + String(booking.id).padStart(4, '0')}`,
+          reference: booking.booking_ref || ('GAS-' + String(booking.id).padStart(4, '0')),
+          notes: payment_method === 'card_guarantee'
+            ? `Booked via GAS | Card Guarantee on file | Ref: ${booking.booking_ref || 'GAS-' + String(booking.id).padStart(4, '0')}`
+            : `Booked via GAS | Ref: ${booking.booking_ref || 'GAS-' + String(booking.id).padStart(4, '0')}`,
           // Price and financial info
           price: parseFloat(total_price) || 0,
           deposit: parseFloat(deposit_amount) || 0,
