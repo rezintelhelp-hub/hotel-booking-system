@@ -14079,10 +14079,10 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
       const confirmRes = await fetch(`${airwallexBase}/api/v1/pa/payment_intents/${intentData.id}/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
-        body: JSON.stringify(Object.assign({
+        body: JSON.stringify({
           request_id: 'gas-confirm-' + id + '-' + Date.now(),
           payment_consent_id: account.airwallex_payment_consent_id
-        }, account.airwallex_payment_method_id ? { payment_method: { id: account.airwallex_payment_method_id } } : {}))
+        })
       });
       const confirmData = await confirmRes.json();
 
