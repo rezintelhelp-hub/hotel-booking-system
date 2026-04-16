@@ -44078,8 +44078,9 @@ app.get('/api/bookings/:id', async (req, res) => {
     const { id } = req.params;
     
     const result = await pool.query(`
-      SELECT b.*, 
+      SELECT b.*,
              bu.name as unit_name,
+             bu.beds24_room_id,
              p.name as property_name,
              p.currency,
              a.stripe_account_id
