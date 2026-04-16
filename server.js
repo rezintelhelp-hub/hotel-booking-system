@@ -15847,13 +15847,17 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
       let roomName = roomTexts.displayName?.EN || room.name || 'Room ' + roomId;
       roomName = roomName.replace(/\s*\|\s*\d+$/, '').trim();
 
-      // Description rules (matching old system):
-      // Apartments/single room: propertyDescription1 + propertyDescription2
+      // Description rules:
+      // Apartments/single room: propertyDescription1, fallback to roomDescription1
       // Hotels/aparthotels: roomDescription1 + auxiliaryText
+      // Multi-room apartments: try roomDescription1 first, fallback to propertyDescription1
       let roomDesc, roomDesc2;
       if (isApartmentType) {
-        roomDesc = stripHtml(propTexts.propertyDescription1?.EN || propTexts.propertyDescription2?.EN || '');
-        roomDesc2 = stripHtml(propTexts.propertyDescription2?.EN || '');
+        const propDesc = stripHtml(propTexts.propertyDescription1?.EN || propTexts.propertyDescription2?.EN || '');
+        const roomLevelDesc = stripHtml(roomTexts.roomDescription1?.EN || '');
+        // Prefer room-level description for multi-room properties, fallback to property-level
+        roomDesc = roomLevelDesc || propDesc;
+        roomDesc2 = stripHtml(roomTexts.auxiliaryText?.EN || propTexts.propertyDescription2?.EN || '');
       } else {
         roomDesc = stripHtml(roomTexts.roomDescription1?.EN || '');
         roomDesc2 = stripHtml(roomTexts.auxiliaryText?.EN || '');
@@ -15871,7 +15875,9 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
         const lk = langKey.toLowerCase();
         let descVal;
         if (isApartmentType) {
-          descVal = stripHtml(propTexts.propertyDescription1?.[langKey] || propTexts.propertyDescription2?.[langKey] || '');
+          const propDescLang = stripHtml(propTexts.propertyDescription1?.[langKey] || propTexts.propertyDescription2?.[langKey] || '');
+          const roomDescLang = stripHtml(roomTexts.roomDescription1?.[langKey] || '');
+          descVal = roomDescLang || propDescLang;
         } else {
           descVal = stripHtml(roomTexts.roomDescription1?.[langKey] || '');
         }
@@ -69486,6 +69492,74 @@ Return your response in this exact JSON format:
         
     } catch (error) {
         console.error('AI Blog generation error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Regenerate FAQ schema from existing content (blog or attraction)
+app.post('/api/admin/regenerate-faqs', async (req, res) => {
+    try {
+        const { title, content, type } = req.body;
+        if (!content) {
+            return res.json({ success: false, error: 'Content is required' });
+        }
+
+        const prompt = `Based on the following ${type || 'article'} content, generate 3-5 FAQ questions and answers that would be useful for readers/visitors.
+
+Title: ${title || 'Untitled'}
+
+Content:
+${typeof content === 'string' ? content.replace(/<[^>]+>/g, ' ').substring(0, 3000) : ''}
+
+Return ONLY a JSON array of FAQ objects in this format:
+[
+    {"question": "Question 1?", "answer": "Answer 1"},
+    {"question": "Question 2?", "answer": "Answer 2"},
+    {"question": "Question 3?", "answer": "Answer 3"}
+]`;
+
+        const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-4-5-20250929',
+            max_tokens: 1000,
+            messages: [{ role: 'user', content: prompt }]
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            }
+        });
+
+        const responseText = claudeResponse.data.content[0].text;
+        let cleanText = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+        let faqs;
+        try {
+            faqs = JSON.parse(cleanText);
+        } catch (e) {
+            const jsonMatch = cleanText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                faqs = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error('Could not parse FAQ response');
+            }
+        }
+
+        const faqSchema = {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": faqs.map(item => ({
+                "@type": "Question",
+                "name": item.question,
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": item.answer
+                }
+            }))
+        };
+
+        res.json({ success: true, faq: faqs, faq_schema: faqSchema });
+    } catch (error) {
+        console.error('FAQ regeneration error:', error);
         res.json({ success: false, error: error.message });
     }
 });

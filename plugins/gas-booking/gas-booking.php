@@ -3467,8 +3467,8 @@ class GAS_Booking {
         $site_currency = '';
         if (function_exists('developer_get_api_settings')) {
             $api = developer_get_api_settings();
-            if (!empty($api['spinner_style'])) {
-                $spinner_style = $api['spinner_style'];
+            if (!empty($api['spinner_style']) && $api['spinner_style'] === 'none') {
+                $spinner_style = 'none';
             }
             if (!empty($api['currency_mode'])) {
                 $currency_mode = $api['currency_mode'];
@@ -6152,6 +6152,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 noResults.style.display = 'block';
             } else if (noResults) {
                 noResults.style.display = 'none';
+            }
+
+            // Sync map markers with visible rooms
+            if (typeof gasUpdateMapMarkers === 'function') {
+                gasUpdateMapMarkers();
             }
         }
         

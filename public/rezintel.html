@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rezintel — Get Started</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #0f172a;
+            --ink-light: #334155;
+            --ink-muted: #64748b;
+            --surface: #ffffff;
+            --surface-subtle: #f8fafc;
+            --surface-hover: #f1f5f9;
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            --accent: #0ea5e9;
+            --accent-hover: #0284c7;
+            --accent-soft: #f0f9ff;
+            --success: #10b981;
+            --success-soft: #ecfdf5;
+            --white: #ffffff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--surface);
+            color: var(--ink);
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .wizard {
+            width: 100%;
+            max-width: 560px;
+            margin-top: 2rem;
+        }
+
+        .wizard-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .step-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border);
+            transition: all 0.4s ease;
+        }
+
+        .step-dot.active {
+            background: var(--accent);
+            width: 24px;
+            border-radius: 4px;
+        }
+
+        .step-dot.complete {
+            background: var(--success);
+        }
+
+        .step-view {
+            display: none;
+            animation: fadeSlideIn 0.4s ease forwards;
+        }
+
+        .step-view.active {
+            display: block;
+        }
+
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+        }
+
+        .step-title {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.8rem;
+            font-weight: 400;
+            color: var(--ink);
+            margin-bottom: 0.5rem;
+            line-height: 1.2;
+        }
+
+        .step-subtitle {
+            font-size: 0.95rem;
+            color: var(--ink-muted);
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+
+        .field {
+            margin-bottom: 1.25rem;
+        }
+
+        .field label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--ink-light);
+            margin-bottom: 0.4rem;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            color: var(--ink);
+            background: var(--surface);
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .field input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        }
+
+        .field input::placeholder { color: #94a3b8; }
+
+        .btn-primary {
+            width: 100%;
+            padding: 0.85rem 1.5rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            background: var(--ink);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 0.5rem;
+        }
+
+        .btn-primary:hover {
+            background: #1e293b;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            width: 100%;
+            padding: 0.85rem 1.5rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 500;
+            background: var(--surface);
+            color: var(--ink);
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: var(--surface-hover);
+            border-color: var(--ink-muted);
+        }
+
+        .step-footer {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+
+        .step-footer a {
+            font-size: 0.85rem;
+            color: var(--ink-muted);
+            text-decoration: none;
+        }
+
+        .step-footer a:hover { color: var(--accent); }
+
+        .hint {
+            font-size: 0.8rem;
+            color: var(--ink-muted);
+            margin-top: 0.5rem;
+            line-height: 1.5;
+        }
+
+        .hint a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .hint a:hover { text-decoration: underline; }
+
+        .error-msg {
+            font-size: 0.85rem;
+            color: #ef4444;
+            margin-top: 0.5rem;
+            display: none;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Property cards */
+        .property-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .property-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 1rem;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface);
+            transition: all 0.2s ease;
+        }
+
+        .property-card:hover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .property-card input[type="checkbox"] {
+            margin-top: 0.2rem;
+            min-width: 18px;
+            min-height: 18px;
+            cursor: pointer;
+            accent-color: var(--accent);
+        }
+
+        .property-card .prop-info {
+            flex: 1;
+        }
+
+        .property-card .prop-name {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .property-card .prop-meta {
+            font-size: 0.8rem;
+            color: var(--ink-muted);
+            margin-top: 0.15rem;
+        }
+
+        .property-card .prop-rooms {
+            font-size: 0.75rem;
+            color: var(--ink-muted);
+            margin-top: 0.4rem;
+        }
+
+        .property-card .prop-rooms span {
+            display: inline-block;
+            background: var(--surface-hover);
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-right: 4px;
+            margin-bottom: 4px;
+        }
+
+        /* Progress */
+        .import-progress {
+            margin-bottom: 1.5rem;
+        }
+
+        .import-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 0;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .import-item .status-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .import-item .status-icon.pending { color: var(--ink-muted); }
+        .import-item .status-icon.loading { color: var(--accent); }
+        .import-item .status-icon.done { color: var(--success); }
+        .import-item .status-icon.error { color: #ef4444; }
+
+        .spinner-small {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        /* Success */
+        .success-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: var(--success-soft);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .success-icon svg {
+            width: 32px;
+            height: 32px;
+            color: var(--success);
+        }
+
+        .checklist {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.9rem;
+            color: var(--ink-light);
+        }
+
+        .checklist-item .check {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--success);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .checklist-item .check svg { color: white; }
+
+        .info-box {
+            background: var(--accent-soft);
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+            color: var(--ink-light);
+            line-height: 1.5;
+        }
+
+        .info-box strong { color: var(--ink); }
+    </style>
+</head>
+<body>
+
+<div class="wizard">
+    <div class="wizard-header">
+        <a href="/" class="logo">REZINTEL</a>
+        <div class="step-indicator">
+            <div class="step-dot active" data-step="1"></div>
+            <div class="step-dot" data-step="2"></div>
+            <div class="step-dot" data-step="3"></div>
+            <div class="step-dot" data-step="4"></div>
+        </div>
+    </div>
+
+    <!-- STEP 1: Create Account -->
+    <div class="step-view active" id="step-1">
+        <p class="step-label">Step 1 of 4</p>
+        <h2 class="step-title">Create your account</h2>
+        <p class="step-subtitle">Quick setup — we'll connect your Beds24 properties in the next step.</p>
+
+        <div class="field">
+            <label>Business / Property Name <span style="color: #ef4444;">*</span></label>
+            <input type="text" id="reg-business" placeholder="e.g. Sunergy Apartments" required>
+        </div>
+        <div class="field">
+            <label>Your full name</label>
+            <input type="text" id="reg-name" placeholder="e.g. Maria Schmidt" autocomplete="name">
+        </div>
+        <div class="field">
+            <label>Email address <span style="color: #ef4444;">*</span></label>
+            <input type="email" id="reg-email" placeholder="you@yourbusiness.com" autocomplete="email">
+        </div>
+        <div class="field">
+            <label>Password <span style="color: #ef4444;">*</span></label>
+            <input type="password" id="reg-password" placeholder="Minimum 8 characters">
+        </div>
+
+        <div style="display: flex; align-items: flex-start; gap: 0.5rem; margin-bottom: 1rem;">
+            <input type="checkbox" id="reg-terms" style="margin-top: 0.3rem; min-width: 18px; min-height: 18px; cursor: pointer;">
+            <label for="reg-terms" style="font-size: 0.85rem; color: var(--ink-muted); cursor: pointer; line-height: 1.5;">
+                I agree to the <a href="/terms" target="_blank" style="color: var(--accent); text-decoration: underline;">Terms and Conditions</a> and <a href="/privacy" target="_blank" style="color: var(--accent); text-decoration: underline;">Privacy Policy</a>
+            </label>
+        </div>
+
+        <div class="error-msg" id="step1-error"></div>
+        <button class="btn-primary" id="step1-btn" onclick="submitStep1()">Create Account</button>
+
+        <div class="step-footer">
+            <a href="/login">Already have an account? Sign in</a>
+        </div>
+    </div>
+
+    <!-- STEP 2: Enter Beds24 Account ID -->
+    <div class="step-view" id="step-2">
+        <p class="step-label">Step 2 of 4</p>
+        <h2 class="step-title">Connect your Beds24 account</h2>
+        <p class="step-subtitle">Enter your Beds24 Account ID and we'll find your properties automatically.</p>
+
+        <div class="info-box">
+            <strong>Before you start:</strong> Make sure you've enabled your properties in the Beds24 Marketplace.
+            In Beds24, go to <strong>Settings &rarr; Apps &rarr; Rezintel</strong>, select the properties and rooms you want to display, then click Save.
+        </div>
+
+        <div class="field">
+            <label>Beds24 Account ID <span style="color: #ef4444;">*</span></label>
+            <input type="text" id="b24-account-id" placeholder="e.g. 12345" inputmode="numeric">
+            <p class="hint">Find this in Beds24 under <strong>Settings &rarr; Account &rarr; Account Access</strong>. It's the number shown as your Owner ID.</p>
+        </div>
+
+        <div class="error-msg" id="step2-error"></div>
+        <button class="btn-primary" id="step2-btn" onclick="findProperties()">Find My Properties</button>
+    </div>
+
+    <!-- STEP 3: Confirm Properties -->
+    <div class="step-view" id="step-3">
+        <p class="step-label">Step 3 of 4</p>
+        <h2 class="step-title">Your properties</h2>
+        <p class="step-subtitle">We found these properties on your Beds24 account. Tick the ones you'd like to import.</p>
+
+        <div class="property-list" id="property-list">
+            <!-- Populated by JS -->
+        </div>
+
+        <div class="error-msg" id="step3-error"></div>
+        <button class="btn-primary" id="step3-btn" onclick="importProperties()">Import Selected Properties</button>
+
+        <div class="step-footer" style="margin-top: 1rem;">
+            <a href="javascript:void(0)" onclick="goToStep(2)">Back — try a different Account ID</a>
+        </div>
+    </div>
+
+    <!-- STEP 4: Importing / Done -->
+    <div class="step-view" id="step-4">
+        <div id="import-in-progress">
+            <p class="step-label">Step 4 of 4</p>
+            <h2 class="step-title">Importing your properties</h2>
+            <p class="step-subtitle">Pulling in rooms, photos, descriptions, and pricing from Beds24...</p>
+
+            <div class="import-progress" id="import-progress">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <div id="import-done" style="display: none;">
+            <div class="success-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <h2 class="step-title">You're all set!</h2>
+            <p class="step-subtitle">Your Beds24 properties are now connected and synced.</p>
+
+            <div class="checklist" id="import-checklist">
+                <!-- Populated by JS -->
+            </div>
+
+            <button class="btn-primary" onclick="window.location.href='/gas-admin.html'">Go to Dashboard</button>
+
+            <div class="step-footer">
+                <p style="font-size: 0.8rem; color: var(--ink-muted); margin-top: 1rem;">
+                    Your properties are live and visible to travel agents. You can configure payments, build a website, and manage bookings from the dashboard.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // =============================================
+    // STATE
+    // =============================================
+    let currentStep = 1;
+    let accountData = null;
+    let allProperties = [];   // All properties from marketplace API
+    let matchedProperties = []; // Filtered to this owner
+
+    const API = window.location.origin;
+
+    function authHeaders() {
+        if (!accountData || !accountData.token) return { 'Content-Type': 'application/json' };
+        return {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + accountData.token
+        };
+    }
+
+    // =============================================
+    // NAVIGATION
+    // =============================================
+    function goToStep(step) {
+        document.querySelectorAll('.step-view').forEach(s => s.classList.remove('active'));
+        document.getElementById('step-' + step).classList.add('active');
+
+        document.querySelectorAll('.step-dot').forEach((dot, i) => {
+            dot.classList.remove('active', 'complete');
+            if (i + 1 < step) dot.classList.add('complete');
+            if (i + 1 === step) dot.classList.add('active');
+        });
+
+        currentStep = step;
+    }
+
+    function showError(id, msg) {
+        const el = document.getElementById(id);
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    function hideError(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    // =============================================
+    // STEP 1: CREATE ACCOUNT
+    // =============================================
+    async function submitStep1() {
+        hideError('step1-error');
+
+        const business = document.getElementById('reg-business').value.trim();
+        const name = document.getElementById('reg-name').value.trim();
+        const email = document.getElementById('reg-email').value.trim();
+        const password = document.getElementById('reg-password').value;
+        const terms = document.getElementById('reg-terms').checked;
+
+        if (!business || !email || !password) {
+            showError('step1-error', 'Please fill in business name, email, and password.');
+            return;
+        }
+        if (password.length < 8) {
+            showError('step1-error', 'Password must be at least 8 characters.');
+            return;
+        }
+        if (!terms) {
+            showError('step1-error', 'Please accept the Terms and Conditions.');
+            return;
+        }
+
+        const btn = document.getElementById('step1-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Creating account...';
+
+        try {
+            const res = await fetch(API + '/api/onboarding/create-account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: business,
+                    business_name: business,
+                    contact_name: name,
+                    email,
+                    password,
+                    channel_manager: 'beds24-marketplace',
+                    terms_accepted: true
+                })
+            });
+
+            const result = await res.json();
+
+            if (result.success) {
+                accountData = result;
+                goToStep(2);
+            } else {
+                showError('step1-error', result.error || 'Something went wrong.');
+            }
+        } catch (err) {
+            showError('step1-error', 'Could not reach the server. Please try again.');
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+    }
+
+    // =============================================
+    // STEP 2: FIND PROPERTIES
+    // =============================================
+    async function findProperties() {
+        hideError('step2-error');
+
+        const accountId = document.getElementById('b24-account-id').value.trim();
+        if (!accountId) {
+            showError('step2-error', 'Please enter your Beds24 Account ID.');
+            return;
+        }
+
+        const btn = document.getElementById('step2-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Searching Beds24...';
+
+        try {
+            // Call the marketplace connect endpoint to fetch all properties
+            const res = await fetch(API + '/api/accounts/' + accountData.account.id + '/beds24v2/connect', {
+                method: 'POST',
+                headers: authHeaders()
+            });
+
+            const result = await res.json();
+
+            if (!result.success || !result.properties || result.properties.length === 0) {
+                showError('step2-error', 'Could not find any properties in the marketplace. Make sure you\'ve enabled your properties in Beds24 under Settings → Apps → Rezintel.');
+                btn.disabled = false;
+                btn.textContent = 'Find My Properties';
+                return;
+            }
+
+            allProperties = result.properties;
+
+            // Filter to this owner's properties
+            matchedProperties = allProperties.filter(p =>
+                String(p.ownerId) === String(accountId)
+            );
+
+            if (matchedProperties.length === 0) {
+                showError('step2-error', 'No properties found for Account ID ' + accountId + '. Check the ID is correct and that you\'ve enabled your properties in Beds24\'s marketplace settings.');
+                btn.disabled = false;
+                btn.textContent = 'Find My Properties';
+                return;
+            }
+
+            // Render property list
+            renderPropertyList(matchedProperties);
+            goToStep(3);
+
+        } catch (err) {
+            showError('step2-error', 'Connection error. Please try again.');
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Find My Properties';
+    }
+
+    // =============================================
+    // STEP 3: CONFIRM PROPERTIES
+    // =============================================
+    function renderPropertyList(properties) {
+        const container = document.getElementById('property-list');
+        container.innerHTML = '';
+
+        properties.forEach((prop, i) => {
+            const rooms = prop.rooms || [];
+            const roomHtml = rooms.map(r =>
+                '<span>' + escHtml(r.name) + (r.qty > 1 ? ' ×' + r.qty : '') + '</span>'
+            ).join('');
+
+            container.innerHTML += `
+                <div class="property-card">
+                    <input type="checkbox" checked data-index="${i}" class="prop-checkbox">
+                    <div class="prop-info">
+                        <div class="prop-name">${escHtml(prop.name || 'Property ' + prop.propId)}</div>
+                        <div class="prop-meta">ID: ${prop.propId} &middot; ${rooms.length} room type${rooms.length !== 1 ? 's' : ''}</div>
+                        ${roomHtml ? '<div class="prop-rooms">' + roomHtml + '</div>' : ''}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    function escHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str || '';
+        return div.innerHTML;
+    }
+
+    // =============================================
+    // STEP 4: IMPORT
+    // =============================================
+    async function importProperties() {
+        hideError('step3-error');
+
+        // Get selected properties
+        const checkboxes = document.querySelectorAll('.prop-checkbox:checked');
+        if (checkboxes.length === 0) {
+            showError('step3-error', 'Please select at least one property to import.');
+            return;
+        }
+
+        const selectedProps = [];
+        checkboxes.forEach(cb => {
+            selectedProps.push(matchedProperties[parseInt(cb.dataset.index)]);
+        });
+
+        goToStep(4);
+
+        const progressDiv = document.getElementById('import-progress');
+        progressDiv.innerHTML = '';
+
+        // Create progress items
+        selectedProps.forEach(prop => {
+            progressDiv.innerHTML += `
+                <div class="import-item" id="import-${prop.propId}">
+                    <div class="status-icon pending">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+                    </div>
+                    <span>${escHtml(prop.name || 'Property ' + prop.propId)}</span>
+                </div>
+            `;
+        });
+
+        // Import each property sequentially
+        let successCount = 0;
+        let totalRooms = 0;
+
+        for (const prop of selectedProps) {
+            const itemEl = document.getElementById('import-' + prop.propId);
+            const iconEl = itemEl.querySelector('.status-icon');
+
+            // Show loading
+            iconEl.className = 'status-icon loading';
+            iconEl.innerHTML = '<div class="spinner-small"></div>';
+
+            try {
+                // 1. Link the property
+                const linkRes = await fetch(API + '/api/accounts/' + accountData.account.id + '/beds24v2/link', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({
+                        ownerId: prop.ownerId,
+                        propId: prop.propId,
+                        propKey: prop.propKey,
+                        propName: prop.name,
+                        rooms: prop.rooms
+                    })
+                });
+
+                const linkResult = await linkRes.json();
+
+                if (!linkResult.success) {
+                    throw new Error(linkResult.error || 'Link failed');
+                }
+
+                const connectionId = linkResult.connectionId;
+
+                // 2. Sync the property (imports rooms, images, descriptions)
+                const syncRes = await fetch(API + '/api/gas-sync/connections/' + connectionId + '/sync-marketplace', {
+                    method: 'POST',
+                    headers: authHeaders()
+                });
+
+                const syncResult = await syncRes.json();
+
+                if (syncResult.success) {
+                    iconEl.className = 'status-icon done';
+                    iconEl.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+                    successCount++;
+                    totalRooms += (prop.rooms || []).reduce((sum, r) => sum + (r.qty || 1), 0);
+                } else {
+                    throw new Error(syncResult.error || 'Sync failed');
+                }
+
+            } catch (err) {
+                iconEl.className = 'status-icon error';
+                iconEl.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+                itemEl.querySelector('span').textContent += ' — ' + (err.message || 'Error');
+            }
+        }
+
+        // Show done state
+        setTimeout(() => {
+            document.getElementById('import-in-progress').style.display = 'none';
+            const doneDiv = document.getElementById('import-done');
+            doneDiv.style.display = 'block';
+
+            const checklist = document.getElementById('import-checklist');
+            checklist.innerHTML = `
+                <div class="checklist-item">
+                    <div class="check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <span>Account created</span>
+                </div>
+                <div class="checklist-item">
+                    <div class="check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <span>Beds24 connected</span>
+                </div>
+                <div class="checklist-item">
+                    <div class="check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <span>${successCount} propert${successCount !== 1 ? 'ies' : 'y'} imported (${totalRooms} rooms)</span>
+                </div>
+            `;
+        }, 600);
+    }
+</script>
+
+</body>
+</html>

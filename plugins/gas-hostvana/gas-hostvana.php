@@ -18,14 +18,14 @@
  * Plugin Name: GAS Hostvana
  * Plugin URI: https://gas.travel
  * Description: Guest messaging chat widget powered by Beds24. Floating chat bubble for website visitors to message property staff.
- * Version: 1.0.8
+ * Version: 1.0.9
  * Author: GAS - Guest Accommodation System
  * License: GPL v2 or later
  */
 
 if (!defined('ABSPATH')) exit;
 define('GAS_HOSTVANA_DEFAULT_API_URL', 'https://admin.gas.travel');
-define('GAS_HOSTVANA_VERSION', '1.0.8');
+define('GAS_HOSTVANA_VERSION', '1.0.9');
 
 class GAS_Hostvana {
     private static $instance = null;
@@ -121,6 +121,10 @@ class GAS_Hostvana {
         $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
         $arrival = isset($_POST['arrival']) ? sanitize_text_field($_POST['arrival']) : '';
         $departure = isset($_POST['departure']) ? sanitize_text_field($_POST['departure']) : '';
+        $first_name = isset($_POST['firstName']) ? sanitize_text_field($_POST['firstName']) : '';
+        $last_name = isset($_POST['lastName']) ? sanitize_text_field($_POST['lastName']) : '';
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+        $phone = isset($_POST['phone']) ? sanitize_text_field($_POST['phone']) : '';
 
         $body = array('action' => $action);
         if ($booking_id) $body['bookingId'] = $booking_id;
@@ -128,6 +132,10 @@ class GAS_Hostvana {
         if ($message) $body['message'] = $message;
         if ($arrival) $body['arrival'] = $arrival;
         if ($departure) $body['departure'] = $departure;
+        if ($first_name) $body['firstName'] = $first_name;
+        if ($last_name) $body['lastName'] = $last_name;
+        if ($email) $body['email'] = $email;
+        if ($phone) $body['phone'] = $phone;
 
         $response = wp_remote_post(trailingslashit($api_url) . 'api/hostvana/chat', array(
             'timeout' => 15,
@@ -324,6 +332,55 @@ class GAS_Hostvana {
         .gas-hostvana-dots span:nth-child(3) { animation-delay: 0.4s; }
         @keyframes gasDotPulse { 0%,80%,100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
 
+        .gas-hostvana-intro {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex: 1;
+        }
+        .gas-hostvana-intro p {
+            margin: 0 0 4px 0;
+            font-size: 14px;
+            color: #333;
+            line-height: 1.4;
+        }
+        .gas-hostvana-intro label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 2px;
+        }
+        .gas-hostvana-intro input {
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 14px;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .gas-hostvana-intro input:focus { border-color: <?php echo $color; ?>; }
+        .gas-hostvana-intro-btn {
+            background: <?php echo $color; ?>;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 4px;
+        }
+        .gas-hostvana-intro-btn:hover { opacity: 0.9; }
+        .gas-hostvana-intro-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .gas-hostvana-intro-error {
+            color: #dc2626;
+            font-size: 12px;
+            margin: 0;
+            display: none;
+        }
+
         @media (max-width: 480px) {
             .gas-hostvana-panel {
                 width: calc(100vw - 32px);
@@ -351,13 +408,26 @@ class GAS_Hostvana {
                 <span class="gas-hostvana-header-title">Chat with <?php echo $assistant_name; ?></span>
                 <button class="gas-hostvana-close" id="gasHostvanaClose">&times;</button>
             </div>
-            <div class="gas-hostvana-messages" id="gasHostvanaMessages">
+            <div class="gas-hostvana-intro" id="gasHostvanaIntro">
+                <p><?php echo esc_html($welcome); ?></p>
+                <div>
+                    <label>Name *</label>
+                    <input type="text" id="gasHostvanaName" placeholder="Your name" autocomplete="name"/>
+                </div>
+                <div>
+                    <label>Email *</label>
+                    <input type="email" id="gasHostvanaEmail" placeholder="Your email address" autocomplete="email"/>
+                </div>
+                <p class="gas-hostvana-intro-error" id="gasHostvanaIntroError">Please enter your name and a valid email address.</p>
+                <button class="gas-hostvana-intro-btn" id="gasHostvanaIntroBtn">Start Chat</button>
+            </div>
+            <div class="gas-hostvana-messages" id="gasHostvanaMessages" style="display:none;">
                 <div class="gas-hostvana-thinking" id="gasHostvanaThinking">
                     <div class="gas-hostvana-dots"><span></span><span></span><span></span></div>
                     <?php echo $assistant_name; ?> is thinking...
                 </div>
             </div>
-            <div class="gas-hostvana-input-row">
+            <div class="gas-hostvana-input-row" id="gasHostvanaInputRow" style="display:none;">
                 <input type="text" id="gasHostvanaInput" placeholder="Type a message..." autocomplete="off"/>
                 <button class="gas-hostvana-send" id="gasHostvanaSend">
                     <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
@@ -374,9 +444,18 @@ class GAS_Hostvana {
             var panel = document.getElementById('gasHostvanaPanel');
             var closeBtn = document.getElementById('gasHostvanaClose');
             var messagesDiv = document.getElementById('gasHostvanaMessages');
+            var inputRow = document.getElementById('gasHostvanaInputRow');
             var input = document.getElementById('gasHostvanaInput');
             var sendBtn = document.getElementById('gasHostvanaSend');
             var thinkingEl = document.getElementById('gasHostvanaThinking');
+            var introDiv = document.getElementById('gasHostvanaIntro');
+            var introBtn = document.getElementById('gasHostvanaIntroBtn');
+            var introError = document.getElementById('gasHostvanaIntroError');
+            var nameInput = document.getElementById('gasHostvanaName');
+            var emailInput = document.getElementById('gasHostvanaEmail');
+
+            var guestFirstName = '';
+            var guestEmail = '';
 
             var bookingId = null; // Always start fresh — each page visit is a new conversation
             localStorage.removeItem('gas_hostvana_bookingId');
@@ -430,6 +509,38 @@ class GAS_Hostvana {
                     addMessage(welcomeMessage, 'received');
                 }
             }
+
+            // Intro form — collect name & email before starting chat
+            function submitIntro() {
+                var name = nameInput.value.trim();
+                var em = emailInput.value.trim();
+                if (!name || !em || !/\S+@\S+\.\S+/.test(em)) {
+                    introError.style.display = 'block';
+                    return;
+                }
+                introError.style.display = 'none';
+                // Split name into first/last
+                var parts = name.split(/\s+/);
+                guestFirstName = parts[0];
+                guestEmail = em;
+                // Store full name for display
+                var guestLastName = parts.slice(1).join(' ');
+                // Hide intro, show chat
+                introDiv.style.display = 'none';
+                messagesDiv.style.display = 'flex';
+                inputRow.style.display = 'flex';
+                showWelcome();
+                addMessage('Welcome ' + guestFirstName + '! How can we help you?', 'received');
+                input.focus();
+                // Store on widget for sendMessage to access
+                panel.dataset.firstName = guestFirstName;
+                panel.dataset.lastName = guestLastName;
+                panel.dataset.email = guestEmail;
+            }
+
+            introBtn.addEventListener('click', submitIntro);
+            nameInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') emailInput.focus(); });
+            emailInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') submitIntro(); });
 
             // Drag to move bubble
             var isDragging = false, wasDragged = false, dragStartX, dragStartY, bubbleStartX, bubbleStartY;
@@ -502,8 +613,11 @@ class GAS_Hostvana {
                 if (wasDragged) return;
                 panel.classList.toggle('open');
                 if (panel.classList.contains('open')) {
-                    showWelcome();
-                    input.focus();
+                    if (introDiv.style.display !== 'none') {
+                        nameInput.focus();
+                    } else {
+                        input.focus();
+                    }
                     if (bookingId) {
                         startPolling();
                     }
@@ -599,6 +713,9 @@ class GAS_Hostvana {
                     formData.append('message', text);
                     formData.append('arrival', dates.arrival);
                     formData.append('departure', dates.departure);
+                    if (panel.dataset.firstName) formData.append('firstName', panel.dataset.firstName);
+                    if (panel.dataset.lastName) formData.append('lastName', panel.dataset.lastName);
+                    if (panel.dataset.email) formData.append('email', panel.dataset.email);
 
                     fetch(ajaxUrl, { method: 'POST', body: formData })
                         .then(function(r) { return r.json(); })

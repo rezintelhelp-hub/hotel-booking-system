@@ -44,18 +44,11 @@ jQuery(document).ready(function($) {
         currentLanguage = gasBooking.currentLanguage;
     }
     
-    // Spinner builder — compass, circles, or none
+    // Spinner builder — circles or none
     function buildSpinnerHtml() {
         var style = (typeof gasBooking !== 'undefined' && gasBooking.spinnerStyle) ? gasBooking.spinnerStyle : 'circles';
         if (style === 'none') return '';
-        var inner = '';
-        if (style === 'circles') {
-            inner = '<div class="gas-circles-spin"><div></div><div></div><div></div></div>';
-        } else {
-            var imgUrl = (typeof gasBooking !== 'undefined' && gasBooking.pluginUrl) ? gasBooking.pluginUrl + 'assets/img/compass-spinner.png' : '';
-            inner = imgUrl ? '<img src="' + imgUrl + '" class="gas-compass-spin" alt="">' : '<div class="gas-spinner-inner"></div>';
-        }
-        return '<div class="gas-loading-spinner">' + inner + '<p>Checking<br>availability...</p></div>';
+        return '<div class="gas-loading-spinner"><div class="gas-circles-spin"><div></div><div></div><div></div></div><p>Checking<br>availability...</p></div>';
     }
 
     // Global translations object
@@ -3027,7 +3020,61 @@ jQuery(document).ready(function($) {
     if ($('#gas-rooms-map').length && typeof L !== 'undefined') {
         initRoomsMap();
     }
-    
+
+    // Sync map markers with filtered room cards — called by gasApplyFilters()
+    window.gasUpdateMapMarkers = function() {
+        if (!roomsMap) return;
+
+        // Build set of visible room IDs from currently shown cards
+        var visibleRoomIds = {};
+        document.querySelectorAll('.gas-room-card, .gas-room-row').forEach(function(card) {
+            if (card.style.display !== 'none') {
+                var roomId = card.dataset.roomId;
+                if (roomId) visibleRoomIds[roomId] = true;
+            }
+        });
+
+        // Track which markers have at least one visible room and collect visible bounds
+        var markerVisible = new Map();
+        var visibleBounds = [];
+
+        Object.keys(roomMarkers).forEach(function(roomId) {
+            var marker = roomMarkers[roomId];
+            if (!markerVisible.has(marker)) {
+                markerVisible.set(marker, false);
+            }
+            if (visibleRoomIds[roomId]) {
+                markerVisible.set(marker, true);
+                var ll = marker.getLatLng();
+                visibleBounds.push([ll.lat, ll.lng]);
+            }
+        });
+
+        // Show/hide markers
+        markerVisible.forEach(function(visible, marker) {
+            if (visible) {
+                if (!roomsMap.hasLayer(marker)) roomsMap.addLayer(marker);
+            } else {
+                if (roomsMap.hasLayer(marker)) roomsMap.removeLayer(marker);
+            }
+        });
+
+        // Re-fit bounds to visible markers
+        if (visibleBounds.length > 0) {
+            var mapZoom = (typeof gasRoomsConfig !== 'undefined' && gasRoomsConfig.mapZoom) ? gasRoomsConfig.mapZoom : 14;
+            if (visibleBounds.length === 1) {
+                roomsMap.setView(visibleBounds[0], mapZoom);
+            } else {
+                roomsMap.fitBounds(visibleBounds, { padding: [30, 30], maxZoom: mapZoom });
+            }
+        }
+    };
+
+    // If URL filters were applied before map init, sync markers now
+    if (roomsMap && new URLSearchParams(window.location.search).has('location')) {
+        setTimeout(gasUpdateMapMarkers, 100);
+    }
+
     // ========================================
     // Mobile Calendar Swipe Navigation
     // ========================================
