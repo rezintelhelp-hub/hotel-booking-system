@@ -14066,7 +14066,7 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
           request_id: 'gas-charge-' + id + '-' + Date.now(),
           customer_id: account.airwallex_payments_customer_id || account.airwallex_customer_id,
           capture_method: 'automatic',
-          return_url: 'https://admin.gas.travel'
+          return_url: 'https://www.gas.travel'
         })
       });
       const intentData = await intentRes.json();
@@ -14107,8 +14107,8 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
             id: billingCustomerId
           },
           request_id: 'gas-setup-' + id + '-' + Date.now(),
-          success_url: 'https://admin.gas.travel',
-          back_url: 'https://admin.gas.travel'
+          success_url: 'https://www.gas.travel',
+          back_url: 'https://www.gas.travel'
         })
       });
       const checkoutData = await checkoutRes.json();
