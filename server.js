@@ -14660,7 +14660,7 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
             RETURNING *
         `, [
             propertyId, accountId, rule_name || 'Default', ruleNameJson,
-            deposit_type || 'percentage', deposit_percentage || 30,
+            deposit_type || 'percentage', deposit_percentage ?? 0,
             deposit_fixed_amount, balance_due_type || 'days_before',
             balance_due_days || 14, auto_charge_balance || false,
             auto_charge_days_before || 14, refund_policy || 'flexible',
@@ -14993,7 +14993,7 @@ app.post('/api/accounts/:accountId/deposit-rules', async (req, res) => {
             RETURNING *
         `, [
             accountId, rule_name || 'Account Default',
-            deposit_type || 'percentage', deposit_percentage || 30,
+            deposit_type || 'percentage', deposit_percentage ?? 0,
             deposit_fixed_amount, balance_due_type || 'days_before',
             balance_due_days || 14, auto_charge_balance || false,
             auto_charge_days_before || 14, refund_policy || 'flexible',
