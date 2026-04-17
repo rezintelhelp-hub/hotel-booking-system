@@ -14066,7 +14066,7 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
           request_id: 'gas-charge-' + id + '-' + Date.now(),
           customer_id: account.airwallex_payments_customer_id || account.airwallex_customer_id,
           capture_method: 'automatic',
-          return_url: 'https://www.gas.travel'
+          return_url: 'https://www.globalaccommodationsystems.com'
         })
       });
       const intentData = await intentRes.json();
@@ -14106,8 +14106,8 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
             id: billingCustomerId
           },
           request_id: 'gas-setup-' + id + '-' + Date.now(),
-          success_url: 'https://www.gas.travel',
-          back_url: 'https://www.gas.travel'
+          success_url: 'https://www.globalaccommodationsystems.com',
+          back_url: 'https://www.globalaccommodationsystems.com'
         })
       });
       const checkoutData = await checkoutRes.json();
@@ -32843,10 +32843,12 @@ app.post('/api/db/book', async (req, res) => {
         
         // Build payments array for any collected payment
         const payments = [];
-        if (stripe_payment_intent_id && deposit_amount && parseFloat(deposit_amount) > 0) {
+        const depositAmt = parseFloat(deposit_amount || 0);
+        if (depositAmt > 0) {
+          // Deposit was collected (Stripe or other)
           payments.push({
-            description: 'Deposit via Stripe (GAS)',
-            amount: parseFloat(deposit_amount),
+            description: 'Deposit via GAS',
+            amount: depositAmt,
             status: 'received',
             date: new Date().toISOString().split('T')[0]
           });
