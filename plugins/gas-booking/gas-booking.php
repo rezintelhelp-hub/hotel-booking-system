@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.9
+ * Version: 3.6.10
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -26,7 +26,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.9');
+define('GAS_BOOKING_VERSION', '3.6.10');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3459,7 +3459,8 @@ class GAS_Booking {
         wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', array(), null, true);
         
         wp_enqueue_style('gas-booking', GAS_BOOKING_PLUGIN_URL . 'assets/css/gas-booking.css', array('flatpickr', 'leaflet'), GAS_BOOKING_VERSION);
-        wp_enqueue_script('gas-booking', GAS_BOOKING_PLUGIN_URL . 'assets/js/gas-booking.js', array('jquery', 'flatpickr', 'leaflet', 'stripe-js'), time(), array('strategy' => 'defer', 'in_footer' => true));
+        wp_enqueue_script('dompurify', GAS_BOOKING_PLUGIN_URL . 'assets/js/purify.min.js', array(), '3.1.6', true);
+        wp_enqueue_script('gas-booking', GAS_BOOKING_PLUGIN_URL . 'assets/js/gas-booking.js', array('jquery', 'flatpickr', 'leaflet', 'stripe-js', 'dompurify'), time(), array('strategy' => 'defer', 'in_footer' => true));
         
         // Read spinner style and currency settings from theme API settings if available
         $spinner_style = 'circles';
@@ -5789,7 +5790,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <h3><?php echo esc_html($room_display_name); ?></h3>
                                     <?php $room_subtitle = $this->extract_display_text($room['short_description'] ?? '') ?: ($room['property_name'] ?? ''); ?>
                                     <?php if (!empty($room_subtitle)) : ?>
-                                    <div class="gas-room-row-location">📍 <?php echo esc_html($room_subtitle); ?><?php if (!empty($room['city'])) echo ', ' . esc_html($room['city']); ?></div>
+                                    <div class="gas-room-row-location">📍 <?php echo wp_kses_post($room_subtitle); ?><?php if (!empty($room['city'])) echo ', ' . esc_html($room['city']); ?></div>
                                     <?php endif; ?>
                                 </div>
                                 
@@ -5908,7 +5909,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             <div class="gas-room-details">
                                 <h3><?php echo esc_html($card_display_name); ?></h3>
                                 <?php if (!empty($card_subtitle)) : ?>
-                                <div class="gas-room-property">📍 <?php echo esc_html($card_subtitle); ?><?php if (!empty($room['city'])) echo ', ' . esc_html($room['city']); ?></div>
+                                <div class="gas-room-property">📍 <?php echo wp_kses_post($card_subtitle); ?><?php if (!empty($room['city'])) echo ', ' . esc_html($room['city']); ?></div>
                                 <?php endif; ?>
                                 
                                 <div class="gas-room-meta">

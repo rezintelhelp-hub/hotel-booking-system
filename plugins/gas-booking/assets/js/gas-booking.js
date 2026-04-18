@@ -7,7 +7,7 @@
 
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
- * @version 3.6.9
+ * @version 3.6.10
  */
 jQuery(document).ready(function($) {
     
@@ -1015,14 +1015,16 @@ jQuery(document).ready(function($) {
         var fullDesc = parseDescription(room.full_description) || '';
         
         if (shortDesc) {
-            $('.gas-description-short').html('<p>' + shortDesc.replace(/\n/g, '</p><p>') + '</p>');
+            var shortHtml = /<[a-z][\s\S]*>/i.test(shortDesc) ? shortDesc : '<p>' + shortDesc.replace(/\n/g, '</p><p>') + '</p>';
+            $('.gas-description-short').html(DOMPurify.sanitize(shortHtml, { ALLOWED_TAGS: ['strong','em','u','p','h2','h3','ul','li','br','a'], ALLOWED_ATTR: ['href','target','rel'] }));
         } else {
             $('.gas-description-short').html('<p style="color: #64748b; font-style: italic;">' + t('property', 'no_description', 'No description available.') + '</p>');
         }
         
         // Show More Info toggle only if there's a full description different from short
         if (fullDesc && fullDesc !== shortDesc) {
-            $('.gas-description-full').html('<p>' + fullDesc.replace(/\n/g, '</p><p>') + '</p>');
+            var fullHtml = /<[a-z][\s\S]*>/i.test(fullDesc) ? fullDesc : '<p>' + fullDesc.replace(/\n/g, '</p><p>') + '</p>';
+            $('.gas-description-full').html(DOMPurify.sanitize(fullHtml, { ALLOWED_TAGS: ['strong','em','u','p','h2','h3','ul','li','br','a'], ALLOWED_ATTR: ['href','target','rel'] }));
             $('.gas-more-info-toggle').show();
         } else {
             $('.gas-more-info-toggle').hide();

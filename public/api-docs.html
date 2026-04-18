@@ -789,7 +789,7 @@
                 "put": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Update Room",
-                    "description": "Update room details. roomId can be GAS unit_id or your external_id. Accepted fields: name, display_name, room_type, short_description, full_description (or long_description), max_guests, max_adults, max_children, quantity, num_bedrooms, num_bathrooms, base_price (or base_rate), currency, status. Valid room_type values: entire_place, private_room, shared_room, studio, suite, room, apartment, villa, cabin, tent, dorm.",
+                    "description": "Update room details. roomId can be GAS unit_id or your external_id. Accepted fields: name, display_name, room_type, short_description, full_description (or long_description), max_guests, max_adults, max_children, quantity, num_bedrooms, num_bathrooms, base_price (or base_rate), currency, status. Valid room_type values: entire_place, private_room, shared_room, studio, suite, room, apartment, villa, cabin, tent, dorm. short_description and full_description: HTML permitted (optional). Plain text also accepted and will be auto-formatted on render.",
                     
                     "parameters": [
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS unit_id or your external_id" }
@@ -797,7 +797,7 @@
                     "requestBody": {
                         "content": {
                             "application/json": {
-                                "example": { "name": "Updated Room Name", "room_type": "entire_place", "max_guests": 3, "display_name": "Luxury Suite" }
+                                "example": { "name": "Updated Room Name", "room_type": "entire_place", "max_guests": 3, "display_name": "Luxury Suite", "short_description": "Bright corner suite with sea views", "full_description": "<p>Spacious suite with <strong>panoramic sea views</strong> and a private balcony.</p>" }
                             }
                         }
                     },
