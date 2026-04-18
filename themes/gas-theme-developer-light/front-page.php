@@ -343,7 +343,7 @@ $homepage_sections = array(); // position => html
             echo do_shortcode($shortcode);
         else : ?>
             <div style="text-align: center; padding: 60px; background: #f8fafc; border-radius: <?php echo esc_attr($card_radius); ?>px;">
-                <p style="color: #64748b; margin: 0;">Property listings will appear here when GAS Booking plugin is activated.</p>
+                <p style="color: #64748b; margin: 0;">Accommodation listings will appear here when GAS Booking plugin is activated.</p>
             </div>
         <?php endif; ?>
         

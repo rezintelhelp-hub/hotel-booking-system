@@ -74,7 +74,7 @@ if (in_array($page_slug, array('properties', 'apartments')) && shortcode_exists(
             <?php echo do_shortcode('[gas_rooms]'); ?>
         <?php else : ?>
             <div style="text-align: center; padding: 80px 24px; background: #f8fafc; border-radius: 12px; margin: 20px 24px;">
-                <h3>Properties Coming Soon</h3>
+                <h3>Accommodation Coming Soon</h3>
                 <p style="color: #64748b;">Please install and activate the GAS Booking plugin to display properties.</p>
             </div>
         <?php endif; ?>

@@ -65687,8 +65687,8 @@ const GAS_TRANSLATIONS = {
         "unable_to_load": "Unable to load room details"
 },
       "properties_portfolio": {
-        "page_title": "Our Properties",
-        "page_subtitle": "Explore our collection of vacation rentals",
+        "page_title": "Our Accommodation",
+        "page_subtitle": "Explore our collection of accommodation",
         "view_apartments": "View Apartments",
         "view_rooms": "View Rooms",
         "view_property": "View Property",
@@ -66001,8 +66001,8 @@ const GAS_TRANSLATIONS = {
         "unable_to_load": "Impossible de charger les détails de la chambre"
 },
       "properties_portfolio": {
-        "page_title": "Nos Propriétés",
-        "page_subtitle": "Découvrez notre collection de locations de vacances",
+        "page_title": "Nos hébergements",
+        "page_subtitle": "Découvrez notre collection d'hébergements",
         "view_apartments": "Voir les Appartements",
         "view_rooms": "Voir les Chambres",
         "view_property": "Voir la Propriété",
@@ -66313,8 +66313,8 @@ const GAS_TRANSLATIONS = {
         "unable_to_load": "No se pudieron cargar los detalles de la habitación"
 },
       "properties_portfolio": {
-        "page_title": "Nuestras Propiedades",
-        "page_subtitle": "Explore nuestra colección de alquileres vacacionales",
+        "page_title": "Nuestros alojamientos",
+        "page_subtitle": "Descubra nuestra colección de alojamientos",
         "view_apartments": "Ver Apartamentos",
         "view_rooms": "Ver Habitaciones",
         "view_property": "Ver Propiedad",
@@ -66627,8 +66627,8 @@ const GAS_TRANSLATIONS = {
         "unable_to_load": "Kan kamerdetails niet laden"
 },
       "properties_portfolio": {
-        "page_title": "Onze Accommodaties",
-        "page_subtitle": "Ontdek onze collectie vakantiewoningen",
+        "page_title": "Onze accommodaties",
+        "page_subtitle": "Ontdek onze collectie accommodaties",
         "view_apartments": "Bekijk Appartementen",
         "view_rooms": "Bekijk Kamers",
         "view_property": "Bekijk Accommodatie",
@@ -66940,7 +66940,7 @@ const GAS_TRANSLATIONS = {
 },
       "properties_portfolio": {
         "page_title": "Unsere Unterkünfte",
-        "page_subtitle": "Entdecken Sie unsere Auswahl an Ferienunterkünften",
+        "page_subtitle": "Entdecken Sie unsere Auswahl an Unterkünften",
         "view_apartments": "Apartments ansehen",
         "view_rooms": "Zimmer ansehen",
         "view_property": "Unterkunft ansehen",
@@ -67254,8 +67254,8 @@ const GAS_TRANSLATIONS = {
         "unable_to_load": "お部屋の詳細を読み込めませんでした"
       },
       "properties_portfolio": {
-        "page_title": "施設一覧",
-        "page_subtitle": "バケーションレンタルのコレクションをご覧ください",
+        "page_title": "私たちの宿泊施設",
+        "page_subtitle": "宿泊施設のコレクションをご覧ください",
         "view_apartments": "アパートメントを見る",
         "view_rooms": "お部屋を見る",
         "view_property": "施設を見る",

@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.18
+ * Version: 3.6.19
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -26,7 +26,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.18');
+define('GAS_BOOKING_VERSION', '3.6.19');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -418,7 +418,7 @@ class GAS_Booking {
             ),
             'page-properties' => array(
                 'slug' => 'properties',
-                'default_title' => 'Our Properties',
+                'default_title' => 'Our Accommodation',
                 'shortcode' => '[gas_properties]',
                 'default_menu_order' => 40,
                 'parent_slug' => null,
@@ -583,7 +583,7 @@ class GAS_Booking {
             'properties' => array(
                 'option_enabled' => 'gas_page_properties_enabled',
                 'option_title' => 'gas_properties_title',
-                'default_title' => 'Our Properties',
+                'default_title' => 'Our Accommodation',
                 'slug' => 'properties',
                 'shortcode' => '[gas_properties]',
                 'menu_order' => 40
@@ -2257,14 +2257,14 @@ class GAS_Booking {
                             <table class="form-table">
                                 <tr>
                                     <th>Page Title</th>
-                                    <td><input type="text" name="gas_properties_title" value="<?php echo esc_attr(get_option('gas_properties_title', 'Our Properties')); ?>" class="regular-text" /></td>
+                                    <td><input type="text" name="gas_properties_title" value="<?php echo esc_attr(get_option('gas_properties_title', 'Our Accommodation')); ?>" class="regular-text" /></td>
                                 </tr>
                                 <tr>
                                     <th>Introduction</th>
                                     <td>
                                         <?php 
                                         wp_editor(
-                                            get_option('gas_properties_content', '<p>Explore our collection of properties.</p>'),
+                                            get_option('gas_properties_content', '<p>Explore our collection of accommodation.</p>'),
                                             'gas_properties_content',
                                             array('textarea_name' => 'gas_properties_content', 'textarea_rows' => 5, 'media_buttons' => true)
                                         );
@@ -8238,8 +8238,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
     }
     
     public function properties_shortcode($atts) {
-        $title = get_option('gas_properties_title', 'Our Properties');
-        $content = get_option('gas_properties_content', '<p>Explore our collection of properties.</p>');
+        $title = get_option('gas_properties_title', 'Our Accommodation');
+        $content = get_option('gas_properties_content', '<p>Explore our collection of accommodation.</p>');
         $button_color = $this->get_effective_button_color();
         $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
         $client_id = get_option('gas_client_id', '');

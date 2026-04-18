@@ -194,7 +194,7 @@ function developer_activation_notice() {
                 <li><strong>Room</strong> - Individual room/property details</li>
                 <li><strong>Checkout</strong> - Booking checkout page</li>
                 <li><strong>Special Offers</strong> - Offers & promo codes showcase</li>
-                <li><strong>Properties</strong> - Alternative listings page</li>
+                <li><strong>Accommodation</strong> - Alternative listings page</li>
                 <li><strong>About</strong> - About your property</li>
                 <li><strong>Contact</strong> - Contact form page</li>
                 <li><strong>Blog</strong> - Your blog posts</li>
