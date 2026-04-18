@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.20
+ * Version: 3.6.21
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.20');
+define('GAS_BOOKING_VERSION', '3.6.21');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5783,6 +5783,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                              data-property-id="<?php echo esc_attr($room['property_id'] ?? ''); ?>"
                              data-payment-account-id="<?php echo esc_attr($room['payment_account_id'] ?? ''); ?>"
                              data-location="<?php echo esc_attr($room_location); ?>"
+                             data-state="<?php echo esc_attr($room['state'] ?? ''); ?>"
+                             data-country="<?php echo esc_attr($room['country'] ?? ''); ?>"
                              data-property-name="<?php echo esc_attr($room_property_name); ?>"
                              data-amenities="<?php echo esc_attr(json_encode(array_column($room_amenities, 'code'))); ?>"><?php if (!empty($image_url)) : ?>
                             <div class="gas-room-row-image" style="background-image: url('<?php echo esc_url($image_url); ?>');"></div>
@@ -5904,6 +5906,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                              data-lng="<?php echo esc_attr($lng); ?>"
                              data-url="<?php echo esc_url($room_url); ?>"
                              data-location="<?php echo esc_attr($room_location); ?>"
+                             data-state="<?php echo esc_attr($room['state'] ?? ''); ?>"
+                             data-country="<?php echo esc_attr($room['country'] ?? ''); ?>"
                              data-property-name="<?php echo esc_attr($room_property_name); ?>"
                              data-amenities="<?php echo esc_attr(json_encode(array_column($room_amenities, 'code'))); ?>"
                              <?php echo $is_hidden ? 'style="display:none;"' : ''; ?>><?php if (!empty($image_url)) : ?>
@@ -6087,32 +6091,41 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             // Get selected location (city/district)
             var locationSelect = document.querySelector('.gas-filter-location');
             var selectedLocation = locationSelect ? locationSelect.value : '';
-            
+
             // Get selected property
             var propertySelect = document.querySelector('.gas-filter-property');
             var selectedProperty = propertySelect ? propertySelect.value : '';
-            
+
+            // Get state/country from URL params (no visible dropdowns — Link Builder only)
+            var filterParams = new URLSearchParams(window.location.search);
+            var selectedState = filterParams.get('state') || '';
+            var selectedCountry = filterParams.get('country') || '';
+
             // Get selected amenities
             var checkboxes = document.querySelectorAll('.gas-amenity-dropdown input[type="checkbox"]:checked');
             var selectedAmenities = Array.from(checkboxes).map(function(cb) { return cb.value; });
-            
+
             var roomCards = document.querySelectorAll('.gas-room-card, .gas-room-row');
             var visibleCount = 0;
-            
+
             // Collect visible properties for cascading property filter
             var visibleProperties = {};
-            
+
             roomCards.forEach(function(card) {
                 var cardLocation = card.dataset.location || '';
                 var cardPropertyName = card.dataset.propertyName || '';
+                var cardState = card.dataset.state || '';
+                var cardCountry = card.dataset.country || '';
                 var cardAmenities = [];
                 try { cardAmenities = JSON.parse(card.dataset.amenities || '[]'); } catch(e) {}
-                
+
                 var matchesLocation = selectedLocation === '' || cardLocation === selectedLocation;
                 var matchesProperty = selectedProperty === '' || cardPropertyName === selectedProperty;
+                var matchesState = selectedState === '' || cardState.toLowerCase() === selectedState.toLowerCase();
+                var matchesCountry = selectedCountry === '' || cardCountry.toLowerCase() === selectedCountry.toLowerCase();
                 var matchesAmenities = selectedAmenities.length === 0 || selectedAmenities.every(function(a) { return cardAmenities.includes(a); });
-                
-                if (matchesLocation && matchesProperty && matchesAmenities) {
+
+                if (matchesLocation && matchesProperty && matchesState && matchesCountry && matchesAmenities) {
                     card.style.display = '';
                     visibleCount++;
                 } else {
@@ -6171,9 +6184,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             var params = new URLSearchParams(window.location.search);
             var urlLocation = params.get('location');
             var urlProperty = params.get('property');
+            var urlState = params.get('state');
+            var urlCountry = params.get('country');
             var urlAmenity = params.get('amenity') || params.get('amenities');
             var urlBedrooms = params.get('bedrooms');
-            if (urlLocation || urlProperty || urlAmenity || urlBedrooms) {
+            if (urlLocation || urlProperty || urlState || urlCountry || urlAmenity || urlBedrooms) {
                 document.addEventListener('DOMContentLoaded', function() {
                     if (urlLocation) {
                         var locSelect = document.querySelector('.gas-filter-location');
