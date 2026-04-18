@@ -196,25 +196,34 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: white;
-    border: none;
     width: 48px;
     height: 48px;
     border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: none;
+    color: white;
     font-size: 24px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: background 0.2s, transform 0.15s;
     z-index: 10002;
 }
 
+.gas-lightbox-nav:hover {
+    background: rgba(0, 0, 0, 0.75);
+    transform: translateY(-50%) scale(1.05);
+}
+
 .gas-lightbox-prev {
-    left: 20px;
+    left: 16px;
 }
 
 .gas-lightbox-next {
-    right: 20px;
+    right: 16px;
 }
 
 .gas-lightbox-counter {
@@ -224,6 +233,14 @@
     transform: translateX(-50%);
     color: white;
     font-size: 14px;
+}
+
+@media (max-width: 768px) {
+    .gas-lightbox-nav {
+        width: 44px;
+        height: 44px;
+        opacity: 1;
+    }
 }
 
 /* ==========================================================================
