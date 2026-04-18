@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.19
+ * Version: 3.6.20
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -26,7 +26,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.19');
+define('GAS_BOOKING_VERSION', '3.6.20');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4845,8 +4845,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             $prop_name = $room['property_name'] ?? '';
             if (!empty($prop_name) && !in_array($prop_name, $all_properties)) {
                 $all_properties[] = $prop_name;
-                $display = trim($this->extract_display_text($prop_name));
-                $property_display_names[$prop_name] = !empty($display) ? $display : $prop_name;
+                $display = trim($this->extract_display_text($room['display_name'] ?? ''));
+                if (empty($display)) $display = $room['name'] ?? $prop_name;
+                $property_display_names[$prop_name] = $display;
             }
         }
         sort($all_locations);
