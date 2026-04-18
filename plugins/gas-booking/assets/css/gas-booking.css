@@ -2496,10 +2496,26 @@ button:active, .gas-view-btn:active, .gas-search-button:active, .gas-book-btn:ac
     opacity: 0.9;
 }
 .gas-description-short p,
-.gas-description-full p {
-    margin: 0 0 0.5em;
+.gas-description-short h2,
+.gas-description-short h3,
+.gas-description-short ul,
+.gas-description-short ol,
+.gas-description-full p,
+.gas-description-full h2,
+.gas-description-full h3,
+.gas-description-full ul,
+.gas-description-full ol {
+    margin: 0.5em 0;
 }
-.gas-description-short p:last-child,
-.gas-description-full p:last-child {
+.gas-description-short li,
+.gas-description-full li {
+    margin: 0;
+}
+.gas-description-short *:first-child,
+.gas-description-full *:first-child {
+    margin-top: 0;
+}
+.gas-description-short *:last-child,
+.gas-description-full *:last-child {
     margin-bottom: 0;
 }
