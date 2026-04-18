@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.17
+ * Version: 3.6.18
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -26,7 +26,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.17');
+define('GAS_BOOKING_VERSION', '3.6.18');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -1300,11 +1300,11 @@ class GAS_Booking {
                 'price_high' => 'Price: High to Low',
                 'location' => 'Location',
                 'all_locations' => 'All Locations',
-                'property' => 'Property',
-                'all_properties' => 'All Properties',
+                'property' => 'Accommodation',
+                'all_properties' => 'All Accommodation',
                 'amenities' => 'Amenities',
                 'select_amenities' => 'Select Amenities',
-                'load_more' => 'Load More Properties',
+                'load_more' => 'Load More',
                 'more' => 'more',
                 'no_results' => 'No rooms match the selected filters.',
                 'verify_availability' => 'Check Availability'
@@ -4832,6 +4832,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         // Collect all unique locations (cities/districts) from rooms for the location filter
         $all_locations = array();
         $all_properties = array();
+        $property_display_names = array();
         foreach ($rooms as $room) {
             // Location = geographic area (city or district)
             $city = $room['city'] ?? '';
@@ -4844,6 +4845,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             $prop_name = $room['property_name'] ?? '';
             if (!empty($prop_name) && !in_array($prop_name, $all_properties)) {
                 $all_properties[] = $prop_name;
+                $display = trim($this->extract_display_text($prop_name));
+                $property_display_names[$prop_name] = !empty($display) ? $display : $prop_name;
             }
         }
         sort($all_locations);
@@ -5662,11 +5665,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             <?php endif; ?>
             <?php if ($show_property_filter && count($all_properties) > 1) : ?>
             <div class="gas-filter-field">
-                <label><?php echo esc_html($t_filters['property'] ?? 'Property'); ?></label>
+                <label><?php echo esc_html($t_filters['property'] ?? 'Accommodation'); ?></label>
                 <select class="gas-filter-property" onchange="gasApplyFilters()">
-                    <option value=""><?php echo esc_html($t_filters['all_properties'] ?? 'All Properties'); ?></option>
+                    <option value=""><?php echo esc_html($t_filters['all_properties'] ?? 'All Accommodation'); ?></option>
                     <?php foreach ($all_properties as $prop_name) : ?>
-                    <option value="<?php echo esc_attr($prop_name); ?>"><?php echo esc_html($prop_name); ?></option>
+                    <option value="<?php echo esc_attr($prop_name); ?>"><?php echo esc_html($property_display_names[$prop_name] ?? $prop_name); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
