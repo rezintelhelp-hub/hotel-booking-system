@@ -33,7 +33,7 @@ function sanitizeRoomDescription(value) {
   if (value === null || value === undefined) return value;
 
   const descOpts = {
-    allowedTags: ['strong', 'em', 'u', 'p', 'h2', 'h3', 'ul', 'li', 'br', 'a'],
+    allowedTags: ['strong', 'em', 'b', 'i', 'u', 'p', 'h2', 'h3', 'ul', 'li', 'br', 'a'],
     allowedAttributes: { a: ['href', 'target', 'rel'] },
     allowedSchemes: ['http', 'https', 'mailto']
   };

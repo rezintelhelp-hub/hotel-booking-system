@@ -7,7 +7,7 @@
 
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
- * @version 3.6.10
+ * @version 3.6.12
  */
 jQuery(document).ready(function($) {
     
@@ -1015,16 +1015,16 @@ jQuery(document).ready(function($) {
         var fullDesc = parseDescription(room.full_description) || '';
         
         if (shortDesc) {
-            var shortHtml = /<[a-z][\s\S]*>/i.test(shortDesc) ? shortDesc : '<p>' + shortDesc.replace(/\n/g, '</p><p>') + '</p>';
-            $('.gas-description-short').html(DOMPurify.sanitize(shortHtml, { ALLOWED_TAGS: ['strong','em','u','p','h2','h3','ul','li','br','a'], ALLOWED_ATTR: ['href','target','rel'] }));
+            var shortHtml = /<[a-z][\s\S]*>/i.test(shortDesc) ? shortDesc : shortDesc.split(/\n\s*\n/).filter(function(p) { return p.trim(); }).map(function(p) { return '<p>' + p.replace(/\n/g, '<br>') + '</p>'; }).join('');
+            $('.gas-description-short').html(DOMPurify.sanitize(shortHtml, { ALLOWED_TAGS: ['strong','em','b','i','u','p','h2','h3','ul','li','br','a'], ALLOWED_ATTR: ['href','target','rel'] }));
         } else {
             $('.gas-description-short').html('<p style="color: #64748b; font-style: italic;">' + t('property', 'no_description', 'No description available.') + '</p>');
         }
         
         // Show More Info toggle only if there's a full description different from short
         if (fullDesc && fullDesc !== shortDesc) {
-            var fullHtml = /<[a-z][\s\S]*>/i.test(fullDesc) ? fullDesc : '<p>' + fullDesc.replace(/\n/g, '</p><p>') + '</p>';
-            $('.gas-description-full').html(DOMPurify.sanitize(fullHtml, { ALLOWED_TAGS: ['strong','em','u','p','h2','h3','ul','li','br','a'], ALLOWED_ATTR: ['href','target','rel'] }));
+            var fullHtml = /<[a-z][\s\S]*>/i.test(fullDesc) ? fullDesc : fullDesc.split(/\n\s*\n/).filter(function(p) { return p.trim(); }).map(function(p) { return '<p>' + p.replace(/\n/g, '<br>') + '</p>'; }).join('');
+            $('.gas-description-full').html(DOMPurify.sanitize(fullHtml, { ALLOWED_TAGS: ['strong','em','b','i','u','p','h2','h3','ul','li','br','a'], ALLOWED_ATTR: ['href','target','rel'] }));
             $('.gas-more-info-toggle').show();
         } else {
             $('.gas-more-info-toggle').hide();
