@@ -5,7 +5,14 @@
  * Description: Display local attractions from GAS with TouristAttraction schema markup. Colors controlled via GAS Admin.
  * Version: 2.7.0
  * Author: GAS - Guest Accommodation System
- * License: GPL v2 or later
+ * License: Proprietary - All Rights Reserved
+ * License URI: https://gas.travel/license
+ */
+
+/*
+ * Copyright © 2024–2026 Steve Driver / Global Accommodation Systems.
+ * All rights reserved. Proprietary software.
+ * See LICENSE at the repository root.
  */
 
 if (!defined('ABSPATH')) exit;

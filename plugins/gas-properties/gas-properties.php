@@ -20,7 +20,8 @@
  * Description: Display multi-property portfolio from GAS with LodgingBusiness schema markup. Colors controlled via GAS Admin.
  * Version: 1.0.2
  * Author: GAS - Guest Accommodation System
- * License: GPL v2 or later
+ * License: Proprietary - All Rights Reserved
+ * License URI: https://gas.travel/license
  */
 
 if (!defined('ABSPATH')) exit;

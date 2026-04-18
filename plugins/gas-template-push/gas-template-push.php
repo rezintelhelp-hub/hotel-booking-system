@@ -4,8 +4,15 @@
  * Description: Receives Elementor and Gutenberg templates from GAS Admin and injects them into pages.
  * Version: 1.4.1
  * Author: GAS
- * License: GPL v2 or later
+ * License: Proprietary - All Rights Reserved
+ * License URI: https://gas.travel/license
  * Text Domain: gas-template-push
+ */
+
+/*
+ * Copyright © 2024–2026 Steve Driver / Global Accommodation Systems.
+ * All rights reserved. Proprietary software.
+ * See LICENSE at the repository root.
  */
 
 if (!defined('ABSPATH')) exit;

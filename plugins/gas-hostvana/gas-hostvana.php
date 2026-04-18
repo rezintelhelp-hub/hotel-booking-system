@@ -20,7 +20,8 @@
  * Description: Guest messaging chat widget powered by Beds24. Floating chat bubble for website visitors to message property staff.
  * Version: 1.0.9
  * Author: GAS - Guest Accommodation System
- * License: GPL v2 or later
+ * License: Proprietary - All Rights Reserved
+ * License URI: https://gas.travel/license
  */
 
 if (!defined('ABSPATH')) exit;

@@ -20,7 +20,8 @@
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
  * Version: 3.6.20
  * Author: GAS
- * License: GPL v2 or later
+ * License: Proprietary - All Rights Reserved
+ * License URI: https://gas.travel/license
  * Text Domain: gas-booking
  */
 

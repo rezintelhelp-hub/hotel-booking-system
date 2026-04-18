@@ -4,7 +4,8 @@ Tags: chat, messaging, beds24, hotel, guest communication
 Requires at least: 5.0
 Tested up to: 6.4
 Stable tag: 1.0.0
-License: GPLv2 or later
+License: Proprietary - All Rights Reserved
+License URI: https://gas.travel/license
 
 Guest messaging chat widget powered by Beds24. Adds a floating chat bubble to your website so visitors can message property staff directly.
 

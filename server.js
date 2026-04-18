@@ -1,3 +1,11 @@
+/*!
+ * GAS — Global Accommodation Systems
+ * Copyright © 2024–2026 Steve Driver. All rights reserved.
+ * Proprietary and confidential. Unauthorised copying, distribution,
+ * reverse engineering, or use is strictly prohibited.
+ * See LICENSE at the repository root.
+ */
+
 // ============================================
 // GAS Server — v2.5.0
 // Last modified: 22 Feb 2026

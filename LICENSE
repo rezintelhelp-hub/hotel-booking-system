@@ -1,0 +1,37 @@
+Copyright © 2024–2026 Steve Driver / Global Accommodation Systems (GAS).
+All Rights Reserved.
+
+PROPRIETARY AND CONFIDENTIAL
+
+This source code and all associated documentation (the "Software") are the
+proprietary and confidential property of Steve Driver, trading as Global
+Accommodation Systems (https://gas.travel).
+
+NO LICENCE IS GRANTED by this file, by default, or by inference. No part of
+the Software may be used, copied, modified, merged, published, distributed,
+sublicensed, reverse-engineered, or sold without the prior written
+permission of the copyright holder.
+
+PERMITTED USE
+The Software may only be installed, executed, or otherwise used by parties
+who have entered into a written licence agreement with the copyright
+holder or its authorised agents. Licence keys and API credentials issued
+by GAS do not transfer ownership or constitute a perpetual right of use.
+
+THIRD-PARTY COMPONENTS
+The Software contains third-party open-source components, each governed by
+its own licence. See the individual source files and package manifests
+(package.json, composer.json, etc.) for attribution. Use of those
+components does not affect the proprietary status of the Software as a
+whole.
+
+NO WARRANTY
+The Software is provided "AS IS", without warranty of any kind, express or
+implied, including but not limited to warranties of merchantability,
+fitness for a particular purpose, and non-infringement. In no event shall
+the copyright holder be liable for any claim, damages, or other liability
+arising from the use of the Software.
+
+CONTACT
+Global Accommodation Systems
+https://gas.travel
