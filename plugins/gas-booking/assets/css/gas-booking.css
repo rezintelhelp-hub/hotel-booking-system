@@ -2495,3 +2495,11 @@ button:active, .gas-view-btn:active, .gas-search-button:active, .gas-book-btn:ac
     transform: scale(0.97);
     opacity: 0.9;
 }
+.gas-description-short p,
+.gas-description-full p {
+    margin: 0 0 0.5em;
+}
+.gas-description-short p:last-child,
+.gas-description-full p:last-child {
+    margin-bottom: 0;
+}
