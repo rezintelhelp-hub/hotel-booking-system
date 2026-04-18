@@ -7,7 +7,7 @@
 
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
- * @version 3.6.12
+ * @version 3.6.13
  */
 jQuery(document).ready(function($) {
     
@@ -1015,7 +1015,7 @@ jQuery(document).ready(function($) {
         var fullDesc = parseDescription(room.full_description) || '';
         
         if (shortDesc) {
-            var shortHtml = /<[a-z][\s\S]*>/i.test(shortDesc) ? shortDesc : shortDesc.split(/\n\s*\n/).filter(function(p) { return p.trim(); }).map(function(p) { return '<p>' + p.replace(/\n/g, '<br>') + '</p>'; }).join('');
+            var shortHtml = /<[a-z][\s\S]*>/i.test(shortDesc) ? shortDesc.replace(/<div[^>]*>/gi, '<p>').replace(/<\/div>/gi, '</p>') : shortDesc.split(/\n\s*\n/).filter(function(p) { return p.trim(); }).map(function(p) { return '<p>' + p.replace(/\n/g, '<br>') + '</p>'; }).join('');
             $('.gas-description-short').html(DOMPurify.sanitize(shortHtml, { ALLOWED_TAGS: ['strong','em','b','i','u','p','h2','h3','ul','li','br','a'], ALLOWED_ATTR: ['href','target','rel'] }));
         } else {
             $('.gas-description-short').html('<p style="color: #64748b; font-style: italic;">' + t('property', 'no_description', 'No description available.') + '</p>');
@@ -1023,7 +1023,7 @@ jQuery(document).ready(function($) {
         
         // Show More Info toggle only if there's a full description different from short
         if (fullDesc && fullDesc !== shortDesc) {
-            var fullHtml = /<[a-z][\s\S]*>/i.test(fullDesc) ? fullDesc : fullDesc.split(/\n\s*\n/).filter(function(p) { return p.trim(); }).map(function(p) { return '<p>' + p.replace(/\n/g, '<br>') + '</p>'; }).join('');
+            var fullHtml = /<[a-z][\s\S]*>/i.test(fullDesc) ? fullDesc.replace(/<div[^>]*>/gi, '<p>').replace(/<\/div>/gi, '</p>') : fullDesc.split(/\n\s*\n/).filter(function(p) { return p.trim(); }).map(function(p) { return '<p>' + p.replace(/\n/g, '<br>') + '</p>'; }).join('');
             $('.gas-description-full').html(DOMPurify.sanitize(fullHtml, { ALLOWED_TAGS: ['strong','em','b','i','u','p','h2','h3','ul','li','br','a'], ALLOWED_ATTR: ['href','target','rel'] }));
             $('.gas-more-info-toggle').show();
         } else {

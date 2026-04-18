@@ -35,7 +35,8 @@ function sanitizeRoomDescription(value) {
   const descOpts = {
     allowedTags: ['strong', 'em', 'b', 'i', 'u', 'p', 'h2', 'h3', 'ul', 'li', 'br', 'a'],
     allowedAttributes: { a: ['href', 'target', 'rel'] },
-    allowedSchemes: ['http', 'https', 'mailto']
+    allowedSchemes: ['http', 'https', 'mailto'],
+    transformTags: { 'div': 'p' }
   };
 
   if (typeof value === 'string') {
