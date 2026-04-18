@@ -25,6 +25,47 @@ const sharp = require('sharp');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
 const archiver = require('archiver');
+const sanitizeHtml = require('sanitize-html');
+
+// Shared HTML sanitiser for room descriptions.
+// Matches the client-side DOMPurify allowlist from Step 1.
+function sanitizeRoomDescription(value) {
+  if (value === null || value === undefined) return value;
+
+  const descOpts = {
+    allowedTags: ['strong', 'em', 'u', 'p', 'h2', 'h3', 'ul', 'li', 'br', 'a'],
+    allowedAttributes: { a: ['href', 'target', 'rel'] },
+    allowedSchemes: ['http', 'https', 'mailto']
+  };
+
+  if (typeof value === 'string') {
+    let parsed;
+    try {
+      parsed = JSON.parse(value);
+    } catch (e) {
+      console.warn('[sanitizeRoomDescription] Malformed JSON, passing through unchanged:', value.substring(0, 80));
+      return value;
+    }
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const out = {};
+      for (const lang of Object.keys(parsed)) {
+        out[lang] = typeof parsed[lang] === 'string' ? sanitizeHtml(parsed[lang], descOpts) : parsed[lang];
+      }
+      return JSON.stringify(out);
+    }
+    return value;
+  }
+
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    const out = {};
+    for (const lang of Object.keys(value)) {
+      out[lang] = typeof value[lang] === 'string' ? sanitizeHtml(value[lang], descOpts) : value[lang];
+    }
+    return out;
+  }
+
+  return value;
+}
 
 // Stripe for payment processing
 const Stripe = require('stripe');
@@ -5391,7 +5432,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             .catch(e => console.log('link-to-gas: short_description update skipped:', e.message));
         }
         if (fullDescMultilang && Object.keys(fullDescMultilang).length > 0) {
-          await pool.query(`UPDATE bookable_units SET full_description = $1 WHERE id = $2 AND (full_description IS NULL OR full_description = 'null' OR full_description = '{}' OR full_description = '')`, [JSON.stringify(fullDescMultilang), gasRoomId])
+          await pool.query(`UPDATE bookable_units SET full_description = $1 WHERE id = $2 AND (full_description IS NULL OR full_description = 'null' OR full_description = '{}' OR full_description = '')`, [sanitizeRoomDescription(JSON.stringify(fullDescMultilang)), gasRoomId])
             .catch(e => console.log('link-to-gas: full_description update skipped:', e.message));
         }
 
@@ -5442,7 +5483,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
         if (fullDescMultilang && Object.keys(fullDescMultilang).length > 0) {
-          const jsonVal = JSON.stringify(fullDescMultilang);
+          const jsonVal = sanitizeRoomDescription(JSON.stringify(fullDescMultilang));
           await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
         }
@@ -5939,7 +5980,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           
           // Update descriptions separately (JSONB columns)
           if (fullDescJson) {
-            await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [fullDescJson, gasRoomId])
+            await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [sanitizeRoomDescription(fullDescJson), gasRoomId])
               .catch(e => console.log('link-to-gas: full_description update skipped:', e.message));
           }
           if (shortDescJson) {
@@ -8668,7 +8709,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
           descCount++;
         }
         if (fullDesc && (!room.full_description || force)) {
-          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [JSON.stringify(fullDesc), room.gas_room_id]);
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [sanitizeRoomDescription(JSON.stringify(fullDesc)), room.gas_room_id]);
           descCount++;
         }
       }
@@ -8733,7 +8774,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
               }
             }
             if (Object.keys(fullDescObj).length > 0) {
-              await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [JSON.stringify(fullDescObj), room.gas_room_id]);
+              await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [sanitizeRoomDescription(JSON.stringify(fullDescObj)), room.gas_room_id]);
             }
             if (Object.keys(shortDescObj).length > 0) {
               await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [JSON.stringify(shortDescObj), room.gas_room_id]);
@@ -10899,8 +10940,8 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
           WHERE id = $18
         `, [
           room.name || 'Room', room.roomType || 'double',
-          JSON.stringify({ en: roomDescription }), JSON.stringify({ en: roomShortDesc }),
-          JSON.stringify({ en: roomDescription }), roomDisplayName ? JSON.stringify({ en: roomDisplayName }) : null,
+          sanitizeRoomDescription(JSON.stringify({ en: roomDescription })), JSON.stringify({ en: roomShortDesc }),
+          sanitizeRoomDescription(JSON.stringify({ en: roomDescription })), roomDisplayName ? JSON.stringify({ en: roomDisplayName }) : null,
           room.maxPeople || room.maxGuests || 2, room.maxAdult || room.maxAdults || 2,
           room.maxChildren || 0, room.qty || room.quantity || 1,
           room.rackRate || room.basePrice || room.price || 100,
@@ -10925,8 +10966,8 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
         `, [
           gasPropertyId, parseInt(beds24RoomId) || null, beds24RoomId,
           room.name || 'Room', room.roomType || 'double',
-          JSON.stringify({ en: roomDescription }), JSON.stringify({ en: roomShortDesc }),
-          JSON.stringify({ en: roomDescription }), roomDisplayName ? JSON.stringify({ en: roomDisplayName }) : null,
+          sanitizeRoomDescription(JSON.stringify({ en: roomDescription })), JSON.stringify({ en: roomShortDesc }),
+          sanitizeRoomDescription(JSON.stringify({ en: roomDescription })), roomDisplayName ? JSON.stringify({ en: roomDisplayName }) : null,
           room.maxPeople || room.maxGuests || 2, room.maxAdult || room.maxAdults || 2,
           room.maxChildren || 0, room.qty || room.quantity || 1,
           room.rackRate || room.basePrice || room.price || 100,
@@ -15958,8 +15999,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
           amenities = $9, num_bedrooms = $10, num_bathrooms = $11, unit_type = $12,
           cm_source = 'beds24-marketplace', updated_at = NOW()
           WHERE id = $13`,
-          [roomName, maxGuests, rackRate, minStay, JSON.stringify(descML),
-           JSON.stringify(shortDescML), JSON.stringify(descML), JSON.stringify(nameML),
+          [roomName, maxGuests, rackRate, minStay, sanitizeRoomDescription(JSON.stringify(descML)),
+           JSON.stringify(shortDescML), sanitizeRoomDescription(JSON.stringify(descML)), JSON.stringify(nameML),
            JSON.stringify(amenitiesList), numBedrooms || 1, numBathrooms || 1, unitType, gasRoomId]);
         roomsUpdated++;
       } else {
@@ -15968,7 +16009,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
             description, short_description, full_description, display_name, amenities, num_bedrooms, num_bathrooms, unit_type, status, created_at)
           VALUES ($1, $2, 'beds24-marketplace', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'available', NOW()) RETURNING id`,
           [gasPropertyId, String(roomId), roomName, maxGuests, rackRate, minStay,
-           JSON.stringify(descML), JSON.stringify(shortDescML), JSON.stringify(descML), JSON.stringify(nameML),
+           sanitizeRoomDescription(JSON.stringify(descML)), JSON.stringify(shortDescML), sanitizeRoomDescription(JSON.stringify(descML)), JSON.stringify(nameML),
            JSON.stringify(amenitiesList), numBedrooms || 1, numBathrooms || 1, unitType]);
         gasRoomId = roomResult.rows[0].id;
         roomsCreated++;
@@ -33284,8 +33325,8 @@ app.get('/api/admin/fix-descriptions/:accountId', async (req, res) => {
           try { cleaned = JSON.parse(cleaned); } catch(e) { break; }
         }
         if (typeof cleaned === 'object' && cleaned !== null) {
-          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', 
-            [JSON.stringify(cleaned), row.id]);
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2',
+            [sanitizeRoomDescription(JSON.stringify(cleaned)), row.id]);
           fixed++;
         }
       } catch(e) { console.log('fix-descriptions: skip room', row.id, e.message); }
@@ -38490,8 +38531,8 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                 }
                 
                 if (Object.keys(fullDescObj).length > 0) {
-                  await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', 
-                    [JSON.stringify(fullDescObj), gasRoomId]);
+                  await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2',
+                    [sanitizeRoomDescription(JSON.stringify(fullDescObj)), gasRoomId]);
                 }
                 if (Object.keys(shortDescObj).length > 0) {
                   await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', 
@@ -45209,7 +45250,7 @@ app.put('/api/admin/units/:id', async (req, res) => {
         }
         await pool.query(
           `UPDATE bookable_units SET full_description = $1 WHERE id = $2`,
-          [jsonValue, id]
+          [sanitizeRoomDescription(jsonValue), id]
         );
       } catch (e) {
         console.log('full_description update skipped:', e.message);
@@ -58651,6 +58692,10 @@ app.put('/api/partner/:apiKey/room/:roomId', async (req, res) => {
           } else {
             continue;
           }
+          // Sanitise description fields
+          if (dbField === 'full_description' || dbField === 'short_description') {
+            jsonValue = sanitizeRoomDescription(jsonValue);
+          }
           updateFields.push(`${dbField} = $${paramIndex}::jsonb`);
           values.push(jsonValue);
         } 
@@ -62272,8 +62317,7 @@ Rules:
 - Mention comfort and convenience
 - No clichés like "luxurious", "stunning", "oasis"
 - 2-3 paragraphs
-
-Just return the description, nothing else.`;
+- Return HTML using only these tags: <p>, <h2>, <h3>, <ul>, <li>, <strong>, <em>, <u>, <a>, <br>. No <html>, <body>, <div>, <script>, inline style, or class attributes.`;
         break;
       case 'room_display_name':
         // Get property context for the room
@@ -87711,7 +87755,7 @@ const DEEPL_LANG_MAP = {
 /**
  * Translate text using Gemini API (primary - much cheaper)
  */
-async function translateWithGemini(text, sourceLang, targetLang) {
+async function translateWithGemini(text, sourceLang, targetLang, opts = {}) {
   if (!GEMINI_API_KEY) {
     console.log('[Gemini] No API key configured');
     return null;
@@ -87737,7 +87781,9 @@ async function translateWithGemini(text, sourceLang, targetLang) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Translate the following text from ${sourceName} to ${targetName}. Return ONLY the translated text, no explanations or notes:\n\n${text}`
+            text: opts.preserve_html
+              ? `Translate the following HTML text from ${sourceName} to ${targetName}. Preserve all HTML tags exactly. Translate only the text content between tags. Return ONLY the translated HTML, no explanations or notes:\n\n${text}`
+              : `Translate the following text from ${sourceName} to ${targetName}. Return ONLY the translated text, no explanations or notes:\n\n${text}`
           }]
         }],
         generationConfig: {
@@ -87822,9 +87868,9 @@ async function translateWithDeepL(text, sourceLang, targetLang) {
 /**
  * Translate text - tries Gemini first (cheaper), falls back to DeepL
  */
-async function translateText(text, sourceLang, targetLang) {
+async function translateText(text, sourceLang, targetLang, opts = {}) {
   // Try Gemini first (much cheaper: $0.10/1M tokens vs DeepL $25/1M chars)
-  let result = await translateWithGemini(text, sourceLang, targetLang);
+  let result = await translateWithGemini(text, sourceLang, targetLang, opts);
   
   // Fall back to DeepL if Gemini fails
   if (result === null && DEEPL_API_KEY) {
@@ -88229,7 +88275,7 @@ app.post('/api/translate', async (req, res) => {
 // Admin translate-text endpoint for website builder
 app.post('/api/admin/translate-text', async (req, res) => {
   try {
-    const { text, source_lang = 'en', target_langs = ['fr', 'es', 'nl'] } = req.body;
+    const { text, source_lang = 'en', target_langs = ['fr', 'es', 'nl'], preserve_html = false } = req.body;
     
     if (!text || text.trim().length === 0) {
       return res.json({ success: false, error: 'No text to translate' });
@@ -88247,7 +88293,7 @@ app.post('/api/admin/translate-text', async (req, res) => {
       if (lang === source_lang) continue;
       
       try {
-        const translated = await translateText(text, source_lang, lang);
+        const translated = await translateText(text, source_lang, lang, { preserve_html });
         if (translated) {
           translations[lang] = translated;
         }
