@@ -910,7 +910,9 @@ for ($ir = 1; $ir <= 4; $ir++) {
                 ?>
                 <div style="text-align: <?php echo esc_attr($ir_align); ?>; <?php echo $card_bg_style; ?>">
                     <?php if ($iri['image']) : ?>
-                    <img src="<?php echo esc_url($iri['image']); ?>" alt="<?php echo esc_attr($iri['title']); ?>" style="width: 100%; border-radius: <?php echo esc_attr($card_radius); ?>px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                    <div style="aspect-ratio: 4/3; overflow: hidden; border-radius: <?php echo esc_attr($card_radius); ?>px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                        <img src="<?php echo esc_url($iri['image']); ?>" alt="<?php echo esc_attr($iri['title']); ?>" style="width: 100%; height: 100%; object-fit: cover; display: block;">
+                    </div>
                     <?php endif; ?>
                     <?php if ($iri['title']) : ?>
                         <h3 style="font-size: 1.2rem; font-weight: 600; color: #1e293b; margin: 16px 0 8px;"><?php echo esc_html($iri['title']); ?></h3>
