@@ -184,45 +184,31 @@ if ($contact_enabled && $contact_enabled !== 'false' && $contact_enabled !== fal
 }
 
 // Custom pages from Web Builder
-$client_id = get_option('gas_client_id', '');
-$site_config_cache = $client_id ? get_transient('gas_site_config_' . $client_id) : null;
-if (!empty($site_config_cache['website'])) {
-    foreach ($site_config_cache['website'] as $section_key => $section_data) {
-        if (strpos($section_key, 'page-custom-') === 0 && !empty($section_data['enabled']) && ($section_data['visibility'] ?? 'menu') !== 'hidden') {
-            $slug = str_replace('page-custom-', '', $section_key);
-            $vis = $section_data['visibility'] ?? 'menu';
-            $parent_slug = $section_data['parent'] ?? '';
-            $custom_title = '';
-            if (function_exists('developer_get_ml_value')) {
-                $custom_title = developer_get_ml_value($section_data, 'menu_title', $lang);
-            }
-            if (empty($custom_title)) {
-                $custom_title = $section_data['menu-title-en'] ?? $section_data['menu-title'] ?? ucfirst($slug);
-            }
-            $menu_items[] = array(
-                'title' => $custom_title,
-                'url' => home_url('/' . $slug . '/'),
-                'order' => $section_data['menu-order'] ?? 10,
-                'enabled' => true,
-                'parent' => $parent_slug,
-                'is_submenu' => ($vis === 'submenu')
-            );
-        }
-    }
-}
-
-// Custom pages from Web Builder
 $custom_pages = $api_settings['custom_pages'] ?? array();
+$custom_page_settings = $api_settings['custom_page_settings'] ?? array();
 foreach ($custom_pages as $cp) {
+    $cp_slug = $cp['slug'] ?? '';
     $cp_visibility = $cp['visibility'] ?? 'menu';
-    if ($cp_visibility === 'menu' || $cp_visibility === 'both') {
-        $menu_items[] = array(
-            'title' => $cp['title'] ?? ucfirst($cp['slug'] ?? ''),
-            'url' => home_url('/' . ($cp['slug'] ?? '') . '/'),
-            'order' => $cp['menu_order'] ?? 6,
-            'enabled' => true
-        );
+    if ($cp_visibility === 'hidden') continue;
+    // Read menu-order from per-page settings (page-custom-{slug} section)
+    $cp_settings = $custom_page_settings[$cp_slug] ?? array();
+    $cp_order = $cp_settings['menu-order'] ?? $cp['menu_order'] ?? 10;
+    $cp_parent = $cp_settings['parent'] ?? $cp['parent'] ?? '';
+    $cp_title = '';
+    if (function_exists('developer_get_ml_value')) {
+        $cp_title = developer_get_ml_value($cp_settings, 'menu_title', $lang);
     }
+    if (empty($cp_title)) {
+        $cp_title = $cp_settings['menu-title-en'] ?? $cp['title'] ?? ucfirst($cp_slug);
+    }
+    $menu_items[] = array(
+        'title' => $cp_title,
+        'url' => home_url('/' . $cp_slug . '/'),
+        'order' => $cp_order,
+        'enabled' => true,
+        'parent' => $cp_parent,
+        'is_submenu' => ($cp_visibility === 'submenu')
+    );
 }
 
 // Sort menu items by order

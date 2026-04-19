@@ -178,16 +178,29 @@ if ($contact_enabled && $contact_enabled !== 'false' && $contact_enabled !== fal
 
 // Custom pages from Web Builder
 $custom_pages = $api_settings['custom_pages'] ?? array();
+$custom_page_settings = $api_settings['custom_page_settings'] ?? array();
 foreach ($custom_pages as $cp) {
+    $cp_slug = $cp['slug'] ?? '';
     $cp_visibility = $cp['visibility'] ?? 'menu';
-    if ($cp_visibility === 'menu' || $cp_visibility === 'both') {
-        $menu_items[] = array(
-            'title' => $cp['title'] ?? ucfirst($cp['slug'] ?? ''),
-            'url' => home_url('/' . ($cp['slug'] ?? '') . '/'),
-            'order' => $cp['menu_order'] ?? 6,
-            'enabled' => true
-        );
+    if ($cp_visibility === 'hidden') continue;
+    $cp_settings = $custom_page_settings[$cp_slug] ?? array();
+    $cp_order = $cp_settings['menu-order'] ?? $cp['menu_order'] ?? 10;
+    $cp_parent = $cp_settings['parent'] ?? $cp['parent'] ?? '';
+    $cp_title = '';
+    if (function_exists('developer_get_ml_value')) {
+        $cp_title = developer_get_ml_value($cp_settings, 'menu_title', $lang);
     }
+    if (empty($cp_title)) {
+        $cp_title = $cp_settings['menu-title-en'] ?? $cp['title'] ?? ucfirst($cp_slug);
+    }
+    $menu_items[] = array(
+        'title' => $cp_title,
+        'url' => home_url('/' . $cp_slug . '/'),
+        'order' => $cp_order,
+        'enabled' => true,
+        'parent' => $cp_parent,
+        'is_submenu' => ($cp_visibility === 'submenu')
+    );
 }
 
 // Sort menu items by order
