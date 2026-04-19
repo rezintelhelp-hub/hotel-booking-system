@@ -56546,7 +56546,7 @@ const SECTION_DEFAULTS = {
     'title-color': '',
     'subtitle-color': '',
     'count': '6',
-    'columns': '3',
+    'columns': 'auto',
     'layout-style': 'cards',
     'mode': 'auto',
     'ids': '',

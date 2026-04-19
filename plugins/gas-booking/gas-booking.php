@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.21
+ * Version: 3.6.22
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.21');
+define('GAS_BOOKING_VERSION', '3.6.22');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4868,16 +4868,19 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $currency = get_option('gas_currency_symbol', '');
         $room_url_base = get_option('gas_room_url_base', '/room/');
         $view_button_text = get_option('gas_view_button_text', 'View & Book');
-        $columns = intval($atts['columns']);
-        
+        $columns_attr = $atts['columns'] ?? 'auto';
+        if ($columns_attr === 'auto') {
+            $grid_columns = min(count($rooms), 4);
+            if ($grid_columns < 1) $grid_columns = 1;
+        } else {
+            $grid_columns = max(1, min(4, intval($columns_attr)));
+        }
+
         // Determine where room buttons should link
         $button_destination = get_option('gas_room_button_destination', 'room');
-        $room_url_base = ($button_destination === 'booknow') 
-            ? get_option('gas_search_results_url', '/book-now/') 
+        $room_url_base = ($button_destination === 'booknow')
+            ? get_option('gas_search_results_url', '/book-now/')
             : get_option('gas_room_url_base', '/room/');
-        
-        // If showing map, use 3 columns for the grid
-        $grid_columns = $columns; // Respect API settings - removed map override
         
         ob_start();
         ?>
@@ -5153,7 +5156,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             margin: 0;
         }
         @media (max-width: 1200px) {
-            .gas-rooms-grid { grid-template-columns: repeat(2, 1fr); }
+            .gas-rooms-grid { grid-template-columns: repeat(<?php echo min($grid_columns, 2); ?>, 1fr); }
         }
         @media (max-width: 768px) {
             .gas-rooms-page-wrapper {
