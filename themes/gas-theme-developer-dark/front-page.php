@@ -305,7 +305,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
         if (shortcode_exists('gas_rooms')) :
             // Let plugin handle layout based on actual room count (auto mode)
             // Plugin will use row for 1-2 rooms, grid for 3+
-            $shortcode = '[gas_rooms columns="' . esc_attr($featured_columns) . '" show_map="false" layout="auto"';
+            $shortcode = '[gas_rooms columns="' . esc_attr($featured_columns) . '" show_map="false" layout="' . esc_attr($featured_layout_style) . '"';
             
             if (!empty($featured_ids)) {
                 $shortcode .= ' room_ids="' . esc_attr($featured_ids) . '"';
