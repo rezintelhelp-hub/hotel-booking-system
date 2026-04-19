@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.27
+ * Version: 3.6.28
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.27');
+define('GAS_BOOKING_VERSION', '3.6.28');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -526,24 +526,37 @@ class GAS_Booking {
             $cp_visibility = $cp['visibility'] ?? 'menu';
             $cp_parent = $cp['parent'] ?? '';
 
-            // Determine parent slug for sub-menu items
+            // Determine parent slug and direct parent menu item ID for sub-menu items
             $cp_parent_slug = null;
-            if ($cp_visibility === 'submenu' && !empty($cp_parent)) {
-                // Map parent names to slugs
-                $parent_map = array('home' => '', 'rooms' => 'book-now', 'about' => 'about', 'gallery' => 'gallery', 'offers' => 'special-offers', 'dining' => 'dining', 'blog' => 'blog', 'attractions' => 'attractions', 'contact' => 'contact');
-                $cp_parent_slug = $parent_map[$cp_parent] ?? $cp_parent;
+            $cp_parent_menu_item_id = 0;
+            $cp_is_submenu = ($cp_visibility === 'submenu');
+            if ($cp_is_submenu && !empty($cp_parent)) {
+                if ($cp_parent === 'home') {
+                    // Home has no WP slug — resolve via front page detection
+                    $front_page_id = get_option('page_on_front');
+                    if ($front_page_id) {
+                        $cp_parent_menu_item_id = $this->find_menu_item_for_page($menu_id, $front_page_id);
+                    }
+                } else {
+                    // Map parent names to slugs for all other parents
+                    $parent_map = array('rooms' => 'book-now', 'about' => 'about', 'gallery' => 'gallery', 'offers' => 'special-offers', 'dining' => 'dining', 'blog' => 'blog', 'attractions' => 'attractions', 'contact' => 'contact');
+                    $cp_parent_slug = $parent_map[$cp_parent] ?? $cp_parent;
+                }
             }
 
-            // Hidden pages: create but don't add to menu
-            $cp_menu_order = 100; // Custom pages go after standard pages
+            // Read per-page menu-order if set, otherwise custom pages go after standard pages
+            $cp_menu_order_raw = $cp_section['menu-order'] ?? '';
+            $cp_menu_order = ($cp_menu_order_raw !== '' && $cp_menu_order_raw !== null)
+                ? intval($cp_menu_order_raw) * 10
+                : 100;
 
-            error_log("GAS Booking: Syncing custom page '{$cp_slug}' - enabled: " . ($cp_is_enabled ? 'yes' : 'no') . ", visibility: {$cp_visibility}, parent: " . ($cp_parent_slug ?: 'none'));
+            error_log("GAS Booking: Syncing custom page '{$cp_slug}' - enabled: " . ($cp_is_enabled ? 'yes' : 'no') . ", visibility: {$cp_visibility}, parent: " . ($cp_parent_slug ?: ($cp_parent_menu_item_id ? "menu_item:{$cp_parent_menu_item_id}" : 'none')));
 
             if ($cp_visibility === 'hidden') {
                 // Create page but skip menu
                 $this->sync_single_page($cp_slug, $cp_menu_title, '', $cp_is_enabled, $menu_id, $cp_menu_order, null, '', true);
             } else {
-                $this->sync_single_page($cp_slug, $cp_menu_title, '', $cp_is_enabled, $menu_id, $cp_menu_order, $cp_parent_slug, '');
+                $this->sync_single_page($cp_slug, $cp_menu_title, '', $cp_is_enabled, $menu_id, $cp_menu_order, $cp_parent_slug, '', false, $cp_is_submenu, $cp_parent_menu_item_id);
             }
         }
     }
@@ -667,7 +680,7 @@ class GAS_Booking {
     /**
      * Sync a single page - create/update and manage menu
      */
-    private function sync_single_page($slug, $title, $shortcode, $is_enabled, $menu_id, $menu_order, $parent_slug = null, $template = '', $skip_menu = false) {
+    private function sync_single_page($slug, $title, $shortcode, $is_enabled, $menu_id, $menu_order, $parent_slug = null, $template = '', $skip_menu = false, $is_submenu = false, $parent_menu_item_id_override = 0) {
         // Find existing page
         $existing_page = get_page_by_path($slug);
         if (!$existing_page) {
@@ -733,7 +746,7 @@ class GAS_Booking {
             
             // Add to menu (unless skip_menu for hidden pages)
             if ($menu_id && $existing_page && !$skip_menu) {
-                $this->add_page_to_menu($existing_page, $menu_id, $title, $menu_order, $parent_slug);
+                $this->add_page_to_menu($existing_page, $menu_id, $title, $menu_order, $parent_slug, $is_submenu, $parent_menu_item_id_override);
             }
         } else {
             // Remove from menu when disabled
@@ -746,12 +759,12 @@ class GAS_Booking {
     /**
      * Add page to menu if not already there
      */
-    private function add_page_to_menu($page, $menu_id, $title, $menu_order, $parent_slug = null) {
+    private function add_page_to_menu($page, $menu_id, $title, $menu_order, $parent_slug = null, $is_submenu = false, $parent_menu_item_id_override = 0) {
         $menu_items = wp_get_nav_menu_items($menu_id);
         $in_menu = false;
         $existing_menu_item_id = 0;
-        $parent_menu_item_id = 0;
-        
+        $parent_menu_item_id = $parent_menu_item_id_override;
+
         if ($menu_items) {
             foreach ($menu_items as $item) {
                 // Check if this page is already in menu
@@ -759,9 +772,9 @@ class GAS_Booking {
                     $in_menu = true;
                     $existing_menu_item_id = $item->ID;
                 }
-                
-                // Find parent menu item if we need to make this a sub-item
-                if ($parent_slug) {
+
+                // Find parent menu item by slug (skip if we already have an override)
+                if ($parent_slug && $parent_menu_item_id === 0) {
                     $parent_page = get_page_by_path($parent_slug);
                     if ($parent_page && $item->object_id == $parent_page->ID) {
                         $parent_menu_item_id = $item->ID;
@@ -769,7 +782,13 @@ class GAS_Booking {
                 }
             }
         }
-        
+
+        // Safety: if this is a submenu item but no parent was resolved, skip — don't promote to top-level
+        if ($is_submenu && $parent_menu_item_id === 0) {
+            error_log("GAS Booking: Skipping '{$title}' — submenu item but no parent menu item could be resolved (slug: " . ($parent_slug ?: 'none') . ")");
+            return;
+        }
+
         if (!$in_menu) {
             $menu_item_data = array(
                 'menu-item-title' => $title,
@@ -801,10 +820,25 @@ class GAS_Booking {
                 $update_data['menu-item-parent-id'] = $parent_menu_item_id;
             }
             wp_update_nav_menu_item($menu_id, $existing_menu_item_id, $update_data);
-            error_log("GAS Booking: Updated '{$title}' menu position to {$menu_order}");
+            error_log("GAS Booking: Updated '{$title}' menu position to {$menu_order}" . ($parent_menu_item_id ? " (parent: {$parent_menu_item_id})" : ""));
         }
     }
     
+    /**
+     * Find the nav_menu_item ID for a given page ID within a menu
+     */
+    private function find_menu_item_for_page($menu_id, $page_id) {
+        $menu_items = wp_get_nav_menu_items($menu_id);
+        if ($menu_items) {
+            foreach ($menu_items as $item) {
+                if ($item->object_id == $page_id) {
+                    return $item->ID;
+                }
+            }
+        }
+        return 0;
+    }
+
     /**
      * Remove page from menu
      */
