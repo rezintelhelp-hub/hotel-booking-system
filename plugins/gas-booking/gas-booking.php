@@ -6409,25 +6409,19 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             overlay.appendChild(popup);
             document.body.appendChild(overlay);
         }
-        // Carousel auto-advance
+        // Carousel auto-advance — bounces left-to-right then right-to-left
         document.querySelectorAll('.gas-carousel-track').forEach(function(track) {
-            var iv = setInterval(function() {
-                if (track.scrollLeft + track.clientWidth >= track.scrollWidth - 10) {
-                    track.scrollTo({left: 0, behavior: 'smooth'});
-                } else {
-                    track.scrollBy({left: 320, behavior: 'smooth'});
-                }
-            }, 5000);
+            var dir = 1; // 1 = forward, -1 = backward
+            function step() {
+                var atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 10;
+                var atStart = track.scrollLeft <= 5;
+                if (atEnd) dir = -1;
+                if (atStart && dir === -1) dir = 1;
+                track.scrollBy({left: dir * 320, behavior: 'smooth'});
+            }
+            var iv = setInterval(step, 4000);
             track.addEventListener('mouseenter', function() { clearInterval(iv); });
-            track.addEventListener('mouseleave', function() {
-                iv = setInterval(function() {
-                    if (track.scrollLeft + track.clientWidth >= track.scrollWidth - 10) {
-                        track.scrollTo({left: 0, behavior: 'smooth'});
-                    } else {
-                        track.scrollBy({left: 320, behavior: 'smooth'});
-                    }
-                }, 5000);
-            });
+            track.addEventListener('mouseleave', function() { iv = setInterval(step, 4000); });
         });
         </script>
         <?php
