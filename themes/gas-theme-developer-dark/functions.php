@@ -194,7 +194,7 @@ function developer_activation_notice() {
                 <li><strong>Room</strong> - Individual room/property details</li>
                 <li><strong>Checkout</strong> - Booking checkout page</li>
                 <li><strong>Special Offers</strong> - Offers & promo codes showcase</li>
-                <li><strong>Accommodation</strong> - Alternative listings page</li>
+                <li><strong>Properties</strong> - Alternative listings page</li>
                 <li><strong>About</strong> - About your property</li>
                 <li><strong>Contact</strong> - Contact form page</li>
                 <li><strong>Blog</strong> - Your blog posts</li>
@@ -2489,7 +2489,7 @@ function developer_get_api_settings() {
         'page_about_content_title' => developer_get_ml_value($website_page_about, 'content_title', $lang),
         'page_about_menu_title' => developer_get_ml_value($website_page_about, 'menu_title', $lang),
         'page_about_enabled' => $website_page_about['enabled'] ?? false,
-        'page_about_menu_order' => $website_page_about['menu-order'] ?? 2,
+        'page_about_menu_order' => (($website_page_about['menu-order'] ?? '') !== '' ? $website_page_about['menu-order'] : 2),
         'page_about_transparent_header' => $website_page_about['transparent-header'] ?? false,
         'page_about_hero_enabled' => $website_page_about['hero-enabled'] ?? true,
         'page_about_hero_image' => $website_page_about['hero-image'] ?? null,
@@ -2515,7 +2515,7 @@ function developer_get_api_settings() {
         'page_rooms_title' => developer_get_ml_value($website_rooms, 'title', $lang) ?: 'Book Your Stay',
         'page_rooms_subtitle' => developer_get_ml_value($website_rooms, 'subtitle', $lang),
         'page_rooms_enabled' => $website_rooms['enabled'] ?? true,
-        'page_rooms_menu_order' => $website_rooms['menu-order'] ?? 1,
+        'page_rooms_menu_order' => (($website_rooms['menu-order'] ?? '') !== '' ? $website_rooms['menu-order'] : 1),
         'page_rooms_transparent_header' => $website_rooms['transparent-header'] ?? false,
         'page_rooms_search_btn_bg' => ($website['pro-settings'] ?? [])['search-btn-bg'] ?: ($website_rooms['search-btn-bg'] ?? ''),
         'page_rooms_search_btn_text' => ($website['pro-settings'] ?? [])['search-btn-text'] ?: ($website_rooms['search-btn-text'] ?? ''),
@@ -2528,7 +2528,7 @@ function developer_get_api_settings() {
         'page_contact_title' => developer_get_ml_value($website_page_contact, 'title', $lang),
         'page_contact_subtitle' => developer_get_ml_value($website_page_contact, 'subtitle', $lang),
         'page_contact_enabled' => $website_page_contact['enabled'] ?? true,
-        'page_contact_menu_order' => $website_page_contact['menu-order'] ?? 8,
+        'page_contact_menu_order' => (($website_page_contact['menu-order'] ?? '') !== '' ? $website_page_contact['menu-order'] : 8),
         'page_contact_transparent_header' => $website_page_contact['transparent-header'] ?? false,
         'page_contact_hero_enabled' => $website_page_contact['hero-enabled'] ?? true,
         'page_contact_hero_image' => $website_page_contact['hero-image'] ?? null,
@@ -2564,7 +2564,7 @@ function developer_get_api_settings() {
         // Gallery Page - MULTILINGUAL
         'page_gallery_menu_title' => developer_get_ml_value($website_page_gallery, 'menu_title', $lang) ?: 'Gallery',
         'page_gallery_enabled' => $website_page_gallery['enabled'] ?? false,
-        'page_gallery_menu_order' => $website_page_gallery['menu-order'] ?? 3,
+        'page_gallery_menu_order' => (($website_page_gallery['menu-order'] ?? '') !== '' ? $website_page_gallery['menu-order'] : 3),
         'page_gallery_meta_title' => $website_page_gallery['meta-title'] ?? '',
         'page_gallery_meta_description' => $website_page_gallery['meta-description'] ?? '',
 
@@ -2573,7 +2573,7 @@ function developer_get_api_settings() {
         'page_blog_title' => developer_get_ml_value($website_page_blog, 'title', $lang),
         'page_blog_subtitle' => developer_get_ml_value($website_page_blog, 'subtitle', $lang),
         'page_blog_enabled' => $website_page_blog['enabled'] ?? false,
-        'page_blog_menu_order' => $website_page_blog['menu-order'] ?? 4,
+        'page_blog_menu_order' => (($website_page_blog['menu-order'] ?? '') !== '' ? $website_page_blog['menu-order'] : 4),
         'page_blog_meta_title' => $website_page_blog['meta-title'] ?? '',
         'page_blog_meta_description' => $website_page_blog['meta-description'] ?? '',
 
@@ -2582,29 +2582,29 @@ function developer_get_api_settings() {
         'page_attractions_title' => developer_get_ml_value($website_page_attractions, 'title', $lang),
         'page_attractions_subtitle' => developer_get_ml_value($website_page_attractions, 'subtitle', $lang),
         'page_attractions_enabled' => $website_page_attractions['enabled'] ?? false,
-        'page_attractions_menu_order' => $website_page_attractions['menu-order'] ?? 5,
+        'page_attractions_menu_order' => (($website_page_attractions['menu-order'] ?? '') !== '' ? $website_page_attractions['menu-order'] : 5),
         'page_attractions_meta_title' => $website_page_attractions['meta-title'] ?? '',
         'page_attractions_meta_description' => $website_page_attractions['meta-description'] ?? '',
 
         // Dining Page - MULTILINGUAL
         'page_dining_menu_title' => developer_get_ml_value($website_page_dining, 'menu_title', $lang) ?: 'Dining',
         'page_dining_enabled' => $website_page_dining['enabled'] ?? false,
-        'page_dining_menu_order' => $website_page_dining['menu-order'] ?? 4,
+        'page_dining_menu_order' => (($website_page_dining['menu-order'] ?? '') !== '' ? $website_page_dining['menu-order'] : 4),
         
         // Offers Page - MULTILINGUAL
         'page_offers_menu_title' => developer_get_ml_value($website_page_offers, 'menu_title', $lang) ?: 'Offers',
         'page_offers_enabled' => $website_page_offers['enabled'] ?? false,
-        'page_offers_menu_order' => $website_page_offers['menu-order'] ?? 5,
+        'page_offers_menu_order' => (($website_page_offers['menu-order'] ?? '') !== '' ? $website_page_offers['menu-order'] : 5),
         
         // Properties Page - MULTILINGUAL
         'page_properties_menu_title' => developer_get_ml_value($website_page_properties, 'menu_title', $lang) ?: 'Properties',
         'page_properties_enabled' => $website_page_properties['enabled'] ?? false,
-        'page_properties_menu_order' => $website_page_properties['menu-order'] ?? 6,
+        'page_properties_menu_order' => (($website_page_properties['menu-order'] ?? '') !== '' ? $website_page_properties['menu-order'] : 6),
         
         // Reviews Page - MULTILINGUAL
         'page_reviews_menu_title' => developer_get_ml_value($website_page_reviews, 'menu_title', $lang) ?: 'Reviews',
         'page_reviews_enabled' => $website_page_reviews['enabled'] ?? false,
-        'page_reviews_menu_order' => $website_page_reviews['menu-order'] ?? 7,
+        'page_reviews_menu_order' => (($website_page_reviews['menu-order'] ?? '') !== '' ? $website_page_reviews['menu-order'] : 7),
         
         // Terms Page - MULTILINGUAL
         'page_terms_menu_title' => developer_get_ml_value($website_page_terms, 'menu_title', $lang) ?: 'Terms',
