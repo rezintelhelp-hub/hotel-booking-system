@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.25
+ * Version: 3.6.26
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.25');
+define('GAS_BOOKING_VERSION', '3.6.26');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -775,29 +775,29 @@ class GAS_Booking {
                 'menu-item-status' => 'publish',
                 'menu-item-position' => $menu_order,
             );
-            
+
             // Set parent if this is a sub-menu item
             if ($parent_menu_item_id > 0) {
                 $menu_item_data['menu-item-parent-id'] = $parent_menu_item_id;
             }
-            
+
             $result = wp_update_nav_menu_item($menu_id, 0, $menu_item_data);
             error_log("GAS Booking: Added '{$title}' to menu" . ($parent_menu_item_id ? " as sub-item of parent {$parent_menu_item_id}" : "") . ". Result: " . (is_wp_error($result) ? $result->get_error_message() : $result));
-        } else if ($parent_slug && $parent_menu_item_id > 0 && $existing_menu_item_id > 0) {
-            // Update existing menu item to be a sub-item if it should be
-            $current_item = wp_setup_nav_menu_item(get_post($existing_menu_item_id));
-            if ($current_item && $current_item->menu_item_parent != $parent_menu_item_id) {
-                wp_update_nav_menu_item($menu_id, $existing_menu_item_id, array(
-                    'menu-item-title' => $title,
-                    'menu-item-object' => 'page',
-                    'menu-item-object-id' => $page->ID,
-                    'menu-item-type' => 'post_type',
-                    'menu-item-status' => 'publish',
-                    'menu-item-position' => $menu_order,
-                    'menu-item-parent-id' => $parent_menu_item_id,
-                ));
-                error_log("GAS Booking: Updated '{$title}' to be sub-item of parent {$parent_menu_item_id}");
+        } else if ($existing_menu_item_id > 0) {
+            // Update existing menu item position and title
+            $update_data = array(
+                'menu-item-title' => $title,
+                'menu-item-object' => 'page',
+                'menu-item-object-id' => $page->ID,
+                'menu-item-type' => 'post_type',
+                'menu-item-status' => 'publish',
+                'menu-item-position' => $menu_order,
+            );
+            if ($parent_menu_item_id > 0) {
+                $update_data['menu-item-parent-id'] = $parent_menu_item_id;
             }
+            wp_update_nav_menu_item($menu_id, $existing_menu_item_id, $update_data);
+            error_log("GAS Booking: Updated '{$title}' menu position to {$menu_order}");
         }
     }
     
