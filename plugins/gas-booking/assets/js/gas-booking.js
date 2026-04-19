@@ -7,7 +7,7 @@
 
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
- * @version 3.6.22
+ * @version 3.6.23
  */
 jQuery(document).ready(function($) {
     
@@ -979,7 +979,10 @@ jQuery(document).ready(function($) {
         // Set title and location - prefer display_name over internal name
         var roomTitle = extractText(room.display_name) || room.name;
         $('.gas-room-title').text(roomTitle);
-        $('.gas-room-location').text(room.property_name || room.location || '');
+        var locCity = (room.city || '').trim();
+        var locState = (room.state || '').trim();
+        var locLine = locCity && locState ? locCity + ', ' + locState : (locCity || locState || '');
+        $('.gas-room-location').text(locLine).toggle(!!locLine);
         
         // Set meta with icons - use translations
         var metaHtml = '';

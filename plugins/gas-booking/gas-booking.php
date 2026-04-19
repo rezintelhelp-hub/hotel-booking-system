@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.22
+ * Version: 3.6.23
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.22');
+define('GAS_BOOKING_VERSION', '3.6.23');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5798,9 +5798,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 <div class="gas-room-row-header">
                                     <?php $room_display_name = $this->extract_display_text($room['display_name'] ?? '') ?: $room['name']; ?>
                                     <h3><?php echo esc_html($room_display_name); ?></h3>
-                                    <?php $room_subtitle = $this->extract_display_text($room['short_description'] ?? '') ?: ($room['property_name'] ?? ''); ?>
-                                    <?php if (!empty($room_subtitle)) : ?>
-                                    <div class="gas-room-row-location">📍 <?php echo wp_kses_post($room_subtitle); ?><?php if (!empty($room['city'])) echo ', ' . esc_html($room['city']); ?></div>
+                                    <?php
+                                    $loc_city = trim($room['city'] ?? '');
+                                    $loc_state = trim($room['state'] ?? '');
+                                    $loc_line = $loc_city && $loc_state ? $loc_city . ', ' . $loc_state : ($loc_city ?: $loc_state);
+                                    ?>
+                                    <?php if (!empty($loc_line)) : ?>
+                                    <div class="gas-room-row-location">📍 <?php echo esc_html($loc_line); ?></div>
                                     <?php endif; ?>
                                 </div>
                                 
@@ -5891,7 +5895,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $room_location = $room['city'] ?? $room['district'] ?? '';
                             $room_property_name = $room['property_name'] ?? '';
                             $card_display_name = $this->extract_display_text($room['display_name'] ?? '') ?: $room['name'];
-                            $card_subtitle = $this->extract_display_text($room['short_description'] ?? '') ?: ($room['property_name'] ?? '');
+                            $card_city = trim($room['city'] ?? '');
+                            $card_state = trim($room['state'] ?? '');
+                            $card_location_line = $card_city && $card_state ? $card_city . ', ' . $card_state : ($card_city ?: $card_state);
                             
                             // Hide rooms beyond initial load
                             // Show all rooms - no pagination
@@ -5920,8 +5926,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             <?php endif; ?>
                             <div class="gas-room-details">
                                 <h3><?php echo esc_html($card_display_name); ?></h3>
-                                <?php if (!empty($card_subtitle)) : ?>
-                                <div class="gas-room-property">📍 <?php echo wp_kses_post($card_subtitle); ?><?php if (!empty($room['city'])) echo ', ' . esc_html($room['city']); ?></div>
+                                <?php if (!empty($card_location_line)) : ?>
+                                <div class="gas-room-property">📍 <?php echo esc_html($card_location_line); ?></div>
                                 <?php endif; ?>
                                 
                                 <div class="gas-room-meta">
