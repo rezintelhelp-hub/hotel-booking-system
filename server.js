@@ -26172,6 +26172,21 @@ app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
       } catch (e) {
         console.log(`Cache bust failed for blog ${site.blog_id}: ${e.message}`);
       }
+
+      // Sync pages & menu order to WordPress when a page section is saved
+      if (section.startsWith('page-') || section === 'custom-pages') {
+        try {
+          const siteHost = new URL(site.site_url).origin;
+          await fetch(`${siteHost}/wp-json/gas-booking/v1/sync-pages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+          });
+          console.log(`Menu sync triggered for ${site.site_url}`);
+        } catch (e) {
+          console.log(`Menu sync failed for ${site.site_url}: ${e.message}`);
+        }
+      }
     }
 
     res.json({
