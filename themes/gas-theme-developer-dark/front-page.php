@@ -307,13 +307,13 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
             // Plugin will use row for 1-2 rooms, grid for 3+
             $shortcode = '[gas_rooms columns="' . esc_attr($featured_columns) . '" show_map="false" layout="auto"';
             
-            if ($featured_mode === 'specific' && !empty($featured_ids)) {
+            if (!empty($featured_ids)) {
                 $shortcode .= ' room_ids="' . esc_attr($featured_ids) . '"';
-            } elseif ($featured_mode === 'random') {
-                $shortcode .= ' limit="' . esc_attr($featured_count) . '" random="true"';
-            } else {
-                $shortcode .= ' limit="' . esc_attr($featured_count) . '"';
             }
+            if ($featured_mode === 'random') {
+                $shortcode .= ' random="true"';
+            }
+            $shortcode .= ' limit="' . esc_attr($featured_count) . '"';
             
             $shortcode .= ']';
             echo do_shortcode($shortcode);
