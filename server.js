@@ -51599,7 +51599,7 @@ app.post('/api/partner/tenants', async (req, res) => {
         console.error(`[Partner API] Duplicate email on tenant create: ${accountEmail}`, insertErr.detail);
         return res.status(409).json({
           success: false,
-          error: 'An account with this contact_email already exists. Each tenant must use a unique email.',
+          error: 'This contact_email is already in use (it may belong to your own partner account or another tenant). Each account in GAS requires a unique email. Use a different email for this tenant.',
           code: 'EMAIL_TAKEN',
           field: 'contact_email'
         });
