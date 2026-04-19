@@ -51586,12 +51586,26 @@ app.post('/api/partner/tenants', async (req, res) => {
     // Use placeholder email if not provided (required field in accounts table)
     const accountEmail = contact_email || `${tenant_id}@partner.gas.travel`;
     
-    const newAccount = await pool.query(
-      `INSERT INTO accounts (name, email, phone, country, timezone, address_line1, postcode, city, currency, parent_id, role, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'submaster_admin', 'active', NOW())
-       RETURNING id, name, status, created_at`,
-      [resolvedBusinessName, accountEmail, contact_phone || null, country || null, timezone || null, resolvedStreet || null, resolvedZip || null, city || null, resolvedCurrency || null, auth.partnerId]
-    );
+    let newAccount;
+    try {
+      newAccount = await pool.query(
+        `INSERT INTO accounts (name, email, phone, country, timezone, address_line1, postcode, city, currency, parent_id, role, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'submaster_admin', 'active', NOW())
+         RETURNING id, name, status, created_at`,
+        [resolvedBusinessName, accountEmail, contact_phone || null, country || null, timezone || null, resolvedStreet || null, resolvedZip || null, city || null, resolvedCurrency || null, auth.partnerId]
+      );
+    } catch (insertErr) {
+      if (insertErr.code === '23505' && (insertErr.constraint || '').includes('email')) {
+        console.error(`[Partner API] Duplicate email on tenant create: ${accountEmail}`, insertErr.detail);
+        return res.status(409).json({
+          success: false,
+          error: 'An account with this contact_email already exists. Each tenant must use a unique email.',
+          code: 'EMAIL_TAKEN',
+          field: 'contact_email'
+        });
+      }
+      throw insertErr;
+    }
     
     // Store website in settings JSONB if provided
     const newAccountId = newAccount.rows[0].id;

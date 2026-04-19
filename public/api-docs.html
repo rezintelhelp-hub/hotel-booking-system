@@ -547,7 +547,7 @@
                 "post": {
                     "tags": ["Tenants"],
                     "summary": "Create Tenant",
-                    "description": "Create a new tenant (client account). If the tenant_id already exists, returns the existing tenant.",
+                    "description": "Create a new tenant (client account). If the tenant_id already exists, returns the existing tenant. contact_email must be unique across all accounts in GAS. If the email is already associated with another account (including your own partner account), the request will fail with HTTP 409 EMAIL_TAKEN. Use a unique per-tenant email.",
                     "requestBody": {
                         "required": true,
                         "content": {
@@ -581,6 +581,19 @@
                                             "tenant_id": "tenant-001",
                                             "account_id": 141
                                         }
+                                    }
+                                }
+                            }
+                        },
+                        "409": {
+                            "description": "Duplicate contact_email — already used by another account",
+                            "content": {
+                                "application/json": {
+                                    "example": {
+                                        "success": false,
+                                        "error": "An account with this contact_email already exists. Each tenant must use a unique email.",
+                                        "code": "EMAIL_TAKEN",
+                                        "field": "contact_email"
                                     }
                                 }
                             }
