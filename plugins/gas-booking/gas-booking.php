@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.26
+ * Version: 3.6.27
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.26');
+define('GAS_BOOKING_VERSION', '3.6.27');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -487,7 +487,11 @@ class GAS_Booking {
             $page_title = $section_data['menu-title'] ?? $config['default_title'];
             
             // Get menu order from API or use default
-            $menu_order = isset($section_data['menu-order']) ? intval($section_data['menu-order']) * 10 : $config['default_menu_order'];
+            // Empty string from SECTION_DEFAULTS must fall through to default — only use explicit values
+            $menu_order_raw = $section_data['menu-order'] ?? '';
+            $menu_order = ($menu_order_raw !== '' && $menu_order_raw !== null)
+                ? intval($menu_order_raw) * 10
+                : $config['default_menu_order'];
             
             // Get parent slug for sub-menu items
             $parent_slug = $config['parent_slug'] ?? null;
@@ -3549,7 +3553,7 @@ class GAS_Booking {
             $custom_css .= $btn_rule;
             if ($pro_s && isset($pro_s['rooms_card_radius']) && $pro_s['rooms_card_radius'] !== null) {
                 $cr = intval($pro_s['rooms_card_radius']);
-                $custom_css .= ".gas-room-card { border-radius: {$cr}px !important; }\n";
+                $custom_css .= ".gas-room-card { border-radius: var(--gas-radius-lg, {$cr}px) !important; }\n";
             }
         }
 
@@ -5258,7 +5262,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         }
         .gas-room-card {
             border: 1px solid #e0e0e0;
-            border-radius: <?php echo intval($card_radius); ?>px;
+            border-radius: var(--gas-radius-lg, <?php echo intval($card_radius); ?>px);
             overflow: hidden;
             background: #fff;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
@@ -5527,7 +5531,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             display: flex;
             background: #fff;
             border: 1px solid #e0e0e0;
-            border-radius: 16px;
+            border-radius: var(--gas-radius-lg, 16px);
             overflow: hidden;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
             transition: all 0.2s ease;
@@ -6514,10 +6518,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-submit-btn:hover {
             filter: brightness(0.9);
         }
-        <?php if ($card_radius_booking !== '') : ?>
-        .gas-booking-card { border-radius: <?php echo intval($card_radius_booking); ?>px !important; }
-        .gas-room-card { border-radius: <?php echo intval($card_radius_booking); ?>px !important; }
-        <?php endif; ?>
+        .gas-booking-card { border-radius: var(--gas-radius-lg) !important; }
+        .gas-room-card { border-radius: var(--gas-radius-lg) !important; }
         </style>
         <div class="gas-room-widget" data-unit-id="<?php echo esc_attr($unit_id); ?>" data-checkin="<?php echo esc_attr($checkin); ?>" data-checkout="<?php echo esc_attr($checkout); ?>" data-guests="<?php echo esc_attr($guests); ?>" data-show-map="<?php echo $show_map ? 'true' : 'false'; ?>">
             <div class="gas-room-loading">
