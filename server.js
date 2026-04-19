@@ -72489,10 +72489,15 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         const properties = propertiesResult.rows;
         const rooms = roomsResult.rows;
         
-        // Build website settings object
+        // Build website settings object — merge SECTION_DEFAULTS for missing sections
         const websiteSettings = {};
+        if (typeof SECTION_DEFAULTS !== 'undefined') {
+            for (const [section, defaults] of Object.entries(SECTION_DEFAULTS)) {
+                websiteSettings[section] = { ...defaults };
+            }
+        }
         websiteSettingsResult.rows.forEach(row => {
-            websiteSettings[row.section] = row.settings;
+            websiteSettings[row.section] = { ...(websiteSettings[row.section] || {}), ...row.settings };
         });
         
         // Build pages object with full content
