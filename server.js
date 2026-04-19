@@ -5043,6 +5043,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS currency VARCHAR(3)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS short_description TEXT');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS full_description TEXT');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS content_locked BOOLEAN NOT NULL DEFAULT false');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS bedrooms INTEGER');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS beds INTEGER');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS bathrooms DECIMAL(3,1)');
@@ -5414,7 +5415,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             num_bedrooms = COALESCE($5, num_bedrooms),
             num_bathrooms = COALESCE($7, num_bathrooms),
             updated_at = NOW()
-          WHERE id = $12
+          WHERE id = $12 AND content_locked = false
         `, [
           room.name || 'Unnamed Room',
           maxGuests,
@@ -5433,15 +5434,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         // Update descriptions only if GAS fields are currently empty (don't overwrite manual edits)
         if (displayNameMultilang && Object.keys(displayNameMultilang).length > 0) {
-          await pool.query(`UPDATE bookable_units SET display_name = $1 WHERE id = $2 AND (display_name IS NULL OR display_name = 'null' OR display_name = '{}' OR display_name = '')`, [JSON.stringify(displayNameMultilang), gasRoomId])
+          await pool.query(`UPDATE bookable_units SET display_name = $1 WHERE id = $2 AND content_locked = false AND (display_name IS NULL OR display_name = 'null' OR display_name = '{}' OR display_name = '')`, [JSON.stringify(displayNameMultilang), gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update skipped:', e.message));
         }
         if (shortDescMultilang && Object.keys(shortDescMultilang).length > 0) {
-          await pool.query(`UPDATE bookable_units SET short_description = $1 WHERE id = $2 AND (short_description IS NULL OR short_description = 'null' OR short_description = '{}' OR short_description = '')`, [JSON.stringify(shortDescMultilang), gasRoomId])
+          await pool.query(`UPDATE bookable_units SET short_description = $1 WHERE id = $2 AND content_locked = false AND (short_description IS NULL OR short_description = 'null' OR short_description = '{}' OR short_description = '')`, [JSON.stringify(shortDescMultilang), gasRoomId])
             .catch(e => console.log('link-to-gas: short_description update skipped:', e.message));
         }
         if (fullDescMultilang && Object.keys(fullDescMultilang).length > 0) {
-          await pool.query(`UPDATE bookable_units SET full_description = $1 WHERE id = $2 AND (full_description IS NULL OR full_description = 'null' OR full_description = '{}' OR full_description = '')`, [sanitizeRoomDescription(JSON.stringify(fullDescMultilang)), gasRoomId])
+          await pool.query(`UPDATE bookable_units SET full_description = $1 WHERE id = $2 AND content_locked = false AND (full_description IS NULL OR full_description = 'null' OR full_description = '{}' OR full_description = '')`, [sanitizeRoomDescription(JSON.stringify(fullDescMultilang)), gasRoomId])
             .catch(e => console.log('link-to-gas: full_description update skipped:', e.message));
         }
 
@@ -5940,7 +5941,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
               size_sqm = $10,
               amenities = $11,
               updated_at = NOW()
-            WHERE id = $12
+            WHERE id = $12 AND content_locked = false
           `, [
             roomName,
             maxGuests,
@@ -6281,12 +6282,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         // Get all rooms we just synced that need translation
         const roomsToTranslate = await pool.query(`
-          SELECT id, display_name, short_description, full_description
+          SELECT id, display_name, short_description, full_description, content_locked
           FROM bookable_units
           WHERE property_id = $1
         `, [gasPropertyId]);
         
         for (const room of roomsToTranslate.rows) {
+          if (room.content_locked) { console.log('Skipped content sync for bookable_unit', room.id, '(content_locked)'); continue; }
           try {
             // Determine source language from content
             let sourceLang = 'en';
@@ -8608,7 +8610,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     if (prop.adapter_code === 'beds24') {
       const roomTypes = await pool.query(
         `SELECT rt.id, rt.external_id, rt.gas_room_id, rt.name,
-                bu.short_description, bu.full_description, bu.display_name
+                bu.short_description, bu.full_description, bu.display_name, bu.content_locked
          FROM gas_sync_room_types rt
          JOIN bookable_units bu ON bu.id = rt.gas_room_id
          WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL`,
@@ -8697,6 +8699,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
 
       let descCount = 0;
       for (const room of roomTypes.rows) {
+        if (room.content_locked) { console.log('Skipped content sync for bookable_unit', room.gas_room_id, '(content_locked)'); continue; }
         const roomTexts = beds24TextsMap[String(room.external_id)];
         const isArray = Array.isArray(roomTexts);
         console.log('content-sync: Room', room.name, 'external_id:', room.external_id, '- API match:', !!roomTexts, 'isArray:', isArray);
@@ -8751,7 +8754,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
       
       // Get room types for this property (include property_id for property-level updates)
       const roomTypes = await pool.query(
-        `SELECT rt.id, rt.external_id, rt.gas_room_id, rt.name, bu.property_id
+        `SELECT rt.id, rt.external_id, rt.gas_room_id, rt.name, bu.property_id, bu.content_locked
          FROM gas_sync_room_types rt
          JOIN bookable_units bu ON bu.id = rt.gas_room_id
          WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL`,
@@ -8760,8 +8763,9 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
 
       let descCount = 0, amenCount = 0, pricingCount = 0, feesCount = 0, reviewsCount = 0;
       const updatedPropertyIds = new Set();
-      
+
       for (const room of roomTypes.rows) {
+        if (room.content_locked) { console.log('Skipped content sync for bookable_unit', room.gas_room_id, '(content_locked)'); continue; }
         let locationDesc = '', houseRules = '', checkInAccess = '', descTransit = '';
         // Descriptions (full text + individual sections)
         try {
@@ -10654,7 +10658,7 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
                 name = $1, max_guests = $2, max_adults = $3, max_children = $4,
                 bedroom_count = $5, bathroom_count = $6, base_price = $7,
                 description = $8, short_description = $9, updated_at = NOW()
-              WHERE id = $10
+              WHERE id = $10 AND content_locked = false
             `, [
               rt.name || 'Room',
               rt.maxOccupancy || rt.maxGuests || 2,
@@ -10946,7 +10950,7 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
             base_price = $11, size_sqm = $12, bed_configuration = $13,
             bathroom_count = $14, bedroom_count = $15, min_stay = $16, max_stay = $17,
             beds24_room_id = $19, cm_room_id = $20, updated_at = NOW()
-          WHERE id = $18
+          WHERE id = $18 AND content_locked = false
         `, [
           room.name || 'Room', room.roomType || 'double',
           sanitizeRoomDescription(JSON.stringify({ en: roomDescription })), JSON.stringify({ en: roomShortDesc }),
@@ -11326,7 +11330,7 @@ app.post('/api/gas-sync/properties/:propertyId/update-room-names', async (req, r
       // Update bookable_unit name
       if (room.gas_room_id) {
         await client.query(`
-          UPDATE bookable_units SET name = $1, updated_at = NOW() WHERE id = $2
+          UPDATE bookable_units SET name = $1, updated_at = NOW() WHERE id = $2 AND content_locked = false
         `, [room.new_name, room.gas_room_id]);
       }
       
@@ -16007,7 +16011,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
           description = $5, short_description = $6, full_description = $7, display_name = $8,
           amenities = $9, num_bedrooms = $10, num_bathrooms = $11, unit_type = $12,
           cm_source = 'beds24-marketplace', updated_at = NOW()
-          WHERE id = $13`,
+          WHERE id = $13 AND content_locked = false`,
           [roomName, maxGuests, rackRate, minStay, sanitizeRoomDescription(JSON.stringify(descML)),
            JSON.stringify(shortDescML), sanitizeRoomDescription(JSON.stringify(descML)), JSON.stringify(nameML),
            JSON.stringify(amenitiesList), numBedrooms || 1, numBathrooms || 1, unitType, gasRoomId]);
@@ -24849,6 +24853,7 @@ app.post('/api/partner/v1/units', authenticatePartner, async (req, res) => {
         base_price = EXCLUDED.base_price,
         currency = EXCLUDED.currency,
         updated_at = NOW()
+      WHERE bookable_units.content_locked = false
       RETURNING *
     `, [
       propertyId, external_id, name, description,
@@ -45365,6 +45370,28 @@ app.get('/api/admin/amenities', async (req, res) => {
   } catch (error) {
     console.error('Amenities error:', error.message);
     res.json({ success: false, error: error.message });
+  }
+});
+
+// Toggle content lock on a room
+app.patch('/api/admin/units/:id/lock', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { locked } = req.body;
+    if (typeof locked !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'locked must be a boolean' });
+    }
+    const result = await pool.query(
+      'UPDATE bookable_units SET content_locked = $1 WHERE id = $2 RETURNING id, content_locked',
+      [locked, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    res.json({ success: true, content_locked: result.rows[0].content_locked });
+  } catch (error) {
+    console.error('Toggle content lock error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
