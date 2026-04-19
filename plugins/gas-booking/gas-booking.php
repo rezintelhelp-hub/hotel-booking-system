@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.28
+ * Version: 3.6.29
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.28');
+define('GAS_BOOKING_VERSION', '3.6.29');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -482,9 +482,9 @@ class GAS_Booking {
                           $section_data['enabled'] === 'on');
             $is_explicitly_disabled = $has_enabled_field && !$is_enabled;
             
-            // Use menu-title for WordPress page/menu, fall back to default
-            // Don't use 'title' as that's now used for page hero display
-            $page_title = $section_data['menu-title'] ?? $config['default_title'];
+            // Use menu-title-en for WordPress page/menu, fall back to default
+            // UI saves as menu-title-en (not bare menu-title), title is for page hero display
+            $page_title = $section_data['menu-title-en'] ?? $section_data['menu-title'] ?? $config['default_title'];
             
             // Get menu order from API or use default
             // Empty string from SECTION_DEFAULTS must fall through to default — only use explicit values
