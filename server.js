@@ -25925,12 +25925,12 @@ app.get('/api/deployed-sites/:id/settings/:section', async (req, res) => {
       });
     }
     
-    // No settings found, return null (frontend will use template defaults)
-    console.log(`No ${section} settings found for deployed site ${deployedSiteId}, using template defaults`);
-    res.json({ 
-      success: true, 
-      settings: null,
-      source: 'template_defaults',
+    // No settings found, return SECTION_DEFAULTS so the theme gets correct values
+    console.log(`No ${section} settings found for deployed site ${deployedSiteId}, using SECTION_DEFAULTS`);
+    res.json({
+      success: true,
+      settings: (typeof SECTION_DEFAULTS !== 'undefined' && SECTION_DEFAULTS[section]) ? SECTION_DEFAULTS[section] : null,
+      source: 'section_defaults',
       template: site.template
     });
     
