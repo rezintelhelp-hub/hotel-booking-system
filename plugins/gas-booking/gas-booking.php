@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.24
+ * Version: 3.6.25
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.24');
+define('GAS_BOOKING_VERSION', '3.6.25');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4858,8 +4858,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         // On the homepage (featured section), always use grid layout
         $room_count = count($rooms);
         $use_row_layout = false;
+        $use_carousel = false;
         $is_homepage = is_front_page();
-        if ($layout_mode === 'row' && !$is_homepage) {
+        if ($layout_mode === 'carousel') {
+            $use_carousel = true;
+        } elseif ($layout_mode === 'row' && !$is_homepage) {
             $use_row_layout = true;
         } elseif ($layout_mode === 'auto' && $room_count <= 2 && !$is_homepage) {
             $use_row_layout = true;
@@ -5157,6 +5160,57 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         }
         @media (max-width: 1200px) {
             .gas-rooms-grid { grid-template-columns: repeat(<?php echo min($grid_columns, 2); ?>, 1fr); }
+        }
+        /* Carousel Layout */
+        .gas-carousel-wrapper {
+            position: relative;
+            overflow: hidden;
+            margin: 0;
+        }
+        .gas-carousel-track {
+            display: flex;
+            gap: 20px;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            padding: 4px;
+        }
+        .gas-carousel-track::-webkit-scrollbar { display: none; }
+        .gas-carousel-track .gas-room-card {
+            flex: 0 0 calc(<?php echo 100 / $grid_columns; ?>% - <?php echo 20 * ($grid_columns - 1) / $grid_columns; ?>px);
+            scroll-snap-align: start;
+            min-width: 280px;
+        }
+        .gas-carousel-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border: none;
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, opacity 0.2s;
+            opacity: 0;
+        }
+        .gas-carousel-wrapper:hover .gas-carousel-arrow { opacity: 1; }
+        .gas-carousel-arrow:hover { background: rgba(0,0,0,0.75); }
+        .gas-carousel-arrow.prev { left: 12px; }
+        .gas-carousel-arrow.next { right: 12px; }
+        @media (max-width: 768px) {
+            .gas-carousel-track .gas-room-card { flex: 0 0 85%; min-width: 0; }
+            .gas-carousel-arrow { opacity: 1; width: 36px; height: 36px; font-size: 16px; }
         }
         @media (max-width: 768px) {
             .gas-rooms-page-wrapper {
@@ -5856,6 +5910,60 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         </div>
                         <?php endforeach; ?>
                     </div>
+                    <?php elseif ($use_carousel) : ?>
+                    <!-- Carousel Layout -->
+                    <div class="gas-carousel-wrapper">
+                        <button class="gas-carousel-arrow prev" onclick="this.parentElement.querySelector('.gas-carousel-track').scrollBy({left:-320,behavior:'smooth'})" aria-label="Previous">&#8249;</button>
+                        <div class="gas-carousel-track">
+                        <?php
+                        $room_index = 0;
+                        foreach ($rooms as $room) :
+                            $external_url = $room['external_booking_url'] ?? '';
+                            if (!empty($external_url)) {
+                                $room_url = $external_url;
+                            } else {
+                                $url_separator = strpos($room_url_base, '?') !== false ? '&' : '?';
+                                $room_url = $room_url_base . $url_separator . 'unit_id=' . $room['id'];
+                            }
+                            $room_display_name = $this->extract_display_text($room['display_name'] ?? '') ?: $room['name'];
+                            $price = floatval($room['price'] ?? $room['base_price'] ?? 0);
+                            $max_guests = intval($room['max_guests'] ?? $room['max_adults'] ?? 2);
+                            $image_url = $room['image_url'] ?? '';
+                            $room_currency = $this->get_currency_symbol($this->resolve_currency($room['currency'] ?? ''));
+                            $loc_city = trim($room['city'] ?? '');
+                            $loc_state = trim($room['state'] ?? '');
+                            $loc_line = $loc_city && $loc_state ? $loc_city . ', ' . $loc_state : ($loc_city ?: $loc_state);
+                            $room_index++;
+                        ?>
+                        <div class="gas-room-card">
+                            <?php if (!empty($image_url)) : ?>
+                            <div class="gas-room-image" <?php echo $room_index <= 6 ? 'style="background: url(\'' . esc_url($image_url) . '\') center/cover;"' : 'data-bg="' . esc_url($image_url) . '" style="background: #f0f0f0;"'; ?>></div>
+                            <?php else : ?>
+                            <div class="gas-room-image">🏠</div>
+                            <?php endif; ?>
+                            <div class="gas-room-details">
+                                <h3><?php echo esc_html($room_display_name); ?></h3>
+                                <?php if (!empty($loc_line)) : ?>
+                                <div class="gas-room-property">📍 <?php echo esc_html($loc_line); ?></div>
+                                <?php endif; ?>
+                                <div class="gas-room-meta">
+                                    <span>👥 <?php echo $max_guests; ?> <?php echo $max_guests > 1 ? esc_html($guests_word) : esc_html($guest_word); ?></span>
+                                </div>
+                                <div class="gas-room-footer">
+                                    <div class="gas-room-price">
+                                        <?php if ($price > 0) : ?>
+                                            <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($price, 0)); ?></span>
+                                            <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <a href="<?php echo esc_url($room_url); ?>" class="gas-view-btn"><?php echo esc_html($view_book_text); ?></a>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                        </div>
+                        <button class="gas-carousel-arrow next" onclick="this.parentElement.querySelector('.gas-carousel-track').scrollBy({left:320,behavior:'smooth'})" aria-label="Next">&#8250;</button>
+                    </div>
                     <?php else : ?>
                     <!-- Grid Layout -->
                     <div class="gas-rooms-grid">
@@ -6301,6 +6409,26 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             overlay.appendChild(popup);
             document.body.appendChild(overlay);
         }
+        // Carousel auto-advance
+        document.querySelectorAll('.gas-carousel-track').forEach(function(track) {
+            var iv = setInterval(function() {
+                if (track.scrollLeft + track.clientWidth >= track.scrollWidth - 10) {
+                    track.scrollTo({left: 0, behavior: 'smooth'});
+                } else {
+                    track.scrollBy({left: 320, behavior: 'smooth'});
+                }
+            }, 5000);
+            track.addEventListener('mouseenter', function() { clearInterval(iv); });
+            track.addEventListener('mouseleave', function() {
+                iv = setInterval(function() {
+                    if (track.scrollLeft + track.clientWidth >= track.scrollWidth - 10) {
+                        track.scrollTo({left: 0, behavior: 'smooth'});
+                    } else {
+                        track.scrollBy({left: 320, behavior: 'smooth'});
+                    }
+                }, 5000);
+            });
+        });
         </script>
         <?php
         return ob_get_clean();
