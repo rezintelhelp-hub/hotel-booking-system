@@ -304,6 +304,26 @@ async function resolveWidgetImages(mysqlConn, pageId) {
   return images;
 }
 
+/**
+ * Fetch structured metadata from page_meta table.
+ * Returns object keyed by var name.
+ */
+async function fetchPageMeta(mysqlConn, pageId) {
+  try {
+    const [rows] = await mysqlConn.query(
+      'SELECT `var`, `value` FROM page_meta WHERE static_pages_id = ?', [pageId]
+    );
+    const meta = {};
+    for (const r of rows) {
+      if (r.var && r.value !== null) meta[r.var] = r.value;
+    }
+    return meta;
+  } catch (e) {
+    logWarn(`Failed to fetch page_meta for page ${pageId}: ${e.message}`);
+    return {};
+  }
+}
+
 // ─── Main Migration ─────────────────────────────────────────────────
 
 async function main() {
@@ -385,15 +405,21 @@ async function main() {
       const label = `[${i + 1}/${attractions.length}]`;
 
       try {
-        // ── Clean content ──
+        // ── Fetch structured metadata from page_meta ──
+        const meta = await fetchPageMeta(mysqlConn, attr.id);
+
+        // ── Clean content (from main content column — often sparse for attractions) ──
         let content = cleanContent(attr.content);
+
+        // ── Build description from page_meta.summary (primary) + cleaned content (secondary) ──
+        const metaSummary = (meta.summary || '').replace(/\\n/g, '\n').replace(/<br\s*\/?>/gi, '\n').trim();
+        let description = metaSummary || content || null;
 
         // ── Resolve widget images ──
         const widgetImages = await resolveWidgetImages(mysqlConn, attr.id);
         let featuredFilename = null;
         let featuredImageUrl = null;
 
-        // Featured image: prefer pic_url, then first widget image
         if (attr.pic_url && attr.pic_url !== '/images' && attr.pic_url.length > 8) {
           featuredFilename = attr.pic_url.replace(/^\/images\//, '');
         } else if (widgetImages.length > 0) {
@@ -433,25 +459,51 @@ async function main() {
         }
         seenSlugs.set(slug, (seenSlugs.get(slug) || 0) + 1);
 
-        // ── Category ──
-        const category = detectCategory(attr.title);
+        // ── Category from page_meta.attraction_type (fallback to keyword detection) ──
+        const category = (meta.attraction_type || '').trim() || detectCategory(attr.title);
         categoryCount[category] = (categoryCount[category] || 0) + 1;
 
         // ── Short description ──
-        const shortDesc = makeShortDescription(content);
+        const shortDesc = makeShortDescription(description || '');
+
+        // ── Opening hours from meta ──
+        let openingHours = null;
+        if (meta.opening_time || meta.closing_time) {
+          const parts = [];
+          if (meta.opening_time) parts.push('Open: ' + meta.opening_time);
+          if (meta.closing_time) parts.push('Close: ' + meta.closing_time);
+          openingHours = parts.join(' | ');
+        }
+
+        // ── Address from meta ──
+        const address = (meta.street_address || meta.directions || '').trim() || null;
+
+        // ── Price range (varchar 50 limit) ──
+        let priceRange = null;
+        const prices = [meta.adult_price, meta.children_price, meta.oap_price].filter(p => p && p.trim() && p.trim() !== 'Contact Venue');
+        if (prices.length > 0) {
+          priceRange = prices[0].replace(/\\n/g, ' ').replace(/<br\s*\/?>/gi, ' ').replace(/\s+/g, ' ').trim().substring(0, 50);
+        }
 
         // ── Build payload ──
         const payload = {
           client_id: ACCOUNT_ID,
-          name: (attr.title || '').trim(),
+          name: (meta.attraction_name || attr.title || '').trim(),
           slug,
-          description: content || null,
+          description,
           short_description: shortDesc || null,
           featured_image_url: IS_DRY_RUN ? (featuredFilename || null) : (featuredImageUrl || null),
           category,
+          address,
+          city: (meta.city || '').trim() || null,
+          latitude: meta.latitude ? parseFloat(meta.latitude) : null,
+          longitude: meta.longditude ? parseFloat(meta.longditude) : null,
+          phone: (meta.phone || '').trim() || null,
           website_url: websiteUrl || null,
-          meta_title: (attr.title || '').trim().substring(0, 200),
-          meta_description: shortDesc || null,
+          opening_hours: openingHours,
+          price_range: priceRange,
+          meta_title: (meta.ss_page_title || attr.title || '').trim().substring(0, 200),
+          meta_description: (meta.ss_page_desc || shortDesc || '').substring(0, 300) || null,
           is_published: true,
           is_featured: false,
           display_order: i + 1,
@@ -473,10 +525,11 @@ async function main() {
           const result = await pgPool.query(`
             INSERT INTO attractions (
               client_id, name, slug, description, short_description, featured_image_url,
-              category, website_url, meta_title, meta_description,
+              category, address, city, latitude, longitude, phone, website_url,
+              opening_hours, price_range, meta_title, meta_description,
               is_published, is_featured, display_order, created_at, updated_at
             ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW()
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW(), NOW()
             )
             ON CONFLICT (client_id, slug) DO UPDATE SET
               name = EXCLUDED.name,
@@ -484,7 +537,14 @@ async function main() {
               short_description = EXCLUDED.short_description,
               featured_image_url = COALESCE(EXCLUDED.featured_image_url, attractions.featured_image_url),
               category = EXCLUDED.category,
+              address = COALESCE(EXCLUDED.address, attractions.address),
+              city = COALESCE(EXCLUDED.city, attractions.city),
+              latitude = COALESCE(EXCLUDED.latitude, attractions.latitude),
+              longitude = COALESCE(EXCLUDED.longitude, attractions.longitude),
+              phone = COALESCE(EXCLUDED.phone, attractions.phone),
               website_url = COALESCE(EXCLUDED.website_url, attractions.website_url),
+              opening_hours = COALESCE(EXCLUDED.opening_hours, attractions.opening_hours),
+              price_range = COALESCE(EXCLUDED.price_range, attractions.price_range),
               meta_title = EXCLUDED.meta_title,
               meta_description = EXCLUDED.meta_description,
               display_order = EXCLUDED.display_order,
@@ -493,7 +553,9 @@ async function main() {
           `, [
             payload.client_id, payload.name, payload.slug, payload.description,
             payload.short_description, payload.featured_image_url, payload.category,
-            payload.website_url, payload.meta_title, payload.meta_description,
+            payload.address, payload.city, payload.latitude, payload.longitude,
+            payload.phone, payload.website_url, payload.opening_hours, payload.price_range,
+            payload.meta_title, payload.meta_description,
             payload.is_published, payload.is_featured, payload.display_order,
           ]);
 
