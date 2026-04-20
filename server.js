@@ -14887,9 +14887,9 @@ app.post('/api/bookings/:bookingId/charge-tier/:tierId', async (req, res) => {
             ORDER BY property_id NULLS LAST LIMIT 1
         `, [tier.property_id, tier.account_id]);
 
-        const stripeKey = configResult.rows.length > 0
-            ? JSON.parse(configResult.rows[0].credentials).secret_key
-            : process.env.STRIPE_SECRET_KEY;
+        const creds = configResult.rows[0]?.credentials;
+        const stripeKey = (typeof creds === 'string' ? JSON.parse(creds) : creds)?.secret_key
+            || process.env.STRIPE_SECRET_KEY;
 
         const stripe = require('stripe')(stripeKey);
 
