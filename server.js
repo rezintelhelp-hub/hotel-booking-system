@@ -73107,16 +73107,16 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
         
         console.log('Public blog API called:', { clientId, property_id, category, limit, lang });
         
-        // Join to properties and filter by account_id - same pattern as rooms API
+        // LEFT JOIN so site-wide posts (no property_id) still appear
         let query = `
-            SELECT bp.id, bp.title, bp.slug, bp.excerpt, bp.featured_image_url, bp.category, 
+            SELECT bp.id, bp.title, bp.slug, bp.excerpt, bp.featured_image_url, bp.category,
                    bp.author_name, bp.read_time_minutes, bp.published_at, bp.client_id, bp.property_id,
                    bp.title_ml, bp.excerpt_ml, bp.meta_title_ml, bp.meta_description_ml,
                    p.name as property_name
             FROM blog_posts bp
-            JOIN properties p ON bp.property_id = p.id
+            LEFT JOIN properties p ON bp.property_id = p.id
             WHERE bp.is_published = true
-              AND p.account_id = $1
+              AND bp.client_id = $1
         `;
         const params = [clientId];
         let paramIndex = 2;
@@ -73173,8 +73173,8 @@ app.get('/api/public/client/:clientId/blog/:slug', async (req, res) => {
         const result = await pool.query(`
             SELECT bp.*, p.name as property_name
             FROM blog_posts bp
-            JOIN properties p ON bp.property_id = p.id
-            WHERE p.account_id = $1 AND bp.slug = $2 AND bp.is_published = true
+            LEFT JOIN properties p ON bp.property_id = p.id
+            WHERE bp.client_id = $1 AND bp.slug = $2 AND bp.is_published = true
         `, [clientId, slug]);
         
         if (result.rows.length === 0) {
