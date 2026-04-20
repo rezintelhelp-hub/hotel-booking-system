@@ -14893,15 +14893,28 @@ app.post('/api/bookings/:bookingId/charge-tier/:tierId', async (req, res) => {
 
         const stripe = require('stripe')(stripeKey);
 
+        // Resolve Stripe customer from the original payment intent or setup intent
+        let stripeCustomerId = null;
+        const bookingRow = await pool.query('SELECT stripe_payment_intent_id, stripe_setup_intent_id FROM bookings WHERE id = $1', [bookingId]);
+        const bk = bookingRow.rows[0];
+        if (bk?.stripe_payment_intent_id) {
+            try { stripeCustomerId = (await stripe.paymentIntents.retrieve(bk.stripe_payment_intent_id)).customer; } catch (e) { /* ignore */ }
+        }
+        if (!stripeCustomerId && bk?.stripe_setup_intent_id) {
+            try { stripeCustomerId = (await stripe.setupIntents.retrieve(bk.stripe_setup_intent_id)).customer; } catch (e) { /* ignore */ }
+        }
+
         // Create payment intent
-        const paymentIntent = await stripe.paymentIntents.create({
+        const piParams = {
             amount: Math.round(tier.amount * 100),
             currency: tier.currency || 'gbp',
             payment_method: tier.stripe_payment_method_id,
             confirm: true,
             off_session: true,
             description: `Payment tier ${tier.tier_order} for booking ${bookingId} - ${tier.guest_first_name} ${tier.guest_last_name}`
-        });
+        };
+        if (stripeCustomerId) piParams.customer = stripeCustomerId;
+        const paymentIntent = await stripe.paymentIntents.create(piParams);
 
         // Update tier status
         await pool.query(`
