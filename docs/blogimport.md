@@ -302,3 +302,135 @@ Just execute the script again. The `ON CONFLICT (client_id, slug) DO UPDATE` han
 ### Images
 
 R2 images are not automatically cleaned up on rollback. They're harmless orphans (small storage cost). If needed, they live under `website/blog-image/{account_id}/` in the `gas-property-images` bucket.
+
+---
+
+# Attractions Migration Runbook
+
+## 10. Overview
+
+`scripts/migrate-attractions.js` migrates attraction pages from the old Rezintel SetSeed server into the GAS `attractions` table on Railway PostgreSQL.
+
+Same prerequisites as blog migration (Section 2-3 above): SSH key, DATABASE_URL, R2 credentials.
+
+### Migration Status
+
+| Status | Site | Attractions |
+|--------|------|------------|
+| **Done** | www.thecotswoldretreats.com | 48 |
+
+## 11. How It Works
+
+### Key difference from blog migration
+
+SetSeed stores attraction data in **two places**:
+1. `static_pages.content` — often sparse (just widget images + dividers)
+2. **`page_meta` table** — structured fields: `summary`, `attraction_type`, `street_address`, `latitude`, `longditude` (sic), `phone`, `opening_time`, `closing_time`, `adult_price`, `ss_page_title`, `ss_page_desc`, etc.
+
+The script reads from `page_meta` as the primary data source. The `content` column is cleaned but usually empty after stripping SetSeed markup.
+
+### Discovery
+
+Finds attractions by tag name (dynamic, not hardcoded ID):
+
+```sql
+SELECT page_tagsid FROM page_tags
+WHERE name IN ('Attractions', 'Things to Do', 'Places to Visit', 'Local Attractions')
+LIMIT 1;
+```
+
+### Field Mapping
+
+| GAS `attractions` column | Source | Notes |
+|---|---|---|
+| `name` | `page_meta.attraction_name` or `pagetitle` | |
+| `slug` | `url_str` | |
+| `description` | `page_meta.summary` | Primary content source |
+| `short_description` | First 150 chars of summary | |
+| `featured_image_url` | Widget image → R2 upload | `website/attraction-image/{account_id}/` |
+| `category` | `page_meta.attraction_type` | e.g. "Historic House", "Theatre", "Golf Club" |
+| `address` | `page_meta.street_address` or `directions` | |
+| `city` | `page_meta.city` | Sparse — most empty |
+| `latitude` | `page_meta.latitude` | 48/48 populated for Cotswolds |
+| `longitude` | `page_meta.longditude` (sic) | Note the typo in source field |
+| `phone` | `page_meta.phone` | 38/48 populated |
+| `opening_hours` | `opening_time` + `closing_time` | Formatted as "Open: X | Close: Y" |
+| `price_range` | `page_meta.adult_price` | Truncated to 50 chars |
+| `meta_title` | `page_meta.ss_page_title` | 44/48 populated |
+| `meta_description` | `page_meta.ss_page_desc` | 44/48 populated |
+| `website_url` | Extracted from first `<a href="https://...">` in content | |
+
+### Idempotency
+
+Same as blog: unique constraint `(client_id, slug)`, upsert via `ON CONFLICT DO UPDATE`.
+
+## 12. Run Commands
+
+```bash
+# Dry-run
+node scripts/migrate-attractions.js --site {invisible_key} --account-id {gas_account_id} --dry-run
+
+# One-post test
+node scripts/migrate-attractions.js --site {invisible_key} --account-id {gas_account_id} --limit 1 --live
+
+# Full migration
+node scripts/migrate-attractions.js --site {invisible_key} --account-id {gas_account_id} --live --log migrate-attractions-{site}.log
+```
+
+Same CLI flags as blog migration: `--site`, `--account-id`, `--live`, `--limit`, `--log`, `--sample`.
+
+## 13. Public Site Display
+
+Both blog and attractions required these fixes to display on the public site:
+
+### API endpoint fixes (server.js)
+
+| Endpoint | Fix |
+|----------|-----|
+| `GET /api/public/client/:id/blog` | `JOIN` → `LEFT JOIN properties`, `WHERE bp.client_id = $1` |
+| `GET /api/public/client/:id/blog/:slug` | Same LEFT JOIN fix |
+| `GET /api/public/client/:id/attractions` | Same LEFT JOIN fix + search + total/has_more |
+| `GET /api/public/client/:id/attractions/:slug` | Same LEFT JOIN fix |
+
+Without LEFT JOIN, any post/attraction without a `property_id` (i.e. site-wide content, which is all migrated content) is invisible.
+
+### Plugin fixes (SCP to VPS)
+
+| Plugin | Fix | Version |
+|--------|-----|---------|
+| `gas-blog` | Removed `gas_property_id` empty guard, added search + View More + AJAX pagination | 2.10.1 |
+| `gas-attractions` | Same: removed property_id guard, added search + View More + AJAX pagination | 2.8.0 |
+
+Both plugins had a guard in `fetch_*()` that returned empty array when `gas_property_id` option wasn't set. Removed — the API already filters by `client_id`.
+
+### View More + Search pattern
+
+Both blog and attractions listing pages now have:
+- Search input (debounced 350ms, resets grid with filtered results)
+- Category tabs (server-side, full page reload on click)
+- Initial load: 9 items
+- "View More" button: AJAX fetches next 9, appends to grid, hides when exhausted
+- Spinner animation while loading
+
+### Deploy checklist for new sites
+
+After migrating content for a new client:
+
+1. Push server.js changes (Railway auto-deploys)
+2. SCP plugin files to VPS:
+   ```bash
+   scp -i ~/.ssh/id_ed25519 plugins/gas-blog/gas-blog.php root@72.61.207.109:/var/www/wordpress/wp-content/plugins/gas-blog/
+   scp -i ~/.ssh/id_ed25519 plugins/gas-attractions/gas-attractions.php root@72.61.207.109:/var/www/wordpress/wp-content/plugins/gas-attractions/
+   ```
+3. Hard refresh the public site `/blog/` and `/attractions/` pages
+4. Verify posts/attractions appear with images, categories, and View More works
+
+## 14. Rollback (Attractions)
+
+```sql
+DELETE FROM attractions
+WHERE client_id = {account_id}
+  AND created_at > '{migration_start_timestamp}';
+```
+
+R2 images live under `website/attraction-image/{account_id}/` in the `gas-property-images` bucket.
