@@ -89324,7 +89324,7 @@ async function processScheduledTierPayments() {
 
         for (const tier of allTiers) {
             try {
-                const stripeKey = (tier.payment_config_credentials ? JSON.parse(tier.payment_config_credentials).secret_key : null)
+                const stripeKey = (tier.payment_config_credentials?.secret_key)
                     || tier.stripe_secret_key || process.env.STRIPE_SECRET_KEY;
                 if (!stripeKey) {
                     console.log(`[TIER-CHARGE] No Stripe key for booking ${tier.booking_id} tier ${tier.tier_order}, skipping`);
