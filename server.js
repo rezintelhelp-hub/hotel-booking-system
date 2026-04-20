@@ -14925,8 +14925,8 @@ app.post('/api/bookings/:bookingId/charge-tier/:tierId', async (req, res) => {
 
         // Log transaction
         await pool.query(`
-            INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id)
-            VALUES ($1, $2, $3, $4, 'completed', $5)
+            INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, gateway_transaction_id, payment_gateway)
+            VALUES ($1, $2, $3, $4, 'completed', $5, 'stripe')
         `, [bookingId, `tier_${tier.tier_order}`, tier.amount, tier.currency || 'gbp', paymentIntent.id]);
 
         // Check if all tiers are now charged
@@ -20215,8 +20215,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 try {
                     await client.query('SAVEPOINT payment_tx');
                     await client.query(`
-                        INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
-                        VALUES ($1, 'deposit', $2, $3, 'completed', $4, NOW())
+                        INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, gateway_transaction_id, payment_gateway, created_at)
+                        VALUES ($1, 'deposit', $2, $3, 'completed', $4, 'stripe', NOW())
                     `, [createdBookings[0].id, deposit_amount, reqCurrency || rooms[0]?.currency || 'USD', stripe_payment_intent_id]);
                     await client.query('RELEASE SAVEPOINT payment_tx');
                 } catch (txError) {
@@ -44677,8 +44677,8 @@ app.post('/api/bookings/:id/refund', async (req, res) => {
       
       // Record transaction
       await pool.query(`
-        INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
-        VALUES ($1, 'refund', $2, 'USD', 'completed', $3, NOW())
+        INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, gateway_transaction_id, payment_gateway, created_at)
+        VALUES ($1, 'refund', $2, 'USD', 'completed', $3, 'stripe', NOW())
       `, [id, refund.amount / 100, refund.id]);
       
       res.json({ success: true, refund_id: refund.id, amount: refund.amount / 100 });
@@ -64622,8 +64622,8 @@ app.post('/api/public/book', async (req, res) => {
     if (stripe_payment_intent_id && deposit_amount) {
       try {
         await pool.query(`
-          INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
-          VALUES ($1, 'deposit', $2, 'USD', 'completed', $3, NOW())
+          INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, gateway_transaction_id, payment_gateway, created_at)
+          VALUES ($1, 'deposit', $2, 'USD', 'completed', $3, 'stripe', NOW())
         `, [newBooking.id, deposit_amount, stripe_payment_intent_id]);
       } catch (txError) {
         console.log('Could not record payment transaction (table may not exist yet):', txError.message);
@@ -88905,7 +88905,7 @@ app.post('/api/bookings/:id/charge-card', async (req, res) => {
     // Log as payment transaction
     try {
       await pool.query(`
-        INSERT INTO payment_transactions (booking_id, type, amount, currency, status, provider, details, created_at)
+        INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, payment_gateway, description, created_at)
         VALUES ($1, 'charge', $2, $3, $4, 'enigma_proxy', $5, CURRENT_TIMESTAMP)
       `, [
         bookingId,
@@ -89391,8 +89391,8 @@ async function processScheduledTierPayments() {
 
                     // Log transaction
                     await pool.query(`
-                        INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id)
-                        VALUES ($1, $2, $3, $4, 'completed', $5)
+                        INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, gateway_transaction_id, payment_gateway)
+                        VALUES ($1, $2, $3, $4, 'completed', $5, 'stripe')
                     `, [tier.booking_id, `tier_${tier.tier_order}`, tier.amount, chargeCurrency, paymentIntent.id]);
 
                     // Check if all tiers now charged
