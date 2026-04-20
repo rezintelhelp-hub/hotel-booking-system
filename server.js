@@ -73136,13 +73136,23 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
             paramIndex++;
         }
         
+        // Search filter (title or excerpt)
+        if (req.query.search) {
+            query += ` AND (bp.title ILIKE $${paramIndex} OR bp.excerpt ILIKE $${paramIndex})`;
+            params.push('%' + req.query.search + '%');
+            paramIndex++;
+        }
+
+        // Total count (same filters, no LIMIT/OFFSET) for pagination
+        const countQuery = query.replace(/SELECT .+? FROM/, 'SELECT COUNT(*) FROM');
+        const countResult = await pool.query(countQuery, params);
+        const total = parseInt(countResult.rows[0].count);
+
         query += ` ORDER BY bp.published_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
         params.push(parseInt(limit), parseInt(offset));
-        
-        console.log('Public blog query:', query, params);
-        
+
         const result = await pool.query(query, params);
-        
+
         // Apply language-specific content
         const posts = result.rows.map(post => {
             return {
@@ -73155,9 +73165,11 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
             };
         });
 
-        console.log('Public blog results:', posts.length, 'posts found');
-        
-        res.json({ success: true, posts });
+        const parsedLimit = parseInt(limit);
+        const parsedOffset = parseInt(offset);
+        const hasMore = (parsedOffset + parsedLimit) < total;
+
+        res.json({ success: true, posts, total, has_more: hasMore });
     } catch (error) {
         console.error('Public blog API error:', error);
         res.json({ success: false, error: error.message });
