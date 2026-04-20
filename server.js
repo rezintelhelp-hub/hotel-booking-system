@@ -73269,15 +73269,17 @@ app.get('/api/public/client/:clientId/attractions', async (req, res) => {
         const { clientId } = req.params;
         const { category, property_id, limit, lang = 'en' } = req.query;
 
-        // Join to properties and filter by account_id - same pattern as rooms API
+        const { offset = 0 } = req.query;
+
+        // LEFT JOIN so site-wide attractions (no property_id) still appear
         let query = `
             SELECT a.id, a.name, a.slug, a.short_description, a.featured_image_url, a.category,
                    a.address, a.city, a.distance_text, a.rating, a.price_range,
                    a.name_ml, a.short_description_ml, a.meta_title_ml, a.meta_description_ml,
                    p.name as property_name
             FROM attractions a
-            JOIN properties p ON a.property_id = p.id
-            WHERE p.account_id = $1 AND a.is_published = true
+            LEFT JOIN properties p ON a.property_id = p.id
+            WHERE a.client_id = $1 AND a.is_published = true
         `;
         const params = [clientId];
         let paramIndex = 2;
@@ -73289,23 +73291,33 @@ app.get('/api/public/client/:clientId/attractions', async (req, res) => {
         }
 
         if (category) {
-            // Case-insensitive matching and handle slug-style categories
-            // e.g., "nightlife" matches "Nightlife", "nightlife-bars" matches "Nightlife & Bars"
             const categoryPattern = category.replace(/-/g, '[- &]*');
-            query += ` AND LOWER(category) ~* $${paramIndex}`;
+            query += ` AND LOWER(a.category) ~* $${paramIndex}`;
             params.push(categoryPattern.toLowerCase());
             paramIndex++;
         }
-        
-        query += ` ORDER BY display_order, name`;
-        
-        if (limit) {
-            query += ` LIMIT $${paramIndex}`;
-            params.push(parseInt(limit));
+
+        // Search filter
+        if (req.query.search) {
+            query += ` AND (a.name ILIKE $${paramIndex} OR a.short_description ILIKE $${paramIndex})`;
+            params.push('%' + req.query.search + '%');
+            paramIndex++;
         }
-        
+
+        // Total count for pagination
+        const countQuery = query.replace(/SELECT[\s\S]+?FROM/, 'SELECT COUNT(*) FROM');
+        const countResult = await pool.query(countQuery, params);
+        const total = parseInt(countResult.rows[0].count);
+
+        query += ` ORDER BY a.display_order, a.name`;
+
+        const parsedLimit = limit ? parseInt(limit) : 50;
+        const parsedOffset = parseInt(offset);
+        query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        params.push(parsedLimit, parsedOffset);
+
         const result = await pool.query(query, params);
-        
+
         // Apply language-specific content
         const attractions = result.rows.map(a => ({
             ...a,
@@ -73316,7 +73328,8 @@ app.get('/api/public/client/:clientId/attractions', async (req, res) => {
             category_label: getCategoryLabel(a.category, lang)
         }));
 
-        res.json({ success: true, attractions });
+        const hasMore = (parsedOffset + parsedLimit) < total;
+        res.json({ success: true, attractions, total, has_more: hasMore });
     } catch (error) {
         res.json({ success: false, error: error.message });
     }
@@ -73331,8 +73344,8 @@ app.get('/api/public/client/:clientId/attractions/:slug', async (req, res) => {
         const result = await pool.query(`
             SELECT a.*, p.name as property_name
             FROM attractions a
-            JOIN properties p ON a.property_id = p.id
-            WHERE p.account_id = $1 AND a.slug = $2 AND a.is_published = true
+            LEFT JOIN properties p ON a.property_id = p.id
+            WHERE a.client_id = $1 AND a.slug = $2 AND a.is_published = true
         `, [clientId, slug]);
         
         if (result.rows.length === 0) {
