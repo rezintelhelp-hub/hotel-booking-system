@@ -73144,7 +73144,7 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
         }
 
         // Total count (same filters, no LIMIT/OFFSET) for pagination
-        const countQuery = query.replace(/SELECT .+? FROM/, 'SELECT COUNT(*) FROM');
+        const countQuery = query.replace(/SELECT[\s\S]+?FROM/, 'SELECT COUNT(*) FROM');
         const countResult = await pool.query(countQuery, params);
         const total = parseInt(countResult.rows[0].count);
 
