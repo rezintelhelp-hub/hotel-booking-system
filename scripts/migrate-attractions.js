@@ -43,15 +43,17 @@ const IS_DRY_RUN = !IS_LIVE;
 const LOG_FILE = getArg('log');
 const SAMPLE_COUNT = parseInt(getArg('sample')) || 3;
 const POST_LIMIT = getArg('limit') ? parseInt(getArg('limit')) : null;
+const TAG_NAME_OVERRIDE = getArg('tag-name');
 
 if (!SITE_KEY || !ACCOUNT_ID) {
-  console.error('Usage: node scripts/migrate-attractions.js --site <invisible_key> --account-id <id> [--live] [--log <file>] [--limit <n>]');
+  console.error('Usage: node scripts/migrate-attractions.js --site <invisible_key> --account-id <id> [--live] [--log <file>] [--limit <n>] [--tag-name <name>]');
   console.error('  --site         Rezintel invisible_key (required)');
   console.error('  --account-id   GAS account/client ID (required)');
   console.error('  --live         Actually write to database (default: dry-run)');
   console.error('  --log <file>   Write log to file');
   console.error('  --sample <n>   Number of sample payloads in dry-run (default: 3)');
   console.error('  --limit <n>    Only process first N attractions (for testing)');
+  console.error('  --tag-name <n> Override attraction tag name (default: auto-detect)');
   process.exit(1);
 }
 
@@ -247,14 +249,21 @@ async function uploadImageToR2(r2Client, buffer, accountId, filename) {
 // ─── Attraction Discovery ───────────────────────────────────────────
 
 async function findAttractionsTagId(mysqlConn) {
+  if (TAG_NAME_OVERRIDE) {
+    const [rows] = await mysqlConn.query(`SELECT page_tagsid, name FROM page_tags WHERE name = ?`, [TAG_NAME_OVERRIDE]);
+    if (rows.length > 0) { log(`Using override tag: "${rows[0].name}" (ID: ${rows[0].page_tagsid})`); return rows[0].page_tagsid; }
+    logWarn(`Override tag "${TAG_NAME_OVERRIDE}" not found — falling back to auto-detect`);
+  }
   const [rows] = await mysqlConn.query(`
     SELECT page_tagsid, name FROM page_tags
-    WHERE name IN ('Attractions', 'Things to Do', 'Places to Visit', 'Local Attractions')
+    WHERE name IN ('Attractions', 'Things to Do', 'Places to Visit', 'Local Attractions', 'Things to do')
     ORDER BY CASE name
       WHEN 'Attractions' THEN 1
       WHEN 'Things to Do' THEN 2
-      WHEN 'Places to Visit' THEN 3
-      ELSE 4
+      WHEN 'Things to do' THEN 3
+      WHEN 'Places to Visit' THEN 4
+      WHEN 'Local Attractions' THEN 5
+      ELSE 6
     END
     LIMIT 1
   `);

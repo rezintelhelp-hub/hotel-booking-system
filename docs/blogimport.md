@@ -434,3 +434,179 @@ WHERE client_id = {account_id}
 ```
 
 R2 images live under `website/attraction-image/{account_id}/` in the `gas-property-images` bucket.
+
+---
+
+## 15. Per-Client Migration Plan
+
+Sorted by total content descending. Run one at a time. Add R2 creds to `.env` before each session, remove after.
+
+Both scripts support `--tag-name <name>` to override tag detection for sites with non-standard tag names.
+
+### Tier 1 — Large clients (50+ items)
+
+```bash
+# Lehmann House (lehmannhouse.com) — 247 blog, 46 attractions
+node scripts/migrate-blog.js --site wwwlehmannhousecom5x5gp57chag --account-id 4 --live
+node scripts/migrate-attractions.js --site wwwlehmannhousecom5x5gp57chag --account-id 4 --live
+
+# Holiday Homes in York (holidayhomesinyork.co.uk) — 193 blog, 52 attractions
+# ⚠️  No deployed site in GAS yet — needs site creation first, then account_id lookup
+# node scripts/migrate-blog.js --site wwwholidayhomesinyorkcoukrzhxt5ndm48 --account-id ??? --live
+# node scripts/migrate-attractions.js --site wwwholidayhomesinyorkcoukrzhxt5ndm48 --account-id ??? --live
+
+# Cleveland B&B (clevelandbandbtorquay.co.uk) — 56 blog + 12 news, 16 "Things to do" + 21 attractions
+# ⚠️  Has "News" tag (12 extra posts) and "Things to do" tag (16 extra attractions)
+# Run twice for blog: once default, once with --tag-name "News"
+# Run twice for attractions: auto-detect finds "Things to do", then --tag-name "Attractions"
+node scripts/migrate-blog.js --site wwwclevelandbandbtorquaycoukdi8qedug3ae --account-id 102 --live
+node scripts/migrate-blog.js --site wwwclevelandbandbtorquaycoukdi8qedug3ae --account-id 102 --live --tag-name "News"
+node scripts/migrate-attractions.js --site wwwclevelandbandbtorquaycoukdi8qedug3ae --account-id 102 --live
+node scripts/migrate-attractions.js --site wwwclevelandbandbtorquaycoukdi8qedug3ae --account-id 102 --live --tag-name "Attractions"
+
+# Belmont Hotel (thebelmonthotel.co.uk) — 88 blog, 11 attractions
+# Note: same account as Adelphi (account 68)
+node scripts/migrate-blog.js --site wwwthebelmonthotelcoukovo4jwggtas --account-id 68 --live
+node scripts/migrate-attractions.js --site wwwthebelmonthotelcoukovo4jwggtas --account-id 68 --live
+
+# Adelphi Blackpool (adelphi-blackpool.com) — 79 blog, 15 attractions
+# Note: same account 68 as Belmont — slugs must not clash
+node scripts/migrate-blog.js --site wwwadelphiblackpoolcompzbdykpoxro --account-id 68 --live
+node scripts/migrate-attractions.js --site wwwadelphiblackpoolcompzbdykpoxro --account-id 68 --live
+
+# Moonriver B&B (moonriverbedandbreakfast.com) — 21 blog + 19 "General Blogs", 24 attractions
+node scripts/migrate-blog.js --site wwwmoonriverbedandbreakfastcomsqx6twx73ei --account-id 201 --live
+node scripts/migrate-blog.js --site wwwmoonriverbedandbreakfastcomsqx6twx73ei --account-id 201 --live --tag-name "General Blogs"
+node scripts/migrate-attractions.js --site wwwmoonriverbedandbreakfastcomsqx6twx73ei --account-id 201 --live
+
+# Walnut Canyon Cabins — 52 blog, 15 attractions
+# ⚠️  No deployed site — needs site creation first
+# node scripts/migrate-blog.js --site wwwwalnutcanyoncabinscoms0vrf6knsk8 --account-id ??? --live
+# node scripts/migrate-attractions.js --site wwwwalnutcanyoncabinscoms0vrf6knsk8 --account-id ??? --live
+```
+
+### Tier 2 — Medium clients (10-49 items)
+
+```bash
+# Carbon Country (carboncountrysshadyrest.com) — 24 blog, 17 attractions
+node scripts/migrate-blog.js --site wwwcarboncountrysshadyrestcomimportss9lvws --account-id 159 --live
+node scripts/migrate-attractions.js --site wwwcarboncountrysshadyrestcomimportss9lvws --account-id 159 --live
+
+# Mornington Rose (morningtonrose.com) — 26 blog, 9 attractions
+# ⚠️  Attractions tag is "Local Attractions" (auto-detected)
+node scripts/migrate-blog.js --site wwwmorningtonrosecom7cdavqna0ah --account-id 173 --live
+node scripts/migrate-attractions.js --site wwwmorningtonrosecom7cdavqna0ah --account-id 173 --live
+
+# Casa Magnolia (casamagnoliabandb.com) — 3 blog, 17 attractions
+node scripts/migrate-blog.js --site wwwcasamagnoliabandbcom3m4iwaw3eng --account-id 165 --live
+node scripts/migrate-attractions.js --site wwwcasamagnoliabandbcom3m4iwaw3eng --account-id 165 --live
+
+# Homega Rentals (homega-rentals.com) — 6 blog, 10 attractions
+node scripts/migrate-blog.js --site wwwhomegarentalscomk8wcy0fzj2b --account-id 224 --live
+node scripts/migrate-attractions.js --site wwwhomegarentalscomk8wcy0fzj2b --account-id 224 --live
+
+# Hebden Bridge Hostel (hebdenbridgehostel.org) — 13 blog, 0 attractions
+node scripts/migrate-blog.js --site wwwhebdenbridgehostelorgotwvuppzmoc --account-id 169 --live
+
+# Le Macassar (lemacassar.com) — 6 blog, 7 attractions
+node scripts/migrate-blog.js --site wwwlemacassarnewcr2eu3yn20p --account-id 79 --live
+node scripts/migrate-attractions.js --site wwwlemacassarnewcr2eu3yn20p --account-id 79 --live
+
+# EasyStays (easystays.mt) — 7 blog, 4 attractions
+node scripts/migrate-blog.js --site bookingseasylandlordcom5x7vx24m3f7 --account-id 230 --live
+node scripts/migrate-attractions.js --site bookingseasylandlordcom5x7vx24m3f7 --account-id 230 --live
+```
+
+### Tier 3 — Small clients (5-9 items)
+
+```bash
+# St Ives Hotel — 0 blog, 9 attractions
+node scripts/migrate-attractions.js --site wwwstiveshotelcoukvz54yc26kjw --account-id 158 --live
+
+# Tregarth House — 1 blog, 8 attractions
+node scripts/migrate-blog.js --site wwwtregarthhousebandbcoukrqd3taamm4k --account-id 172 --live
+node scripts/migrate-attractions.js --site wwwtregarthhousebandbcoukrqd3taamm4k --account-id 172 --live
+
+# Rent4Natu — 8 blog, 0 attractions
+node scripts/migrate-blog.js --site wwwrent4natufryufb774vz44 --account-id 141 --live
+
+# Varley House — 1 blog, 6 attractions
+node scripts/migrate-blog.js --site wwwvarleyhousecoukyro42p04bku --account-id 100 --live
+node scripts/migrate-attractions.js --site wwwvarleyhousecoukyro42p04bku --account-id 100 --live
+
+# Dwellfort — 1 blog, 4 attractions
+node scripts/migrate-blog.js --site wanderlust2ar8ru --account-id 211 --live
+node scripts/migrate-attractions.js --site wanderlust2ar8ru --account-id 211 --live
+
+# Book-Jet — 1 blog, 4 attractions
+node scripts/migrate-blog.js --site bookjetcoms7fjhgwodwu --account-id 152 --live
+node scripts/migrate-attractions.js --site bookjetcoms7fjhgwodwu --account-id 152 --live
+
+# John Rast House — 1 blog, 4 attractions
+node scripts/migrate-blog.js --site wwwjohnrasthousecomvp6onu5k377 --account-id 164 --live
+node scripts/migrate-attractions.js --site wwwjohnrasthousecomvp6onu5k377 --account-id 164 --live
+
+# Rooms at 73 — 1 blog, 4 attractions
+node scripts/migrate-blog.js --site wwwrooms73businesssitenxhghu4jrvh --account-id 168 --live
+node scripts/migrate-attractions.js --site wwwrooms73businesssitenxhghu4jrvh --account-id 168 --live
+
+# Oasis Corralejo — 1 blog, 4 attractions
+node scripts/migrate-blog.js --site wwwoasiscorralejocom5qyb4cnkro4 --account-id 152 --live
+node scripts/migrate-attractions.js --site wwwoasiscorralejocom5qyb4cnkro4 --account-id 152 --live
+
+# Talwood Manor — 2 blog, 3 attractions
+node scripts/migrate-blog.js --site wwwtalwoodmanorbbcom7cvsix678gs --account-id 162 --live
+node scripts/migrate-attractions.js --site wwwtalwoodmanorbbcom7cvsix678gs --account-id 162 --live
+```
+
+### Tier 4 — Minimal content (1-2 items, likely template defaults)
+
+```bash
+# Mimo Stays — 1 blog, 1 attraction
+node scripts/migrate-blog.js --site wwwmimostayscomvwzh0em4xxq --account-id 160 --live
+node scripts/migrate-attractions.js --site wwwmimostayscomvwzh0em4xxq --account-id 160 --live
+
+# Carter & Co — 1 blog, 0 attractions
+node scripts/migrate-blog.js --site wwwcartercobookingscoukq4dbbiq6by0 --account-id 167 --live
+
+# Chester House — 1 blog, 0 attractions
+node scripts/migrate-blog.js --site wwwchesterhouseguesthousecoukbj7ji73invg --account-id 157 --live
+```
+
+### Skipped — No GAS account or no deployed site
+
+| Old URL | invisible_key | Content | Reason |
+|---------|--------------|---------|--------|
+| www.bellavidabandb.com | `wwwbellavidabandbcomysqmcvh4wmn` | 35 blog, 45 attr | No deployed site |
+| www.resortbreaks.com | `wwwresortbreakscomge6xfxpxsi0` | 76 blog, 3 attr | No deployed site |
+| www.bookliverpool.com | `wwwbookliverpoolcomcxbaf0x5ix4` | 69 blog | No GAS account |
+| www.bellavidahaus.com | `wwwbellavidahauscomjz0fd5ocoz5` | 31 blog, 36 attr | No GAS account |
+| www.walnutcanyoncabins.com | `wwwwalnutcanyoncabinscoms0vrf6knsk8` | 52 blog, 15 attr | No deployed site |
+| www.holidayhomesinyork.co.uk | `wwwholidayhomesinyorkcoukrzhxt5ndm48` | 193 blog, 52 attr | No deployed site |
+| www.alakaibb.com | `wwwalakaibbcomgy0acq3x3ek` | 12 blog, 26 attr | No deployed site |
+| www.burleigh-house.co.uk | `wwwburleighhousecouk485fjgw0smk` | 14 blog, 20 attr | No deployed site |
+| www.trilliumvacationrentals.ca | `wwwtrilliumvacationrentalsca0vzzpk46s32` | 1 blog, 19 attr | No deployed site |
+| www.bookinriga.com | `wwwbookinrigacompns0a3pjsop` | 1 blog, 8 attr | No GAS account |
+| www.arancottages.uk | `wwwarancottagesukaaezd2u6b5k` | 4 blog, 4 attr | No GAS account |
+| www.dpourpry.com | `wwwdpourprycome6argv6acje` | 7 blog | No deployed site |
+| www.booking-assist.com | `wwwbookingassistcomvswnnby4umm` | 1 blog, 4 attr | No GAS account |
+| www.brightonbreak.com | `wwwbrightonbreakcom8xm6qe2ydz2` | 1 blog, 4 attr | No GAS account |
+| www.dfriedrich.at | `wwwdfriedrichatef8f3fj6jms` | 1 blog, 4 attr | No GAS account (Haus Schneeberg?) |
+| www.pumicetinyhouse.com | `wwwpumicetinyhousecomj28h6a5s2sk` | 1 blog, 4 attr | No GAS account |
+| www.feelwelcomebarcelona.com | `wwwfeelwelcomebarcelonacomwq7h8e3mjqy` | 1 blog | No GAS account |
+| bookings.hebdenbridgehostel.org | `bookingshebdenbridgehostelorg72ne04mvb2o` | 1 blog, 4 attr | Duplicate of hebden bridge |
+| www.rezintel.net | `rezintelnet73wumov7g2a` | 0 | Internal/demo |
+| www.villa-lounge.com | `villaloungecoma2hx4ms4equ` | 0 | Empty |
+
+### Tag Name Notes
+
+Most sites auto-detect correctly. Exceptions requiring `--tag-name` or double-runs:
+
+| Site | Issue | Action |
+|------|-------|--------|
+| Cleveland B&B | "News" (12 extra blog posts) | Run blog twice: default + `--tag-name "News"` |
+| Cleveland B&B | "Things to do" (16 extra attractions) | Run attractions twice: default + `--tag-name "Attractions"` |
+| Moonriver B&B | "General Blogs" (19 extra posts) | Run blog twice: default + `--tag-name "General Blogs"` |
+| Mornington Rose | "Local Attractions" | Auto-detected — no override needed |
+| Lehmann House | "Blog articles" (lowercase a) | Auto-detected — no override needed |
+| Belmont/Adelphi | Same account 68 — watch for slug collisions | Idempotent, but check logs for `-2` suffix warnings |
