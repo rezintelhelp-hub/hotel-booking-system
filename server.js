@@ -45193,6 +45193,57 @@ app.post('/api/pricing/calculate', async (req, res) => {
 // =====================================================
 
 // Get dashboard statistics
+// GET /api/admin/onboarding-status — account setup checklist
+app.get('/api/admin/onboarding-status', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    if (!accountId) return res.json({ success: false, error: 'account_id required' });
+
+    // All checks in parallel
+    const [
+      propsR, roomsR, roomImagesR, roomDescsR, pricingR, stripeR,
+      siteR, blogR, attractionsR, beds24R
+    ] = await Promise.all([
+      pool.query('SELECT COUNT(*)::int as c FROM properties WHERE account_id = $1', [accountId]),
+      pool.query('SELECT COUNT(*)::int as c FROM bookable_units bu JOIN properties p ON p.id = bu.property_id WHERE p.account_id = $1', [accountId]),
+      pool.query('SELECT COUNT(DISTINCT pi.property_id)::int as c FROM property_images pi JOIN properties p ON p.id = pi.property_id WHERE p.account_id = $1', [accountId]),
+      pool.query('SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE bu.description IS NOT NULL AND bu.description != \'\')::int as done FROM bookable_units bu JOIN properties p ON p.id = bu.property_id WHERE p.account_id = $1', [accountId]),
+      pool.query('SELECT COUNT(*)::int as c FROM room_availability ra JOIN bookable_units bu ON bu.id = ra.room_id JOIN properties p ON p.id = bu.property_id WHERE p.account_id = $1 AND ra.cm_price IS NOT NULL LIMIT 1', [accountId]),
+      pool.query('SELECT COUNT(*)::int as c FROM payment_configurations WHERE account_id = $1 AND is_enabled = true', [accountId]),
+      pool.query('SELECT COUNT(*)::int as c, MIN(site_url) as url FROM deployed_sites WHERE account_id = $1', [accountId]),
+      pool.query('SELECT COUNT(*)::int as c FROM blog_posts WHERE client_id = $1', [accountId]),
+      pool.query('SELECT COUNT(*)::int as c FROM attractions WHERE client_id = $1', [accountId]),
+      pool.query("SELECT COUNT(*)::int as c FROM gas_sync_connections WHERE account_id = $1 AND status = 'connected'", [accountId]),
+    ]);
+
+    const propCount = propsR.rows[0].c;
+    const roomCount = roomsR.rows[0].c;
+    const roomDescTotal = roomDescsR.rows[0].total;
+    const roomDescDone = roomDescsR.rows[0].done;
+
+    const checklist = {
+      properties:       { done: propCount > 0, count: propCount, label: 'Properties imported' },
+      rooms:            { done: roomCount > 0, count: roomCount, label: 'Rooms set up' },
+      room_images:      { done: roomImagesR.rows[0].c > 0, count: roomImagesR.rows[0].c, label: 'Property images uploaded' },
+      room_descriptions:{ done: roomDescDone >= roomDescTotal && roomDescTotal > 0, done_count: roomDescDone, total: roomDescTotal, label: 'Room descriptions' },
+      pricing:          { done: pricingR.rows[0].c > 0, label: 'Pricing syncing' },
+      beds24:           { done: beds24R.rows[0].c > 0, label: 'Channel manager connected' },
+      payments:         { done: stripeR.rows[0].c > 0, label: 'Payment method configured' },
+      website:          { done: siteR.rows[0].c > 0, url: siteR.rows[0].url, label: 'Website deployed' },
+      blog:             { done: blogR.rows[0].c > 0, count: blogR.rows[0].c, label: 'Blog content' },
+      attractions:      { done: attractionsR.rows[0].c > 0, count: attractionsR.rows[0].c, label: 'Attractions listed' },
+    };
+
+    const completed = Object.values(checklist).filter(v => v.done).length;
+    const total = Object.keys(checklist).length;
+
+    res.json({ success: true, checklist, completed, total, percent: Math.round((completed / total) * 100) });
+  } catch (error) {
+    console.error('Onboarding status error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/admin/stats', async (req, res) => {
   try {
     // Enforce auth — non-master users can only see their own stats
