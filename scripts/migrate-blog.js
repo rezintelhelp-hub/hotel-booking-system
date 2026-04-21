@@ -558,6 +558,18 @@ async function main() {
       }
     }
 
+    // ─── Auto-detect property_id for single-property accounts ──
+    let autoPropertyId = null;
+    if (!IS_DRY_RUN && pgPool) {
+      const propResult = await pgPool.query('SELECT id FROM properties WHERE account_id = $1', [ACCOUNT_ID]);
+      if (propResult.rows.length === 1) {
+        autoPropertyId = propResult.rows[0].id;
+        log(`Single-property account — will set property_id = ${autoPropertyId}`);
+      } else {
+        log(`Multi-property account (${propResult.rows.length} properties) — property_id will be NULL`);
+      }
+    }
+
     // ─── Discover blog posts ──────────────────────────────────
     let posts = [];
 
@@ -712,6 +724,7 @@ async function main() {
           read_time_minutes: readTimeMinutes(content),
           published_at: publishedAt,
           ai_generated: false,
+          property_id: autoPropertyId,
         };
 
         // ── Collect sample payloads for dry-run ──
@@ -732,9 +745,9 @@ async function main() {
               client_id, title, slug, content, excerpt, featured_image_url,
               category, tags, meta_title, meta_description, author_name,
               language, is_published, is_featured, read_time_minutes,
-              published_at, ai_generated, created_at, updated_at
+              published_at, ai_generated, property_id, created_at, updated_at
             ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW()
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW()
             )
             ON CONFLICT (client_id, slug) DO UPDATE SET
               title = EXCLUDED.title,
@@ -745,6 +758,7 @@ async function main() {
               meta_description = EXCLUDED.meta_description,
               published_at = EXCLUDED.published_at,
               read_time_minutes = EXCLUDED.read_time_minutes,
+              property_id = COALESCE(EXCLUDED.property_id, blog_posts.property_id),
               updated_at = NOW()
             RETURNING id, (xmax = 0) AS is_insert
           `, [
@@ -753,7 +767,7 @@ async function main() {
             payload.tags, payload.meta_title, payload.meta_description,
             payload.author_name, payload.language, payload.is_published,
             payload.is_featured, payload.read_time_minutes, payload.published_at,
-            payload.ai_generated,
+            payload.ai_generated, payload.property_id,
           ]);
 
           const row = result.rows[0];

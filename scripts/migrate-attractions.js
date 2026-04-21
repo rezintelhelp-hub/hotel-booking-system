@@ -382,6 +382,18 @@ async function main() {
       }
     }
 
+    // ─── Auto-detect property_id for single-property accounts ──
+    let autoPropertyId = null;
+    if (!IS_DRY_RUN && pgPool) {
+      const propResult = await pgPool.query('SELECT id FROM properties WHERE account_id = $1', [ACCOUNT_ID]);
+      if (propResult.rows.length === 1) {
+        autoPropertyId = propResult.rows[0].id;
+        log(`Single-property account — will set property_id = ${autoPropertyId}`);
+      } else {
+        log(`Multi-property account (${propResult.rows.length} properties) — property_id will be NULL`);
+      }
+    }
+
     // ─── Discover attractions ─────────────────────────────────
     const tagId = await findAttractionsTagId(mysqlConn);
     if (!tagId) {
@@ -516,6 +528,7 @@ async function main() {
           is_published: true,
           is_featured: false,
           display_order: i + 1,
+          property_id: autoPropertyId,
         };
 
         // ── Collect sample payloads for dry-run ──
@@ -536,9 +549,9 @@ async function main() {
               client_id, name, slug, description, short_description, featured_image_url,
               category, address, city, latitude, longitude, phone, website_url,
               opening_hours, price_range, meta_title, meta_description,
-              is_published, is_featured, display_order, created_at, updated_at
+              is_published, is_featured, display_order, property_id, created_at, updated_at
             ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW(), NOW()
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW(), NOW()
             )
             ON CONFLICT (client_id, slug) DO UPDATE SET
               name = EXCLUDED.name,
@@ -557,6 +570,7 @@ async function main() {
               meta_title = EXCLUDED.meta_title,
               meta_description = EXCLUDED.meta_description,
               display_order = EXCLUDED.display_order,
+              property_id = COALESCE(EXCLUDED.property_id, attractions.property_id),
               updated_at = NOW()
             RETURNING id, (xmax = 0) AS is_insert
           `, [
@@ -565,7 +579,7 @@ async function main() {
             payload.address, payload.city, payload.latitude, payload.longitude,
             payload.phone, payload.website_url, payload.opening_hours, payload.price_range,
             payload.meta_title, payload.meta_description,
-            payload.is_published, payload.is_featured, payload.display_order,
+            payload.is_published, payload.is_featured, payload.display_order, payload.property_id,
           ]);
 
           const row = result.rows[0];
