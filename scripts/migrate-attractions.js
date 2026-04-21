@@ -522,7 +522,7 @@ async function main() {
           city: (meta.city || '').trim() || null,
           latitude: meta.latitude ? parseFloat(meta.latitude) : null,
           longitude: meta.longditude ? parseFloat(meta.longditude) : null,
-          phone: (meta.phone || '').trim() || null,
+          phone: (meta.phone || '').trim().substring(0, 50) || null,
           website_url: websiteUrl || null,
           opening_hours: openingHours,
           price_range: priceRange,
