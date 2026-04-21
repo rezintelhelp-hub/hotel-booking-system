@@ -1208,12 +1208,24 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
                         <p style="font-size: 0.85rem; color: var(--success); font-weight: 600;">Quick Connect via GAS Marketplace</p>
                         <p style="font-size: 0.8rem; color: var(--ink-muted); margin-top: 0.25rem;">We'll search for your properties automatically. No invite codes or API keys needed.</p>
                     </div>
+                    <div style="background: #fffbeb; border: 1px solid #f59e0b; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <p style="font-size: 0.85rem; color: #92400e; font-weight: 600; margin-bottom: 0.5rem;">Before you continue:</p>
+                        <ol style="font-size: 0.8rem; color: #78716c; padding-left: 1.2rem; line-height: 1.8; margin: 0;">
+                            <li>In Beds24, go to <strong>Settings &rarr; Marketplace &rarr; RezIntel</strong></li>
+                            <li>Enable each property you want to connect to GAS</li>
+                            <li>Click <strong>Save</strong> in Beds24</li>
+                        </ol>
+                    </div>
                     <div class="field">
                         <label>Your Beds24 Account Email or Owner ID</label>
                         <input type="text" id="beds24-marketplace-owner" placeholder="e.g. your@email.com or 12345" autocomplete="off">
                         <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">We'll find your properties linked to this account</p>
                     </div>
-                    <button class="btn-primary" onclick="connectBeds24Marketplace()">Find My Properties</button>
+                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; margin-bottom: 1rem; cursor: pointer; font-size: 0.85rem; color: var(--ink-light);">
+                        <input type="checkbox" id="beds24-marketplace-confirm" style="width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0;">
+                        I have enabled my properties in Beds24 &rarr; Settings &rarr; Marketplace &rarr; RezIntel
+                    </label>
+                    <button class="btn-primary" onclick="connectBeds24Marketplace()" id="beds24-marketplace-find-btn">Find My Properties</button>
                     <button class="btn-secondary" onclick="selectBeds24Method('invite')" style="margin-left: 0.5rem;">Use invite code instead</button>
                     <div id="marketplace-status" style="margin-top: 1rem;"></div>
                     <div id="marketplace-property-list" style="display: none; margin-top: 1rem;"></div>
@@ -1428,8 +1440,15 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
 
     async function connectBeds24Marketplace() {
         const ownerInput = document.getElementById('beds24-marketplace-owner')?.value?.trim();
+        const confirmed = document.getElementById('beds24-marketplace-confirm')?.checked;
         const statusDiv = document.getElementById('marketplace-status');
         const listDiv = document.getElementById('marketplace-property-list');
+
+        if (!confirmed) {
+            addAiMessage("Please confirm you've enabled your properties in <strong>Beds24 &rarr; Settings &rarr; Marketplace &rarr; RezIntel</strong> first.");
+            document.getElementById('beds24-marketplace-confirm').parentElement.style.color = '#dc2626';
+            return;
+        }
 
         if (!ownerInput) {
             addAiMessage("Please enter your <strong>Beds24 email or Owner ID</strong>.");
