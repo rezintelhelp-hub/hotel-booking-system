@@ -30616,6 +30616,172 @@ app.get('/api/partner/repuso/status', async (req, res) => {
   }
 });
 
+// ─── HOSTVANA AI CHAT — SELF-SERVICE ACTIVATION ─────────────────────
+
+// POST /api/admin/hostvana/activate — enable AI Chat on a deployed site
+app.post('/api/admin/hostvana/activate', async (req, res) => {
+  try {
+    const { account_id, deployed_site_id, settings } = req.body;
+    if (!account_id || !deployed_site_id) return res.status(400).json({ success: false, error: 'account_id and deployed_site_id required' });
+
+    // 1. Check Beds24 connection exists
+    const connResult = await pool.query(
+      "SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code IN ('beds24','beds24-marketplace') AND status = 'connected' LIMIT 1",
+      [account_id]
+    );
+    if (connResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No Beds24 connection found. AI Chat requires a Beds24 connection for messaging.' });
+    }
+
+    // 2. Get site info
+    const siteResult = await pool.query('SELECT site_url, blog_id FROM deployed_sites WHERE id = $1', [deployed_site_id]);
+    if (!siteResult.rows.length) return res.status(404).json({ success: false, error: 'Deployed site not found' });
+    const site = siteResult.rows[0];
+    const siteUrl = (site.site_url || '').replace(/\/+$/, '');
+
+    // 3. Get or create license
+    let licenseResult = await pool.query(
+      "SELECT license_key FROM plugin_licenses WHERE account_id = $1 AND product = 'gas-hostvana' AND status = 'active' LIMIT 1",
+      [account_id]
+    );
+    let licenseKey;
+    if (licenseResult.rows.length > 0) {
+      licenseKey = licenseResult.rows[0].license_key;
+    } else {
+      const crypto = require('crypto');
+      licenseKey = 'GAS-HOSTVANA-' + crypto.randomBytes(16).toString('hex').toUpperCase().substring(0, 24);
+      const acctEmail = (await pool.query('SELECT email FROM accounts WHERE id = $1', [account_id])).rows[0]?.email || '';
+      await pool.query(
+        "INSERT INTO plugin_licenses (account_id, email, license_key, product, status, created_at) VALUES ($1, $2, $3, 'gas-hostvana', 'active', NOW())",
+        [account_id, acctEmail, licenseKey]
+      );
+    }
+
+    // 4. Call VPS gas-api.php to activate plugin + set options
+    const gasApiUrl = 'https://sites.gas.travel/gas-api.php';
+    const apiKey = 'gas-deploy-2024-secure-key';
+
+    // Activate plugin
+    await axios.post(gasApiUrl, {
+      action: 'toggle_plugin', site_url: siteUrl, plugin: 'gas-hostvana', toggle: 'activate'
+    }, { headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' }, timeout: 15000 });
+
+    // Set options
+    const options = {
+      gas_hostvana_license_key: licenseKey,
+      gas_hostvana_client_id: String(account_id),
+      gas_hostvana_enabled: '1',
+      gas_hostvana_widget_color: settings?.color || '#2563eb',
+      gas_hostvana_widget_radius: String(settings?.radius ?? 16),
+      gas_hostvana_widget_position: settings?.position || 'bottom-right',
+      gas_hostvana_welcome_message: settings?.welcome_message || 'Hi! How can we help you?',
+      gas_hostvana_assistant_name: settings?.assistant_name || 'Claire',
+    };
+
+    for (const [key, value] of Object.entries(options)) {
+      await axios.post(gasApiUrl, {
+        action: 'update_option', site_url: siteUrl, option_name: key, option_value: value
+      }, { headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' }, timeout: 10000 });
+    }
+
+    console.log(`[Hostvana] Activated on ${siteUrl} for account ${account_id}`);
+    res.json({ success: true, license_key: licenseKey, message: 'AI Chat activated' });
+  } catch (err) {
+    console.error('[Hostvana] Activation error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/hostvana/deactivate — disable AI Chat on a deployed site
+app.post('/api/admin/hostvana/deactivate', async (req, res) => {
+  try {
+    const { deployed_site_id } = req.body;
+    if (!deployed_site_id) return res.status(400).json({ success: false, error: 'deployed_site_id required' });
+
+    const siteResult = await pool.query('SELECT site_url FROM deployed_sites WHERE id = $1', [deployed_site_id]);
+    if (!siteResult.rows.length) return res.status(404).json({ success: false, error: 'Deployed site not found' });
+    const siteUrl = (siteResult.rows[0].site_url || '').replace(/\/+$/, '');
+
+    const gasApiUrl = 'https://sites.gas.travel/gas-api.php';
+    const apiKey = 'gas-deploy-2024-secure-key';
+
+    await axios.post(gasApiUrl, {
+      action: 'update_option', site_url: siteUrl, option_name: 'gas_hostvana_enabled', option_value: '0'
+    }, { headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' }, timeout: 10000 });
+
+    res.json({ success: true, message: 'AI Chat disabled' });
+  } catch (err) {
+    console.error('[Hostvana] Deactivation error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/admin/hostvana/site-status — check AI Chat status for a deployed site
+app.get('/api/admin/hostvana/site-status', async (req, res) => {
+  try {
+    const { account_id, deployed_site_id } = req.query;
+    if (!account_id) return res.status(400).json({ success: false, error: 'account_id required' });
+
+    // Check Beds24 connection
+    const beds24 = await pool.query(
+      "SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code IN ('beds24','beds24-marketplace') AND status = 'connected' LIMIT 1",
+      [account_id]
+    );
+
+    // Check license
+    const license = await pool.query(
+      "SELECT license_key FROM plugin_licenses WHERE account_id = $1 AND product = 'gas-hostvana' AND status = 'active' LIMIT 1",
+      [account_id]
+    );
+
+    res.json({
+      success: true,
+      beds24_connected: beds24.rows.length > 0,
+      has_license: license.rows.length > 0,
+      license_key: license.rows[0]?.license_key || null,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/hostvana/update-settings — update widget settings on a deployed site
+app.post('/api/admin/hostvana/update-settings', async (req, res) => {
+  try {
+    const { deployed_site_id, settings } = req.body;
+    if (!deployed_site_id || !settings) return res.status(400).json({ success: false, error: 'deployed_site_id and settings required' });
+
+    const siteResult = await pool.query('SELECT site_url FROM deployed_sites WHERE id = $1', [deployed_site_id]);
+    if (!siteResult.rows.length) return res.status(404).json({ success: false, error: 'Deployed site not found' });
+    const siteUrl = (siteResult.rows[0].site_url || '').replace(/\/+$/, '');
+
+    const gasApiUrl = 'https://sites.gas.travel/gas-api.php';
+    const apiKey = 'gas-deploy-2024-secure-key';
+    const optionMap = {
+      color: 'gas_hostvana_widget_color',
+      radius: 'gas_hostvana_widget_radius',
+      position: 'gas_hostvana_widget_position',
+      welcome_message: 'gas_hostvana_welcome_message',
+      assistant_name: 'gas_hostvana_assistant_name',
+    };
+
+    let updated = 0;
+    for (const [key, wpOption] of Object.entries(optionMap)) {
+      if (settings[key] !== undefined) {
+        await axios.post(gasApiUrl, {
+          action: 'update_option', site_url: siteUrl, option_name: wpOption, option_value: String(settings[key])
+        }, { headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' }, timeout: 10000 });
+        updated++;
+      }
+    }
+
+    res.json({ success: true, updated, message: 'Settings updated' });
+  } catch (err) {
+    console.error('[Hostvana] Settings update error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // PUT /api/admin/accounts/:id/status — master admin account status change
 app.put('/api/admin/accounts/:id/status', async (req, res) => {
   try {

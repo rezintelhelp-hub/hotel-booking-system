@@ -18,7 +18,7 @@
  * Plugin Name: GAS Hostvana
  * Plugin URI: https://gas.travel
  * Description: Guest messaging chat widget powered by Beds24. Floating chat bubble for website visitors to message property staff.
- * Version: 1.0.9
+ * Version: 1.1.0
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -46,7 +46,7 @@ class GAS_Hostvana {
     public function add_admin_menu() { add_options_page('GAS Hostvana', 'GAS Hostvana', 'manage_options', 'gas-hostvana', array($this, 'settings_page')); }
 
     public function register_settings() {
-        foreach (array('api_url','client_id','license_key','widget_position','widget_color','welcome_message','assistant_name','enabled') as $s) {
+        foreach (array('api_url','client_id','license_key','widget_position','widget_color','widget_radius','welcome_message','assistant_name','enabled') as $s) {
             register_setting('gas_hostvana_settings', 'gas_hostvana_' . $s);
         }
     }
@@ -77,6 +77,7 @@ class GAS_Hostvana {
                         </select>
                     </td></tr>
                     <tr><th>Widget Color</th><td><input type="color" name="gas_hostvana_widget_color" value="<?php echo esc_attr($color); ?>"/></td></tr>
+                    <tr><th>Widget Radius</th><td><input type="number" name="gas_hostvana_widget_radius" value="<?php echo esc_attr(get_option('gas_hostvana_widget_radius', '16')); ?>" min="0" max="50" style="width:70px"/> px <p class="description">Panel corner radius (0 = square, 16 = default, 50 = very round)</p></td></tr>
                     <tr><th>Assistant Name</th><td><input type="text" name="gas_hostvana_assistant_name" value="<?php echo esc_attr(get_option('gas_hostvana_assistant_name', 'Claire')); ?>" class="regular-text"/><p class="description">Name shown in the chat header (e.g. Claire)</p></td></tr>
                     <tr><th>Welcome Message</th><td><input type="text" name="gas_hostvana_welcome_message" value="<?php echo esc_attr(get_option('gas_hostvana_welcome_message', 'Hi! How can we help you?')); ?>" class="large-text"/></td></tr>
                 </table>
@@ -171,6 +172,7 @@ class GAS_Hostvana {
 
         $position = get_option('gas_hostvana_widget_position', 'bottom-right');
         $color = esc_attr(get_option('gas_hostvana_widget_color', '#2563eb'));
+        $radius = intval(get_option('gas_hostvana_widget_radius', 16));
         $welcome = esc_js(get_option('gas_hostvana_welcome_message', 'Hi! How can we help you?'));
         $assistant_name = esc_attr(get_option('gas_hostvana_assistant_name', 'Claire'));
         $ajax_url = esc_url(admin_url('admin-ajax.php'));
@@ -209,7 +211,7 @@ class GAS_Hostvana {
             width: 350px;
             height: 500px;
             background: #fff;
-            border-radius: 16px;
+            border-radius: <?php echo $radius; ?>px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.15);
             z-index: 99999;
             display: none;
