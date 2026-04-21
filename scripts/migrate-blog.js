@@ -44,6 +44,7 @@ const LOG_FILE = getArg('log');
 const SAMPLE_COUNT = parseInt(getArg('sample')) || 3;
 const POST_LIMIT = getArg('limit') ? parseInt(getArg('limit')) : null;
 const TAG_NAME_OVERRIDE = getArg('tag-name');
+const PROPERTY_ID_OVERRIDE = getArg('property-id') ? parseInt(getArg('property-id')) : null;
 
 if (!SITE_KEY || !ACCOUNT_ID) {
   console.error('Usage: node scripts/migrate-blog.js --site <invisible_key> --account-id <id> [--live] [--log <file>] [--limit <n>] [--tag-name <name>]');
@@ -558,15 +559,17 @@ async function main() {
       }
     }
 
-    // ─── Auto-detect property_id for single-property accounts ──
-    let autoPropertyId = null;
-    if (!IS_DRY_RUN && pgPool) {
+    // ─── Resolve property_id ──
+    let autoPropertyId = PROPERTY_ID_OVERRIDE || null;
+    if (PROPERTY_ID_OVERRIDE) {
+      log(`Using --property-id override: ${PROPERTY_ID_OVERRIDE}`);
+    } else if (!IS_DRY_RUN && pgPool) {
       const propResult = await pgPool.query('SELECT id FROM properties WHERE account_id = $1', [ACCOUNT_ID]);
       if (propResult.rows.length === 1) {
         autoPropertyId = propResult.rows[0].id;
         log(`Single-property account — will set property_id = ${autoPropertyId}`);
       } else {
-        log(`Multi-property account (${propResult.rows.length} properties) — property_id will be NULL`);
+        log(`Multi-property account (${propResult.rows.length} properties) — property_id will be NULL. Use --property-id to specify.`);
       }
     }
 
