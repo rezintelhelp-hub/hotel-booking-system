@@ -29705,6 +29705,22 @@ app.post('/api/admin/billing/cancel-subscription', async (req, res) => {
 app.post('/api/admin/billing/setup-customer', async (req, res) => {
     try {
         const { account_id } = req.body;
+
+        // Auth: verify caller owns this account or is master admin
+        const token = (req.headers.authorization || '').replace('Bearer ', '');
+        if (token) {
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'gas-secret-key');
+                if (decoded.role !== 'master_admin' && String(decoded.accountId || decoded.id) !== String(account_id)) {
+                    return res.status(403).json({ success: false, error: 'Not authorized to modify this account' });
+                }
+            } catch (e) {
+                return res.status(401).json({ success: false, error: 'Invalid token' });
+            }
+        } else {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+
         const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [account_id]);
         if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
         const acc = account.rows[0];
@@ -29753,6 +29769,22 @@ app.post('/api/admin/billing/setup-customer', async (req, res) => {
 app.post('/api/admin/billing/generate-invoice', async (req, res) => {
     try {
         const { account_id, line_items, period_start, period_end, due_date, currency } = req.body;
+
+        // Auth: master admin only for invoice generation
+        const token = (req.headers.authorization || '').replace('Bearer ', '');
+        if (token) {
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'gas-secret-key');
+                if (decoded.role !== 'master_admin') {
+                    return res.status(403).json({ success: false, error: 'Only master admin can generate invoices' });
+                }
+            } catch (e) {
+                return res.status(401).json({ success: false, error: 'Invalid token' });
+            }
+        } else {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+
         const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
         const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [account_id]);
