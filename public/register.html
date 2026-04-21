@@ -1181,18 +1181,53 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
         const fieldsDiv = document.getElementById('cm-fields');
         const accountId = accountData?.account?.id || '';
 
-        // Beds24 — direct integration via invite code
+        // Beds24 — direct integration via invite code or marketplace master key
         if (cm === 'beds24' || cm === 'booking-automation') {
             const cmLabel = cm === 'beds24' ? 'Beds24' : 'Booking Automation';
             fieldsDiv.innerHTML = `
+                <!-- Connection Method Selector -->
+                <div id="beds24-method-select" style="margin-top: 1rem;">
+                    <p style="font-size: 0.9rem; color: var(--ink-light); margin-bottom: 1rem;">How would you like to connect your ${cmLabel} account?</p>
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                        <button class="btn-primary" onclick="selectBeds24Method('marketplace')" id="beds24-method-marketplace-btn" style="flex: 1; padding: 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.5rem;">⚡</span>
+                            <strong>Quick Connect</strong>
+                            <span style="font-size: 0.75rem; opacity: 0.8;">Recommended — fastest setup</span>
+                        </button>
+                        <button class="btn-secondary" onclick="selectBeds24Method('invite')" id="beds24-method-invite-btn" style="flex: 1; padding: 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.5rem;">🔑</span>
+                            <strong>Invite Code</strong>
+                            <span style="font-size: 0.75rem; opacity: 0.8;">Manual setup with invite code</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Marketplace Phase: Quick Connect -->
+                <div id="beds24-marketplace-phase" class="cm-phase" style="display: none;">
+                    <div style="padding: 1rem; background: var(--success-soft); border-radius: 10px; margin-bottom: 1rem;">
+                        <p style="font-size: 0.85rem; color: var(--success); font-weight: 600;">Quick Connect via GAS Marketplace</p>
+                        <p style="font-size: 0.8rem; color: var(--ink-muted); margin-top: 0.25rem;">We'll search for your properties automatically. No invite codes or API keys needed.</p>
+                    </div>
+                    <div class="field">
+                        <label>Your Beds24 Account Email or Owner ID</label>
+                        <input type="text" id="beds24-marketplace-owner" placeholder="e.g. your@email.com or 12345" autocomplete="off">
+                        <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">We'll find your properties linked to this account</p>
+                    </div>
+                    <button class="btn-primary" onclick="connectBeds24Marketplace()">Find My Properties</button>
+                    <button class="btn-secondary" onclick="selectBeds24Method('invite')" style="margin-left: 0.5rem;">Use invite code instead</button>
+                    <div id="marketplace-status" style="margin-top: 1rem;"></div>
+                    <div id="marketplace-property-list" style="display: none; margin-top: 1rem;"></div>
+                </div>
+
                 <!-- Phase 1: Invite Code -->
-                <div id="beds24-phase-1" class="cm-phase">
+                <div id="beds24-phase-1" class="cm-phase" style="display: none;">
                     <div class="field" style="margin-top: 1rem;">
                         <label>Invite Code</label>
                         <input type="text" id="cm-invite-code" placeholder="Paste your invite code here" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                         <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">This connects us to your Beds24 account securely</p>
                     </div>
                     <button class="btn-primary" onclick="connectBeds24Phase1()">Connect & Import</button>
+                    <button class="btn-secondary" onclick="selectBeds24Method('marketplace')" style="margin-left: 0.5rem;">Use Quick Connect instead</button>
                     <div id="cm-status" style="margin-top: 1rem;"></div>
                 </div>
 
@@ -1379,6 +1414,155 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
     // =============================================
     let beds24ConnectionId = null;
     let beds24Properties = [];
+
+    function selectBeds24Method(method) {
+        document.getElementById('beds24-method-select').style.display = 'none';
+        document.getElementById('beds24-marketplace-phase').style.display = method === 'marketplace' ? 'block' : 'none';
+        document.getElementById('beds24-phase-1').style.display = method === 'invite' ? 'block' : 'none';
+        if (method === 'marketplace') {
+            addAiMessage("Great choice! Enter your <strong>Beds24 email or Owner ID</strong> and we'll find your properties automatically.");
+        } else {
+            addAiMessage("Paste your <strong>invite code</strong> from Beds24 → Settings → Marketplace → API.");
+        }
+    }
+
+    async function connectBeds24Marketplace() {
+        const ownerInput = document.getElementById('beds24-marketplace-owner')?.value?.trim();
+        const statusDiv = document.getElementById('marketplace-status');
+        const listDiv = document.getElementById('marketplace-property-list');
+
+        if (!ownerInput) {
+            addAiMessage("Please enter your <strong>Beds24 email or Owner ID</strong>.");
+            return;
+        }
+
+        const btn = document.querySelector('#beds24-marketplace-phase .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Searching...';
+        statusDiv.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">Searching for your properties via GAS Marketplace...</p>';
+
+        try {
+            const gasAccountId = accountData?.account?.id;
+
+            // Fetch all marketplace properties
+            const resp = await fetch(`/api/accounts/${gasAccountId}/beds24v2/connect`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await resp.json();
+
+            if (!data.success || !data.properties?.length) {
+                throw new Error(data.error || 'No properties found in the marketplace. Check your Beds24 account is connected to the GAS marketplace.');
+            }
+
+            // Filter by owner if input looks like an ID or email
+            let matchedProps = data.properties;
+            if (ownerInput.includes('@')) {
+                matchedProps = data.properties.filter(p => (p.username || '').toLowerCase().includes(ownerInput.toLowerCase()));
+            } else if (/^\d+$/.test(ownerInput)) {
+                matchedProps = data.properties.filter(p => String(p.ownerId) === ownerInput || String(p.masterId) === ownerInput);
+            }
+
+            if (matchedProps.length === 0) {
+                // Fall back to showing all if filter returned nothing
+                matchedProps = data.properties;
+                statusDiv.innerHTML = `<p style="color: #f59e0b; font-size: 0.85rem;">No exact match for "${ownerInput}" — showing all ${data.properties.length} marketplace properties. Select yours below.</p>`;
+            } else {
+                statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">Found ${matchedProps.length} property/properties!</p>`;
+            }
+
+            // Render property picker
+            listDiv.style.display = 'block';
+            listDiv.innerHTML = `
+                <p style="font-size: 0.85rem; color: var(--ink-light); margin-bottom: 0.75rem;">Select the properties to import:</p>
+                ${matchedProps.map(p => `
+                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" checked value="${p.propId}" data-owner="${p.ownerId}" data-propkey="${p.propKey || ''}" data-name="${(p.name || '').replace(/"/g, '&quot;')}" data-rooms="${p.roomCount || 0}" class="marketplace-prop-check" style="width: 18px; height: 18px;">
+                        <div>
+                            <strong>${p.name || 'Property ' + p.propId}</strong>
+                            <span style="font-size: 0.8rem; color: var(--ink-muted); margin-left: 0.5rem;">${p.roomCount || 0} rooms</span>
+                            <br><span style="font-size: 0.75rem; color: var(--ink-muted);">Owner: ${p.username || p.ownerId} | ID: ${p.propId}</span>
+                        </div>
+                    </label>
+                `).join('')}
+                <button class="btn-primary" onclick="linkMarketplaceProperties()" style="margin-top: 1rem;">Import Selected Properties</button>
+            `;
+
+            addAiMessage(`Found <strong>${matchedProps.length}</strong> properties! Tick the ones you want to import and click <strong>Import</strong>.`);
+
+        } catch (err) {
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
+            addAiMessage("Something went wrong searching the marketplace. " + err.message);
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Find My Properties';
+    }
+
+    async function linkMarketplaceProperties() {
+        const checkboxes = document.querySelectorAll('.marketplace-prop-check:checked');
+        const statusDiv = document.getElementById('marketplace-status');
+
+        if (checkboxes.length === 0) {
+            addAiMessage("Please select at least one property to import.");
+            return;
+        }
+
+        const btn = document.querySelector('#marketplace-property-list .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Importing...';
+
+        const gasAccountId = accountData?.account?.id;
+        let linked = 0;
+        let errors = 0;
+
+        for (const cb of checkboxes) {
+            try {
+                const linkResp = await fetch(`/api/accounts/${gasAccountId}/beds24v2/link`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        propId: cb.value,
+                        ownerId: cb.dataset.owner,
+                        propKey: cb.dataset.propkey,
+                        propName: cb.dataset.name
+                    })
+                });
+                const linkData = await linkResp.json();
+
+                if (linkData.success && (linkData.connectionId || linkData.connection_id)) {
+                    beds24ConnectionId = linkData.connectionId || linkData.connection_id;
+
+                    // Trigger marketplace sync
+                    await fetch(`/api/gas-sync/connections/${beds24ConnectionId}/sync-marketplace`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    linked++;
+                } else {
+                    console.error('Link failed:', linkData.error);
+                    errors++;
+                }
+            } catch (err) {
+                console.error('Link error:', err);
+                errors++;
+            }
+        }
+
+        if (linked > 0) {
+            statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Imported ${linked} property/properties! Syncing data...</p>`;
+            addAiMessage(`Imported <strong>${linked}</strong> property/properties via marketplace! The sync is running in the background. Let's <strong>review your properties</strong>.`);
+
+            // Wait a moment for sync, then move to step 3
+            await new Promise(r => setTimeout(r, 3000));
+            goToStep(3);
+        } else {
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Failed to import properties. ${errors} errors.</p>`;
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Import Selected Properties';
+    }
 
     async function connectBeds24Phase1() {
         const inviteCode = document.getElementById('cm-invite-code')?.value?.trim();
