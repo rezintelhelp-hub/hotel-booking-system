@@ -1033,10 +1033,77 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
 
         // Render CM grid when entering step 2
         if (step === 2) renderCMGrid();
+
+        // Load property review when entering step 3
+        if (step === 3) loadPropertyReview();
     }
 
     function skipStep(nextStep) {
         goToStep(nextStep);
+    }
+
+    // =============================================
+    // STEP 3: PROPERTY REVIEW
+    // =============================================
+    async function loadPropertyReview() {
+        const container = document.getElementById('property-review');
+        const gasAccountId = accountData?.account?.id;
+        if (!gasAccountId || !container) return;
+
+        container.innerHTML = '<p style="color: var(--ink-muted); text-align: center; padding: 2rem 0;"><span class="spinner"></span> Loading properties...</p>';
+
+        // Poll for properties (sync may still be running)
+        let attempts = 0;
+        const maxAttempts = 10;
+
+        while (attempts < maxAttempts) {
+            try {
+                const resp = await fetch(`/api/db/properties?account_id=${gasAccountId}`);
+                const data = await resp.json();
+                const properties = data.data || data.properties || [];
+
+                if (properties.length > 0) {
+                    const totalRooms = properties.reduce((sum, p) => sum + (parseInt(p.room_count) || 0), 0);
+                    container.innerHTML = `
+                        <div style="background: var(--success-soft); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                            <p style="color: var(--success); font-weight: 600; margin: 0;">Found ${properties.length} property${properties.length > 1 ? 'ies' : ''} with ${totalRooms} room${totalRooms !== 1 ? 's' : ''}</p>
+                        </div>
+                        ${properties.map(p => `
+                            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 0.75rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong style="font-size: 1rem;">${p.name || 'Unnamed Property'}</strong>
+                                        <p style="font-size: 0.8rem; color: var(--ink-muted); margin: 0.25rem 0 0;">
+                                            ${p.room_count || 0} room${(p.room_count || 0) !== 1 ? 's' : ''}
+                                            ${p.city ? ' &middot; ' + p.city : ''}
+                                            ${p.country ? ', ' + p.country : ''}
+                                        </p>
+                                    </div>
+                                    <span style="color: var(--success); font-size: 0.85rem; font-weight: 600;">Imported</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    `;
+                    addAiMessage(`Looking good! We imported <strong>${properties.length}</strong> property${properties.length > 1 ? 'ies' : ''} with <strong>${totalRooms}</strong> rooms. If everything looks right, click <strong>Continue</strong>.`);
+                    return;
+                }
+            } catch (e) {
+                console.error('Property review fetch error:', e);
+            }
+
+            attempts++;
+            container.innerHTML = `<p style="color: var(--ink-muted); text-align: center; padding: 2rem 0;"><span class="spinner"></span> Syncing properties... (${attempts}/${maxAttempts})</p>`;
+            await new Promise(r => setTimeout(r, 3000));
+        }
+
+        // No properties found after polling
+        container.innerHTML = `
+            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 10px; padding: 1rem;">
+                <p style="color: #92400e; font-weight: 600; margin: 0 0 0.5rem;">No properties found yet</p>
+                <p style="color: #a16207; font-size: 0.85rem; margin: 0;">The sync may still be running. You can continue and check your properties in the dashboard, or go back and re-try the connection.</p>
+            </div>
+        `;
+        addAiMessage("The sync is still running. You can <strong>continue to the dashboard</strong> and your properties will appear shortly, or go back and check the connection.");
     }
 
     // =============================================
