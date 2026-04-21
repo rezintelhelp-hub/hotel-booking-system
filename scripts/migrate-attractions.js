@@ -497,7 +497,7 @@ async function main() {
         // ── Build payload ──
         const payload = {
           client_id: ACCOUNT_ID,
-          name: (meta.attraction_name || attr.title || '').trim(),
+          name: ((meta.attraction_name && !meta.attraction_name.includes('<script')) ? meta.attraction_name : attr.title || '').trim().substring(0, 255),
           slug,
           description,
           short_description: shortDesc || null,
