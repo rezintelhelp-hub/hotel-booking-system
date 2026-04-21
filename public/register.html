@@ -2208,12 +2208,17 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
     }
 
     function goToDashboard() {
-        // Set auth token in localStorage (what gas-admin.html reads)
+        // Clear any existing session first (prevents flash of previous account)
+        localStorage.removeItem('gas_token');
+        localStorage.removeItem('gas_selected_client_id');
+        localStorage.removeItem('gas_nav_states');
+
+        // Set the new client's auth token
         if (accountData?.token) {
             localStorage.setItem('gas_token', accountData.token);
             document.cookie = `gas_session=${accountData.token}; path=/; max-age=${7 * 24 * 60 * 60}`;
         }
-        // Redirect to admin with the account ID
+        // Redirect to admin
         const accountId = accountData?.account?.id;
         if (accountId) {
             window.location.href = `/gas-admin.html?account_id=${accountId}`;
