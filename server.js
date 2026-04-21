@@ -47035,6 +47035,43 @@ app.post('/api/admin/availability', async (req, res) => {
   }
 });
 
+// Batch save standard prices (up to 365 days)
+app.post('/api/admin/availability/batch-standard-prices', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { room_id, prices } = req.body;
+    if (!room_id || !Array.isArray(prices) || prices.length === 0) {
+      return res.json({ success: false, error: 'room_id and prices array required' });
+    }
+    if (prices.length > 400) {
+      return res.json({ success: false, error: 'Maximum 400 prices per batch' });
+    }
+
+    await client.query('BEGIN');
+    let saved = 0;
+
+    for (const { date, price } of prices) {
+      if (!date) continue;
+      await client.query(`
+        INSERT INTO room_availability (room_id, date, standard_price, is_available, is_blocked)
+        VALUES ($1, $2, $3, true, false)
+        ON CONFLICT (room_id, date)
+        DO UPDATE SET standard_price = $3, updated_at = NOW()
+      `, [room_id, date, price != null ? parseFloat(price) : null]);
+      saved++;
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, saved });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Batch standard price save error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Reset standard prices to CM prices for a room
 app.post('/api/admin/availability/reset-to-cm', async (req, res) => {
   try {
