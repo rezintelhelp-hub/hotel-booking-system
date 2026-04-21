@@ -2189,8 +2189,9 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
     }
 
     function goToDashboard() {
-        // Set the session token so the dashboard loads as the correct account
+        // Set auth token in localStorage (what gas-admin.html reads)
         if (accountData?.token) {
+            localStorage.setItem('gas_token', accountData.token);
             document.cookie = `gas_session=${accountData.token}; path=/; max-age=${7 * 24 * 60 * 60}`;
         }
         // Redirect to admin with the account ID
