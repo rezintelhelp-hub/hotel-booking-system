@@ -782,7 +782,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 </div>
                 <h2 class="step-title">You're GAS Ready!</h2>
-                <p class="step-subtitle">Welcome to the independent travel sector. Your property is live and visible to travel agents worldwide — no commissions, no platform lock-in.</p>
+                <p class="step-subtitle">Your account is set up and your properties are being imported. Head to your dashboard — our AI assistant will guide you through the next steps.</p>
 
                 <div class="checklist">
                     <div class="checklist-item done">
@@ -801,27 +801,11 @@
                         <div class="check">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
                         </div>
-                        <span>Properties reviewed</span>
-                    </div>
-                    <div class="checklist-item done">
-                        <div class="check">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        </div>
-                        <span>Pricing confirmed</span>
-                    </div>
-                    <div class="checklist-item done">
-                        <div class="check">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        </div>
-                        <span>Payments configured</span>
+                        <span>Properties imported</span>
                     </div>
                 </div>
 
-                <button class="btn-primary" onclick="goToDashboard()">Go to Dashboard</button>
-
-                <div style="margin-top: 1rem;">
-                    <button class="btn-secondary" onclick="showUpsells()">See what else GAS can do</button>
-                </div>
+                <button class="btn-primary" onclick="goToDashboard()" style="font-size: 1.1rem; padding: 0.75rem 2rem;">Go to Dashboard</button>
             </div>
 
         </div>
@@ -1636,12 +1620,12 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
         }
 
         if (linked > 0) {
-            statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Imported ${linked} property/properties! Syncing data...</p>`;
-            addAiMessage(`Imported <strong>${linked}</strong> property/properties via marketplace! The sync is running in the background. Let's <strong>review your properties</strong>.`);
+            statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Imported ${linked} property/properties! Syncing in the background...</p>`;
+            addAiMessage(`Your <strong>${linked}</strong> property${linked > 1 ? 'ies are' : ' is'} imported and syncing. Head to your <strong>dashboard</strong> to get started!`);
 
-            // Wait a moment for sync, then move to step 3
-            await new Promise(r => setTimeout(r, 3000));
-            goToStep(3);
+            // Skip straight to done — properties sync in background, AI assistant takes over in dashboard
+            await new Promise(r => setTimeout(r, 2000));
+            goToStep('done');
         } else {
             statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Failed to import properties. ${errors} errors.</p>`;
         }
