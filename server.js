@@ -89439,13 +89439,22 @@ async function generateUniqueShopSlug(accountId, name, excludeId = null) {
   }
 }
 
-// Helper: extract accountId from JWT token
-function extractAccountFromToken(req) {
+// Helper: extract account from session token
+async function extractAccountFromToken(req) {
   const token = (req.headers.authorization || '').replace('Bearer ', '');
   if (!token) return null;
   try {
-    return jwt.verify(token, process.env.JWT_SECRET || 'gas-secret-key');
+    const session = await pool.query(
+      'SELECT s.account_id FROM account_sessions s WHERE s.token = $1 AND s.expires_at > NOW()',
+      [token]
+    );
+    if (!session.rows.length) return null;
+    const account = await pool.query('SELECT id, role, name, email FROM accounts WHERE id = $1', [session.rows[0].account_id]);
+    if (!account.rows.length) return null;
+    const acc = account.rows[0];
+    return { accountId: acc.id, id: acc.id, role: acc.role, name: acc.name, email: acc.email };
   } catch (e) {
+    console.error('Token extraction error:', e.message);
     return null;
   }
 }
@@ -89453,7 +89462,7 @@ function extractAccountFromToken(req) {
 // GET /api/admin/shop/products — list products for account
 app.get('/api/admin/shop/products', async (req, res) => {
   try {
-    const decoded = extractAccountFromToken(req);
+    const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.query.client_id || decoded.accountId || decoded.id;
@@ -89471,7 +89480,7 @@ app.get('/api/admin/shop/products', async (req, res) => {
 // POST /api/admin/shop/products — create product
 app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => {
   try {
-    const decoded = extractAccountFromToken(req);
+    const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.body.client_id || decoded.accountId || decoded.id;
@@ -89520,7 +89529,7 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
 // PUT /api/admin/shop/products/:id — update product
 app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) => {
   try {
-    const decoded = extractAccountFromToken(req);
+    const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const productId = parseInt(req.params.id);
@@ -89599,7 +89608,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
 // DELETE /api/admin/shop/products/:id — soft-delete (set is_active = false)
 app.delete('/api/admin/shop/products/:id', async (req, res) => {
   try {
-    const decoded = extractAccountFromToken(req);
+    const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const productId = parseInt(req.params.id);
@@ -89621,7 +89630,7 @@ app.delete('/api/admin/shop/products/:id', async (req, res) => {
 // POST /api/admin/shop/products/:id/image — upload product image
 app.post('/api/admin/shop/products/:id/image', upload.single('file'), async (req, res) => {
   try {
-    const decoded = extractAccountFromToken(req);
+    const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const productId = parseInt(req.params.id);
@@ -89650,7 +89659,7 @@ app.post('/api/admin/shop/products/:id/image', upload.single('file'), async (req
 // GET /api/admin/shop/orders — list orders with pagination
 app.get('/api/admin/shop/orders', async (req, res) => {
   try {
-    const decoded = extractAccountFromToken(req);
+    const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.query.client_id || decoded.accountId || decoded.id;
@@ -89697,7 +89706,7 @@ app.get('/api/admin/shop/orders', async (req, res) => {
 // GET /api/admin/shop/orders/:id — order detail with items
 app.get('/api/admin/shop/orders/:id', async (req, res) => {
   try {
-    const decoded = extractAccountFromToken(req);
+    const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const orderId = parseInt(req.params.id);
@@ -89718,7 +89727,7 @@ app.get('/api/admin/shop/orders/:id', async (req, res) => {
 // PUT /api/admin/shop/orders/:id/fulfill — mark order fulfilled
 app.put('/api/admin/shop/orders/:id/fulfill', async (req, res) => {
   try {
-    const decoded = extractAccountFromToken(req);
+    const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const orderId = parseInt(req.params.id);
@@ -89741,7 +89750,7 @@ app.put('/api/admin/shop/orders/:id/fulfill', async (req, res) => {
 // PUT /api/admin/shop/orders/:id/status — update order status
 app.put('/api/admin/shop/orders/:id/status', async (req, res) => {
   try {
-    const decoded = extractAccountFromToken(req);
+    const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const orderId = parseInt(req.params.id);
@@ -89771,7 +89780,7 @@ app.put('/api/admin/shop/orders/:id/status', async (req, res) => {
 // GET /api/admin/shop/settings — shop config for account
 app.get('/api/admin/shop/settings', async (req, res) => {
   try {
-    const decoded = extractAccountFromToken(req);
+    const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.query.client_id || decoded.accountId || decoded.id;
@@ -89802,7 +89811,7 @@ app.get('/api/admin/shop/settings', async (req, res) => {
 // shop_enabled: master_admin only. shop_stripe_config_id: any authenticated operator.
 app.put('/api/admin/shop/settings', async (req, res) => {
   try {
-    const decoded = extractAccountFromToken(req);
+    const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.body.client_id || decoded.accountId || decoded.id;
