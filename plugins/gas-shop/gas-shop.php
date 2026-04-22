@@ -252,9 +252,12 @@ class GAS_Shop {
 .gas-shop-card-name{margin:0 0 8px;font-size:1.15rem;color:'.$c['text'].';'.$hf.'}
 .gas-shop-card-desc{color:'.$c['text_secondary'].';font-size:.9rem;margin:0 0 12px;line-height:1.5}
 .gas-shop-card-price{font-size:1.25rem;font-weight:700;color:'.$c['accent'].'}
-.gas-shop-cat{background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:2px 10px;border-radius:'.$br.';font-size:.8rem;margin-right:8px}
+.gas-shop-cat{background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:2px 10px;border-radius:12px;font-size:.8rem;margin-right:8px}
 .gas-shop-btn{display:inline-block;padding:10px 24px;background:'.$c['accent'].';color:#fff;border:none;border-radius:'.$br.';font-size:1rem;cursor:pointer;text-decoration:none;transition:opacity .2s;'.$bf.'}
 .gas-shop-btn:hover{opacity:.85}
+.gas-shop-filter{padding:8px 16px;border-radius:'.$br.';text-decoration:none;cursor:pointer;transition:all .2s}
+.gas-shop-filter.active{background:'.$c['accent'].';color:#fff}
+.gas-shop-filter:not(.active){background:'.$c['category_bg'].';color:'.$c['category_text'].'}
 .gas-shop-back{display:inline-block;margin-bottom:20px;color:'.$c['text_secondary'].';text-decoration:none}
 @media(max-width:900px){.gas-shop-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:600px){.gas-shop-grid{grid-template-columns:1fr}}
@@ -282,9 +285,9 @@ class GAS_Shop {
             foreach ($products as $p) { if (!empty($p['category']) && !in_array($p['category'], $cats)) $cats[] = $p['category']; }
             if ($cats) {
                 echo '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">';
-                echo '<a href="#" class="gas-shop-filter active" data-cat="" style="padding:8px 16px;border-radius:20px;text-decoration:none;background:'.$c['accent'].';color:#fff;cursor:pointer">All</a>';
+                echo '<a href="#" class="gas-shop-filter active" data-cat="">All</a>';
                 foreach ($cats as $ct) {
-                    echo '<a href="#" class="gas-shop-filter" data-cat="'.esc_attr($ct).'" style="padding:8px 16px;border-radius:20px;text-decoration:none;background:#f3f4f6;color:#374151;cursor:pointer">'.esc_html($ct).'</a>';
+                    echo '<a href="#" class="gas-shop-filter" data-cat="'.esc_attr($ct).'">'.esc_html($ct).'</a>';
                 }
                 echo '</div>';
             }
@@ -321,11 +324,13 @@ class GAS_Shop {
   var filters = document.querySelectorAll(".gas-shop-filter");
   var cards = document.querySelectorAll(".gas-shop-card");
   var accent = '.wp_json_encode($c['accent']).';
+  var catBg = '.wp_json_encode($c['category_bg']).';
+  var catText = '.wp_json_encode($c['category_text']).';
   filters.forEach(function(f){
     f.addEventListener("click", function(e){
       e.preventDefault();
       var cat = this.getAttribute("data-cat");
-      filters.forEach(function(ff){ ff.style.background="#f3f4f6"; ff.style.color="#374151"; ff.classList.remove("active"); });
+      filters.forEach(function(ff){ ff.style.background=catBg; ff.style.color=catText; ff.classList.remove("active"); });
       this.style.background=accent; this.style.color="#fff"; this.classList.add("active");
       cards.forEach(function(c){
         c.style.display = (!cat || c.getAttribute("data-category") === cat) ? "" : "none";
