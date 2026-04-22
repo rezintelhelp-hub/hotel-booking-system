@@ -48,7 +48,7 @@ class GAS_Shop {
         $cached = get_transient('gas_shop_colors');
         if ($cached !== false) { $this->colors_cache = $cached; return $cached; }
 
-        $defaults = array('accent'=>'#10b981','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#d1fae5','category_text'=>'#065f46','card_radius'=>'12');
+        $defaults = array('accent'=>'#10b981','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#d1fae5','category_text'=>'#065f46','card_radius'=>'12','btn_radius'=>'24');
         $client_id = get_option('gas_shop_client_id') ?: get_option('gas_client_id', '');
         if ($client_id) {
             $url = trailingslashit($this->get_api_url()).'api/public/client/'.$client_id.'/app-settings/shop';
@@ -238,6 +238,7 @@ class GAS_Shop {
         $hf = $this->font_css($f['heading']);
         $bf = $this->font_css($f['body']);
         $cr = intval($c['card_radius'] ?? 12).'px';
+        $br = intval($c['btn_radius'] ?? 24).'px';
         return '<style>
 .gas-shop-wrap{max-width:1200px;margin:0 auto;padding:120px 20px 40px;background:'.$c['bg'].';min-height:60vh;'.$bf.'}
 .gas-shop-title{font-size:2.5rem;margin:0 0 10px;color:'.$c['text'].';'.$hf.'}
@@ -246,13 +247,13 @@ class GAS_Shop {
 .gas-shop-card{background:'.$c['card_bg'].';border-radius:'.$cr.';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s}
 .gas-shop-card:hover{transform:translateY(-4px);box-shadow:0 8px 25px rgba(0,0,0,0.12)}
 .gas-shop-card a{text-decoration:none;color:inherit;display:block}
-.gas-shop-img{width:100%;height:220px;object-fit:cover}
+.gas-shop-img{width:100%;height:220px;object-fit:cover;border-radius:'.$cr.' '.$cr.' 0 0}
 .gas-shop-card-body{padding:20px}
 .gas-shop-card-name{margin:0 0 8px;font-size:1.15rem;color:'.$c['text'].';'.$hf.'}
 .gas-shop-card-desc{color:'.$c['text_secondary'].';font-size:.9rem;margin:0 0 12px;line-height:1.5}
 .gas-shop-card-price{font-size:1.25rem;font-weight:700;color:'.$c['accent'].'}
-.gas-shop-cat{background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:2px 10px;border-radius:12px;font-size:.8rem;margin-right:8px}
-.gas-shop-btn{display:inline-block;padding:10px 24px;background:'.$c['accent'].';color:#fff;border:none;border-radius:24px;font-size:1rem;cursor:pointer;text-decoration:none;transition:opacity .2s;'.$bf.'}
+.gas-shop-cat{background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:2px 10px;border-radius:'.$br.';font-size:.8rem;margin-right:8px}
+.gas-shop-btn{display:inline-block;padding:10px 24px;background:'.$c['accent'].';color:#fff;border:none;border-radius:'.$br.';font-size:1rem;cursor:pointer;text-decoration:none;transition:opacity .2s;'.$bf.'}
 .gas-shop-btn:hover{opacity:.85}
 .gas-shop-back{display:inline-block;margin-bottom:20px;color:'.$c['text_secondary'].';text-decoration:none}
 @media(max-width:900px){.gas-shop-grid{grid-template-columns:repeat(2,1fr)}}
@@ -365,7 +366,8 @@ class GAS_Shop {
         // Image
         echo '<div>';
         if (!empty($p['image_url'])) {
-            echo '<img src="'.esc_url($p['image_url']).'" style="width:100%;border-radius:12px" alt="'.esc_attr($name).'">';
+            $cr = intval($c['card_radius'] ?? 12).'px';
+            echo '<img src="'.esc_url($p['image_url']).'" style="width:100%;border-radius:'.$cr.'" alt="'.esc_attr($name).'">';
         }
         // Gallery
         $gallery = $p['gallery_urls'] ?? array();
