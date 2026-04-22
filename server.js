@@ -87686,7 +87686,7 @@ app.get('/api/public/client/:clientId/reviews', async (req, res) => {
 app.get('/api/app-settings/:app', async (req, res) => {
     try {
         const { app } = req.params;
-        const validApps = ['blog', 'attractions', 'reviews', 'properties'];
+        const validApps = ['blog', 'attractions', 'reviews', 'properties', 'shop'];
         
         if (!validApps.includes(app)) {
             return res.status(400).json({ success: false, error: 'Invalid app name' });
@@ -87735,7 +87735,7 @@ app.put('/api/app-settings/:app', async (req, res) => {
     try {
         const { app } = req.params;
         const { colors, fonts } = req.body;
-        const validApps = ['blog', 'attractions', 'reviews', 'properties'];
+        const validApps = ['blog', 'attractions', 'reviews', 'properties', 'shop'];
         
         if (!validApps.includes(app)) {
             return res.status(400).json({ success: false, error: 'Invalid app name' });
@@ -87781,7 +87781,7 @@ app.put('/api/app-settings/:app', async (req, res) => {
 app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
     try {
         const { clientId, app } = req.params;
-        const validApps = ['blog', 'attractions', 'reviews', 'properties'];
+        const validApps = ['blog', 'attractions', 'reviews', 'properties', 'shop'];
         
         if (!validApps.includes(app)) {
             return res.status(400).json({ success: false, error: 'Invalid app name' });
