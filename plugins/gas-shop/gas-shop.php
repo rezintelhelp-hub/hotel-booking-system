@@ -408,6 +408,8 @@ class GAS_Shop {
             'price' => (float)$p['price'],
             'currency' => $curr,
             'image_url' => $p['image_thumbnail_url'] ?? $p['image_url'] ?? '',
+            'stock_tracking' => !empty($p['stock_tracking']),
+            'max_qty' => $p['stock_tracking'] ? intval($p['stock_quantity'] ?? 0) : 0,
         ), JSON_HEX_APOS | JSON_HEX_QUOT);
         $disabled = ($p['stock_tracking'] && intval($p['stock_quantity'] ?? 0) <= 0) ? ' disabled style="opacity:.5;cursor:not-allowed"' : '';
         echo '<button class="gas-shop-btn" id="gas-add-to-cart"'.$disabled.' onclick=\'gasShopAddToCart('.$product_json.')\'>Add to Cart</button>';
@@ -418,10 +420,28 @@ class GAS_Shop {
 function gasShopAddToCart(product) {
   var cart = JSON.parse(localStorage.getItem("gas_shop_cart") || "[]");
   var found = false;
+  var maxQty = product.stock_tracking ? product.max_qty : 0;
   for (var i = 0; i < cart.length; i++) {
-    if (cart[i].id === product.id) { cart[i].quantity = (cart[i].quantity||1) + 1; found = true; break; }
+    if (cart[i].id === product.id) {
+      var newQty = (cart[i].quantity||1) + 1;
+      if (maxQty > 0 && newQty > maxQty) {
+        var btn = document.getElementById("gas-add-to-cart");
+        btn.textContent = "Max " + maxQty + " allowed";
+        setTimeout(function(){ btn.textContent = "Add to Cart"; }, 2000);
+        return;
+      }
+      cart[i].quantity = newQty;
+      cart[i].max_qty = maxQty;
+      cart[i].stock_tracking = product.stock_tracking;
+      found = true;
+      break;
+    }
   }
-  if (!found) { product.quantity = 1; cart.push(product); }
+  if (!found) {
+    if (maxQty > 0 && 1 > maxQty) return;
+    product.quantity = 1;
+    cart.push(product);
+  }
   localStorage.setItem("gas_shop_cart", JSON.stringify(cart));
   var btn = document.getElementById("gas-add-to-cart");
   btn.textContent = "Added!";
@@ -484,7 +504,10 @@ function gasShopAddToCart(product) {
   }
 
   window.gasCartQty = function(idx, delta) {
-    cart[idx].quantity = Math.max(1, (cart[idx].quantity||1) + delta);
+    var newQty = Math.max(1, (cart[idx].quantity||1) + delta);
+    var maxQty = cart[idx].stock_tracking ? (cart[idx].max_qty || 0) : 0;
+    if (maxQty > 0 && newQty > maxQty) newQty = maxQty;
+    cart[idx].quantity = newQty;
     localStorage.setItem("gas_shop_cart", JSON.stringify(cart));
     render();
   };
