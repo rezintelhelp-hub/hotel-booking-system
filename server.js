@@ -90225,43 +90225,41 @@ app.get('/api/public/client/:clientId/shop/products/:slug/room-options', async (
         availableCount = roomQty - parseInt(overlapResult.rows[0].count);
       }
 
-      // Room has availability —
-        // Room is available — get rate
-        const rateResult = await pool.query(
-          'SELECT cm_price, direct_price FROM room_availability WHERE room_id = $1 AND date >= $2 AND date < $3 ORDER BY date',
-          [room.id, checkin, checkout]
-        );
-        let totalRate = 0;
-        if (rateResult.rows.length > 0) {
-          for (const r of rateResult.rows) {
-            totalRate += parseFloat(r.direct_price || r.cm_price || room.base_price || 0);
-          }
-        } else {
-          totalRate = parseFloat(room.base_price || 0) * nights;
+      // Room has availability — get rate
+      const rateResult = await pool.query(
+        'SELECT cm_price, direct_price FROM room_availability WHERE room_id = $1 AND date >= $2 AND date < $3 ORDER BY date',
+        [room.id, checkin, checkout]
+      );
+      let totalRate = 0;
+      if (rateResult.rows.length > 0) {
+        for (const r of rateResult.rows) {
+          totalRate += parseFloat(r.direct_price || r.cm_price || room.base_price || 0);
         }
-
-        // Get room images
-        const images = await pool.query(
-          "SELECT image_url AS url FROM room_images WHERE room_id = $1 ORDER BY display_order LIMIT 3",
-          [room.id]
-        );
-
-        availableRooms.push({
-          room_id: room.id,
-          name: room.display_name || room.name,
-          type: room.room_type,
-          max_guests: room.max_guests,
-          quantity: roomQty,
-          available: availableCount,
-          rate_per_night: Math.round(totalRate / nights * 100) / 100,
-          total: Math.round(totalRate * 100) / 100,
-          currency: room.currency || p.currency,
-          nights,
-          check_in: checkin,
-          check_out: checkout,
-          images: images.rows.map(i => i.url)
-        });
+      } else {
+        totalRate = parseFloat(room.base_price || 0) * nights;
       }
+
+      // Get room images
+      const images = await pool.query(
+        "SELECT image_url AS url FROM room_images WHERE room_id = $1 ORDER BY display_order LIMIT 3",
+        [room.id]
+      );
+
+      availableRooms.push({
+        room_id: room.id,
+        name: room.display_name || room.name,
+        type: room.room_type,
+        max_guests: room.max_guests,
+        quantity: roomQty,
+        available: availableCount,
+        rate_per_night: Math.round(totalRate / nights * 100) / 100,
+        total: Math.round(totalRate * 100) / 100,
+        currency: room.currency || p.currency,
+        nights,
+        check_in: checkin,
+        check_out: checkout,
+        images: images.rows.map(i => i.url)
+      });
     }
 
     res.json({ success: true, rooms: availableRooms, check_in: checkin, check_out: checkout, nights });
