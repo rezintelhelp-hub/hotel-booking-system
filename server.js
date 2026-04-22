@@ -90217,7 +90217,7 @@ app.get('/api/public/client/:clientId/shop/products/:slug/room-options', async (
 
         // Get room images
         const images = await pool.query(
-          "SELECT url FROM room_images WHERE room_id = $1 ORDER BY sort_order LIMIT 3",
+          "SELECT image_url AS url FROM room_images WHERE room_id = $1 ORDER BY display_order LIMIT 3",
           [room.id]
         );
 
