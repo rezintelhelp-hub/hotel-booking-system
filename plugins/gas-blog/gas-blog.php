@@ -56,7 +56,7 @@ class GAS_Blog {
                 $body = json_decode(wp_remote_retrieve_body($response), true);
                 if ($body && $body['success'] && !empty($body['colors'])) {
                     $colors = wp_parse_args($body['colors'], $defaults);
-                    set_transient('gas_blog_colors', $colors, HOUR_IN_SECONDS);
+                    set_transient('gas_blog_colors', $colors, 5 * MINUTE_IN_SECONDS);
                     $this->colors_cache = $colors;
                     return $colors;
                 }
@@ -102,13 +102,13 @@ class GAS_Blog {
                         'heading' => isset($font_map[$h]) ? $font_map[$h] : 'inherit',
                         'body' => isset($font_map[$b]) ? $font_map[$b] : 'inherit'
                     );
-                    set_transient('gas_blog_fonts', $fonts, HOUR_IN_SECONDS);
+                    set_transient('gas_blog_fonts', $fonts, 5 * MINUTE_IN_SECONDS);
                     return $fonts;
                 }
             }
         }
         
-        set_transient('gas_blog_fonts', $defaults, HOUR_IN_SECONDS);
+        set_transient('gas_blog_fonts', $defaults, 5 * MINUTE_IN_SECONDS);
         return $defaults;
     }
     
