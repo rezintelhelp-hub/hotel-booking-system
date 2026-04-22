@@ -252,7 +252,7 @@ class GAS_Shop {
 .gas-shop-card-name{margin:0 0 8px;font-size:1.15rem;color:'.$c['text'].';'.$hf.'}
 .gas-shop-card-desc{color:'.$c['text_secondary'].';font-size:.9rem;margin:0 0 12px;line-height:1.5}
 .gas-shop-card-price{font-size:1.25rem;font-weight:700;color:'.$c['accent'].'}
-.gas-shop-cat{background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:2px 10px;border-radius:12px;font-size:.8rem;margin-right:8px}
+.gas-shop-cat{background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:2px 10px;border-radius:'.$br.';font-size:.8rem;margin-right:8px}
 .gas-shop-btn{display:inline-block;padding:10px 24px;background:'.$c['accent'].';color:#fff;border:none;border-radius:'.$br.';font-size:1rem;cursor:pointer;text-decoration:none;transition:opacity .2s;'.$bf.'}
 .gas-shop-btn:hover{opacity:.85}
 .gas-shop-filter{padding:8px 16px;border-radius:'.$br.';text-decoration:none;cursor:pointer;transition:all .2s}
