@@ -47,7 +47,7 @@ class GAS_Blog {
         $cached = get_transient('gas_blog_colors');
         if ($cached !== false) { $this->colors_cache = $cached; return $cached; }
         
-        $defaults = array('accent'=>'#667eea','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#e0e7ff','category_text'=>'#4338ca','card_radius'=>'12');
+        $defaults = array('accent'=>'#667eea','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#e0e7ff','category_text'=>'#4338ca','card_radius'=>'12','btn_radius'=>'20');
         $client_id = get_option('gas_blog_client_id') ?: get_option('gas_client_id', '');
         if ($client_id) {
             $url = trailingslashit($this->get_api_url()).'api/public/client/'.$client_id.'/app-settings/blog';
@@ -253,12 +253,13 @@ class GAS_Blog {
         $view_more_label = array('en' => 'View More', 'es' => 'Ver más', 'fr' => 'Voir plus', 'de' => 'Mehr anzeigen', 'nl' => 'Meer laden')[$lang] ?? 'View More';
         get_header();
         $cr = intval($c['card_radius'] ?? 12) . 'px';
+        $br = intval($c['btn_radius'] ?? 20) . 'px';
         $api_url = esc_url(trailingslashit($this->get_api_url()));
         $client_id = esc_attr(get_option('gas_blog_client_id') ?: get_option('gas_client_id', ''));
         $property_id = esc_attr(get_option('gas_property_id', ''));
-        echo '<style>.gas-bp{max-width:1200px;margin:0 auto;padding:120px 20px 40px;background:' . $c['bg'] . ';min-height:60vh;' . $bf . '}.gas-bt{font-size:2.5rem;margin:0 0 10px;color:' . $c['text'] . ';' . $hf . '}.gas-bs{color:' . $c['text_secondary'] . ';margin:0 0 30px}.gas-bg{display:grid;gap:30px;grid-template-columns:repeat(3,1fr)}.gas-bc{background:' . $c['card_bg'] . ';border-radius:' . $cr . ';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s}.gas-bc:hover{transform:translateY(-4px);box-shadow:0 8px 25px rgba(0,0,0,0.12)}.gas-bc a{text-decoration:none;color:inherit;display:block}.gas-bi{width:100%;height:200px;object-fit:cover}.gas-bo{padding:20px}.gas-bn{margin:0 0 10px;font-size:1.2rem;color:' . $c['text'] . ';' . $hf . '}.gas-bd{color:' . $c['text_secondary'] . ';font-size:.95rem;margin:0}.gas-bb{background:' . $c['category_bg'] . ';color:' . $c['category_text'] . ';padding:2px 10px;border-radius:12px;font-size:.8rem}.gas-bm{display:flex;gap:10px;font-size:.8rem;color:' . $c['text_secondary'] . ';margin-bottom:10px}.gas-bf{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;align-items:center}.gas-bl{padding:8px 16px;border-radius:20px;text-decoration:none;cursor:pointer}.gas-bl.active{background:' . $c['accent'] . ';color:#fff}.gas-bl:not(.active){background:#f3f4f6;color:#374151}';
-        echo '.gas-search{display:flex;margin-bottom:20px}.gas-search input{flex:1;max-width:320px;padding:10px 16px;border:1px solid #d1d5db;border-radius:20px;font-size:.95rem;outline:none;' . $bf . '}.gas-search input:focus{border-color:' . $c['accent'] . ';box-shadow:0 0 0 2px ' . $c['accent'] . '33}';
-        echo '.gas-vm-wrap{text-align:center;margin-top:40px}.gas-vm-btn{display:inline-block;padding:12px 32px;background:' . $c['accent'] . ';color:#fff;border:none;border-radius:24px;font-size:1rem;cursor:pointer;transition:opacity .2s;' . $bf . '}.gas-vm-btn:hover{opacity:.85}.gas-vm-btn:disabled{opacity:.5;cursor:not-allowed}';
+        echo '<style>.gas-bp{max-width:1200px;margin:0 auto;padding:120px 20px 40px;background:' . $c['bg'] . ';min-height:60vh;' . $bf . '}.gas-bt{font-size:2.5rem;margin:0 0 10px;color:' . $c['text'] . ';' . $hf . '}.gas-bs{color:' . $c['text_secondary'] . ';margin:0 0 30px}.gas-bg{display:grid;gap:30px;grid-template-columns:repeat(3,1fr)}.gas-bc{background:' . $c['card_bg'] . ';border-radius:' . $cr . ';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s}.gas-bc:hover{transform:translateY(-4px);box-shadow:0 8px 25px rgba(0,0,0,0.12)}.gas-bc a{text-decoration:none;color:inherit;display:block}.gas-bi{width:100%;height:200px;object-fit:cover}.gas-bo{padding:20px}.gas-bn{margin:0 0 10px;font-size:1.2rem;color:' . $c['text'] . ';' . $hf . '}.gas-bd{color:' . $c['text_secondary'] . ';font-size:.95rem;margin:0}.gas-bb{background:' . $c['category_bg'] . ';color:' . $c['category_text'] . ';padding:2px 10px;border-radius:' . $br . ';font-size:.8rem}.gas-bm{display:flex;gap:10px;font-size:.8rem;color:' . $c['text_secondary'] . ';margin-bottom:10px}.gas-bf{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;align-items:center}.gas-bl{padding:8px 16px;border-radius:' . $br . ';text-decoration:none;cursor:pointer}.gas-bl.active{background:' . $c['accent'] . ';color:#fff}.gas-bl:not(.active){background:' . $c['category_bg'] . ';color:' . $c['category_text'] . '}';
+        echo '.gas-search{display:flex;margin-bottom:20px}.gas-search input{flex:1;max-width:320px;padding:10px 16px;border:1px solid #d1d5db;border-radius:' . $br . ';font-size:.95rem;outline:none;' . $bf . '}.gas-search input:focus{border-color:' . $c['accent'] . ';box-shadow:0 0 0 2px ' . $c['accent'] . '33}';
+        echo '.gas-vm-wrap{text-align:center;margin-top:40px}.gas-vm-btn{display:inline-block;padding:12px 32px;background:' . $c['accent'] . ';color:#fff;border:none;border-radius:' . $br . ';font-size:1rem;cursor:pointer;transition:opacity .2s;' . $bf . '}.gas-vm-btn:hover{opacity:.85}.gas-vm-btn:disabled{opacity:.5;cursor:not-allowed}';
         echo '.gas-spinner{display:inline-block;width:18px;height:18px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:gas-spin .6s linear infinite;vertical-align:middle;margin-left:8px}@keyframes gas-spin{to{transform:rotate(360deg)}}';
         echo '@media(max-width:900px){.gas-bg{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.gas-bg{grid-template-columns:1fr}}</style>';
         $ps = $this->get_page_title_subtitle();
@@ -387,7 +388,8 @@ class GAS_Blog {
         $back_path = get_option('gas_blog_back_url', '') ?: get_option('gas_blog_page_url', '/blog/');
         $back_url = home_url('/'.trim($back_path, '/').'/');
         echo '<article class="gas-sp"><a href="'.esc_url($back_url).'" class="gas-sb">← Back</a>';
-        if (!empty($p['category'])) echo ' <span style="background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:4px 12px;border-radius:20px;font-size:.85rem">'.esc_html($p['category']).'</span>';
+        $br = intval($c['btn_radius'] ?? 20).'px';
+        if (!empty($p['category'])) echo ' <span style="background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:4px 12px;border-radius:'.$br.';font-size:.85rem">'.esc_html($p['category']).'</span>';
         echo '<h1 class="gas-st">'.esc_html($p['title']).'</h1><div class="gas-sm">'; if (!empty($p['published_at'])) echo date('F j, Y',strtotime($p['published_at'])); echo '</div>';
         if (!empty($p['featured_image_url'])) echo '<img src="'.esc_url($p['featured_image_url']).'" class="gas-si">';
         echo '<div class="gas-sc">'.wp_kses_post($p['content'] ?? '').'</div>';
@@ -423,8 +425,9 @@ class GAS_Blog {
         $cats = array(); foreach ($posts as $p) if (!empty($p['category']) && !in_array($p['category'],$cats)) $cats[] = $p['category'];
         if (!$cats) return '';
         $cur = isset($_GET['blog_cat']) ? sanitize_text_field($_GET['blog_cat']) : '';
-        $h = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:30px"><a href="'.esc_url(remove_query_arg('blog_cat')).'" style="padding:8px 16px;background:'.(empty($cur)?$c['accent'].';color:#fff':'#f3f4f6;color:#374151').';border-radius:20px;text-decoration:none">All</a>';
-        foreach ($cats as $ct) $h .= '<a href="'.esc_url(add_query_arg('blog_cat',sanitize_title($ct))).'" style="padding:8px 16px;background:'.($cur===sanitize_title($ct)?$c['accent'].';color:#fff':'#f3f4f6;color:#374151').';border-radius:20px;text-decoration:none">'.esc_html($ct).'</a>';
+        $br = intval($c['btn_radius'] ?? 20).'px';
+        $h = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:30px"><a href="'.esc_url(remove_query_arg('blog_cat')).'" style="padding:8px 16px;background:'.(empty($cur)?$c['accent'].';color:#fff':$c['category_bg'].';color:'.$c['category_text']).';border-radius:'.$br.';text-decoration:none">All</a>';
+        foreach ($cats as $ct) $h .= '<a href="'.esc_url(add_query_arg('blog_cat',sanitize_title($ct))).'" style="padding:8px 16px;background:'.($cur===sanitize_title($ct)?$c['accent'].';color:#fff':$c['category_bg'].';color:'.$c['category_text']).';border-radius:'.$br.';text-decoration:none">'.esc_html($ct).'</a>';
         return $h.'</div>';
     }
 }

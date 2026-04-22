@@ -50,7 +50,7 @@ class GAS_Attractions {
         $cached = get_transient('gas_attractions_colors');
         if ($cached !== false) { $this->colors_cache = $cached; return $cached; }
         
-        $defaults = array('accent'=>'#f59e0b','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#fef3c7','category_text'=>'#92400e');
+        $defaults = array('accent'=>'#f59e0b','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#fef3c7','category_text'=>'#92400e','card_radius'=>'12','btn_radius'=>'20');
         $client_id = get_option('gas_attractions_client_id') ?: get_option('gas_client_id', '');
         if ($client_id) {
             $url = trailingslashit($this->get_api_url()).'api/public/client/'.$client_id.'/app-settings/attractions';
@@ -257,12 +257,14 @@ class GAS_Attractions {
         $search_label = array('en' => 'Search attractions...', 'es' => 'Buscar...', 'fr' => 'Rechercher...', 'de' => 'Suchen...', 'nl' => 'Zoeken...')[$lang] ?? 'Search attractions...';
         $view_more_label = array('en' => 'View More', 'es' => 'Ver más', 'fr' => 'Voir plus', 'de' => 'Mehr anzeigen', 'nl' => 'Meer laden')[$lang] ?? 'View More';
         get_header();
+        $cr = intval($c['card_radius'] ?? 12) . 'px';
+        $br = intval($c['btn_radius'] ?? 20) . 'px';
         $api_url = esc_url(trailingslashit($this->get_api_url()));
         $client_id = esc_attr(get_option('gas_attractions_client_id') ?: get_option('gas_client_id', ''));
         $property_id = esc_attr(get_option('gas_attractions_property_id') ?: get_option('gas_property_id', ''));
-        echo '<style>.gas-ap{max-width:1200px;margin:0 auto;padding:120px 20px 40px;background:' . $c['bg'] . ';min-height:60vh;' . $bf . '}.gas-at{font-size:2.5rem;margin:0 0 10px;color:' . $c['text'] . ';' . $hf . '}.gas-as{color:' . $c['text_secondary'] . ';margin:0 0 30px}.gas-ag{display:grid;gap:25px;grid-template-columns:repeat(3,1fr)}.gas-ac{background:' . $c['card_bg'] . ';border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s}.gas-ac:hover{transform:translateY(-4px);box-shadow:0 8px 25px rgba(0,0,0,0.12)}.gas-ac a{text-decoration:none;color:inherit;display:block}.gas-ai{width:100%;height:180px;object-fit:cover}.gas-ao{padding:15px}.gas-an{margin:8px 0;font-size:1.1rem;color:' . $c['text'] . ';' . $hf . '}.gas-ad{color:' . $c['text_secondary'] . ';font-size:.9rem;margin:0}.gas-ab{background:' . $c['category_bg'] . ';color:' . $c['category_text'] . ';padding:2px 10px;border-radius:12px;font-size:.8rem}.gas-af{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;align-items:center}.gas-al{padding:8px 16px;border-radius:20px;text-decoration:none;cursor:pointer}.gas-al.active{background:' . $c['accent'] . ';color:#fff}.gas-al:not(.active){background:#f3f4f6;color:#374151}';
-        echo '.gas-search{display:flex;margin-bottom:20px}.gas-search input{flex:1;max-width:320px;padding:10px 16px;border:1px solid #d1d5db;border-radius:20px;font-size:.95rem;outline:none;' . $bf . '}.gas-search input:focus{border-color:' . $c['accent'] . ';box-shadow:0 0 0 2px ' . $c['accent'] . '33}';
-        echo '.gas-vm-wrap{text-align:center;margin-top:40px}.gas-vm-btn{display:inline-block;padding:12px 32px;background:' . $c['accent'] . ';color:#fff;border:none;border-radius:24px;font-size:1rem;cursor:pointer;transition:opacity .2s;' . $bf . '}.gas-vm-btn:hover{opacity:.85}.gas-vm-btn:disabled{opacity:.5;cursor:not-allowed}';
+        echo '<style>.gas-ap{max-width:1200px;margin:0 auto;padding:120px 20px 40px;background:' . $c['bg'] . ';min-height:60vh;' . $bf . '}.gas-at{font-size:2.5rem;margin:0 0 10px;color:' . $c['text'] . ';' . $hf . '}.gas-as{color:' . $c['text_secondary'] . ';margin:0 0 30px}.gas-ag{display:grid;gap:25px;grid-template-columns:repeat(3,1fr)}.gas-ac{background:' . $c['card_bg'] . ';border-radius:' . $cr . ';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s}.gas-ac:hover{transform:translateY(-4px);box-shadow:0 8px 25px rgba(0,0,0,0.12)}.gas-ac a{text-decoration:none;color:inherit;display:block}.gas-ai{width:100%;height:180px;object-fit:cover}.gas-ao{padding:15px}.gas-an{margin:8px 0;font-size:1.1rem;color:' . $c['text'] . ';' . $hf . '}.gas-ad{color:' . $c['text_secondary'] . ';font-size:.9rem;margin:0}.gas-ab{background:' . $c['category_bg'] . ';color:' . $c['category_text'] . ';padding:2px 10px;border-radius:' . $br . ';font-size:.8rem}.gas-af{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;align-items:center}.gas-al{padding:8px 16px;border-radius:' . $br . ';text-decoration:none;cursor:pointer}.gas-al.active{background:' . $c['accent'] . ';color:#fff}.gas-al:not(.active){background:' . $c['category_bg'] . ';color:' . $c['category_text'] . '}';
+        echo '.gas-search{display:flex;margin-bottom:20px}.gas-search input{flex:1;max-width:320px;padding:10px 16px;border:1px solid #d1d5db;border-radius:' . $br . ';font-size:.95rem;outline:none;' . $bf . '}.gas-search input:focus{border-color:' . $c['accent'] . ';box-shadow:0 0 0 2px ' . $c['accent'] . '33}';
+        echo '.gas-vm-wrap{text-align:center;margin-top:40px}.gas-vm-btn{display:inline-block;padding:12px 32px;background:' . $c['accent'] . ';color:#fff;border:none;border-radius:' . $br . ';font-size:1rem;cursor:pointer;transition:opacity .2s;' . $bf . '}.gas-vm-btn:hover{opacity:.85}.gas-vm-btn:disabled{opacity:.5;cursor:not-allowed}';
         echo '.gas-spinner{display:inline-block;width:18px;height:18px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:gas-spin .6s linear infinite;vertical-align:middle;margin-left:8px}@keyframes gas-spin{to{transform:rotate(360deg)}}';
         echo '@media(max-width:900px){.gas-ag{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.gas-ag{grid-template-columns:1fr}}</style>';
         $ps = $this->get_page_title_subtitle();
@@ -386,11 +388,13 @@ class GAS_Attractions {
         $hf = $this->font_css($f['heading']);
         $bf = $this->font_css($f['body']);
         $base = $this->get_page_base();
+        $cr = intval($c['card_radius'] ?? 12).'px';
+        $br = intval($c['btn_radius'] ?? 20).'px';
         get_header();
-        echo '<style>.gas-sp{max-width:800px;margin:0 auto;padding:120px 20px 40px;background:'.$c['bg'].';'.$bf.'}.gas-st{font-size:2.5rem;margin:0 0 15px;color:'.$c['text'].';'.$hf.'}.gas-si{width:100%;border-radius:12px;margin-bottom:30px}.gas-sc{font-size:1.1rem;line-height:1.8;color:'.$c['text'].'}.gas-sb{display:inline-block;margin-bottom:20px;color:'.$c['text_secondary'].';text-decoration:none}.gas-sn{display:inline-block;padding:12px 24px;background:'.$c['accent'].';color:#fff;text-decoration:none;border-radius:8px;margin:20px 10px 0 0}</style>';
+        echo '<style>.gas-sp{max-width:800px;margin:0 auto;padding:120px 20px 40px;background:'.$c['bg'].';'.$bf.'}.gas-st{font-size:2.5rem;margin:0 0 15px;color:'.$c['text'].';'.$hf.'}.gas-si{width:100%;border-radius:'.$cr.';margin-bottom:30px}.gas-sc{font-size:1.1rem;line-height:1.8;color:'.$c['text'].'}.gas-sb{display:inline-block;margin-bottom:20px;color:'.$c['text_secondary'].';text-decoration:none}.gas-sn{display:inline-block;padding:12px 24px;background:'.$c['accent'].';color:#fff;text-decoration:none;border-radius:'.$br.';margin:20px 10px 0 0}</style>';
         echo '<script type="application/ld+json">'.wp_json_encode(array('@context'=>'https://schema.org','@type'=>'TouristAttraction','name'=>$a['name'],'description'=>$a['short_description']??'','image'=>$a['featured_image_url']??''),JSON_UNESCAPED_SLASHES).'</script>';
         echo '<article class="gas-sp"><a href="'.esc_url(home_url('/'.$base.'/')).'" class="gas-sb">← Back</a>';
-        if (!empty($a['category'])) echo ' <span style="background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:4px 12px;border-radius:20px;font-size:.85rem">'.esc_html($a['category']).'</span>';
+        if (!empty($a['category'])) echo ' <span style="background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:4px 12px;border-radius:'.$br.';font-size:.85rem">'.esc_html($a['category']).'</span>';
         echo '<h1 class="gas-st">'.esc_html($a['name']).'</h1>';
         if (!empty($a['featured_image_url'])) echo '<img src="'.esc_url($a['featured_image_url']).'" class="gas-si">';
         echo '<div class="gas-sc">'.wp_kses_post($a['description'] ?? $a['short_description'] ?? '').'</div>';
@@ -406,8 +410,10 @@ class GAS_Attractions {
         if (empty($atts['category']) && isset($_GET['attraction_cat'])) $atts['category'] = sanitize_text_field($_GET['attraction_cat']);
         $items = $this->fetch_attractions(array('limit'=>$atts['limit'],'category'=>$atts['category']));
         if (is_wp_error($items) || empty($items)) return '<p>No attractions found.</p>';
+        $cr = intval($c['card_radius'] ?? 12).'px';
+        $br = intval($c['btn_radius'] ?? 20).'px';
         $h = '<style>.gas-sc-c:hover{transform:translateY(-4px)!important}@media(max-width:900px){.gas-sc-g{grid-template-columns:repeat(2,1fr)!important}}@media(max-width:600px){.gas-sc-g{grid-template-columns:1fr!important}}</style><div class="gas-sc-g" style="display:grid;gap:25px;grid-template-columns:repeat('.$atts['columns'].',1fr)">';
-        foreach ($items as $a) { $h .= '<div class="gas-sc-c" style="background:'.$c['card_bg'].';border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s"><a href="'.esc_url(home_url('/'.$base.'/'.$a['slug'])).'" style="text-decoration:none;color:inherit;display:block">'; if (!empty($a['featured_image_url'])) $h .= '<img src="'.esc_url($a['featured_image_url']).'" style="width:100%;height:180px;object-fit:cover">'; $h .= '<div style="padding:15px">'; if (!empty($a['category'])) $h .= '<span style="background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:2px 10px;border-radius:12px;font-size:.8rem">'.esc_html($a['category']).'</span>'; $h .= '<h3 style="margin:8px 0;font-size:1.1rem;color:'.$c['text'].'">'.esc_html($a['name']).'</h3>'; if (!empty($a['short_description'])) $h .= '<p style="color:'.$c['text_secondary'].';font-size:.9rem;margin:0">'.esc_html(wp_trim_words($a['short_description'],12)).'</p>'; $h .= '</div></a></div>'; }
+        foreach ($items as $a) { $h .= '<div class="gas-sc-c" style="background:'.$c['card_bg'].';border-radius:'.$cr.';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s"><a href="'.esc_url(home_url('/'.$base.'/'.$a['slug'])).'" style="text-decoration:none;color:inherit;display:block">'; if (!empty($a['featured_image_url'])) $h .= '<img src="'.esc_url($a['featured_image_url']).'" style="width:100%;height:180px;object-fit:cover">'; $h .= '<div style="padding:15px">'; if (!empty($a['category'])) $h .= '<span style="background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:2px 10px;border-radius:'.$br.';font-size:.8rem">'.esc_html($a['category']).'</span>'; $h .= '<h3 style="margin:8px 0;font-size:1.1rem;color:'.$c['text'].'">'.esc_html($a['name']).'</h3>'; if (!empty($a['short_description'])) $h .= '<p style="color:'.$c['text_secondary'].';font-size:.9rem;margin:0">'.esc_html(wp_trim_words($a['short_description'],12)).'</p>'; $h .= '</div></a></div>'; }
         return $h.'</div>';
     }
     
@@ -418,8 +424,9 @@ class GAS_Attractions {
         $cats = array(); foreach ($items as $a) if (!empty($a['category']) && !in_array($a['category'],$cats)) $cats[] = $a['category'];
         if (!$cats) return '';
         $cur = isset($_GET['attraction_cat']) ? sanitize_text_field($_GET['attraction_cat']) : '';
-        $h = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:30px"><a href="'.esc_url(remove_query_arg('attraction_cat')).'" style="padding:8px 16px;background:'.(empty($cur)?$c['accent'].';color:#fff':'#f3f4f6;color:#374151').';border-radius:20px;text-decoration:none">All</a>';
-        foreach ($cats as $ct) $h .= '<a href="'.esc_url(add_query_arg('attraction_cat',sanitize_title($ct))).'" style="padding:8px 16px;background:'.($cur===sanitize_title($ct)?$c['accent'].';color:#fff':'#f3f4f6;color:#374151').';border-radius:20px;text-decoration:none">'.esc_html($ct).'</a>';
+        $br = intval($c['btn_radius'] ?? 20).'px';
+        $h = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:30px"><a href="'.esc_url(remove_query_arg('attraction_cat')).'" style="padding:8px 16px;background:'.(empty($cur)?$c['accent'].';color:#fff':$c['category_bg'].';color:'.$c['category_text']).';border-radius:'.$br.';text-decoration:none">All</a>';
+        foreach ($cats as $ct) $h .= '<a href="'.esc_url(add_query_arg('attraction_cat',sanitize_title($ct))).'" style="padding:8px 16px;background:'.($cur===sanitize_title($ct)?$c['accent'].';color:#fff':$c['category_bg'].';color:'.$c['category_text']).';border-radius:'.$br.';text-decoration:none">'.esc_html($ct).'</a>';
         return $h.'</div>';
     }
 }
