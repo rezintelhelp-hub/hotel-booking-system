@@ -29661,22 +29661,6 @@ app.post('/api/admin/billing/assign-subscription', async (req, res) => {
       `, [account_id, plan_id, status, billing_cycle, now, periodEnd, JSON.stringify(feature_overrides)]);
     }
 
-    // Sync shop_module override → gas_feature_flags + accounts.shop_enabled
-    if (feature_overrides.shop_module) {
-      await pool.query(`
-        INSERT INTO gas_feature_flags (account_id, feature, enabled, enabled_by, enabled_at, updated_at)
-        VALUES ($1, 'shop_module', true, 'master_admin', NOW(), NOW())
-        ON CONFLICT (account_id, feature) DO UPDATE SET enabled = true, updated_at = NOW()
-      `, [account_id]);
-      await pool.query('UPDATE accounts SET shop_enabled = true WHERE id = $1', [account_id]);
-    } else {
-      await pool.query(`
-        UPDATE gas_feature_flags SET enabled = false, updated_at = NOW()
-        WHERE account_id = $1 AND feature = 'shop_module'
-      `, [account_id]);
-      await pool.query('UPDATE accounts SET shop_enabled = false WHERE id = $1', [account_id]);
-    }
-
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -30861,6 +30845,11 @@ app.put('/api/admin/accounts/:id/features', async (req, res) => {
         VALUES ($1, $2, $3, 'master_admin', NOW(), NOW())
         ON CONFLICT (account_id, feature) DO UPDATE SET enabled = $3, enabled_by = 'master_admin', updated_at = NOW()
       `, [id, feature, !!enabled]);
+    }
+
+    // Sync shop_module flag → accounts.shop_enabled
+    if ('shop_module' in features) {
+      await pool.query('UPDATE accounts SET shop_enabled = $1 WHERE id = $2', [!!features.shop_module, id]);
     }
 
     res.json({ success: true });
