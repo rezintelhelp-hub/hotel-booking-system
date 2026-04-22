@@ -50,7 +50,7 @@ class GAS_Attractions {
         $cached = get_transient('gas_attractions_colors');
         if ($cached !== false) { $this->colors_cache = $cached; return $cached; }
         
-        $defaults = array('accent'=>'#f59e0b','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#fef3c7','category_text'=>'#92400e','card_radius'=>'12','btn_radius'=>'20');
+        $defaults = array('accent'=>'#f59e0b','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#fef3c7','category_text'=>'#92400e','card_radius'=>'12','btn_radius'=>'20','placeholder_bg'=>'#f1f5f9','placeholder_fg'=>'#94a3b8');
         $client_id = get_option('gas_attractions_client_id') ?: get_option('gas_client_id', '');
         if ($client_id) {
             $url = trailingslashit($this->get_api_url()).'api/public/client/'.$client_id.'/app-settings/attractions';
@@ -117,6 +117,20 @@ class GAS_Attractions {
     
     private function font_css($font) {
         return ($font && $font !== 'inherit') ? 'font-family:'.$font.' !important;' : '';
+    }
+
+    private function is_placeholder_url($url) {
+        return !$url || strpos($url, '/placeholders/') !== false;
+    }
+
+    private function render_placeholder($category, $height = '180px') {
+        $c = $this->get_colors();
+        $bg = $c['placeholder_bg'] ?? '#f1f5f9';
+        $fg = $c['placeholder_fg'] ?? '#94a3b8';
+        $label = esc_html($category ?: 'Attraction');
+        // Map pin icon — clean Lucide style
+        $icon = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="'.$fg.'" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>';
+        return '<div style="width:100%;height:'.$height.';background:'.$bg.';display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">'.$icon.'<span style="color:'.$fg.';font-size:0.95rem;font-weight:500">'.$label.'</span></div>';
     }
 
     private function get_page_title_subtitle() {
@@ -281,7 +295,11 @@ class GAS_Attractions {
             echo '<div class="gas-ag" id="gas-attr-grid">';
             foreach ($items as $a) {
                 echo '<div class="gas-ac"><a href="' . esc_url(home_url('/' . $base . '/' . $a['slug'])) . '">';
-                if (!empty($a['featured_image_url'])) echo '<img src="' . esc_url($a['featured_image_url']) . '" class="gas-ai" loading="lazy">';
+                if (!empty($a['featured_image_url']) && !$this->is_placeholder_url($a['featured_image_url'])) {
+                    echo '<img src="' . esc_url($a['featured_image_url']) . '" class="gas-ai" loading="lazy">';
+                } else {
+                    echo $this->render_placeholder($a['category_label'] ?? $a['category'] ?? '');
+                }
                 echo '<div class="gas-ao">';
                 if (!empty($a['category'])) echo '<span class="gas-ab">' . esc_html($a['category_label'] ?? $a['category']) . '</span>';
                 echo '<h3 class="gas-an">' . esc_html($a['name']) . '</h3>';
@@ -413,7 +431,7 @@ class GAS_Attractions {
         $cr = intval($c['card_radius'] ?? 12).'px';
         $br = intval($c['btn_radius'] ?? 20).'px';
         $h = '<style>.gas-sc-c:hover{transform:translateY(-4px)!important}@media(max-width:900px){.gas-sc-g{grid-template-columns:repeat(2,1fr)!important}}@media(max-width:600px){.gas-sc-g{grid-template-columns:1fr!important}}</style><div class="gas-sc-g" style="display:grid;gap:25px;grid-template-columns:repeat('.$atts['columns'].',1fr)">';
-        foreach ($items as $a) { $h .= '<div class="gas-sc-c" style="background:'.$c['card_bg'].';border-radius:'.$cr.';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s"><a href="'.esc_url(home_url('/'.$base.'/'.$a['slug'])).'" style="text-decoration:none;color:inherit;display:block">'; if (!empty($a['featured_image_url'])) $h .= '<img src="'.esc_url($a['featured_image_url']).'" style="width:100%;height:180px;object-fit:cover">'; $h .= '<div style="padding:15px">'; if (!empty($a['category'])) $h .= '<span style="background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:2px 10px;border-radius:'.$br.';font-size:.8rem">'.esc_html($a['category']).'</span>'; $h .= '<h3 style="margin:8px 0;font-size:1.1rem;color:'.$c['text'].'">'.esc_html($a['name']).'</h3>'; if (!empty($a['short_description'])) $h .= '<p style="color:'.$c['text_secondary'].';font-size:.9rem;margin:0">'.esc_html(wp_trim_words($a['short_description'],12)).'</p>'; $h .= '</div></a></div>'; }
+        foreach ($items as $a) { $h .= '<div class="gas-sc-c" style="background:'.$c['card_bg'].';border-radius:'.$cr.';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s"><a href="'.esc_url(home_url('/'.$base.'/'.$a['slug'])).'" style="text-decoration:none;color:inherit;display:block">'; if (!empty($a['featured_image_url']) && !$this->is_placeholder_url($a['featured_image_url'])) { $h .= '<img src="'.esc_url($a['featured_image_url']).'" style="width:100%;height:180px;object-fit:cover">'; } else { $h .= $this->render_placeholder($a['category'] ?? '', '180px'); } $h .= '<div style="padding:15px">'; if (!empty($a['category'])) $h .= '<span style="background:'.$c['category_bg'].';color:'.$c['category_text'].';padding:2px 10px;border-radius:'.$br.';font-size:.8rem">'.esc_html($a['category']).'</span>'; $h .= '<h3 style="margin:8px 0;font-size:1.1rem;color:'.$c['text'].'">'.esc_html($a['name']).'</h3>'; if (!empty($a['short_description'])) $h .= '<p style="color:'.$c['text_secondary'].';font-size:.9rem;margin:0">'.esc_html(wp_trim_words($a['short_description'],12)).'</p>'; $h .= '</div></a></div>'; }
         return $h.'</div>';
     }
     

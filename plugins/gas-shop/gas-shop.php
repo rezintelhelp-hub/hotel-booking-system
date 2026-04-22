@@ -48,7 +48,7 @@ class GAS_Shop {
         $cached = get_transient('gas_shop_colors');
         if ($cached !== false) { $this->colors_cache = $cached; return $cached; }
 
-        $defaults = array('accent'=>'#10b981','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#d1fae5','category_text'=>'#065f46','card_radius'=>'12','btn_radius'=>'24');
+        $defaults = array('accent'=>'#10b981','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#d1fae5','category_text'=>'#065f46','card_radius'=>'12','btn_radius'=>'24','placeholder_bg'=>'#f1f5f9','placeholder_fg'=>'#94a3b8');
         $client_id = get_option('gas_shop_client_id') ?: get_option('gas_client_id', '');
         if ($client_id) {
             $url = trailingslashit($this->get_api_url()).'api/public/client/'.$client_id.'/app-settings/shop';
@@ -302,7 +302,7 @@ class GAS_Shop {
                 echo '<article class="gas-shop-card" data-category="'.$cat_attr.'">';
                 echo '<a href="'.esc_url(home_url('/shop/'.$p['slug'])).'">';
                 if (!empty($p['image_url'])) echo '<img src="'.esc_url($p['image_thumbnail_url'] ?: $p['image_url']).'" class="gas-shop-img" loading="lazy" alt="'.esc_attr($name).'">';
-                else echo '<div class="gas-shop-img" style="background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:3rem;color:#cbd5e1">🛍</div>';
+                else { $phBg = $c['placeholder_bg'] ?? '#f1f5f9'; $phFg = $c['placeholder_fg'] ?? '#94a3b8'; echo '<div class="gas-shop-img" style="background:'.$phBg.';display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="'.$phFg.'" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg><span style="color:'.$phFg.';font-size:0.95rem;font-weight:500">'.esc_html($p['category'] ?? 'Product').'</span></div>'; }
                 echo '<div class="gas-shop-card-body">';
                 if (!empty($p['category'])) echo '<span class="gas-shop-cat">'.esc_html($p['category']).'</span>';
                 echo '<h3 class="gas-shop-card-name">'.esc_html($name).'</h3>';

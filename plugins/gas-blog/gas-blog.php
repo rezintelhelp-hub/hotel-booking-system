@@ -47,7 +47,7 @@ class GAS_Blog {
         $cached = get_transient('gas_blog_colors');
         if ($cached !== false) { $this->colors_cache = $cached; return $cached; }
         
-        $defaults = array('accent'=>'#667eea','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#e0e7ff','category_text'=>'#4338ca','card_radius'=>'12','btn_radius'=>'20');
+        $defaults = array('accent'=>'#667eea','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','category_bg'=>'#e0e7ff','category_text'=>'#4338ca','card_radius'=>'12','btn_radius'=>'20','placeholder_bg'=>'#f1f5f9','placeholder_fg'=>'#94a3b8');
         $client_id = get_option('gas_blog_client_id') ?: get_option('gas_client_id', '');
         if ($client_id) {
             $url = trailingslashit($this->get_api_url()).'api/public/client/'.$client_id.'/app-settings/blog';
@@ -114,6 +114,20 @@ class GAS_Blog {
     
     private function font_css($font) {
         return ($font && $font !== 'inherit') ? 'font-family:'.$font.' !important;' : '';
+    }
+
+    private function is_placeholder_url($url) {
+        return !$url || strpos($url, '/placeholders/') !== false;
+    }
+
+    private function render_placeholder($category, $height = '200px') {
+        $c = $this->get_colors();
+        $bg = $c['placeholder_bg'] ?? '#f1f5f9';
+        $fg = $c['placeholder_fg'] ?? '#94a3b8';
+        $label = esc_html($category ?: 'Blog');
+        // Clean modern Lucide-style icons (stroke-based, no fills)
+        $icon = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="'.$fg.'" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>';
+        return '<div style="width:100%;height:'.$height.';background:'.$bg.';display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">'.$icon.'<span style="color:'.$fg.';font-size:0.95rem;font-weight:500">'.$label.'</span></div>';
     }
 
     private function get_page_title_subtitle() {
@@ -276,7 +290,11 @@ class GAS_Blog {
             echo '<div class="gas-bg" id="gas-blog-grid">';
             foreach ($posts as $p) {
                 echo '<article class="gas-bc"><a href="' . esc_url(home_url('/blog/' . $p['slug'])) . '">';
-                if (!empty($p['featured_image_url'])) echo '<img src="' . esc_url($p['featured_image_url']) . '" class="gas-bi" loading="lazy">';
+                if (!empty($p['featured_image_url']) && !$this->is_placeholder_url($p['featured_image_url'])) {
+                    echo '<img src="' . esc_url($p['featured_image_url']) . '" class="gas-bi" loading="lazy">';
+                } else {
+                    echo $this->render_placeholder($p['category_label'] ?? $p['category'] ?? '');
+                }
                 echo '<div class="gas-bo"><div class="gas-bm">';
                 if (!empty($p['category'])) echo '<span class="gas-bb">' . esc_html($p['category_label'] ?? $p['category']) . '</span>';
                 if (!empty($p['published_at'])) echo '<span>' . date('M j, Y', strtotime($p['published_at'])) . '</span>';
@@ -412,7 +430,7 @@ class GAS_Blog {
         if (is_wp_error($posts) || empty($posts)) return '<p>No posts found.</p>';
         $h = '<style>.gas-sc-bc:hover{transform:translateY(-4px)!important}@media(max-width:900px){.gas-sc-bg{grid-template-columns:repeat(2,1fr)!important}}@media(max-width:600px){.gas-sc-bg{grid-template-columns:1fr!important}}</style><div class="gas-sc-bg" style="display:grid;gap:30px;grid-template-columns:repeat('.$atts['columns'].',1fr)">';
         $cr = intval($c['card_radius'] ?? 12).'px';
-        foreach ($posts as $p) { $h .= '<article class="gas-sc-bc" style="background:'.$c['card_bg'].';border-radius:'.$cr.';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s"><a href="'.esc_url(home_url('/blog/'.$p['slug'])).'" style="text-decoration:none;color:inherit;display:block">'; if (!empty($p['featured_image_url'])) $h .= '<img src="'.esc_url($p['featured_image_url']).'" style="width:100%;height:200px;object-fit:cover">'; $h .= '<div style="padding:14px 16px 16px"><h3 style="margin:0 0 6px;font-size:1.1rem;color:'.$c['text'].'">'.esc_html($p['title']).'</h3>'; if (!empty($p['excerpt'])) $h .= '<p style="color:'.$c['text_secondary'].';margin:0;font-size:0.9rem;line-height:1.5">'.esc_html(wp_trim_words($p['excerpt'],20)).'</p>'; $h .= '</div></a></article>'; }
+        foreach ($posts as $p) { $h .= '<article class="gas-sc-bc" style="background:'.$c['card_bg'].';border-radius:'.$cr.';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s"><a href="'.esc_url(home_url('/blog/'.$p['slug'])).'" style="text-decoration:none;color:inherit;display:block">'; if (!empty($p['featured_image_url']) && !$this->is_placeholder_url($p['featured_image_url'])) { $h .= '<img src="'.esc_url($p['featured_image_url']).'" style="width:100%;height:200px;object-fit:cover">'; } else { $h .= $this->render_placeholder($p['category'] ?? ''); } $h .= '<div style="padding:14px 16px 16px"><h3 style="margin:0 0 6px;font-size:1.1rem;color:'.$c['text'].'">'.esc_html($p['title']).'</h3>'; if (!empty($p['excerpt'])) $h .= '<p style="color:'.$c['text_secondary'].';margin:0;font-size:0.9rem;line-height:1.5">'.esc_html(wp_trim_words($p['excerpt'],20)).'</p>'; $h .= '</div></a></article>'; }
         return $h.'</div>';
     }
     
