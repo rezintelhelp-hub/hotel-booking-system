@@ -86155,6 +86155,9 @@ app.listen(PORT, '0.0.0.0', async () => {
       updated_at TIMESTAMP DEFAULT NOW()
     )`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_shop_orders_account ON shop_orders(account_id, status, created_at DESC)`);
+    await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(10,2) DEFAULT 0`);
+    await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS tax_label VARCHAR(20) DEFAULT 'VAT'`);
+    await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS delivery_label VARCHAR(50) DEFAULT 'Delivery'`);
 
     await pool.query(`CREATE TABLE IF NOT EXISTS shop_order_items (
       id SERIAL PRIMARY KEY,
@@ -86170,6 +86173,11 @@ app.listen(PORT, '0.0.0.0', async () => {
 
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS shop_enabled BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS shop_stripe_config_id INTEGER`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS shop_tax_rate DECIMAL(5,2) DEFAULT 0`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS shop_tax_label VARCHAR(20) DEFAULT 'VAT'`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS shop_tax_inclusive BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS shop_delivery_fee DECIMAL(10,2) DEFAULT 0`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS shop_delivery_label VARCHAR(50) DEFAULT 'Delivery'`);
     console.log('✅ Shop tables ensured (shop_products, shop_orders, shop_order_items)');
 
     console.log('✅ Database migrations complete');
@@ -89791,7 +89799,7 @@ app.get('/api/admin/shop/settings', async (req, res) => {
 
     const clientId = req.query.client_id || decoded.accountId || decoded.id;
 
-    const account = await pool.query('SELECT shop_enabled, shop_stripe_config_id, currency FROM accounts WHERE id = $1', [clientId]);
+    const account = await pool.query('SELECT shop_enabled, shop_stripe_config_id, currency, shop_tax_rate, shop_tax_label, shop_tax_inclusive, shop_delivery_fee, shop_delivery_label FROM accounts WHERE id = $1', [clientId]);
     if (!account.rows.length) return res.status(404).json({ success: false, error: 'Account not found' });
 
     // Get available payment configurations for this account
@@ -89800,12 +89808,18 @@ app.get('/api/admin/shop/settings', async (req, res) => {
       [clientId]
     );
 
+    const acc = account.rows[0];
     res.json({
       success: true,
-      shop_enabled: account.rows[0].shop_enabled || false,
-      shop_stripe_config_id: account.rows[0].shop_stripe_config_id,
-      default_currency: account.rows[0].currency || 'EUR',
-      payment_configs: configs.rows
+      shop_enabled: acc.shop_enabled || false,
+      shop_stripe_config_id: acc.shop_stripe_config_id,
+      default_currency: acc.currency || 'EUR',
+      payment_configs: configs.rows,
+      shop_tax_rate: parseFloat(acc.shop_tax_rate) || 0,
+      shop_tax_label: acc.shop_tax_label || 'VAT',
+      shop_tax_inclusive: acc.shop_tax_inclusive || false,
+      shop_delivery_fee: parseFloat(acc.shop_delivery_fee) || 0,
+      shop_delivery_label: acc.shop_delivery_label || 'Delivery'
     });
   } catch (error) {
     console.error('Shop settings get error:', error);
@@ -89821,7 +89835,7 @@ app.put('/api/admin/shop/settings', async (req, res) => {
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.body.client_id || decoded.accountId || decoded.id;
-    const { shop_enabled, shop_stripe_config_id } = req.body;
+    const { shop_enabled, shop_stripe_config_id, shop_tax_rate, shop_tax_label, shop_tax_inclusive, shop_delivery_fee, shop_delivery_label } = req.body;
 
     // shop_enabled can only be changed by master_admin
     if (shop_enabled !== undefined && decoded.role !== 'master_admin') {
@@ -89850,6 +89864,32 @@ app.put('/api/admin/shop/settings', async (req, res) => {
       }
       updates.push(`shop_stripe_config_id = $${paramIdx}`);
       params.push(shop_stripe_config_id || null);
+      paramIdx++;
+    }
+
+    if (shop_tax_rate !== undefined) {
+      updates.push(`shop_tax_rate = $${paramIdx}`);
+      params.push(parseFloat(shop_tax_rate) || 0);
+      paramIdx++;
+    }
+    if (shop_tax_label !== undefined) {
+      updates.push(`shop_tax_label = $${paramIdx}`);
+      params.push(shop_tax_label || 'VAT');
+      paramIdx++;
+    }
+    if (shop_tax_inclusive !== undefined) {
+      updates.push(`shop_tax_inclusive = $${paramIdx}`);
+      params.push(shop_tax_inclusive === true || shop_tax_inclusive === 'true');
+      paramIdx++;
+    }
+    if (shop_delivery_fee !== undefined) {
+      updates.push(`shop_delivery_fee = $${paramIdx}`);
+      params.push(parseFloat(shop_delivery_fee) || 0);
+      paramIdx++;
+    }
+    if (shop_delivery_label !== undefined) {
+      updates.push(`shop_delivery_label = $${paramIdx}`);
+      params.push(shop_delivery_label || 'Delivery');
       paramIdx++;
     }
 
@@ -89885,7 +89925,7 @@ app.get('/api/public/client/:clientId/shop/products', async (req, res) => {
     const clientId = parseInt(req.params.clientId);
 
     // Check shop_enabled — return 404 if disabled
-    const account = await pool.query('SELECT shop_enabled, currency FROM accounts WHERE id = $1', [clientId]);
+    const account = await pool.query('SELECT shop_enabled, currency, shop_tax_rate, shop_tax_label, shop_tax_inclusive, shop_delivery_fee, shop_delivery_label FROM accounts WHERE id = $1', [clientId]);
     if (!account.rows.length || !account.rows[0].shop_enabled) {
       return res.status(404).json({ success: false, error: 'Shop not available' });
     }
@@ -89895,7 +89935,15 @@ app.get('/api/public/client/:clientId/shop/products', async (req, res) => {
        FROM shop_products WHERE account_id = $1 AND is_active = true ORDER BY sort_order, created_at DESC`,
       [clientId]
     );
-    res.json({ success: true, products: result.rows, currency: account.rows[0].currency });
+    const a = account.rows[0];
+    res.json({
+      success: true, products: result.rows, currency: a.currency,
+      tax_rate: parseFloat(a.shop_tax_rate) || 0,
+      tax_label: a.shop_tax_label || 'VAT',
+      tax_inclusive: a.shop_tax_inclusive || false,
+      delivery_fee: parseFloat(a.shop_delivery_fee) || 0,
+      delivery_label: a.shop_delivery_label || 'Delivery'
+    });
   } catch (error) {
     console.error('Public shop products error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -89939,7 +89987,7 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
     }
 
     // Check shop_enabled
-    const account = await client.query('SELECT shop_enabled, shop_stripe_config_id, currency, name, email FROM accounts WHERE id = $1', [client_id]);
+    const account = await client.query('SELECT shop_enabled, shop_stripe_config_id, currency, name, email, shop_tax_rate, shop_tax_label, shop_tax_inclusive, shop_delivery_fee, shop_delivery_label FROM accounts WHERE id = $1', [client_id]);
     if (!account.rows.length || !account.rows[0].shop_enabled) {
       return res.status(404).json({ success: false, error: 'Shop not available' });
     }
@@ -90008,7 +90056,50 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
       });
     }
 
-    const total = subtotal; // No tax calculation in MVP
+    // Tax and delivery calculation
+    const taxRate = parseFloat(acc.shop_tax_rate) || 0;
+    const taxInclusive = acc.shop_tax_inclusive || false;
+    const deliveryFee = parseFloat(acc.shop_delivery_fee) || 0;
+    const taxLabel = acc.shop_tax_label || 'VAT';
+    const deliveryLabel = acc.shop_delivery_label || 'Delivery';
+
+    let tax = 0;
+    if (taxRate > 0) {
+      if (taxInclusive) {
+        // Prices already include tax — extract it
+        tax = subtotal - (subtotal / (1 + taxRate / 100));
+      } else {
+        // Tax added on top
+        tax = subtotal * (taxRate / 100);
+      }
+      tax = Math.round(tax * 100) / 100;
+    }
+
+    const total = (taxInclusive ? subtotal : subtotal + tax) + deliveryFee;
+
+    // Add delivery fee as a Stripe line item if > 0
+    if (deliveryFee > 0) {
+      lineItems.push({
+        price_data: {
+          currency: currency,
+          product_data: { name: deliveryLabel },
+          unit_amount: Math.round(deliveryFee * 100)
+        },
+        quantity: 1
+      });
+    }
+
+    // Add tax line item if not inclusive and tax > 0
+    if (taxRate > 0 && !taxInclusive) {
+      lineItems.push({
+        price_data: {
+          currency: currency,
+          product_data: { name: taxLabel + ' (' + taxRate + '%)' },
+          unit_amount: Math.round(tax * 100)
+        },
+        quantity: 1
+      });
+    }
 
     // Generate order number: SH-YYYYMMDD-NNNN
     const today = new Date();
@@ -90024,10 +90115,10 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
     await client.query('BEGIN');
 
     const orderResult = await client.query(`
-      INSERT INTO shop_orders (account_id, order_number, customer_email, customer_name, customer_phone, items, subtotal, tax, total, currency, status, payment_status, stripe_config_id_snapshot)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, $9, 'pending', 'unpaid', $10)
+      INSERT INTO shop_orders (account_id, order_number, customer_email, customer_name, customer_phone, items, subtotal, tax, total, currency, status, payment_status, stripe_config_id_snapshot, delivery_fee, tax_label, delivery_label)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', 'unpaid', $11, $12, $13, $14)
       RETURNING *
-    `, [client_id, orderNumber, customer_email, customer_name || null, customer_phone || null, JSON.stringify(validatedItems), subtotal, total, currency.toUpperCase(), acc.shop_stripe_config_id]);
+    `, [client_id, orderNumber, customer_email, customer_name || null, customer_phone || null, JSON.stringify(validatedItems), subtotal, tax, total, currency.toUpperCase(), acc.shop_stripe_config_id, deliveryFee, taxLabel, deliveryLabel]);
     const order = orderResult.rows[0];
 
     // Insert order items

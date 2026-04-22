@@ -162,6 +162,8 @@ class GAS_Shop {
     }
 
     // ── API calls ──
+    private $shop_config = null;
+
     public function fetch_products($args = array()) {
         $client_id = get_option('gas_shop_client_id') ?: get_option('gas_client_id', '');
         if (!$client_id) return new WP_Error('no_config', 'No client ID');
@@ -170,7 +172,20 @@ class GAS_Shop {
         if (is_wp_error($response)) return $response;
         $body = json_decode(wp_remote_retrieve_body($response), true);
         if (!$body || !$body['success']) return new WP_Error('api_error', 'Shop not available');
+        // Cache shop config (tax/delivery) from the same response
+        $this->shop_config = array(
+            'tax_rate' => floatval($body['tax_rate'] ?? 0),
+            'tax_label' => $body['tax_label'] ?? 'VAT',
+            'tax_inclusive' => !empty($body['tax_inclusive']),
+            'delivery_fee' => floatval($body['delivery_fee'] ?? 0),
+            'delivery_label' => $body['delivery_label'] ?? 'Delivery',
+        );
         return $body['products'] ?? array();
+    }
+
+    private function get_shop_config() {
+        if ($this->shop_config === null) $this->fetch_products();
+        return $this->shop_config ?: array('tax_rate'=>0,'tax_label'=>'VAT','tax_inclusive'=>false,'delivery_fee'=>0,'delivery_label'=>'Delivery');
     }
 
     public function fetch_single($slug) {
@@ -474,12 +489,20 @@ function gasShopAddToCart(product) {
         echo '</div>';
 
         $shop_url = esc_url(home_url('/shop/'));
+        $cfg = $this->get_shop_config();
+        $cfg_json = wp_json_encode($cfg);
         echo '<script>
 (function(){
   var cart = JSON.parse(localStorage.getItem("gas_shop_cart") || "[]");
   var container = document.getElementById("gas-cart-items");
   var totalEl = document.getElementById("gas-cart-total");
   var checkoutBtn = document.getElementById("gas-checkout-btn");
+  var shopCfg = '.$cfg_json.';
+  var taxRate = shopCfg.tax_rate || 0;
+  var taxLabel = shopCfg.tax_label || "VAT";
+  var taxInclusive = shopCfg.tax_inclusive || false;
+  var deliveryFee = shopCfg.delivery_fee || 0;
+  var deliveryLabel = shopCfg.delivery_label || "Delivery";
 
   function render() {
     cart = JSON.parse(localStorage.getItem("gas_shop_cart") || "[]");
@@ -499,7 +522,24 @@ function gasShopAddToCart(product) {
       html += \'<div class="gas-cart-item">\'+img+\'<div style="flex:1"><strong>\'+item.name+\'</strong><div style="color:#64748b;font-size:0.9rem">\'+curr+\' \'+item.price.toFixed(2)+\'</div></div><div class="gas-cart-qty"><button onclick="gasCartQty(\'+idx+\',-1)">-</button><span>\'+( item.quantity||1)+\'</span><button onclick="gasCartQty(\'+idx+\',1)">+</button></div><div style="min-width:80px;text-align:right;font-weight:600">\'+curr+\' \'+lineTotal.toFixed(2)+\'</div><button onclick="gasCartRemove(\'+idx+\')" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:#ef4444" title="Remove">&times;</button></div>\';
     });
     container.innerHTML = html;
-    totalEl.textContent = "Total: " + curr + " " + total.toFixed(2);
+    var subtotal = total;
+    var tax = 0;
+    if (taxRate > 0) {
+      tax = taxInclusive ? (subtotal - subtotal / (1 + taxRate / 100)) : (subtotal * taxRate / 100);
+      tax = Math.round(tax * 100) / 100;
+    }
+    var grandTotal = (taxInclusive ? subtotal : subtotal + tax) + deliveryFee;
+    var lines = "<div style=\"font-size:0.95rem;color:#64748b\">";
+    lines += "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px\"><span>Subtotal</span><span>" + curr + " " + subtotal.toFixed(2) + "</span></div>";
+    if (taxRate > 0) {
+      lines += "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px\"><span>" + taxLabel + " (" + taxRate + "%" + (taxInclusive ? " incl." : "") + ")</span><span>" + curr + " " + tax.toFixed(2) + "</span></div>";
+    }
+    if (deliveryFee > 0) {
+      lines += "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px\"><span>" + deliveryLabel + "</span><span>" + curr + " " + deliveryFee.toFixed(2) + "</span></div>";
+    }
+    lines += "</div>";
+    lines += "<div style=\"display:flex;justify-content:space-between;font-size:1.3rem;font-weight:700;margin-top:8px;padding-top:8px;border-top:2px solid #e5e7eb\"><span>Total</span><span>" + curr + " " + grandTotal.toFixed(2) + "</span></div>";
+    totalEl.innerHTML = lines;
     checkoutBtn.style.display = "inline-block";
   }
 
@@ -557,20 +597,40 @@ function gasShopAddToCart(product) {
         echo '<p id="gas-co-error" style="color:#ef4444;margin-top:8px;display:none"></p>';
         echo '</div>';
 
+        $cfg = $this->get_shop_config();
+        $cfg_json = wp_json_encode($cfg);
         echo '<script>
 (function(){
   var cart = JSON.parse(localStorage.getItem("gas_shop_cart") || "[]");
   var summary = document.getElementById("gas-checkout-summary");
   if (!cart.length) { window.location.href = "'.esc_url(home_url('/shop/cart/')).'"; return; }
   var curr = cart[0].currency || "EUR";
-  var total = 0;
+  var shopCfg2 = '.$cfg_json.';
+  var taxRate = shopCfg2.tax_rate || 0;
+  var taxLabel = shopCfg2.tax_label || "VAT";
+  var taxInclusive = shopCfg2.tax_inclusive || false;
+  var deliveryFee = shopCfg2.delivery_fee || 0;
+  var deliveryLabel = shopCfg2.delivery_label || "Delivery";
+  var subtotal = 0;
   var html = "<h3 style=\"margin:0 0 12px\">Order Summary</h3>";
   cart.forEach(function(item){
     var lt = item.price * (item.quantity||1);
-    total += lt;
+    subtotal += lt;
     html += "<div style=\"display:flex;justify-content:space-between;padding:4px 0\"><span>"+item.name+" x"+(item.quantity||1)+"</span><span>"+curr+" "+lt.toFixed(2)+"</span></div>";
   });
-  html += "<hr style=\"margin:12px 0\"><div style=\"display:flex;justify-content:space-between;font-weight:700;font-size:1.1rem\"><span>Total</span><span>"+curr+" "+total.toFixed(2)+"</span></div>";
+  html += "<hr style=\"margin:12px 0\">";
+  html += "<div style=\"display:flex;justify-content:space-between;padding:4px 0;color:#64748b\"><span>Subtotal</span><span>"+curr+" "+subtotal.toFixed(2)+"</span></div>";
+  var tax = 0;
+  if (taxRate > 0) {
+    tax = taxInclusive ? (subtotal - subtotal / (1 + taxRate / 100)) : (subtotal * taxRate / 100);
+    tax = Math.round(tax * 100) / 100;
+    html += "<div style=\"display:flex;justify-content:space-between;padding:4px 0;color:#64748b\"><span>"+taxLabel+" ("+taxRate+"%"+(taxInclusive?" incl.":"")+")</span><span>"+curr+" "+tax.toFixed(2)+"</span></div>";
+  }
+  if (deliveryFee > 0) {
+    html += "<div style=\"display:flex;justify-content:space-between;padding:4px 0;color:#64748b\"><span>"+deliveryLabel+"</span><span>"+curr+" "+deliveryFee.toFixed(2)+"</span></div>";
+  }
+  var grandTotal = (taxInclusive ? subtotal : subtotal + tax) + deliveryFee;
+  html += "<div style=\"display:flex;justify-content:space-between;font-weight:700;font-size:1.1rem;margin-top:8px;padding-top:8px;border-top:2px solid #e5e7eb\"><span>Total</span><span>"+curr+" "+grandTotal.toFixed(2)+"</span></div>";
   summary.innerHTML = html;
 })();
 
