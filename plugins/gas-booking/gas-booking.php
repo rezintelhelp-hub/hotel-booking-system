@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.30
+ * Version: 3.6.31
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.30');
+define('GAS_BOOKING_VERSION', '3.6.31');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -472,6 +472,14 @@ class GAS_Booking {
                 'default_menu_order' => 75,
                 'parent_slug' => null,
                 'template' => 'template-reviews.php'
+            ),
+            'page-shop' => array(
+                'slug' => 'shop',
+                'default_title' => 'Shop',
+                'shortcode' => '[gas_shop]',
+                'default_menu_order' => 55,
+                'parent_slug' => null,
+                'template' => ''
             ),
         );
         
