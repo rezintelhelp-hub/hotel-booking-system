@@ -573,7 +573,9 @@ function gasShopAddToCart(product) {
         get_header();
         echo $this->base_css();
         echo '<style>
-.gas-checkout-wrap{max-width:600px;margin:0 auto;padding:120px 20px 40px}
+.gas-checkout-wrap{max-width:900px;margin:0 auto;padding:120px 20px 40px}
+.gas-addr-grid{display:grid;grid-template-columns:1fr 1fr;gap:2rem}
+@media(max-width:768px){.gas-addr-grid{grid-template-columns:1fr}}
 .gas-checkout-field{margin-bottom:1rem}
 .gas-checkout-field label{display:block;font-weight:600;margin-bottom:4px;color:'.$c['text'].'}
 .gas-checkout-field input{width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:1rem}
@@ -593,27 +595,36 @@ function gasShopAddToCart(product) {
         echo '<div class="gas-checkout-field"><label>Email *</label><input type="email" id="gas-co-email" required></div>';
         echo '<div class="gas-checkout-field"><label>Phone</label><input type="tel" id="gas-co-phone"></div>';
 
+        // Addresses side by side
+        echo '<div class="gas-addr-grid">';
+
         // Billing address
+        echo '<div>';
         echo '<h3 style="margin:24px 0 12px;color:'.$c['text'].'">Billing Address</h3>';
         echo '<div class="gas-checkout-field"><label>Address Line 1 *</label><input type="text" id="gas-co-addr1" required></div>';
         echo '<div class="gas-checkout-field"><label>Address Line 2</label><input type="text" id="gas-co-addr2"></div>';
-        echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">';
         echo '<div class="gas-checkout-field"><label>City *</label><input type="text" id="gas-co-city" required></div>';
+        echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">';
         echo '<div class="gas-checkout-field"><label>Postcode *</label><input type="text" id="gas-co-postcode" required></div>';
-        echo '</div>';
         echo '<div class="gas-checkout-field"><label>Country *</label><input type="text" id="gas-co-country" required></div>';
+        echo '</div>';
+        echo '</div>';
 
         // Delivery address
+        echo '<div>';
         echo '<h3 style="margin:24px 0 12px;color:'.$c['text'].'">Delivery Address</h3>';
         echo '<div style="margin-bottom:1rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500"><input type="checkbox" id="gas-co-same-addr" checked onchange="gasToggleDeliveryAddr()" style="width:18px;height:18px"> Same as billing address</label></div>';
         echo '<div id="gas-co-delivery-fields" style="display:none">';
         echo '<div class="gas-checkout-field"><label>Address Line 1 *</label><input type="text" id="gas-co-del-addr1"></div>';
         echo '<div class="gas-checkout-field"><label>Address Line 2</label><input type="text" id="gas-co-del-addr2"></div>';
-        echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">';
         echo '<div class="gas-checkout-field"><label>City *</label><input type="text" id="gas-co-del-city"></div>';
+        echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">';
         echo '<div class="gas-checkout-field"><label>Postcode *</label><input type="text" id="gas-co-del-postcode"></div>';
-        echo '</div>';
         echo '<div class="gas-checkout-field"><label>Country *</label><input type="text" id="gas-co-del-country"></div>';
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
+
         echo '</div>';
 
         echo '<div style="margin-top:24px">';
