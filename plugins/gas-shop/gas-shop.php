@@ -616,19 +616,24 @@ function gasShopAddToCart(product) {
           return;
         }
         var curr = cart[0]?.currency || "EUR";
+        var currentRoom = JSON.parse(localStorage.getItem("gas_shop_room") || "null");
         var html = "<div style=\"padding:16px;background:#f8fafc;border-radius:8px;margin:16px 0\">";
         html += "<h3 style=\"margin:0 0 12px;font-size:1rem\">Available Rooms — " + data.check_in + " to " + data.check_out + " (" + data.nights + " night" + (data.nights > 1 ? "s" : "") + ")</h3>";
         html += "<div style=\"display:grid;gap:12px\">";
         data.rooms.forEach(function(room){
           var img = room.images && room.images[0] ? "<img src=\"" + room.images[0] + "\" style=\"width:80px;height:60px;object-fit:cover;border-radius:6px\">" : "";
-          html += "<div style=\"display:flex;gap:12px;align-items:center;padding:12px;background:#fff;border-radius:8px;border:1px solid #e5e7eb\">" +
+          var isSelected = currentRoom && currentRoom.room_id === room.room_id;
+          var btnHtml = isSelected
+            ? "<span style=\"padding:6px 16px;background:#d1fae5;color:#065f46;border-radius:6px;font-size:0.9rem;font-weight:600\">Selected</span>"
+            : "<button onclick=\x27gasSelectRoom(" + JSON.stringify(room).replace(/\x27/g,"\\x27") + ")\x27 style=\"padding:6px 16px;background:#10b981;color:#fff;border:none;border-radius:6px;cursor:pointer\">Select</button>";
+          html += "<div style=\"display:flex;gap:12px;align-items:center;padding:12px;background:" + (isSelected ? "#f0fdf4" : "#fff") + ";border-radius:8px;border:1px solid " + (isSelected ? "#bbf7d0" : "#e5e7eb") + "\">" +
             img +
             "<div style=\"flex:1\"><strong>" + room.name + "</strong>" +
             "<br><span style=\"font-size:0.85rem;color:#64748b\">" + (room.type ? room.type + " — " : "") + "max " + room.max_guests + " guests" + (room.quantity > 1 ? " — " + room.available + " of " + room.quantity + " available" : "") + "</span>" +
             "</div>" +
             "<div style=\"text-align:right\"><div style=\"font-weight:700;color:#10b981\">" + (room.currency||curr) + " " + room.total.toFixed(2) + "</div>" +
             "<div style=\"font-size:0.8rem;color:#64748b\">" + (room.currency||curr) + " " + room.rate_per_night.toFixed(2) + "/night</div></div>" +
-            "<button onclick=\x27gasSelectRoom(" + JSON.stringify(room).replace(/\x27/g,"\\x27") + ")\x27 style=\"padding:6px 16px;background:#10b981;color:#fff;border:none;border-radius:6px;cursor:pointer\">Select</button>" +
+            btnHtml +
             "</div>";
         });
         html += "</div></div>";
@@ -713,6 +718,7 @@ function gasShopAddToCart(product) {
 
         echo '<div style="margin-top:24px">';
         echo '<button class="gas-shop-btn" id="gas-co-pay" style="width:100%;text-align:center" onclick="gasShopCheckout()">Pay Now</button>';
+        echo '<a href="'.esc_url(home_url('/shop/')).'" style="display:block;text-align:center;margin-top:12px;color:'.$c['text_secondary'].';text-decoration:none;font-size:0.9rem">&larr; Continue Shopping</a>';
         echo '<p id="gas-co-error" style="color:#ef4444;margin-top:8px;display:none"></p>';
         echo '</div>';
 
