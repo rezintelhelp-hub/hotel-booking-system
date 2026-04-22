@@ -588,9 +588,33 @@ function gasShopAddToCart(product) {
         echo '<div class="gas-checkout-summary" id="gas-checkout-summary"></div>';
 
         // Customer form
+        echo '<h3 style="margin:0 0 12px;color:'.$c['text'].'">Your Details</h3>';
         echo '<div class="gas-checkout-field"><label>Full Name *</label><input type="text" id="gas-co-name" required></div>';
         echo '<div class="gas-checkout-field"><label>Email *</label><input type="email" id="gas-co-email" required></div>';
         echo '<div class="gas-checkout-field"><label>Phone</label><input type="tel" id="gas-co-phone"></div>';
+
+        // Billing address
+        echo '<h3 style="margin:24px 0 12px;color:'.$c['text'].'">Billing Address</h3>';
+        echo '<div class="gas-checkout-field"><label>Address Line 1 *</label><input type="text" id="gas-co-addr1" required></div>';
+        echo '<div class="gas-checkout-field"><label>Address Line 2</label><input type="text" id="gas-co-addr2"></div>';
+        echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">';
+        echo '<div class="gas-checkout-field"><label>City *</label><input type="text" id="gas-co-city" required></div>';
+        echo '<div class="gas-checkout-field"><label>Postcode *</label><input type="text" id="gas-co-postcode" required></div>';
+        echo '</div>';
+        echo '<div class="gas-checkout-field"><label>Country *</label><input type="text" id="gas-co-country" required></div>';
+
+        // Delivery address
+        echo '<h3 style="margin:24px 0 12px;color:'.$c['text'].'">Delivery Address</h3>';
+        echo '<div style="margin-bottom:1rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500"><input type="checkbox" id="gas-co-same-addr" checked onchange="gasToggleDeliveryAddr()" style="width:18px;height:18px"> Same as billing address</label></div>';
+        echo '<div id="gas-co-delivery-fields" style="display:none">';
+        echo '<div class="gas-checkout-field"><label>Address Line 1 *</label><input type="text" id="gas-co-del-addr1"></div>';
+        echo '<div class="gas-checkout-field"><label>Address Line 2</label><input type="text" id="gas-co-del-addr2"></div>';
+        echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">';
+        echo '<div class="gas-checkout-field"><label>City *</label><input type="text" id="gas-co-del-city"></div>';
+        echo '<div class="gas-checkout-field"><label>Postcode *</label><input type="text" id="gas-co-del-postcode"></div>';
+        echo '</div>';
+        echo '<div class="gas-checkout-field"><label>Country *</label><input type="text" id="gas-co-del-country"></div>';
+        echo '</div>';
 
         echo '<div style="margin-top:24px">';
         echo '<button class="gas-shop-btn" id="gas-co-pay" style="width:100%;text-align:center" onclick="gasShopCheckout()">Pay Now</button>';
@@ -634,6 +658,11 @@ function gasShopAddToCart(product) {
   summary.innerHTML = html;
 })();
 
+function gasToggleDeliveryAddr() {
+  var same = document.getElementById("gas-co-same-addr").checked;
+  document.getElementById("gas-co-delivery-fields").style.display = same ? "none" : "block";
+}
+
 function gasShopCheckout() {
   var name = document.getElementById("gas-co-name").value.trim();
   var email = document.getElementById("gas-co-email").value.trim();
@@ -641,7 +670,29 @@ function gasShopCheckout() {
   var errEl = document.getElementById("gas-co-error");
   var btn = document.getElementById("gas-co-pay");
 
+  // Billing address
+  var addr1 = document.getElementById("gas-co-addr1").value.trim();
+  var city = document.getElementById("gas-co-city").value.trim();
+  var postcode = document.getElementById("gas-co-postcode").value.trim();
+  var country = document.getElementById("gas-co-country").value.trim();
+
   if (!name || !email) { errEl.textContent = "Name and email are required"; errEl.style.display = "block"; return; }
+  if (!addr1 || !city || !postcode || !country) { errEl.textContent = "Billing address is required"; errEl.style.display = "block"; return; }
+
+  // Delivery address
+  var sameAddr = document.getElementById("gas-co-same-addr").checked;
+  var delAddr = {};
+  if (sameAddr) {
+    delAddr = { line1: addr1, line2: document.getElementById("gas-co-addr2").value.trim(), city: city, postcode: postcode, country: country };
+  } else {
+    var da1 = document.getElementById("gas-co-del-addr1").value.trim();
+    var dCity = document.getElementById("gas-co-del-city").value.trim();
+    var dPost = document.getElementById("gas-co-del-postcode").value.trim();
+    var dCountry = document.getElementById("gas-co-del-country").value.trim();
+    if (!da1 || !dCity || !dPost || !dCountry) { errEl.textContent = "Delivery address is required"; errEl.style.display = "block"; return; }
+    delAddr = { line1: da1, line2: document.getElementById("gas-co-del-addr2").value.trim(), city: dCity, postcode: dPost, country: dCountry };
+  }
+
   errEl.style.display = "none";
   btn.disabled = true;
   btn.textContent = "Processing...";
@@ -657,6 +708,8 @@ function gasShopCheckout() {
       customer_name: name,
       customer_email: email,
       customer_phone: phone,
+      billing_address: { line1: addr1, line2: document.getElementById("gas-co-addr2").value.trim(), city: city, postcode: postcode, country: country },
+      delivery_address: delAddr,
       items: items,
       success_url: "'.$thank_you_url.'?session_id={CHECKOUT_SESSION_ID}",
       cancel_url: window.location.href

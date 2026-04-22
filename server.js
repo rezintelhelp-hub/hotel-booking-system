@@ -86158,6 +86158,8 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(10,2) DEFAULT 0`);
     await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS tax_label VARCHAR(20) DEFAULT 'VAT'`);
     await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS delivery_label VARCHAR(50) DEFAULT 'Delivery'`);
+    await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS billing_address JSONB DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS delivery_address JSONB DEFAULT '{}'`);
 
     await pool.query(`CREATE TABLE IF NOT EXISTS shop_order_items (
       id SERIAL PRIMARY KEY,
@@ -89980,7 +89982,7 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
 app.post('/api/public/shop/create-checkout-session', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { client_id, customer_name, customer_email, customer_phone, items, success_url, cancel_url } = req.body;
+    const { client_id, customer_name, customer_email, customer_phone, billing_address, delivery_address, items, success_url, cancel_url } = req.body;
 
     if (!client_id || !customer_email || !items || !items.length) {
       return res.status(400).json({ success: false, error: 'Missing required fields (client_id, customer_email, items)' });
@@ -90115,10 +90117,10 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
     await client.query('BEGIN');
 
     const orderResult = await client.query(`
-      INSERT INTO shop_orders (account_id, order_number, customer_email, customer_name, customer_phone, items, subtotal, tax, total, currency, status, payment_status, stripe_config_id_snapshot, delivery_fee, tax_label, delivery_label)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', 'unpaid', $11, $12, $13, $14)
+      INSERT INTO shop_orders (account_id, order_number, customer_email, customer_name, customer_phone, items, subtotal, tax, total, currency, status, payment_status, stripe_config_id_snapshot, delivery_fee, tax_label, delivery_label, billing_address, delivery_address)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', 'unpaid', $11, $12, $13, $14, $15, $16)
       RETURNING *
-    `, [client_id, orderNumber, customer_email, customer_name || null, customer_phone || null, JSON.stringify(validatedItems), subtotal, tax, total, currency.toUpperCase(), acc.shop_stripe_config_id, deliveryFee, taxLabel, deliveryLabel]);
+    `, [client_id, orderNumber, customer_email, customer_name || null, customer_phone || null, JSON.stringify(validatedItems), subtotal, tax, total, currency.toUpperCase(), acc.shop_stripe_config_id, deliveryFee, taxLabel, deliveryLabel, JSON.stringify(billing_address || {}), JSON.stringify(delivery_address || {})]);
     const order = orderResult.rows[0];
 
     // Insert order items
