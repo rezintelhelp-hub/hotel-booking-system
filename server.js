@@ -29099,23 +29099,60 @@ app.post('/api/deployed-sites/remove-domain', async (req, res) => {
 app.post('/api/deployed-sites/set-custom-domain', async (req, res) => {
   try {
     const { site_id, domain } = req.body;
-    
+
     if (!site_id) {
       return res.json({ success: false, error: 'site_id is required' });
     }
-    
+
     const cleanDomain = domain ? domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '') : null;
-    
+
+    // Get site details for VPS provisioning
+    const site = await pool.query('SELECT blog_id, slug, custom_domain FROM deployed_sites WHERE id = $1', [site_id]);
+    if (!site.rows.length) return res.json({ success: false, error: 'Site not found' });
+    const siteData = site.rows[0];
+
+    // Save to database
     await pool.query(`
-      UPDATE deployed_sites 
-      SET custom_domain = $1, updated_at = NOW()
-      WHERE id = $2
-    `, [cleanDomain, site_id]);
-    
-    res.json({ 
-      success: true, 
+      UPDATE deployed_sites
+      SET custom_domain = $1, site_url = $2, updated_at = NOW()
+      WHERE id = $3
+    `, [cleanDomain, cleanDomain ? `https://${cleanDomain}/` : `https://${siteData.slug}.sites.gas.travel/`, site_id]);
+
+    // Provision on VPS — Nginx config + SSL + WordPress domain mapping
+    let vpsResult = null;
+    if (cleanDomain && siteData.blog_id) {
+      try {
+        const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=setup-custom-domain`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-API-Key': VPS_DEPLOY_API_KEY },
+          body: JSON.stringify({ domain: cleanDomain, blog_id: siteData.blog_id })
+        });
+        vpsResult = await vpsResponse.json();
+        console.log('[Custom Domain] VPS setup result:', vpsResult);
+      } catch (vpsErr) {
+        console.error('[Custom Domain] VPS setup error:', vpsErr.message);
+        vpsResult = { success: false, error: vpsErr.message };
+      }
+    } else if (!cleanDomain && siteData.custom_domain && siteData.blog_id) {
+      // Removing custom domain — revert to multisite subdomain
+      try {
+        const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=remove-custom-domain`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-API-Key': VPS_DEPLOY_API_KEY },
+          body: JSON.stringify({ domain: siteData.custom_domain, blog_id: siteData.blog_id, slug: siteData.slug })
+        });
+        vpsResult = await vpsResponse.json();
+        console.log('[Custom Domain] VPS removal result:', vpsResult);
+      } catch (vpsErr) {
+        console.error('[Custom Domain] VPS removal error:', vpsErr.message);
+      }
+    }
+
+    res.json({
+      success: true,
       domain: cleanDomain,
-      message: cleanDomain ? `Custom domain set to ${cleanDomain}` : 'Custom domain removed'
+      message: cleanDomain ? `Custom domain set to ${cleanDomain}` : 'Custom domain removed',
+      vps: vpsResult
     });
   } catch (error) {
     console.error('[Custom Domain] Error setting domain:', error);
@@ -90864,6 +90901,8 @@ async function processAutoChargePayments() {
                 COALESCE(p.stripe_secret_key, a.stripe_secret_key) as stripe_secret_key,
                 b.stripe_setup_intent_id,
                 p.currency as property_currency,
+                p.name as property_name,
+                a.email as owner_email,
                 pc.credentials as payment_config_credentials
             FROM bookings b
             JOIN properties p ON p.id = b.property_id
@@ -90957,6 +90996,48 @@ async function processAutoChargePayments() {
 
             } catch (chargeErr) {
                 console.error(`[AUTO-CHARGE] Failed to charge booking ${booking.booking_id}:`, chargeErr.message);
+
+                // Update booking status
+                await pool.query(
+                    "UPDATE bookings SET payment_status = 'balance_failed', updated_at = NOW() WHERE id = $1",
+                    [booking.booking_id]
+                ).catch(() => {});
+
+                // Email notification to property owner
+                try {
+                    const ownerEmail = booking.owner_email;
+                    if (ownerEmail) {
+                        await sendEmail({
+                            to: [ownerEmail, 'development@gas.travel'],
+                            subject: `Balance Payment Failed — ${guestName} — ${booking.property_name || 'Booking #' + booking.booking_id}`,
+                            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                                <h2 style="color:#dc2626;">Balance Payment Failed</h2>
+                                <p>An automatic balance payment could not be charged:</p>
+                                <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+                                    <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Guest</td><td style="padding:8px;border:1px solid #e5e7eb;">${guestName} (${booking.guest_email})</td></tr>
+                                    <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Property</td><td style="padding:8px;border:1px solid #e5e7eb;">${booking.property_name || '-'}</td></tr>
+                                    <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Booking Ref</td><td style="padding:8px;border:1px solid #e5e7eb;">#${booking.booking_id}</td></tr>
+                                    <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Balance Amount</td><td style="padding:8px;border:1px solid #e5e7eb;">${chargeCurrency.toUpperCase()} ${parseFloat(booking.balance_amount).toFixed(2)}</td></tr>
+                                    <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Check-in</td><td style="padding:8px;border:1px solid #e5e7eb;">${booking.arrival_date}</td></tr>
+                                    <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Error</td><td style="padding:8px;border:1px solid #e5e7eb;color:#dc2626;">${chargeErr.message}</td></tr>
+                                </table>
+                                <p style="color:#6b7280;font-size:13px;">You can manually charge this balance from GAS Admin → Bookings → Payment Schedule, or contact the guest directly.</p>
+                            </div>`
+                        });
+                        console.log(`[AUTO-CHARGE] Failure notification sent to ${ownerEmail}`);
+                    }
+                } catch (emailErr) {
+                    console.error(`[AUTO-CHARGE] Could not send failure email:`, emailErr.message);
+                }
+
+                // Slack notification
+                if (process.env.SLACK_WEBHOOK_URL) {
+                    try {
+                        await axios.post(process.env.SLACK_WEBHOOK_URL, {
+                            text: `❌ *Balance Payment Failed*\nBooking #${booking.booking_id} — ${guestName}\nProperty: ${booking.property_name || '-'}\nBalance: ${chargeCurrency.toUpperCase()} ${parseFloat(booking.balance_amount).toFixed(2)}\nCheck-in: ${booking.arrival_date}\nError: ${chargeErr.message}`
+                        });
+                    } catch (slackErr) { /* ignore */ }
+                }
             }
         }
 
