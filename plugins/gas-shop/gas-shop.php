@@ -624,7 +624,7 @@ function gasShopAddToCart(product) {
           html += "<div style=\"display:flex;gap:12px;align-items:center;padding:12px;background:#fff;border-radius:8px;border:1px solid #e5e7eb\">" +
             img +
             "<div style=\"flex:1\"><strong>" + room.name + "</strong>" +
-            (room.type ? "<br><span style=\"font-size:0.85rem;color:#64748b\">" + room.type + " — max " + room.max_guests + " guests</span>" : "") +
+            "<br><span style=\"font-size:0.85rem;color:#64748b\">" + (room.type ? room.type + " — " : "") + "max " + room.max_guests + " guests" + (room.quantity > 1 ? " — " + room.available + " of " + room.quantity + " available" : "") + "</span>" +
             "</div>" +
             "<div style=\"text-align:right\"><div style=\"font-weight:700;color:#10b981\">" + (room.currency||curr) + " " + room.total.toFixed(2) + "</div>" +
             "<div style=\"font-size:0.8rem;color:#64748b\">" + (room.currency||curr) + " " + room.rate_per_night.toFixed(2) + "/night</div></div>" +

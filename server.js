@@ -90185,22 +90185,47 @@ app.get('/api/public/client/:clientId/shop/products/:slug/room-options', async (
 
     // Get rooms at this property
     const rooms = await pool.query(
-      `SELECT id, name, display_name, room_type, max_guests, base_price, currency
+      `SELECT id, name, display_name, room_type, max_guests, base_price, currency, COALESCE(quantity, 1) as quantity
        FROM bookable_units WHERE property_id = $1 AND (status IS NULL OR status != 'inactive')
        ORDER BY base_price ASC`,
       [p.property_id]
     );
 
-    // Check availability for each room
+    // Check availability for each room (handles both single-unit and multi-quantity)
     const availableRooms = [];
     const nights = Math.max(1, Math.round((new Date(checkout) - new Date(checkin)) / (1000*60*60*24)));
 
     for (const room of rooms.rows) {
-      const blocked = await pool.query(
-        'SELECT date FROM room_availability WHERE room_id = $1 AND date >= $2 AND date < $3 AND (is_available = false OR is_blocked = true) LIMIT 1',
-        [room.id, checkin, checkout]
-      );
-      if (blocked.rows.length === 0) {
+      const roomQty = parseInt(room.quantity) || 1;
+
+      if (roomQty === 1) {
+        // Single unit — check room_availability for blocks
+        const blocked = await pool.query(
+          'SELECT date FROM room_availability WHERE room_id = $1 AND date >= $2 AND date < $3 AND (is_available = false OR is_blocked = true) LIMIT 1',
+          [room.id, checkin, checkout]
+        );
+        if (blocked.rows.length > 0) continue; // blocked, skip
+      } else {
+        // Multi-quantity room type — count overlapping bookings vs quantity
+        const overlapCount = await pool.query(
+          'SELECT COUNT(*) FROM bookings WHERE bookable_unit_id = $1 AND status IN (\'confirmed\', \'pending\') AND arrival_date < $3 AND departure_date > $2',
+          [room.id, checkin, checkout]
+        );
+        const booked = parseInt(overlapCount.rows[0].count);
+        if (booked >= roomQty) continue; // all units booked, skip
+      }
+
+      // Calculate available count for multi-quantity
+      let availableCount = roomQty;
+      if (roomQty > 1) {
+        const overlapResult = await pool.query(
+          'SELECT COUNT(*) FROM bookings WHERE bookable_unit_id = $1 AND status IN (\'confirmed\', \'pending\') AND arrival_date < $3 AND departure_date > $2',
+          [room.id, checkin, checkout]
+        );
+        availableCount = roomQty - parseInt(overlapResult.rows[0].count);
+      }
+
+      // Room has availability —
         // Room is available — get rate
         const rateResult = await pool.query(
           'SELECT cm_price, direct_price FROM room_availability WHERE room_id = $1 AND date >= $2 AND date < $3 ORDER BY date',
@@ -90226,6 +90251,8 @@ app.get('/api/public/client/:clientId/shop/products/:slug/room-options', async (
           name: room.display_name || room.name,
           type: room.room_type,
           max_guests: room.max_guests,
+          quantity: roomQty,
+          available: availableCount,
           rate_per_night: Math.round(totalRate / nights * 100) / 100,
           total: Math.round(totalRate * 100) / 100,
           currency: room.currency || p.currency,
