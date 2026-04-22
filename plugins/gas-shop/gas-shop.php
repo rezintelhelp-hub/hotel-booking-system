@@ -314,15 +314,23 @@ class GAS_Shop {
                 $price = number_format((float)$p['price'], 2);
                 $curr = $p['currency'] ?? 'EUR';
                 $cat_attr = !empty($p['category']) ? esc_attr($p['category']) : '';
+                $isExternal = ($p['product_type'] ?? '') === 'external' && !empty($p['external_url']);
+                $cardLink = $isExternal ? esc_url($p['external_url']) : esc_url(home_url('/shop/'.$p['slug']));
+                $cardTarget = $isExternal ? ' target="_blank" rel="noopener"' : '';
                 echo '<article class="gas-shop-card" data-category="'.$cat_attr.'">';
-                echo '<a href="'.esc_url(home_url('/shop/'.$p['slug'])).'">';
+                echo '<a href="'.$cardLink.'"'.$cardTarget.'>';
                 if (!empty($p['image_url'])) echo '<img src="'.esc_url($p['image_thumbnail_url'] ?: $p['image_url']).'" class="gas-shop-img" loading="lazy" alt="'.esc_attr($name).'">';
                 else { $phBg = $c['placeholder_bg'] ?? '#f1f5f9'; $phFg = $c['placeholder_fg'] ?? '#94a3b8'; echo '<div class="gas-shop-img" style="background:'.$phBg.';display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="'.$phFg.'" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg><span style="color:'.$phFg.';font-size:0.95rem;font-weight:500">'.esc_html($p['category'] ?? 'Product').'</span></div>'; }
                 echo '<div class="gas-shop-card-body">';
                 if (!empty($p['category'])) echo '<span class="gas-shop-cat">'.esc_html($p['category']).'</span>';
                 echo '<h3 class="gas-shop-card-name">'.esc_html($name).'</h3>';
                 if ($desc) echo '<p class="gas-shop-card-desc">'.esc_html(wp_trim_words($desc, 15)).'</p>';
-                echo '<div class="gas-shop-card-price">'.$curr.' '.$price.'</div>';
+                if ($isExternal) {
+                    $btnLabel = esc_html($p['external_button_label'] ?? 'Buy Now');
+                    echo '<div class="gas-shop-card-price" style="font-size:0.95rem">'.$btnLabel.' &rarr;</div>';
+                } else {
+                    echo '<div class="gas-shop-card-price">'.$curr.' '.$price.'</div>';
+                }
                 echo '</div></a></article>';
             }
             echo '</div>';
@@ -440,9 +448,14 @@ class GAS_Shop {
             'event_start_date' => $p['event_start_date'] ?? null,
             'event_end_date' => $p['event_end_date'] ?? null,
         ), JSON_HEX_APOS | JSON_HEX_QUOT);
-        $disabled = ($p['stock_tracking'] && intval($p['stock_quantity'] ?? 0) <= 0) ? ' disabled style="opacity:.5;cursor:not-allowed"' : '';
-        echo '<button class="gas-shop-btn" id="gas-add-to-cart"'.$disabled.' onclick=\'gasShopAddToCart('.$product_json.')\'>Add to Cart</button>';
-        echo '<a href="'.esc_url(home_url('/shop/cart/')).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';margin-left:12px" id="gas-shop-go-cart">View Cart</a>';
+        if (($p['product_type'] ?? '') === 'external' && !empty($p['external_url'])) {
+            $btnLabel = esc_html($p['external_button_label'] ?? 'Buy Now');
+            echo '<a href="'.esc_url($p['external_url']).'" target="_blank" rel="noopener" class="gas-shop-btn">'.$btnLabel.' &rarr;</a>';
+        } else {
+            $disabled = ($p['stock_tracking'] && intval($p['stock_quantity'] ?? 0) <= 0) ? ' disabled style="opacity:.5;cursor:not-allowed"' : '';
+            echo '<button class="gas-shop-btn" id="gas-add-to-cart"'.$disabled.' onclick=\'gasShopAddToCart('.$product_json.')\'>Add to Cart</button>';
+            echo '<a href="'.esc_url(home_url('/shop/cart/')).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';margin-left:12px" id="gas-shop-go-cart">View Cart</a>';
+        }
         echo '</div></div></div>';
 
         echo '<script>

@@ -86226,6 +86226,8 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS offers_accommodation BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS property_id INTEGER`);
     await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS stripe_config_id INTEGER`);
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS external_url TEXT`);
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS external_button_label VARCHAR(50) DEFAULT 'Buy Now'`);
     await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS booking_id INTEGER`);
     await pool.query(`ALTER TABLE shop_order_items ADD COLUMN IF NOT EXISTS accommodation_details JSONB`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS shop_order_id INTEGER`);
@@ -89698,7 +89700,7 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.body.client_id || decoded.accountId || decoded.id;
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label } = req.body;
 
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Product name is required' });
     const numPrice = parseFloat(price);
@@ -89716,8 +89718,8 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     }
 
     const result = await pool.query(`
-      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
       RETURNING *
     `, [
       clientId, name.trim(),
@@ -89737,7 +89739,9 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
       event_duration_nights ? parseInt(event_duration_nights) : null,
       offers_accommodation === 'true' || offers_accommodation === true,
       property_id ? parseInt(property_id) : null,
-      stripe_config_id ? parseInt(stripe_config_id) : null
+      stripe_config_id ? parseInt(stripe_config_id) : null,
+      external_url || null,
+      external_button_label || 'Buy Now'
     ]);
 
     res.json({ success: true, product: result.rows[0] });
@@ -89760,7 +89764,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
     const existing = await pool.query('SELECT * FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
     if (!existing.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label } = req.body;
 
     if (name && !name.trim()) return res.status(400).json({ success: false, error: 'Product name cannot be empty' });
     if (price !== undefined) {
@@ -89806,6 +89810,8 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
         offers_accommodation = COALESCE($21, offers_accommodation),
         property_id = $22,
         stripe_config_id = $23,
+        external_url = $24,
+        external_button_label = COALESCE($25, external_button_label),
         updated_at = NOW()
       WHERE id = $15 AND account_id = $16
       RETURNING *
@@ -89830,7 +89836,9 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
       event_duration_nights ? parseInt(event_duration_nights) : null,
       offers_accommodation !== undefined ? (offers_accommodation === 'true' || offers_accommodation === true) : null,
       property_id ? parseInt(property_id) : null,
-      stripe_config_id ? parseInt(stripe_config_id) : null
+      stripe_config_id ? parseInt(stripe_config_id) : null,
+      external_url || null,
+      external_button_label || null
     ]);
 
     res.json({ success: true, product: result.rows[0] });
@@ -90153,7 +90161,7 @@ app.get('/api/public/client/:clientId/shop/products', async (req, res) => {
 
     const result = await pool.query(
       `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking,
-              product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id
+              product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, external_url, external_button_label
        FROM shop_products WHERE account_id = $1 AND is_active = true ORDER BY sort_order, created_at DESC`,
       [clientId]
     );
@@ -90186,7 +90194,7 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
 
     const result = await pool.query(
       `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, gallery_urls, category, stock_quantity, stock_tracking,
-              product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id
+              product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, external_url, external_button_label
        FROM shop_products WHERE account_id = $1 AND slug = $2 AND is_active = true`,
       [clientId, slug]
     );
