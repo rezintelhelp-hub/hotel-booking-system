@@ -7,7 +7,7 @@
 
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
- * @version 3.6.31
+ * @version 3.6.32
  */
 jQuery(document).ready(function($) {
     
@@ -3872,8 +3872,21 @@ jQuery(document).ready(function($) {
                                         $btn.find('.gas-btn-loading').hide();
                                         window.gasNotifyPaymentFailed('card', result.error.message);
                                     } else if (result.paymentIntent.status === 'succeeded') {
-                                        // Payment successful, submit booking with payment intent ID
                                         submitGroupBooking($btn, $form, result.paymentIntent.id);
+                                    } else if (result.paymentIntent.status === 'processing') {
+                                        submitGroupBooking($btn, $form, result.paymentIntent.id);
+                                    } else if (result.paymentIntent.status === 'requires_action') {
+                                        $('#gas-card-errors').text('Your card requires additional verification. Please try again or use a different card.');
+                                        $btn.prop('disabled', false);
+                                        $btn.find('.gas-btn-text').show();
+                                        $btn.find('.gas-btn-loading').hide();
+                                        window.gasNotifyPaymentFailed('card', '3DS authentication incomplete');
+                                    } else {
+                                        $('#gas-card-errors').text('Payment could not be completed. Please try again or use a different card.');
+                                        $btn.prop('disabled', false);
+                                        $btn.find('.gas-btn-text').show();
+                                        $btn.find('.gas-btn-loading').hide();
+                                        window.gasNotifyPaymentFailed('card', 'Unexpected payment status: ' + result.paymentIntent.status);
                                     }
                                 });
                             } else {
@@ -5685,7 +5698,7 @@ jQuery(document).ready(function($) {
                             }
                         }).then(function(result) {
                             if (result.error) {
-                                // Payment failed
+                                // Payment failed (includes 3DS authentication failures)
                                 $('#gas-card-errors').text(result.error.message);
                                 $btn.prop('disabled', false);
                                 $btn.find('.gas-btn-text').show();
@@ -5694,6 +5707,24 @@ jQuery(document).ready(function($) {
                             } else if (result.paymentIntent.status === 'succeeded') {
                                 // Payment successful, submit booking
                                 submitBooking($btn, result.paymentIntent.id);
+                            } else if (result.paymentIntent.status === 'processing') {
+                                // Payment is processing (bank transfers, delayed confirmation)
+                                submitBooking($btn, result.paymentIntent.id);
+                            } else if (result.paymentIntent.status === 'requires_action') {
+                                // 3DS challenge was not completed — should not reach here normally
+                                // as confirmCardPayment handles 3DS inline, but handle gracefully
+                                $('#gas-card-errors').text('Your card requires additional verification. Please try again or use a different card.');
+                                $btn.prop('disabled', false);
+                                $btn.find('.gas-btn-text').show();
+                                $btn.find('.gas-btn-loading').hide();
+                                window.gasNotifyPaymentFailed('card', '3DS authentication incomplete');
+                            } else {
+                                // Unexpected status
+                                $('#gas-card-errors').text('Payment could not be completed. Please try again or use a different card.');
+                                $btn.prop('disabled', false);
+                                $btn.find('.gas-btn-text').show();
+                                $btn.find('.gas-btn-loading').hide();
+                                window.gasNotifyPaymentFailed('card', 'Unexpected payment status: ' + result.paymentIntent.status);
                             }
                         });
                     } else {

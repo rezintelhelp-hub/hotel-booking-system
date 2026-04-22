@@ -20513,6 +20513,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
             paymentIntent = await configStripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
                 currency: effectiveCurrency.toLowerCase(),
+                payment_method_types: ['card'],
                 metadata: {
                     property_id: property_id,
                     guest_email: booking_data?.email || '',
@@ -20520,7 +20521,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
                     check_out: booking_data?.check_out || ''
                 }
             });
-            
+
             return res.json({
                 success: true,
                 client_secret: paymentIntent.client_secret,
@@ -20528,7 +20529,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
                 publishable_key: config.credentials.publishable_key
             });
         }
-        
+
         // Fall back to legacy property stripe fields
         const result = await pool.query(`
             SELECT p.stripe_secret_key, p.stripe_publishable_key, p.stripe_enabled,
@@ -20553,6 +20554,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
             paymentIntent = await propertyStripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
                 currency: effectiveCurrency.toLowerCase(),
+                payment_method_types: ['card'],
                 metadata: {
                     property_id: property_id,
                     guest_email: booking_data?.email || '',
@@ -20573,6 +20575,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
             paymentIntent = await stripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
                 currency: effectiveCurrency.toLowerCase(),
+                payment_method_types: ['card'],
                 metadata: {
                     property_id: property_id,
                     guest_email: booking_data?.email || '',
@@ -20596,6 +20599,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
             paymentIntent = await accountStripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
                 currency: (effectiveCurrency || 'eur').toLowerCase(),
+                payment_method_types: ['card'],
                 metadata: {
                     property_id: property_id,
                     guest_email: booking_data?.email || '',
