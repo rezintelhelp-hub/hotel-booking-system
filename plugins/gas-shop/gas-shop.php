@@ -730,6 +730,8 @@ function gasShopAddToCart(product) {
   var taxInclusive = shopCfg2.tax_inclusive || false;
   var deliveryFee = shopCfg2.delivery_fee || 0;
   var deliveryLabel = shopCfg2.delivery_label || "Delivery";
+  var selectedRoom = JSON.parse(localStorage.getItem("gas_shop_room") || "null");
+  var accomCost = selectedRoom ? (selectedRoom.total || 0) : 0;
   var subtotal = 0;
   var html = "<h3 style=\"margin:0 0 12px\">Order Summary</h3>";
   cart.forEach(function(item){
@@ -737,18 +739,21 @@ function gasShopAddToCart(product) {
     subtotal += lt;
     html += "<div style=\"display:flex;justify-content:space-between;padding:4px 0\"><span>"+item.name+" x"+(item.quantity||1)+"</span><span>"+curr+" "+lt.toFixed(2)+"</span></div>";
   });
+  if (accomCost > 0) {
+    html += "<div style=\"display:flex;justify-content:space-between;padding:4px 0\"><span>"+selectedRoom.name+" ("+selectedRoom.nights+" night"+(selectedRoom.nights>1?"s":"")+")</span><span>"+curr+" "+accomCost.toFixed(2)+"</span></div>";
+  }
   html += "<hr style=\"margin:12px 0\">";
-  html += "<div style=\"display:flex;justify-content:space-between;padding:4px 0;color:#64748b\"><span>Subtotal</span><span>"+curr+" "+subtotal.toFixed(2)+"</span></div>";
+  html += "<div style=\"display:flex;justify-content:space-between;padding:4px 0;color:#64748b\"><span>Subtotal</span><span>"+curr+" "+(subtotal+accomCost).toFixed(2)+"</span></div>";
   var tax = 0;
   if (taxRate > 0) {
-    tax = taxInclusive ? (subtotal - subtotal / (1 + taxRate / 100)) : (subtotal * taxRate / 100);
+    tax = taxInclusive ? ((subtotal+accomCost) - (subtotal+accomCost) / (1 + taxRate / 100)) : ((subtotal+accomCost) * taxRate / 100);
     tax = Math.round(tax * 100) / 100;
     html += "<div style=\"display:flex;justify-content:space-between;padding:4px 0;color:#64748b\"><span>"+taxLabel+" ("+taxRate+"%"+(taxInclusive?" incl.":"")+")</span><span>"+curr+" "+tax.toFixed(2)+"</span></div>";
   }
   if (deliveryFee > 0) {
     html += "<div style=\"display:flex;justify-content:space-between;padding:4px 0;color:#64748b\"><span>"+deliveryLabel+"</span><span>"+curr+" "+deliveryFee.toFixed(2)+"</span></div>";
   }
-  var grandTotal = (taxInclusive ? subtotal : subtotal + tax) + deliveryFee;
+  var grandTotal = (taxInclusive ? (subtotal+accomCost) : (subtotal+accomCost) + tax) + deliveryFee;
   html += "<div style=\"display:flex;justify-content:space-between;font-weight:700;font-size:1.1rem;margin-top:8px;padding-top:8px;border-top:2px solid #e5e7eb\"><span>Total</span><span>"+curr+" "+grandTotal.toFixed(2)+"</span></div>";
   summary.innerHTML = html;
 })();
