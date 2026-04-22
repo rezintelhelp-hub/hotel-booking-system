@@ -86,27 +86,26 @@ function xmlSafe(str) {
 
 function generateSVG(category, config) {
   const { bg, fg, svgIcon } = config;
-  // Category name for display (already XML-safe from the key names using &amp;)
-  const label = category.length > 30 ? category.substring(0, 30) + '...' : category;
+  const label = category.replace(/&amp;/g, '&').length > 30 ? category.substring(0, 30) + '...' : category;
+  // Scale icons up: translate to centre at 400,155 then scale 2.2x from that centre
   const iconSvg = (svgIcon || '').replace(/\{fg\}/g, fg);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400">
   <rect width="800" height="400" fill="${bg}"/>
-  ${iconSvg}
-  <text x="400" y="215" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="600" fill="${fg}">${label}</text>
-  <text x="400" y="250" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" fill="${fg}" opacity="0.5">GAS Travel</text>
+  <g transform="translate(400,155) scale(2.2) translate(-400,-155)">${iconSvg}</g>
+  <text x="400" y="310" text-anchor="middle" font-family="system-ui,sans-serif" font-size="24" font-weight="600" fill="${fg}" opacity="0.7">${label}</text>
 </svg>`;
 }
 
 // ─── Upload to R2 ───────────────────────────────────────────────────
 
 async function uploadPlaceholder(type, categorySlug, svgContent) {
-  const key = `website/placeholders/${type}/${categorySlug}.webp`;
+  const key = `website/placeholders/${type}/v2-${categorySlug}.webp`;
 
   // Convert SVG to WebP via Sharp
   const svgBuffer = Buffer.from(svgContent);
-  const webpBuffer = await sharp(svgBuffer, { density: 150 })
+  const webpBuffer = await sharp(svgBuffer, { density: 300 })
     .resize(800, 400)
-    .webp({ quality: 90 })
+    .webp({ quality: 95 })
     .toBuffer();
 
   await r2Client.send(new PutObjectCommand({
