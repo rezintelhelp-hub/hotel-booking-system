@@ -403,7 +403,17 @@ class GAS_Shop {
 
         // Details
         echo '<div>';
-        if (!empty($p['category'])) echo '<span class="gas-shop-cat">'.esc_html($p['category']).'</span><br><br>';
+        if (!empty($p['category'])) echo '<span class="gas-shop-cat">'.esc_html($p['category']).'</span> ';
+        if ($p['product_type'] === 'event' && !empty($p['event_start_date'])) {
+            $evStart = date('j M Y', strtotime($p['event_start_date']));
+            $evEnd = !empty($p['event_end_date']) ? date('j M Y', strtotime($p['event_end_date'])) : '';
+            $nights = $p['event_duration_nights'] ?: (($evEnd && $p['event_start_date'] !== $p['event_end_date']) ? max(1, round((strtotime($p['event_end_date']) - strtotime($p['event_start_date'])) / 86400)) : 1);
+            echo '<span style="background:#eff6ff;color:#1d4ed8;padding:4px 12px;border-radius:12px;font-size:.85rem">'.$evStart.($evEnd ? ' – '.$evEnd : '').' ('.$nights.' night'.($nights > 1 ? 's' : '').')</span> ';
+            if (!empty($p['offers_accommodation'])) {
+                echo '<span style="background:#f0fdf4;color:#166534;padding:4px 12px;border-radius:12px;font-size:.85rem">Accommodation available</span>';
+            }
+        }
+        echo '<br><br>';
         echo '<h1 style="margin:0 0 16px;color:'.$c['text'].'">'.esc_html($name).'</h1>';
         echo '<div class="gas-shop-card-price" style="font-size:1.5rem;margin-bottom:20px">'.$curr.' '.$price.'</div>';
         if ($desc) echo '<div style="color:'.$c['text_secondary'].';line-height:1.8;margin-bottom:24px">'.wp_kses_post(nl2br($desc)).'</div>';
@@ -425,6 +435,10 @@ class GAS_Shop {
             'image_url' => $p['image_thumbnail_url'] ?? $p['image_url'] ?? '',
             'stock_tracking' => !empty($p['stock_tracking']),
             'max_qty' => $p['stock_tracking'] ? intval($p['stock_quantity'] ?? 0) : 0,
+            'product_type' => $p['product_type'] ?? 'standalone',
+            'offers_accommodation' => !empty($p['offers_accommodation']),
+            'event_start_date' => $p['event_start_date'] ?? null,
+            'event_end_date' => $p['event_end_date'] ?? null,
         ), JSON_HEX_APOS | JSON_HEX_QUOT);
         $disabled = ($p['stock_tracking'] && intval($p['stock_quantity'] ?? 0) <= 0) ? ' disabled style="opacity:.5;cursor:not-allowed"' : '';
         echo '<button class="gas-shop-btn" id="gas-add-to-cart"'.$disabled.' onclick=\'gasShopAddToCart('.$product_json.')\'>Add to Cart</button>';
@@ -469,6 +483,8 @@ function gasShopAddToCart(product) {
     // ── Cart page ──
     private function render_cart() {
         $c = $this->get_colors();
+        $api_url = esc_url(trailingslashit($this->get_api_url()));
+        $client_id = esc_attr(get_option('gas_shop_client_id') ?: get_option('gas_client_id', ''));
         get_header();
         echo $this->base_css();
         echo '<style>
@@ -483,6 +499,7 @@ function gasShopAddToCart(product) {
         echo '<a href="'.esc_url(home_url('/shop/')).'" class="gas-shop-back">&larr; Continue Shopping</a>';
         echo '<h1 class="gas-shop-title">Your Cart</h1>';
         echo '<div id="gas-cart-items"></div>';
+        echo '<div id="gas-cart-accommodation" style="display:none"></div>';
         echo '<div class="gas-cart-total" id="gas-cart-total"></div>';
         echo '<div style="text-align:right;margin-top:16px">';
         echo '<a href="'.esc_url(home_url('/shop/checkout/')).'" class="gas-shop-btn" id="gas-checkout-btn" style="display:none">Proceed to Checkout</a>';
@@ -528,9 +545,17 @@ function gasShopAddToCart(product) {
       tax = taxInclusive ? (subtotal - subtotal / (1 + taxRate / 100)) : (subtotal * taxRate / 100);
       tax = Math.round(tax * 100) / 100;
     }
-    var grandTotal = (taxInclusive ? subtotal : subtotal + tax) + deliveryFee;
+    // Add accommodation cost if selected
+    var accomCost = 0;
+    var selectedRoom = JSON.parse(localStorage.getItem("gas_shop_room") || "null");
+    if (selectedRoom) accomCost = selectedRoom.total || 0;
+
+    var grandTotal = (taxInclusive ? subtotal : subtotal + tax) + deliveryFee + accomCost;
     var lines = "<div style=\"font-size:0.95rem;color:#64748b\">";
     lines += "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px\"><span>Subtotal</span><span>" + curr + " " + subtotal.toFixed(2) + "</span></div>";
+    if (accomCost > 0) {
+      lines += "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px\"><span>" + selectedRoom.name + " (" + selectedRoom.nights + " night" + (selectedRoom.nights > 1 ? "s" : "") + ")</span><span>" + curr + " " + accomCost.toFixed(2) + "</span></div>";
+    }
     if (taxRate > 0) {
       lines += "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px\"><span>" + taxLabel + " (" + taxRate + "%" + (taxInclusive ? " incl." : "") + ")</span><span>" + curr + " " + tax.toFixed(2) + "</span></div>";
     }
@@ -541,6 +566,26 @@ function gasShopAddToCart(product) {
     lines += "<div style=\"display:flex;justify-content:space-between;font-size:1.3rem;font-weight:700;margin-top:8px;padding-top:8px;border-top:2px solid #e5e7eb\"><span>Total</span><span>" + curr + " " + grandTotal.toFixed(2) + "</span></div>";
     totalEl.innerHTML = lines;
     checkoutBtn.style.display = "inline-block";
+
+    // Show accommodation prompt for event products
+    var accomDiv = document.getElementById("gas-cart-accommodation");
+    var eventItem = cart.find(function(i){ return i.product_type === "event" && i.offers_accommodation; });
+    if (eventItem && !selectedRoom) {
+      accomDiv.style.display = "block";
+      accomDiv.innerHTML = "<div style=\"padding:16px;background:#eff6ff;border-radius:8px;margin:16px 0;border:1px solid #bfdbfe\">" +
+        "<p style=\"margin:0 0 8px;font-weight:600;color:#1d4ed8\">Would you like to stay with us during your event?</p>" +
+        "<button onclick=\"gasLoadRoomOptions(\x27" + eventItem.slug + "\x27)\" style=\"padding:8px 20px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;cursor:pointer\">See available rooms</button>" +
+        "</div>";
+    } else if (eventItem && selectedRoom) {
+      accomDiv.style.display = "block";
+      accomDiv.innerHTML = "<div style=\"padding:16px;background:#f0fdf4;border-radius:8px;margin:16px 0;border:1px solid #bbf7d0\">" +
+        "<div style=\"display:flex;justify-content:space-between;align-items:center\">" +
+        "<div><strong>" + selectedRoom.name + "</strong><br><span style=\"color:#64748b;font-size:0.9rem\">" + selectedRoom.nights + " night" + (selectedRoom.nights > 1 ? "s" : "") + " — " + curr + " " + accomCost.toFixed(2) + "</span></div>" +
+        "<button onclick=\"gasRemoveRoom()\" style=\"background:none;border:none;color:#ef4444;cursor:pointer;font-size:1.2rem\" title=\"Remove\">&times;</button>" +
+        "</div></div>";
+    } else {
+      accomDiv.style.display = "none";
+    }
   }
 
   window.gasCartQty = function(idx, delta) {
@@ -554,6 +599,45 @@ function gasShopAddToCart(product) {
   window.gasCartRemove = function(idx) {
     cart.splice(idx, 1);
     localStorage.setItem("gas_shop_cart", JSON.stringify(cart));
+    render();
+  };
+  window.gasRemoveRoom = function() {
+    localStorage.removeItem("gas_shop_room");
+    render();
+  };
+  window.gasLoadRoomOptions = function(slug) {
+    var accomDiv = document.getElementById("gas-cart-accommodation");
+    accomDiv.innerHTML = "<div style=\"padding:16px;text-align:center;color:#64748b\">Loading rooms...</div>";
+    fetch("'.$api_url.'api/public/client/'.$client_id.'/shop/products/" + slug + "/room-options")
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (!data.success || !data.rooms || !data.rooms.length) {
+          accomDiv.innerHTML = "<div style=\"padding:16px;color:#64748b\">No rooms available for these dates.</div>";
+          return;
+        }
+        var curr = cart[0]?.currency || "EUR";
+        var html = "<div style=\"padding:16px;background:#f8fafc;border-radius:8px;margin:16px 0\">";
+        html += "<h3 style=\"margin:0 0 12px;font-size:1rem\">Available Rooms — " + data.check_in + " to " + data.check_out + " (" + data.nights + " night" + (data.nights > 1 ? "s" : "") + ")</h3>";
+        html += "<div style=\"display:grid;gap:12px\">";
+        data.rooms.forEach(function(room){
+          var img = room.images && room.images[0] ? "<img src=\"" + room.images[0] + "\" style=\"width:80px;height:60px;object-fit:cover;border-radius:6px\">" : "";
+          html += "<div style=\"display:flex;gap:12px;align-items:center;padding:12px;background:#fff;border-radius:8px;border:1px solid #e5e7eb\">" +
+            img +
+            "<div style=\"flex:1\"><strong>" + room.name + "</strong>" +
+            (room.type ? "<br><span style=\"font-size:0.85rem;color:#64748b\">" + room.type + " — max " + room.max_guests + " guests</span>" : "") +
+            "</div>" +
+            "<div style=\"text-align:right\"><div style=\"font-weight:700;color:#10b981\">" + (room.currency||curr) + " " + room.total.toFixed(2) + "</div>" +
+            "<div style=\"font-size:0.8rem;color:#64748b\">" + (room.currency||curr) + " " + room.rate_per_night.toFixed(2) + "/night</div></div>" +
+            "<button onclick=\x27gasSelectRoom(" + JSON.stringify(room).replace(/\x27/g,"\\x27") + ")\x27 style=\"padding:6px 16px;background:#10b981;color:#fff;border:none;border-radius:6px;cursor:pointer\">Select</button>" +
+            "</div>";
+        });
+        html += "</div></div>";
+        accomDiv.innerHTML = html;
+      })
+      .catch(function(){ accomDiv.innerHTML = "<div style=\"padding:16px;color:#ef4444\">Error loading rooms.</div>"; });
+  };
+  window.gasSelectRoom = function(room) {
+    localStorage.setItem("gas_shop_room", JSON.stringify(room));
     render();
   };
   render();
@@ -721,6 +805,7 @@ function gasShopCheckout() {
       customer_phone: phone,
       billing_address: { line1: addr1, line2: document.getElementById("gas-co-addr2").value.trim(), city: city, postcode: postcode, country: country },
       delivery_address: delAddr,
+      accommodation: JSON.parse(localStorage.getItem("gas_shop_room") || "null"),
       items: items,
       success_url: "'.$thank_you_url.'?session_id={CHECKOUT_SESSION_ID}",
       cancel_url: window.location.href
@@ -730,6 +815,7 @@ function gasShopCheckout() {
   .then(function(data){
     if (data.success && data.checkout_url) {
       localStorage.removeItem("gas_shop_cart");
+      localStorage.removeItem("gas_shop_room");
       window.location.href = data.checkout_url;
     } else {
       errEl.textContent = data.error || "Payment failed. Please try again.";

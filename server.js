@@ -86180,6 +86180,18 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS shop_tax_inclusive BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS shop_delivery_fee DECIMAL(10,2) DEFAULT 0`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS shop_delivery_label VARCHAR(50) DEFAULT 'Delivery'`);
+
+    // Event products + room upsell columns
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS product_type VARCHAR(20) NOT NULL DEFAULT 'standalone'`);
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS event_start_date DATE`);
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS event_end_date DATE`);
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS event_duration_nights INTEGER`);
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS offers_accommodation BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS property_id INTEGER`);
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS stripe_config_id INTEGER`);
+    await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS booking_id INTEGER`);
+    await pool.query(`ALTER TABLE shop_order_items ADD COLUMN IF NOT EXISTS accommodation_details JSONB`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS shop_order_id INTEGER`);
     console.log('✅ Shop tables ensured (shop_products, shop_orders, shop_order_items)');
 
     console.log('✅ Database migrations complete');
@@ -89435,6 +89447,155 @@ console.log('✅ Enigma Card Vault endpoints loaded');
 // SHOP / ECOMMERCE ENDPOINTS
 // ============================================
 
+// Helper: resolve which Stripe config to use for a shop product
+// Priority: product.stripe_config_id → property's Stripe config → account.shop_stripe_config_id
+async function resolveShopStripeConfig(product, accountId) {
+  // 1. Product-level override
+  if (product.stripe_config_id) {
+    const r = await pool.query('SELECT * FROM payment_configurations WHERE id = $1', [product.stripe_config_id]);
+    if (r.rows.length) return r.rows[0];
+  }
+  // 2. Property-level Stripe config
+  if (product.property_id) {
+    const r = await pool.query(
+      "SELECT * FROM payment_configurations WHERE property_id = $1 AND provider = 'stripe' AND is_enabled = true LIMIT 1",
+      [product.property_id]
+    );
+    if (r.rows.length) return r.rows[0];
+  }
+  // 3. Account-level shop default
+  const acc = await pool.query('SELECT shop_stripe_config_id FROM accounts WHERE id = $1', [accountId]);
+  if (acc.rows[0]?.shop_stripe_config_id) {
+    const r = await pool.query('SELECT * FROM payment_configurations WHERE id = $1', [acc.rows[0].shop_stripe_config_id]);
+    if (r.rows.length) return r.rows[0];
+  }
+  return null;
+}
+
+// Helper: create a booking from shop order accommodation (reuses exact same CM sync as /api/public/create-group-booking)
+async function createShopBooking(dbClient, { propertyId, roomId, arrivalDate, departureDate, numGuests, guestFirstName, guestLastName, guestEmail, guestPhone, roomPrice, currency, shopOrderId }) {
+  // INSERT booking — matches exact shape of create-group-booking INSERT
+  const bookingResult = await dbClient.query(`
+    INSERT INTO bookings (
+      property_id, property_owner_id, bookable_unit_id,
+      arrival_date, departure_date,
+      num_adults, num_children,
+      guest_first_name, guest_last_name, guest_email, guest_phone,
+      accommodation_price, subtotal, grand_total,
+      status, payment_status, booking_source, currency, shop_order_id
+    )
+    VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $10, $10, 'confirmed', 'paid', 'shop', $11, $12)
+    RETURNING *
+  `, [propertyId, roomId, arrivalDate, departureDate, numGuests, guestFirstName, guestLastName, guestEmail, guestPhone || '', roomPrice, currency, shopOrderId]);
+  const booking = bookingResult.rows[0];
+  console.log(`[SHOP] Created booking ${booking.id} for room ${roomId}, order ${shopOrderId}`);
+
+  // Block availability dates — same pattern as create-group-booking
+  const startParts = arrivalDate.split('-');
+  const endParts = departureDate.split('-');
+  let current = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+  const endDate = new Date(endParts[0], endParts[1] - 1, endParts[2]);
+  while (current < endDate) {
+    const dateStr = current.toISOString().split('T')[0];
+    try {
+      await dbClient.query(`
+        INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+        VALUES ($1, $2, false, true, 'booking')
+        ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true, source = 'booking'
+      `, [roomId, dateStr]);
+    } catch (blockErr) {
+      console.error(`[SHOP] Error blocking date ${dateStr}:`, blockErr.message);
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  // CM sync — same logic as create-group-booking
+  const cmResult = await dbClient.query(`
+    SELECT bu.beds24_room_id, bu.smoobu_id, bu.hostaway_listing_id, p.account_id
+    FROM bookable_units bu LEFT JOIN properties p ON bu.property_id = p.id
+    WHERE bu.id = $1
+  `, [roomId]);
+  const cmData = cmResult.rows[0];
+
+  // Beds24 sync
+  let beds24RoomId = cmData?.beds24_room_id;
+  if (!beds24RoomId) {
+    try {
+      const gsResult = await dbClient.query(`
+        SELECT gsrt.external_id FROM gas_sync_room_types gsrt
+        JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+        JOIN gas_sync_connections gsc ON gsp.connection_id = gsc.id
+        WHERE gsrt.gas_room_id = $1 AND gsc.adapter_code = 'beds24' LIMIT 1
+      `, [roomId]);
+      if (gsResult.rows[0]?.external_id) beds24RoomId = gsResult.rows[0].external_id;
+    } catch (e) { /* ignore */ }
+  }
+  if (beds24RoomId) {
+    try {
+      const accessToken = await getBeds24AccessTokenForProperty(pool, propertyId, roomId);
+      const beds24Booking = [{
+        roomId: beds24RoomId, status: 'confirmed',
+        arrival: arrivalDate, departure: departureDate,
+        numAdult: numGuests, numChild: 0,
+        firstName: guestFirstName, lastName: guestLastName,
+        email: guestEmail, mobile: guestPhone || '', phone: guestPhone || '',
+        referer: `GAS Shop - GAS-${booking.id}`, refererEditable: `GAS Shop - GAS-${booking.id}`,
+        reference: `GAS-${booking.id}`,
+        notes: `Booked via GAS Shop | Order: ${shopOrderId} | Ref: GAS-${booking.id}`,
+        price: roomPrice,
+        invoiceItems: [{ description: 'Accommodation', status: '', qty: 1, amount: roomPrice, vatRate: 0 }],
+        allowWebhooks: true
+      }];
+      const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
+        headers: getBeds24BookingHeaders(null, accessToken)
+      });
+      if (beds24Response.data?.[0]?.success) {
+        const beds24Id = beds24Response.data[0]?.new?.id;
+        if (beds24Id) await dbClient.query('UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2', [beds24Id, booking.id]);
+      }
+    } catch (e) { console.error('[SHOP] Beds24 sync error:', e.response?.data || e.message); }
+  }
+
+  // Smoobu sync
+  if (cmData?.smoobu_id) {
+    try {
+      const smoobuKeyResult = await dbClient.query("SELECT setting_value FROM client_settings WHERE client_id = $1 AND setting_key = 'smoobu_api_key'", [cmData.account_id]);
+      const smoobuApiKey = smoobuKeyResult.rows[0]?.setting_value;
+      if (smoobuApiKey) {
+        const smoobuResponse = await axios.post('https://login.smoobu.com/api/reservations', {
+          arrivalDate, departureDate, apartmentId: parseInt(cmData.smoobu_id), channelId: 13,
+          firstName: guestFirstName, lastName: guestLastName, email: guestEmail, phone: guestPhone || '',
+          adults: numGuests, children: 0, price: roomPrice,
+          notice: `GAS Shop Order ${shopOrderId} | Booking GAS-${booking.id}`
+        }, { headers: { 'Api-Key': smoobuApiKey, 'Content-Type': 'application/json' } });
+        if (smoobuResponse.data?.id) {
+          await dbClient.query('UPDATE bookings SET smoobu_booking_id = $1 WHERE id = $2', [smoobuResponse.data.id, booking.id]);
+        }
+      }
+    } catch (e) { console.error('[SHOP] Smoobu sync error:', e.response?.data || e.message); }
+  }
+
+  // Hostaway sync
+  if (cmData?.hostaway_listing_id) {
+    try {
+      const stored = await getStoredHostawayToken(pool);
+      if (stored?.accessToken) {
+        const haResp = await axios.post('https://api.hostaway.com/v1/reservations', {
+          listingMapId: cmData.hostaway_listing_id, channelId: 2000, source: 'GAS Shop',
+          arrivalDate, departureDate, guestFirstName, guestLastName, guestEmail, guestPhone: guestPhone || '',
+          numberOfGuests: numGuests, adults: numGuests, children: 0, totalPrice: roomPrice,
+          status: 'new', comment: `GAS Shop Order ${shopOrderId} | Booking GAS-${booking.id}`
+        }, { headers: { Authorization: 'Bearer ' + stored.accessToken, 'Content-Type': 'application/json' } });
+        if (haResp.data?.result?.id) {
+          await dbClient.query('UPDATE bookings SET hostaway_reservation_id = $1 WHERE id = $2', [haResp.data.result.id, booking.id]);
+        }
+      }
+    } catch (e) { console.error('[SHOP] Hostaway sync error:', e.response?.data || e.message); }
+  }
+
+  return booking;
+}
+
 // Helper: generate unique slug for shop products
 async function generateUniqueShopSlug(accountId, name, excludeId = null) {
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 80);
@@ -89500,7 +89661,7 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.body.client_id || decoded.accountId || decoded.id;
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id } = req.body;
 
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Product name is required' });
     const numPrice = parseFloat(price);
@@ -89518,8 +89679,8 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     }
 
     const result = await pool.query(`
-      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING *
     `, [
       clientId, name.trim(),
@@ -89532,7 +89693,14 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
       stock_quantity != null ? parseInt(stock_quantity) : null,
       stock_tracking === 'true' || stock_tracking === true,
       is_active !== 'false' && is_active !== false,
-      parseInt(sort_order) || 0
+      parseInt(sort_order) || 0,
+      product_type || 'standalone',
+      event_start_date || null,
+      event_end_date || null,
+      event_duration_nights ? parseInt(event_duration_nights) : null,
+      offers_accommodation === 'true' || offers_accommodation === true,
+      property_id ? parseInt(property_id) : null,
+      stripe_config_id ? parseInt(stripe_config_id) : null
     ]);
 
     res.json({ success: true, product: result.rows[0] });
@@ -89555,7 +89723,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
     const existing = await pool.query('SELECT * FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
     if (!existing.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id } = req.body;
 
     if (name && !name.trim()) return res.status(400).json({ success: false, error: 'Product name cannot be empty' });
     if (price !== undefined) {
@@ -89594,6 +89762,13 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
         stock_tracking = COALESCE($12, stock_tracking),
         is_active = COALESCE($13, is_active),
         sort_order = COALESCE($14, sort_order),
+        product_type = COALESCE($17, product_type),
+        event_start_date = $18,
+        event_end_date = $19,
+        event_duration_nights = $20,
+        offers_accommodation = COALESCE($21, offers_accommodation),
+        property_id = $22,
+        stripe_config_id = $23,
         updated_at = NOW()
       WHERE id = $15 AND account_id = $16
       RETURNING *
@@ -89611,7 +89786,14 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
       stock_tracking !== undefined ? (stock_tracking === 'true' || stock_tracking === true) : null,
       is_active !== undefined ? (is_active !== 'false' && is_active !== false) : null,
       sort_order !== undefined ? (parseInt(sort_order) || 0) : null,
-      productId, clientId
+      productId, clientId,
+      product_type || null,
+      event_start_date || null,
+      event_end_date || null,
+      event_duration_nights ? parseInt(event_duration_nights) : null,
+      offers_accommodation !== undefined ? (offers_accommodation === 'true' || offers_accommodation === true) : null,
+      property_id ? parseInt(property_id) : null,
+      stripe_config_id ? parseInt(stripe_config_id) : null
     ]);
 
     res.json({ success: true, product: result.rows[0] });
@@ -89933,7 +90115,8 @@ app.get('/api/public/client/:clientId/shop/products', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking
+      `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking,
+              product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id
        FROM shop_products WHERE account_id = $1 AND is_active = true ORDER BY sort_order, created_at DESC`,
       [clientId]
     );
@@ -89965,7 +90148,8 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
     }
 
     const result = await pool.query(
-      `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, gallery_urls, category, stock_quantity, stock_tracking
+      `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, gallery_urls, category, stock_quantity, stock_tracking,
+              product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id
        FROM shop_products WHERE account_id = $1 AND slug = $2 AND is_active = true`,
       [clientId, slug]
     );
@@ -89978,11 +90162,93 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
   }
 });
 
+// GET /api/public/client/:clientId/shop/products/:slug/room-options — available rooms for event
+app.get('/api/public/client/:clientId/shop/products/:slug/room-options', async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.clientId);
+    const slug = req.params.slug;
+
+    const product = await pool.query(
+      'SELECT * FROM shop_products WHERE account_id = $1 AND slug = $2 AND is_active = true',
+      [clientId, slug]
+    );
+    if (!product.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
+    const p = product.rows[0];
+
+    if (p.product_type !== 'event' || !p.offers_accommodation || !p.property_id) {
+      return res.status(400).json({ success: false, error: 'Product does not offer accommodation' });
+    }
+
+    const checkin = p.event_start_date ? new Date(p.event_start_date).toISOString().split('T')[0] : null;
+    const checkout = p.event_end_date ? new Date(p.event_end_date).toISOString().split('T')[0] : null;
+    if (!checkin || !checkout) return res.status(400).json({ success: false, error: 'Event dates not configured' });
+
+    // Get rooms at this property
+    const rooms = await pool.query(
+      `SELECT id, name, display_name, room_type, max_guests, base_price, currency
+       FROM bookable_units WHERE property_id = $1 AND (status IS NULL OR status != 'inactive')
+       ORDER BY base_price ASC`,
+      [p.property_id]
+    );
+
+    // Check availability for each room
+    const availableRooms = [];
+    const nights = Math.max(1, Math.round((new Date(checkout) - new Date(checkin)) / (1000*60*60*24)));
+
+    for (const room of rooms.rows) {
+      const blocked = await pool.query(
+        'SELECT date FROM room_availability WHERE room_id = $1 AND date >= $2 AND date < $3 AND (is_available = false OR is_blocked = true) LIMIT 1',
+        [room.id, checkin, checkout]
+      );
+      if (blocked.rows.length === 0) {
+        // Room is available — get rate
+        const rateResult = await pool.query(
+          'SELECT cm_price, direct_price FROM room_availability WHERE room_id = $1 AND date >= $2 AND date < $3 ORDER BY date',
+          [room.id, checkin, checkout]
+        );
+        let totalRate = 0;
+        if (rateResult.rows.length > 0) {
+          for (const r of rateResult.rows) {
+            totalRate += parseFloat(r.direct_price || r.cm_price || room.base_price || 0);
+          }
+        } else {
+          totalRate = parseFloat(room.base_price || 0) * nights;
+        }
+
+        // Get room images
+        const images = await pool.query(
+          "SELECT url FROM room_images WHERE room_id = $1 ORDER BY sort_order LIMIT 3",
+          [room.id]
+        );
+
+        availableRooms.push({
+          room_id: room.id,
+          name: room.display_name || room.name,
+          type: room.room_type,
+          max_guests: room.max_guests,
+          rate_per_night: Math.round(totalRate / nights * 100) / 100,
+          total: Math.round(totalRate * 100) / 100,
+          currency: room.currency || p.currency,
+          nights,
+          check_in: checkin,
+          check_out: checkout,
+          images: images.rows.map(i => i.url)
+        });
+      }
+    }
+
+    res.json({ success: true, rooms: availableRooms, check_in: checkin, check_out: checkout, nights });
+  } catch (error) {
+    console.error('Room options error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/public/shop/create-checkout-session — create Stripe checkout + pending order
 app.post('/api/public/shop/create-checkout-session', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { client_id, customer_name, customer_email, customer_phone, billing_address, delivery_address, items, success_url, cancel_url } = req.body;
+    const { client_id, customer_name, customer_email, customer_phone, billing_address, delivery_address, accommodation, items, success_url, cancel_url } = req.body;
 
     if (!client_id || !customer_email || !items || !items.length) {
       return res.status(400).json({ success: false, error: 'Missing required fields (client_id, customer_email, items)' });
@@ -89994,19 +90260,6 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Shop not available' });
     }
     const acc = account.rows[0];
-
-    // Get Stripe config
-    if (!acc.shop_stripe_config_id) {
-      return res.status(400).json({ success: false, error: 'No payment account configured for this shop' });
-    }
-    const configResult = await client.query('SELECT * FROM payment_configurations WHERE id = $1 AND account_id = $2', [acc.shop_stripe_config_id, client_id]);
-    if (!configResult.rows.length) {
-      return res.status(400).json({ success: false, error: 'Payment configuration not found' });
-    }
-    const creds = typeof configResult.rows[0].credentials === 'string' ? JSON.parse(configResult.rows[0].credentials) : configResult.rows[0].credentials;
-    if (!creds || !creds.secret_key) {
-      return res.status(400).json({ success: false, error: 'Stripe credentials not configured' });
-    }
 
     // Validate products and calculate totals server-side
     const productIds = items.map(i => parseInt(i.product_id));
@@ -90103,6 +90356,87 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
       });
     }
 
+    // Handle accommodation upsell for event products
+    let accommodationDetails = null;
+    let accommodationTotal = 0;
+    if (accommodation && accommodation.room_id) {
+      // Find the event product in the cart
+      const eventProduct = Object.values(productsMap).find(p => p.product_type === 'event' && p.offers_accommodation && p.property_id);
+      if (!eventProduct) return res.status(400).json({ success: false, error: 'No event product in cart that offers accommodation' });
+
+      const roomId = parseInt(accommodation.room_id);
+      const accomCheckin = eventProduct.event_start_date ? new Date(eventProduct.event_start_date).toISOString().split('T')[0] : null;
+      const accomCheckout = eventProduct.event_end_date ? new Date(eventProduct.event_end_date).toISOString().split('T')[0] : null;
+      if (!accomCheckin || !accomCheckout) return res.status(400).json({ success: false, error: 'Event dates not configured' });
+
+      // Re-validate availability (race condition protection)
+      const blocked = await client.query(
+        'SELECT date FROM room_availability WHERE room_id = $1 AND date >= $2 AND date < $3 AND (is_available = false OR is_blocked = true) LIMIT 1',
+        [roomId, accomCheckin, accomCheckout]
+      );
+      if (blocked.rows.length > 0) return res.status(409).json({ success: false, error: 'Room is no longer available for these dates' });
+
+      // Calculate room rate
+      const accomNights = Math.max(1, Math.round((new Date(accomCheckout) - new Date(accomCheckin)) / (1000*60*60*24)));
+      const roomInfo = await client.query('SELECT name, display_name, base_price, currency FROM bookable_units WHERE id = $1', [roomId]);
+      if (!roomInfo.rows.length) return res.status(400).json({ success: false, error: 'Room not found' });
+      const room = roomInfo.rows[0];
+
+      const rateResult = await client.query(
+        'SELECT cm_price, direct_price FROM room_availability WHERE room_id = $1 AND date >= $2 AND date < $3 ORDER BY date',
+        [roomId, accomCheckin, accomCheckout]
+      );
+      if (rateResult.rows.length > 0) {
+        for (const r of rateResult.rows) accommodationTotal += parseFloat(r.direct_price || r.cm_price || room.base_price || 0);
+      } else {
+        accommodationTotal = parseFloat(room.base_price || 0) * accomNights;
+      }
+      accommodationTotal = Math.round(accommodationTotal * 100) / 100;
+
+      accommodationDetails = {
+        room_id: roomId, room_name: room.display_name || room.name,
+        check_in: accomCheckin, check_out: accomCheckout, nights: accomNights,
+        guests: parseInt(accommodation.guests) || room.max_guests || 2,
+        room_rate: Math.round(accommodationTotal / accomNights * 100) / 100,
+        subtotal: accommodationTotal
+      };
+
+      // Add room as Stripe line item
+      lineItems.push({
+        price_data: {
+          currency: currency,
+          product_data: { name: (room.display_name || room.name) + ' — ' + accomNights + ' night' + (accomNights > 1 ? 's' : '') },
+          unit_amount: Math.round(accommodationTotal * 100)
+        },
+        quantity: 1
+      });
+
+      // Soft reservation — block dates NOW so no one else can book
+      const startParts = accomCheckin.split('-');
+      const endParts = accomCheckout.split('-');
+      let cur = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+      const endDt = new Date(endParts[0], endParts[1] - 1, endParts[2]);
+      while (cur < endDt) {
+        const ds = cur.toISOString().split('T')[0];
+        await client.query(`
+          INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+          VALUES ($1, $2, false, true, 'pending_payment')
+          ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true, source = 'pending_payment'
+        `, [roomId, ds]);
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+
+    // Update total to include accommodation
+    const grandTotal = total + accommodationTotal;
+
+    // Resolve Stripe config — product-level → property-level → account-level
+    const firstProduct = productsResult.rows[0];
+    const stripeConfig = await resolveShopStripeConfig(firstProduct, client_id);
+    if (!stripeConfig) return res.status(400).json({ success: false, error: 'No payment account configured for this shop' });
+    const creds = typeof stripeConfig.credentials === 'string' ? JSON.parse(stripeConfig.credentials) : stripeConfig.credentials;
+    if (!creds || !creds.secret_key) return res.status(400).json({ success: false, error: 'Stripe credentials not configured' });
+
     // Generate order number: SH-YYYYMMDD-NNNN
     const today = new Date();
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
@@ -90120,15 +90454,16 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
       INSERT INTO shop_orders (account_id, order_number, customer_email, customer_name, customer_phone, items, subtotal, tax, total, currency, status, payment_status, stripe_config_id_snapshot, delivery_fee, tax_label, delivery_label, billing_address, delivery_address)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', 'unpaid', $11, $12, $13, $14, $15, $16)
       RETURNING *
-    `, [client_id, orderNumber, customer_email, customer_name || null, customer_phone || null, JSON.stringify(validatedItems), subtotal, tax, total, currency.toUpperCase(), acc.shop_stripe_config_id, deliveryFee, taxLabel, deliveryLabel, JSON.stringify(billing_address || {}), JSON.stringify(delivery_address || {})]);
+    `, [client_id, orderNumber, customer_email, customer_name || null, customer_phone || null, JSON.stringify(validatedItems), subtotal, tax, grandTotal, currency.toUpperCase(), stripeConfig.id, deliveryFee, taxLabel, deliveryLabel, JSON.stringify(billing_address || {}), JSON.stringify(delivery_address || {})]);
     const order = orderResult.rows[0];
 
     // Insert order items
     for (const vi of validatedItems) {
       await client.query(`
-        INSERT INTO shop_order_items (order_id, product_id, product_name, quantity, unit_price, total)
-        VALUES ($1, $2, $3, $4, $5, $6)
-      `, [order.id, vi.product_id, vi.product_name, vi.quantity, vi.unit_price, vi.total]);
+        INSERT INTO shop_order_items (order_id, product_id, product_name, quantity, unit_price, total, accommodation_details)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [order.id, vi.product_id, vi.product_name, vi.quantity, vi.unit_price, vi.total,
+          (accommodationDetails && vi.product_id === firstProduct?.id) ? JSON.stringify(accommodationDetails) : null]);
     }
 
     // Create Stripe Checkout Session
@@ -90138,10 +90473,12 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
       payment_method_types: ['card'],
       line_items: lineItems,
       customer_email: customer_email,
+      expires_at: Math.floor(Date.now() / 1000) + 1200, // 20 minutes — matches soft reservation TTL
       metadata: {
         gas_order_id: String(order.id),
         gas_account_id: String(client_id),
-        gas_order_number: orderNumber
+        gas_order_number: orderNumber,
+        has_accommodation: accommodationDetails ? 'true' : 'false'
       },
       success_url: success_url || `${req.protocol}://${req.get('host')}/shop/thank-you/?order=${orderNumber}`,
       cancel_url: cancel_url || `${req.protocol}://${req.get('host')}/shop/checkout/`
@@ -90212,6 +90549,46 @@ app.post('/api/webhooks/stripe-shop', express.raw({ type: 'application/json' }),
         }
       }
 
+      // Create booking if order has accommodation
+      let shopBooking = null;
+      const accomItem = orderItems.rows.find(i => i.accommodation_details);
+      if (accomItem && accomItem.accommodation_details) {
+        const ad = typeof accomItem.accommodation_details === 'string' ? JSON.parse(accomItem.accommodation_details) : accomItem.accommodation_details;
+        const eventProduct = await pool.query('SELECT property_id, currency FROM shop_products WHERE id = $1', [accomItem.product_id]);
+        const propertyId = eventProduct.rows[0]?.property_id;
+        if (propertyId && ad.room_id && ad.check_in && ad.check_out) {
+          try {
+            const nameParts = (order.customer_name || '').split(' ');
+            const firstName = nameParts[0] || 'Guest';
+            const lastName = nameParts.slice(1).join(' ') || '';
+            const bookingClient = await pool.connect();
+            try {
+              shopBooking = await createShopBooking(bookingClient, {
+                propertyId, roomId: ad.room_id,
+                arrivalDate: ad.check_in, departureDate: ad.check_out,
+                numGuests: ad.guests || 2,
+                guestFirstName: firstName, guestLastName: lastName,
+                guestEmail: order.customer_email, guestPhone: order.customer_phone || '',
+                roomPrice: ad.subtotal, currency: eventProduct.rows[0]?.currency || order.currency,
+                shopOrderId: order.id
+              });
+              // Link booking to order
+              await pool.query('UPDATE shop_orders SET booking_id = $1 WHERE id = $2', [shopBooking.id, order.id]);
+              // Upgrade soft reservation blocks from 'pending_payment' to 'booking'
+              await pool.query(
+                "UPDATE room_availability SET source = 'booking' WHERE room_id = $1 AND date >= $2 AND date < $3 AND source = 'pending_payment'",
+                [ad.room_id, ad.check_in, ad.check_out]
+              );
+              console.log('[SHOP] Booking created:', shopBooking.id, 'linked to order:', order.id);
+            } finally {
+              bookingClient.release();
+            }
+          } catch (bookingErr) {
+            console.error('[SHOP] Error creating booking from order:', bookingErr.message);
+          }
+        }
+      }
+
       // Get account info for emails
       const acc = await pool.query('SELECT name, email FROM accounts WHERE id = $1', [accountId]);
       const accountName = acc.rows[0]?.name || 'Shop';
@@ -90247,6 +90624,14 @@ app.post('/api/webhooks/stripe-shop', express.raw({ type: 'application/json' }),
           <div style="text-align:right;padding:12px;background:#f0fdf4;border-radius:8px">
             <span style="font-size:1.2rem;font-weight:700;color:#10b981">${curr} ${parseFloat(order.total).toFixed(2)}</span>
           </div>
+          ${shopBooking ? `
+          <div style="margin-top:24px;padding:16px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe">
+            <h3 style="margin:0 0 8px;color:#1d4ed8;font-size:16px">Accommodation Booking</h3>
+            <p style="margin:0 0 4px"><strong>Booking Ref:</strong> GAS-${shopBooking.id}</p>
+            <p style="margin:0 0 4px"><strong>Room:</strong> ${accomItem.accommodation_details?.room_name || 'Room'}</p>
+            <p style="margin:0 0 4px"><strong>Check-in:</strong> ${new Date(shopBooking.arrival_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <p style="margin:0 0 4px"><strong>Check-out:</strong> ${new Date(shopBooking.departure_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          </div>` : ''}
         </div>
         <div style="padding:16px 0;border-top:1px solid #e5e7eb;text-align:center;color:#94a3b8;font-size:12px">
           <p>${accountName}</p>
@@ -90300,10 +90685,25 @@ app.post('/api/webhooks/stripe-shop', express.raw({ type: 'application/json' }),
       const session = event.data.object;
       const orderId = session.metadata?.gas_order_id;
       if (orderId) {
+        // Cancel the order
         await pool.query(
           "UPDATE shop_orders SET status = 'cancelled', payment_status = 'expired', updated_at = NOW() WHERE id = $1 AND payment_status = 'unpaid'",
           [orderId]
         );
+        // Unblock soft reservations — release room_availability rows marked as pending_payment
+        const expiredItems = await pool.query('SELECT * FROM shop_order_items WHERE order_id = $1', [orderId]);
+        for (const item of expiredItems.rows) {
+          if (item.accommodation_details) {
+            const ad = typeof item.accommodation_details === 'string' ? JSON.parse(item.accommodation_details) : item.accommodation_details;
+            if (ad.room_id && ad.check_in && ad.check_out) {
+              await pool.query(
+                "DELETE FROM room_availability WHERE room_id = $1 AND date >= $2 AND date < $3 AND source = 'pending_payment'",
+                [ad.room_id, ad.check_in, ad.check_out]
+              );
+              console.log('[SHOP] Released soft reservation for room', ad.room_id, 'dates', ad.check_in, '-', ad.check_out);
+            }
+          }
+        }
         console.log('[SHOP] Checkout expired, order cancelled:', orderId);
       }
     }
