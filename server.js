@@ -89913,7 +89913,301 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
   }
 });
 
-console.log('✅ Shop ecommerce endpoints loaded');
+// POST /api/public/shop/create-checkout-session — create Stripe checkout + pending order
+app.post('/api/public/shop/create-checkout-session', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { client_id, customer_name, customer_email, customer_phone, items, success_url, cancel_url } = req.body;
+
+    if (!client_id || !customer_email || !items || !items.length) {
+      return res.status(400).json({ success: false, error: 'Missing required fields (client_id, customer_email, items)' });
+    }
+
+    // Check shop_enabled
+    const account = await client.query('SELECT shop_enabled, shop_stripe_config_id, currency, name, email FROM accounts WHERE id = $1', [client_id]);
+    if (!account.rows.length || !account.rows[0].shop_enabled) {
+      return res.status(404).json({ success: false, error: 'Shop not available' });
+    }
+    const acc = account.rows[0];
+
+    // Get Stripe config
+    if (!acc.shop_stripe_config_id) {
+      return res.status(400).json({ success: false, error: 'No payment account configured for this shop' });
+    }
+    const configResult = await client.query('SELECT * FROM payment_configurations WHERE id = $1 AND account_id = $2', [acc.shop_stripe_config_id, client_id]);
+    if (!configResult.rows.length) {
+      return res.status(400).json({ success: false, error: 'Payment configuration not found' });
+    }
+    const creds = typeof configResult.rows[0].credentials === 'string' ? JSON.parse(configResult.rows[0].credentials) : configResult.rows[0].credentials;
+    if (!creds || !creds.secret_key) {
+      return res.status(400).json({ success: false, error: 'Stripe credentials not configured' });
+    }
+
+    // Validate products and calculate totals server-side
+    const productIds = items.map(i => parseInt(i.product_id));
+    const productsResult = await client.query(
+      'SELECT * FROM shop_products WHERE id = ANY($1) AND account_id = $2 AND is_active = true',
+      [productIds, client_id]
+    );
+    const productsMap = {};
+    productsResult.rows.forEach(p => { productsMap[p.id] = p; });
+
+    let subtotal = 0;
+    const validatedItems = [];
+    const lineItems = [];
+    let currency = (acc.currency || 'EUR').toLowerCase();
+
+    for (const item of items) {
+      const product = productsMap[parseInt(item.product_id)];
+      if (!product) return res.status(400).json({ success: false, error: `Product ${item.product_id} not found or inactive` });
+
+      const qty = Math.max(1, parseInt(item.quantity) || 1);
+
+      // Stock check
+      if (product.stock_tracking && product.stock_quantity !== null && product.stock_quantity < qty) {
+        return res.status(400).json({ success: false, error: `Insufficient stock for ${product.name} (${product.stock_quantity} available)` });
+      }
+
+      const lineTotal = parseFloat(product.price) * qty;
+      subtotal += lineTotal;
+      currency = (product.currency || acc.currency || 'EUR').toLowerCase();
+
+      validatedItems.push({
+        product_id: product.id,
+        product_name: product.name,
+        quantity: qty,
+        unit_price: parseFloat(product.price),
+        total: lineTotal
+      });
+
+      lineItems.push({
+        price_data: {
+          currency: currency,
+          product_data: {
+            name: product.name,
+            ...(product.image_url ? { images: [product.image_url] } : {})
+          },
+          unit_amount: Math.round(parseFloat(product.price) * 100)
+        },
+        quantity: qty
+      });
+    }
+
+    const total = subtotal; // No tax calculation in MVP
+
+    // Generate order number: SH-YYYYMMDD-NNNN
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+    const seqResult = await client.query(
+      "SELECT COUNT(*) FROM shop_orders WHERE account_id = $1 AND order_number LIKE $2",
+      [client_id, `SH-${dateStr}-%`]
+    );
+    const seq = parseInt(seqResult.rows[0].count) + 1;
+    const orderNumber = `SH-${dateStr}-${String(seq).padStart(4, '0')}`;
+
+    // Create order in transaction
+    await client.query('BEGIN');
+
+    const orderResult = await client.query(`
+      INSERT INTO shop_orders (account_id, order_number, customer_email, customer_name, customer_phone, items, subtotal, tax, total, currency, status, payment_status, stripe_config_id_snapshot)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, $9, 'pending', 'unpaid', $10)
+      RETURNING *
+    `, [client_id, orderNumber, customer_email, customer_name || null, customer_phone || null, JSON.stringify(validatedItems), subtotal, total, currency.toUpperCase(), acc.shop_stripe_config_id]);
+    const order = orderResult.rows[0];
+
+    // Insert order items
+    for (const vi of validatedItems) {
+      await client.query(`
+        INSERT INTO shop_order_items (order_id, product_id, product_name, quantity, unit_price, total)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [order.id, vi.product_id, vi.product_name, vi.quantity, vi.unit_price, vi.total]);
+    }
+
+    // Create Stripe Checkout Session
+    const shopStripe = new Stripe(creds.secret_key);
+    const session = await shopStripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: lineItems,
+      customer_email: customer_email,
+      metadata: {
+        gas_order_id: String(order.id),
+        gas_account_id: String(client_id),
+        gas_order_number: orderNumber
+      },
+      success_url: success_url || `${req.protocol}://${req.get('host')}/shop/thank-you/?order=${orderNumber}`,
+      cancel_url: cancel_url || `${req.protocol}://${req.get('host')}/shop/checkout/`
+    });
+
+    // Save session ID
+    await client.query('UPDATE shop_orders SET stripe_session_id = $1 WHERE id = $2', [session.id, order.id]);
+
+    await client.query('COMMIT');
+
+    res.json({ success: true, checkout_url: session.url, order_number: orderNumber });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Shop checkout session error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/webhooks/stripe-shop — handle shop payment completion
+app.post('/api/webhooks/stripe-shop', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    // Parse event — verify signature if secret is set
+    const webhookSecret = process.env.STRIPE_SHOP_WEBHOOK_SECRET;
+    let event;
+
+    if (webhookSecret) {
+      const sig = req.headers['stripe-signature'];
+      const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
+      event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+    } else {
+      console.warn('[SHOP] WARNING: STRIPE_SHOP_WEBHOOK_SECRET not set — skipping signature verification');
+      event = JSON.parse(Buffer.isBuffer(req.body) ? req.body.toString('utf8') : req.body);
+    }
+
+    console.log('[SHOP] Webhook event:', event.type);
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const orderId = session.metadata?.gas_order_id;
+      const accountId = session.metadata?.gas_account_id;
+
+      if (!orderId) { console.warn('[SHOP] No order ID in session metadata'); return res.json({ received: true }); }
+
+      // Update order status
+      const orderResult = await pool.query(
+        `UPDATE shop_orders SET status = 'processing', payment_status = 'paid', stripe_payment_intent_id = $1, updated_at = NOW()
+         WHERE id = $2 AND payment_status != 'paid' RETURNING *`,
+        [session.payment_intent, orderId]
+      );
+
+      if (!orderResult.rows.length) {
+        console.log('[SHOP] Order already processed or not found:', orderId);
+        return res.json({ received: true });
+      }
+      const order = orderResult.rows[0];
+
+      // Atomic inventory decrement
+      const orderItems = await pool.query('SELECT * FROM shop_order_items WHERE order_id = $1', [orderId]);
+      for (const item of orderItems.rows) {
+        if (item.product_id) {
+          await pool.query(
+            `UPDATE shop_products SET stock_quantity = GREATEST(0, COALESCE(stock_quantity, 0) - $1), updated_at = NOW()
+             WHERE id = $2 AND stock_tracking = true`,
+            [item.quantity, item.product_id]
+          );
+        }
+      }
+
+      // Get account info for emails
+      const acc = await pool.query('SELECT name, email FROM accounts WHERE id = $1', [accountId]);
+      const accountName = acc.rows[0]?.name || 'Shop';
+      const operatorEmail = acc.rows[0]?.email;
+
+      const curr = order.currency || 'EUR';
+      const itemsHtml = orderItems.rows.map(i =>
+        `<tr><td style="padding:8px 12px;border-bottom:1px solid #e2e8f0">${i.product_name}</td>` +
+        `<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:center">${i.quantity}</td>` +
+        `<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:right">${curr} ${parseFloat(i.unit_price).toFixed(2)}</td>` +
+        `<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:right">${curr} ${parseFloat(i.total).toFixed(2)}</td></tr>`
+      ).join('');
+
+      // Customer confirmation email
+      const customerHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:'Segoe UI',Arial,sans-serif;color:#334155;max-width:600px;margin:0 auto;padding:20px">
+        <div style="text-align:center;padding:24px 0;border-bottom:3px solid #10b981">
+          <h1 style="margin:0;color:#10b981;font-size:24px">Order Confirmed</h1>
+          <p style="margin:8px 0 0;color:#64748b">Thank you for your purchase!</p>
+        </div>
+        <div style="padding:24px 0">
+          <p style="margin:0 0 4px"><strong>Order:</strong> ${order.order_number}</p>
+          <p style="margin:0 0 4px"><strong>Date:</strong> ${new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          <p style="margin:0 0 16px"><strong>Name:</strong> ${order.customer_name || order.customer_email}</p>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+            <thead><tr style="background:#f8fafc">
+              <th style="padding:8px 12px;text-align:left;font-size:12px;text-transform:uppercase;color:#64748b">Product</th>
+              <th style="padding:8px 12px;text-align:center;font-size:12px;text-transform:uppercase;color:#64748b">Qty</th>
+              <th style="padding:8px 12px;text-align:right;font-size:12px;text-transform:uppercase;color:#64748b">Price</th>
+              <th style="padding:8px 12px;text-align:right;font-size:12px;text-transform:uppercase;color:#64748b">Total</th>
+            </tr></thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+          <div style="text-align:right;padding:12px;background:#f0fdf4;border-radius:8px">
+            <span style="font-size:1.2rem;font-weight:700;color:#10b981">${curr} ${parseFloat(order.total).toFixed(2)}</span>
+          </div>
+        </div>
+        <div style="padding:16px 0;border-top:1px solid #e5e7eb;text-align:center;color:#94a3b8;font-size:12px">
+          <p>${accountName}</p>
+        </div>
+      </body></html>`;
+
+      await sendEmail({
+        to: order.customer_email,
+        subject: `Order Confirmation ${order.order_number} — ${accountName}`,
+        html: customerHtml
+      });
+
+      // Operator notification email
+      if (operatorEmail) {
+        const operatorHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:'Segoe UI',Arial,sans-serif;color:#334155;max-width:600px;margin:0 auto;padding:20px">
+          <div style="text-align:center;padding:24px 0;border-bottom:3px solid #3b82f6">
+            <h1 style="margin:0;color:#3b82f6;font-size:24px">New Shop Order</h1>
+            <p style="margin:8px 0 0;color:#64748b">${order.order_number}</p>
+          </div>
+          <div style="padding:24px 0">
+            <p><strong>Customer:</strong> ${order.customer_name || '-'} (${order.customer_email})</p>
+            ${order.customer_phone ? `<p><strong>Phone:</strong> ${order.customer_phone}</p>` : ''}
+            <p><strong>Total:</strong> ${curr} ${parseFloat(order.total).toFixed(2)}</p>
+            <table style="width:100%;border-collapse:collapse;margin:16px 0">
+              <thead><tr style="background:#f8fafc">
+                <th style="padding:8px 12px;text-align:left;font-size:12px;text-transform:uppercase;color:#64748b">Product</th>
+                <th style="padding:8px 12px;text-align:center;font-size:12px">Qty</th>
+                <th style="padding:8px 12px;text-align:right;font-size:12px">Total</th>
+              </tr></thead>
+              <tbody>${orderItems.rows.map(i =>
+                `<tr><td style="padding:8px 12px;border-bottom:1px solid #e2e8f0">${i.product_name}</td>` +
+                `<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:center">${i.quantity}</td>` +
+                `<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:right">${curr} ${parseFloat(i.total).toFixed(2)}</td></tr>`
+              ).join('')}</tbody>
+            </table>
+            <p style="text-align:center;margin-top:24px"><a href="https://admin.gas.travel/gas-admin.html" style="display:inline-block;padding:10px 24px;background:#3b82f6;color:#fff;border-radius:20px;text-decoration:none">View in GAS Admin</a></p>
+          </div>
+        </body></html>`;
+
+        await sendEmail({
+          to: operatorEmail,
+          subject: `New Order ${order.order_number} — ${curr} ${parseFloat(order.total).toFixed(2)}`,
+          html: operatorHtml
+        });
+      }
+
+      console.log('[SHOP] Order paid and emails sent:', order.order_number);
+    }
+
+    if (event.type === 'checkout.session.expired') {
+      const session = event.data.object;
+      const orderId = session.metadata?.gas_order_id;
+      if (orderId) {
+        await pool.query(
+          "UPDATE shop_orders SET status = 'cancelled', payment_status = 'expired', updated_at = NOW() WHERE id = $1 AND payment_status = 'unpaid'",
+          [orderId]
+        );
+        console.log('[SHOP] Checkout expired, order cancelled:', orderId);
+      }
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('[SHOP] Webhook error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+console.log('✅ Shop ecommerce endpoints loaded (inc. checkout + webhook)');
 
 // ============================================
 // CATCH-ALL HANDLER (must be last route)
