@@ -86099,6 +86099,73 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS google_refresh_token TEXT`);
     console.log('✅ Unified Inbox tables ensured (inbox_messages, inbox_channels)');
 
+    // ── Shop / Ecommerce tables ──
+    await pool.query(`CREATE TABLE IF NOT EXISTS shop_products (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+      name VARCHAR(255) NOT NULL,
+      name_ml JSONB DEFAULT '{}',
+      slug VARCHAR(255) NOT NULL,
+      description TEXT,
+      description_ml JSONB DEFAULT '{}',
+      price DECIMAL(10,2) NOT NULL,
+      currency VARCHAR(10) DEFAULT 'EUR',
+      image_url TEXT,
+      image_thumbnail_url TEXT,
+      gallery_urls JSONB DEFAULT '[]',
+      category VARCHAR(100),
+      stock_quantity INTEGER,
+      stock_tracking BOOLEAN DEFAULT false,
+      is_active BOOLEAN DEFAULT true,
+      sort_order INTEGER DEFAULT 0,
+      metadata JSONB DEFAULT '{}',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(account_id, slug)
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_shop_products_account ON shop_products(account_id, is_active)`);
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS shop_orders (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+      order_number VARCHAR(50) UNIQUE NOT NULL,
+      customer_email VARCHAR(255) NOT NULL,
+      customer_name VARCHAR(255),
+      customer_phone VARCHAR(50),
+      items JSONB NOT NULL,
+      subtotal DECIMAL(10,2) NOT NULL,
+      tax DECIMAL(10,2) DEFAULT 0,
+      total DECIMAL(10,2) NOT NULL,
+      currency VARCHAR(10) DEFAULT 'EUR',
+      status VARCHAR(30) DEFAULT 'pending',
+      payment_status VARCHAR(30) DEFAULT 'unpaid',
+      stripe_session_id TEXT,
+      stripe_payment_intent_id TEXT,
+      stripe_config_id_snapshot INTEGER,
+      fulfilled_at TIMESTAMP,
+      notes TEXT,
+      metadata JSONB DEFAULT '{}',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_shop_orders_account ON shop_orders(account_id, status, created_at DESC)`);
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS shop_order_items (
+      id SERIAL PRIMARY KEY,
+      order_id INTEGER REFERENCES shop_orders(id) ON DELETE CASCADE,
+      product_id INTEGER REFERENCES shop_products(id) ON DELETE SET NULL,
+      product_name VARCHAR(255) NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      unit_price DECIMAL(10,2) NOT NULL,
+      total DECIMAL(10,2) NOT NULL,
+      metadata JSONB DEFAULT '{}'
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_shop_order_items_order ON shop_order_items(order_id)`);
+
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS shop_enabled BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS shop_stripe_config_id INTEGER`);
+    console.log('✅ Shop tables ensured (shop_products, shop_orders, shop_order_items)');
+
     console.log('✅ Database migrations complete');
   } catch (migrationError) {
     console.log('⚠️ Migration error (may already exist):', migrationError.message);
@@ -89347,6 +89414,507 @@ app.get('/api/public/property/:id/card-guarantee-info', async (req, res) => {
 });
 
 console.log('✅ Enigma Card Vault endpoints loaded');
+
+// ============================================
+// SHOP / ECOMMERCE ENDPOINTS
+// ============================================
+
+// Helper: generate unique slug for shop products
+async function generateUniqueShopSlug(accountId, name, excludeId = null) {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 80);
+  if (!base) return 'product-' + Date.now();
+  let slug = base;
+  let suffix = 1;
+  while (true) {
+    let query = 'SELECT id FROM shop_products WHERE account_id = $1 AND slug = $2';
+    const params = [accountId, slug];
+    if (excludeId) {
+      query += ' AND id != $3';
+      params.push(excludeId);
+    }
+    const existing = await pool.query(query, params);
+    if (existing.rows.length === 0) return slug;
+    suffix++;
+    slug = `${base}-${suffix}`;
+  }
+}
+
+// Helper: extract accountId from JWT token
+function extractAccountFromToken(req) {
+  const token = (req.headers.authorization || '').replace('Bearer ', '');
+  if (!token) return null;
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET || 'gas-secret-key');
+  } catch (e) {
+    return null;
+  }
+}
+
+// GET /api/admin/shop/products — list products for account
+app.get('/api/admin/shop/products', async (req, res) => {
+  try {
+    const decoded = extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const clientId = req.query.client_id || decoded.accountId || decoded.id;
+    const result = await pool.query(
+      `SELECT * FROM shop_products WHERE account_id = $1 ORDER BY sort_order, created_at DESC`,
+      [clientId]
+    );
+    res.json({ success: true, products: result.rows });
+  } catch (error) {
+    console.error('Shop products list error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/admin/shop/products — create product
+app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => {
+  try {
+    const decoded = extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const clientId = req.body.client_id || decoded.accountId || decoded.id;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml } = req.body;
+
+    if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Product name is required' });
+    const numPrice = parseFloat(price);
+    if (isNaN(numPrice) || numPrice < 0 || numPrice > 999999.99) return res.status(400).json({ success: false, error: 'Price must be between 0 and 999999.99' });
+
+    const slug = await generateUniqueShopSlug(clientId, name.trim());
+
+    // Handle image upload if file attached
+    let imageUrl = req.body.image_url || null;
+    let imageThumbnailUrl = null;
+    if (req.file) {
+      const r2Result = await processAndUploadImage(req.file.buffer, 'shop-product', clientId, req.file.originalname);
+      imageUrl = r2Result.original || r2Result.large;
+      imageThumbnailUrl = r2Result.thumbnail;
+    }
+
+    const result = await pool.query(`
+      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      RETURNING *
+    `, [
+      clientId, name.trim(),
+      name_ml ? (typeof name_ml === 'string' ? JSON.parse(name_ml) : name_ml) : '{}',
+      slug, description || null,
+      description_ml ? (typeof description_ml === 'string' ? JSON.parse(description_ml) : description_ml) : '{}',
+      numPrice, currency || 'EUR',
+      imageUrl, imageThumbnailUrl,
+      category || null,
+      stock_quantity != null ? parseInt(stock_quantity) : null,
+      stock_tracking === 'true' || stock_tracking === true,
+      is_active !== 'false' && is_active !== false,
+      parseInt(sort_order) || 0
+    ]);
+
+    res.json({ success: true, product: result.rows[0] });
+  } catch (error) {
+    console.error('Shop product create error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/admin/shop/products/:id — update product
+app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) => {
+  try {
+    const decoded = extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const productId = parseInt(req.params.id);
+    const clientId = req.body.client_id || decoded.accountId || decoded.id;
+
+    // Verify ownership
+    const existing = await pool.query('SELECT * FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
+    if (!existing.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
+
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml } = req.body;
+
+    if (name && !name.trim()) return res.status(400).json({ success: false, error: 'Product name cannot be empty' });
+    if (price !== undefined) {
+      const numPrice = parseFloat(price);
+      if (isNaN(numPrice) || numPrice < 0 || numPrice > 999999.99) return res.status(400).json({ success: false, error: 'Price must be between 0 and 999999.99' });
+    }
+
+    // Regenerate slug if name changed
+    let slug = existing.rows[0].slug;
+    if (name && name.trim() !== existing.rows[0].name) {
+      slug = await generateUniqueShopSlug(clientId, name.trim(), productId);
+    }
+
+    // Handle image upload if file attached
+    let imageUrl = req.body.image_url !== undefined ? req.body.image_url : existing.rows[0].image_url;
+    let imageThumbnailUrl = existing.rows[0].image_thumbnail_url;
+    if (req.file) {
+      const r2Result = await processAndUploadImage(req.file.buffer, 'shop-product', clientId, req.file.originalname);
+      imageUrl = r2Result.original || r2Result.large;
+      imageThumbnailUrl = r2Result.thumbnail;
+    }
+
+    const result = await pool.query(`
+      UPDATE shop_products SET
+        name = COALESCE($1, name),
+        name_ml = COALESCE($2, name_ml),
+        slug = $3,
+        description = COALESCE($4, description),
+        description_ml = COALESCE($5, description_ml),
+        price = COALESCE($6, price),
+        currency = COALESCE($7, currency),
+        image_url = $8,
+        image_thumbnail_url = $9,
+        category = $10,
+        stock_quantity = $11,
+        stock_tracking = COALESCE($12, stock_tracking),
+        is_active = COALESCE($13, is_active),
+        sort_order = COALESCE($14, sort_order),
+        updated_at = NOW()
+      WHERE id = $15 AND account_id = $16
+      RETURNING *
+    `, [
+      name ? name.trim() : null,
+      name_ml ? (typeof name_ml === 'string' ? JSON.parse(name_ml) : name_ml) : null,
+      slug,
+      description !== undefined ? description : null,
+      description_ml ? (typeof description_ml === 'string' ? JSON.parse(description_ml) : description_ml) : null,
+      price !== undefined ? parseFloat(price) : null,
+      currency || null,
+      imageUrl, imageThumbnailUrl,
+      category !== undefined ? (category || null) : existing.rows[0].category,
+      stock_quantity != null ? parseInt(stock_quantity) : existing.rows[0].stock_quantity,
+      stock_tracking !== undefined ? (stock_tracking === 'true' || stock_tracking === true) : null,
+      is_active !== undefined ? (is_active !== 'false' && is_active !== false) : null,
+      sort_order !== undefined ? (parseInt(sort_order) || 0) : null,
+      productId, clientId
+    ]);
+
+    res.json({ success: true, product: result.rows[0] });
+  } catch (error) {
+    console.error('Shop product update error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/admin/shop/products/:id — soft-delete (set is_active = false)
+app.delete('/api/admin/shop/products/:id', async (req, res) => {
+  try {
+    const decoded = extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const productId = parseInt(req.params.id);
+    const clientId = req.query.client_id || decoded.accountId || decoded.id;
+
+    const result = await pool.query(
+      'UPDATE shop_products SET is_active = false, updated_at = NOW() WHERE id = $1 AND account_id = $2 RETURNING id',
+      [productId, clientId]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Shop product delete error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/admin/shop/products/:id/image — upload product image
+app.post('/api/admin/shop/products/:id/image', upload.single('file'), async (req, res) => {
+  try {
+    const decoded = extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const productId = parseInt(req.params.id);
+    const clientId = req.query.client_id || decoded.accountId || decoded.id;
+
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+
+    // Verify ownership
+    const existing = await pool.query('SELECT id FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
+    if (!existing.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
+
+    const r2Result = await processAndUploadImage(req.file.buffer, 'shop-product', productId, req.file.originalname);
+
+    await pool.query(
+      'UPDATE shop_products SET image_url = $1, image_thumbnail_url = $2, updated_at = NOW() WHERE id = $3',
+      [r2Result.original || r2Result.large, r2Result.thumbnail, productId]
+    );
+
+    res.json({ success: true, urls: r2Result });
+  } catch (error) {
+    console.error('Shop product image upload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/admin/shop/orders — list orders with pagination
+app.get('/api/admin/shop/orders', async (req, res) => {
+  try {
+    const decoded = extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const clientId = req.query.client_id || decoded.accountId || decoded.id;
+    const status = req.query.status;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const perPage = Math.min(100, Math.max(1, parseInt(req.query.per_page) || 25));
+    const offset = (page - 1) * perPage;
+
+    let query = 'SELECT * FROM shop_orders WHERE account_id = $1';
+    let countQuery = 'SELECT COUNT(*) FROM shop_orders WHERE account_id = $1';
+    const params = [clientId];
+    const countParams = [clientId];
+
+    if (status) {
+      query += ' AND status = $2';
+      countQuery += ' AND status = $2';
+      params.push(status);
+      countParams.push(status);
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
+    params.push(perPage, offset);
+
+    const [result, countResult] = await Promise.all([
+      pool.query(query, params),
+      pool.query(countQuery, countParams)
+    ]);
+
+    const total = parseInt(countResult.rows[0].count);
+    res.json({
+      success: true,
+      orders: result.rows,
+      total,
+      page,
+      per_page: perPage,
+      has_more: offset + result.rows.length < total
+    });
+  } catch (error) {
+    console.error('Shop orders list error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/admin/shop/orders/:id — order detail with items
+app.get('/api/admin/shop/orders/:id', async (req, res) => {
+  try {
+    const decoded = extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const orderId = parseInt(req.params.id);
+    const clientId = req.query.client_id || decoded.accountId || decoded.id;
+
+    const order = await pool.query('SELECT * FROM shop_orders WHERE id = $1 AND account_id = $2', [orderId, clientId]);
+    if (!order.rows.length) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    const items = await pool.query('SELECT * FROM shop_order_items WHERE order_id = $1 ORDER BY id', [orderId]);
+
+    res.json({ success: true, order: order.rows[0], items: items.rows });
+  } catch (error) {
+    console.error('Shop order detail error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/admin/shop/orders/:id/fulfill — mark order fulfilled
+app.put('/api/admin/shop/orders/:id/fulfill', async (req, res) => {
+  try {
+    const decoded = extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const orderId = parseInt(req.params.id);
+    const clientId = req.query.client_id || req.body.client_id || decoded.accountId || decoded.id;
+
+    const result = await pool.query(
+      `UPDATE shop_orders SET status = 'fulfilled', fulfilled_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND account_id = $2 RETURNING *`,
+      [orderId, clientId]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    res.json({ success: true, order: result.rows[0] });
+  } catch (error) {
+    console.error('Shop order fulfill error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/admin/shop/orders/:id/status — update order status
+app.put('/api/admin/shop/orders/:id/status', async (req, res) => {
+  try {
+    const decoded = extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const orderId = parseInt(req.params.id);
+    const clientId = req.query.client_id || req.body.client_id || decoded.accountId || decoded.id;
+    const { status } = req.body;
+
+    const validStatuses = ['pending', 'processing', 'fulfilled', 'cancelled'];
+    if (!validStatuses.includes(status)) return res.status(400).json({ success: false, error: 'Invalid status. Must be: ' + validStatuses.join(', ') });
+
+    const updates = { status };
+    if (status === 'fulfilled') updates.fulfilled_at = new Date();
+
+    const result = await pool.query(
+      `UPDATE shop_orders SET status = $1, fulfilled_at = ${status === 'fulfilled' ? 'NOW()' : 'fulfilled_at'}, updated_at = NOW()
+       WHERE id = $2 AND account_id = $3 RETURNING *`,
+      [status, orderId, clientId]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    res.json({ success: true, order: result.rows[0] });
+  } catch (error) {
+    console.error('Shop order status update error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/admin/shop/settings — shop config for account
+app.get('/api/admin/shop/settings', async (req, res) => {
+  try {
+    const decoded = extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const clientId = req.query.client_id || decoded.accountId || decoded.id;
+
+    const account = await pool.query('SELECT shop_enabled, shop_stripe_config_id, currency FROM accounts WHERE id = $1', [clientId]);
+    if (!account.rows.length) return res.status(404).json({ success: false, error: 'Account not found' });
+
+    // Get available payment configurations for this account
+    const configs = await pool.query(
+      `SELECT id, name, provider, is_enabled, test_mode FROM payment_configurations WHERE account_id = $1 AND provider = 'stripe' ORDER BY name`,
+      [clientId]
+    );
+
+    res.json({
+      success: true,
+      shop_enabled: account.rows[0].shop_enabled || false,
+      shop_stripe_config_id: account.rows[0].shop_stripe_config_id,
+      default_currency: account.rows[0].currency || 'EUR',
+      payment_configs: configs.rows
+    });
+  } catch (error) {
+    console.error('Shop settings get error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/admin/shop/settings — update shop config
+// shop_enabled: master_admin only. shop_stripe_config_id: any authenticated operator.
+app.put('/api/admin/shop/settings', async (req, res) => {
+  try {
+    const decoded = extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const clientId = req.body.client_id || decoded.accountId || decoded.id;
+    const { shop_enabled, shop_stripe_config_id } = req.body;
+
+    // shop_enabled can only be changed by master_admin
+    if (shop_enabled !== undefined && decoded.role !== 'master_admin') {
+      return res.status(403).json({ success: false, error: 'Only master admin can enable/disable the shop module' });
+    }
+
+    // Build update query based on what's being changed
+    const updates = [];
+    const params = [];
+    let paramIdx = 1;
+
+    if (shop_enabled !== undefined && decoded.role === 'master_admin') {
+      updates.push(`shop_enabled = $${paramIdx}`);
+      params.push(shop_enabled === true || shop_enabled === 'true');
+      paramIdx++;
+    }
+
+    if (shop_stripe_config_id !== undefined) {
+      // Verify the config belongs to this account (if not null)
+      if (shop_stripe_config_id) {
+        const configCheck = await pool.query(
+          'SELECT id FROM payment_configurations WHERE id = $1 AND account_id = $2',
+          [shop_stripe_config_id, clientId]
+        );
+        if (!configCheck.rows.length) return res.status(400).json({ success: false, error: 'Payment configuration not found for this account' });
+      }
+      updates.push(`shop_stripe_config_id = $${paramIdx}`);
+      params.push(shop_stripe_config_id || null);
+      paramIdx++;
+    }
+
+    if (updates.length === 0) return res.status(400).json({ success: false, error: 'No settings to update' });
+
+    params.push(clientId);
+    await pool.query(`UPDATE accounts SET ${updates.join(', ')} WHERE id = $${paramIdx}`, params);
+
+    // If enabling shop, ensure feature flag exists
+    if (shop_enabled === true || shop_enabled === 'true') {
+      await pool.query(`
+        INSERT INTO gas_feature_flags (account_id, feature, enabled, enabled_by, enabled_at, updated_at)
+        VALUES ($1, 'shop_module', true, 'master_admin', NOW(), NOW())
+        ON CONFLICT (account_id, feature) DO UPDATE SET enabled = true, updated_at = NOW()
+      `, [clientId]);
+    } else if (shop_enabled === false || shop_enabled === 'false') {
+      await pool.query(`
+        UPDATE gas_feature_flags SET enabled = false, updated_at = NOW()
+        WHERE account_id = $1 AND feature = 'shop_module'
+      `, [clientId]);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Shop settings update error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/public/client/:clientId/shop/products — public product listing
+app.get('/api/public/client/:clientId/shop/products', async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.clientId);
+
+    // Check shop_enabled — return 404 if disabled
+    const account = await pool.query('SELECT shop_enabled, currency FROM accounts WHERE id = $1', [clientId]);
+    if (!account.rows.length || !account.rows[0].shop_enabled) {
+      return res.status(404).json({ success: false, error: 'Shop not available' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking
+       FROM shop_products WHERE account_id = $1 AND is_active = true ORDER BY sort_order, created_at DESC`,
+      [clientId]
+    );
+    res.json({ success: true, products: result.rows, currency: account.rows[0].currency });
+  } catch (error) {
+    console.error('Public shop products error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/public/client/:clientId/shop/products/:slug — public single product
+app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.clientId);
+    const slug = req.params.slug;
+
+    // Check shop_enabled — return 404 if disabled
+    const account = await pool.query('SELECT shop_enabled FROM accounts WHERE id = $1', [clientId]);
+    if (!account.rows.length || !account.rows[0].shop_enabled) {
+      return res.status(404).json({ success: false, error: 'Shop not available' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, gallery_urls, category, stock_quantity, stock_tracking
+       FROM shop_products WHERE account_id = $1 AND slug = $2 AND is_active = true`,
+      [clientId, slug]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
+
+    res.json({ success: true, product: result.rows[0] });
+  } catch (error) {
+    console.error('Public shop product detail error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+console.log('✅ Shop ecommerce endpoints loaded');
+
 // ============================================
 // CATCH-ALL HANDLER (must be last route)
 // ============================================
