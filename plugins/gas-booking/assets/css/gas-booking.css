@@ -65,7 +65,7 @@
 .gas-gallery {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 4px;
     aspect-ratio: 2 / 1;
     border-radius: 12px;
     overflow: hidden;
@@ -84,11 +84,12 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr 1fr;
-    gap: 8px;
+    gap: 4px;
     height: 100%;
 }
 
 .gas-gallery-thumb {
+    aspect-ratio: 3 / 4;
     width: 100%;
     height: 100%;
     object-fit: cover;
