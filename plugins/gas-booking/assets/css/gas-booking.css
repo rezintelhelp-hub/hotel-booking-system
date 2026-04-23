@@ -64,7 +64,7 @@
    ========================================================================== */
 .gas-gallery {
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
     aspect-ratio: 2 / 1;
     border-radius: 12px;
