@@ -64123,12 +64123,12 @@ app.get('/api/public/property/:propertyId/terms', async (req, res) => {
         until: terms.checkin_until || '22:00',
         self_checkin: terms.self_checkin || false,
         is_24hr: terms.checkin_24hr || false,
-        instructions: property.check_in_instructions || null
+        instructions: terms.check_in_instructions || property.check_in_instructions || null
       },
       check_out: {
         by: terms.checkout_by || property.check_out_time || '11:00',
         late_fee: terms.late_checkout_fee || null,
-        instructions: property.check_out_instructions || null
+        instructions: terms.check_out_instructions || property.check_out_instructions || null
       },
       smoking: {
         policy: terms.smoking_policy || 'no',
@@ -64168,7 +64168,7 @@ app.get('/api/public/property/:propertyId/terms', async (req, res) => {
         id_required: terms.id_required || false,
         additional_rules: terms.additional_rules || property.house_rules || null
       },
-      cancellation_policy: property.cancellation_policy || null
+      cancellation_policy: terms.cancellation_policy || property.cancellation_policy || null
     };
     
     res.json({ success: true, data: response });
