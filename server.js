@@ -85056,6 +85056,14 @@ app.put('/api/pro-builder/sites/:blog_id/pages/:page_id/sections/:index', async 
     }
 
     const section = sections[sectionIndex];
+
+    // Backup full page content before editing section
+    await pool.query(
+      `INSERT INTO page_content_backups (blog_id, page_id, content, action, section_type, section_index, created_by)
+       VALUES ($1, $2, $3, 'edit', $4, $5, $6)`,
+      [blogId, pageId, content.rawContent, section.type || null, sectionIndex, auth.userId || null]
+    );
+
     const newContent = content.rawContent.substring(0, section.start) + markup + content.rawContent.substring(section.end);
     console.log(`[ProBuilder SAVE] blogId=${blogId} pageId=${pageId} sectionIndex=${sectionIndex} type=${section.type} markupLen=${markup.length} newContentLen=${newContent.length}`);
 
@@ -85089,6 +85097,14 @@ app.delete('/api/pro-builder/sites/:blog_id/pages/:page_id/sections/:index', asy
     }
 
     const section = sections[sectionIndex];
+
+    // Backup full page content before deleting section
+    await pool.query(
+      `INSERT INTO page_content_backups (blog_id, page_id, content, action, section_type, section_index, created_by)
+       VALUES ($1, $2, $3, 'delete', $4, $5, $6)`,
+      [blogId, pageId, content.rawContent, section.type || null, sectionIndex, auth.userId || null]
+    );
+
     console.log(`[ProBuilder DELETE] blogId=${blogId} pageId=${pageId} sectionIndex=${sectionIndex} type=${section.type} totalSections=${sections.length} rawLen=${content.rawContent.length} start=${section.start} end=${section.end}`);
     // Remove section and any surrounding whitespace
     let before = content.rawContent.substring(0, section.start);
@@ -85128,6 +85144,13 @@ app.post('/api/pro-builder/sites/:blog_id/pages/:page_id/reorder', async (req, r
     if (from < 0 || from >= sections.length || to < 0 || to >= sections.length || from === to) {
       return res.json({ success: false, error: 'Invalid section indices' });
     }
+
+    // Backup full page content before reordering
+    await pool.query(
+      `INSERT INTO page_content_backups (blog_id, page_id, content, action, section_type, section_index, created_by)
+       VALUES ($1, $2, $3, 'reorder', NULL, NULL, $4)`,
+      [blogId, pageId, content.rawContent, auth.userId || null]
+    );
 
     // Extract all section markups in order, then rearrange
     const sectionMarkups = sections.map(s => s.raw_markup);
@@ -86220,6 +86243,21 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE shop_order_items ADD COLUMN IF NOT EXISTS accommodation_details JSONB`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS shop_order_id INTEGER`);
     console.log('✅ Shop tables ensured (shop_products, shop_orders, shop_order_items)');
+
+    // Pro Builder page content backups — snapshot before destructive edits
+    await pool.query(`CREATE TABLE IF NOT EXISTS page_content_backups (
+      id SERIAL PRIMARY KEY,
+      blog_id INTEGER NOT NULL,
+      page_id INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      action VARCHAR(20) NOT NULL,
+      section_type VARCHAR(50),
+      section_index INTEGER,
+      created_by INTEGER,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_page_content_backups_lookup ON page_content_backups(blog_id, page_id, created_at DESC)`);
+    console.log('✅ page_content_backups table ensured');
 
     console.log('✅ Database migrations complete');
   } catch (migrationError) {
