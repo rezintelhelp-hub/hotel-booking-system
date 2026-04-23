@@ -8779,10 +8779,36 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         }
       }
 
+      // Sync bookingPageMultiplier from Beds24 to properties.booking_page_multiplier
+      let multiplierSynced = false;
+      if (gasPropertyId && b24Props.length > 0) {
+        const rawMultiplier = b24Props[0].bookingPageMultiplier;
+        if (rawMultiplier && typeof rawMultiplier === 'string' && rawMultiplier.trim() !== '') {
+          const trimmed = rawMultiplier.trim();
+          if (/\[.*\]/.test(trimmed) || /[a-zA-Z]/.test(trimmed.replace(/^\*/, ''))) {
+            console.log(`[Sync] Property ${gasPropertyId}: currency conversion multiplier not yet supported: ${trimmed}`);
+          } else {
+            const numStr = trimmed.startsWith('*') ? trimmed.substring(1) : trimmed;
+            const parsed = parseFloat(numStr);
+            if (isFinite(parsed) && parsed > 0) {
+              await pool.query(
+                'UPDATE properties SET booking_page_multiplier = $1 WHERE id = $2 AND (booking_page_multiplier IS NULL OR booking_page_multiplier != $1)',
+                [parsed, gasPropertyId]
+              );
+              multiplierSynced = true;
+              console.log(`[Sync] Property ${gasPropertyId}: multiplier set to ${parsed} from Beds24`);
+            } else {
+              console.log(`[Sync] Property ${gasPropertyId}: unparseable multiplier: ${trimmed}`);
+            }
+          }
+        }
+        // Empty string / null → don't touch existing value (preserve operator's manual entry)
+      }
+
       await pool.query('UPDATE gas_sync_properties SET last_content_sync = NOW() WHERE id = $1', [prop.id]);
       return res.json({
         success: true,
-        message: `Beds24 content synced: ${descCount} descriptions, ${termsUpdated} property terms updated from ${roomTypes.rowCount} rooms`,
+        message: `Beds24 content synced: ${descCount} descriptions, ${termsUpdated} property terms updated${multiplierSynced ? ', multiplier synced' : ''} from ${roomTypes.rowCount} rooms`,
         adapter: 'beds24',
         roomsProcessed: roomTypes.rowCount,
         descriptionsUpdated: descCount,
@@ -64367,15 +64393,18 @@ app.post('/api/public/calculate-price', async (req, res) => {
     }
     
     // Get availability for date range - include min_stay
+    // Apply property-level booking_page_multiplier if set (Beds24 booking page price adjustment)
     const availability = await pool.query(`
-      SELECT date, 
-             COALESCE(standard_price, direct_price, cm_price) as price, 
-             is_available, 
-             is_blocked,
-             COALESCE(min_stay_override, min_stay, cm_min_stay, 1) as min_stay
-      FROM room_availability
-      WHERE room_id = $1 AND date >= $2 AND date < $3
-      ORDER BY date
+      SELECT ra.date,
+             COALESCE(ra.standard_price, ra.direct_price, ra.cm_price) * COALESCE(p.booking_page_multiplier, 1) as price,
+             ra.is_available,
+             ra.is_blocked,
+             COALESCE(ra.min_stay_override, ra.min_stay, ra.cm_min_stay, 1) as min_stay
+      FROM room_availability ra
+      JOIN bookable_units bu ON bu.id = ra.room_id
+      JOIN properties p ON p.id = bu.property_id
+      WHERE ra.room_id = $1 AND ra.date >= $2 AND ra.date < $3
+      ORDER BY ra.date
     `, [unit_id, check_in, check_out]);
     
     // Get unit with occupancy settings
@@ -86406,6 +86435,10 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS price_rule_type VARCHAR(20)`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS price_rule_value DECIMAL(10,2)`);
     console.log('✅ bookable_units price_rule columns ensured');
+
+    // Beds24 booking page multiplier — property-level price adjustment
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS booking_page_multiplier DECIMAL(6,4)`);
+    console.log('✅ properties.booking_page_multiplier column ensured');
 
     console.log('✅ Database migrations complete');
   } catch (migrationError) {

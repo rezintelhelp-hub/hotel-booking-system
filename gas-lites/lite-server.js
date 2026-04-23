@@ -836,12 +836,14 @@ app.get('/:slug', async (req, res) => {
     let todayPrice = null;
     if (roomId) {
       const availRes = await pool.query(`
-        SELECT date, is_available, is_blocked, 
-               COALESCE(direct_price, cm_price, standard_price) as price,
-               min_stay
-        FROM room_availability 
-        WHERE room_id = $1 AND date >= $2 AND date <= $3
-        ORDER BY date
+        SELECT ra.date, ra.is_available, ra.is_blocked,
+               COALESCE(ra.direct_price, ra.cm_price, ra.standard_price) * COALESCE(p.booking_page_multiplier, 1) as price,
+               ra.min_stay
+        FROM room_availability ra
+        JOIN bookable_units bu ON bu.id = ra.room_id
+        JOIN properties p ON p.id = bu.property_id
+        WHERE ra.room_id = $1 AND ra.date >= $2 AND ra.date <= $3
+        ORDER BY ra.date
       `, [roomId, today.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]);
       availability = availRes.rows;
       
@@ -999,8 +1001,11 @@ app.get('/:slug/card', async (req, res) => {
     let price = null;
     if (lite.room_id) {
       const priceRes = await pool.query(`
-        SELECT COALESCE(direct_price, cm_price, standard_price) as price
-        FROM room_availability WHERE room_id = $1 AND date = $2
+        SELECT COALESCE(ra.direct_price, ra.cm_price, ra.standard_price) * COALESCE(p.booking_page_multiplier, 1) as price
+        FROM room_availability ra
+        JOIN bookable_units bu ON bu.id = ra.room_id
+        JOIN properties p ON p.id = bu.property_id
+        WHERE ra.room_id = $1 AND ra.date = $2
       `, [lite.room_id, today]);
       if (priceRes.rows[0]?.price) price = priceRes.rows[0].price;
     }
@@ -1326,9 +1331,12 @@ app.delete('/api/lites/:id', async (req, res) => {
 app.get('/api/availability/:roomId', async (req, res) => {
   const { from, to } = req.query;
   const result = await pool.query(`
-    SELECT date, is_available, is_blocked, 
-           COALESCE(direct_price, cm_price, standard_price) as price, min_stay
-    FROM room_availability WHERE room_id = $1 AND date >= $2 AND date < $3 ORDER BY date
+    SELECT ra.date, ra.is_available, ra.is_blocked,
+           COALESCE(ra.direct_price, ra.cm_price, ra.standard_price) * COALESCE(p.booking_page_multiplier, 1) as price, ra.min_stay
+    FROM room_availability ra
+    JOIN bookable_units bu ON bu.id = ra.room_id
+    JOIN properties p ON p.id = bu.property_id
+    WHERE ra.room_id = $1 AND ra.date >= $2 AND ra.date < $3 ORDER BY ra.date
   `, [req.params.roomId, from, to]);
   res.json({ success: true, availability: result.rows });
 });
@@ -1349,10 +1357,12 @@ app.get('/api/pricing/:roomId', async (req, res) => {
 
     // Get availability/pricing for each night — calendar data only, no fallback
     const availResult = await pool.query(`
-      SELECT date, is_available, is_blocked,
-             COALESCE(direct_price, cm_price, standard_price) as price, min_stay
-      FROM room_availability
-      WHERE room_id = $1 AND date >= $2 AND date < $3
+      SELECT ra.date, ra.is_available, ra.is_blocked,
+             COALESCE(ra.direct_price, ra.cm_price, ra.standard_price) * COALESCE(p.booking_page_multiplier, 1) as price, ra.min_stay
+      FROM room_availability ra
+      JOIN bookable_units bu ON bu.id = ra.room_id
+      JOIN properties p ON p.id = bu.property_id
+      WHERE ra.room_id = $1 AND ra.date >= $2 AND ra.date < $3
       ORDER BY date
     `, [roomId, checkin, checkout]);
 
