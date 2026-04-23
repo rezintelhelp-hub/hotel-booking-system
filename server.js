@@ -29748,18 +29748,12 @@ app.post('/api/admin/billing/setup-customer', async (req, res) => {
         const { account_id } = req.body;
 
         // Auth: verify caller owns this account or is master admin
-        const token = (req.headers.authorization || '').replace('Bearer ', '');
-        if (token) {
-            try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'gas-secret-key');
-                if (decoded.role !== 'master_admin' && String(decoded.accountId || decoded.id) !== String(account_id)) {
-                    return res.status(403).json({ success: false, error: 'Not authorized to modify this account' });
-                }
-            } catch (e) {
-                return res.status(401).json({ success: false, error: 'Invalid token' });
-            }
-        } else {
+        const decoded = await extractAccountFromToken(req);
+        if (!decoded) {
             return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+        if (decoded.role !== 'master_admin' && String(decoded.id) !== String(account_id)) {
+            return res.status(403).json({ success: false, error: 'Not authorized to modify this account' });
         }
 
         const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [account_id]);
@@ -29812,19 +29806,9 @@ app.post('/api/admin/billing/generate-invoice', async (req, res) => {
         const { account_id, line_items, period_start, period_end, due_date, currency } = req.body;
 
         // Auth: master admin only for invoice generation
-        const token = (req.headers.authorization || '').replace('Bearer ', '');
-        if (token) {
-            try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'gas-secret-key');
-                if (decoded.role !== 'master_admin') {
-                    return res.status(403).json({ success: false, error: 'Only master admin can generate invoices' });
-                }
-            } catch (e) {
-                return res.status(401).json({ success: false, error: 'Invalid token' });
-            }
-        } else {
-            return res.status(401).json({ success: false, error: 'Authentication required' });
-        }
+        const decoded = await extractAccountFromToken(req);
+        if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+        if (decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Only master admin can generate invoices' });
 
         const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
@@ -45296,16 +45280,10 @@ app.get('/api/admin/stats', async (req, res) => {
     // Enforce auth — non-master users can only see their own stats
     let accountId = req.query.account_id;
     let clientId = req.query.client_id;
-    const token = (req.headers.authorization || '').replace('Bearer ', '');
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'gas-secret-key');
-        if (decoded.role !== 'master_admin') {
-          // Force filter to own account regardless of query params
-          accountId = String(decoded.accountId || decoded.id);
-          clientId = null;
-        }
-      } catch (e) { /* invalid token — proceed with query params */ }
+    const decoded = await extractAccountFromToken(req);
+    if (decoded && decoded.role !== 'master_admin') {
+      accountId = String(decoded.id);
+      clientId = null;
     }
 
     console.log('Stats request - accountId:', accountId, 'clientId:', clientId);
@@ -81069,10 +81047,8 @@ app.get('/api/reviews', async (req, res) => {
 // POST /api/reviews — Add a manual review
 app.post('/api/reviews', async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (!decoded) return res.status(401).json({ success: false, error: 'Invalid token' });
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
     const { account_id, property_id, guest_name, rating, comment, source, channel_name, review_date } = req.body;
     if (!account_id || !guest_name) {
@@ -81095,10 +81071,8 @@ app.post('/api/reviews', async (req, res) => {
 // DELETE /api/reviews/:id — Delete a review (validates account ownership)
 app.delete('/api/reviews/:id', async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized' });
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (!decoded) return res.status(401).json({ success: false, error: 'Invalid token' });
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
     const reviewId = req.params.id;
 
