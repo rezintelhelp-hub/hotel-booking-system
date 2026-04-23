@@ -46449,7 +46449,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
     
     // Get room info including property currency
     const roomInfo = await pool.query(`
-      SELECT bu.id, bu.name, bu.property_id, COALESCE(p.currency, a.default_currency) as currency, p.country
+      SELECT bu.id, bu.name, bu.property_id, COALESCE(p.currency, a.default_currency) as currency, p.country, p.booking_page_multiplier
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       LEFT JOIN accounts a ON p.account_id = a.id
@@ -46618,7 +46618,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
       });
     }
     
-    res.json({ success: true, availability: result, currency, currency_symbol: currencySymbol });
+    const multiplier = parseFloat(roomInfo.rows[0]?.booking_page_multiplier) || null;
+    res.json({ success: true, availability: result, currency, currency_symbol: currencySymbol, booking_page_multiplier: multiplier });
   } catch (error) {
     console.error('Availability error:', error);
     res.json({ success: false, error: error.message });
