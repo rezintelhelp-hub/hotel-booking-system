@@ -8194,6 +8194,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
                 DO UPDATE SET
                   price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                   cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                  direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                   is_available = $4,
                   is_blocked = $5,
                   min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
@@ -9797,6 +9798,7 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                   DO UPDATE SET
                     price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                     cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                    direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                     is_available = $4,
                     is_blocked = $5,
                     min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
@@ -10007,6 +10009,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-tier/:tier', async (req, 
               DO UPDATE SET
                 price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                 cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                 is_available = $4,
                 is_blocked = $5,
                 min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
@@ -10181,6 +10184,7 @@ app.post('/api/gas-sync/v1-pricing-sync', async (req, res) => {
                 DO UPDATE SET
                   price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                   cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                  direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                   min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
                   cm_min_stay = $4,
                   source = 'beds24_v1',
@@ -10343,6 +10347,7 @@ app.post('/api/gas-sync/properties/:propertyId/v1-pricing-sync', async (req, res
           DO UPDATE SET
             price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
             cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+            direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
             min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
             cm_min_stay = $4,
             source = 'beds24_v1',
@@ -46797,6 +46802,7 @@ app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
           DO UPDATE SET
             price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
             cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+            direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
             is_available = $4,
             is_blocked = $5,
             source = 'beds24',
@@ -46951,6 +46957,7 @@ app.post('/api/admin/sync-all-availability-quick', async (req, res) => {
               DO UPDATE SET
                 price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                 cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                 is_available = $4,
                 is_blocked = $5,
                 source = 'beds24',
@@ -47113,6 +47120,7 @@ app.post('/api/admin/sync-all-availability-bulk', async (req, res) => {
               DO UPDATE SET
                 price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                 cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                 is_available = $4,
                 is_blocked = $5,
                 source = 'beds24',
@@ -77011,6 +77019,7 @@ app.post('/api/gas-sync/connections/:id/sync-prices', async (req, res) => {
               DO UPDATE SET
                 price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                 cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.direct_price END,
                 is_available = $4,
                 is_blocked = $5,
                 min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
@@ -77022,7 +77031,7 @@ app.post('/api/gas-sync/connections/:id/sync-prices', async (req, res) => {
             daysUpdated++;
           }
         }
-        
+
         console.log(`sync-prices: Synced ${room.name} - calendar entries: ${calendarData.length}`);
         
       } catch (roomError) {
@@ -78129,6 +78138,7 @@ async function runGasSyncScheduler() {
                   ON CONFLICT (room_id, date) DO UPDATE SET
                     price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                     cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                    direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                     is_available = $4, is_blocked = $5,
                     min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
                     cm_min_stay = $6, source = 'beds24', updated_at = NOW()
