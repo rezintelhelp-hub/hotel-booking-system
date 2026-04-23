@@ -9632,6 +9632,44 @@ const MANUAL_SYNC_DAYS = 365; // Pull full year on manual sync
 const SYNC_RATE_LIMIT_MINUTES = 60; // Minimum time between manual syncs per property
 
 // Add tier tracking columns
+// Apply price rules: auto-calculate standard_price from cm_price for rooms with a price rule
+// Only fills dates where standard_price is NULL — never overwrites manual edits
+async function applyPriceRules(roomId) {
+  try {
+    const rule = await pool.query(
+      'SELECT price_rule_type, price_rule_value FROM bookable_units WHERE id = $1 AND price_rule_type IS NOT NULL',
+      [roomId]
+    );
+    if (rule.rows.length === 0) return 0;
+    const { price_rule_type, price_rule_value } = rule.rows[0];
+    if (!price_rule_value || price_rule_value <= 0) return 0;
+
+    let result;
+    if (price_rule_type === 'percentage') {
+      result = await pool.query(
+        `UPDATE room_availability SET standard_price = cm_price * (1 + $2 / 100), updated_at = NOW()
+         WHERE room_id = $1 AND cm_price IS NOT NULL AND standard_price IS NULL`,
+        [roomId, price_rule_value]
+      );
+    } else if (price_rule_type === 'fixed') {
+      result = await pool.query(
+        `UPDATE room_availability SET standard_price = cm_price + $2, updated_at = NOW()
+         WHERE room_id = $1 AND cm_price IS NOT NULL AND standard_price IS NULL`,
+        [roomId, price_rule_value]
+      );
+    } else {
+      return 0;
+    }
+    if (result.rowCount > 0) {
+      console.log(`[PriceRule] Applied ${price_rule_type} +${price_rule_value} to ${result.rowCount} dates for room ${roomId}`);
+    }
+    return result.rowCount;
+  } catch (e) {
+    console.log(`[PriceRule] Error for room ${roomId}:`, e.message);
+    return 0;
+  }
+}
+
 async function ensureTierTrackingColumns() {
   try {
     await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS tier1_synced_at TIMESTAMP`);
@@ -9956,7 +9994,10 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
             
             // Update tier sync timestamp
             await pool.query(`UPDATE gas_sync_room_types SET ${tierColumn} = NOW() WHERE id = $1`, [room.id]);
-            
+
+            // Auto-calculate standard_price for rooms with price rules
+            await applyPriceRules(room.gas_room_id);
+
             tierResult.rooms.push({ id: room.id, name: room.name, daysUpdated });
             tierResult.daysUpdated += daysUpdated;
             results.totalRoomsSynced++;
@@ -10076,7 +10117,10 @@ app.post('/api/gas-sync/connections/:connectionId/sync-tier/:tier', async (req, 
         
         // Update tier timestamp
         await pool.query(`UPDATE gas_sync_room_types SET tier${tierNum}_synced_at = NOW() WHERE id = $1`, [room.id]);
-        
+
+        // Auto-calculate standard_price for rooms with price rules
+        await applyPriceRules(room.gas_room_id);
+
         results.rooms.push({ name: room.name, daysUpdated });
         results.totalDays += daysUpdated;
         
@@ -16437,6 +16481,10 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace-pricing', asy
 
         totalDaysSynced += roomDaysSynced;
         pricingRoomsSynced++;
+
+        // Auto-calculate standard_price for rooms with price rules
+        await applyPriceRules(room.gas_room_id);
+
         console.log(`[Beds24 MP Pricing] Room ${room.beds24_room_id}: ${roomDaysSynced} days synced (best price across rates)`);
 
         // Rate limit: 2 seconds between rooms
@@ -47419,6 +47467,48 @@ app.post('/api/admin/availability/reset-to-cm', async (req, res) => {
     res.json({ success: true, rows_updated: result.rowCount });
   } catch (error) {
     console.error('Reset to CM prices error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET/PUT price rule for a room
+app.get('/api/admin/rooms/:roomId/price-rule', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT price_rule_type, price_rule_value FROM bookable_units WHERE id = $1',
+      [req.params.roomId]
+    );
+    if (result.rows.length === 0) return res.json({ success: false, error: 'Room not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/rooms/:roomId/price-rule', async (req, res) => {
+  try {
+    const { price_rule_type, price_rule_value } = req.body;
+    const roomId = parseInt(req.params.roomId);
+
+    // Validate
+    if (price_rule_type && !['percentage', 'fixed'].includes(price_rule_type)) {
+      return res.json({ success: false, error: 'price_rule_type must be percentage or fixed' });
+    }
+
+    // Save rule
+    await pool.query(
+      'UPDATE bookable_units SET price_rule_type = $1, price_rule_value = $2 WHERE id = $3',
+      [price_rule_type || null, price_rule_value || null, roomId]
+    );
+
+    // Apply rule to all existing dates with NULL standard_price
+    let applied = 0;
+    if (price_rule_type && price_rule_value > 0) {
+      applied = await applyPriceRules(roomId);
+    }
+
+    res.json({ success: true, message: `Price rule saved. Applied to ${applied} dates.`, applied });
+  } catch (error) {
     res.json({ success: false, error: error.message });
   }
 });
@@ -86310,6 +86400,11 @@ app.listen(PORT, '0.0.0.0', async () => {
     )`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_page_content_backups_lookup ON page_content_backups(blog_id, page_id, created_at DESC)`);
     console.log('✅ page_content_backups table ensured');
+
+    // Price rule columns on bookable_units — auto-calculate standard_price during sync
+    await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS price_rule_type VARCHAR(20)`);
+    await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS price_rule_value DECIMAL(10,2)`);
+    console.log('✅ bookable_units price_rule columns ensured');
 
     console.log('✅ Database migrations complete');
   } catch (migrationError) {
