@@ -44606,8 +44606,9 @@ app.put('/api/bookings/:id', async (req, res) => {
     }
     
     const existingBooking = existingResult.rows[0];
-    const datesChanged = (arrival_date !== existingBooking.arrival_date?.toISOString().split('T')[0]) ||
-                         (departure_date !== existingBooking.departure_date?.toISOString().split('T')[0]);
+    const toDateStr = (d) => d instanceof Date ? d.toISOString().split('T')[0] : String(d || '').split('T')[0];
+    const datesChanged = (arrival_date !== toDateStr(existingBooking.arrival_date)) ||
+                         (departure_date !== toDateStr(existingBooking.departure_date));
     const wasCancelled = existingBooking.status !== 'cancelled' && status === 'cancelled';
     
     // Track if room changed
