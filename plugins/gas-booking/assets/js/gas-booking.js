@@ -7,7 +7,7 @@
 
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
- * @version 3.6.33
+ * @version 3.6.34
  */
 jQuery(document).ready(function($) {
     
@@ -1134,39 +1134,66 @@ jQuery(document).ready(function($) {
     
     function renderGallery(images) {
         var $gallery = $('.gas-gallery');
-        
+
         if (!images || images.length === 0) {
             $gallery.html('<div class="gas-gallery-placeholder">🏠</div>');
             return;
         }
-        
+
+        // Prefer landscape images for gallery tiles (width >= height)
+        // Portraits still appear in lightbox via "View all"
+        var landscapes = [], portraits = [];
+        for (var idx = 0; idx < images.length; idx++) {
+            var img = images[idx];
+            var w = parseInt(img.width) || 0;
+            var h = parseInt(img.height) || 0;
+            // Treat unknown dimensions as landscape (don't exclude)
+            if (w === 0 && h === 0 || w >= h) {
+                landscapes.push({ img: img, origIndex: idx });
+            } else {
+                portraits.push({ img: img, origIndex: idx });
+            }
+        }
+        // Take up to 5 landscapes, fill remaining slots with portraits
+        var galleryTiles = landscapes.slice(0, 5);
+        if (galleryTiles.length < 5) {
+            var needed = 5 - galleryTiles.length;
+            for (var p = 0; p < Math.min(needed, portraits.length); p++) {
+                galleryTiles.push(portraits[p]);
+            }
+        }
+        // Cap at available images
+        if (galleryTiles.length > images.length) {
+            galleryTiles = galleryTiles.slice(0, images.length);
+        }
+
         var html = '';
-        var mainUrl = images[0].url || images[0].image_url || '';
-        
-        // Main large image
-        html += '<img class="gas-gallery-main" src="' + mainUrl + '" alt="Room image" data-index="0">';
-        
-        // Grid of 4 smaller images
-        if (images.length > 1) {
+        var mainUrl = galleryTiles[0].img.url || galleryTiles[0].img.image_url || '';
+
+        // Main large image — data-index points to original position for lightbox
+        html += '<img class="gas-gallery-main" src="' + mainUrl + '" alt="Room image" data-index="' + galleryTiles[0].origIndex + '">';
+
+        // Grid of up to 4 smaller images
+        if (galleryTiles.length > 1) {
             html += '<div class="gas-gallery-grid">';
-            for (var i = 1; i < Math.min(5, images.length); i++) {
-                var url = images[i].url || images[i].image_url || '';
+            for (var i = 1; i < galleryTiles.length; i++) {
+                var url = galleryTiles[i].img.url || galleryTiles[i].img.image_url || '';
+                var origIdx = galleryTiles[i].origIndex;
                 if (i === 4 && images.length > 5) {
-                    // Show "View all" overlay on last thumbnail
-                    html += '<div class="gas-gallery-more" data-index="' + i + '">';
+                    html += '<div class="gas-gallery-more" data-index="' + origIdx + '">';
                     html += '<img class="gas-gallery-thumb" src="' + url + '" alt="Thumbnail">';
                     html += '<div class="gas-gallery-more-overlay">View all ' + images.length + ' images</div>';
                     html += '</div>';
                 } else {
-                    html += '<img class="gas-gallery-thumb" src="' + url + '" alt="Thumbnail" data-index="' + i + '">';
+                    html += '<img class="gas-gallery-thumb" src="' + url + '" alt="Thumbnail" data-index="' + origIdx + '">';
                 }
             }
             html += '</div>';
         }
-        
+
         $gallery.html(html);
-        
-        // Store images for lightbox
+
+        // Store ALL images for lightbox (original order, including portraits)
         $roomWidget.data('images', images);
     }
     

@@ -63828,7 +63828,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     
     // Try room_images first, fallback to bookable_unit_images
     let images = await pool.query(`
-      SELECT id, image_url as url, alt_text
+      SELECT id, image_url as url, alt_text, width, height
       FROM room_images WHERE room_id = $1
       ORDER BY is_primary DESC, display_order ASC, id ASC
     `, [unitId]);
@@ -63837,7 +63837,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     if (images.rows.length === 0) {
       try {
         images = await pool.query(`
-          SELECT id, url, alt_text
+          SELECT id, url, alt_text, width, height
           FROM bookable_unit_images WHERE bookable_unit_id = $1
           ORDER BY is_primary DESC, display_order ASC, id ASC
         `, [unitId]);
