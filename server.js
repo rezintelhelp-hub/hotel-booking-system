@@ -8611,7 +8611,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     if (prop.adapter_code === 'beds24') {
       const roomTypes = await pool.query(
         `SELECT rt.id, rt.external_id, rt.gas_room_id, rt.name,
-                bu.short_description, bu.full_description, bu.display_name, bu.content_locked
+                bu.short_description, bu.full_description, bu.display_name, bu.content_locked, bu.property_id
          FROM gas_sync_room_types rt
          JOIN bookable_units bu ON bu.id = rt.gas_room_id
          WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL`,
@@ -8727,10 +8727,61 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         }
       }
 
+      // Sync property-level texts (cancellation, house rules, T&Cs) into property_terms
+      // Non-destructive: only fills empty fields, never overwrites user-entered data
+      let termsUpdated = 0;
+      const gasPropertyId = roomTypes.rows[0]?.property_id;
+      if (gasPropertyId && b24Props.length > 0) {
+        const b24Prop = b24Props[0];
+        const propTexts = b24Prop.texts || [];
+
+        // Extract English text for each property-level field
+        const extractPropText = (fieldName) => {
+          if (Array.isArray(propTexts)) {
+            for (const t of propTexts) {
+              if ((t.language || '').toLowerCase() === 'en' && t[fieldName] && t[fieldName].trim()) {
+                return stripHtmlSimple(t[fieldName]);
+              }
+            }
+          } else if (propTexts && typeof propTexts === 'object' && propTexts[fieldName]) {
+            const val = typeof propTexts[fieldName] === 'object' ? (propTexts[fieldName].EN || propTexts[fieldName].en || '') : propTexts[fieldName];
+            return val ? stripHtmlSimple(String(val)) : '';
+          }
+          return '';
+        };
+
+        const cancellation = extractPropText('cancellationPolicy');
+        const houseRules = extractPropText('houseRules');
+        const generalPolicy = extractPropText('generalPolicy');
+        const directions = extractPropText('directions');
+        const areaInfo = extractPropText('locationDescription');
+        const checkInInstr = extractPropText('checkInInstructions');
+        const checkOutInstr = extractPropText('checkOutInstructions');
+
+        if (cancellation || houseRules || generalPolicy || directions || areaInfo || checkInInstr || checkOutInstr) {
+          // Only update fields that are currently NULL or empty — never overwrite user-entered data
+          const result = await pool.query(`
+            INSERT INTO property_terms (property_id, cancellation_policy, additional_rules, terms_conditions, directions, area_info, check_in_instructions, check_out_instructions)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (property_id) DO UPDATE SET
+              cancellation_policy = CASE WHEN (property_terms.cancellation_policy IS NULL OR property_terms.cancellation_policy = '') AND $2 != '' THEN $2 ELSE property_terms.cancellation_policy END,
+              additional_rules = CASE WHEN (property_terms.additional_rules IS NULL OR property_terms.additional_rules = '') AND $3 != '' THEN $3 ELSE property_terms.additional_rules END,
+              terms_conditions = CASE WHEN (property_terms.terms_conditions IS NULL OR property_terms.terms_conditions = '') AND $4 != '' THEN $4 ELSE property_terms.terms_conditions END,
+              directions = CASE WHEN (property_terms.directions IS NULL OR property_terms.directions = '') AND $5 != '' THEN $5 ELSE property_terms.directions END,
+              area_info = CASE WHEN (property_terms.area_info IS NULL OR property_terms.area_info = '') AND $6 != '' THEN $6 ELSE property_terms.area_info END,
+              check_in_instructions = CASE WHEN (property_terms.check_in_instructions IS NULL OR property_terms.check_in_instructions = '') AND $7 != '' THEN $7 ELSE property_terms.check_in_instructions END,
+              check_out_instructions = CASE WHEN (property_terms.check_out_instructions IS NULL OR property_terms.check_out_instructions = '') AND $8 != '' THEN $8 ELSE property_terms.check_out_instructions END,
+              updated_at = NOW()
+          `, [gasPropertyId, cancellation, houseRules, generalPolicy, directions, areaInfo, checkInInstr, checkOutInstr]);
+          termsUpdated = result.rowCount;
+          console.log(`[Content Sync Beds24] property_terms updated for property ${gasPropertyId}: cancel=${!!cancellation} rules=${!!houseRules} terms=${!!generalPolicy}`);
+        }
+      }
+
       await pool.query('UPDATE gas_sync_properties SET last_content_sync = NOW() WHERE id = $1', [prop.id]);
       return res.json({
         success: true,
-        message: `Beds24 content synced: ${descCount} descriptions updated from ${roomTypes.rowCount} rooms`,
+        message: `Beds24 content synced: ${descCount} descriptions, ${termsUpdated} property terms updated from ${roomTypes.rowCount} rooms`,
         adapter: 'beds24',
         roomsProcessed: roomTypes.rowCount,
         descriptionsUpdated: descCount,
