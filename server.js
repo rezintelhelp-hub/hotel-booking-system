@@ -86469,6 +86469,7 @@ async function runTieredSync() {
                     DO UPDATE SET
                       price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                       cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                      direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.direct_price END,
                       is_available = $4,
                       is_blocked = $5,
                       min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
