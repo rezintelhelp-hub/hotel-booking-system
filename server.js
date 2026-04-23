@@ -3726,9 +3726,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                   }
                 } catch (dayErr) {
                   if (dayErr.response?.status === 429) {
-                    console.log(`[Beds24 Sync] Rate limited, pausing 2s...`);
-                    await new Promise(r => setTimeout(r, 2000));
-                    d.setDate(d.getDate() - 1); // retry this day
+                    const retryAfter = parseInt(dayErr.response.headers?.['retry-after']) || 30;
+                    console.log(`[Beds24 Sync] Rate limited, pausing ${retryAfter}s...`);
+                    await new Promise(r => setTimeout(r, retryAfter * 1000));
+                    if (!this._rateLimitRetries) this._rateLimitRetries = 0;
+                    if (++this._rateLimitRetries < 3) {
+                      d.setDate(d.getDate() - 1); // retry this day
+                    } else {
+                      console.log(`[Beds24 Sync] Max retries hit, skipping remaining days`);
+                      break;
+                    }
                   }
                 }
               }
@@ -9543,6 +9550,190 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     
   } catch (error) {
     console.error('Property content sync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Refresh Beds24 bookingPageMultiplier for all properties in an account
+ * Throttled: 2s delay between API calls, 429 backoff, 403 skip
+ */
+app.post('/api/gas-sync/refresh-multipliers', async (req, res) => {
+  try {
+    const { account_id, property_ids } = req.body;
+    if (!account_id) return res.status(400).json({ success: false, error: 'account_id is required' });
+
+    // Find all Beds24-connected properties for this account
+    let query = `
+      SELECT sp.id as sync_prop_id, sp.external_id as beds24_property_id, sp.gas_property_id,
+             p.name, p.booking_page_multiplier,
+             c.refresh_token, c.credentials
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON c.id = sp.connection_id AND c.adapter_code = 'beds24'
+      JOIN properties p ON p.id = sp.gas_property_id
+      WHERE c.account_id = $1 AND sp.external_id IS NOT NULL
+    `;
+    const params = [account_id];
+    if (property_ids && Array.isArray(property_ids) && property_ids.length > 0) {
+      query += ` AND sp.gas_property_id = ANY($2)`;
+      params.push(property_ids);
+    }
+    query += ` ORDER BY p.id`;
+
+    const propsResult = await pool.query(query, params);
+    if (propsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No Beds24-connected properties found for this account' });
+    }
+
+    // Resolve Beds24 V2 token — use connection refresh token or account-level
+    let accessToken = null;
+    const firstProp = propsResult.rows[0];
+    let creds = firstProp.credentials || {};
+    if (typeof creds === 'string') creds = JSON.parse(creds);
+    const refreshToken = firstProp.refresh_token || creds.refreshToken || creds.refresh_token;
+
+    if (!refreshToken) {
+      // Fallback to account-level token
+      try {
+        accessToken = await getBeds24Token(parseInt(account_id));
+      } catch (e) {
+        return res.json({ success: false, error: 'No Beds24 token available — reconnect the integration' });
+      }
+    } else {
+      try {
+        const tokenResp = await axios.get('https://beds24.com/api/v2/authentication/token', {
+          headers: { 'refreshToken': refreshToken }
+        });
+        accessToken = tokenResp.data.token;
+      } catch (e) {
+        return res.json({ success: false, error: 'Failed to refresh Beds24 token: ' + e.message });
+      }
+    }
+
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const details = [];
+    let updated = 0, unchanged = 0, skippedEmpty = 0, errors = 0;
+
+    for (let i = 0; i < propsResult.rows.length; i++) {
+      const prop = propsResult.rows[i];
+      if (i > 0) await sleep(2000);
+
+      try {
+        let resp;
+        let retried = false;
+        const fetchB24 = async () => {
+          return axios.get('https://beds24.com/api/v2/properties', {
+            headers: { 'token': accessToken },
+            params: { id: prop.beds24_property_id },
+            timeout: 15000
+          });
+        };
+
+        try {
+          resp = await fetchB24();
+        } catch (e) {
+          if (e.response && e.response.status === 429 && !retried) {
+            const retryAfter = parseInt(e.response.headers['retry-after']) || 30;
+            console.log(`[Refresh Multipliers] 429 on property ${prop.gas_property_id}, waiting ${retryAfter}s`);
+            await sleep(retryAfter * 1000);
+            retried = true;
+            resp = await fetchB24();
+          } else {
+            throw e;
+          }
+        }
+
+        const b24Props = Array.isArray(resp.data) ? resp.data : [resp.data];
+        if (!b24Props.length || !b24Props[0]) {
+          details.push({ property_id: prop.gas_property_id, name: prop.name, status: 'error', error: 'No data returned from Beds24' });
+          errors++;
+          continue;
+        }
+
+        const rawMultiplier = b24Props[0].bookingPageMultiplier;
+
+        // Empty/null → skip (preserve manual entry)
+        if (!rawMultiplier || (typeof rawMultiplier === 'string' && rawMultiplier.trim() === '')) {
+          details.push({ property_id: prop.gas_property_id, name: prop.name, status: 'skipped-empty', multiplier: prop.booking_page_multiplier ? parseFloat(prop.booking_page_multiplier) : null });
+          skippedEmpty++;
+          continue;
+        }
+
+        const trimmed = String(rawMultiplier).trim();
+
+        // Currency conversion patterns → log warning, skip
+        if (/\[.*\]/.test(trimmed) || /[a-zA-Z]/.test(trimmed.replace(/^\*/, ''))) {
+          console.log(`[Refresh Multipliers] Property ${prop.gas_property_id}: currency conversion multiplier not supported: ${trimmed}`);
+          details.push({ property_id: prop.gas_property_id, name: prop.name, status: 'skipped-conversion', raw: trimmed });
+          skippedEmpty++;
+          continue;
+        }
+
+        // Parse: "*1.05" → strip *, parseFloat
+        const numStr = trimmed.startsWith('*') ? trimmed.substring(1) : trimmed;
+        const parsed = parseFloat(numStr);
+
+        if (!isFinite(parsed) || parsed <= 0) {
+          console.log(`[Refresh Multipliers] Property ${prop.gas_property_id}: unparseable multiplier: ${trimmed}`);
+          details.push({ property_id: prop.gas_property_id, name: prop.name, status: 'error', error: 'Unparseable: ' + trimmed });
+          errors++;
+          continue;
+        }
+
+        const currentVal = prop.booking_page_multiplier ? parseFloat(prop.booking_page_multiplier) : null;
+
+        if (currentVal !== null && Math.abs(currentVal - parsed) < 0.0001) {
+          details.push({ property_id: prop.gas_property_id, name: prop.name, status: 'unchanged', multiplier: parsed });
+          unchanged++;
+        } else {
+          await pool.query('UPDATE properties SET booking_page_multiplier = $1 WHERE id = $2', [parsed, prop.gas_property_id]);
+          details.push({ property_id: prop.gas_property_id, name: prop.name, status: 'updated', from: currentVal, to: parsed });
+          updated++;
+        }
+
+      } catch (e) {
+        const status = e.response?.status;
+        if (status === 401) {
+          // Token invalid — abort entire run
+          return res.json({
+            success: false,
+            error: 'Beds24 token invalid (401). Reconnect the integration.',
+            total: propsResult.rows.length, updated, unchanged, skipped_empty: skippedEmpty, errors: errors + 1,
+            details: [...details, { property_id: prop.gas_property_id, name: prop.name, status: 'error', error: '401 — aborted' }]
+          });
+        }
+        if (status === 403) {
+          console.log(`[Refresh Multipliers] 403 access denied for property ${prop.gas_property_id} (Beds24 ${prop.beds24_property_id})`);
+          details.push({ property_id: prop.gas_property_id, name: prop.name, status: 'error', error: '403 forbidden' });
+          errors++;
+          continue;
+        }
+        if (status === 429) {
+          // Already retried once in the inner try, skip
+          console.log(`[Refresh Multipliers] 429 rate limit for property ${prop.gas_property_id} after retry`);
+          details.push({ property_id: prop.gas_property_id, name: prop.name, status: 'error', error: '429 rate limited' });
+          errors++;
+          continue;
+        }
+        // Network timeout or other error
+        console.log(`[Refresh Multipliers] Error for property ${prop.gas_property_id}: ${e.message}`);
+        details.push({ property_id: prop.gas_property_id, name: prop.name, status: 'error', error: e.message });
+        errors++;
+      }
+    }
+
+    console.log(`[Refresh Multipliers] Account ${account_id}: ${updated} updated, ${unchanged} unchanged, ${skippedEmpty} skipped-empty, ${errors} errors`);
+    res.json({
+      success: true,
+      total: propsResult.rows.length,
+      updated,
+      unchanged,
+      skipped_empty: skippedEmpty,
+      errors,
+      details
+    });
+  } catch (error) {
+    console.error('Refresh multipliers error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -62601,9 +62792,16 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
                 }
               } catch (dayErr) {
                 if (dayErr.response?.status === 429) {
-                  console.log(`    Rate limited, pausing 2s...`);
-                  await new Promise(r => setTimeout(r, 2000));
-                  od.setDate(od.getDate() - 1);
+                  const retryAfter = parseInt(dayErr.response.headers?.['retry-after']) || 30;
+                  console.log(`    Rate limited, pausing ${retryAfter}s...`);
+                  await new Promise(r => setTimeout(r, retryAfter * 1000));
+                  if (!this._rateLimitRetries2) this._rateLimitRetries2 = 0;
+                  if (++this._rateLimitRetries2 < 3) {
+                    od.setDate(od.getDate() - 1);
+                  } else {
+                    console.log(`    Max retries hit, skipping remaining days`);
+                    break;
+                  }
                 }
               }
             }
