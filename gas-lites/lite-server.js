@@ -2814,9 +2814,9 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .share-btn { background: none; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; }
     
     /* Gallery */
-    .gallery { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; height: 450px; border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+    .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; height: 480px; border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
     .gallery-main { width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
-    .gallery-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; }
+    .gallery-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; }
     .gallery-thumb { width: 100%; height: 100%; object-fit: cover; cursor: pointer; transition: opacity 0.2s; }
     .gallery-thumb:hover { opacity: 0.85; }
     .gallery-more { position: relative; cursor: pointer; }
