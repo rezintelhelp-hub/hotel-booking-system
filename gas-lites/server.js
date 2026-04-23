@@ -3759,7 +3759,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               <div id="card-errors" role="alert"></div>
               <div class="stripe-badge">
                 <span>Powered by</span>
-                <svg width="50" height="20" viewBox="0 0 60 25"><path fill="#635BFF" d="M5 10c0-2.8 1.3-4 3.5-4 1.6 0 2.8.5 3.5 1.3l-.8 1.2c-.5-.6-1.4-1-2.5-1-1.5 0-2.2.8-2.2 2.5v2c0 1.7.7 2.5 2.2 2.5 1.1 0 2-.4 2.5-1l.8 1.2c-.7.8-1.9 1.3-3.5 1.3-2.2 0-3.5-1.2-3.5-4v-2zm8 5V4h1.5v11h-1.5zm4-9c0-.5.4-1 1-1s1 .5 1 1-.4 1-1 1-1-.5-1-1zm.25 2h1.5v7h-1.5v-7zm3 0h1.5v.9c.5-.6 1.2-1 2.1-1 1.6 0 2.5 1 2.5 2.8v4.3h-1.5v-4c0-1.2-.5-1.7-1.5-1.7-.8 0-1.5.4-1.6 1v4.7h-1.5v-7zm8.5-.1c1.4 0 2.4.6 3 1.5l-1 .9c-.4-.6-1.1-1-1.9-1-1.4 0-2.3 1-2.3 2.6 0 1.6.9 2.6 2.3 2.6.8 0 1.5-.4 1.9-1l1 .9c-.6.9-1.6 1.5-3 1.5-2.3 0-3.8-1.5-3.8-4 0-2.6 1.5-4 3.8-4z"/></svg>
+                <span style="color:#635BFF;font-weight:700;font-size:14px;letter-spacing:-0.5px;">Stripe</span>
               </div>
             </div>
             
