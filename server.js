@@ -8641,6 +8641,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
 
       // Always fetch fresh texts from Beds24 API
       let beds24TextsMap = {};
+      let b24Props = [];
       try {
         let creds = prop.credentials || {};
         if (typeof creds === 'string') creds = JSON.parse(creds);
@@ -8661,7 +8662,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         });
         console.log('content-sync: Beds24 API response status:', propResp.status, 'data type:', typeof propResp.data, 'isArray:', Array.isArray(propResp.data));
 
-        const b24Props = Array.isArray(propResp.data) ? propResp.data : (propResp.data?.data || [propResp.data]);
+        b24Props = Array.isArray(propResp.data) ? propResp.data : (propResp.data?.data || [propResp.data]);
         for (const b24Prop of b24Props) {
           const b24Rooms = b24Prop?.roomTypes || b24Prop?.rooms || [];
           console.log('content-sync: Property', b24Prop?.name, 'has', b24Rooms.length, 'rooms');
