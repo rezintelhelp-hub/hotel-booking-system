@@ -46520,6 +46520,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
         date: dateStr,
         cm_price: a.cm_price,
         standard_price: a.standard_price || a.cm_price, // Use saved standard_price, fallback to cm_price
+        standard_price_raw: a.standard_price || null, // Raw DB value — null means not manually set
         direct_price: effectiveDirectPrice || a.cm_price,
         direct_discount_percent: a.direct_discount_percent,
         is_available: a.is_available,
