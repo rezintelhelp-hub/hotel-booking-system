@@ -805,6 +805,13 @@ app.get('/:slug', async (req, res) => {
       images = propImgRes.rows;
     }
     
+    // Pad to 5 images: repeat hero in empty thumb slots
+    if (images.length > 0 && images.length < 5) {
+      while (images.length < 5) {
+        images.push({ url: images[0].url, caption: images[0].caption, is_primary: false });
+      }
+    }
+
     // Get amenities for the room
     let amenities = [];
     if (roomId) {
