@@ -3051,7 +3051,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .header-presents strong { color: #1e293b; font-weight: 600; }
     .share-btn { background: none; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; }
     
-    /* Gallery — locked layout */
+    /* GALLERY — LOCKED. DO NOT EDIT. See gas-booking.css for full warning. All !important intentional. */
     .gallery { display: grid !important; grid-template-columns: 1fr 1fr !important; grid-template-rows: 400px !important; gap: 4px !important; height: 400px !important; max-height: 400px !important; border-radius: 12px; overflow: hidden !important; margin-bottom: 24px; box-sizing: border-box; width: 100%; }
     .gallery.gallery-full { grid-template-columns: 1fr !important; }
     .gallery-main { width: 100% !important; height: 400px !important; max-height: 400px !important; min-height: 400px !important; object-fit: cover !important; display: block !important; cursor: pointer; min-width: 0 !important; }

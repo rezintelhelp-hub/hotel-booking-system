@@ -62,7 +62,21 @@
 /* ==========================================================================
    Image Gallery - Dwellfort Style (1 large + 4 small grid)
    ========================================================================== */
-/* Gallery — locked layout, immune to theme interference */
+/* ======================================================================
+   GALLERY — LOCKED LAYOUT. DO NOT EDIT.
+
+   This CSS is deliberately rigid with !important on every property.
+   It has been broken and fixed 10+ times by theme interference.
+
+   DO NOT:
+   - Remove any !important
+   - Change heights (480px desktop, 400px tablet, 300px mobile)
+   - Change grid-template-columns or grid-template-rows
+   - Remove min-width:0 or min-height:0 (prevents grid blowout)
+   - Make any property relative (%, auto, inherit) — use fixed px only
+
+   If the gallery looks wrong, the bug is in the HTML/JS, not this CSS.
+   ====================================================================== */
 .gas-gallery {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
