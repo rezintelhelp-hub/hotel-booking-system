@@ -1979,23 +1979,29 @@ jQuery(document).ready(function($) {
         // Ensure offers is an array
         if (!Array.isArray(offers)) offers = [offers];
 
+        // Check if any offer replaces standard rate
+        var anyReplacesStandard = offers.some(function(o) { return o.replaces_standard; });
+
         var html = '<div class="gas-rate-options">';
         html += '<div class="gas-rate-options-title">' + t('booking', 'choose_rate', 'Choose your rate') + ':</div>';
 
-        // Standard Rate — always first
-        html += '<div class="gas-rate-option selected" data-rate="standard" data-offer-id="">';
-        html += '<div class="gas-rate-radio"><div class="gas-rate-radio-inner"></div></div>';
-        html += '<div class="gas-rate-details">';
-        html += '<div class="gas-rate-name">Standard Rate</div>';
-        html += '<div class="gas-rate-features"><span class="gas-rate-feature">✓ Free cancellation</span></div>';
-        html += '</div>';
-        html += '<div class="gas-rate-price">';
-        html += '<div class="gas-rate-total">' + formatPrice(standardTotal, currency) + '</div>';
-        html += '<div class="gas-rate-per-night">' + formatPriceShort(perNightStandard, currency) + '/night</div>';
-        html += '</div>';
-        html += '</div>';
+        // Standard Rate — hide if any offer replaces it
+        if (!anyReplacesStandard) {
+            html += '<div class="gas-rate-option selected" data-rate="standard" data-offer-id="">';
+            html += '<div class="gas-rate-radio"><div class="gas-rate-radio-inner"></div></div>';
+            html += '<div class="gas-rate-details">';
+            html += '<div class="gas-rate-name">Standard Rate</div>';
+            html += '<div class="gas-rate-features"><span class="gas-rate-feature">✓ Free cancellation</span></div>';
+            html += '</div>';
+            html += '<div class="gas-rate-price">';
+            html += '<div class="gas-rate-total">' + formatPrice(standardTotal, currency) + '</div>';
+            html += '<div class="gas-rate-per-night">' + formatPriceShort(perNightStandard, currency) + '/night</div>';
+            html += '</div>';
+            html += '</div>';
+        }
 
         // Each offer as a selectable rate
+        var firstOffer = true;
         offers.forEach(function(offer, idx) {
             var discountAmount = 0;
             if (offer.discount_type === 'percentage') {
@@ -2006,18 +2012,29 @@ jQuery(document).ready(function($) {
             var offerTotal = standardTotal - discountAmount;
             var perNightOffer = Math.round(offerTotal / nights);
             var savingsPercent = Math.round((discountAmount / standardTotal) * 100);
+            var showBadge = !offer.replaces_standard && !offer.hide_discount_badge && savingsPercent > 0;
 
-            html += '<div class="gas-rate-option" data-rate="offer-' + idx + '" data-offer-id="' + (offer.id || '') + '" data-offer-name="' + (offer.name || '').replace(/"/g, '&quot;') + '" data-offer-discount-type="' + (offer.discount_type || '') + '" data-offer-discount-value="' + (offer.discount_value || '') + '" data-offer-total="' + offerTotal + '">';
+            // If standard is hidden, auto-select first offer
+            var isSelected = anyReplacesStandard && firstOffer;
+            if (isSelected) firstOffer = false;
+
+            html += '<div class="gas-rate-option' + (isSelected ? ' selected' : '') + '" data-rate="offer-' + idx + '" data-offer-id="' + (offer.id || '') + '" data-offer-name="' + (offer.name || '').replace(/"/g, '&quot;') + '" data-offer-discount-type="' + (offer.discount_type || '') + '" data-offer-discount-value="' + (offer.discount_value || '') + '" data-offer-total="' + offerTotal + '">';
             html += '<div class="gas-rate-radio"><div class="gas-rate-radio-inner"></div></div>';
             html += '<div class="gas-rate-details">';
-            html += '<div class="gas-rate-name">' + (offer.name || 'Special Offer') + ' <span class="gas-rate-badge">Save ' + savingsPercent + '%</span></div>';
+            html += '<div class="gas-rate-name">' + (offer.name || 'Special Offer');
+            if (showBadge) html += ' <span class="gas-rate-badge">Save ' + savingsPercent + '%</span>';
+            html += '</div>';
             html += '<div class="gas-rate-features">';
             if (offer.description) html += '<span class="gas-rate-feature" style="color:#64748b;font-size:0.8rem;">' + offer.description + '</span>';
             html += '</div>';
             html += '</div>';
             html += '<div class="gas-rate-price">';
             html += '<div class="gas-rate-total">' + formatPrice(offerTotal, currency) + '</div>';
-            html += '<div class="gas-rate-per-night"><s>' + formatPriceShort(perNightStandard, currency) + '</s> ' + formatPriceShort(perNightOffer, currency) + '/night</div>';
+            if (showBadge) {
+                html += '<div class="gas-rate-per-night"><s>' + formatPriceShort(perNightStandard, currency) + '</s> ' + formatPriceShort(perNightOffer, currency) + '/night</div>';
+            } else {
+                html += '<div class="gas-rate-per-night">' + formatPriceShort(perNightOffer, currency) + '/night</div>';
+            }
             html += '</div>';
             html += '</div>';
         });

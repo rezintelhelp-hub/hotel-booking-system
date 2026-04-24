@@ -24534,7 +24534,9 @@ app.get('/api/setup-deploy', async (req, res) => {
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS site_status VARCHAR(20) DEFAULT 'development'`).catch(() => {});
 
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS pricing_tier VARCHAR(50) DEFAULT 'standard'`);
-    
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS replaces_standard BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS hide_discount_badge BOOLEAN DEFAULT false`);
+
     // Add website_url column to bookable_units if it doesn't exist
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS website_url VARCHAR(255)`);
 
@@ -43195,7 +43197,8 @@ app.post('/api/admin/offers', async (req, res) => {
       min_advance_days, max_advance_days,
       valid_from, valid_until, valid_days_of_week,
       allowed_checkin_days, allowed_checkout_days,
-      stackable, priority, active, pricing_tier, price_per_night, offer_code
+      stackable, priority, active, pricing_tier, price_per_night, offer_code,
+      replaces_standard, hide_discount_badge
     } = req.body;
     const name = mlStr(rawName);
     const description = mlStr(rawDesc);
@@ -43225,8 +43228,9 @@ app.post('/api/admin/offers', async (req, res) => {
           min_advance_days, max_advance_days,
           valid_from, valid_until, valid_days_of_week,
           allowed_checkin_days, allowed_checkout_days,
-          stackable, priority, active, pricing_tier, offer_code
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+          stackable, priority, active, pricing_tier, offer_code,
+          replaces_standard, hide_discount_badge
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -43236,7 +43240,8 @@ app.post('/api/admin/offers', async (req, res) => {
         min_advance_days || null, max_advance_days || null,
         valid_from || null, valid_until || null, valid_days_of_week || null,
         allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
-        stackable || false, priority || 0, active !== false, pricing_tier || 'standard', offer_code || null
+        stackable || false, priority || 0, active !== false, pricing_tier || 'standard', offer_code || null,
+        replaces_standard || false, hide_discount_badge || false
       ]);
     } catch (colErr) {
       // Fallback without array columns
@@ -43280,47 +43285,50 @@ app.put('/api/admin/offers/:id', async (req, res) => {
       valid_from, valid_until, valid_days_of_week,
       allowed_checkin_days, allowed_checkout_days,
       stackable, priority, active,
-      available_website, available_agents, pricing_tier, offer_code
+      available_website, available_agents, pricing_tier, offer_code,
+      replaces_standard, hide_discount_badge
     } = req.body;
     const name = mlStr(rawName);
     const description = mlStr(rawDesc);
-    
+
     let result;
     try {
       // Try with array columns and pricing_tier
       result = await pool.query(`
         UPDATE offers SET
-          name = COALESCE($1, name), 
-          description = COALESCE($2, description), 
-          property_id = $3, 
+          name = COALESCE($1, name),
+          description = COALESCE($2, description),
+          property_id = $3,
           room_id = $4,
           property_ids = $5,
           room_ids = $6,
-          discount_type = COALESCE($7, discount_type), 
+          discount_type = COALESCE($7, discount_type),
           discount_value = COALESCE($8, discount_value),
           price_per_night = $9,
           applies_to = COALESCE($10, applies_to),
-          min_nights = COALESCE($11, min_nights), 
-          max_nights = $12, 
-          min_guests = $13, 
+          min_nights = COALESCE($11, min_nights),
+          max_nights = $12,
+          min_guests = $13,
           max_guests = $14,
-          min_advance_days = $15, 
+          min_advance_days = $15,
           max_advance_days = $16,
-          valid_from = $17, 
-          valid_until = $18, 
+          valid_from = $17,
+          valid_until = $18,
           valid_days_of_week = $19,
-          allowed_checkin_days = COALESCE($20, allowed_checkin_days), 
+          allowed_checkin_days = COALESCE($20, allowed_checkin_days),
           allowed_checkout_days = COALESCE($21, allowed_checkout_days),
-          stackable = COALESCE($22, stackable), 
-          priority = COALESCE($23, priority), 
+          stackable = COALESCE($22, stackable),
+          priority = COALESCE($23, priority),
           active = COALESCE($24, active),
           available_website = COALESCE($25, available_website),
           available_agents = COALESCE($26, available_agents),
           pricing_tier = COALESCE($27, pricing_tier),
           account_id = COALESCE($28, account_id),
           offer_code = $29,
+          replaces_standard = COALESCE($30, replaces_standard),
+          hide_discount_badge = COALESCE($31, hide_discount_badge),
           updated_at = NOW()
-        WHERE id = $30
+        WHERE id = $32
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -43333,6 +43341,8 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         stackable, priority, active,
         available_website, available_agents, pricing_tier || 'standard',
         account_id || null, offer_code || null,
+        replaces_standard !== undefined ? replaces_standard : null,
+        hide_discount_badge !== undefined ? hide_discount_badge : null,
         req.params.id
       ]);
     } catch (colErr) {
@@ -64812,12 +64822,19 @@ app.post('/api/public/calculate-price', async (req, res) => {
     `, [unit_id, nights, check_in, check_out, requestedPricingTier, unitAccountId]);
 
     // Build all_offers array for the frontend rate selector
-    const allOffers = offers.rows.map(o => ({
-      id: o.id, name: o.name, description: o.description,
-      discount_type: o.discount_type, discount_value: o.discount_value,
-      pricing_tier: o.pricing_tier, price_per_night: o.price_per_night,
-      hide_discount_badge: o.hide_discount_badge
-    }));
+    // Filter out agent-tier offers unless matching pricing_tier was requested
+    const allOffers = offers.rows
+      .filter(o => {
+        if (o.pricing_tier && o.pricing_tier.startsWith('agent') && requestedPricingTier !== o.pricing_tier) return false;
+        return true;
+      })
+      .map(o => ({
+        id: o.id, name: o.name, description: o.description,
+        discount_type: o.discount_type, discount_value: o.discount_value,
+        pricing_tier: o.pricing_tier, price_per_night: o.price_per_night,
+        hide_discount_badge: o.hide_discount_badge,
+        replaces_standard: o.replaces_standard
+      }));
 
     if (offers.rows[0]) {
       const offer = offers.rows[0];
