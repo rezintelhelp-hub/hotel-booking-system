@@ -3051,16 +3051,16 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .header-presents strong { color: #1e293b; font-weight: 600; }
     .share-btn { background: none; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; }
     
-    /* Gallery */
-    .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; height: 400px; border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
-    .gallery.gallery-full { grid-template-columns: 1fr; }
-    .gallery-main { width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
-    .gallery-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; }
-    .gallery-thumb { width: 100%; height: 100%; object-fit: cover; cursor: pointer; transition: opacity 0.2s; }
+    /* Gallery — locked layout */
+    .gallery { display: grid !important; grid-template-columns: 1fr 1fr !important; grid-template-rows: 400px !important; gap: 4px !important; height: 400px !important; max-height: 400px !important; border-radius: 12px; overflow: hidden !important; margin-bottom: 24px; box-sizing: border-box; width: 100%; }
+    .gallery.gallery-full { grid-template-columns: 1fr !important; }
+    .gallery-main { width: 100% !important; height: 400px !important; max-height: 400px !important; min-height: 400px !important; object-fit: cover !important; display: block !important; cursor: pointer; min-width: 0 !important; }
+    .gallery-grid { display: grid !important; grid-template-columns: 1fr 1fr !important; grid-template-rows: 1fr 1fr !important; gap: 4px !important; height: 400px !important; max-height: 400px !important; min-width: 0 !important; }
+    .gallery-thumb { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block !important; cursor: pointer; transition: opacity 0.2s; min-width: 0 !important; min-height: 0 !important; }
     .gallery-thumb:hover { opacity: 0.85; }
-    .gallery-more { position: relative; cursor: pointer; }
-    .gallery-more img { width: 100%; height: 100%; object-fit: cover; }
-    .gallery-more-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; }
+    .gallery-more { position: relative !important; cursor: pointer; height: 100% !important; min-width: 0 !important; overflow: hidden !important; }
+    .gallery-more img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+    .gallery-more-overlay { position: absolute !important; inset: 0 !important; background: rgba(0,0,0,0.5) !important; display: flex !important; align-items: center !important; justify-content: center !important; color: white !important; font-weight: 600; }
     
     /* Lightbox */
     .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; align-items: center; justify-content: center; }
@@ -3075,8 +3075,9 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .room-layout { display: grid; grid-template-columns: 1fr 380px; gap: 32px; }
     @media (max-width: 900px) { 
       .room-layout { grid-template-columns: 1fr; } 
-      .gallery { height: 300px; grid-template-columns: 1fr; }
-      .gallery-grid { display: none; }
+      .gallery { height: 300px !important; max-height: 300px !important; grid-template-columns: 1fr !important; grid-template-rows: 300px !important; }
+      .gallery-main { height: 300px !important; max-height: 300px !important; min-height: 300px !important; }
+      .gallery-grid { display: none !important; }
     }
     
     /* Mobile responsive fixes */
