@@ -78496,6 +78496,50 @@ async function runGasSyncScheduler() {
               }
             }
 
+            // Fallback: when V2 calendar returns empty, use availability + fixedPrices endpoints
+            if (calendarData.length === 0 && !linking) {
+              try {
+                const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+                  headers: { 'token': accessToken },
+                  params: { roomId: beds24RoomId, startDate: startDateStr, endDate: endDateStr }
+                });
+                const availData = availResponse.data.data?.[0]?.availability || {};
+
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Fetch fixedPrices for price data
+                let priceRules = [];
+                try {
+                  const pricesResponse = await axios.get('https://beds24.com/api/v2/inventory/fixedPrices', {
+                    headers: { 'token': accessToken },
+                    params: { roomId: beds24RoomId }
+                  });
+                  priceRules = (pricesResponse.data.data || []).filter(r => r.offerId === 1);
+                } catch (priceErr) {
+                  // fixedPrices fetch failed — still write availability without prices
+                }
+
+                const findPriceForDate = (dateStr) => {
+                  const matching = priceRules.filter(r => dateStr >= r.firstNight && dateStr <= r.lastNight);
+                  if (matching.length === 0) return null;
+                  const best = matching.reduce((a, b) => b.id > a.id ? b : a);
+                  return { price: best.roomPrice, minStay: best.minNights || 1 };
+                };
+
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                  const dateStr = d.toISOString().split('T')[0];
+                  if (availData[dateStr] === undefined) continue; // no data for this date
+                  const isAvailable = availData[dateStr] === true;
+                  const priceInfo = findPriceForDate(dateStr);
+                  const price = priceInfo?.price || null;
+                  const minStay = priceInfo?.minStay || 1;
+                  calendarData.push({ from: dateStr, to: dateStr, numAvail: isAvailable ? 1 : 0, price1: price, minStay });
+                }
+              } catch (availErr) {
+                // Availability fallback failed — skip, will retry next cycle
+              }
+            }
+
             // Write price & availability to room_availability
             for (const entry of calendarData) {
               const fromDate = new Date(entry.from), toDate = new Date(entry.to);
@@ -78510,7 +78554,7 @@ async function runGasSyncScheduler() {
                   ON CONFLICT (room_id, date) DO UPDATE SET
                     price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                     cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
-                    direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+                    direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.direct_price END,
                     is_available = $4, is_blocked = $5,
                     min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
                     cm_min_stay = $6, source = 'beds24', updated_at = NOW()
