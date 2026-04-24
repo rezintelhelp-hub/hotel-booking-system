@@ -1226,55 +1226,67 @@ app.get('/api/room/:roomId', async (req, res) => {
   res.json({ success: true, lite: result.rows[0] || null });
 });
 
+// Shared function: ensure a Lite card exists for a room. Returns existing or creates new.
+async function ensureLiteCard(roomId) {
+  const existing = await pool.query('SELECT * FROM gas_lites WHERE room_id = $1', [roomId]);
+  if (existing.rows.length > 0) return { lite: existing.rows[0], created: false };
+
+  const roomResult = await pool.query(`
+    SELECT bu.id, p.id as property_id, a.id as account_id
+    FROM bookable_units bu
+    JOIN properties p ON bu.property_id = p.id
+    LEFT JOIN accounts a ON p.account_id = a.id
+    WHERE bu.id = $1
+  `, [roomId]);
+  if (roomResult.rows.length === 0) return null;
+
+  const room = roomResult.rows[0];
+  let slug;
+  let attempts = 0;
+  while (attempts < 10) {
+    slug = String(Math.floor(100000 + Math.random() * 900000));
+    const check = await pool.query('SELECT id FROM gas_lites WHERE slug = $1', [slug]);
+    if (check.rows.length === 0) break;
+    attempts++;
+  }
+  if (attempts >= 10) slug = Date.now().toString(36);
+
+  const result = await pool.query(
+    'INSERT INTO gas_lites (property_id, room_id, account_id, slug) VALUES ($1, $2, $3, $4) RETURNING *',
+    [room.property_id, roomId, room.account_id, slug]
+  );
+  return { lite: result.rows[0], created: true };
+}
+
 // Get or create lite for a room (used by preview button)
 app.post('/api/room/:roomId/lite', async (req, res) => {
   try {
-    const roomId = req.params.roomId;
-    
-    // Check if lite exists
-    const existing = await pool.query('SELECT * FROM gas_lites WHERE room_id = $1', [roomId]);
-    if (existing.rows.length > 0) {
-      return res.json({ success: true, lite: existing.rows[0], created: false });
+    const result = await ensureLiteCard(parseInt(req.params.roomId));
+    if (!result) return res.json({ success: false, error: 'Room not found' });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Backfill: create Lite cards for all active rooms missing one
+app.post('/api/lites/backfill', async (req, res) => {
+  try {
+    const { account_id } = req.body;
+    const query = account_id
+      ? `SELECT bu.id FROM bookable_units bu JOIN properties p ON bu.property_id = p.id
+         LEFT JOIN gas_lites gl ON gl.room_id = bu.id
+         WHERE p.account_id = $1 AND bu.status IN ('active','available') AND gl.id IS NULL`
+      : `SELECT bu.id FROM bookable_units bu JOIN properties p ON bu.property_id = p.id
+         LEFT JOIN gas_lites gl ON gl.room_id = bu.id
+         WHERE bu.status IN ('active','available') AND gl.id IS NULL`;
+    const missing = await pool.query(query, account_id ? [account_id] : []);
+    let created = 0;
+    for (const row of missing.rows) {
+      const result = await ensureLiteCard(row.id);
+      if (result?.created) created++;
     }
-    
-    // Get room and property info
-    const roomResult = await pool.query(`
-      SELECT bu.*, p.id as property_id, p.name as property_name, a.id as account_id
-      FROM bookable_units bu
-      JOIN properties p ON bu.property_id = p.id
-      LEFT JOIN accounts a ON p.account_id = a.id
-      WHERE bu.id = $1
-    `, [roomId]);
-    
-    if (roomResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Room not found' });
-    }
-    
-    const room = roomResult.rows[0];
-    
-    // Generate random 6-digit slug (like Facebook's approach)
-    let slug;
-    let attempts = 0;
-    while (attempts < 10) {
-      const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 digits
-      slug = String(randomNum);
-      const slugCheck = await pool.query('SELECT id FROM gas_lites WHERE slug = $1', [slug]);
-      if (slugCheck.rows.length === 0) break;
-      attempts++;
-    }
-    
-    if (attempts >= 10) {
-      // Fallback to timestamp-based if random keeps colliding
-      slug = Date.now().toString(36);
-    }
-    
-    // Create the lite - don't set custom_title, let display_name be used from the room
-    const result = await pool.query(`
-      INSERT INTO gas_lites (property_id, room_id, account_id, slug)
-      VALUES ($1, $2, $3, $4) RETURNING *
-    `, [room.property_id, roomId, room.account_id, slug]);
-    
-    res.json({ success: true, lite: result.rows[0], created: true });
+    res.json({ success: true, checked: missing.rows.length, created });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }

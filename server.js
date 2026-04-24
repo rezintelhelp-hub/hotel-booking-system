@@ -32340,7 +32340,33 @@ app.get('/api/db/gas-lites', async (req, res) => {
     );
     const accountCode = acctResult.rows[0]?.account_code || accountId;
 
-    // Return ALL rooms for the account with their lite slugs (if any)
+    // Auto-create missing Lite cards for active rooms (backfill on load)
+    const missing = await pool.query(`
+      SELECT bu.id as room_id, p.id as property_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      LEFT JOIN gas_lites gl ON gl.room_id = bu.id
+      WHERE p.account_id = $1 AND bu.status IN ('active', 'available') AND gl.id IS NULL
+    `, [accountId]);
+    for (const row of missing.rows) {
+      let slug, attempts = 0;
+      while (attempts < 10) {
+        slug = String(Math.floor(100000 + Math.random() * 900000));
+        const check = await pool.query('SELECT id FROM gas_lites WHERE slug = $1', [slug]);
+        if (check.rows.length === 0) break;
+        attempts++;
+      }
+      if (attempts >= 10) slug = Date.now().toString(36) + Math.floor(Math.random() * 100);
+      await pool.query(
+        'INSERT INTO gas_lites (property_id, room_id, account_id, slug) VALUES ($1, $2, $3, $4)',
+        [row.property_id, row.room_id, accountId, slug]
+      );
+    }
+    if (missing.rows.length > 0) {
+      console.log(`[Lites] Auto-created ${missing.rows.length} Lite cards for account ${accountId}`);
+    }
+
+    // Return ALL rooms for the account with their lite slugs
     const result = await pool.query(`
       SELECT bu.id as room_id, bu.name as room_name, bu.display_name, bu.max_guests,
              p.id as property_id, p.name as property_name, p.city, p.country,
