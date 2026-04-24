@@ -15,7 +15,7 @@
  *   data-min-height (optional)  Minimum iframe height in px (default: 700)
  *   data-lang       (optional)  Language code e.g. "es", "de", "fr"
  *
- * Version: 1.2.0
+ * Version: 1.2.1
  * https://gas.travel
  */
 (function() {
@@ -78,8 +78,8 @@
     origin = 'https://lite.gas.travel';
   }
 
-  // Build iframe URL
-  var src = origin + '/book/' + encodeURIComponent(config.account) + '?embed=1';
+  // Build iframe URL (v param busts browser/CDN cache on deploy)
+  var src = origin + '/book/' + encodeURIComponent(config.account) + '?embed=1&v=1.2.1';
   if (config.checkin) src += '&checkin=' + encodeURIComponent(config.checkin);
   if (config.checkout) src += '&checkout=' + encodeURIComponent(config.checkout);
   if (config.guests) src += '&guests=' + encodeURIComponent(config.guests);

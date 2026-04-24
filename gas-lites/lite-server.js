@@ -15,7 +15,13 @@ const path = require('path');
 
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('gas-embed.js')) {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+    }
+  }
+}));
 
 // CORS
 app.use((req, res, next) => {
