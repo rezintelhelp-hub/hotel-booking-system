@@ -4198,11 +4198,15 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         const banner = document.getElementById('offerBanner');
         
         if (availableOffers.length > 0) {
-          // Show offer banner
-          banner.classList.add('visible');
-
           // Check if any offer replaces standard rate
           const anyReplacesStandard = availableOffers.some(o => o.replaces_standard);
+
+          // Show offer banner only for genuine offers, not replacements
+          if (anyReplacesStandard) {
+            banner.classList.remove('visible');
+          } else {
+            banner.classList.add('visible');
+          }
 
           // Build rate options HTML
           let html = '';
