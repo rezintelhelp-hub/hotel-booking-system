@@ -3585,8 +3585,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               <span class="price-amount">${t('select_dates', lang)}</span>
             </div>
             <div class="date-inputs">
-              <div class="date-field"><label>${t('check_in', lang)}</label><input type="text" id="checkin" placeholder="${t('select_dates', lang)}" readonly></div>
-              <div class="date-field"><label>${t('check_out', lang)}</label><input type="text" id="checkout" placeholder="${t('select_dates', lang)}" readonly></div>
+              <div class="date-field"><label>${t('check_in', lang)}</label><input type="text" id="checkin" placeholder="${t('select_dates', lang)}" readonly onclick="openAvailabilityTab()"></div>
+              <div class="date-field"><label>${t('check_out', lang)}</label><input type="text" id="checkout" placeholder="${t('select_dates', lang)}" readonly onclick="openAvailabilityTab()"></div>
             </div>
             <div class="guest-fields">
               <div class="guest-field"><label>${t('guests', lang)}</label><select id="adults">${Array.from({length: Math.min(parseInt(lite.max_guests) || 8, 20)}, (_, i) => i + 1).map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
@@ -4028,7 +4028,14 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       document.getElementById('tab-' + id).classList.add('active');
       if (id === 'availability') renderCalendar();
     }
-    
+
+    function openAvailabilityTab() {
+      const btn = document.querySelector('.tab-btn[onclick*="availability"]');
+      if (btn) switchTab(btn, 'availability');
+      const cal = document.getElementById('tab-availability');
+      if (cal) cal.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     // Accordion
     function toggleAccordion(h) { h.parentElement.classList.toggle('open'); }
     
