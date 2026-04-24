@@ -4021,6 +4021,12 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           
           list.innerHTML = html;
           section.style.display = 'block';
+
+          // Auto-select first offer when it replaces standard
+          if (anyReplacesStandard && availableOffers.length > 0) {
+            selectedOffer = availableOffers[0];
+            updateTotal();
+          }
         } else {
           banner.classList.remove('visible');
           section.style.display = 'none';
@@ -4074,7 +4080,22 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       // Apply offer discount first (before upsells)
       if (selectedOffer) {
-        if (selectedOffer.discount_type === 'percentage') {
+        if (selectedOffer.replaces_standard) {
+          const base = currentPricing.cmTotal || currentPricing.nightlyTotal;
+          let offerNightlyTotal;
+          if (selectedOffer.discount_type === 'percentage') {
+            offerNightlyTotal = base * (1 - selectedOffer.discount_value / 100);
+          } else {
+            offerNightlyTotal = base - parseFloat(selectedOffer.discount_value);
+          }
+          total = offerNightlyTotal + (currentPricing.cleaningFee || 0);
+          offerDiscount = 0;
+          const avgOffer = Math.round(offerNightlyTotal / currentPricing.nights);
+          const nightsWord = currentPricing.nights === 1 ? '${t('night', lang)}' : '${t('nights', lang)}';
+          document.getElementById('nightlyRow').innerHTML = '<span>' + currency + avgOffer + ' × ' + currentPricing.nights + ' ' + nightsWord + '</span><span>' + currency + Math.round(offerNightlyTotal) + '</span>';
+          const priceHeader = document.querySelector('.price-amount');
+          if (priceHeader) priceHeader.textContent = currency + avgOffer;
+        } else if (selectedOffer.discount_type === 'percentage') {
           offerDiscount = currentPricing.nightlyTotal * (selectedOffer.discount_value / 100);
         } else {
           offerDiscount = parseFloat(selectedOffer.discount_value);
