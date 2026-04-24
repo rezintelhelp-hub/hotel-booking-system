@@ -3059,9 +3059,9 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .share-btn { background: none; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; }
     
     /* Gallery */
-    .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; height: 400px; border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+    .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; height: 400px; border-radius: 12px; overflow: hidden; margin-bottom: 24px; min-height: 400px; }
     .gallery.gallery-full { grid-template-columns: 1fr; }
-    .gallery-main { width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
+    .gallery-main { width: 100%; height: 100%; object-fit: cover; cursor: pointer; background: #e2e8f0; min-width: 0; }
     .gallery-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; }
     .gallery-thumb { width: 100%; height: 100%; object-fit: cover; cursor: pointer; transition: opacity 0.2s; }
     .gallery-thumb:hover { opacity: 0.85; }
