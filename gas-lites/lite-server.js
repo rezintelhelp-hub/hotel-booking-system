@@ -3908,11 +3908,13 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         if (data.success) {
           currentPricing = data.pricing;
           displayPricing();
-          // Update header price to show avg nightly rate for selected dates
-          var priceHeader = document.querySelector('.price-amount');
-          if (priceHeader && data.pricing.avgPerNight) {
-            priceHeader.textContent = currency + Math.round(data.pricing.avgPerNight);
-            priceHeader.removeAttribute('style');
+          // Update header price — skip if replaces_standard offer active (updateTotal handles it)
+          if (!selectedOffer || !selectedOffer.replaces_standard) {
+            var priceHeader = document.querySelector('.price-amount');
+            if (priceHeader && data.pricing.avgPerNight) {
+              priceHeader.textContent = currency + Math.round(data.pricing.avgPerNight);
+              priceHeader.removeAttribute('style');
+            }
           }
           // Show min stay info if applicable
           if (data.pricing.minStay > 1) {
@@ -4061,8 +4063,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       const p = currentPricing;
       const nightsWord = p.nights === 1 ? '${t('night', lang)}' : '${t('nights', lang)}';
-      document.getElementById('nightlyRow').innerHTML = '<span>' + currency + Math.round(p.avgPerNight) + ' × ' + p.nights + ' ' + nightsWord + '</span><span>' + currency + Math.round(p.nightlyTotal) + '</span>';
-      
+      if (!selectedOffer || !selectedOffer.replaces_standard) {
+        document.getElementById('nightlyRow').innerHTML = '<span>' + currency + Math.round(p.avgPerNight) + ' × ' + p.nights + ' ' + nightsWord + '</span><span>' + currency + Math.round(p.nightlyTotal) + '</span>';
+      }
+
       const cleaningRow = document.getElementById('cleaningRow');
       if (p.cleaningFee > 0) {
         cleaningRow.style.display = 'flex';
