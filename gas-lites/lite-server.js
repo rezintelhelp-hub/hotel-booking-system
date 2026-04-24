@@ -3968,15 +3968,21 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         const data = await res.json();
         
         availableOffers = data.offers || [];
-        selectedOffer = null;
-        
+
         const section = document.getElementById('rateOptionsSection');
         const list = document.getElementById('rateOptionsList');
         const banner = document.getElementById('offerBanner');
-        
+
         if (availableOffers.length > 0) {
           // Check if any offer replaces standard rate
           const anyReplacesStandard = availableOffers.some(o => o.replaces_standard);
+
+          // Pre-set selectedOffer immediately for replaces_standard to prevent flash
+          if (anyReplacesStandard) {
+            selectedOffer = availableOffers.find(o => o.replaces_standard) || availableOffers[0];
+          } else {
+            selectedOffer = null;
+          }
 
           // Show offer banner only for genuine offers, not replacements
           if (anyReplacesStandard) {
