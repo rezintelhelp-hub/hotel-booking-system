@@ -3875,11 +3875,12 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         if (isPast) {
           cls += ' empty';
         } else if (avail) {
-          cls += avail.available ? ' available' : ' unavailable';
-          if (avail.price && avail.available) priceStr = '<div class="price">' + currency + Math.round(avail.price) + '</div>';
-        } else {
-          cls += ' available';
+          // Available only if inventory AND price both exist
+          var bookable = avail.available && avail.price && parseFloat(avail.price) > 0;
+          cls += bookable ? ' available' : ' unavailable';
+          if (bookable) priceStr = '<div class="price">' + currency + Math.round(avail.price) + '</div>';
         }
+        // No data = no class (neutral) — don't assume available
         if (isToday) cls += ' today';
         
         html += '<div class="' + cls + '">' + day + priceStr + '</div>';
