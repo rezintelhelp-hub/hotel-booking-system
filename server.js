@@ -64606,6 +64606,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
     const availability = await pool.query(`
       SELECT ra.date,
              COALESCE(ra.standard_price, ra.direct_price, ra.cm_price) * COALESCE(p.booking_page_multiplier, 1) as price,
+             ra.cm_price,
              ra.is_available,
              ra.is_blocked,
              COALESCE(ra.min_stay_override, ra.min_stay, ra.cm_min_stay, 1) as min_stay
@@ -64675,6 +64676,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
     // Build nightly breakdown with occupancy adjustments
     const nightlyBreakdown = [];
     let accommodationTotal = 0;
+    let cmTotal = 0;
     let occupancyAdjustmentTotal = 0;
     let allAvailable = true;
     
@@ -64694,6 +64696,8 @@ app.post('/api/public/calculate-price', async (req, res) => {
       const dayData = availability.rows.find(a => toDateStr(a.date) === dateStr);
       
       let nightPrice = dayData?.price ? parseFloat(dayData.price) : 0;
+      const nightCmPrice = dayData?.cm_price ? parseFloat(dayData.cm_price) : nightPrice;
+      cmTotal += nightCmPrice;
       if (!nightPrice && !dayData) {
         allAvailable = false; // No calendar data for this date
       }
@@ -64880,6 +64884,21 @@ app.post('/api/public/calculate-price', async (req, res) => {
             hide_discount_badge: true
           };
         }
+      } else if (offer.replaces_standard) {
+        // Replaces Standard: discount calculated from CM price, result IS the display price
+        const baseForDiscount = cmTotal || accommodationTotal;
+        if (offer.discount_type === 'percentage') {
+          const offerTotal = baseForDiscount * (1 - offer.discount_value / 100);
+          accommodationTotal = offerTotal;
+        } else {
+          accommodationTotal = baseForDiscount - parseFloat(offer.discount_value);
+        }
+        occupancyAdjustmentTotal = 0;
+        discount = 0;
+        offerApplied = {
+          name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value,
+          replaces_standard: true, hide_discount_badge: true
+        };
       } else {
         // Standard tier - use percentage/fixed discount with visible badge
         if (offer.discount_type === 'percentage') {
@@ -65123,6 +65142,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       occupancy_adjustment: occupancyAdjustmentTotal,
       occupancy_label: occupancyLabel,
       accommodation_total: accommodationTotal,
+      cm_total: cmTotal,
       offer_discount: discount,
       offer_applied: offerApplied,
       all_offers: allOffers || [],

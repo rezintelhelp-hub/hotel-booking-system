@@ -1913,10 +1913,11 @@ jQuery(document).ready(function($) {
                     var hideDiscountBadge = activeOffer && activeOffer.hide_discount_badge;
                     
                     var allOffers = response.all_offers || [];
+                    var cmTotal = response.cm_total || accommodationTotal;
                     if (allOffers.length > 0 && !hideDiscountBadge) {
-                        renderRateOptions(nights, accommodationTotal, allOffers, currency);
+                        renderRateOptions(nights, accommodationTotal, allOffers, currency, cmTotal);
                     } else if (activeOffer && !hideDiscountBadge) {
-                        renderRateOptions(nights, accommodationTotal, [activeOffer], currency);
+                        renderRateOptions(nights, accommodationTotal, [activeOffer], currency, cmTotal);
                     } else {
                         // No offer OR non-standard tier - hide rate options, show simple breakdown
                         $('.gas-rate-options').hide();
@@ -1973,7 +1974,7 @@ jQuery(document).ready(function($) {
     }
     
     // Render rate options (Standard vs Offer)
-    function renderRateOptions(nights, standardTotal, offers, currency) {
+    function renderRateOptions(nights, standardTotal, offers, currency, cmTotal) {
         var perNightStandard = Math.round(standardTotal / nights);
 
         // Ensure offers is an array
@@ -2004,12 +2005,13 @@ jQuery(document).ready(function($) {
         var firstOffer = true;
         offers.forEach(function(offer, idx) {
             var discountAmount = 0;
+            var baseTotal = (offer.replaces_standard && cmTotal) ? cmTotal : standardTotal;
             if (offer.discount_type === 'percentage') {
-                discountAmount = standardTotal * (parseFloat(offer.discount_value) / 100);
+                discountAmount = baseTotal * (parseFloat(offer.discount_value) / 100);
             } else {
                 discountAmount = parseFloat(offer.discount_value) || 0;
             }
-            var offerTotal = standardTotal - discountAmount;
+            var offerTotal = baseTotal - discountAmount;
             var perNightOffer = Math.round(offerTotal / nights);
             var savingsPercent = Math.round((discountAmount / standardTotal) * 100);
             var showBadge = !offer.replaces_standard && !offer.hide_discount_badge && savingsPercent > 0;

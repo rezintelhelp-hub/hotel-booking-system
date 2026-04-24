@@ -1361,7 +1361,8 @@ app.get('/api/pricing/:roomId', async (req, res) => {
     // Get availability/pricing for each night — calendar data only, no fallback
     const availResult = await pool.query(`
       SELECT ra.date, ra.is_available, ra.is_blocked,
-             COALESCE(ra.direct_price, ra.cm_price, ra.standard_price) * COALESCE(p.booking_page_multiplier, 1) as price, ra.min_stay
+             COALESCE(ra.direct_price, ra.cm_price, ra.standard_price) * COALESCE(p.booking_page_multiplier, 1) as price,
+             ra.cm_price, ra.min_stay
       FROM room_availability ra
       JOIN bookable_units bu ON bu.id = ra.room_id
       JOIN properties p ON p.id = bu.property_id
@@ -1397,6 +1398,7 @@ app.get('/api/pricing/:roomId', async (req, res) => {
 
     // Calculate totals from calendar pricing only
     const nightlyTotal = nights.reduce((sum, n) => sum + parseFloat(n.price), 0);
+    const cmTotal = nights.reduce((sum, n) => sum + (parseFloat(n.cm_price) || parseFloat(n.price)), 0);
 
     // Check if a cleaning upsell exists for this property — if so, suppress the Beds24 cleaning_fee
     const cleaningUpsellCheck = await pool.query(
@@ -1416,6 +1418,7 @@ app.get('/api/pricing/:roomId', async (req, res) => {
         minStay: minStay,
         nightlyRates: nights.map(n => ({ date: n.date, price: parseFloat(n.price) })),
         nightlyTotal,
+        cmTotal,
         cleaningFee,
         extraGuestFee,
         subtotal: nightlyTotal + cleaningFee + extraGuestFee,
@@ -4219,8 +4222,9 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           // Offer rate options
           let firstOffer = true;
           availableOffers.forEach((offer, idx) => {
+            const base = (offer.replaces_standard && currentPricing.cmTotal) ? currentPricing.cmTotal : currentPricing.nightlyTotal;
             const discount = offer.discount_type === 'percentage'
-              ? currentPricing.nightlyTotal * (offer.discount_value / 100)
+              ? base * (offer.discount_value / 100)
               : parseFloat(offer.discount_value);
             const savingsPercent = Math.round((discount / currentPricing.nightlyTotal) * 100);
             const showBadge = !offer.replaces_standard && !offer.hide_discount_badge && savingsPercent > 0;
@@ -4294,12 +4298,23 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       // Apply offer discount first (before upsells)
       if (selectedOffer) {
-        if (selectedOffer.discount_type === 'percentage') {
-          offerDiscount = currentPricing.nightlyTotal * (selectedOffer.discount_value / 100);
+        if (selectedOffer.replaces_standard) {
+          // Replaces Standard: calculate from CM price, result IS the price
+          const base = currentPricing.cmTotal || currentPricing.nightlyTotal;
+          if (selectedOffer.discount_type === 'percentage') {
+            total = base * (1 - selectedOffer.discount_value / 100) + (currentPricing.cleaningFee || 0);
+          } else {
+            total = base - parseFloat(selectedOffer.discount_value) + (currentPricing.cleaningFee || 0);
+          }
+          offerDiscount = 0;
         } else {
-          offerDiscount = parseFloat(selectedOffer.discount_value);
+          if (selectedOffer.discount_type === 'percentage') {
+            offerDiscount = currentPricing.nightlyTotal * (selectedOffer.discount_value / 100);
+          } else {
+            offerDiscount = parseFloat(selectedOffer.discount_value);
+          }
+          total -= offerDiscount;
         }
-        total -= offerDiscount;
       }
       
       // Add upsells
