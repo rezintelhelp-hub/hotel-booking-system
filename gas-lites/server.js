@@ -1969,11 +1969,12 @@ app.get('/api/offers/:propertyId', async (req, res) => {
     }
     
     let query = `
-      SELECT o.id, o.name, o.description, o.discount_type, o.discount_value, 
+      SELECT o.id, o.name, o.description, o.discount_type, o.discount_value,
              o.valid_from, o.valid_until, o.min_nights, o.max_nights,
              o.min_advance_days, o.max_advance_days,
              o.allowed_checkin_days, o.allowed_checkout_days,
-             o.available_website, o.property_id, o.room_id
+             o.available_website, o.property_id, o.room_id,
+             o.replaces_standard, o.hide_discount_badge, o.pricing_tier
       FROM offers o
       LEFT JOIN properties p ON o.property_id = p.id
       WHERE o.active = true
@@ -2018,7 +2019,10 @@ app.get('/api/offers/:propertyId', async (req, res) => {
           const allowedDays = offer.allowed_checkout_days.split(',').map(d => parseInt(d));
           if (!allowedDays.includes(checkoutDayOfWeek)) return false;
         }
-        
+
+        // Filter out agent-tier offers (Lites sites are always standard tier)
+        if (offer.pricing_tier && offer.pricing_tier.startsWith('agent')) return false;
+
         return true;
       });
     }
@@ -4193,31 +4197,42 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         if (availableOffers.length > 0) {
           // Show offer banner
           banner.classList.add('visible');
-          
+
+          // Check if any offer replaces standard rate
+          const anyReplacesStandard = availableOffers.some(o => o.replaces_standard);
+
           // Build rate options HTML
           let html = '';
-          
-          // Standard rate option (selected by default)
-          html += '<div class="rate-option selected" data-rate="standard" onclick="selectRate(this, null)">';
-          html += '<div class="rate-option-radio"></div>';
-          html += '<div class="rate-option-info">';
-          html += '<div class="rate-option-name">Standard Rate</div>';
-          html += '<div class="rate-option-features">';
-          html += '</div>';
-          html += '</div>';
-          html += '</div>';
-          
+
+          // Standard rate option — hide if any offer replaces it
+          if (!anyReplacesStandard) {
+            html += '<div class="rate-option selected" data-rate="standard" onclick="selectRate(this, null)">';
+            html += '<div class="rate-option-radio"></div>';
+            html += '<div class="rate-option-info">';
+            html += '<div class="rate-option-name">Standard Rate</div>';
+            html += '<div class="rate-option-features">';
+            html += '</div>';
+            html += '</div>';
+            html += '</div>';
+          }
+
           // Offer rate options
+          let firstOffer = true;
           availableOffers.forEach((offer, idx) => {
-            const discount = offer.discount_type === 'percentage' 
+            const discount = offer.discount_type === 'percentage'
               ? currentPricing.nightlyTotal * (offer.discount_value / 100)
               : parseFloat(offer.discount_value);
             const savingsPercent = Math.round((discount / currentPricing.nightlyTotal) * 100);
-            
-            html += '<div class="rate-option" data-rate="offer" data-offer-idx="' + idx + '" onclick="selectRate(this, ' + idx + ')">';
+            const showBadge = !offer.replaces_standard && !offer.hide_discount_badge && savingsPercent > 0;
+            const isSelected = anyReplacesStandard && firstOffer;
+            if (isSelected) firstOffer = false;
+
+            html += '<div class="rate-option' + (isSelected ? ' selected' : '') + '" data-rate="offer" data-offer-idx="' + idx + '" onclick="selectRate(this, ' + idx + ')">';
             html += '<div class="rate-option-radio"></div>';
             html += '<div class="rate-option-info">';
-            html += '<div class="rate-option-name">' + (offer.name || 'Special Offer').replace(/</g, '&lt;') + '<span class="rate-option-badge">Save ' + savingsPercent + '%</span></div>';
+            html += '<div class="rate-option-name">' + (offer.name || 'Special Offer').replace(/</g, '&lt;');
+            if (showBadge) html += '<span class="rate-option-badge">Save ' + savingsPercent + '%</span>';
+            html += '</div>';
             html += '<div class="rate-option-features">';
             html += '</div>';
             html += '</div>';
