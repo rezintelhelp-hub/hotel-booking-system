@@ -22621,9 +22621,11 @@ app.get('/api/kb/articles', async (req, res) => {
   try {
     const { category_id, status, search } = req.query;
     let query = `
-      SELECT a.*, c.name as category_name, c.icon as category_icon
+      SELECT a.*, c.name as category_name, c.icon as category_icon,
+             w.id as walkthrough_id, w.demo_id as walkthrough_demo_id, w.title as walkthrough_title
       FROM kb_articles a
       LEFT JOIN kb_categories c ON a.category_id = c.id
+      LEFT JOIN walkthroughs w ON w.kb_article_id = a.id AND w.is_active = true
       WHERE 1=1
     `;
     const params = [];
@@ -22912,9 +22914,36 @@ app.post('/api/ai-chat', async (req, res) => {
                 
                 if (articlesResult.rows.length > 0) {
                     articlesFound = articlesResult.rows.length;
-                    knowledgeContent = articlesResult.rows.map(article => 
+                    knowledgeContent = articlesResult.rows.map(article =>
                         `### ${article.title}\n${article.content}`
                     ).join('\n\n---\n\n');
+                }
+
+                // Search walkthroughs by title, description, and tags
+                try {
+                    const wtResult = await pool.query(`
+                        SELECT w.title, w.description, w.demo_id, w.view, w.tags,
+                               ka.title as linked_article_title
+                        FROM walkthroughs w
+                        LEFT JOIN kb_articles ka ON ka.id = w.kb_article_id
+                        WHERE w.is_active = true
+                          AND (
+                              w.title ILIKE ANY($1)
+                              OR w.description ILIKE ANY($1)
+                              OR EXISTS (SELECT 1 FROM unnest(w.tags) t WHERE t ILIKE ANY($1))
+                          )
+                        ORDER BY w.sort_order ASC LIMIT 3
+                    `, [searchTerms.map(t => '%' + t + '%')]);
+                    if (wtResult.rows.length > 0) {
+                        knowledgeContent += '\n\n---\n\n## Available Demo Walkthroughs\n';
+                        knowledgeContent += wtResult.rows.map(w =>
+                            `- **${w.title}**: ${w.description || 'Interactive demo walkthrough'}. Demo ID: ${w.demo_id}` +
+                            (w.view ? ` (Page: ${w.view})` : '')
+                        ).join('\n');
+                        knowledgeContent += '\n\nWhen suggesting a walkthrough, tell the user to click the "Demo Walkthrough" button on the relevant page, or mention the walkthrough by name.';
+                    }
+                } catch (wtErr) {
+                    // walkthroughs table may not exist yet
                 }
             }
         } catch (dbError) {
