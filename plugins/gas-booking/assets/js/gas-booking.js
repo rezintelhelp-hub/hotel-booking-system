@@ -5378,7 +5378,20 @@ jQuery(document).ready(function($) {
                 
                 if (checkoutData.depositRule) {
                     var rule = checkoutData.depositRule;
-                    if (rule.deposit_type === 'percentage') {
+                    if (rule.schedule_mode === 'schedule' && rule.payment_schedule && Array.isArray(rule.payment_schedule)) {
+                        var checkIn = checkoutData.checkIn || checkoutData.items?.[0]?.checkIn;
+                        var today = new Date();
+                        var arrival = checkIn ? new Date(checkIn) : today;
+                        var daysUntil = Math.floor((arrival - today) / 86400000);
+                        var chargeNowPct = 0;
+                        rule.payment_schedule.forEach(function(tier) {
+                            var isAtBooking = tier.days_before === null || tier.days_before === undefined;
+                            var hasPassed = !isAtBooking && daysUntil <= tier.days_before;
+                            if (isAtBooking || hasPassed) chargeNowPct += parseFloat(tier.percentage) || 0;
+                        });
+                        depositAmount = total * (chargeNowPct / 100);
+                        balanceAmount = total - depositAmount;
+                    } else if (rule.deposit_type === 'percentage') {
                         depositAmount = total * (rule.deposit_percentage / 100);
                         balanceAmount = total - depositAmount;
                     } else if (rule.deposit_type === 'fixed') {
@@ -5388,9 +5401,8 @@ jQuery(document).ready(function($) {
                         depositAmount = checkoutData.pricing?.base_rate || total;
                         balanceAmount = total - depositAmount;
                     }
-                    // 'full' type means depositAmount = total
                 }
-                
+
                 checkoutData.depositAmount = depositAmount;
                 checkoutData.balanceAmount = balanceAmount;
 
@@ -5636,10 +5648,23 @@ jQuery(document).ready(function($) {
                 var total = checkoutData.grandTotal;
                 var depositAmount = total;
                 var balanceAmount = 0;
-                
+
                 if (checkoutData.depositRule) {
                     var rule = checkoutData.depositRule;
-                    if (rule.deposit_type === 'percentage') {
+                    if (rule.schedule_mode === 'schedule' && rule.payment_schedule && Array.isArray(rule.payment_schedule)) {
+                        var checkIn = checkoutData.checkIn || checkoutData.items?.[0]?.checkIn;
+                        var today = new Date();
+                        var arrival = checkIn ? new Date(checkIn) : today;
+                        var daysUntil = Math.floor((arrival - today) / 86400000);
+                        var chargeNowPct = 0;
+                        rule.payment_schedule.forEach(function(tier) {
+                            var isAtBooking = tier.days_before === null || tier.days_before === undefined;
+                            var hasPassed = !isAtBooking && daysUntil <= tier.days_before;
+                            if (isAtBooking || hasPassed) chargeNowPct += parseFloat(tier.percentage) || 0;
+                        });
+                        depositAmount = total * (chargeNowPct / 100);
+                        balanceAmount = total - depositAmount;
+                    } else if (rule.deposit_type === 'percentage') {
                         depositAmount = total * (rule.deposit_percentage / 100);
                         balanceAmount = total - depositAmount;
                     } else if (rule.deposit_type === 'fixed') {
@@ -5650,7 +5675,7 @@ jQuery(document).ready(function($) {
                         balanceAmount = total - depositAmount;
                     }
                 }
-                
+
                 checkoutData.depositAmount = depositAmount;
                 checkoutData.balanceAmount = balanceAmount;
                 console.log('Calculated deposit:', depositAmount, 'balance:', balanceAmount);
