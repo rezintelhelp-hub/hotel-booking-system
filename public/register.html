@@ -2312,7 +2312,8 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
                 var btn = document.createElement('button');
                 btn.className = 'btn-secondary';
                 btn.style.cssText = 'display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;padding:0.5rem 1rem;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;white-space:nowrap;';
-                btn.textContent = '▶ ' + w.title;
+                btn.textContent = '▶ Demo Walkthrough';
+                btn.title = w.title;
                 btn.onclick = function() { openWalkthrough(w.demo_id); };
                 container.appendChild(btn);
             });
