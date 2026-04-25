@@ -2281,7 +2281,18 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
     // =============================================
     // INIT
     // =============================================
-    showStepMessages(1);
+    (function() {
+        var params = new URLSearchParams(window.location.search);
+        var startStep = parseInt(params.get('step'));
+        var accountId = params.get('account_id');
+        if (startStep === 2 && accountId) {
+            // Existing account — skip company details, go straight to CM selection
+            accountData = { account: { id: parseInt(accountId) } };
+            goToStep(2);
+        } else {
+            showStepMessages(1);
+        }
+    })();
 </script>
 
 </body>
