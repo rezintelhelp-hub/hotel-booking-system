@@ -20034,6 +20034,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             guest_postcode,
             notes,
             stripe_payment_intent_id,
+            stripe_customer_id,
             deposit_amount,
             total_amount,
             payment_method,
@@ -20522,9 +20523,10 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             try {
                 await client.query('SAVEPOINT payment_intent_store');
                 await client.query(`
-                    UPDATE bookings SET stripe_payment_intent_id = $1, deposit_amount = $2
+                    UPDATE bookings SET stripe_payment_intent_id = $1, deposit_amount = $2,
+                    stripe_customer_id = COALESCE($4, stripe_customer_id)
                     WHERE id = $3
-                `, [stripe_payment_intent_id, deposit_amount, createdBookings[0].id]);
+                `, [stripe_payment_intent_id, deposit_amount, createdBookings[0].id, stripe_customer_id || null]);
                 await client.query('RELEASE SAVEPOINT payment_intent_store');
             } catch (storeError) {
                 await client.query('ROLLBACK TO SAVEPOINT payment_intent_store');
@@ -20830,10 +20832,19 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
         if (paymentConfig.rows.length > 0 && paymentConfig.rows[0].credentials?.secret_key) {
             const config = paymentConfig.rows[0];
             const configStripe = new Stripe(config.credentials.secret_key);
-            
+
+            // Create Stripe Customer so card is saved for future balance charges
+            const customer = await configStripe.customers.create({
+                email: booking_data?.email || undefined,
+                name: booking_data?.guest_name || undefined,
+                metadata: { property_id: String(property_id) }
+            });
+
             paymentIntent = await configStripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
                 currency: effectiveCurrency.toLowerCase(),
+                customer: customer.id,
+                setup_future_usage: 'off_session',
                 payment_method_types: ['card'],
                 metadata: {
                     property_id: property_id,
@@ -20847,7 +20858,8 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
                 success: true,
                 client_secret: paymentIntent.client_secret,
                 payment_intent_id: paymentIntent.id,
-                publishable_key: config.credentials.publishable_key
+                publishable_key: config.credentials.publishable_key,
+                stripe_customer_id: customer.id
             });
         }
 
@@ -20871,10 +20883,18 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
         // Use property's own Stripe keys if configured (legacy)
         if (prop.stripe_enabled && prop.stripe_secret_key) {
             const propertyStripe = new Stripe(prop.stripe_secret_key);
-            
+
+            const customer = await propertyStripe.customers.create({
+                email: booking_data?.email || undefined,
+                name: booking_data?.guest_name || undefined,
+                metadata: { property_id: String(property_id) }
+            });
+
             paymentIntent = await propertyStripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
                 currency: effectiveCurrency.toLowerCase(),
+                customer: customer.id,
+                setup_future_usage: 'off_session',
                 payment_method_types: ['card'],
                 metadata: {
                     property_id: property_id,
@@ -20883,19 +20903,28 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
                     check_out: booking_data?.check_out || ''
                 }
             });
-            
+
             return res.json({
                 success: true,
                 client_secret: paymentIntent.client_secret,
                 payment_intent_id: paymentIntent.id,
-                publishable_key: prop.stripe_publishable_key
+                publishable_key: prop.stripe_publishable_key,
+                stripe_customer_id: customer.id
             });
         }
         // Fall back to Stripe Connect if account has it
         else if (prop.stripe_account_id) {
+            const customer = await stripe.customers.create({
+                email: booking_data?.email || undefined,
+                name: booking_data?.guest_name || undefined,
+                metadata: { property_id: String(property_id) }
+            }, { stripeAccount: prop.stripe_account_id });
+
             paymentIntent = await stripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
                 currency: effectiveCurrency.toLowerCase(),
+                customer: customer.id,
+                setup_future_usage: 'off_session',
                 payment_method_types: ['card'],
                 metadata: {
                     property_id: property_id,
@@ -20903,23 +20932,30 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
                     check_in: booking_data?.check_in || '',
                     check_out: booking_data?.check_out || ''
                 }
-            }, {
-                stripeAccount: prop.stripe_account_id
-            });
-            
+            }, { stripeAccount: prop.stripe_account_id });
+
             return res.json({
                 success: true,
                 client_secret: paymentIntent.client_secret,
-                payment_intent_id: paymentIntent.id
+                payment_intent_id: paymentIntent.id,
+                stripe_customer_id: customer.id
             });
         }
         // Fall back to account-level manual keys
         else if (prop.account_stripe_secret_key) {
             const accountStripe = new Stripe(prop.account_stripe_secret_key);
-            
+
+            const customer = await accountStripe.customers.create({
+                email: booking_data?.email || undefined,
+                name: booking_data?.guest_name || undefined,
+                metadata: { property_id: String(property_id) }
+            });
+
             paymentIntent = await accountStripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
                 currency: (effectiveCurrency || 'eur').toLowerCase(),
+                customer: customer.id,
+                setup_future_usage: 'off_session',
                 payment_method_types: ['card'],
                 metadata: {
                     property_id: property_id,
@@ -20928,12 +20964,13 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
                     check_out: booking_data?.check_out || ''
                 }
             });
-            
+
             return res.json({
                 success: true,
                 client_secret: paymentIntent.client_secret,
                 payment_intent_id: paymentIntent.id,
-                publishable_key: prop.account_stripe_publishable_key
+                publishable_key: prop.account_stripe_publishable_key,
+                stripe_customer_id: customer.id
             });
         }
         else {

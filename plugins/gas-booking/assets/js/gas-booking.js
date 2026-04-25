@@ -3901,6 +3901,10 @@ jQuery(document).ready(function($) {
                         }),
                         success: function(response) {
                             if (response.success && response.client_secret) {
+                                // Store customer ID for booking creation
+                                if (response.stripe_customer_id) {
+                                    window.groupCheckoutData.stripeCustomerId = response.stripe_customer_id;
+                                }
                                 // Confirm card payment with current group's Stripe
                                 curGroup.stripe.confirmCardPayment(response.client_secret, {
                                     payment_method: {
@@ -4066,6 +4070,7 @@ jQuery(document).ready(function($) {
                     notes: $form.find('[name="notes"]').val() || '',
                     payment_method: window.groupCheckoutData.paymentMethod || 'property',
                     stripe_payment_intent_id: paymentIntentId || null,
+                    stripe_customer_id: window.groupCheckoutData.stripeCustomerId || null,
                     deposit_amount: submitGroup.depositAmount || null,
                     upsells: submitGroup.selectedUpsells || [],
                     enigma_reference_id: window.gasEnigmaReferenceId || null,
