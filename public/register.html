@@ -708,7 +708,10 @@
             <!-- STEP 2: Connect Channel Manager -->
             <div class="step-view" id="step-2">
                 <p class="step-label">Step 2 of 5</p>
-                <h2 class="step-title">Connect your Channel Manager</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="step-title">Connect your Channel Manager</h2>
+                    <div id="step2-walkthroughs" style="display: flex; gap: 0.5rem;"></div>
+                </div>
                 <p class="step-subtitle">We'll import your properties, rooms, photos, and pricing automatically.</p>
 
                 <div class="field" style="margin-bottom: 1rem;">
@@ -2281,17 +2284,53 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
     // =============================================
     // INIT
     // =============================================
+    function openWalkthrough(demoId) {
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;';
+        overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+        var iframe = document.createElement('iframe');
+        iframe.src = 'https://demos.gas.travel/demo/' + demoId;
+        iframe.style.cssText = 'width:90vw;height:85vh;max-width:1200px;border:none;border-radius:12px;background:white;';
+        iframe.allow = 'clipboard-write';
+        var closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.cssText = 'position:absolute;top:20px;right:20px;background:white;border:none;width:40px;height:40px;border-radius:50%;font-size:20px;cursor:pointer;z-index:999999;';
+        closeBtn.onclick = function() { overlay.remove(); };
+        overlay.appendChild(iframe);
+        overlay.appendChild(closeBtn);
+        document.body.appendChild(overlay);
+    }
+
+    async function loadStepWalkthroughs(view, containerId) {
+        try {
+            var resp = await fetch('/api/walkthroughs?view=' + encodeURIComponent(view) + '&active=true');
+            var data = await resp.json();
+            if (!data.success || !data.walkthroughs.length) return;
+            var container = document.getElementById(containerId);
+            if (!container) return;
+            data.walkthroughs.forEach(function(w) {
+                var btn = document.createElement('button');
+                btn.className = 'btn-secondary';
+                btn.style.cssText = 'display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;padding:0.5rem 1rem;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;white-space:nowrap;';
+                btn.textContent = '▶ ' + w.title;
+                btn.onclick = function() { openWalkthrough(w.demo_id); };
+                container.appendChild(btn);
+            });
+        } catch(e) {}
+    }
+
     (function() {
         var params = new URLSearchParams(window.location.search);
         var startStep = parseInt(params.get('step'));
         var accountId = params.get('account_id');
         if (startStep === 2 && accountId) {
-            // Existing account — skip company details, go straight to CM selection
             accountData = { account: { id: parseInt(accountId) } };
             goToStep(2);
         } else {
             showStepMessages(1);
         }
+        // Load walkthroughs for step 2
+        loadStepWalkthroughs('register-cm', 'step2-walkthroughs');
     })();
 </script>
 
