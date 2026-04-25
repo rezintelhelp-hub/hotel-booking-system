@@ -22421,6 +22421,23 @@ app.get('/api/setup-knowledge-base', async (req, res) => {
       `);
     }
     
+    // Walkthroughs — Supademo-backed video knowledge base
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS walkthroughs (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(500) NOT NULL,
+        description TEXT,
+        demo_id VARCHAR(100) NOT NULL,
+        view VARCHAR(100),
+        tags TEXT[],
+        kb_article_id INTEGER REFERENCES kb_articles(id) ON DELETE SET NULL,
+        sort_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     res.json({ success: true, message: 'Knowledge base tables created!' });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -22443,6 +22460,82 @@ app.get('/api/supademo/demos', async (req, res) => {
       success: false,
       error: error.response?.data || error.message
     });
+  }
+});
+
+// ============ WALKTHROUGHS CRUD ============
+
+app.get('/api/walkthroughs', async (req, res) => {
+  try {
+    const { view, active } = req.query;
+    let query = `
+      SELECT w.*, ka.title as kb_article_title
+      FROM walkthroughs w
+      LEFT JOIN kb_articles ka ON ka.id = w.kb_article_id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (view) { params.push(view); query += ` AND w.view = $${params.length}`; }
+    if (active === 'true') query += ` AND w.is_active = true`;
+    query += ` ORDER BY w.sort_order ASC, w.created_at DESC`;
+    const result = await pool.query(query, params);
+    res.json({ success: true, walkthroughs: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/walkthroughs/:id', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT w.*, ka.title as kb_article_title
+      FROM walkthroughs w LEFT JOIN kb_articles ka ON ka.id = w.kb_article_id
+      WHERE w.id = $1
+    `, [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, walkthrough: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/walkthroughs', async (req, res) => {
+  try {
+    const { title, description, demo_id, view, tags, kb_article_id, sort_order, is_active } = req.body;
+    if (!title || !demo_id) return res.status(400).json({ success: false, error: 'title and demo_id required' });
+    const result = await pool.query(`
+      INSERT INTO walkthroughs (title, description, demo_id, view, tags, kb_article_id, sort_order, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+    `, [title, description || null, demo_id, view || null, tags || null, kb_article_id || null, sort_order || 0, is_active !== false]);
+    res.json({ success: true, walkthrough: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/walkthroughs/:id', async (req, res) => {
+  try {
+    const { title, description, demo_id, view, tags, kb_article_id, sort_order, is_active } = req.body;
+    const result = await pool.query(`
+      UPDATE walkthroughs SET
+        title = COALESCE($1, title), description = $2, demo_id = COALESCE($3, demo_id),
+        view = $4, tags = $5, kb_article_id = $6, sort_order = COALESCE($7, sort_order),
+        is_active = COALESCE($8, is_active), updated_at = NOW()
+      WHERE id = $9 RETURNING *
+    `, [title, description || null, demo_id, view || null, tags || null, kb_article_id || null, sort_order, is_active, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, walkthrough: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/walkthroughs/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM walkthroughs WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
