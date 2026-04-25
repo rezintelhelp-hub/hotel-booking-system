@@ -22998,7 +22998,7 @@ Email: hello@gas.travel
         messages.push({ role: 'user', content: message });
         
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-5-20250929',
+            model: 'claude-sonnet-4-5-20250514',
             max_tokens: 1000,
             system: `You are the GAS Support Assistant — a dedicated support guide built directly into the Global Accommodation System (GAS) admin panel. You exist solely to help users navigate and use GAS. You never reference external tools, platforms, or websites. If asked about anything outside GAS, respond: I can only help with tasks inside your GAS admin panel.
 
@@ -40304,7 +40304,7 @@ app.post('/api/import-property', async (req, res) => {
     
     // Use Claude API to extract COMPLETE structured data
     const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-sonnet-4-5-20250514',
       max_tokens: 4096,
       messages: [{
         role: 'user',
@@ -63492,7 +63492,7 @@ Return ONLY valid JSON with this exact structure, no other text:
     const maxTokens = (type === 'page_content') ? 2000 : (type === 'seo') ? 500 : 500;
 
     const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-sonnet-4-5-20250514',
       max_tokens: maxTokens,
       messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt
@@ -70556,7 +70556,7 @@ Return your response in this exact JSON format:
 }`;
 
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-5-20250929',
+            model: 'claude-sonnet-4-5-20250514',
             max_tokens: 2000,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -70688,7 +70688,7 @@ Return ONLY a JSON array of FAQ objects in this format:
 ]`;
 
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-5-20250929',
+            model: 'claude-sonnet-4-5-20250514',
             max_tokens: 1000,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -72268,7 +72268,7 @@ Return ONLY valid JSON with this exact structure, no other text:
 {"meta_title": "Your title here", "meta_description": "Your description here"}`;
 
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-5-20250929',
+            model: 'claude-sonnet-4-5-20250514',
             max_tokens: 500,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -72377,7 +72377,7 @@ Return ONLY a valid JSON array, no other text:
 ]`;
 
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-5-20250929',
+            model: 'claude-sonnet-4-5-20250514',
             max_tokens: 2000,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -72602,7 +72602,7 @@ Generate the page content only, nothing else:`;
         }
         
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-5-20250929',
+            model: 'claude-sonnet-4-5-20250514',
             max_tokens: 1000,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -72809,7 +72809,7 @@ Format as JSON array:
         
         // Call Claude API (same as blog generator)
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-5-20250929',
+            model: 'claude-sonnet-4-5-20250514',
             max_tokens: 2000,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -73113,7 +73113,7 @@ Provide the following information in JSON format:
 Be accurate and helpful. If you're not certain about specific details like address or website, provide reasonable estimates or leave those fields empty.`;
 
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-5-20250929',
+            model: 'claude-sonnet-4-5-20250514',
             max_tokens: 2000,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -75950,7 +75950,7 @@ app.post('/api/chat', async (req, res) => {
     
     // Call Claude API
     const response = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-sonnet-4-5-20250514',
       max_tokens: 800,
       system: systemPrompt,
       messages: messages
