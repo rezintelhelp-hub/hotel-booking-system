@@ -22427,6 +22427,25 @@ app.get('/api/setup-knowledge-base', async (req, res) => {
   }
 });
 
+// Supademo proxy — returns list of demos for admin walkthrough system
+app.get('/api/supademo/demos', async (req, res) => {
+  try {
+    const apiKey = process.env.SUPADEMO_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: 'SUPADEMO_API_KEY not configured' });
+    const response = await axios.get('https://api.supademo.com/v1/demos', {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      timeout: 10000
+    });
+    res.json({ success: true, demos: response.data });
+  } catch (error) {
+    console.error('Supademo API error:', error.response?.status, error.message);
+    res.status(error.response?.status || 500).json({
+      success: false,
+      error: error.response?.data || error.message
+    });
+  }
+});
+
 // Get all knowledge categories
 app.get('/api/kb/categories', async (req, res) => {
   try {
