@@ -9,6 +9,7 @@
 - **NEVER** modify live client data during debugging
 - **NEVER** batch-change files without explicit approval
 - **ALWAYS** check existing data before any write operation
+- **Theme defaults**: Use `gas-theme-developer-light` or `gas-theme-developer-dark` (Web Builder) for all new sites unless explicitly bespoke. `gas-theme-burger` and Pro Builder are work-in-progress — bespoke-only until further notice.
 - **ALWAYS** check `site_status` before any SCP/SSH deploy to a client site — NEVER push to a frozen site
 - Surgical edits only
 
