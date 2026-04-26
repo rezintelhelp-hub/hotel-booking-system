@@ -13765,7 +13765,7 @@ app.get('/api/distribution/access', async (req, res) => {
     
     let query = `
       SELECT da.*,
-             p.name as property_name, p.city, p.country, p.hero_image_url, p.owner_price,
+             p.name as property_name, p.city, p.country,
              a.name as owner_name,
              ag.name as agent_name
       FROM distribution_access da
