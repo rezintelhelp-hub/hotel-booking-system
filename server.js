@@ -28430,8 +28430,76 @@ app.put('/api/admin/deployed-sites/:id', async (req, res) => {
     if (result.rows.length === 0) {
       return res.json({ success: false, error: 'Site not found' });
     }
-    
-    res.json({ success: true, site: result.rows[0] });
+
+    const updatedSite = result.rows[0];
+
+    // Alert: notify Steve when someone updates a deployed site (especially custom domain)
+    if (process.env.SLACK_WEBHOOK_URL && (custom_domain || site_url || status)) {
+      const changeDesc = [];
+      if (custom_domain) changeDesc.push(`custom_domain → ${custom_domain}`);
+      if (site_url) changeDesc.push(`site_url → ${site_url}`);
+      if (status) changeDesc.push(`status → ${status}`);
+      axios.post(process.env.SLACK_WEBHOOK_URL, {
+        text: `🌐 *Site Update* — "${updatedSite.site_name}" (ID ${id})\n${changeDesc.join(', ')}\nAccount: ${updatedSite.account_id}`
+      }).catch(() => {});
+    }
+
+    // Auto-provision custom domain: create Nginx config + SSL on VPS
+    if (custom_domain && updatedSite.blog_id) {
+      console.log(`[DOMAIN] Auto-provisioning custom domain: ${custom_domain} for site ${id}, blog ${updatedSite.blog_id}`);
+      // Queue the domain setup (async, don't block the response)
+      setImmediate(async () => {
+        try {
+          const { execSync } = require('child_process');
+          const vpsKey = '/root/.ssh/id_ed25519';
+          const vpsHost = 'root@72.61.207.109';
+          const domain = custom_domain.replace(/[^a-z0-9.-]/gi, '');
+          const wpPath = '/var/www/wordpress';
+
+          // Create Nginx config
+          const nginxConf = `server {
+    listen 80;
+    server_name ${domain} www.${domain};
+    root ${wpPath};
+    index index.php;
+    client_max_body_size 64M;
+    location / { try_files \\$uri \\$uri/ /index.php?\\$args; }
+    location ~ \\.php$ { include snippets/fastcgi-php.conf; fastcgi_pass unix:/var/run/php/php8.3-fpm.sock; }
+    location ~ /\\.ht { deny all; }
+}`;
+          execSync(`ssh -i ${vpsKey} -o StrictHostKeyChecking=no ${vpsHost} "echo '${nginxConf.replace(/'/g, "'\\''")}' > /etc/nginx/sites-available/${domain} && ln -sf /etc/nginx/sites-available/${domain} /etc/nginx/sites-enabled/${domain} && nginx -t && systemctl reload nginx"`, { timeout: 30000 });
+          console.log(`[DOMAIN] Nginx configured for ${domain}`);
+
+          // Get SSL cert
+          execSync(`ssh -i ${vpsKey} -o StrictHostKeyChecking=no ${vpsHost} "certbot --nginx -d ${domain} -d www.${domain} --non-interactive --agree-tos --email admin@gas.travel"`, { timeout: 120000 });
+          console.log(`[DOMAIN] SSL cert issued for ${domain}`);
+
+          // Map WP domain
+          execSync(`ssh -i ${vpsKey} -o StrictHostKeyChecking=no ${vpsHost} "cd ${wpPath} && wp option update siteurl 'https://${domain}' --url=https://${domain} --allow-root && wp option update home 'https://${domain}' --url=https://${domain} --allow-root"`, { timeout: 30000 });
+          console.log(`[DOMAIN] WP domain mapped: ${domain}`);
+
+          // Update site_url in deployed_sites
+          await pool.query("UPDATE deployed_sites SET site_url = $1 WHERE id = $2", ['https://' + domain + '/', id]);
+          console.log(`[DOMAIN] ✅ Custom domain ${domain} fully provisioned`);
+
+          // Slack success
+          if (process.env.SLACK_WEBHOOK_URL) {
+            axios.post(process.env.SLACK_WEBHOOK_URL, {
+              text: `✅ *Custom domain live* — https://${domain} (site "${updatedSite.site_name}")`
+            }).catch(() => {});
+          }
+        } catch (domainErr) {
+          console.error(`[DOMAIN] Auto-provision failed for ${custom_domain}:`, domainErr.message);
+          if (process.env.SLACK_WEBHOOK_URL) {
+            axios.post(process.env.SLACK_WEBHOOK_URL, {
+              text: `❌ *Custom domain FAILED* — ${custom_domain} (site "${updatedSite.site_name}")\nError: ${domainErr.message?.substring(0, 200)}`
+            }).catch(() => {});
+          }
+        }
+      });
+    }
+
+    res.json({ success: true, site: updatedSite });
   } catch (error) {
     console.error('Update deployed site error:', error);
     res.json({ success: false, error: error.message });
