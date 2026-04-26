@@ -28980,29 +28980,31 @@ async function runSiteHealthCheck(siteId) {
   const accountId = s.account_id;
   const checks = [];
 
-  // Helper
-  const add = (category, name, pass, detail) => checks.push({ category, name, pass, detail });
+  // Helper — extra accepts optional ids for fix context
+  const add = (category, name, pass, detail, ids) => checks.push({ category, name, pass, detail, ids: ids || null });
 
   // 1. CONTENT: Room images
   const roomImages = await pool.query(`
-    SELECT bu.id, bu.name, (SELECT COUNT(*) FROM room_images ri WHERE ri.room_id = bu.id) as img_count
+    SELECT bu.id, bu.name, bu.property_id, (SELECT COUNT(*) FROM room_images ri WHERE ri.room_id = bu.id) as img_count
     FROM bookable_units bu JOIN properties p ON bu.property_id = p.id
     WHERE p.account_id = $1 AND bu.status IN ('active','available')
   `, [accountId]);
   const roomsWithFewImages = roomImages.rows.filter(r => parseInt(r.img_count) < 5);
   add('content', 'Room images (5+ each)', roomsWithFewImages.length === 0,
-    roomsWithFewImages.length === 0 ? `All ${roomImages.rows.length} rooms have 5+ images` : `${roomsWithFewImages.length} room(s) have <5 images: ${roomsWithFewImages.map(r => r.name).join(', ')}`);
+    roomsWithFewImages.length === 0 ? `All ${roomImages.rows.length} rooms have 5+ images` : `${roomsWithFewImages.length} room(s) have <5 images: ${roomsWithFewImages.map(r => r.name).join(', ')}`,
+    { roomIds: roomsWithFewImages.map(r => r.id), propertyIds: [...new Set(roomsWithFewImages.map(r => r.property_id))] });
 
   // 2. CONTENT: Room descriptions (list each missing room by name)
   const roomDescs = await pool.query(`
-    SELECT bu.id, bu.name, bu.short_description, bu.full_description, p.name as property_name
+    SELECT bu.id, bu.name, bu.property_id, bu.short_description, bu.full_description, p.name as property_name
     FROM bookable_units bu JOIN properties p ON bu.property_id = p.id
     WHERE p.account_id = $1 AND bu.status IN ('active','available')
   `, [accountId]);
   const missingDesc = roomDescs.rows.filter(r => !r.short_description && !r.full_description);
   const missingDescNames = missingDesc.slice(0, 10).map(r => r.name).join(', ') + (missingDesc.length > 10 ? ` (+${missingDesc.length - 10} more)` : '');
   add('content', 'Room descriptions', missingDesc.length === 0,
-    missingDesc.length === 0 ? `All ${roomDescs.rows.length} rooms have descriptions` : `${missingDesc.length} room(s) missing: ${missingDescNames}`);
+    missingDesc.length === 0 ? `All ${roomDescs.rows.length} rooms have descriptions` : `${missingDesc.length} room(s) missing: ${missingDescNames}`,
+    { roomIds: missingDesc.map(r => r.id), propertyIds: [...new Set(missingDesc.map(r => r.property_id))] });
 
   // 3. CONTENT: Property address & coordinates
   const propDetails = await pool.query(`
@@ -29011,9 +29013,11 @@ async function runSiteHealthCheck(siteId) {
   const missingAddress = propDetails.rows.filter(r => !r.address || !r.city);
   const missingCoords = propDetails.rows.filter(r => !r.latitude || !r.longitude);
   add('content', 'Property addresses', missingAddress.length === 0,
-    missingAddress.length === 0 ? `All ${propDetails.rows.length} properties have addresses` : `${missingAddress.length} missing address: ${missingAddress.slice(0, 5).map(r => r.name).join(', ')}`);
+    missingAddress.length === 0 ? `All ${propDetails.rows.length} properties have addresses` : `${missingAddress.length} missing address: ${missingAddress.slice(0, 5).map(r => r.name).join(', ')}`,
+    { propertyIds: missingAddress.map(r => r.id) });
   add('content', 'Property coordinates', missingCoords.length === 0,
-    missingCoords.length === 0 ? 'All properties have map coordinates' : `${missingCoords.length} missing coordinates: ${missingCoords.slice(0, 5).map(r => r.name).join(', ')}`);
+    missingCoords.length === 0 ? 'All properties have map coordinates' : `${missingCoords.length} missing coordinates: ${missingCoords.slice(0, 5).map(r => r.name).join(', ')}`,
+    { propertyIds: missingCoords.map(r => r.id) });
 
   // 4. PRICING: Availability next 90 days
   const today = new Date().toISOString().split('T')[0];
