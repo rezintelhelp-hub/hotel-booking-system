@@ -28971,6 +28971,180 @@ app.put('/api/admin/deployed-sites/:id/rename-name', async (req, res) => {
   }
 });
 
+// ============ SITE HEALTH CHECKS ============
+
+async function runSiteHealthCheck(siteId) {
+  const site = await pool.query('SELECT * FROM deployed_sites WHERE id = $1', [siteId]);
+  if (!site.rows.length) return null;
+  const s = site.rows[0];
+  const accountId = s.account_id;
+  const checks = [];
+
+  // Helper
+  const add = (category, name, pass, detail) => checks.push({ category, name, pass, detail });
+
+  // 1. CONTENT: Room images
+  const roomImages = await pool.query(`
+    SELECT bu.id, bu.name, (SELECT COUNT(*) FROM room_images ri WHERE ri.room_id = bu.id) as img_count
+    FROM bookable_units bu JOIN properties p ON bu.property_id = p.id
+    WHERE p.account_id = $1 AND bu.status IN ('active','available')
+  `, [accountId]);
+  const roomsWithFewImages = roomImages.rows.filter(r => parseInt(r.img_count) < 5);
+  add('content', 'Room images (5+ each)', roomsWithFewImages.length === 0,
+    roomsWithFewImages.length === 0 ? `All ${roomImages.rows.length} rooms have 5+ images` : `${roomsWithFewImages.length} room(s) have <5 images: ${roomsWithFewImages.map(r => r.name).join(', ')}`);
+
+  // 2. CONTENT: Room descriptions
+  const roomDescs = await pool.query(`
+    SELECT bu.id, bu.name, bu.short_description, bu.full_description
+    FROM bookable_units bu JOIN properties p ON bu.property_id = p.id
+    WHERE p.account_id = $1 AND bu.status IN ('active','available')
+  `, [accountId]);
+  const missingDesc = roomDescs.rows.filter(r => !r.short_description && !r.full_description);
+  add('content', 'Room descriptions', missingDesc.length === 0,
+    missingDesc.length === 0 ? 'All rooms have descriptions' : `${missingDesc.length} room(s) missing descriptions: ${missingDesc.map(r => r.name).join(', ')}`);
+
+  // 3. CONTENT: Property descriptions
+  const propDescs = await pool.query(`
+    SELECT id, name, description FROM properties WHERE account_id = $1
+  `, [accountId]);
+  const missingPropDesc = propDescs.rows.filter(r => !r.description);
+  add('content', 'Property descriptions', missingPropDesc.length === 0,
+    missingPropDesc.length === 0 ? 'All properties have descriptions' : `${missingPropDesc.length} missing`);
+
+  // 4. PRICING: Availability next 90 days
+  const today = new Date().toISOString().split('T')[0];
+  const future = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
+  const pricing = await pool.query(`
+    SELECT bu.id, bu.name,
+           (SELECT COUNT(*) FROM room_availability ra WHERE ra.room_id = bu.id AND ra.date >= $2 AND ra.date <= $3 AND ra.cm_price > 0) as priced_days
+    FROM bookable_units bu JOIN properties p ON bu.property_id = p.id
+    WHERE p.account_id = $1 AND bu.status IN ('active','available')
+  `, [accountId, today, future]);
+  const noPricing = pricing.rows.filter(r => parseInt(r.priced_days) === 0);
+  add('pricing', 'Pricing next 90 days', noPricing.length === 0,
+    noPricing.length === 0 ? 'All rooms have pricing' : `${noPricing.length} room(s) with no pricing: ${noPricing.map(r => r.name).join(', ')}`);
+
+  // 5. PAYMENTS: Stripe configured
+  const payments = await pool.query(`
+    SELECT COUNT(*) as cnt FROM payment_configurations pc
+    JOIN properties p ON (pc.property_id = p.id OR (pc.property_id IS NULL AND pc.account_id = p.account_id))
+    WHERE p.account_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true
+  `, [accountId]);
+  const hasStripe = parseInt(payments.rows[0].cnt) > 0;
+  add('payments', 'Stripe connected', hasStripe, hasStripe ? 'Stripe configured' : 'No Stripe payment method configured');
+
+  // 6. PAYMENTS: Deposit rule
+  const deposit = await pool.query(`
+    SELECT COUNT(*) as cnt FROM deposit_rules WHERE account_id = $1 AND is_active = true
+  `, [accountId]);
+  const hasDeposit = parseInt(deposit.rows[0].cnt) > 0;
+  add('payments', 'Deposit rule set', hasDeposit, hasDeposit ? 'Active deposit rule' : 'No deposit rule — 100% charged at booking');
+
+  // 7. SEO: Meta title not placeholder
+  const seo = await pool.query(`
+    SELECT settings->>'meta-title' as meta_title, settings->>'meta-description' as meta_desc
+    FROM website_settings WHERE deployed_site_id = $1 AND section = 'hero'
+  `, [siteId]);
+  const metaTitle = seo.rows[0]?.meta_title || '';
+  const metaDesc = seo.rows[0]?.meta_desc || '';
+  const seoOk = metaTitle.length > 5 && metaTitle !== 'Meta' && metaDesc.length > 10 && metaDesc !== 'Desc';
+  add('seo', 'SEO meta title & description', seoOk,
+    seoOk ? 'Meta tags set' : `Title: "${metaTitle || 'empty'}", Description: "${metaDesc || 'empty'}"`);
+
+  // 8. LEGAL: Terms & conditions
+  const terms = await pool.query(`
+    SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'page-terms'
+  `, [siteId]);
+  const termsContent = terms.rows[0]?.settings?.['content-en'] || terms.rows[0]?.settings?.['content'] || '';
+  add('legal', 'Terms & conditions', termsContent.length > 50, termsContent.length > 50 ? 'Terms set' : 'Terms missing or too short');
+
+  // 9. SYNC: Beds24 connected
+  const sync = await pool.query(`
+    SELECT COUNT(*) as cnt FROM gas_sync_connections WHERE account_id = $1 AND status != 'deleted'
+  `, [accountId]);
+  const hasSyncConn = parseInt(sync.rows[0].cnt) > 0;
+  add('sync', 'Channel manager connected', hasSyncConn, hasSyncConn ? 'Connected' : 'No channel manager');
+
+  // 10. BOOKINGS: Failed payments last 30 days
+  const failures = await pool.query(`
+    SELECT COUNT(*) as cnt FROM bookings b
+    JOIN properties p ON b.property_id = p.id
+    WHERE p.account_id = $1 AND b.payment_status IN ('failed','tier_failed')
+      AND b.created_at > NOW() - INTERVAL '30 days'
+  `, [accountId]);
+  const failCount = parseInt(failures.rows[0].cnt);
+  add('bookings', 'No failed payments (30d)', failCount === 0,
+    failCount === 0 ? 'No failures' : `${failCount} failed payment(s) in last 30 days`);
+
+  // Calculate score
+  const passed = checks.filter(c => c.pass).length;
+  const score = Math.round((passed / checks.length) * 100);
+
+  // Upsert result
+  await pool.query(`
+    INSERT INTO site_health_checks (deployed_site_id, account_id, score, checks, checked_at)
+    VALUES ($1, $2, $3, $4, NOW())
+    ON CONFLICT (deployed_site_id) DO UPDATE SET score = $3, checks = $4, checked_at = NOW(), account_id = $2
+  `, [siteId, accountId, score, JSON.stringify(checks)]);
+
+  return { site_id: siteId, site_name: s.site_name, account_id: accountId, score, checks, passed, total: checks.length };
+}
+
+// Run health check for a single site
+app.get('/api/admin/site-health/:siteId', async (req, res) => {
+  try {
+    const result = await runSiteHealthCheck(parseInt(req.params.siteId));
+    if (!result) return res.status(404).json({ error: 'Site not found' });
+    res.json({ success: true, health: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Run health checks for all active sites
+app.post('/api/admin/site-health/run-all', async (req, res) => {
+  try {
+    const sites = await pool.query("SELECT id FROM deployed_sites WHERE site_status != 'frozen' AND site_url IS NOT NULL");
+    const results = [];
+    for (const site of sites.rows) {
+      try {
+        const r = await runSiteHealthCheck(site.id);
+        if (r) results.push(r);
+      } catch (e) {
+        results.push({ site_id: site.id, error: e.message });
+      }
+    }
+
+    // Slack summary
+    const low = results.filter(r => r.score < 70);
+    if (low.length > 0 && process.env.SLACK_WEBHOOK_URL) {
+      const summary = low.map(r => `• ${r.site_name}: ${r.score}% (${r.passed}/${r.total})`).join('\n');
+      axios.post(process.env.SLACK_WEBHOOK_URL, {
+        text: `🏥 *Site Health Report* — ${low.length} site(s) below 70%:\n${summary}`
+      }).catch(() => {});
+    }
+
+    res.json({ success: true, total: results.length, below_70: low.length, results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get latest health scores for all sites (dashboard)
+app.get('/api/admin/site-health', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT shc.*, ds.site_name, ds.site_url, ds.custom_domain, ds.site_status
+      FROM site_health_checks shc
+      JOIN deployed_sites ds ON ds.id = shc.deployed_site_id
+      ORDER BY shc.score ASC
+    `);
+    res.json({ success: true, sites: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // PUT /api/admin/deployed-sites/:id/status - Activate or deactivate a site from admin UI
 app.put('/api/admin/deployed-sites/:id/status', async (req, res) => {
   console.log('=== ADMIN: TOGGLE SITE STATUS ===');
@@ -87295,6 +87469,17 @@ app.listen(PORT, '0.0.0.0', async () => {
     // Billing method + Airwallex invoice tracking
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_method VARCHAR(30)`).catch(() => {});
     await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS airwallex_payment_intent_id VARCHAR(100)`).catch(() => {});
+
+    // Site Health Checks
+    await pool.query(`CREATE TABLE IF NOT EXISTS site_health_checks (
+      id SERIAL PRIMARY KEY,
+      deployed_site_id INTEGER REFERENCES deployed_sites(id) ON DELETE CASCADE,
+      account_id INTEGER,
+      score INTEGER DEFAULT 0,
+      checks JSONB DEFAULT '[]'::jsonb,
+      checked_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(deployed_site_id)
+    )`).catch(() => {});
 
     // GAS Unified Inbox — Phase 1 (master admin only)
     await pool.query(`
