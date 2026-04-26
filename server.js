@@ -30426,6 +30426,90 @@ app.post('/api/admin/billing/cancel-subscription', async (req, res) => {
   }
 });
 
+// ============ STRIPE CONNECT ONBOARDING ============
+
+// Create or onboard a Stripe Connect account for an owner (for agent payouts)
+app.post('/api/admin/stripe-connect/onboard', async (req, res) => {
+  try {
+    const { account_id, type } = req.body; // type: 'standard' (default) or 'express'
+    const connectType = type === 'express' ? 'express' : 'standard';
+
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    if (decoded.role !== 'master_admin' && String(decoded.id) !== String(account_id)) {
+      return res.status(403).json({ success: false, error: 'Not authorized' });
+    }
+
+    const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [account_id]);
+    if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
+    const acc = account.rows[0];
+
+    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+    let connectAccountId = acc.stripe_account_id;
+    if (!connectAccountId) {
+      const connectAccount = await stripe.accounts.create({
+        type: connectType,
+        email: acc.email,
+        business_type: 'company',
+        metadata: { gas_account_id: String(account_id) },
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } }
+      });
+      connectAccountId = connectAccount.id;
+      await pool.query('UPDATE accounts SET stripe_account_id = $1 WHERE id = $2', [connectAccountId, account_id]);
+      console.log(`[CONNECT] Created ${connectType} account ${connectAccountId} for GAS account ${account_id}`);
+    }
+
+    // Create onboarding link
+    const accountLink = await stripe.accountLinks.create({
+      account: connectAccountId,
+      refresh_url: `${req.protocol}://${req.get('host')}/gas-admin.html?connect_refresh=true&account_id=${account_id}`,
+      return_url: `${req.protocol}://${req.get('host')}/gas-admin.html?connect_complete=true&account_id=${account_id}`,
+      type: 'account_onboarding'
+    });
+
+    res.json({ success: true, connect_account_id: connectAccountId, onboarding_url: accountLink.url, type: connectType });
+  } catch (err) {
+    console.error('[CONNECT] Onboard error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Check Stripe Connect onboarding status
+app.get('/api/admin/stripe-connect/status/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const account = await pool.query('SELECT stripe_account_id, stripe_onboarding_complete FROM accounts WHERE id = $1', [accountId]);
+    if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
+    const acc = account.rows[0];
+
+    if (!acc.stripe_account_id) {
+      return res.json({ success: true, connected: false, onboarding_complete: false });
+    }
+
+    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    const connectAccount = await stripe.accounts.retrieve(acc.stripe_account_id);
+    const complete = connectAccount.details_submitted && connectAccount.charges_enabled;
+
+    if (complete && !acc.stripe_onboarding_complete) {
+      await pool.query('UPDATE accounts SET stripe_onboarding_complete = true WHERE id = $1', [accountId]);
+    }
+
+    res.json({
+      success: true,
+      connected: true,
+      connect_account_id: acc.stripe_account_id,
+      onboarding_complete: complete,
+      details_submitted: connectAccount.details_submitted,
+      charges_enabled: connectAccount.charges_enabled,
+      payouts_enabled: connectAccount.payouts_enabled
+    });
+  } catch (err) {
+    console.error('[CONNECT] Status error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Create or retrieve Stripe billing customer and Checkout Session for mandate setup
 app.post('/api/admin/billing/setup-customer', async (req, res) => {
     try {
@@ -30846,6 +30930,28 @@ app.post('/api/webhooks/stripe-billing', express.raw({ type: 'application/json' 
                 WHERE stripe_invoice_id = $1
             `, [invoice.id]).catch(() => {});
             console.log('[BILLING] Payment succeeded:', invoice.id);
+        }
+
+        // Stripe Connect: account onboarding completion
+        if (event.type === 'account.updated') {
+            const connectAccount = event.data.object;
+            if (connectAccount.details_submitted && connectAccount.charges_enabled) {
+                const gasAccountId = connectAccount.metadata?.gas_account_id;
+                if (gasAccountId) {
+                    await pool.query(
+                        'UPDATE accounts SET stripe_onboarding_complete = true, updated_at = NOW() WHERE id = $1',
+                        [gasAccountId]
+                    );
+                    console.log('[CONNECT] Onboarding complete for GAS account:', gasAccountId, 'Connect ID:', connectAccount.id);
+                } else {
+                    // Try matching by stripe_account_id
+                    await pool.query(
+                        'UPDATE accounts SET stripe_onboarding_complete = true, updated_at = NOW() WHERE stripe_account_id = $1',
+                        [connectAccount.id]
+                    );
+                    console.log('[CONNECT] Onboarding complete for Connect ID:', connectAccount.id);
+                }
+            }
         }
 
         res.json({ received: true });
