@@ -86917,6 +86917,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_billing_customer_id VARCHAR(100)`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_billing_payment_method_id VARCHAR(100)`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_mandate_status VARCHAR(20) DEFAULT 'none'`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS platform_fee_pct DECIMAL(5,2) DEFAULT 0`).catch(() => {});
 
     // Billing invoices table
     await pool.query(`CREATE TABLE IF NOT EXISTS gas_billing_invoices (
