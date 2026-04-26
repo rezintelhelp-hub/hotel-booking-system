@@ -29130,15 +29130,22 @@ app.post('/api/admin/site-health/run-all', async (req, res) => {
   }
 });
 
-// Get latest health scores for all sites (dashboard)
+// Get latest health scores (master sees all, owner sees theirs)
 app.get('/api/admin/site-health', async (req, res) => {
   try {
-    const result = await pool.query(`
+    const { account_id } = req.query;
+    let query = `
       SELECT shc.*, ds.site_name, ds.site_url, ds.custom_domain, ds.site_status
       FROM site_health_checks shc
       JOIN deployed_sites ds ON ds.id = shc.deployed_site_id
-      ORDER BY shc.score ASC
-    `);
+    `;
+    const params = [];
+    if (account_id) {
+      query += ' WHERE shc.account_id = $1';
+      params.push(account_id);
+    }
+    query += ' ORDER BY shc.score ASC';
+    const result = await pool.query(query, params);
     res.json({ success: true, sites: result.rows });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
