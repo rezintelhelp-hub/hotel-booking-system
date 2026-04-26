@@ -29105,10 +29105,17 @@ app.get('/api/admin/site-health/:siteId', async (req, res) => {
   }
 });
 
-// Run health checks for all active sites
+// Run health checks for active sites (all for master, filtered for accounts)
 app.post('/api/admin/site-health/run-all', async (req, res) => {
   try {
-    const sites = await pool.query("SELECT id FROM deployed_sites WHERE site_status != 'frozen' AND site_url IS NOT NULL");
+    const { account_id } = req.body;
+    let sitesQuery = "SELECT id FROM deployed_sites WHERE site_status != 'frozen' AND site_url IS NOT NULL";
+    const sitesParams = [];
+    if (account_id) {
+      sitesQuery += " AND (account_id = $1 OR account_id IN (SELECT id FROM accounts WHERE parent_id = $1 OR managed_by_id = $1))";
+      sitesParams.push(account_id);
+    }
+    const sites = await pool.query(sitesQuery, sitesParams);
     const results = [];
     for (const site of sites.rows) {
       try {
@@ -29134,7 +29141,7 @@ app.post('/api/admin/site-health/run-all', async (req, res) => {
   }
 });
 
-// Get latest health scores (master sees all, owner sees theirs)
+// Get latest health scores (master sees all, owner sees theirs + children)
 app.get('/api/admin/site-health', async (req, res) => {
   try {
     const { account_id } = req.query;
@@ -29145,7 +29152,7 @@ app.get('/api/admin/site-health', async (req, res) => {
     `;
     const params = [];
     if (account_id) {
-      query += ' WHERE shc.account_id = $1';
+      query += ' WHERE (shc.account_id = $1 OR shc.account_id IN (SELECT id FROM accounts WHERE parent_id = $1 OR managed_by_id = $1))';
       params.push(account_id);
     }
     query += ' ORDER BY shc.score ASC';
