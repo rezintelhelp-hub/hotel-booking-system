@@ -14561,7 +14561,9 @@ app.post('/api/webhooks/airwallex', express.raw({ type: 'application/json' }), a
       const paymentMethodId = data.payment_method?.id || data.object?.payment_method?.id;
       if (customerId && consentId) {
         const result = await pool.query(
-          'UPDATE accounts SET airwallex_payment_consent_id = $1, airwallex_payment_method_id = COALESCE($3, airwallex_payment_method_id) WHERE airwallex_customer_id = $2 OR airwallex_payments_customer_id = $2 RETURNING id, name',
+          `UPDATE accounts SET airwallex_payment_consent_id = $1, airwallex_payment_method_id = COALESCE($3, airwallex_payment_method_id),
+           billing_method = 'airwallex', billing_mandate_status = 'active', updated_at = NOW()
+           WHERE airwallex_customer_id = $2 OR airwallex_payments_customer_id = $2 RETURNING id, name`,
           [consentId, customerId, paymentMethodId || null]
         );
         if (result.rows.length > 0) {
@@ -14573,16 +14575,26 @@ app.post('/api/webhooks/airwallex', express.raw({ type: 'application/json' }), a
     } else if (eventType === 'payment_intent.succeeded') {
       const data = event.data || {};
       const merchantOrderId = data.merchant_order_id;
+      const intentId = data.id;
       if (merchantOrderId) {
-        // merchant_order_id format: gas-{accountId}-{YYYY-MM}
-        const match = merchantOrderId.match(/^gas-(\d+)-/);
-        if (match) {
-          const accountId = match[1];
-          await pool.query(
-            "UPDATE invoices SET status = 'paid', paid_at = NOW() WHERE account_id = $1 AND status != 'paid' ORDER BY created_at DESC LIMIT 1",
-            [accountId]
+        if (merchantOrderId.startsWith('gas-billing-')) {
+          // GAS billing invoice — match by airwallex_payment_intent_id
+          const billingUpdate = await pool.query(
+            "UPDATE gas_billing_invoices SET status = 'paid', paid_at = NOW(), updated_at = NOW() WHERE airwallex_payment_intent_id = $1 RETURNING id",
+            [intentId]
           );
-          console.log(`✅ Airwallex payment succeeded for account ${accountId}, merchant_order_id: ${merchantOrderId}`);
+          console.log(`✅ Airwallex billing payment succeeded: ${intentId}, updated ${billingUpdate.rowCount} invoice(s)`);
+        } else {
+          // Legacy guest invoice — gas-{accountId}-{YYYY-MM}
+          const match = merchantOrderId.match(/^gas-(\d+)-/);
+          if (match) {
+            const accountId = match[1];
+            await pool.query(
+              "UPDATE invoices SET status = 'paid', paid_at = NOW() WHERE account_id = $1 AND status != 'paid' ORDER BY created_at DESC LIMIT 1",
+              [accountId]
+            );
+            console.log(`✅ Airwallex payment succeeded for account ${accountId}, merchant_order_id: ${merchantOrderId}`);
+          }
         }
       }
     } else if (eventType === 'payment_intent.failed') {
@@ -30301,6 +30313,119 @@ app.post('/api/admin/billing/setup-customer', async (req, res) => {
     }
 });
 
+// Setup Stripe Card on File for billing (off-session variable charges)
+app.post('/api/admin/billing/setup-card', async (req, res) => {
+    try {
+        const { account_id } = req.body;
+        const decoded = await extractAccountFromToken(req);
+        if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+        if (decoded.role !== 'master_admin' && String(decoded.id) !== String(account_id)) {
+            return res.status(403).json({ success: false, error: 'Not authorized' });
+        }
+
+        const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [account_id]);
+        if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
+        const acc = account.rows[0];
+
+        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+        let customerId = acc.stripe_billing_customer_id;
+        if (!customerId) {
+            const customer = await stripe.customers.create({
+                name: acc.company_name || acc.name,
+                email: acc.email,
+                metadata: { gas_account_id: String(account_id) }
+            });
+            customerId = customer.id;
+            await pool.query('UPDATE accounts SET stripe_billing_customer_id = $1 WHERE id = $2', [customerId, account_id]);
+        }
+
+        const session = await stripe.checkout.sessions.create({
+            mode: 'setup',
+            customer: customerId,
+            payment_method_types: ['card'],
+            success_url: `${req.protocol}://${req.get('host')}/gas-admin.html?billing_setup=success&account_id=${account_id}`,
+            cancel_url: `${req.protocol}://${req.get('host')}/gas-admin.html?billing_setup=cancelled`,
+            metadata: { gas_account_id: String(account_id), billing_method: 'card' }
+        });
+
+        res.json({ success: true, customer_id: customerId, checkout_url: session.url });
+    } catch (err) {
+        console.error('[BILLING] setup-card error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Setup Airwallex for owner billing
+app.post('/api/admin/billing/setup-airwallex', async (req, res) => {
+    try {
+        const { account_id } = req.body;
+        const decoded = await extractAccountFromToken(req);
+        if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+        if (decoded.role !== 'master_admin' && String(decoded.id) !== String(account_id)) {
+            return res.status(403).json({ success: false, error: 'Not authorized' });
+        }
+
+        const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [account_id]);
+        if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
+        const acc = account.rows[0];
+
+        const awClientId = process.env.AIRWALLEX_CLIENT_ID;
+        const awApiKey = process.env.AIRWALLEX_API_KEY;
+        if (!awClientId || !awApiKey) return res.status(500).json({ error: 'Airwallex not configured' });
+
+        const airwallexBase = process.env.AIRWALLEX_ENV === 'production' ? 'https://api.airwallex.com' : 'https://api-demo.airwallex.com';
+
+        // Authenticate
+        const awAuthRes = await fetch(`${airwallexBase}/api/v1/authentication/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': awApiKey, 'x-client-id': awClientId }
+        });
+        const awAuth = await awAuthRes.json();
+        if (!awAuthRes.ok || !awAuth.token) return res.status(500).json({ error: 'Airwallex auth failed' });
+
+        // Get or create billing customer
+        let customerId = acc.airwallex_customer_id;
+        if (!customerId) {
+            const custRes = await fetch(`${airwallexBase}/api/v1/billing_customers/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
+                body: JSON.stringify({
+                    email: acc.email,
+                    first_name: (acc.name || '').split(' ')[0] || 'Account',
+                    last_name: (acc.name || '').split(' ').slice(1).join(' ') || String(account_id),
+                    merchant_customer_id: `gas-${account_id}`,
+                    request_id: `gas-aw-cust-${account_id}-${Date.now()}`
+                })
+            });
+            const custData = await custRes.json();
+            if (!custRes.ok || !custData.id) return res.status(500).json({ error: 'Failed to create Airwallex customer: ' + (custData.message || '') });
+            customerId = custData.id;
+            await pool.query('UPDATE accounts SET airwallex_customer_id = $1 WHERE id = $2', [customerId, account_id]);
+        }
+
+        // Create hosted setup checkout
+        const checkoutRes = await fetch(`${airwallexBase}/api/v1/billing_checkouts/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
+            body: JSON.stringify({
+                customer_id: customerId,
+                mode: 'SETUP',
+                success_url: `${req.protocol}://${req.get('host')}/gas-admin.html?billing_setup=success&account_id=${account_id}`,
+                cancel_url: `${req.protocol}://${req.get('host')}/gas-admin.html?billing_setup=cancelled`,
+                request_id: `gas-aw-setup-${account_id}-${Date.now()}`
+            })
+        });
+        const checkoutData = await checkoutRes.json();
+        if (!checkoutRes.ok || !checkoutData.url) return res.status(500).json({ error: 'Failed to create Airwallex checkout: ' + (checkoutData.message || '') });
+
+        res.json({ success: true, checkout_url: checkoutData.url });
+    } catch (err) {
+        console.error('[BILLING] setup-airwallex error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Generate and charge a billing invoice for a GAS account
 app.post('/api/admin/billing/generate-invoice', async (req, res) => {
     try {
@@ -30317,56 +30442,100 @@ app.post('/api/admin/billing/generate-invoice', async (req, res) => {
         if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
         const acc = account.rows[0];
 
-        if (!acc.stripe_billing_customer_id) {
-            return res.status(400).json({ error: 'No Stripe billing customer set up for this account' });
-        }
-
-        if (!acc.stripe_billing_payment_method_id) {
-            return res.status(400).json({ error: 'No payment method on file for this account' });
-        }
-
-        // Calculate total from line items
         const total = line_items.reduce((sum, item) => sum + item.amount, 0);
         const invoiceCurrency = (currency || acc.billing_currency || 'GBP').toLowerCase();
-
-        // Generate invoice number
         const invoiceNum = `GAS-${account_id}-${Date.now()}`;
 
-        // Create Stripe Invoice
-        const stripeInvoice = await stripe.invoices.create({
-            customer: acc.stripe_billing_customer_id,
-            default_payment_method: acc.stripe_billing_payment_method_id,
-            currency: invoiceCurrency,
-            description: `GAS subscription - ${period_start} to ${period_end}`,
-            metadata: { gas_account_id: account_id, invoice_number: invoiceNum }
-        });
+        if (acc.billing_method === 'airwallex' && acc.airwallex_payment_consent_id) {
+            // ---- AIRWALLEX BILLING PATH ----
+            const awClientId = process.env.AIRWALLEX_CLIENT_ID;
+            const awApiKey = process.env.AIRWALLEX_API_KEY;
+            if (!awClientId || !awApiKey) return res.status(500).json({ error: 'Airwallex not configured' });
+            const airwallexBase = process.env.AIRWALLEX_ENV === 'production' ? 'https://api.airwallex.com' : 'https://api-demo.airwallex.com';
 
-        // Add line items to Stripe invoice
-        for (const item of line_items) {
-            await stripe.invoiceItems.create({
-                customer: acc.stripe_billing_customer_id,
-                invoice: stripeInvoice.id,
-                amount: Math.round(item.amount * 100),
-                currency: invoiceCurrency,
-                description: item.description
+            const awAuthRes = await fetch(`${airwallexBase}/api/v1/authentication/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': awApiKey, 'x-client-id': awClientId }
             });
+            const awAuth = await awAuthRes.json();
+            if (!awAuthRes.ok || !awAuth.token) return res.status(500).json({ error: 'Airwallex auth failed' });
+
+            const intentRes = await fetch(`${airwallexBase}/api/v1/pa/payment_intents/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
+                body: JSON.stringify({
+                    amount: total,
+                    currency: invoiceCurrency,
+                    merchant_order_id: `gas-billing-${account_id}-${Date.now()}`,
+                    request_id: `gas-billing-charge-${account_id}-${Date.now()}`,
+                    customer_id: acc.airwallex_payments_customer_id || acc.airwallex_customer_id,
+                    capture_method: 'automatic'
+                })
+            });
+            const intentData = await intentRes.json();
+            if (!intentRes.ok || !intentData.id) return res.status(500).json({ error: 'Airwallex intent failed: ' + (intentData.message || '') });
+
+            const confirmRes = await fetch(`${airwallexBase}/api/v1/pa/payment_intents/${intentData.id}/confirm`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
+                body: JSON.stringify({
+                    request_id: `gas-billing-confirm-${account_id}-${Date.now()}`,
+                    payment_consent_id: acc.airwallex_payment_consent_id
+                })
+            });
+            const confirmData = await confirmRes.json();
+
+            const saved = await pool.query(`
+                INSERT INTO gas_billing_invoices
+                (account_id, invoice_number, period_start, period_end, amount, currency, status, airwallex_payment_intent_id, line_items, due_date)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                RETURNING *
+            `, [account_id, invoiceNum, period_start, period_end, total, invoiceCurrency.toUpperCase(),
+                confirmData.status === 'SUCCEEDED' ? 'paid' : 'pending',
+                intentData.id, JSON.stringify(line_items), due_date]);
+
+            res.json({ success: true, invoice: saved.rows[0], airwallex_intent: intentData.id, status: confirmData.status });
+        } else {
+            // ---- STRIPE BILLING PATH (SEPA/BACS/Card) ----
+            if (!acc.stripe_billing_customer_id) {
+                return res.status(400).json({ error: 'No Stripe billing customer set up for this account' });
+            }
+            if (!acc.stripe_billing_payment_method_id) {
+                return res.status(400).json({ error: 'No payment method on file for this account' });
+            }
+
+            const stripeInvoice = await stripe.invoices.create({
+                customer: acc.stripe_billing_customer_id,
+                default_payment_method: acc.stripe_billing_payment_method_id,
+                currency: invoiceCurrency,
+                description: `GAS subscription - ${period_start} to ${period_end}`,
+                metadata: { gas_account_id: account_id, invoice_number: invoiceNum }
+            });
+
+            for (const item of line_items) {
+                await stripe.invoiceItems.create({
+                    customer: acc.stripe_billing_customer_id,
+                    invoice: stripeInvoice.id,
+                    amount: Math.round(item.amount * 100),
+                    currency: invoiceCurrency,
+                    description: item.description
+                });
+            }
+
+            const finalizedInvoice = await stripe.invoices.finalizeInvoice(stripeInvoice.id);
+            const paidInvoice = await stripe.invoices.pay(stripeInvoice.id);
+
+            const saved = await pool.query(`
+                INSERT INTO gas_billing_invoices
+                (account_id, invoice_number, period_start, period_end, amount, currency, status, stripe_invoice_id, line_items, due_date)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                RETURNING *
+            `, [account_id, invoiceNum, period_start, period_end, total, invoiceCurrency.toUpperCase(),
+                paidInvoice.status === 'paid' ? 'paid' : 'pending',
+                stripeInvoice.id, JSON.stringify(line_items), due_date]);
+
+            res.json({ success: true, invoice: saved.rows[0], stripe_invoice: paidInvoice });
         }
-
-        // Finalize and charge
-        const finalizedInvoice = await stripe.invoices.finalizeInvoice(stripeInvoice.id);
-        const paidInvoice = await stripe.invoices.pay(stripeInvoice.id);
-
-        // Store in GAS
-        const saved = await pool.query(`
-            INSERT INTO gas_billing_invoices
-            (account_id, invoice_number, period_start, period_end, amount, currency, status, stripe_invoice_id, line_items, due_date)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            RETURNING *
-        `, [account_id, invoiceNum, period_start, period_end, total, invoiceCurrency.toUpperCase(),
-            paidInvoice.status === 'paid' ? 'paid' : 'pending',
-            stripeInvoice.id, JSON.stringify(line_items), due_date]);
-
-        res.json({ success: true, invoice: saved.rows[0], stripe_invoice: paidInvoice });
     } catch (err) {
         console.error('[BILLING] generate-invoice error:', err);
         res.status(500).json({ error: err.message });
@@ -30422,13 +30591,15 @@ app.post('/api/webhooks/stripe-billing', express.raw({ type: 'application/json' 
         if (event.type === 'setup_intent.succeeded') {
             const setupIntent = event.data.object;
             const accountId = setupIntent.metadata?.gas_account_id;
+            const billingMethod = setupIntent.metadata?.billing_method;
             if (accountId && setupIntent.payment_method) {
                 await pool.query(`
                     UPDATE accounts
-                    SET stripe_billing_payment_method_id = $1, billing_mandate_status = 'active', updated_at = NOW()
+                    SET stripe_billing_payment_method_id = $1, billing_mandate_status = 'active',
+                        billing_method = COALESCE($3, billing_method), updated_at = NOW()
                     WHERE id = $2
-                `, [setupIntent.payment_method, accountId]);
-                console.log('[BILLING] Payment method saved for account:', accountId);
+                `, [setupIntent.payment_method, accountId, billingMethod || null]);
+                console.log('[BILLING] Payment method saved for account:', accountId, 'method:', billingMethod || 'sepa/bacs');
             }
         }
 
@@ -30441,12 +30612,14 @@ app.post('/api/webhooks/stripe-billing', express.raw({ type: 'application/json' 
                     const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
                     const si = await stripe.setupIntents.retrieve(setupIntentId);
                     if (si.payment_method) {
+                        const billingMethod = session.metadata?.billing_method;
                         await pool.query(`
                             UPDATE accounts
-                            SET stripe_billing_payment_method_id = $1, billing_mandate_status = 'active', updated_at = NOW()
+                            SET stripe_billing_payment_method_id = $1, billing_mandate_status = 'active',
+                                billing_method = COALESCE($3, billing_method), updated_at = NOW()
                             WHERE id = $2
-                        `, [si.payment_method, accountId]);
-                        console.log('[BILLING] Checkout setup complete — payment method saved for account:', accountId);
+                        `, [si.payment_method, accountId, billingMethod || null]);
+                        console.log('[BILLING] Checkout setup complete — payment method saved for account:', accountId, 'method:', billingMethod || 'sepa/bacs');
                     }
                 }
             }
@@ -86762,6 +86935,10 @@ app.listen(PORT, '0.0.0.0', async () => {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
     )`);
+
+    // Billing method + Airwallex invoice tracking
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_method VARCHAR(30)`).catch(() => {});
+    await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS airwallex_payment_intent_id VARCHAR(100)`).catch(() => {});
 
     // GAS Unified Inbox — Phase 1 (master admin only)
     await pool.query(`
