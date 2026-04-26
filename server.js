@@ -63699,10 +63699,8 @@ Return ONLY valid JSON with this exact structure, no other text:
     
   } catch (error) {
     const errDetail = error.response?.data?.error?.message || error.response?.data?.message || error.message;
-    const statusCode = error.response?.status;
-    const fullErr = JSON.stringify(error.response?.data || {});
-    console.error('AI generation error:', statusCode, errDetail, fullErr);
-    res.json({ success: false, error: `AI generation failed (${statusCode || 'no response'}): ${errDetail}. Key set: ${!!process.env.ANTHROPIC_API_KEY}. Full: ${fullErr.substring(0, 200)}` });
+    console.error('AI generation error:', error.response?.status, errDetail);
+    res.json({ success: false, error: 'AI generation failed: ' + errDetail });
   }
 });
 
