@@ -63698,8 +63698,9 @@ Return ONLY valid JSON with this exact structure, no other text:
     res.json({ success: true, content: aiText });
     
   } catch (error) {
-    console.error('AI generation error:', error.response?.data || error.message);
-    res.json({ success: false, error: 'AI generation failed' });
+    const errDetail = error.response?.data?.error?.message || error.response?.data?.message || error.message;
+    console.error('AI generation error:', error.response?.status, errDetail, error.response?.data);
+    res.json({ success: false, error: 'AI generation failed: ' + errDetail });
   }
 });
 
