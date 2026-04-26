@@ -28993,23 +28993,27 @@ async function runSiteHealthCheck(siteId) {
   add('content', 'Room images (5+ each)', roomsWithFewImages.length === 0,
     roomsWithFewImages.length === 0 ? `All ${roomImages.rows.length} rooms have 5+ images` : `${roomsWithFewImages.length} room(s) have <5 images: ${roomsWithFewImages.map(r => r.name).join(', ')}`);
 
-  // 2. CONTENT: Room descriptions
+  // 2. CONTENT: Room descriptions (list each missing room by name)
   const roomDescs = await pool.query(`
-    SELECT bu.id, bu.name, bu.short_description, bu.full_description
+    SELECT bu.id, bu.name, bu.short_description, bu.full_description, p.name as property_name
     FROM bookable_units bu JOIN properties p ON bu.property_id = p.id
     WHERE p.account_id = $1 AND bu.status IN ('active','available')
   `, [accountId]);
   const missingDesc = roomDescs.rows.filter(r => !r.short_description && !r.full_description);
+  const missingDescNames = missingDesc.slice(0, 10).map(r => r.name).join(', ') + (missingDesc.length > 10 ? ` (+${missingDesc.length - 10} more)` : '');
   add('content', 'Room descriptions', missingDesc.length === 0,
-    missingDesc.length === 0 ? 'All rooms have descriptions' : `${missingDesc.length} room(s) missing descriptions: ${missingDesc.map(r => r.name).join(', ')}`);
+    missingDesc.length === 0 ? `All ${roomDescs.rows.length} rooms have descriptions` : `${missingDesc.length} room(s) missing: ${missingDescNames}`);
 
-  // 3. CONTENT: Property descriptions
-  const propDescs = await pool.query(`
-    SELECT id, name, description FROM properties WHERE account_id = $1
+  // 3. CONTENT: Property address & coordinates
+  const propDetails = await pool.query(`
+    SELECT id, name, address, city, country, latitude, longitude FROM properties WHERE account_id = $1
   `, [accountId]);
-  const missingPropDesc = propDescs.rows.filter(r => !r.description);
-  add('content', 'Property descriptions', missingPropDesc.length === 0,
-    missingPropDesc.length === 0 ? 'All properties have descriptions' : `${missingPropDesc.length} missing`);
+  const missingAddress = propDetails.rows.filter(r => !r.address || !r.city);
+  const missingCoords = propDetails.rows.filter(r => !r.latitude || !r.longitude);
+  add('content', 'Property addresses', missingAddress.length === 0,
+    missingAddress.length === 0 ? `All ${propDetails.rows.length} properties have addresses` : `${missingAddress.length} missing address: ${missingAddress.slice(0, 5).map(r => r.name).join(', ')}`);
+  add('content', 'Property coordinates', missingCoords.length === 0,
+    missingCoords.length === 0 ? 'All properties have map coordinates' : `${missingCoords.length} missing coordinates: ${missingCoords.slice(0, 5).map(r => r.name).join(', ')}`);
 
   // 4. PRICING: Availability next 90 days
   const today = new Date().toISOString().split('T')[0];
