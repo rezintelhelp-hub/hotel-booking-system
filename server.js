@@ -45326,11 +45326,13 @@ app.get('/api/bookings/:id', async (req, res) => {
              bu.beds24_room_id,
              p.name as property_name,
              p.currency,
-             a.stripe_account_id
+             a.stripe_account_id,
+             ag.name as agent_name
       FROM bookings b
       LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
       LEFT JOIN properties p ON b.property_id = p.id
       LEFT JOIN accounts a ON p.account_id = a.id
+      LEFT JOIN accounts ag ON b.sold_by_account_id = ag.id
       WHERE b.id = $1
     `, [id]);
     
