@@ -68930,27 +68930,29 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     
     // First get total count
+    // When room_ids are specified, skip account_id filter (agent sites pass cross-account IDs)
+    const parsedRoomIds = room_ids ? room_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)) : [];
+    const skipAccountFilter = parsedRoomIds.length > 0;
+
     let countQuery = `
       SELECT COUNT(*) as total
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
-      WHERE p.account_id = $1
+      WHERE ($1::integer IS NULL OR p.account_id = $1)
     `;
-    const countParams = [clientId];
+    const countParams = [skipAccountFilter ? null : clientId];
     let countParamIndex = 2;
-    
+
     if (property_id) {
       countQuery += ` AND p.id = $${countParamIndex}`;
       countParams.push(property_id);
       countParamIndex++;
     }
-    
-    if (room_ids) {
-      const ids = room_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-      if (ids.length > 0) {
-        countQuery += ` AND bu.id = ANY($${countParamIndex}::int[])`;
-        countParams.push(ids);
-      }
+
+    if (parsedRoomIds.length > 0) {
+      countQuery += ` AND bu.id = ANY($${countParamIndex}::int[])`;
+      countParams.push(parsedRoomIds);
+      countParamIndex++;
     }
     
     const countResult = await pool.query(countQuery, countParams);
@@ -68995,27 +68997,24 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         bu.external_booking_url
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
-      WHERE p.account_id = $1
+      WHERE ($1::integer IS NULL OR p.account_id = $1)
     `;
-    
-    const params = [clientId, today];
+
+    const params = [skipAccountFilter ? null : clientId, today];
     let paramIndex = 3;
-    
+
     // Filter by property
     if (property_id) {
       query += ` AND p.id = $${paramIndex}`;
       params.push(property_id);
       paramIndex++;
     }
-    
+
     // Filter by specific room IDs
-    if (room_ids) {
-      const ids = room_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-      if (ids.length > 0) {
-        query += ` AND bu.id = ANY($${paramIndex}::int[])`;
-        params.push(ids);
-        paramIndex++;
-      }
+    if (parsedRoomIds.length > 0) {
+      query += ` AND bu.id = ANY($${paramIndex}::int[])`;
+      params.push(parsedRoomIds);
+      paramIndex++;
     }
     
     // Order
