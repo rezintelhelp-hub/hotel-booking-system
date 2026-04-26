@@ -13764,12 +13764,14 @@ app.get('/api/distribution/access', async (req, res) => {
     const { travel_agent_id, property_id, status } = req.query;
     
     let query = `
-      SELECT da.*, 
+      SELECT da.*,
              p.name as property_name, p.city, p.country, p.hero_image_url, p.owner_price,
-             a.name as owner_name
+             a.name as owner_name,
+             ag.name as agent_name
       FROM distribution_access da
       JOIN properties p ON da.property_id = p.id
       LEFT JOIN accounts a ON p.account_id = a.id
+      LEFT JOIN accounts ag ON da.travel_agent_id = ag.id
       WHERE 1=1
     `;
     const params = [];
