@@ -32865,6 +32865,9 @@ app.get('/api/db/properties-payment-status', async (req, res) => {
              (SELECT pc.name FROM payment_configurations pc
               WHERE (pc.property_id = p.id OR (pc.property_id IS NULL AND pc.account_id = p.account_id))
               AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1) as stripe_config_name,
+             (SELECT RIGHT(pc.credentials->>'publishable_key', 8) FROM payment_configurations pc
+              WHERE (pc.property_id = p.id OR (pc.property_id IS NULL AND pc.account_id = p.account_id))
+              AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1) as stripe_key_hint,
              pps.accepted_methods
       FROM properties p
       LEFT JOIN accounts a ON p.account_id = a.id
@@ -32907,6 +32910,7 @@ app.get('/api/db/properties-payment-status', async (req, res) => {
         has_payment_config: row.has_payment_config,
         has_stripe: hasStripe,
         stripe_config_name: row.stripe_config_name || null,
+        stripe_key_hint: row.stripe_key_hint || null,
         has_pay_at_property: !!acceptedMethods.pay_at_property,
         direct_mode: acceptedMethods.pay_at_property ? (settings.pay_property_mode || 'no_payment') : null,
         direct_bank_details: settings.bank_details || null,
