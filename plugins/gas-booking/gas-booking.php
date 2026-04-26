@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.43
+ * Version: 3.6.44
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.43');
+define('GAS_BOOKING_VERSION', '3.6.44');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3554,6 +3554,7 @@ class GAS_Booking {
             'currency' => $effective_currency,
             'currencyOverride' => $currency_override,
             'pricingTier' => get_option('gas_pricing_tier', 'standard'),
+            'agentAccountId' => get_option('gas_agent_account_id', ''),
             'currentLanguage' => $current_lang,
             'spinnerStyle' => $spinner_style,
             'nonce' => wp_create_nonce('gas_booking_nonce'),
@@ -4782,6 +4783,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         if (empty($atts['property_id']) && !empty($_GET['property_id'])) { $atts['property_id'] = sanitize_text_field($_GET['property_id']); }
         if (!empty($atts['property_id'])) {
             $endpoint .= "&property_id=" . intval($atts['property_id']);
+        }
+        // Pass room_ids to API so cross-account rooms work (agent sites)
+        if (!empty($room_ids)) {
+            $endpoint .= "&room_ids=" . implode(',', $room_ids);
         }
         
         $response = wp_remote_get($endpoint, array(
