@@ -24890,6 +24890,98 @@ app.get('/api/admin/agent/site/:siteId/properties', async (req, res) => {
   }
 });
 
+// Agent inventory endpoint — returns rooms across multiple owner accounts for an agent
+app.get('/api/agent/:agentAccountId/inventory', async (req, res) => {
+  try {
+    const { agentAccountId } = req.params;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const offset = parseInt(req.query.offset) || 0;
+
+    // Get agent's markup
+    const agentResult = await pool.query('SELECT agent_markup_pct FROM accounts WHERE id = $1', [agentAccountId]);
+    if (!agentResult.rows.length) return res.status(404).json({ success: false, error: 'Agent account not found' });
+    const markupPct = parseFloat(agentResult.rows[0].agent_markup_pct) || 0;
+
+    // 90-day availability window
+    const today = new Date().toISOString().split('T')[0];
+    const futureDate = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
+
+    const result = await pool.query(`
+      SELECT bu.id as room_id, bu.name as room_name, bu.display_name, bu.max_guests,
+             bu.num_bedrooms, bu.num_bathrooms, bu.unit_type,
+             p.id as property_id, p.name as property_name, p.city, p.country, p.currency,
+             da.id as distribution_access_id, da.current_price as wholesale_price,
+             (SELECT image_url FROM room_images WHERE room_id = bu.id ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 1) as image_url,
+             (SELECT AVG(ra.cm_price) FROM room_availability ra WHERE ra.room_id = bu.id AND ra.date >= $3 AND ra.date <= $4 AND ra.cm_price > 0) as avg_cm_price,
+             (SELECT COUNT(*) FROM room_availability ra WHERE ra.room_id = bu.id AND ra.date >= $3 AND ra.date <= $4 AND ra.is_available = true AND ra.cm_price > 0) as available_days
+      FROM distribution_access da
+      JOIN properties p ON da.property_id = p.id
+      JOIN bookable_units bu ON bu.property_id = p.id AND bu.status IN ('active', 'available')
+      WHERE da.travel_agent_id = $1 AND da.status = 'approved'
+        AND EXISTS (
+          SELECT 1 FROM room_availability ra
+          WHERE ra.room_id = bu.id AND ra.date >= $3 AND ra.date <= $4
+            AND ra.is_available = true AND ra.cm_price > 0
+        )
+      ORDER BY p.name, bu.name
+      LIMIT $5 OFFSET $6
+    `, [agentAccountId, agentAccountId, today, futureDate, limit, offset]);
+
+    // Get total count for pagination
+    const countResult = await pool.query(`
+      SELECT COUNT(*) as total
+      FROM distribution_access da
+      JOIN properties p ON da.property_id = p.id
+      JOIN bookable_units bu ON bu.property_id = p.id AND bu.status IN ('active', 'available')
+      WHERE da.travel_agent_id = $1 AND da.status = 'approved'
+        AND EXISTS (
+          SELECT 1 FROM room_availability ra
+          WHERE ra.room_id = bu.id AND ra.date >= $2 AND ra.date <= $3
+            AND ra.is_available = true AND ra.cm_price > 0
+        )
+    `, [agentAccountId, today, futureDate]);
+
+    const rooms = result.rows.map(r => {
+      const wholesale = r.wholesale_price ? parseFloat(r.wholesale_price) : (r.avg_cm_price ? parseFloat(r.avg_cm_price) : null);
+      const displayPrice = wholesale ? Math.round(wholesale * (1 + markupPct / 100) * 100) / 100 : null;
+      return {
+        room_id: r.room_id,
+        room_name: r.room_name,
+        display_name: r.display_name,
+        max_guests: r.max_guests,
+        num_bedrooms: r.num_bedrooms,
+        num_bathrooms: r.num_bathrooms,
+        unit_type: r.unit_type,
+        property_id: r.property_id,
+        property_name: r.property_name,
+        city: r.city,
+        country: r.country,
+        currency: r.currency,
+        image_url: r.image_url,
+        wholesale_price: wholesale,
+        display_price: displayPrice,
+        markup_pct: markupPct,
+        available_days_next_90: parseInt(r.available_days) || 0,
+        distribution_access_id: r.distribution_access_id
+      };
+    });
+
+    res.json({
+      success: true,
+      rooms,
+      pagination: {
+        total: parseInt(countResult.rows[0].total),
+        limit,
+        offset,
+        has_more: offset + limit < parseInt(countResult.rows[0].total)
+      }
+    });
+  } catch (error) {
+    console.error('Agent inventory error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // PARTNER API SYSTEM - For Channel Manager Integration
 // =====================================================
