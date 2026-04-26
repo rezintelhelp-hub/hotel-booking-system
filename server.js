@@ -11870,7 +11870,17 @@ app.get('/api/setup-accounts', async (req, res) => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_dist_access_property ON distribution_access(property_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_dist_access_agent ON distribution_access(travel_agent_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_dist_access_status ON distribution_access(status)`);
-    
+
+    // Wholesale negotiation columns
+    await pool.query(`ALTER TABLE distribution_access ADD COLUMN IF NOT EXISTS current_price DECIMAL(10,2)`).catch(() => {});
+    await pool.query(`ALTER TABLE distribution_access ADD COLUMN IF NOT EXISTS last_action_by VARCHAR(10)`).catch(() => {});
+    await pool.query(`ALTER TABLE distribution_access ADD COLUMN IF NOT EXISTS negotiation_history JSONB DEFAULT '[]'::jsonb`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS agent_markup_pct DECIMAL(5,2) DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE distribution_access ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`).catch(() => {});
+    // Extend status constraint to include negotiation states
+    await pool.query(`ALTER TABLE distribution_access DROP CONSTRAINT IF EXISTS valid_dist_status`).catch(() => {});
+    await pool.query(`ALTER TABLE distribution_access ADD CONSTRAINT valid_dist_status CHECK (status IN ('pending','owner_proposed','agent_countered','approved','rejected','revoked'))`).catch(() => {});
+
     // Add booking tracking for who sold it and revenue split
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS sold_by_account_id INTEGER REFERENCES accounts(id)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS owner_amount DECIMAL(10,2)`);
@@ -13855,6 +13865,73 @@ app.post('/api/distribution/access/:id/respond', async (req, res) => {
     `, [status, response_message, status === 'approved' ? new Date() : null, id]);
     
     res.json({ success: true, message: `Request ${status}` });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Owner responds to distribution negotiation
+app.post('/api/distribution/access/:id/owner-respond', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, price, message } = req.body;
+    if (!['propose', 'accept', 'counter', 'reject'].includes(action)) {
+      return res.json({ success: false, error: 'action must be propose, accept, counter, or reject' });
+    }
+
+    const row = await pool.query('SELECT * FROM distribution_access WHERE id = $1', [id]);
+    if (!row.rows.length) return res.status(404).json({ success: false, error: 'Not found' });
+    const da = row.rows[0];
+    const history = da.negotiation_history || [];
+
+    history.push({ actor: 'owner', action, price: price !== undefined ? price : undefined, at: new Date().toISOString(), message: message || null });
+
+    let newStatus, newPrice = da.current_price, approvedAt = da.approved_at;
+    if (action === 'propose') { newStatus = 'owner_proposed'; newPrice = price !== undefined ? price : null; }
+    else if (action === 'counter') { newStatus = 'owner_proposed'; newPrice = price !== undefined ? price : da.current_price; }
+    else if (action === 'accept') { newStatus = 'approved'; approvedAt = new Date(); }
+    else if (action === 'reject') { newStatus = 'rejected'; }
+
+    await pool.query(`
+      UPDATE distribution_access SET status = $1, current_price = $2, last_action_by = 'owner',
+        negotiation_history = $3, approved_at = $4, updated_at = NOW()
+      WHERE id = $5
+    `, [newStatus, newPrice, JSON.stringify(history), approvedAt, id]);
+
+    res.json({ success: true, status: newStatus, current_price: newPrice });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Agent responds to distribution negotiation
+app.post('/api/distribution/access/:id/agent-respond', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, price, message } = req.body;
+    if (!['accept', 'counter', 'reject'].includes(action)) {
+      return res.json({ success: false, error: 'action must be accept, counter, or reject' });
+    }
+
+    const row = await pool.query('SELECT * FROM distribution_access WHERE id = $1', [id]);
+    if (!row.rows.length) return res.status(404).json({ success: false, error: 'Not found' });
+    const da = row.rows[0];
+    const history = da.negotiation_history || [];
+
+    history.push({ actor: 'agent', action, price: price !== undefined ? price : undefined, at: new Date().toISOString(), message: message || null });
+
+    let newStatus, newPrice = da.current_price, approvedAt = da.approved_at;
+    if (action === 'counter') { newStatus = 'agent_countered'; newPrice = price !== undefined ? price : da.current_price; }
+    else if (action === 'accept') { newStatus = 'approved'; approvedAt = new Date(); }
+    else if (action === 'reject') { newStatus = 'rejected'; }
+
+    await pool.query(`
+      UPDATE distribution_access SET status = $1, current_price = $2, last_action_by = 'agent',
+        negotiation_history = $3, approved_at = $4, updated_at = NOW()
+      WHERE id = $5
+    `, [newStatus, newPrice, JSON.stringify(history), approvedAt, id]);
+
+    res.json({ success: true, status: newStatus, current_price: newPrice });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
