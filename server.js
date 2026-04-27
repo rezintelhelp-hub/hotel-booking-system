@@ -45457,19 +45457,21 @@ app.get('/api/admin/taxes', async (req, res) => {
 app.post('/api/admin/taxes', async (req, res) => {
   try {
     await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
-    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, account_id } = req.body;
+    await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS room_ids INTEGER[]').catch(() => {});
+    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_ids, active, account_id } = req.body;
+    // Support legacy room_id or new room_ids array
+    const roomId = req.body.room_id || (room_ids && room_ids.length === 1 ? room_ids[0] : null);
+    const roomIdsArr = room_ids && room_ids.length > 0 ? room_ids : null;
     const name = mlStr(rawName);
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (rawName ? { en: rawName } : null);
     const nameJson = nameObj ? JSON.stringify(nameObj) : null;
 
-    // user_id = creator (account_id)
-    // Visibility is handled by GET which checks property ownership
     const result = await pool.query(`
-      INSERT INTO taxes (name, name_ml, country, amount_type, currency, amount, charge_per, max_nights, max_amount, min_age, star_tier, season_start, season_end, property_id, room_id, active, user_id)
-      VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      INSERT INTO taxes (name, name_ml, country, amount_type, currency, amount, charge_per, max_nights, max_amount, min_age, star_tier, season_start, season_end, property_id, room_id, room_ids, active, user_id)
+      VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *
-    `, [name, nameJson, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, property_id, room_id, active !== false, account_id]);
-    
+    `, [name, nameJson, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, property_id, roomId, roomIdsArr, active !== false, account_id]);
+
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -45479,7 +45481,11 @@ app.post('/api/admin/taxes', async (req, res) => {
 app.put('/api/admin/taxes/:id', async (req, res) => {
   try {
     await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
-    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active } = req.body;
+    await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS room_ids INTEGER[]').catch(() => {});
+    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_ids, active } = req.body;
+    // Support legacy room_id or new room_ids array
+    const roomId = req.body.room_id || (room_ids && room_ids.length === 1 ? room_ids[0] : null);
+    const roomIdsArr = room_ids && room_ids.length > 0 ? room_ids : null;
     const name = mlStr(rawName);
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (rawName ? { en: rawName } : null);
     const nameJson = nameObj ? JSON.stringify(nameObj) : null;
@@ -45501,12 +45507,13 @@ app.put('/api/admin/taxes/:id', async (req, res) => {
         season_end = $13,
         property_id = $14,
         room_id = $15,
-        active = COALESCE($16, active),
+        room_ids = $16,
+        active = COALESCE($17, active),
         updated_at = NOW()
-      WHERE id = $17
+      WHERE id = $18
       RETURNING *
-    `, [name, nameJson, country, amount_type, currency, amount, charge_per, max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, property_id, room_id, active, req.params.id]);
-    
+    `, [name, nameJson, country, amount_type, currency, amount, charge_per, max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, property_id, roomId, roomIdsArr, active, req.params.id]);
+
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -66044,7 +66051,11 @@ app.post('/api/public/calculate-price', async (req, res) => {
         SELECT t.* FROM taxes t
         WHERE t.active = true
           AND t.property_id = (SELECT property_id FROM bookable_units WHERE id = $1)
-          AND (t.room_id IS NULL OR t.room_id = $1)
+          AND (
+            (t.room_id IS NULL AND t.room_ids IS NULL)
+            OR t.room_id = $1
+            OR $1 = ANY(t.room_ids)
+          )
       `, [unit_id]);
     } catch (taxQueryError) {
       console.log('Tax query fallback - trying simpler query');
@@ -66675,10 +66686,25 @@ app.post('/api/public/book', async (req, res) => {
               return [{ description: 'Accommodation', status: '', qty: 1, amount: parseFloat(total_price) || 0, vatRate: 0 }];
             }
             const items = [];
-            items.push({ description: 'Accommodation', status: '', qty: 1, amount: parseFloat(price_breakdown.accommodation_total || total_price) || 0, vatRate: 0 });
+            // Send gross room rate, then show offer/voucher as negative line items
+            const grossRoom = parseFloat(price_breakdown.accommodation_total || total_price) || 0;
+            const offerDisc = parseFloat(price_breakdown.offer_discount) || 0;
+            const voucherDisc = parseFloat(price_breakdown.voucher_discount) || 0;
+            items.push({ description: 'Accommodation', status: '', qty: 1, amount: grossRoom + offerDisc + voucherDisc, vatRate: 0 });
+            if (offerDisc > 0 && price_breakdown.offer_applied) {
+              items.push({ description: `Offer: ${price_breakdown.offer_applied.name || 'Discount'} (-${price_breakdown.offer_applied.discount_type === 'percentage' ? price_breakdown.offer_applied.discount_value + '%' : ''})`, status: '', qty: 1, amount: -offerDisc, vatRate: 0 });
+            }
+            if (voucherDisc > 0 && price_breakdown.voucher_applied) {
+              items.push({ description: `Voucher: ${price_breakdown.voucher_applied.code || 'Discount'}`, status: '', qty: 1, amount: -voucherDisc, vatRate: 0 });
+            }
             if (price_breakdown.upsells_breakdown) {
               for (const u of price_breakdown.upsells_breakdown) {
                 items.push({ description: u.name || 'Extra', status: '', qty: u.quantity || 1, amount: parseFloat(u.total) || 0, vatRate: 0 });
+              }
+            }
+            if (price_breakdown.fees) {
+              for (const f of price_breakdown.fees) {
+                items.push({ description: f.name || 'Fee', status: '', qty: 1, amount: parseFloat(f.amount) || 0, vatRate: 0 });
               }
             }
             if (price_breakdown.taxes) {
