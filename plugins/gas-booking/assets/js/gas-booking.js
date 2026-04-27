@@ -4895,24 +4895,7 @@ jQuery(document).ready(function($) {
                         }
                         checkoutData.pricing = response;
                         checkoutData.gasBreakdown = response;
-
-                        // Also try to get channel manager quote for full breakdown
-                        $.ajax({
-                            url: checkoutData.apiUrl + '/api/public/quote/' + checkoutData.unitId + '?checkin=' + checkoutData.checkin + '&checkout=' + checkoutData.checkout + '&guests=' + (checkoutData.guests || 1),
-                            method: 'GET',
-                            success: function(quoteResponse) {
-                                if (quoteResponse.success && quoteResponse.quote) {
-                                    console.log('GAS: CM quote received', quoteResponse.source, quoteResponse.quote);
-                                    checkoutData.cmQuote = quoteResponse.quote;
-                                    checkoutData.cmQuoteSource = quoteResponse.source;
-                                }
-                                updateCheckoutPricing();
-                            },
-                            error: function() {
-                                console.log('GAS: No CM quote available, using local pricing');
-                                updateCheckoutPricing();
-                            }
-                        });
+                        updateCheckoutPricing();
                     }
                 }
             });
@@ -4963,64 +4946,11 @@ jQuery(document).ready(function($) {
                 cmQuote: checkoutData.cmQuote
             });
             
-            // If we have a CM quote (e.g. from Hostaway), use it for clean display
-            if (checkoutData.cmQuote) {
-                var q = checkoutData.cmQuote;
-                var qCurrency = resolveCurrency(q.currency) || currency;
-                
-                // Show per night x nights line
-                var perNight = q.pricePerNight || 0;
-                var nightWord = q.nights > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night');
-                $('.gas-nights-label').text(formatPriceShort(Math.round(perNight), qCurrency) + ' x ' + q.nights + ' ' + nightWord);
-                $('.gas-nights-total').text(formatPrice(q.breakdown.basePrice, qCurrency));
-                
-                // Show fees and taxes as line items
-                var feeTaxHtml = '';
-                if (q.breakdown && q.breakdown.fees) {
-                    q.breakdown.fees.forEach(function(fee) {
-                        feeTaxHtml += '<div class="gas-fee-item" style="display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: 0.9em; color: #64748b;">';
-                        feeTaxHtml += '<span>' + fee.name + '</span>';
-                        feeTaxHtml += '<span>' + formatPrice(fee.amount, qCurrency) + '</span>';
-                        feeTaxHtml += '</div>';
-                    });
-                }
-                if (q.breakdown && q.breakdown.taxes) {
-                    q.breakdown.taxes.forEach(function(tax) {
-                        feeTaxHtml += '<div class="gas-tax-item" style="display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: 0.9em; color: #64748b;">';
-                        feeTaxHtml += '<span>' + tax.name + '</span>';
-                        feeTaxHtml += '<span>' + formatPrice(tax.amount, qCurrency) + '</span>';
-                        feeTaxHtml += '</div>';
-                    });
-                }
-                if (feeTaxHtml) {
-                    // Insert fee/tax lines after the nights line
-                    if ($('.gas-cm-fees-taxes').length === 0) {
-                        $('.gas-nights-total').closest('.gas-price-row, .gas-summary-line, div').after('<div class="gas-cm-fees-taxes">' + feeTaxHtml + '</div>');
-                    } else {
-                        $('.gas-cm-fees-taxes').html(feeTaxHtml);
-                    }
-                }
-                
-                // Hide the old taxes section
-                $('.gas-taxes-section').hide();
-                
-                // Discount line
-                if (discount > 0) {
-                    $('.gas-discount-line').show().find('.gas-discount-amount').text('-' + formatPrice(discount, qCurrency));
-                } else {
-                    $('.gas-discount-line').hide();
-                }
-                
-                // Voucher discount
-                if (voucherDiscount > 0) {
-                    $('.gas-voucher-line').show().find('.gas-voucher-discount').text('-' + formatPrice(voucherDiscount, qCurrency));
-                } else {
-                    $('.gas-voucher-line').hide();
-                }
-                
-                // Upsells
+            // CM quote override removed — calculate-price is the single source of truth
+            // (includes booking_page_multiplier, offers, vouchers, taxes consistently)
+            if (false) {
+                // Dead code — CM quote block disabled
                 if (checkoutData.selectedUpsells && checkoutData.selectedUpsells.length > 0) {
-                    var extrasHtml = '';
                     checkoutData.selectedUpsells.forEach(function(upsell) {
                         var itemTotal = calculateUpsellItemTotal(upsell);
                         extrasHtml += '<div class="gas-extra-item">';
