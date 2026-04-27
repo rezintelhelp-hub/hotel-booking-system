@@ -1878,10 +1878,9 @@ jQuery(document).ready(function($) {
                         occupancyLabel = response.occupancy_label || 'Guest adjustment';
                     }
                     
-                    // Update the top price display with base per-night rate (no adjustments)
-                    var baseTotal = accommodationTotal - (occupancyAdjustment || 0);
-                    var calculatedPerNight = nights > 0 ? Math.round(baseTotal / nights) : 0;
-                    $('.gas-price-amount').text(formatPriceShort(calculatedPerNight, currency));
+                    // Update the top price display — show total, not misleading per-night average
+                    $('.gas-price-amount').text(formatPriceShort(accommodationTotal, currency));
+                    $('.gas-price-period').text(nights + ' ' + (nights > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night')));
                     
                     // Show occupancy adjustment note if applicable
                     if (occupancyAdjustment !== 0) {
@@ -5023,12 +5022,9 @@ jQuery(document).ready(function($) {
                 return;
             }
             
-            // Fallback: original pricing display (no CM quote)
-            
-            // Accommodation line
-            var perNight = nights > 0 ? Math.round(accommodationTotal / nights) : 0;
+            // Accommodation line — just show total with night count, no misleading per-night average
             var nightWord = nights > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night');
-            $('.gas-nights-label').text(formatPriceShort(perNight, currency) + ' x ' + nights + ' ' + nightWord);
+            $('.gas-nights-label').text(t('booking', 'accommodation', 'Accommodation') + ' (' + nights + ' ' + nightWord + ')');
             $('.gas-nights-total').text(formatPrice(accommodationTotal, currency));
             
             // Discount line
