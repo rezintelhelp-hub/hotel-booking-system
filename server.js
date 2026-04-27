@@ -47733,7 +47733,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
     
     // Get room info including property currency
     const roomInfo = await pool.query(`
-      SELECT bu.id, bu.name, bu.property_id, COALESCE(p.currency, a.default_currency) as currency, p.country, p.booking_page_multiplier
+      SELECT bu.id, bu.name, bu.property_id, COALESCE(p.currency, a.default_currency) as currency, p.country, p.booking_page_multiplier, p.round_prices_up
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       LEFT JOIN accounts a ON p.account_id = a.id
@@ -47904,7 +47904,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
     }
     
     const multiplier = parseFloat(roomInfo.rows[0]?.booking_page_multiplier) || null;
-    res.json({ success: true, availability: result, currency, currency_symbol: currencySymbol, booking_page_multiplier: multiplier });
+    const roundUp = roomInfo.rows[0]?.round_prices_up || false;
+    res.json({ success: true, availability: result, currency, currency_symbol: currencySymbol, booking_page_multiplier: multiplier, round_prices_up: roundUp });
   } catch (error) {
     console.error('Availability error:', error);
     res.json({ success: false, error: error.message });
@@ -65715,13 +65716,13 @@ app.post('/api/public/calculate-price', async (req, res) => {
     
     // Get unit with occupancy settings
     const unit = await pool.query(`
-      SELECT bu.base_price, bu.max_guests, bu.name, 
-             bu.pricing_mode, bu.base_occupancy, 
+      SELECT bu.base_price, bu.max_guests, bu.name,
+             bu.pricing_mode, bu.base_occupancy,
              bu.extra_adult_type, bu.extra_adult_charge,
              bu.single_discount_type, bu.single_discount_value,
              bu.child_charge_type, bu.child_charge,
              bu.children_allowed,
-             p.currency, p.child_max_age
+             p.currency, p.child_max_age, p.round_prices_up
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -65733,7 +65734,8 @@ app.post('/api/public/calculate-price', async (req, res) => {
     
     const roomData = unit.rows[0];
     const currency = roomData.currency || '';
-    
+    const roundPricesUp = roomData.round_prices_up || false;
+
     // Parse guests - support both old (guests) and new (adults + children) format
     const numAdults = parseInt(adults) || parseInt(guests) || 2;
     const numChildren = parseInt(children) || 0;
@@ -65792,6 +65794,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       const dayData = availability.rows.find(a => toDateStr(a.date) === dateStr);
       
       let nightPrice = dayData?.price ? parseFloat(dayData.price) : 0;
+      if (roundPricesUp && nightPrice > 0) nightPrice = Math.ceil(nightPrice);
       const nightCmPrice = dayData?.cm_price ? parseFloat(dayData.cm_price) : nightPrice;
       cmTotal += nightCmPrice;
       if (!nightPrice && !dayData) {
@@ -66089,11 +66092,16 @@ app.post('/api/public/calculate-price', async (req, res) => {
           )
       `, [unit_id]);
     } catch (taxQueryError) {
-      console.log('Tax query fallback - trying simpler query');
+      console.log('Tax query fallback - room_ids column may not exist yet, retrying without it');
       try {
-        taxes = await pool.query(`SELECT * FROM taxes WHERE active = true`);
+        taxes = await pool.query(`
+          SELECT t.* FROM taxes t
+          WHERE t.active = true
+            AND t.property_id = (SELECT property_id FROM bookable_units WHERE id = $1)
+            AND (t.room_id IS NULL OR t.room_id = $1)
+        `, [unit_id]);
       } catch (e) {
-        console.log('No taxes table or query failed');
+        console.log('Tax fallback also failed:', e.message);
       }
     }
     
@@ -87850,7 +87858,11 @@ app.listen(PORT, '0.0.0.0', async () => {
 
     // Beds24 booking page multiplier — property-level price adjustment
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS booking_page_multiplier DECIMAL(6,4)`);
-    console.log('✅ properties.booking_page_multiplier column ensured');
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS round_prices_up BOOLEAN DEFAULT false`);
+    console.log('✅ properties.booking_page_multiplier + round_prices_up columns ensured');
+
+    await pool.query(`ALTER TABLE taxes ADD COLUMN IF NOT EXISTS room_ids INTEGER[]`);
+    console.log('✅ taxes.room_ids column ensured');
 
     console.log('✅ Database migrations complete');
   } catch (migrationError) {
