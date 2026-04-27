@@ -65717,7 +65717,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
     // Apply property-level booking_page_multiplier if set (Beds24 booking page price adjustment)
     const availability = await pool.query(`
       SELECT ra.date,
-             COALESCE(ra.standard_price, ra.direct_price, ra.cm_price) * COALESCE(p.booking_page_multiplier, 1) as price,
+             COALESCE(ra.cm_price, ra.direct_price, ra.standard_price) * COALESCE(p.booking_page_multiplier, 1) as price,
              ra.cm_price,
              ra.is_available,
              ra.is_blocked,
