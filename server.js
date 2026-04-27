@@ -3763,6 +3763,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
               console.log(`  [V1 Fallback] Error for ${room.name}: ${v1Err.message}`);
             }
           }
+          // Keep standard_price in sync with cm_price (respects price rules)
+          await applyPriceRules(room.gas_room_id);
         } catch (roomErr) {
           console.error(`Beds24 sync error for room ${room.beds24_room_id}:`, roomErr.message);
         }
@@ -7033,6 +7035,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                 
                 totalDaysUpdated++;
               }
+              // Keep standard_price in sync with cm_price (respects price rules)
+              await applyPriceRules(gasRoomId);
               roomsSynced++;
             }
           }
@@ -7041,7 +7045,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           errors.push({ property: prop.name, error: propError.message });
         }
       }
-      
+
       await pool.query('UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1', [connectionId]);
       
       return res.json({
@@ -7147,6 +7151,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
 
             totalDaysUpdated++;
           }
+          // Keep standard_price in sync with cm_price (respects price rules)
+          await applyPriceRules(room.gas_room_id);
           roomsSynced++;
           console.log(`[Hostfully Sync] Room ${room.name}: ${calendarResult.data.length} calendar days synced`);
         } catch (roomError) {
@@ -7289,10 +7295,12 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
             totalDaysUpdated++;
           }
           
+          // Keep standard_price in sync with cm_price (respects price rules)
+          await applyPriceRules(gasRoomId);
           console.log(`[Smoobu Sync] Property ${prop.name}: ${availCount} available, ${blockedCount} blocked`);
           roomsSynced++;
         }
-        
+
       } catch (smoobuError) {
         console.error('[Smoobu Sync] Error:', smoobuError.response?.data || smoobuError.message);
         errors.push({ error: smoobuError.message });
@@ -7694,6 +7702,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
             }
           }
 
+          // Keep standard_price in sync with cm_price (respects price rules)
+          await applyPriceRules(room.gas_room_id);
           roomsSynced++;
           console.log(`  ✓ ${room.name}: ${daysWithPrice} prices, ${daysBlocked} blocked`);
 
@@ -8214,17 +8224,19 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
           }
         }
         
+        // Keep standard_price in sync with cm_price (respects price rules)
+        await applyPriceRules(room.gas_room_id);
         roomsSynced++;
         totalDaysUpdated += daysUpdated;
         console.log(`  ✓ ${room.name}: ${daysUpdated} days`);
-        
+
         // Rate limit protection: 1.5s between rooms
         await new Promise(resolve => setTimeout(resolve, 1500));
-        
+
       } catch (roomError) {
         console.error(`  ✗ ${room.name}: ${roomError.message}`);
         errors.push({ room: room.name, error: roomError.message });
-        
+
         // Stop on rate limit
         if (roomError.response?.status === 429) {
           errors.push({ error: 'Rate limited by Beds24. Some rooms may not have synced.' });
@@ -8232,7 +8244,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
         }
       }
     }
-    
+
     // Update last sync time
     await pool.query('UPDATE gas_sync_properties SET last_price_sync = NOW() WHERE id = $1', [prop.id]);
     
@@ -9848,38 +9860,54 @@ const MANUAL_SYNC_DAYS = 365; // Pull full year on manual sync
 const SYNC_RATE_LIMIT_MINUTES = 60; // Minimum time between manual syncs per property
 
 // Add tier tracking columns
-// Apply price rules: auto-calculate standard_price from cm_price for rooms with a price rule
-// Only fills dates where standard_price is NULL — never overwrites manual edits
+// Apply price rules: auto-calculate standard_price from cm_price for rooms with a price rule.
+// For rooms WITHOUT a price rule, keeps standard_price in sync with cm_price.
+// Runs after every sync to ensure standard_price always reflects current cm_price.
 async function applyPriceRules(roomId) {
   try {
     const rule = await pool.query(
-      'SELECT price_rule_type, price_rule_value FROM bookable_units WHERE id = $1 AND price_rule_type IS NOT NULL',
+      'SELECT price_rule_type, price_rule_value FROM bookable_units WHERE id = $1',
       [roomId]
     );
     if (rule.rows.length === 0) return 0;
     const { price_rule_type, price_rule_value } = rule.rows[0];
-    if (!price_rule_value || price_rule_value <= 0) return 0;
 
     let result;
-    if (price_rule_type === 'percentage') {
+    if (price_rule_type === 'percentage' && price_rule_value > 0) {
+      // Percentage markup: recalculate wherever standard_price is stale
       result = await pool.query(
-        `UPDATE room_availability SET standard_price = cm_price * (1 + $2 / 100), updated_at = NOW()
-         WHERE room_id = $1 AND cm_price IS NOT NULL AND standard_price IS NULL`,
+        `UPDATE room_availability SET standard_price = ROUND(cm_price * (1 + $2 / 100), 2), updated_at = NOW()
+         WHERE room_id = $1 AND cm_price IS NOT NULL
+           AND (standard_price IS NULL OR ROUND(cm_price * (1 + $2 / 100), 2) != standard_price)`,
         [roomId, price_rule_value]
       );
-    } else if (price_rule_type === 'fixed') {
+      if (result.rowCount > 0) {
+        console.log(`[PriceRule] Applied percentage +${price_rule_value}% to ${result.rowCount} dates for room ${roomId}`);
+      }
+    } else if (price_rule_type === 'fixed' && price_rule_value > 0) {
+      // Fixed markup: recalculate wherever standard_price is stale
       result = await pool.query(
         `UPDATE room_availability SET standard_price = cm_price + $2, updated_at = NOW()
-         WHERE room_id = $1 AND cm_price IS NOT NULL AND standard_price IS NULL`,
+         WHERE room_id = $1 AND cm_price IS NOT NULL
+           AND (standard_price IS NULL OR (cm_price + $2) != standard_price)`,
         [roomId, price_rule_value]
       );
+      if (result.rowCount > 0) {
+        console.log(`[PriceRule] Applied fixed +${price_rule_value} to ${result.rowCount} dates for room ${roomId}`);
+      }
     } else {
-      return 0;
+      // No price rule: standard_price must equal cm_price (keep them in sync)
+      result = await pool.query(
+        `UPDATE room_availability SET standard_price = cm_price, updated_at = NOW()
+         WHERE room_id = $1 AND cm_price IS NOT NULL
+           AND (standard_price IS NULL OR standard_price != cm_price)`,
+        [roomId]
+      );
+      if (result.rowCount > 0) {
+        console.log(`[PriceRule] Synced standard_price = cm_price for ${result.rowCount} dates on room ${roomId} (no rule)`);
+      }
     }
-    if (result.rowCount > 0) {
-      console.log(`[PriceRule] Applied ${price_rule_type} +${price_rule_value} to ${result.rowCount} dates for room ${roomId}`);
-    }
-    return result.rowCount;
+    return result ? result.rowCount : 0;
   } catch (e) {
     console.log(`[PriceRule] Error for room ${roomId}:`, e.message);
     return 0;
@@ -10505,10 +10533,12 @@ app.post('/api/gas-sync/v1-pricing-sync', async (req, res) => {
 
               propDaysUpdated++;
             }
-            
+
+            // Keep standard_price in sync with cm_price (respects price rules)
+            await applyPriceRules(gasRoomId);
             propRoomsUpdated++;
           }
-          
+
           results.properties.push({
             name: prop.name,
             external_id: prop.external_id,
@@ -10668,12 +10698,14 @@ app.post('/api/gas-sync/properties/:propertyId/v1-pricing-sync', async (req, res
 
         daysUpdated++;
       }
-      
+
+      // Keep standard_price in sync with cm_price (respects price rules)
+      await applyPriceRules(room.gas_room_id);
       roomsUpdated++;
       roomDetails.push({ name: room.name, beds24RoomId, daysUpdated: dateCount });
     }
-    
-    res.json({ 
+
+    res.json({
       success: true, 
       property: prop.name,
       ratesFound: rates.length,
@@ -11807,6 +11839,10 @@ app.get('/api/setup-accounts', async (req, res) => {
     // Add distribution settings to properties
     // distribution_mode: 'open', 'request', 'private'
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS distribution_mode VARCHAR(20) DEFAULT 'private'`);
+    // Backfill: migrate available_for_agents → distribution_mode
+    await pool.query(`UPDATE properties SET distribution_mode = 'open' WHERE available_for_agents = true AND distribution_mode = 'private'`);
+    // Set Havenique (account 262) password if not already set
+    await pool.query(`UPDATE accounts SET password_hash = '2ccc877ca1cb969ef2ac1c19fec5d481fe0b4518b2f249f0f9e7a553c37b486e' WHERE id = 262 AND password_hash IS NULL`);
     // owner_price: Base price owner wants per night
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_price DECIMAL(10,2)`);
     // owner_account_id: Actual owner (vs manager)
@@ -13758,15 +13794,16 @@ app.get('/api/distribution/properties', async (req, res) => {
   }
 });
 
-// Get distribution access for a travel agent
+// Get distribution access for a travel agent (scoped by role)
 app.get('/api/distribution/access', async (req, res) => {
   try {
+    const decoded = await extractAccountFromToken(req);
     const { travel_agent_id, property_id, status } = req.query;
-    
+
     let query = `
       SELECT da.*,
              p.name as property_name, p.city, p.country,
-             a.name as owner_name,
+             a.name as owner_name, a.business_name as owner_business,
              ag.name as agent_name
       FROM distribution_access da
       JOIN properties p ON da.property_id = p.id
@@ -13776,7 +13813,18 @@ app.get('/api/distribution/access', async (req, res) => {
     `;
     const params = [];
     let paramIndex = 1;
-    
+
+    // Server-side scope enforcement
+    if (decoded && decoded.role === 'agency_admin') {
+      query += ` AND da.travel_agent_id = $${paramIndex++}`;
+      params.push(decoded.id);
+    } else if (decoded && (decoded.role === 'admin' || decoded.role === 'submaster_admin')) {
+      query += ` AND da.property_id IN (SELECT id FROM properties WHERE account_id = $${paramIndex++})`;
+      params.push(decoded.id);
+    }
+    // master_admin: no scope filter — sees all rows
+
+    // Additional query param filters on top of scope
     if (travel_agent_id) {
       query += ` AND da.travel_agent_id = $${paramIndex++}`;
       params.push(travel_agent_id);
@@ -13789,9 +13837,9 @@ app.get('/api/distribution/access', async (req, res) => {
       query += ` AND da.status = $${paramIndex++}`;
       params.push(status);
     }
-    
+
     query += ` ORDER BY da.requested_at DESC`;
-    
+
     const result = await pool.query(query, params);
     res.json({ success: true, access: result.rows });
   } catch (error) {
@@ -13836,14 +13884,16 @@ app.post('/api/distribution/request', async (req, res) => {
     // If distribution_mode is 'open', auto-approve
     const autoApprove = property.rows[0].distribution_mode === 'open';
     
+    const initialHistory = [{ actor: 'agent', action: autoApprove ? 'auto_approved' : 'requested', at: new Date().toISOString(), message: message || null }];
+
     const result = await pool.query(`
-      INSERT INTO distribution_access (property_id, travel_agent_id, message, status, approved_at)
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (property_id, travel_agent_id) 
-      DO UPDATE SET status = $4, message = $3, requested_at = NOW(), approved_at = $5
+      INSERT INTO distribution_access (property_id, travel_agent_id, message, status, approved_at, last_action_by, negotiation_history)
+      VALUES ($1, $2, $3, $4, $5, 'agent', $6::jsonb)
+      ON CONFLICT (property_id, travel_agent_id)
+      DO UPDATE SET status = $4, message = $3, requested_at = NOW(), approved_at = $5, last_action_by = 'agent', negotiation_history = $6::jsonb
       RETURNING *
-    `, [property_id, travel_agent_id, message, autoApprove ? 'approved' : 'pending', autoApprove ? new Date() : null]);
-    
+    `, [property_id, travel_agent_id, message, autoApprove ? 'approved' : 'pending', autoApprove ? new Date() : null, JSON.stringify(initialHistory)]);
+
     res.json({ success: true, access: result.rows[0], auto_approved: autoApprove });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -13947,6 +13997,44 @@ app.post('/api/distribution/access/:id/revoke', async (req, res) => {
     await pool.query(`UPDATE distribution_access SET status = 'revoked' WHERE id = $1`, [id]);
     
     res.json({ success: true, message: 'Access revoked' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get approved properties for an agent (with room counts & last booking)
+app.get('/api/distribution/approved', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    let agentId;
+    if (decoded.role === 'agency_admin') {
+      agentId = decoded.id;
+    } else if (decoded.role === 'master_admin' && req.query.agent_id) {
+      agentId = req.query.agent_id;
+    } else if (decoded.role === 'master_admin') {
+      return res.json({ success: false, error: 'agent_id required for master admin' });
+    } else {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    const result = await pool.query(`
+      SELECT da.id, da.property_id, da.approved_at, da.current_price, da.status,
+             p.name as property_name, p.city, p.country,
+             a.name as owner_name, a.business_name as owner_business,
+             (SELECT COUNT(*) FROM bookable_units bu WHERE bu.property_id = p.id AND bu.status IN ('active','available')) as room_count,
+             (SELECT MAX(b.created_at) FROM bookings b WHERE b.sold_by_account_id = $1 AND b.property_id = p.id) as last_booking_date,
+             ag.agent_markup_pct
+      FROM distribution_access da
+      JOIN properties p ON da.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
+      LEFT JOIN accounts ag ON da.travel_agent_id = ag.id
+      WHERE da.travel_agent_id = $1 AND da.status = 'approved'
+      ORDER BY da.approved_at DESC
+    `, [agentId]);
+
+    res.json({ success: true, properties: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -22029,7 +22117,7 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS bookable_unit_id INTEGER`);
     // Add hostaway columns
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
-    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS available_for_agents BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS available_for_agents BOOLEAN DEFAULT false`); // deprecated — use distribution_mode
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostaway_reservation_id VARCHAR(50)`);
     
@@ -24830,17 +24918,30 @@ app.get('/api/setup-deploy', async (req, res) => {
 // TRAVEL AGENT API - Property marketplace & site-properties
 // =====================================================
 
-// Get properties available for agents
+// Get properties available for agents (marketplace)
 app.get('/api/admin/agent/available-properties', async (req, res) => {
   try {
-    const result = await pool.query(`
+    const decoded = await extractAccountFromToken(req);
+    const params = [];
+    let paramIndex = 1;
+
+    let query = `
       SELECT p.id, p.name, p.description, p.city, p.country, p.property_type, p.star_rating, p.hero_image_url,
+             p.distribution_mode,
              a.name as owner_name, a.business_name as owner_business
       FROM properties p
       LEFT JOIN accounts a ON p.account_id = a.id
-      WHERE p.available_for_agents = true AND p.active = true
-      ORDER BY p.name
-    `);
+      WHERE p.distribution_mode IN ('open','request') AND p.active = true
+    `;
+
+    // For agency_admin, exclude properties they already have access to (pending/proposed/countered/approved)
+    if (decoded && decoded.role === 'agency_admin') {
+      query += ` AND p.id NOT IN (SELECT property_id FROM distribution_access WHERE travel_agent_id = $${paramIndex++} AND status IN ('pending','owner_proposed','agent_countered','approved'))`;
+      params.push(decoded.id);
+    }
+
+    query += ` ORDER BY p.name`;
+    const result = await pool.query(query, params);
     res.json({ success: true, properties: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -24896,6 +24997,7 @@ app.get('/api/agent/:agentAccountId/inventory', async (req, res) => {
     const { agentAccountId } = req.params;
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const offset = parseInt(req.query.offset) || 0;
+    const propertyIdFilter = req.query.property_id ? parseInt(req.query.property_id) : null;
 
     // Get agent's markup
     const agentResult = await pool.query('SELECT agent_markup_pct FROM accounts WHERE id = $1', [agentAccountId]);
@@ -24905,6 +25007,14 @@ app.get('/api/agent/:agentAccountId/inventory', async (req, res) => {
     // 90-day availability window
     const today = new Date().toISOString().split('T')[0];
     const futureDate = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
+
+    const params = [agentAccountId, agentAccountId, today, futureDate];
+    let propertyFilter = '';
+    if (propertyIdFilter) {
+      params.push(propertyIdFilter);
+      propertyFilter = ` AND p.id = $${params.length}`;
+    }
+    params.push(limit, offset);
 
     const result = await pool.query(`
       SELECT bu.id as room_id, bu.name as room_name, bu.display_name, bu.max_guests,
@@ -24917,29 +25027,35 @@ app.get('/api/agent/:agentAccountId/inventory', async (req, res) => {
       FROM distribution_access da
       JOIN properties p ON da.property_id = p.id
       JOIN bookable_units bu ON bu.property_id = p.id AND bu.status IN ('active', 'available')
-      WHERE da.travel_agent_id = $1 AND da.status = 'approved'
+      WHERE da.travel_agent_id = $1 AND da.status = 'approved'${propertyFilter}
         AND EXISTS (
           SELECT 1 FROM room_availability ra
           WHERE ra.room_id = bu.id AND ra.date >= $3 AND ra.date <= $4
             AND ra.is_available = true AND ra.cm_price > 0
         )
       ORDER BY p.name, bu.name
-      LIMIT $5 OFFSET $6
-    `, [agentAccountId, agentAccountId, today, futureDate, limit, offset]);
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `, params);
 
     // Get total count for pagination
+    const countParams = [agentAccountId, today, futureDate];
+    let countPropertyFilter = '';
+    if (propertyIdFilter) {
+      countParams.push(propertyIdFilter);
+      countPropertyFilter = ` AND p.id = $${countParams.length}`;
+    }
     const countResult = await pool.query(`
       SELECT COUNT(*) as total
       FROM distribution_access da
       JOIN properties p ON da.property_id = p.id
       JOIN bookable_units bu ON bu.property_id = p.id AND bu.status IN ('active', 'available')
-      WHERE da.travel_agent_id = $1 AND da.status = 'approved'
+      WHERE da.travel_agent_id = $1 AND da.status = 'approved'${countPropertyFilter}
         AND EXISTS (
           SELECT 1 FROM room_availability ra
           WHERE ra.room_id = bu.id AND ra.date >= $2 AND ra.date <= $3
             AND ra.is_available = true AND ra.cm_price > 0
         )
-    `, [agentAccountId, today, futureDate]);
+    `, countParams);
 
     const rooms = result.rows.map(r => {
       const wholesale = r.wholesale_price ? parseFloat(r.wholesale_price) : (r.avg_cm_price ? parseFloat(r.avg_cm_price) : null);
@@ -48086,10 +48202,13 @@ app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
     await client.query('COMMIT');
     client.release();
     
+    // Keep standard_price in sync with cm_price (respects price rules)
+    await applyPriceRules(roomId);
+
     console.log(`Sync complete: ${daysSynced} days, ${daysWithPrice} with prices, ${daysBlocked} blocked`);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       roomId,
       beds24RoomId,
       daysSynced,
@@ -48097,7 +48216,7 @@ app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
       daysBlocked,
       message: `Synced ${daysSynced} days from Beds24 (${daysWithPrice} with prices, ${daysBlocked} blocked)`
     });
-    
+
   } catch (error) {
     await client.query('ROLLBACK');
     client.release();
@@ -48242,10 +48361,15 @@ app.post('/api/admin/sync-all-availability-quick', async (req, res) => {
     await client.query('COMMIT');
     client.release();
     
+    // Keep standard_price in sync with cm_price for all synced rooms
+    for (const room of rooms) {
+      await applyPriceRules(room.id);
+    }
+
     console.log(`Quick sync complete: ${apiCallsMade} API calls, ${totalDaysSynced} records, ${totalPricesFound} prices`);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       roomsCount: rooms.length,
       daysRequested: numDays,
       apiCallsMade,
@@ -48253,7 +48377,7 @@ app.post('/api/admin/sync-all-availability-quick', async (req, res) => {
       totalPricesFound,
       message: `Synced ${rooms.length} rooms for ${numDays} days`
     });
-    
+
   } catch (error) {
     await client.query('ROLLBACK');
     client.release();
@@ -63752,6 +63876,9 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
         roomsSynced++;
         console.log(`    ✓ ${room.name}: ${daysUpdated} days synced`);
 
+        // Keep standard_price in sync with cm_price (respects price rules)
+        await applyPriceRules(room.id);
+
         // Delay between rooms
         await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -77286,13 +77413,15 @@ async function syncAllChannelManagers() {
                 totalDays++;
               }
               
+              // Keep standard_price in sync with cm_price (respects price rules)
+              await applyPriceRules(room.room_id);
               // Rate limit
               await new Promise(r => setTimeout(r, 700));
             } catch (roomErr) {
               console.log(`    ⚠️ Failed to sync ${room.name}: ${roomErr.message}`);
             }
           }
-          
+
           // Update last sync time
           await pool.query('UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1', [conn.id]);
           

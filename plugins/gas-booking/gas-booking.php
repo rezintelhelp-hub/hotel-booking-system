@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.6.44
+ * Version: 3.6.45
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.6.44');
+define('GAS_BOOKING_VERSION', '3.6.45');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4778,15 +4778,26 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         // Fetch rooms from API
         $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
         $lang = $this->get_current_language();
-        $endpoint = "{$api_url}/api/public/client/{$client_id}/rooms?lang={$lang}";
+        $agent_account_id = get_option('gas_agent_account_id', '');
 
-        if (empty($atts['property_id']) && !empty($_GET['property_id'])) { $atts['property_id'] = sanitize_text_field($_GET['property_id']); }
-        if (!empty($atts['property_id'])) {
-            $endpoint .= "&property_id=" . intval($atts['property_id']);
-        }
-        // Pass room_ids to API so cross-account rooms work (agent sites)
-        if (!empty($room_ids)) {
-            $endpoint .= "&room_ids=" . implode(',', $room_ids);
+        // Agent sites use the agent inventory endpoint (returns only approved distribution rooms)
+        if (!empty($agent_account_id)) {
+            $endpoint = "{$api_url}/api/agent/{$agent_account_id}/inventory?limit=100";
+            if (!empty($atts['property_id']) || !empty($_GET['property_id'])) {
+                $prop_id = !empty($atts['property_id']) ? intval($atts['property_id']) : intval($_GET['property_id']);
+                $endpoint .= "&property_id=" . $prop_id;
+            }
+        } else {
+            // Standard client site — use public rooms endpoint
+            $endpoint = "{$api_url}/api/public/client/{$client_id}/rooms?lang={$lang}";
+            if (empty($atts['property_id']) && !empty($_GET['property_id'])) { $atts['property_id'] = sanitize_text_field($_GET['property_id']); }
+            if (!empty($atts['property_id'])) {
+                $endpoint .= "&property_id=" . intval($atts['property_id']);
+            }
+            // Pass room_ids to API so cross-account rooms work
+            if (!empty($room_ids)) {
+                $endpoint .= "&room_ids=" . implode(',', $room_ids);
+            }
         }
         
         $response = wp_remote_get($endpoint, array(
@@ -4813,16 +4824,33 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         }
         
         $rooms = $data['rooms'] ?? array();
-        
+
+        // Normalize agent inventory response to match standard room format
+        if (!empty($agent_account_id) && !empty($rooms)) {
+            $rooms = array_map(function($r) {
+                return array_merge($r, array(
+                    'id' => $r['room_id'] ?? $r['id'] ?? 0,
+                    'name' => $r['room_name'] ?? $r['display_name'] ?? $r['name'] ?? '',
+                    'price' => $r['display_price'] ?? $r['wholesale_price'] ?? 0,
+                    'base_price' => $r['display_price'] ?? $r['wholesale_price'] ?? 0,
+                    'max_guests' => $r['max_guests'] ?? 2,
+                    'property_id' => $r['property_id'] ?? 0,
+                    'property_name' => $r['property_name'] ?? '',
+                    'image_url' => $r['image_url'] ?? '',
+                    'currency' => $r['currency'] ?? 'GBP',
+                ));
+            }, $rooms);
+        }
+
         if (empty($rooms)) {
             return '<div style="padding: 40px; text-align: center; background: #e7f3ff; border: 1px solid #b6d4fe; border-radius: 8px;">
                 <h3 style="margin: 0 0 10px;">No Rooms Found</h3>
                 <p>No rooms are currently available. Check that properties are assigned to Client ID ' . esc_html($client_id) . '</p>
             </div>';
         }
-        
-        // Filter by specific room IDs if provided
-        if (!empty($room_ids)) {
+
+        // Filter by specific room IDs if provided (skip for agent sites — inventory is already scoped)
+        if (!empty($room_ids) && empty($agent_account_id)) {
             $rooms = array_filter($rooms, function($room) use ($room_ids) {
                 return in_array($room['id'], $room_ids);
             });
