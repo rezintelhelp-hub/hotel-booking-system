@@ -33454,8 +33454,39 @@ app.get('/api/db/bookable-units', async (req, res) => {
     } else {
       result = await pool.query(`SELECT * FROM bookable_units bu WHERE 1=1 ${hiddenFilter} ORDER BY property_id, created_at`);
     }
-    
+
     res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Toggle marketplace availability for a single unit
+app.put('/api/admin/bookable-units/:id/marketplace', async (req, res) => {
+  try {
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS marketplace_available BOOLEAN DEFAULT false').catch(() => {});
+    const { marketplace_available } = req.body;
+    const result = await pool.query(
+      'UPDATE bookable_units SET marketplace_available = $1 WHERE id = $2 RETURNING id, name, marketplace_available',
+      [marketplace_available, req.params.id]
+    );
+    if (result.rows.length === 0) return res.json({ success: false, error: 'Unit not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Toggle marketplace availability for all units in a property
+app.put('/api/admin/properties/:id/marketplace', async (req, res) => {
+  try {
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS marketplace_available BOOLEAN DEFAULT false').catch(() => {});
+    const { marketplace_available } = req.body;
+    const result = await pool.query(
+      'UPDATE bookable_units SET marketplace_available = $1 WHERE property_id = $2 RETURNING id, name, marketplace_available',
+      [marketplace_available, req.params.id]
+    );
+    res.json({ success: true, data: result.rows, updated: result.rowCount });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
