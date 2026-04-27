@@ -2061,10 +2061,9 @@ jQuery(document).ready(function($) {
     
     // Show simple pricing (no offer)
     function showSimplePricing(nights, accommodationTotal, upsellsTotal, voucherDiscount, grandTotal, currency, occupancyAdjustment, occupancyLabel) {
-        var perNight = Math.round(accommodationTotal / nights);
         var nightWord = nights > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night');
-        
-        $('.gas-nights-text').text(formatPriceShort(perNight, currency) + ' x ' + nights + ' ' + nightWord);
+
+        $('.gas-nights-text').text(t('booking', 'accommodation', 'Accommodation') + ' (' + nights + ' ' + nightWord + ')');
         $('.gas-nights-price').text(formatPrice(accommodationTotal, currency));
         
         // Show occupancy adjustment row if applicable
