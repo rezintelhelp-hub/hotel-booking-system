@@ -65809,7 +65809,8 @@ app.post('/api/public/calculate-price', async (req, res) => {
       const dayData = availability.rows.find(a => toDateStr(a.date) === dateStr);
       
       let nightPrice = dayData?.price ? parseFloat(dayData.price) : 0;
-      if (roundPricesUp && nightPrice > 0) nightPrice = Math.ceil(nightPrice);
+      // Round per-night price to match admin grid display — ceil if round_prices_up, else round
+      if (nightPrice > 0) nightPrice = roundPricesUp ? Math.ceil(nightPrice) : Math.round(nightPrice);
       const nightCmPrice = dayData?.cm_price ? parseFloat(dayData.cm_price) : nightPrice;
       cmTotal += nightCmPrice;
       if (!nightPrice && !dayData) {
