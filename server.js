@@ -9896,15 +9896,32 @@ async function applyPriceRules(roomId) {
         console.log(`[PriceRule] Applied fixed +${price_rule_value} to ${result.rowCount} dates for room ${roomId}`);
       }
     } else {
-      // No price rule: standard_price must equal cm_price (keep them in sync)
-      result = await pool.query(
-        `UPDATE room_availability SET standard_price = cm_price, updated_at = NOW()
-         WHERE room_id = $1 AND cm_price IS NOT NULL
-           AND (standard_price IS NULL OR standard_price != cm_price)`,
+      // No price rule: apply booking_page_multiplier if set, else standard_price = cm_price
+      const propResult = await pool.query(
+        `SELECT p.booking_page_multiplier FROM bookable_units bu JOIN properties p ON bu.property_id = p.id WHERE bu.id = $1`,
         [roomId]
       );
-      if (result.rowCount > 0) {
-        console.log(`[PriceRule] Synced standard_price = cm_price for ${result.rowCount} dates on room ${roomId} (no rule)`);
+      const bpm = parseFloat(propResult.rows[0]?.booking_page_multiplier) || 1;
+      if (bpm !== 1) {
+        result = await pool.query(
+          `UPDATE room_availability SET standard_price = ROUND(cm_price * $2, 2), updated_at = NOW()
+           WHERE room_id = $1 AND cm_price IS NOT NULL
+             AND (standard_price IS NULL OR ROUND(cm_price * $2, 2) != standard_price)`,
+          [roomId, bpm]
+        );
+        if (result.rowCount > 0) {
+          console.log(`[PriceRule] Applied multiplier x${bpm} to ${result.rowCount} dates for room ${roomId}`);
+        }
+      } else {
+        result = await pool.query(
+          `UPDATE room_availability SET standard_price = cm_price, updated_at = NOW()
+           WHERE room_id = $1 AND cm_price IS NOT NULL
+             AND (standard_price IS NULL OR standard_price != cm_price)`,
+          [roomId]
+        );
+        if (result.rowCount > 0) {
+          console.log(`[PriceRule] Synced standard_price = cm_price for ${result.rowCount} dates on room ${roomId} (no rule/multiplier)`);
+        }
       }
     }
     return result ? result.rowCount : 0;
@@ -63804,14 +63821,13 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
               const minStay = entry.minStay || 1;
               
               await pool.query(`
-                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                VALUES ($1, $2, $3, $3, $3, $3, $4, $5, $6, $6, 'beds24-full', NOW())
+                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-full', NOW())
                 ON CONFLICT (room_id, date)
                 DO UPDATE SET
                   price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                   cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                   direct_price = COALESCE($3, room_availability.direct_price),
-                  standard_price = COALESCE($3, room_availability.standard_price),
                   is_available = $4,
                   is_blocked = $5,
                   min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
@@ -63849,14 +63865,13 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
                 
                 if (dateStr && price > 0) {
                   await pool.query(`
-                    INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                    VALUES ($1, $2, $3, $3, $3, $3, $4, $5, $6, $6, 'beds24-v1-full', NOW())
+                    INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                    VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-v1-full', NOW())
                     ON CONFLICT (room_id, date)
                     DO UPDATE SET
                       price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                       cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                       direct_price = COALESCE($3, room_availability.direct_price),
-                      standard_price = COALESCE($3, room_availability.standard_price),
                       is_available = $4,
                       is_blocked = $5,
                       min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
@@ -63899,10 +63914,10 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
                   const price = offer.price;
                   const unitsAvail = offer.unitsAvailable || 0;
                   await pool.query(`
-                    INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, standard_price, is_available, is_blocked, source, updated_at)
-                    VALUES ($1, $2, $3, $3, $3, $3, $4, $5, 'beds24-offers', NOW())
+                    INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, source, updated_at)
+                    VALUES ($1, $2, $3, $3, $3, $4, $5, 'beds24-offers', NOW())
                     ON CONFLICT (room_id, date)
-                    DO UPDATE SET price = $3, cm_price = $3, direct_price = $3, standard_price = $3,
+                    DO UPDATE SET price = $3, cm_price = $3, direct_price = $3,
                       is_available = $4, is_blocked = $5, source = 'beds24-offers', updated_at = NOW()
                   `, [room.id, arrival, price, unitsAvail > 0, unitsAvail === 0]);
                   daysUpdated++;
@@ -65717,7 +65732,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
     // Apply property-level booking_page_multiplier if set (Beds24 booking page price adjustment)
     const availability = await pool.query(`
       SELECT ra.date,
-             COALESCE(ra.cm_price, ra.direct_price, ra.standard_price) * COALESCE(p.booking_page_multiplier, 1) as price,
+             COALESCE(ra.standard_price, ra.direct_price, ra.cm_price) as price,
              ra.cm_price,
              ra.is_available,
              ra.is_blocked,
@@ -78888,7 +78903,6 @@ app.post('/api/gas-sync/connections/:id/apply-linked-pricing', async (req, res) 
             price = $3,
             cm_price = $3,
             direct_price = $3,
-            standard_price = $3,
             is_available = $4,
             is_blocked = $5,
             min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
