@@ -22089,6 +22089,7 @@ app.get('/api/setup-database', async (req, res) => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS star_rating INTEGER`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS hero_image_url TEXT`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cm_sync_status VARCHAR(20) DEFAULT 'pending'`);
     // Booking reference number
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_ref VARCHAR(20)`);
