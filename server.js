@@ -33492,6 +33492,21 @@ app.put('/api/admin/properties/:id/marketplace', async (req, res) => {
   }
 });
 
+// Toggle round_prices_up for a property
+app.put('/api/admin/properties/:id/round-prices-up', async (req, res) => {
+  try {
+    const { round_prices_up } = req.body;
+    const result = await pool.query(
+      'UPDATE properties SET round_prices_up = $1 WHERE id = $2 RETURNING id, name, round_prices_up',
+      [round_prices_up, req.params.id]
+    );
+    if (result.rows.length === 0) return res.json({ success: false, error: 'Property not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/db/properties', async (req, res) => {
   const { name, description, address, city, country, property_type, star_rating, currency } = req.body;
   try {
