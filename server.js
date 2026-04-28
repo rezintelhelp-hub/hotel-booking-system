@@ -33448,7 +33448,7 @@ app.get('/api/db/bookable-units', async (req, res) => {
 
     // Build hidden filter - exclude hidden rooms unless include_hidden=true
     const hiddenFilter = includeHidden ? '' : 'AND (bu.is_hidden = false OR bu.is_hidden IS NULL)';
-    const selectCols = lightweight ? 'bu.id, bu.name, bu.display_name, bu.property_id, bu.max_guests, bu.room_type, bu.marketplace_available' : 'bu.*';
+    const selectCols = lightweight ? 'bu.id, bu.name, bu.display_name, bu.property_id, bu.max_guests, bu.room_type' : 'bu.*';
 
     if (propertyId) {
       result = await pool.query(`
