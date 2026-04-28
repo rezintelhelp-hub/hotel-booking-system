@@ -66454,6 +66454,7 @@ app.post('/api/public/book', async (req, res) => {
         stripe_customer_id = customer.id;
 
         // Create and confirm PaymentIntent server-side
+        // payment_method_types: ['card'] avoids redirect-based 3DS — keeps it inline via requires_action
         const paymentIntent = await configStripe.paymentIntents.create({
           amount: Math.round(deposit_amount * 100),
           currency: effectiveCurrency,
@@ -66461,7 +66462,7 @@ app.post('/api/public/book', async (req, res) => {
           payment_method: payment_method_id,
           confirm: true,
           setup_future_usage: 'off_session',
-          return_url: `${source_site_url || 'https://admin.gas.travel'}?booking=pending`,
+          payment_method_types: ['card'],
           metadata: {
             property_id: String(unit.rows[0].property_id),
             unit_id: String(unit_id),
