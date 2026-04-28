@@ -87439,8 +87439,8 @@ app.post('/api/page-templates/:id/push', async (req, res) => {
       JOIN accounts a ON s.account_id = a.id
       WHERE s.token = $1 AND s.expires_at > NOW()
     `, [token]);
-    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
-      return res.json({ success: false, error: 'Master admin access required' });
+    if (session.rows.length === 0) {
+      return res.json({ success: false, error: 'Authentication required' });
     }
 
     const { account_id, site_url, blog_id, mode, page_id, position, page_title, page_slug, add_to_menu, raw_block_markup } = req.body;
