@@ -66400,6 +66400,8 @@ app.post('/api/public/book', async (req, res) => {
           const data = availResponse.data?.data?.[0];
           if (data && data.availability) {
             for (const [dateStr, isAvailable] of Object.entries(data.availability)) {
+              // Skip checkout date — guest doesn't stay that night
+              if (dateStr === check_out) continue;
               if (isAvailable === false) {
                 console.log(`Real-time check FAILED: ${dateStr} is not available`);
                 return res.json({
