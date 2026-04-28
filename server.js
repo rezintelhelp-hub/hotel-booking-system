@@ -8701,9 +8701,11 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         console.log('content-sync: Beds24 API response status:', propResp.status, 'data type:', typeof propResp.data, 'isArray:', Array.isArray(propResp.data));
 
         b24Props = Array.isArray(propResp.data) ? propResp.data : (propResp.data?.data || [propResp.data]);
+        let propertyTexts = []; // property-level texts (for booking engine descriptions)
         for (const b24Prop of b24Props) {
+          propertyTexts = b24Prop?.texts || [];
           const b24Rooms = b24Prop?.roomTypes || b24Prop?.rooms || [];
-          console.log('content-sync: Property', b24Prop?.name, 'has', b24Rooms.length, 'rooms');
+          console.log('content-sync: Property', b24Prop?.name, 'has', b24Rooms.length, 'rooms, propTexts:', Array.isArray(propertyTexts) ? propertyTexts.length + ' langs' : typeof propertyTexts);
           for (const r of b24Rooms) {
             const roomId = String(r.id || r.roomId);
             beds24TextsMap[roomId] = r.texts || {};
@@ -8749,9 +8751,12 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         const displayName = extractMultilang(roomTexts, 'displayName');
         let shortDesc, fullDesc;
         if (descSource === 'booking_engine') {
-          // Booking engine: contentDescription (main), contentHeadline (short)
-          shortDesc = extractMultilang(roomTexts, 'contentHeadline') || extractMultilang(roomTexts, 'contentDescription');
-          fullDesc = extractMultilang(roomTexts, 'contentDescription');
+          // Booking engine: property-level propertyDescriptionBookingPage1/2
+          shortDesc = extractMultilang(propertyTexts, 'propertyDescriptionBookingPage1') || extractMultilang(propertyTexts, 'propertyDescription');
+          fullDesc = extractMultilang(propertyTexts, 'propertyDescriptionBookingPage2') || extractMultilang(propertyTexts, 'propertyDescription1');
+          // Fall back to room-level if property-level is empty
+          if (!shortDesc) shortDesc = extractMultilang(roomTexts, 'roomDescription') || extractMultilang(roomTexts, 'roomDescription1');
+          if (!fullDesc) fullDesc = extractMultilang(roomTexts, 'auxiliary') || extractMultilang(roomTexts, 'auxiliaryText');
         } else {
           // Room setup: roomDescription (short), auxiliary (full)
           shortDesc = extractMultilang(roomTexts, 'roomDescription') || extractMultilang(roomTexts, 'roomDescription1') || extractMultilang(roomTexts, 'description');
@@ -16458,12 +16463,12 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
       const descSource = conn.rows[0]?.description_source || 'booking_engine';
       let roomDesc, roomDesc2;
       if (descSource === 'booking_engine') {
-        // Booking engine descriptions (V1 field names: contentDescription, contentHeadline)
-        // In V1 getPropertyContent these map to the booking page setup
-        const beDesc = stripHtml(roomTexts.contentDescription?.EN || roomTexts.roomDescription1?.EN || '');
-        const propDesc = stripHtml(propTexts.propertyDescription1?.EN || '');
-        roomDesc = beDesc || propDesc;
-        roomDesc2 = stripHtml(roomTexts.contentHeadline?.EN || roomTexts.auxiliaryText?.EN || '');
+        // Booking engine: property-level booking page descriptions
+        const bePage1 = stripHtml(propTexts.propertyDescriptionBookingPage1?.EN || '');
+        const bePage2 = stripHtml(propTexts.propertyDescriptionBookingPage2?.EN || '');
+        const propDesc = stripHtml(propTexts.propertyDescription?.EN || propTexts.propertyDescription1?.EN || '');
+        roomDesc = bePage1 || propDesc;
+        roomDesc2 = bePage2 || stripHtml(roomTexts.auxiliaryText?.EN || '');
       } else if (isApartmentType) {
         const propDesc = stripHtml(propTexts.propertyDescription1?.EN || propTexts.propertyDescription2?.EN || '');
         const roomLevelDesc = stripHtml(roomTexts.roomDescription1?.EN || '');
