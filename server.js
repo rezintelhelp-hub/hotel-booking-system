@@ -8544,6 +8544,26 @@ app.post('/api/gas-sync/connections/:connectionId/sync-images', async (req, res)
 });
 
 /**
+ * Update description source for a connection
+ */
+app.put('/api/gas-sync/connections/:connectionId/description-source', async (req, res) => {
+  try {
+    const { description_source } = req.body;
+    if (!['room_setup', 'booking_engine'].includes(description_source)) {
+      return res.json({ success: false, error: 'Invalid source. Must be room_setup or booking_engine' });
+    }
+    const result = await pool.query(
+      'UPDATE gas_sync_connections SET description_source = $1 WHERE id = $2 RETURNING id, description_source',
+      [description_source, req.params.connectionId]
+    );
+    if (result.rows.length === 0) return res.json({ success: false, error: 'Connection not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
  * Sync content (descriptions, amenities, pricing) for ALL properties of a connection
  */
 app.post('/api/gas-sync/connections/:connectionId/sync-content', async (req, res) => {
@@ -8603,7 +8623,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     
     // Get property and connection info
     const propResult = await pool.query(`
-      SELECT sp.*, c.access_token, c.refresh_token, c.credentials, c.id as connection_id, c.adapter_code
+      SELECT sp.*, c.access_token, c.refresh_token, c.credentials, c.id as connection_id, c.adapter_code, c.description_source
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON c.id = sp.connection_id
       WHERE sp.id = $1 OR sp.external_id = $2
@@ -8724,11 +8744,19 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         const isArray = Array.isArray(roomTexts);
         console.log('content-sync: Room', room.name, 'external_id:', room.external_id, '- API match:', !!roomTexts, 'isArray:', isArray);
 
-        // Array field names: displayName, roomDescription/description, auxiliary/auxiliaryText
-        // Object field names: displayName, roomDescription1, auxiliaryText
+        // Description source toggle: room_setup (default) or booking_engine
+        const descSource = prop.description_source || 'room_setup';
         const displayName = extractMultilang(roomTexts, 'displayName');
-        const shortDesc = extractMultilang(roomTexts, 'roomDescription') || extractMultilang(roomTexts, 'roomDescription1') || extractMultilang(roomTexts, 'description');
-        const fullDesc = extractMultilang(roomTexts, 'auxiliary') || extractMultilang(roomTexts, 'auxiliaryText');
+        let shortDesc, fullDesc;
+        if (descSource === 'booking_engine') {
+          // Booking engine: contentDescription (main), contentHeadline (short)
+          shortDesc = extractMultilang(roomTexts, 'contentHeadline') || extractMultilang(roomTexts, 'contentDescription');
+          fullDesc = extractMultilang(roomTexts, 'contentDescription');
+        } else {
+          // Room setup: roomDescription (short), auxiliary (full)
+          shortDesc = extractMultilang(roomTexts, 'roomDescription') || extractMultilang(roomTexts, 'roomDescription1') || extractMultilang(roomTexts, 'description');
+          fullDesc = extractMultilang(roomTexts, 'auxiliary') || extractMultilang(roomTexts, 'auxiliaryText');
+        }
 
         console.log('content-sync: displayName:', JSON.stringify(displayName), 'shortDesc:', JSON.stringify(shortDesc)?.substring(0, 100), 'fullDesc:', JSON.stringify(fullDesc)?.substring(0, 100));
 
@@ -16426,15 +16454,19 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
       let roomName = roomTexts.displayName?.EN || room.name || 'Room ' + roomId;
       roomName = roomName.replace(/\s*\|\s*\d+$/, '').trim();
 
-      // Description rules:
-      // Apartments/single room: propertyDescription1, fallback to roomDescription1
-      // Hotels/aparthotels: roomDescription1 + auxiliaryText
-      // Multi-room apartments: try roomDescription1 first, fallback to propertyDescription1
+      // Description source toggle from connection settings
+      const descSource = conn.rows[0]?.description_source || 'booking_engine';
       let roomDesc, roomDesc2;
-      if (isApartmentType) {
+      if (descSource === 'booking_engine') {
+        // Booking engine descriptions (V1 field names: contentDescription, contentHeadline)
+        // In V1 getPropertyContent these map to the booking page setup
+        const beDesc = stripHtml(roomTexts.contentDescription?.EN || roomTexts.roomDescription1?.EN || '');
+        const propDesc = stripHtml(propTexts.propertyDescription1?.EN || '');
+        roomDesc = beDesc || propDesc;
+        roomDesc2 = stripHtml(roomTexts.contentHeadline?.EN || roomTexts.auxiliaryText?.EN || '');
+      } else if (isApartmentType) {
         const propDesc = stripHtml(propTexts.propertyDescription1?.EN || propTexts.propertyDescription2?.EN || '');
         const roomLevelDesc = stripHtml(roomTexts.roomDescription1?.EN || '');
-        // Prefer room-level description for multi-room properties, fallback to property-level
         roomDesc = roomLevelDesc || propDesc;
         roomDesc2 = stripHtml(roomTexts.auxiliaryText?.EN || propTexts.propertyDescription2?.EN || '');
       } else {
@@ -78216,7 +78248,7 @@ app.get('/api/gas-sync/connections', async (req, res) => {
                COALESCE(c.external_account_name, acc.name, 'Unnamed') as connection_name,
                c.sync_enabled, c.sync_interval_minutes,
                c.last_sync_at, c.next_sync_at, c.last_error, c.last_error_at,
-               c.webhook_registered, c.created_at, c.updated_at,
+               c.webhook_registered, c.description_source, c.created_at, c.updated_at,
                a.name as adapter_name, a.logo_url as adapter_logo,
                a.capabilities as adapter_capabilities,
                acc.name as account_name,
@@ -78237,7 +78269,7 @@ app.get('/api/gas-sync/connections', async (req, res) => {
                COALESCE(c.external_account_name, acc.name, 'Unnamed') as connection_name,
                c.sync_enabled, c.sync_interval_minutes,
                c.last_sync_at, c.next_sync_at, c.last_error, c.last_error_at,
-               c.webhook_registered, c.created_at, c.updated_at,
+               c.webhook_registered, c.description_source, c.created_at, c.updated_at,
                a.name as adapter_name, a.logo_url as adapter_logo,
                a.capabilities as adapter_capabilities,
                acc.name as account_name,
@@ -88178,6 +88210,9 @@ app.listen(PORT, '0.0.0.0', async () => {
 
     await pool.query(`ALTER TABLE taxes ADD COLUMN IF NOT EXISTS room_ids INTEGER[]`);
     console.log('✅ taxes.room_ids column ensured');
+
+    await pool.query(`ALTER TABLE gas_sync_connections ADD COLUMN IF NOT EXISTS description_source VARCHAR(20) DEFAULT 'room_setup'`);
+    console.log('✅ gas_sync_connections.description_source column ensured');
 
     console.log('✅ Database migrations complete');
   } catch (migrationError) {
