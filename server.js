@@ -8751,9 +8751,12 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         const displayName = extractMultilang(roomTexts, 'displayName');
         let shortDesc, fullDesc;
         if (descSource === 'booking_engine') {
-          // Booking engine: property-level propertyDescriptionBookingPage1/2
-          shortDesc = extractMultilang(propertyTexts, 'propertyDescriptionBookingPage1') || extractMultilang(propertyTexts, 'propertyDescription');
-          fullDesc = extractMultilang(propertyTexts, 'propertyDescriptionBookingPage2') || extractMultilang(propertyTexts, 'propertyDescription1');
+          // Booking engine: property-level descriptions
+          // propertyDescription1 = main description (often has headline + body)
+          // propertyDescriptionBookingPage2 = secondary/additional description
+          // propertyDescription = shorter property description
+          shortDesc = extractMultilang(propertyTexts, 'propertyDescription1') || extractMultilang(propertyTexts, 'propertyDescriptionBookingPage1') || extractMultilang(propertyTexts, 'propertyDescription');
+          fullDesc = extractMultilang(propertyTexts, 'propertyDescriptionBookingPage2') || extractMultilang(propertyTexts, 'propertyDescription2');
           // Fall back to room-level if property-level is empty
           if (!shortDesc) shortDesc = extractMultilang(roomTexts, 'roomDescription') || extractMultilang(roomTexts, 'roomDescription1');
           if (!fullDesc) fullDesc = extractMultilang(roomTexts, 'auxiliary') || extractMultilang(roomTexts, 'auxiliaryText');
