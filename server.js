@@ -66728,19 +66728,8 @@ app.post('/api/public/book', async (req, res) => {
         // Use property-specific token lookup for GasSync connections
         const accessToken = await getBeds24AccessTokenForProperty(pool, newBooking.property_id, unit_id);
 
-        // Build payment array if deposit was taken
-        const payments = [];
-        console.log(`Beds24 sync - deposit_amount: ${deposit_amount}, stripe_payment_intent_id: ${stripe_payment_intent_id}`);
-
-        if (stripe_payment_intent_id && deposit_amount) {
-          payments.push({
-            description: 'Deposit via Stripe',
-            amount: parseFloat(deposit_amount),
-            status: 'received',
-            date: new Date().toISOString().split('T')[0]
-          });
-          console.log('Added deposit payment to Beds24 payload:', JSON.stringify(payments));
-        }
+        // Payment is now recorded as a type:'payment' invoiceItem in the Beds24 payload
+        // (see invoiceItems builder below)
 
         // ========== HOSTVANA INQUIRY UPDATE ==========
         // If hostvana_booking_id is set, this checkout is completing an existing Beds24 inquiry
@@ -66869,9 +66858,12 @@ app.post('/api/public/book', async (req, res) => {
                 items.push({ description: t.name || 'Tax', status: '', qty: 1, amount: parseFloat(t.amount) || 0, vatRate: 0 });
               }
             }
+            // Record payment as type: 'payment' invoice item (Beds24 V2 format)
+            if (stripe_payment_intent_id && deposit_amount) {
+              items.push({ type: 'payment', description: 'Payment via Stripe', amount: parseFloat(deposit_amount) });
+            }
             return items;
           })(),
-          payments: payments.length > 0 ? payments : undefined,
           bookingInfoItems: [
             { code: 'SMS_CONSENT', text: sms_consent ? 'Yes' : 'No' },
             { code: 'MARKETING_OPT_IN', text: marketing ? 'Yes' : 'No' }
