@@ -33443,20 +33443,22 @@ app.get('/api/db/bookable-units', async (req, res) => {
     const accountId = req.query.account_id;
     const propertyId = req.query.property_id;
     const includeHidden = req.query.include_hidden === 'true';
+    const lightweight = req.query.fields === 'id,name,display_name';
     let result;
-    
+
     // Build hidden filter - exclude hidden rooms unless include_hidden=true
     const hiddenFilter = includeHidden ? '' : 'AND (bu.is_hidden = false OR bu.is_hidden IS NULL)';
-    
+    const selectCols = lightweight ? 'bu.id, bu.name, bu.display_name, bu.property_id, bu.max_guests, bu.room_type, bu.marketplace_available' : 'bu.*';
+
     if (propertyId) {
       result = await pool.query(`
-        SELECT bu.* FROM bookable_units bu
+        SELECT ${selectCols} FROM bookable_units bu
         WHERE bu.property_id = $1 ${hiddenFilter}
         ORDER BY bu.created_at
       `, [propertyId]);
     } else if (accountId) {
       result = await pool.query(`
-        SELECT bu.* FROM bookable_units bu
+        SELECT ${selectCols} FROM bookable_units bu
         JOIN properties p ON bu.property_id = p.id
         WHERE p.account_id = $1 ${hiddenFilter}
         ORDER BY bu.property_id, bu.created_at
