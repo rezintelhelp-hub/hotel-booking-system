@@ -5827,7 +5827,7 @@ jQuery(document).ready(function($) {
 
             var ref = response.booking?.id || response.booking_id || '';
             $('.gas-booking-ref').text('GAS-' + String(ref).padStart(4, '0'));
-            var roomName = response.booking?.unit_name || checkoutData.room?.display_name || checkoutData.room?.name || '';
+            var roomName = extractText(checkoutData.room?.display_name) || checkoutData.room?.name || '';
             $('.gas-conf-room-name').text(roomName);
             $('.gas-conf-checkin').text(formatDate(checkoutData.checkin));
             $('.gas-conf-checkout').text(formatDate(checkoutData.checkout));
@@ -5836,6 +5836,7 @@ jQuery(document).ready(function($) {
             $('.gas-conf-guests').text(guests + ' ' + guestWord);
             var currency = checkoutData.currency || '';
             $('.gas-conf-total').text(formatPrice(checkoutData.grandTotal, currency));
+            $('.gas-conf-email').text(checkoutData.room ? ($('#gas-guest-form [name="email"]').val() || '') : '');
             if (checkoutData.depositAmount && checkoutData.depositAmount < checkoutData.grandTotal) {
                 if ($('.gas-conf-deposit').length) {
                     $('.gas-conf-deposit').text(formatPrice(checkoutData.depositAmount, currency)).closest('.gas-conf-row').show();
