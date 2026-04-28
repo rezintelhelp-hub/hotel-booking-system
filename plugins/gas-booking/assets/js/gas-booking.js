@@ -5825,23 +5825,60 @@ jQuery(document).ready(function($) {
             $('.gas-conf-room-name').show();
             $('.gas-booking-ref').removeClass('gas-ref-small');
 
-            var ref = response.booking?.id || response.booking_id || '';
-            $('.gas-booking-ref').text('GAS-' + String(ref).padStart(4, '0'));
-            var roomName = extractText(checkoutData.room?.display_name) || checkoutData.room?.name || '';
-            $('.gas-conf-room-name').text(roomName);
-            $('.gas-conf-checkin').text(formatDate(checkoutData.checkin));
-            $('.gas-conf-checkout').text(formatDate(checkoutData.checkout));
-            var guests = checkoutData.guests || 1;
-            var guestWord = guests > 1 ? t('booking', 'guests', 'Guests') : t('booking', 'guest', 'Guest');
-            $('.gas-conf-guests').text(guests + ' ' + guestWord);
+            // Booking reference
+            var ref = response.booking?.id || response.booking_id || 'Confirmed';
+            $('.gas-booking-ref').text(ref);
+
+            // Email
+            var guestEmail = $('#gas-guest-form [name="email"]').val() || response.booking?.guest_email || '';
+            $('.gas-guest-email').text(guestEmail);
+
+            // Property name
+            $('.gas-conf-property-name').text(checkoutData.room?.property_name || '');
+
+            // Room box
             var currency = checkoutData.currency || '';
-            $('.gas-conf-total').text(formatPrice(checkoutData.grandTotal, currency));
-            $('.gas-conf-email').text(checkoutData.room ? ($('#gas-guest-form [name="email"]').val() || '') : '');
-            if (checkoutData.depositAmount && checkoutData.depositAmount < checkoutData.grandTotal) {
-                if ($('.gas-conf-deposit').length) {
-                    $('.gas-conf-deposit').text(formatPrice(checkoutData.depositAmount, currency)).closest('.gas-conf-row').show();
-                }
+            var roomHtml = '<div class="gas-conf-room-box">';
+            roomHtml += '<div><span class="room-name">' + escapeHtml(extractText(checkoutData.room?.display_name) || checkoutData.room?.name || 'Room') + '</span>';
+            roomHtml += '<div class="room-guests">' + (checkoutData.guests || 1) + ' guest' + ((checkoutData.guests || 1) > 1 ? 's' : '') + '</div></div>';
+            roomHtml += '<span class="room-price">' + formatPrice(checkoutData.accommodationTotal || checkoutData.grandTotal, currency) + '</span>';
+            roomHtml += '</div>';
+            $('.gas-conf-rooms-list').html(roomHtml).show();
+            $('.gas-conf-room-name').hide();
+
+            // Extras
+            if (checkoutData.selectedUpsells && checkoutData.selectedUpsells.length > 0) {
+                var extrasHtml = '<div class="gas-conf-extras-title">Extras</div>';
+                checkoutData.selectedUpsells.forEach(function(upsell) {
+                    extrasHtml += '<div class="gas-conf-extra-box">';
+                    extrasHtml += '<span class="extra-name">' + escapeHtml(upsell.name) + '</span>';
+                    extrasHtml += '<span class="extra-price">' + formatPrice(upsell.price, currency) + '</span>';
+                    extrasHtml += '</div>';
+                });
+                $('.gas-conf-extras-list').html(extrasHtml).show();
             }
+
+            // Dates
+            var fmtDate = function(dateStr) {
+                var d = new Date(dateStr + 'T12:00:00');
+                return d.toLocaleDateString(dateLocale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+            };
+            $('.gas-conf-checkin').text(fmtDate(checkoutData.checkin));
+            $('.gas-conf-checkout').text(fmtDate(checkoutData.checkout));
+
+            // Guests
+            var guestCount = checkoutData.guests || 1;
+            $('.gas-conf-guests').text(guestCount + ' ' + (guestCount === 1 ? 'Guest' : 'Guests'));
+
+            // Total
+            $('.gas-conf-total').text(formatPrice(checkoutData.grandTotal, currency));
+
+            // Payment info
+            if (checkoutData.depositAmount) {
+                $('.gas-price-paid').show();
+                $('.gas-conf-deposit').text('✓ ' + formatPrice(checkoutData.depositAmount, currency));
+            }
+
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
