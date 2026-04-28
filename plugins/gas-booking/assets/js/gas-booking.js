@@ -5570,9 +5570,9 @@ jQuery(document).ready(function($) {
             $btn.prop('disabled', true);
             $btn.find('.gas-btn-text').hide();
             $btn.find('.gas-btn-loading').text(t('booking', 'processing_payment', 'Processing payment...')).show();
-            
+
             var $form = $('#gas-guest-form');
-            
+
             // Ensure deposit amount is calculated
             if (!checkoutData.depositAmount && checkoutData.grandTotal) {
                 var total = checkoutData.grandTotal;
@@ -5582,7 +5582,7 @@ jQuery(document).ready(function($) {
                 if (checkoutData.depositRule) {
                     var rule = checkoutData.depositRule;
                     if (rule.schedule_mode === 'schedule' && rule.payment_schedule && Array.isArray(rule.payment_schedule)) {
-                        var checkIn = checkoutData.checkIn || checkoutData.items?.[0]?.checkIn;
+                        var checkIn = checkoutData.checkin;
                         var today = new Date();
                         var arrival = checkIn ? new Date(checkIn) : today;
                         var daysUntil = Math.floor((arrival - today) / 86400000);
@@ -5610,8 +5610,6 @@ jQuery(document).ready(function($) {
                 checkoutData.balanceAmount = balanceAmount;
                 console.log('Calculated deposit:', depositAmount, 'balance:', balanceAmount);
             }
-            
-            var paymentAmount = checkoutData.depositAmount || checkoutData.grandTotal;
 
             // If deposit is 0 (deferred payment), create SetupIntent to save card for later charge
             if (checkoutData.depositAmount === 0 && checkoutData.balanceAmount > 0) {
@@ -5647,10 +5645,8 @@ jQuery(document).ready(function($) {
                                     $btn.find('.gas-btn-text').show();
                                     $btn.find('.gas-btn-loading').hide();
                                 } else {
-                                    // Card saved — store SetupIntent and PaymentMethod for later charging
                                     window.gasStripeSetupIntentId = result.setupIntent.id;
                                     window.gasStripePaymentMethodId = result.setupIntent.payment_method;
-                                    console.log('[Deferred Payment] Card saved. SetupIntent:', result.setupIntent.id, 'PaymentMethod:', result.setupIntent.payment_method);
                                     submitBooking($btn, null);
                                 }
                             });
@@ -5671,80 +5667,183 @@ jQuery(document).ready(function($) {
                 return;
             }
 
-            // Create payment intent
+            // SERVER-SIDE PAYMENT: tokenise card without charging, send to server
+            // Server checks availability THEN charges — no orphan payments
+            checkoutData.stripe.createPaymentMethod({
+                type: 'card',
+                card: checkoutData.cardElement,
+                billing_details: {
+                    name: $form.find('[name="first_name"]').val() + ' ' + $form.find('[name="last_name"]').val(),
+                    email: $form.find('[name="email"]').val()
+                }
+            }).then(function(result) {
+                if (result.error) {
+                    $('#gas-card-errors').text(result.error.message);
+                    $btn.prop('disabled', false);
+                    $btn.find('.gas-btn-text').show();
+                    $btn.find('.gas-btn-loading').hide();
+                    return;
+                }
+
+                // Card tokenised — now submit booking with payment_method_id
+                // Server will: check availability → charge card → create booking
+                var pmId = result.paymentMethod.id;
+                console.log('[Server-side payment] PaymentMethod created:', pmId);
+                submitBookingServerPayment($btn, pmId);
+            });
+        }
+
+        // Submit booking with server-side payment (payment_method_id, not payment_intent_id)
+        function submitBookingServerPayment($btn, paymentMethodId) {
+            $btn.find('.gas-btn-loading').text(t('booking', 'confirming', 'Confirming booking...')).show();
+
+            var $form = $('#gas-guest-form');
+            var formData = {
+                unit_id: checkoutData.unitId,
+                check_in: checkoutData.checkin,
+                check_out: checkoutData.checkout,
+                guests: checkoutData.guests,
+                guest_first_name: $form.find('[name="first_name"]').val(),
+                guest_last_name: $form.find('[name="last_name"]').val(),
+                guest_email: $form.find('[name="email"]').val(),
+                guest_phone: $form.find('[name="phone"]').val(),
+                guest_address: $form.find('[name="address"]').val(),
+                guest_city: $form.find('[name="city"]').val(),
+                guest_postcode: $form.find('[name="postcode"]').val(),
+                guest_country: $form.find('[name="country"]').val(),
+                notes: $form.find('[name="notes"]').val(),
+                marketing: $form.find('[name="marketing"]').is(':checked'),
+                sms_consent: $form.find('[name="sms_consent"]').is(':checked'),
+                payment_method: 'card',
+                payment_method_id: paymentMethodId,
+                total_price: checkoutData.grandTotal,
+                rate_type: checkoutData.rateType,
+                upsells: checkoutData.selectedUpsells,
+                voucher_code: checkoutData.voucherCode,
+                source_site_url: window.location.origin + window.location.pathname,
+                deposit_amount: checkoutData.depositAmount,
+                balance_amount: checkoutData.balanceAmount,
+                price_breakdown: (function() {
+                    var bd = checkoutData.gasBreakdown;
+                    if (!bd) return null;
+                    var upsellsBreakdown = [];
+                    var upsellsTotal = 0;
+                    (checkoutData.selectedUpsells || []).forEach(function(u) {
+                        var total = calculateUpsellItemTotal(u);
+                        upsellsTotal += total;
+                        upsellsBreakdown.push({ name: u.name, quantity: u.quantity || 1, total: total });
+                    });
+                    bd.upsells_breakdown = upsellsBreakdown;
+                    bd.upsells_total = upsellsTotal;
+                    return bd;
+                })()
+            };
+
             $.ajax({
-                url: checkoutData.apiUrl + '/api/public/create-payment-intent',
+                url: checkoutData.apiUrl + '/api/public/book',
                 method: 'POST',
                 contentType: 'application/json',
-                data: JSON.stringify({
-                    property_id: checkoutData.propertyId,
-                    amount: paymentAmount,
-                    currency: (checkoutData.currency || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 3),
-                    booking_data: {
-                        email: $form.find('[name="email"]').val(),
-                        check_in: checkoutData.checkin,
-                        check_out: checkoutData.checkout
-                    }
-                }),
+                data: JSON.stringify(formData),
                 success: function(response) {
-                    if (response.success && response.client_secret) {
-                        // Confirm card payment
-                        checkoutData.stripe.confirmCardPayment(response.client_secret, {
-                            payment_method: {
-                                card: checkoutData.cardElement,
-                                billing_details: {
-                                    name: $form.find('[name="first_name"]').val() + ' ' + $form.find('[name="last_name"]').val(),
-                                    email: $form.find('[name="email"]').val()
-                                }
-                            }
+                    if (response.requires_action && response.client_secret) {
+                        // 3DS required — handle authentication
+                        console.log('[3DS] Authentication required');
+                        $btn.find('.gas-btn-loading').text(t('payment', 'authenticating', 'Authenticating card...')).show();
+
+                        checkoutData.stripe.handleNextAction({
+                            clientSecret: response.client_secret
                         }).then(function(result) {
                             if (result.error) {
-                                // Payment failed (includes 3DS authentication failures)
                                 $('#gas-card-errors').text(result.error.message);
                                 $btn.prop('disabled', false);
                                 $btn.find('.gas-btn-text').show();
                                 $btn.find('.gas-btn-loading').hide();
-                                window.gasNotifyPaymentFailed('card', result.error.message);
-                            } else if (result.paymentIntent.status === 'succeeded') {
-                                // Payment successful, submit booking
-                                submitBooking($btn, result.paymentIntent.id);
-                            } else if (result.paymentIntent.status === 'processing') {
-                                // Payment is processing (bank transfers, delayed confirmation)
-                                submitBooking($btn, result.paymentIntent.id);
-                            } else if (result.paymentIntent.status === 'requires_action') {
-                                // 3DS challenge was not completed — should not reach here normally
-                                // as confirmCardPayment handles 3DS inline, but handle gracefully
-                                $('#gas-card-errors').text('Your card requires additional verification. Please try again or use a different card.');
-                                $btn.prop('disabled', false);
-                                $btn.find('.gas-btn-text').show();
-                                $btn.find('.gas-btn-loading').hide();
-                                window.gasNotifyPaymentFailed('card', '3DS authentication incomplete');
+                                return;
+                            }
+
+                            if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
+                                // 3DS passed — resubmit with confirmed payment_intent_id
+                                console.log('[3DS] Authentication passed, completing booking');
+                                formData.stripe_payment_intent_id = result.paymentIntent.id;
+                                formData.stripe_customer_id = response.stripe_customer_id;
+                                formData.payment_method_id = null;
+
+                                $.ajax({
+                                    url: checkoutData.apiUrl + '/api/public/book',
+                                    method: 'POST',
+                                    contentType: 'application/json',
+                                    data: JSON.stringify(formData),
+                                    success: function(bookResponse) {
+                                        if (bookResponse.success) {
+                                            showBookingConfirmation(bookResponse, $btn);
+                                        } else {
+                                            $('#gas-card-errors').text(bookResponse.error || 'Booking failed after payment.');
+                                            $btn.prop('disabled', false);
+                                            $btn.find('.gas-btn-text').show();
+                                            $btn.find('.gas-btn-loading').hide();
+                                        }
+                                    },
+                                    error: function() {
+                                        $('#gas-card-errors').text('Connection error. Your payment was taken — please contact us.');
+                                        $btn.prop('disabled', false);
+                                        $btn.find('.gas-btn-text').show();
+                                        $btn.find('.gas-btn-loading').hide();
+                                    }
+                                });
                             } else {
-                                // Unexpected status
-                                $('#gas-card-errors').text('Payment could not be completed. Please try again or use a different card.');
+                                $('#gas-card-errors').text('Card authentication was not completed. Please try again.');
                                 $btn.prop('disabled', false);
                                 $btn.find('.gas-btn-text').show();
                                 $btn.find('.gas-btn-loading').hide();
-                                window.gasNotifyPaymentFailed('card', 'Unexpected payment status: ' + result.paymentIntent.status);
                             }
                         });
+                    } else if (response.success) {
+                        showBookingConfirmation(response, $btn);
                     } else {
-                        alert('Failed to initialize payment: ' + (response.error || 'Please try again'));
+                        $('#gas-card-errors').text(response.error || 'Booking could not be completed.');
                         $btn.prop('disabled', false);
                         $btn.find('.gas-btn-text').show();
                         $btn.find('.gas-btn-loading').hide();
-                        window.gasNotifyPaymentFailed('card', 'Payment initialization failed: ' + (response.error || 'Unknown'));
                     }
                 },
                 error: function() {
-                    alert('Payment service unavailable. Please try again.');
+                    alert('Connection error. Please try again.');
                     $btn.prop('disabled', false);
                     $btn.find('.gas-btn-text').show();
                     $btn.find('.gas-btn-loading').hide();
                 }
             });
         }
-        
+
+        // Show booking confirmation — shared by both payment flows
+        function showBookingConfirmation(response, $btn) {
+            localStorage.removeItem('gas_hostvana_bookingId');
+            $('.gas-checkout-main > *').hide();
+            $('.gas-checkout-confirmation').show();
+            $('.gas-conf-rooms-list').empty().hide();
+            $('.gas-conf-extras-list').empty().hide();
+            $('.gas-conf-room-name').show();
+            $('.gas-booking-ref').removeClass('gas-ref-small');
+
+            var ref = response.booking?.id || response.booking_id || '';
+            $('.gas-booking-ref').text('GAS-' + String(ref).padStart(4, '0'));
+            var roomName = response.booking?.unit_name || checkoutData.room?.display_name || checkoutData.room?.name || '';
+            $('.gas-conf-room-name').text(roomName);
+            $('.gas-conf-checkin').text(formatDate(checkoutData.checkin));
+            $('.gas-conf-checkout').text(formatDate(checkoutData.checkout));
+            var guests = checkoutData.guests || 1;
+            var guestWord = guests > 1 ? t('booking', 'guests', 'Guests') : t('booking', 'guest', 'Guest');
+            $('.gas-conf-guests').text(guests + ' ' + guestWord);
+            var currency = checkoutData.currency || '';
+            $('.gas-conf-total').text(formatPrice(checkoutData.grandTotal, currency));
+            if (checkoutData.depositAmount && checkoutData.depositAmount < checkoutData.grandTotal) {
+                if ($('.gas-conf-deposit').length) {
+                    $('.gas-conf-deposit').text(formatPrice(checkoutData.depositAmount, currency)).closest('.gas-conf-row').show();
+                }
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
         function submitBooking($btn, paymentIntentId) {
             $btn.prop('disabled', true);
             $btn.find('.gas-btn-text').hide();

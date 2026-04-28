@@ -66342,24 +66342,30 @@ app.get('/api/public/rooms/:roomId/min-stay', async (req, res) => {
 // Create booking (public)
 app.post('/api/public/book', async (req, res) => {
   try {
-    const { 
+    const {
       unit_id, check_in, check_out, guests,
       guest_first_name, guest_last_name, guest_email, guest_phone,
       guest_address, guest_city, guest_country, guest_postcode,
       voucher_code, notes, marketing, sms_consent, total_price, upsells, price_breakdown,
-      stripe_payment_intent_id, deposit_amount, balance_amount, payment_method,
+      deposit_amount, balance_amount, payment_method,
       enigma_reference_id, stripe_setup_intent_id, stripe_payment_method_id,
       source_site_url, hostvana_booking_id
     } = req.body;
 
+    // Support both old (frontend-charged) and new (server-side) payment flows
+    let stripe_payment_intent_id = req.body.stripe_payment_intent_id || null;
+    const payment_method_id = req.body.payment_method_id || null;
+    let stripe_customer_id = req.body.stripe_customer_id || null;
+
     console.log('REQ BODY KEYS:', Object.keys(req.body));
     console.log('PRICE BREAKDOWN RAW:', typeof req.body.price_breakdown, req.body.price_breakdown);
+    console.log('Payment flow:', payment_method_id ? 'server-side' : (stripe_payment_intent_id ? 'legacy-frontend' : 'no-stripe'));
 
     // Validate required fields
     if (!unit_id || !check_in || !check_out || !guest_first_name || !guest_last_name || !guest_email) {
       return res.json({ success: false, error: 'Missing required fields' });
     }
-    
+
     // Get unit and property info
     const unit = await pool.query(`
       SELECT bu.*, p.id as property_id, p.name as property_name, p.currency, a.settings as account_settings
@@ -66368,21 +66374,20 @@ app.post('/api/public/book', async (req, res) => {
       LEFT JOIN accounts a ON p.account_id = a.id
       WHERE bu.id = $1
     `, [unit_id]);
-    
+
     if (!unit.rows[0]) {
       return res.json({ success: false, error: 'Unit not found' });
     }
-    
+
     // ========== REAL-TIME AVAILABILITY CHECK ==========
-    // Check Beds24 for latest availability before confirming booking
+    // Check Beds24 for latest availability BEFORE taking payment
     const beds24RoomId = unit.rows[0].beds24_room_id;
     if (beds24RoomId) {
       try {
-        // Use property-specific token lookup for GasSync connections
         const accessToken = await getBeds24AccessTokenForProperty(pool, unit.rows[0].property_id, unit_id);
         if (accessToken) {
           console.log(`Real-time availability check for room ${beds24RoomId}: ${check_in} to ${check_out}`);
-          
+
           const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
             headers: { 'token': accessToken },
             params: {
@@ -66391,15 +66396,14 @@ app.post('/api/public/book', async (req, res) => {
               endDate: check_out
             }
           });
-          
+
           const data = availResponse.data?.data?.[0];
           if (data && data.availability) {
-            // Check each date in the range
             for (const [dateStr, isAvailable] of Object.entries(data.availability)) {
               if (isAvailable === false) {
                 console.log(`Real-time check FAILED: ${dateStr} is not available`);
-                return res.json({ 
-                  success: false, 
+                return res.json({
+                  success: false,
                   error: 'Sorry, these dates are no longer available. Please select different dates.',
                   unavailable_date: dateStr
                 });
@@ -66409,21 +66413,101 @@ app.post('/api/public/book', async (req, res) => {
           }
         }
       } catch (availError) {
-        // Log but don't block - fall back to local availability
-        console.error('Real-time availability check error:', availError.message);
+        console.error('Real-time availability check error (non-blocking):', availError.message);
       }
     }
     // ========== END AVAILABILITY CHECK ==========
-    
+
+    // ========== SERVER-SIDE STRIPE PAYMENT ==========
+    // If payment_method_id is provided, charge the card now (after availability check)
+    if (payment_method_id && deposit_amount && deposit_amount > 0 && payment_method === 'card') {
+      try {
+        // Get Stripe credentials for this property
+        let paymentConfig = await pool.query(`
+          SELECT pc.* FROM payment_configurations pc
+          WHERE pc.property_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1
+        `, [unit.rows[0].property_id]);
+
+        if (paymentConfig.rows.length === 0) {
+          paymentConfig = await pool.query(`
+            SELECT pc.* FROM payment_configurations pc
+            JOIN properties p ON pc.account_id = p.account_id
+            WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1
+          `, [unit.rows[0].property_id]);
+        }
+
+        if (paymentConfig.rows.length === 0 || !paymentConfig.rows[0].credentials?.secret_key) {
+          return res.json({ success: false, error: 'Payment not configured for this property' });
+        }
+
+        const configStripe = new Stripe(paymentConfig.rows[0].credentials.secret_key);
+        const effectiveCurrency = (unit.rows[0].currency || 'eur').toLowerCase();
+
+        // Create customer for future charges (balance payments)
+        const customer = await configStripe.customers.create({
+          email: guest_email,
+          name: `${guest_first_name} ${guest_last_name}`,
+          metadata: { property_id: String(unit.rows[0].property_id) }
+        });
+        stripe_customer_id = customer.id;
+
+        // Create and confirm PaymentIntent server-side
+        const paymentIntent = await configStripe.paymentIntents.create({
+          amount: Math.round(deposit_amount * 100),
+          currency: effectiveCurrency,
+          customer: customer.id,
+          payment_method: payment_method_id,
+          confirm: true,
+          setup_future_usage: 'off_session',
+          return_url: `${source_site_url || 'https://admin.gas.travel'}?booking=pending`,
+          metadata: {
+            property_id: String(unit.rows[0].property_id),
+            unit_id: String(unit_id),
+            guest_email: guest_email,
+            check_in: check_in,
+            check_out: check_out
+          }
+        });
+
+        console.log(`[Stripe Server] PaymentIntent ${paymentIntent.id} status: ${paymentIntent.status}`);
+
+        if (paymentIntent.status === 'requires_action' || paymentIntent.status === 'requires_source_action') {
+          // 3DS required — send client_secret back to frontend
+          return res.json({
+            success: false,
+            requires_action: true,
+            client_secret: paymentIntent.client_secret,
+            payment_intent_id: paymentIntent.id,
+            stripe_customer_id: customer.id
+          });
+        }
+
+        if (paymentIntent.status !== 'succeeded') {
+          return res.json({ success: false, error: 'Payment could not be completed. Please try a different card.' });
+        }
+
+        // Payment succeeded — continue to create booking
+        stripe_payment_intent_id = paymentIntent.id;
+        console.log(`[Stripe Server] Payment confirmed: ${stripe_payment_intent_id}`);
+
+      } catch (stripeError) {
+        console.error('[Stripe Server] Payment error:', stripeError.message);
+        const userMessage = stripeError.type === 'StripeCardError'
+          ? stripeError.message
+          : 'Payment could not be processed. Please try again.';
+        return res.json({ success: false, error: userMessage });
+      }
+    }
+    // ========== END SERVER-SIDE STRIPE PAYMENT ==========
+
     // Determine payment status
     let paymentStatus = 'pending';
     let bookingStatus = 'pending';
-    
+
     if (stripe_payment_intent_id && deposit_amount) {
       paymentStatus = 'deposit_paid';
       bookingStatus = 'confirmed';
     } else if (stripe_setup_intent_id) {
-      // Deferred payment — card saved for later charge
       paymentStatus = 'pending';
       bookingStatus = 'confirmed';
     } else if (payment_method === 'property') {
@@ -67013,6 +67097,81 @@ app.post('/api/public/book', async (req, res) => {
     });
   } catch (error) {
     console.error('Create booking error:', error);
+
+    // AUTO-REFUND: if payment was taken but booking failed, refund immediately
+    if (stripe_payment_intent_id && payment_method === 'card') {
+      try {
+        // Get Stripe credentials for refund
+        let refundConfig = await pool.query(`
+          SELECT pc.* FROM payment_configurations pc
+          WHERE pc.property_id = (SELECT property_id FROM bookable_units WHERE id = $1) AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1
+        `, [unit_id]);
+        if (refundConfig.rows.length === 0) {
+          refundConfig = await pool.query(`
+            SELECT pc.* FROM payment_configurations pc
+            JOIN properties p ON pc.account_id = p.account_id
+            JOIN bookable_units bu ON bu.property_id = p.id
+            WHERE bu.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1
+          `, [unit_id]);
+        }
+        if (refundConfig.rows[0]?.credentials?.secret_key) {
+          const refundStripe = new Stripe(refundConfig.rows[0].credentials.secret_key);
+          await refundStripe.refunds.create({ payment_intent: stripe_payment_intent_id });
+          console.error(`[AUTO-REFUND] Refunded ${stripe_payment_intent_id} after booking creation failure`);
+        }
+      } catch (refundError) {
+        console.error(`[AUTO-REFUND FAILED] Could not refund ${stripe_payment_intent_id}:`, refundError.message);
+      }
+    }
+
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// 3DS confirmation endpoint — called after guest completes 3D Secure challenge
+app.post('/api/public/book/confirm-3ds', async (req, res) => {
+  try {
+    const { payment_intent_id, unit_id } = req.body;
+    if (!payment_intent_id) return res.json({ success: false, error: 'Missing payment_intent_id' });
+
+    // Get Stripe credentials
+    let paymentConfig = await pool.query(`
+      SELECT pc.* FROM payment_configurations pc
+      WHERE pc.property_id = (SELECT property_id FROM bookable_units WHERE id = $1) AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1
+    `, [unit_id]);
+    if (paymentConfig.rows.length === 0) {
+      paymentConfig = await pool.query(`
+        SELECT pc.* FROM payment_configurations pc
+        JOIN properties p ON pc.account_id = p.account_id
+        JOIN bookable_units bu ON bu.property_id = p.id
+        WHERE bu.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1
+      `, [unit_id]);
+    }
+    if (!paymentConfig.rows[0]?.credentials?.secret_key) {
+      return res.json({ success: false, error: 'Payment config not found' });
+    }
+
+    const configStripe = new Stripe(paymentConfig.rows[0].credentials.secret_key);
+    const paymentIntent = await configStripe.paymentIntents.retrieve(payment_intent_id);
+
+    if (paymentIntent.status !== 'succeeded') {
+      return res.json({ success: false, error: 'Payment not completed. Status: ' + paymentIntent.status });
+    }
+
+    // Payment confirmed — re-submit the booking with the confirmed payment_intent_id
+    // The original booking data should be passed along from the frontend
+    console.log(`[3DS Confirm] Payment ${payment_intent_id} verified as succeeded — proceeding with booking`);
+
+    // Forward to the main book endpoint with the confirmed payment intent
+    req.body.stripe_payment_intent_id = payment_intent_id;
+    req.body.payment_method_id = null; // Don't re-charge
+    req.body.payment_method = 'card';
+
+    // Re-route to the main handler (call the endpoint logic directly would be complex,
+    // so we use a simple redirect approach — frontend should call /api/public/book with payment_intent_id)
+    return res.json({ success: true, payment_confirmed: true, payment_intent_id: payment_intent_id });
+  } catch (error) {
+    console.error('[3DS Confirm] Error:', error.message);
     res.json({ success: false, error: error.message });
   }
 });
