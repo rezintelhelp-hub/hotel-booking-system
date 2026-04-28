@@ -8668,6 +8668,22 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
           .replace(/&ocirc;/g, 'ô').replace(/&ucirc;/g, 'û').replace(/&nbsp;/g, ' ')
           .replace(/&iuml;/g, 'ï').replace(/&ccedil;/g, 'ç').replace(/&acirc;/g, 'â').trim();
       };
+      // Sanitise HTML — keep structure, strip styling junk
+      const sanitiseHtml = (s) => {
+        if (!s) return '';
+        const allowed = ['p','br','h1','h2','h3','h4','h5','h6','ul','ol','li','strong','b','em','i','u','a','table','tr','td','th','thead','tbody'];
+        // Remove style attributes, class attributes, data attributes
+        let clean = s.replace(/\s+(style|class|data-[\w-]+|id|align|valign|width|height|bgcolor|color|face|size)="[^"]*"/gi, '');
+        clean = clean.replace(/\s+(style|class|data-[\w-]+|id|align|valign|width|height|bgcolor|color|face|size)='[^']*'/gi, '');
+        // Strip disallowed tags but keep their content
+        clean = clean.replace(/<\/?(?!(?:p|br|h[1-6]|ul|ol|li|strong|b|em|i|u|a|table|tr|td|th|thead|tbody)\b)[a-z][a-z0-9]*(?:\s[^>]*)?\/?>/gi, '');
+        // Clean up empty paragraphs and excessive whitespace
+        clean = clean.replace(/<p>\s*<\/p>/gi, '').replace(/<p>\s*<br\s*\/?>\s*<\/p>/gi, '');
+        // Decode common entities
+        clean = clean.replace(/&nbsp;/g, ' ').replace(/&rsquo;/g, '\u2019').replace(/&lsquo;/g, '\u2018')
+          .replace(/&rdquo;/g, '\u201d').replace(/&ldquo;/g, '\u201c').replace(/&ndash;/g, '\u2013').replace(/&mdash;/g, '\u2014');
+        return clean.trim();
+      };
       const cleanMultilang = (obj) => {
         if (!obj || typeof obj !== 'object') return null;
         const cleaned = {};
@@ -8718,8 +8734,10 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
       }
 
       // Helper: Beds24 V2 texts can be array or object — normalize to multilingual object
-      const extractMultilang = (roomTexts, fieldName) => {
+      // mode: 'strip' (plain text), 'sanitise' (clean HTML), 'raw' (as-is)
+      const extractMultilang = (roomTexts, fieldName, mode = 'strip') => {
         if (!roomTexts) return null;
+        const clean = mode === 'sanitise' ? sanitiseHtml : (mode === 'raw' ? (s) => s.trim() : stripHtmlSimple);
         // Array format: [{language: "en", displayName: "...", roomDescription: "..."}, ...]
         if (Array.isArray(roomTexts)) {
           const result = {};
@@ -8727,14 +8745,18 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
             const lang = (t.language || 'en').toLowerCase();
             const val = t[fieldName];
             if (val && typeof val === 'string' && val.trim()) {
-              result[lang] = stripHtmlSimple(val);
+              result[lang] = clean(val);
             }
           }
           return Object.keys(result).length > 0 ? result : null;
         }
         // Object format: {displayName: {EN: "...", DE: "..."}}
         if (typeof roomTexts === 'object' && roomTexts[fieldName]) {
-          return cleanMultilang(roomTexts[fieldName]);
+          const cleaned = {};
+          for (const [lang, val] of Object.entries(roomTexts[fieldName])) {
+            if (typeof val === 'string' && val.trim()) cleaned[lang.toLowerCase()] = clean(val);
+          }
+          return Object.keys(cleaned).length > 0 ? cleaned : null;
         }
         return null;
       };
@@ -8751,9 +8773,9 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         const displayName = extractMultilang(roomTexts, 'displayName');
         let shortDesc, fullDesc;
         if (descSource === 'booking_engine') {
-          // Property Description 1 = short, Property Description 2 = full
-          shortDesc = extractMultilang(propertyTexts, 'propertyDescription1');
-          fullDesc = extractMultilang(propertyTexts, 'propertyDescription2');
+          // Property Description 1 = short, Property Description 2 = full — sanitised HTML
+          shortDesc = extractMultilang(propertyTexts, 'propertyDescription1', 'sanitise');
+          fullDesc = extractMultilang(propertyTexts, 'propertyDescription2', 'sanitise');
           // Fall back to room-level if property-level is empty
           if (!shortDesc) shortDesc = extractMultilang(roomTexts, 'roomDescription') || extractMultilang(roomTexts, 'roomDescription1');
           if (!fullDesc) fullDesc = extractMultilang(roomTexts, 'auxiliary') || extractMultilang(roomTexts, 'auxiliaryText');
