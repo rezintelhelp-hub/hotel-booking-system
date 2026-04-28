@@ -8725,6 +8725,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
           for (const r of b24Rooms) {
             const roomId = String(r.id || r.roomId);
             beds24TextsMap[roomId] = r.texts || {};
+            beds24TextsMap[roomId]._roomData = { maxPeople: r.maxPeople, maxAdult: r.maxAdult, maxChildren: r.maxChildren };
             console.log('content-sync: Room', roomId, r.name, '- texts keys:', Object.keys(r.texts || {}).join(','));
           }
         }
@@ -8798,6 +8799,17 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         if (fullDesc && (!room.full_description || force)) {
           await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [sanitizeRoomDescription(JSON.stringify(fullDesc)), room.gas_room_id]);
           descCount++;
+        }
+        // Update occupancy from Beds24
+        const rd = roomTexts?._roomData;
+        if (rd) {
+          const maxGuests = rd.maxPeople || rd.maxAdult || null;
+          const maxAdults = rd.maxAdult || null;
+          const maxChildren = rd.maxChildren || null;
+          if (maxGuests || maxAdults) {
+            await pool.query('UPDATE bookable_units SET max_guests = COALESCE($1, max_guests), max_adults = COALESCE($2, max_adults), max_children = COALESCE($3, max_children) WHERE id = $4',
+              [maxGuests, maxAdults, maxChildren !== null ? maxChildren : 0, room.gas_room_id]);
+          }
         }
       }
 
