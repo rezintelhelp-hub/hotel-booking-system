@@ -77708,11 +77708,132 @@ async function runBeds24InventorySync() {
   }
 }
 
-// Schedule Beds24 bookings sync every 15 minutes
+// Schedule Beds24 bookings sync every 15 minutes (master key accounts)
 setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
 
 // Schedule Beds24 full inventory sync every 6 hours
 setInterval(runBeds24InventorySync, 6 * 60 * 60 * 1000);
+
+// =========================================================
+// LIGHTWEIGHT BOOKING STATUS SYNC — all gas_sync_connections
+// Checks for cancellations and new manual bookings every 15 mins
+// Uses each account's own token — safety net for missed webhooks
+// =========================================================
+async function runBookingStatusSync() {
+  try {
+    console.log('⏰ [BookingStatus] Starting lightweight booking status sync...');
+
+    const connections = await pool.query(`
+      SELECT id, account_id, refresh_token, access_token
+      FROM gas_sync_connections
+      WHERE adapter_code = 'beds24' AND sync_enabled = true AND status = 'connected'
+    `);
+
+    let totalChecked = 0;
+    let totalCancelled = 0;
+    let totalNewFound = 0;
+
+    for (const conn of connections.rows) {
+      try {
+        const token = await getBeds24Token(conn.account_id);
+
+        // Only check bookings arriving in next 90 days + last 7 days
+        const fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - 7);
+        const toDate = new Date();
+        toDate.setDate(toDate.getDate() + 90);
+
+        const response = await axios.get('https://beds24.com/api/v2/bookings', {
+          headers: { 'token': token },
+          params: {
+            arrivalFrom: fromDate.toISOString().split('T')[0],
+            arrivalTo: toDate.toISOString().split('T')[0]
+          }
+        });
+
+        const bookings = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+        totalChecked += bookings.length;
+
+        for (const booking of bookings) {
+          const beds24Id = booking.id?.toString();
+          if (!beds24Id) continue;
+
+          const isCancelled = booking.status === 'cancelled' || booking.status === 'Cancelled';
+
+          if (isCancelled) {
+            // Update GAS booking if we have it and it's not already cancelled
+            const result = await pool.query(`
+              UPDATE bookings
+              SET status = 'cancelled', cancelled_time = NOW(), updated_at = NOW()
+              WHERE beds24_booking_id = $1 AND status != 'cancelled'
+              RETURNING id
+            `, [beds24Id]);
+            if (result.rowCount > 0) {
+              totalCancelled++;
+              console.log(`  ✅ Cancelled GAS booking ${result.rows[0].id} (Beds24 ${beds24Id}) for account ${conn.account_id}`);
+
+              // Unblock dates
+              const roomId = booking.roomId;
+              if (roomId) {
+                const roomResult = await pool.query('SELECT id FROM bookable_units WHERE beds24_room_id = $1', [roomId]);
+                if (roomResult.rows[0]) {
+                  const arrival = booking.arrival || booking.firstNight;
+                  const departure = booking.departure || booking.lastNight;
+                  if (arrival && departure) {
+                    for (let d = new Date(arrival); d < new Date(departure); d.setDate(d.getDate() + 1)) {
+                      await pool.query(`
+                        UPDATE room_availability
+                        SET is_available = true, is_blocked = false, source = 'beds24_status_sync', updated_at = NOW()
+                        WHERE room_id = $1 AND date = $2 AND source IN ('beds24_sync', 'beds24_webhook', 'beds24_inventory', 'booking')
+                      `, [roomResult.rows[0].id, d.toISOString().split('T')[0]]);
+                    }
+                  }
+                }
+              }
+            }
+          } else {
+            // Check if this is a new booking we don't have
+            const existing = await pool.query('SELECT id FROM bookings WHERE beds24_booking_id = $1', [beds24Id]);
+            if (existing.rows.length === 0 && booking.roomId) {
+              // New booking made directly in Beds24 — block the dates
+              const roomResult = await pool.query('SELECT id FROM bookable_units WHERE beds24_room_id = $1', [booking.roomId]);
+              if (roomResult.rows[0]) {
+                const arrival = booking.arrival || booking.firstNight;
+                const departure = booking.departure || booking.lastNight;
+                if (arrival && departure) {
+                  for (let d = new Date(arrival); d < new Date(departure); d.setDate(d.getDate() + 1)) {
+                    await pool.query(`
+                      INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+                      VALUES ($1, $2, false, false, 'beds24_status_sync')
+                      ON CONFLICT (room_id, date)
+                      DO UPDATE SET is_available = false, source = 'beds24_status_sync', updated_at = NOW()
+                    `, [roomResult.rows[0].id, d.toISOString().split('T')[0]]);
+                  }
+                  totalNewFound++;
+                  console.log(`  📥 Blocked dates for new Beds24 booking ${beds24Id} (account ${conn.account_id})`);
+                }
+              }
+            }
+          }
+        }
+      } catch (connErr) {
+        // Skip this account silently — token may be expired
+        if (connErr.response?.status !== 401) {
+          console.log(`  ⚠️ [BookingStatus] Account ${conn.account_id}: ${connErr.message}`);
+        }
+      }
+    }
+
+    console.log(`⏰ [BookingStatus] Done: ${connections.rows.length} accounts, ${totalChecked} bookings checked, ${totalCancelled} cancelled, ${totalNewFound} new blocked`);
+  } catch (error) {
+    console.error('⏰ [BookingStatus] Error:', error.message);
+  }
+}
+
+// Run every 15 minutes
+setInterval(runBookingStatusSync, 15 * 60 * 1000);
+// First run 90 seconds after startup
+setTimeout(runBookingStatusSync, 90 * 1000);
 
 // =========================================================
 // HOSTAWAY SCHEDULED RESERVATIONS SYNC
