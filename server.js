@@ -86637,11 +86637,13 @@ app.get('/api/pro-builder/sites/:blog_id/pages', async (req, res) => {
       JOIN accounts a ON s.account_id = a.id
       WHERE s.token = $1 AND s.expires_at > NOW()
     `, [token]);
-    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
-      return res.json({ success: false, error: 'Master admin access required' });
+    if (session.rows.length === 0) {
+      return res.json({ success: false, error: 'Authentication required' });
     }
 
     const blogId = parseInt(req.params.blog_id);
+    const userAccountId = session.rows[0].account_id;
+    const userRole = session.rows[0].role;
 
     // Look up site from deployed_sites
     const site = await pool.query(
@@ -86653,6 +86655,12 @@ app.get('/api/pro-builder/sites/:blog_id/pages', async (req, res) => {
     }
 
     const siteRow = site.rows[0];
+
+    // Non-master users can only access their own account's sites
+    if (userRole !== 'master_admin' && siteRow.account_id !== userAccountId) {
+      return res.json({ success: false, error: 'Access denied — this site belongs to a different account' });
+    }
+
     if (!['pro', 'bespoke'].includes(siteRow.subscription_tier)) {
       return res.json({ success: false, error: 'Pro or Bespoke subscription required' });
     }
@@ -86801,10 +86809,10 @@ async function proBuilderAuth(req) {
     JOIN accounts a ON s.account_id = a.id
     WHERE s.token = $1 AND s.expires_at > NOW()
   `, [token]);
-  if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
-    return { error: 'Master admin access required' };
+  if (session.rows.length === 0) {
+    return { error: 'Authentication required' };
   }
-  return { accountId: session.rows[0].account_id };
+  return { accountId: session.rows[0].account_id, role: session.rows[0].role };
 }
 
 async function proBuilderFetchContent(blogId, pageId) {
