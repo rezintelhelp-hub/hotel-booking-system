@@ -1,4 +1,7 @@
 /**
+ * GAS Booking — checkout JS
+ * Version: 3.7.1
+ *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
  * Unauthorized copying, redistribution, or deployment prohibited.

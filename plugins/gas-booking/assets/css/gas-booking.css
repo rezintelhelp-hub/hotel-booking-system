@@ -1020,6 +1020,14 @@
     font-weight: 600;
 }
 
+/* Vertical-align the price column: tabular-num digits + right-align so .00 lines up. */
+.gas-price-row > span:last-child {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    min-width: 6rem;
+}
+
 .gas-book-btn {
     width: 100%;
     padding: 14px 24px;
