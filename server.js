@@ -45347,9 +45347,9 @@ app.get('/api/admin/upsells', async (req, res) => {
     let result;
     
     if (propertyId) {
-      // Filter by specific property
+      // Filter by specific property - match either legacy property_id or multi-property array
       result = await pool.query(`
-        SELECT u.*, 
+        SELECT u.*,
                p.name as property_name,
                r.name as room_name,
                v.name as vendor_name
@@ -45357,7 +45357,7 @@ app.get('/api/admin/upsells', async (req, res) => {
         LEFT JOIN properties p ON u.property_id = p.id
         LEFT JOIN rooms r ON u.room_id = r.id
         LEFT JOIN vendors v ON u.vendor_id = v.id
-        WHERE u.property_id = $1
+        WHERE u.property_id = $1 OR $1 = ANY(u.property_ids)
         ORDER BY u.name
       `, [propertyId]);
     } else if (accountId) {
@@ -45397,8 +45397,11 @@ app.post('/api/admin/upsells', async (req, res) => {
     // Ensure multilingual columns exist
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
-    
-    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, mandatory, is_external, vendor_id, category } = req.body;
+    await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS property_ids INTEGER[]').catch(() => {});
+
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category } = req.body;
+    // property_ids: null|undefined|[] all mean "applies to all properties" — empty array is not "scoped to nothing"
+    // CSV asymmetry: upsells.room_ids is TEXT (legacy CSV); upsells.property_ids is INTEGER[]
 
     // Handle name/description being sent as objects from frontend
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (name_ml || (rawName ? { en: rawName } : null));
@@ -45408,12 +45411,18 @@ app.post('/api/admin/upsells', async (req, res) => {
     const englishName = mlStr(rawName) || '';
     const englishDesc = mlStr(rawDesc) || '';
 
+    // Multi-property scoping; back-compat: write the first array element into legacy property_id
+    const propertyIdsArr = Array.isArray(property_ids) && property_ids.length > 0 ? property_ids : null;
+    const propId = property_id || (propertyIdsArr ? propertyIdsArr[0] : null);
+    // room_ids boundary — caller may send array or CSV string; column is TEXT
+    const roomIdsCsv = Array.isArray(room_ids) ? room_ids.join(',') : (room_ids || null);
+
     const result = await pool.query(`
-      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, mandatory, is_external, vendor_id, category, min_nights, max_nights)
-      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, min_nights, max_nights)
+      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, property_id, room_id, room_ids, active !== false, mandatory || false, is_external || false, vendor_id || null, category || null, req.body.min_nights || null, req.body.max_nights || null]);
-    
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active !== false, mandatory || false, is_external || false, vendor_id || null, category || null, req.body.min_nights || null, req.body.max_nights || null]);
+
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -45425,8 +45434,11 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
     // Ensure multilingual columns exist
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
-    
-    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, mandatory, is_external, vendor_id, category } = req.body;
+    await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS property_ids INTEGER[]').catch(() => {});
+
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category } = req.body;
+    // property_ids: null|undefined|[] all mean "applies to all properties" — empty array is not "scoped to nothing"
+    // CSV asymmetry: upsells.room_ids is TEXT (legacy CSV); upsells.property_ids is INTEGER[]
 
     // Handle name/description being sent as objects from frontend
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (name_ml || (rawName ? { en: rawName } : null));
@@ -45435,6 +45447,12 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
     const descJson = descObj ? JSON.stringify(descObj) : null;
     const englishName = mlStr(rawName) || '';
     const englishDesc = mlStr(rawDesc) || '';
+
+    // Multi-property scoping; back-compat: write the first array element into legacy property_id
+    const propertyIdsArr = Array.isArray(property_ids) && property_ids.length > 0 ? property_ids : null;
+    const propId = property_id || (propertyIdsArr ? propertyIdsArr[0] : null);
+    // room_ids boundary — caller may send array or CSV string; column is TEXT
+    const roomIdsCsv = Array.isArray(room_ids) ? room_ids.join(',') : (room_ids || null);
 
     const result = await pool.query(`
       UPDATE upsells SET
@@ -45446,20 +45464,21 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
         charge_type = COALESCE($6, charge_type),
         max_quantity = $7,
         property_id = $8,
-        room_id = $9,
-        room_ids = $10,
-        active = COALESCE($11, active),
-        mandatory = COALESCE($12, mandatory),
-        is_external = COALESCE($13, is_external),
-        vendor_id = $14,
-        category = $15,
-        min_nights = $16,
-        max_nights = $17,
+        property_ids = $9,
+        room_id = $10,
+        room_ids = $11,
+        active = COALESCE($12, active),
+        mandatory = COALESCE($13, mandatory),
+        is_external = COALESCE($14, is_external),
+        vendor_id = $15,
+        category = $16,
+        min_nights = $17,
+        max_nights = $18,
         updated_at = NOW()
-      WHERE id = $18
+      WHERE id = $19
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, property_id, room_id, room_ids, active, mandatory || false, is_external, vendor_id, category || null, req.body.min_nights || null, req.body.max_nights || null, req.params.id]);
-    
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active, mandatory || false, is_external, vendor_id, category || null, req.body.min_nights || null, req.body.max_nights || null, req.params.id]);
+
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -62232,12 +62251,13 @@ app.get('/api/partner/:apiKey/property/:propertyId/upsells', async (req, res) =>
     
     const result = await pool.query(`
       SELECT id, name, description, price, charge_type, max_quantity,
-             category, room_id, room_ids, image_url, active, created_at
+             category, property_id, property_ids, room_id, room_ids,
+             image_url, active, created_at
       FROM upsells
-      WHERE property_id = $1
+      WHERE property_id = $1 OR $1 = ANY(property_ids)
       ORDER BY category, name
     `, [gasPropertyId]);
-    
+
     res.json({ success: true, property_id: gasPropertyId, upsells: result.rows });
     
   } catch (error) {
@@ -62279,8 +62299,10 @@ app.post('/api/partner/:apiKey/property/:propertyId/upsells', async (req, res) =
     
     const { propertyId } = req.params;
     const { name, description, price, charge_type, max_quantity, category,
-            room_id, room_ids, image_url, external_id } = req.body;
-    
+            room_id, room_ids, property_ids, image_url, external_id } = req.body;
+    // property_ids: null|undefined|[] all mean "applies to all properties" — empty array is not "scoped to nothing"
+    // CSV asymmetry: upsells.room_ids is TEXT (legacy CSV); upsells.property_ids is INTEGER[]
+
     if (!name || price === undefined) {
       return res.status(400).json({ success: false, error: 'name and price are required' });
     }
@@ -62313,12 +62335,15 @@ app.post('/api/partner/:apiKey/property/:propertyId/upsells', async (req, res) =
       }
     }
     
+    // URL propertyId anchors legacy property_id; optional property_ids[] covers extra targets
+    const propertyIdsArr = Array.isArray(property_ids) && property_ids.length > 0 ? property_ids : null;
+
     const result = await pool.query(`
-      INSERT INTO upsells (name, description, price, charge_type, max_quantity, category, property_id, room_id, room_ids, image_url, external_id, source, active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'partner', true)
+      INSERT INTO upsells (name, description, price, charge_type, max_quantity, category, property_id, property_ids, room_id, room_ids, image_url, external_id, source, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'partner', true)
       RETURNING *
-    `, [name, description || null, price, charge_type || 'per_booking', max_quantity || null, category || null, gasPropertyId, room_id || null, room_ids ? room_ids.join(',') : null, image_url || null, external_id || null]);
-    
+    `, [name, description || null, price, charge_type || 'per_booking', max_quantity || null, category || null, gasPropertyId, propertyIdsArr, room_id || null, room_ids ? room_ids.join(',') : null, image_url || null, external_id || null]);
+
     res.json({ success: true, upsell: result.rows[0] });
     
   } catch (error) {
@@ -62362,11 +62387,12 @@ app.put('/api/partner/:apiKey/upsells/:upsellId', async (req, res) => {
     const values = [];
     let pi = 1;
     
-    const allowedFields = ['name', 'description', 'price', 'charge_type', 'max_quantity', 'category', 'room_id', 'room_ids', 'image_url', 'active'];
-    
+    const allowedFields = ['name', 'description', 'price', 'charge_type', 'max_quantity', 'category', 'property_ids', 'room_id', 'room_ids', 'image_url', 'active'];
+
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
         let val = updates[field];
+        // CSV asymmetry: room_ids is TEXT (legacy CSV); property_ids is INTEGER[] and passes through as-is
         if (field === 'room_ids' && Array.isArray(val)) val = val.join(',');
         updateFields.push(`${field} = $${pi++}`);
         values.push(val);

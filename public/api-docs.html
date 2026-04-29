@@ -2254,32 +2254,32 @@
                 "get": {
                     "tags": ["Upsells"],
                     "summary": "List Property Upsells",
-                    "description": "Get all upsells for a property.",
+                    "description": "Get all upsells for a property. Returns upsells whose legacy property_id matches OR whose property_ids array includes the given property.",
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
-                    "responses": { "200": { "description": "Upsells list", "content": { "application/json": { "example": { "success": true, "property_id": 5, "upsells": [{ "id": 1, "name": "Airport Transfer", "price": "75.00", "charge_type": "per_booking", "category": "airport_transport", "active": true }] } } } } }
+                    "responses": { "200": { "description": "Upsells list", "content": { "application/json": { "example": { "success": true, "property_id": 5, "upsells": [{ "id": 1, "name": "Airport Transfer", "price": "75.00", "charge_type": "per_booking", "category": "airport_transport", "property_id": 5, "property_ids": [5, 6], "room_ids": "12,13", "active": true }] } } } } }
                 },
                 "post": {
                     "tags": ["Upsells"],
                     "summary": "Create Upsell",
-                    "description": "Create an upsell for a property. Optionally target specific rooms with room_id or room_ids array.",
+                    "description": "Create an upsell. Optionally target specific rooms with room_id or room_ids (CSV string or array — stored as CSV TEXT). property_ids (integer[]) applies the upsell to multiple properties; the URL propertyId still anchors the legacy property_id column for back-compat. property_ids: null|undefined|[] all mean 'applies to all properties' — empty array is not 'scoped to nothing'.",
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
-                    "requestBody": { "required": true, "content": { "application/json": { "example": { "name": "Airport Transfer", "description": "Private transfer from Zurich Airport", "price": 75.00, "charge_type": "per_booking", "category": "airport_transport" } } } },
-                    "responses": { "200": { "description": "Upsell created", "content": { "application/json": { "example": { "success": true, "upsell": { "id": 1, "name": "Airport Transfer", "price": "75.00", "category": "airport_transport" } } } } } }
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "name": "Airport Transfer", "description": "Private transfer from Zurich Airport", "price": 75.00, "charge_type": "per_booking", "category": "airport_transport", "property_ids": [5, 6], "room_ids": [12, 13] } } } },
+                    "responses": { "200": { "description": "Upsell created", "content": { "application/json": { "example": { "success": true, "upsell": { "id": 1, "name": "Airport Transfer", "price": "75.00", "category": "airport_transport", "property_id": 5, "property_ids": [5, 6], "room_ids": "12,13" } } } } } }
                 }
             },
             "/api/partner/_KEY_/upsells/{upsellId}": {
                 "put": {
                     "tags": ["Upsells"],
                     "summary": "Update Upsell",
-                    "description": "Update an upsell by GAS ID or external_id. Fields: name, description, price, charge_type, max_quantity, category, room_id, room_ids, image_url, active.",
+                    "description": "Update an upsell by GAS ID or external_id. Fields: name, description, price, charge_type, max_quantity, category, property_ids (integer[]), room_id, room_ids (CSV string or array — stored as CSV TEXT), image_url, active. property_id is the legacy single-property column — prefer property_ids for multi-property scoping. property_ids: null|undefined|[] all mean 'applies to all properties' — empty array is not 'scoped to nothing'.",
                     "parameters": [
                         { "name": "upsellId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS upsell ID or external_id" }
                     ],
-                    "requestBody": { "required": true, "content": { "application/json": { "example": { "price": 85.00, "active": true } } } },
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "price": 85.00, "active": true, "property_ids": [5, 6, 7] } } } },
                     "responses": { "200": { "description": "Upsell updated" } }
                 },
                 "delete": {
