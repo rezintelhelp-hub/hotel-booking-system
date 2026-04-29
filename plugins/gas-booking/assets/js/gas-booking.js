@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.7.2
+ * Version: 3.7.3
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -4289,6 +4289,48 @@ jQuery(document).ready(function($) {
                                 html += '</div>';
                             });
                             $('.gas-checkout-upsells').html(html);
+
+                            // Auto-add mandatory upsells to ug.selectedUpsells. Multi-group
+                            // convention: store TOTAL (after charge_type multiplication),
+                            // matching the click handler at the .gas-upsell-card listener.
+                            if (!Array.isArray(ug.selectedUpsells)) ug.selectedUpsells = [];
+                            var ugNights = (ug.items && ug.items[0] && ug.items[0].nights) || 1;
+                            var ugGuests = (ug.items || []).reduce(function(sum, item) { return sum + (item.guests || 1); }, 0) || 1;
+                            response.upsells.forEach(function(upsell) {
+                                var isMandatory = upsell.mandatory === true || upsell.mandatory === 'true';
+                                if (!isMandatory) return;
+                                if (bookingNights > 0) {
+                                    if (upsell.min_nights && bookingNights < upsell.min_nights) return;
+                                    if (upsell.max_nights && bookingNights > upsell.max_nights) return;
+                                }
+                                var alreadyAdded = ug.selectedUpsells.some(function(u) { return String(u.id) === String(upsell.id); });
+                                if (alreadyAdded) return;
+                                var actualPrice = parseFloat(upsell.price);
+                                if (upsell.charge_type === 'per_night') actualPrice *= ugNights;
+                                else if (upsell.charge_type === 'per_guest') actualPrice *= ugGuests;
+                                else if (upsell.charge_type === 'per_guest_per_night') actualPrice *= ugNights * ugGuests;
+                                ug.selectedUpsells.push({
+                                    id: upsell.id,
+                                    name: upsell.name,
+                                    price: actualPrice,
+                                    charge_type: upsell.charge_type,
+                                    mandatory: true
+                                });
+                            });
+
+                            // Render mandatory items in PRICE DETAILS + update total
+                            var groupMand = ug.selectedUpsells.filter(function(u) { return u.mandatory === true || u.mandatory === 'true'; });
+                            if (groupMand.length > 0) {
+                                var mandHtml = '';
+                                groupMand.forEach(function(u) {
+                                    mandHtml += '<div class="gas-price-line"><span>' + u.name + '</span><span>' + formatPrice(u.price, ug.currency) + '</span></div>';
+                                });
+                                $('.gas-mandatory-extras').html(mandHtml).show();
+                                var ugUpsellsTotal = ug.selectedUpsells.reduce(function(sum, u) { return sum + u.price; }, 0);
+                                var ugNewTotal = (ug.subtotal || 0) + (ug.taxTotal || 0) + ugUpsellsTotal;
+                                $('.gas-grand-total').text(formatPrice(ugNewTotal, ug.currency));
+                                if (typeof recalcGroupDeposit === 'function') recalcGroupDeposit(ug);
+                            }
                         } else {
                             $('.gas-no-upsells').show();
                         }
@@ -4540,10 +4582,24 @@ jQuery(document).ready(function($) {
                 // Recalculate deposit using shared helper
                 recalcGroupDeposit(upsellGroup);
 
-                // Update upsells display in summary
-                if (upsellGroup.selectedUpsells.length > 0) {
+                // Update upsells display in summary — split mandatory (peers of Accommodation)
+                // from optional ("Your Extras"), matching the single-checkout pattern.
+                var groupMandatory = upsellGroup.selectedUpsells.filter(function(u) { return u.mandatory === true || u.mandatory === 'true'; });
+                var groupOptional  = upsellGroup.selectedUpsells.filter(function(u) { return !(u.mandatory === true || u.mandatory === 'true'); });
+
+                if (groupMandatory.length > 0) {
+                    var mandHtml = '';
+                    groupMandatory.forEach(function(u) {
+                        mandHtml += '<div class="gas-price-line"><span>' + u.name + '</span><span>' + formatPrice(u.price, upsellGroup.currency) + '</span></div>';
+                    });
+                    $('.gas-mandatory-extras').html(mandHtml).show();
+                } else {
+                    $('.gas-mandatory-extras').empty().hide();
+                }
+
+                if (groupOptional.length > 0) {
                     var extrasHtml = '';
-                    upsellGroup.selectedUpsells.forEach(function(u) {
+                    groupOptional.forEach(function(u) {
                         extrasHtml += '<div class="gas-price-line"><span>' + u.name + '</span><span>' + formatPrice(u.price, upsellGroup.currency) + '</span></div>';
                     });
                     $('.gas-selected-extras .gas-extras-list').html(extrasHtml);
@@ -5036,11 +5092,33 @@ jQuery(document).ready(function($) {
                 $('.gas-discount-line').hide();
             }
             
-            // Update selected extras in left sidebar
-            if (checkoutData.selectedUpsells && checkoutData.selectedUpsells.length > 0) {
-                console.log('GAS DEBUG RENDER currentLanguage:', currentLanguage, 'upsell[0].name:', checkoutData.selectedUpsells[0].name, 'upsell[0].name_ml:', JSON.stringify(checkoutData.selectedUpsells[0].name_ml));
+            // Split selected upsells into mandatory (rendered as standalone PRICE DETAILS lines,
+            // peers of Accommodation) and optional (grouped under "Your Extras"). Same
+            // calculateUpsellItemTotal for both → no risk of mandatory vs optional drifting
+            // in price for the same charge_type.
+            var allSelected = Array.isArray(checkoutData.selectedUpsells) ? checkoutData.selectedUpsells : [];
+            var mandatoryItems = allSelected.filter(function(u) { return u.mandatory === true || u.mandatory === 'true'; });
+            var optionalItems  = allSelected.filter(function(u) { return !(u.mandatory === true || u.mandatory === 'true'); });
+
+            // Mandatory: each as its own price-line, sibling of Accommodation
+            if (mandatoryItems.length > 0) {
+                var mandatoryHtml = '';
+                mandatoryItems.forEach(function(upsell) {
+                    var itemTotal = calculateUpsellItemTotal(upsell);
+                    mandatoryHtml += '<div class="gas-price-line">';
+                    mandatoryHtml += '<span>' + (extractText(upsell.name_ml) || upsell.name) + '</span>';
+                    mandatoryHtml += '<span>' + formatPrice(itemTotal, currency) + '</span>';
+                    mandatoryHtml += '</div>';
+                });
+                $('.gas-mandatory-extras').html(mandatoryHtml).show();
+            } else {
+                $('.gas-mandatory-extras').empty().hide();
+            }
+
+            // Optional: under "Your Extras" header (existing behaviour)
+            if (optionalItems.length > 0) {
                 var extrasHtml = '';
-                checkoutData.selectedUpsells.forEach(function(upsell) {
+                optionalItems.forEach(function(upsell) {
                     var itemTotal = calculateUpsellItemTotal(upsell);
                     extrasHtml += '<div class="gas-extra-item">';
                     extrasHtml += '<span>' + (extractText(upsell.name_ml) || upsell.name) + '</span>';
@@ -5187,8 +5265,32 @@ jQuery(document).ready(function($) {
             } else {
                 $('.gas-checkout-upsells').html(html);
             }
+
+            // Auto-add mandatory upsells to selectedUpsells so they appear in PRICE DETAILS
+            // and are included in the grand total + booking submission. The click handler
+            // refuses to deselect mandatory cards (data-mandatory check), so once added
+            // they persist for the session. Idempotent — won't re-push on re-render.
+            if (!Array.isArray(checkoutData.selectedUpsells)) checkoutData.selectedUpsells = [];
+            upsells.forEach(function(upsell) {
+                var isMandatory = upsell.mandatory === true || upsell.mandatory === 'true';
+                if (!isMandatory) return;
+                var alreadyAdded = checkoutData.selectedUpsells.some(function(u) {
+                    return String(u.id) === String(upsell.id);
+                });
+                if (alreadyAdded) return;
+                checkoutData.selectedUpsells.push({
+                    id: upsell.id,
+                    name: upsell.name,
+                    name_ml: upsell.name_ml,
+                    price: upsell.price,
+                    charge_type: upsell.charge_type || 'per_booking',
+                    mandatory: true,
+                    quantity: 1
+                });
+            });
+            updateCheckoutPricing();
         }
-        
+
         // Upsell click handler
         $(document).on('click', '.gas-upsell-card', function() {
             var $card = $(this);

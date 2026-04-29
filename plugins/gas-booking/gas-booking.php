@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.2
+ * Version: 3.7.3
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.2');
+define('GAS_BOOKING_VERSION', '3.7.3');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7076,12 +7076,17 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 <span class="gas-nights-label">Loading...</span>
                                 <span class="gas-nights-total"></span>
                             </div>
-                            
+
+                            <!-- Mandatory Extras (auto-included, e.g. cleaning fee, tourist tax).
+                                 Each row is a peer of the Accommodation line — separate name + amount,
+                                 no "Your Extras" header. Populated by updateCheckoutPricing. -->
+                            <div class="gas-mandatory-extras" style="display:none;"></div>
+
                             <div class="gas-price-line gas-discount-line" style="display:none;">
                                 <span><?php echo esc_html($t_checkout['offer_discount'] ?? 'Offer Discount'); ?></span>
                                 <span class="gas-discount-amount"></span>
                             </div>
-                            
+
                             <!-- Selected Extras -->
                             <div class="gas-selected-extras" style="display:none;">
                                 <div class="gas-extras-header"><?php echo esc_html($t_checkout['your_extras'] ?? 'Your Extras'); ?></div>
