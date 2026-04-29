@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.1
+ * Version: 3.7.2
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.1');
+define('GAS_BOOKING_VERSION', '3.7.2');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4958,6 +4958,15 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $currency = get_option('gas_currency_symbol', '');
         $room_url_base = get_option('gas_room_url_base', '/room/');
         $view_button_text = get_option('gas_view_button_text', 'View & Book');
+
+        // LISTING CARD PRICE DISPLAY — disabled 2026-04-29 per Steve's request.
+        // Source: $room['price'] || $room['base_price'] from /api/public/rooms (server.js
+        // maps display_price → wholesale_price → 0 in the room payload). The figure was
+        // a static "from" rate computed without dates and was misleading on listings.
+        // Detail page price (gas-booking-card, line ~6803) goes through calculate-price
+        // and is canonical — that one is NOT touched.
+        // Flip to true to restore once the source rate is verified or replaced.
+        $show_listing_price = false;
         $columns_attr = $atts['columns'] ?? 'auto';
         if ($columns_attr === 'auto') {
             $grid_columns = min(count($rooms), 4);
@@ -5984,7 +5993,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <div class="gas-room-row-price">
                                         <?php if ($has_dates) : ?>
                                             <span class="gas-checking">⏳ <?php echo esc_html($checking_text); ?></span>
-                                        <?php elseif ($is_homepage && $price > 0) : ?>
+                                        <?php elseif ($show_listing_price && $is_homepage && $price > 0) : ?>
                                             <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($price, 0)); ?></span>
                                             <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
                                         <?php elseif (!$is_homepage) : ?>
@@ -6038,7 +6047,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 </div>
                                 <div class="gas-room-footer">
                                     <div class="gas-room-price">
-                                        <?php if ($price > 0) : ?>
+                                        <?php if ($show_listing_price && $price > 0) : ?>
                                             <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($price, 0)); ?></span>
                                             <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
                                         <?php endif; ?>
@@ -6139,7 +6148,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <div class="gas-room-price">
                                         <?php if ($has_dates) : ?>
                                             <span class="gas-checking">⏳ <?php echo esc_html($checking_text); ?></span>
-                                        <?php elseif ($is_homepage && $price > 0) : ?>
+                                        <?php elseif ($show_listing_price && $is_homepage && $price > 0) : ?>
                                             <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($price, 0)); ?></span>
                                             <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
                                         <?php elseif (!$is_homepage) : ?>
