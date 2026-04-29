@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.3
+ * Version: 3.7.4
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.3');
+define('GAS_BOOKING_VERSION', '3.7.4');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7554,16 +7554,50 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-summary-divider { height: 1px; background: #e2e8f0; margin: 24px 0; }
         
         .gas-price-breakdown h4 { font-size: 14px; font-weight: 600; color: #64748b; margin: 0 0 16px 0; text-transform: uppercase; letter-spacing: 0.5px; }
-        .gas-price-line { display: flex; justify-content: space-between; font-size: 16px; color: #475569; margin-bottom: 12px; }
+
+        /* Unified row layout for everything in PRICE DETAILS — Accommodation, mandatory
+           upsells, "Your Extras" optional items, "Taxes & Fees" items. All flex-rows with
+           right-anchored amount column and tabular-nums so decimals lock vertically. */
+        .gas-price-line,
+        .gas-extras-list .gas-extra-item,
+        .gas-taxes-list .gas-tax-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: 15px;
+            color: #475569;
+            margin-bottom: 10px;
+        }
+        .gas-price-line > span:last-child,
+        .gas-extras-list .gas-extra-item > span:last-child,
+        .gas-taxes-list .gas-tax-item > span:last-child,
+        .gas-summary-total > span:last-child {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            font-feature-settings: "tnum";
+        }
         .gas-discount-line span { color: #10b981; }
         .gas-voucher-line span { color: #10b981; }
-        
-        .gas-selected-extras { margin: 20px 0; padding: 16px; background: #f8fafc; border-radius: 10px; }
-        .gas-extras-header, .gas-taxes-header { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 10px; }
-        .gas-extras-list .gas-extra-item, .gas-taxes-list .gas-tax-item { display: flex; justify-content: space-between; font-size: 15px; color: #475569; margin-bottom: 8px; }
-        
-        .gas-taxes-section { margin: 20px 0; padding: 16px; background: #f8fafc; border-radius: 10px; }
-        
+
+        /* Sections kept for grouping but boxes removed — backgrounds + padding caused
+           a 16px right-edge offset vs the .gas-price-line rows. Subtle top-border
+           separator preserves the visual section break. */
+        .gas-selected-extras,
+        .gas-taxes-section {
+            margin: 16px 0;
+        }
+        .gas-extras-header,
+        .gas-taxes-header {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding-top: 12px;
+            margin-bottom: 10px;
+            border-top: 1px solid #e2e8f0;
+        }
+
         .gas-summary-total { display: flex; justify-content: space-between; align-items: center; }
         .gas-summary-total span:first-child { font-size: 18px; font-weight: 600; color: #1e293b; }
         .gas-grand-total { font-size: 28px; font-weight: 700; color: <?php echo esc_attr($button_color); ?>; }
