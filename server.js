@@ -45556,12 +45556,12 @@ app.get('/api/admin/taxes', async (req, res) => {
     let result;
     
     if (propertyId) {
-      // Filter by specific property - show taxes assigned to this property
+      // Filter by specific property - match either legacy property_id or multi-property array
       result = await pool.query(`
-        SELECT t.*, p.name as property_name 
+        SELECT t.*, p.name as property_name
         FROM taxes t
         LEFT JOIN properties p ON t.property_id = p.id
-        WHERE t.property_id = $1
+        WHERE t.property_id = $1 OR $1 = ANY(t.property_ids)
         ORDER BY t.name
       `, [propertyId]);
     } else if (accountId) {
@@ -45594,19 +45594,23 @@ app.post('/api/admin/taxes', async (req, res) => {
   try {
     await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS room_ids INTEGER[]').catch(() => {});
-    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_ids, active, account_id } = req.body;
+    await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS property_ids INTEGER[]').catch(() => {});
+    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, property_ids, room_ids, active, account_id } = req.body;
     // Support legacy room_id or new room_ids array
     const roomId = req.body.room_id || (room_ids && room_ids.length === 1 ? room_ids[0] : null);
     const roomIdsArr = room_ids && room_ids.length > 0 ? room_ids : null;
+    // Multi-property scoping; back-compat: write the first array element into legacy property_id
+    const propertyIdsArr = Array.isArray(property_ids) && property_ids.length > 0 ? property_ids : null;
+    const legacyPropertyId = property_id || (propertyIdsArr ? propertyIdsArr[0] : null);
     const name = mlStr(rawName);
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (rawName ? { en: rawName } : null);
     const nameJson = nameObj ? JSON.stringify(nameObj) : null;
 
     const result = await pool.query(`
-      INSERT INTO taxes (name, name_ml, country, amount_type, currency, amount, charge_per, max_nights, max_amount, min_age, star_tier, season_start, season_end, property_id, room_id, room_ids, active, user_id)
-      VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      INSERT INTO taxes (name, name_ml, country, amount_type, currency, amount, charge_per, max_nights, max_amount, min_age, star_tier, season_start, season_end, property_id, property_ids, room_id, room_ids, active, user_id)
+      VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *
-    `, [name, nameJson, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, property_id, roomId, roomIdsArr, active !== false, account_id]);
+    `, [name, nameJson, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, legacyPropertyId, propertyIdsArr, roomId, roomIdsArr, active !== false, account_id]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -45618,10 +45622,14 @@ app.put('/api/admin/taxes/:id', async (req, res) => {
   try {
     await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS room_ids INTEGER[]').catch(() => {});
-    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_ids, active } = req.body;
+    await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS property_ids INTEGER[]').catch(() => {});
+    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, property_ids, room_ids, active } = req.body;
     // Support legacy room_id or new room_ids array
     const roomId = req.body.room_id || (room_ids && room_ids.length === 1 ? room_ids[0] : null);
     const roomIdsArr = room_ids && room_ids.length > 0 ? room_ids : null;
+    // Multi-property scoping; back-compat: write the first array element into legacy property_id
+    const propertyIdsArr = Array.isArray(property_ids) && property_ids.length > 0 ? property_ids : null;
+    const legacyPropertyId = property_id || (propertyIdsArr ? propertyIdsArr[0] : null);
     const name = mlStr(rawName);
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (rawName ? { en: rawName } : null);
     const nameJson = nameObj ? JSON.stringify(nameObj) : null;
@@ -45642,13 +45650,14 @@ app.put('/api/admin/taxes/:id', async (req, res) => {
         season_start = $12,
         season_end = $13,
         property_id = $14,
-        room_id = $15,
-        room_ids = $16,
-        active = COALESCE($17, active),
+        property_ids = $15,
+        room_id = $16,
+        room_ids = $17,
+        active = COALESCE($18, active),
         updated_at = NOW()
-      WHERE id = $18
+      WHERE id = $19
       RETURNING *
-    `, [name, nameJson, country, amount_type, currency, amount, charge_per, max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, property_id, roomId, roomIdsArr, active, req.params.id]);
+    `, [name, nameJson, country, amount_type, currency, amount, charge_per, max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, legacyPropertyId, propertyIdsArr, roomId, roomIdsArr, active, req.params.id]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -62440,12 +62449,12 @@ app.get('/api/partner/:apiKey/property/:propertyId/taxes', async (req, res) => {
     const result = await pool.query(`
       SELECT id, name, country, amount_type, currency, amount,
              charge_per, max_nights, min_age, star_tier, season_start, season_end,
-             active, created_at
+             property_id, property_ids, active, created_at
       FROM taxes
-      WHERE property_id = $1
+      WHERE property_id = $1 OR $1 = ANY(property_ids)
       ORDER BY name
     `, [gasPropertyId]);
-    
+
     res.json({ success: true, property_id: gasPropertyId, taxes: result.rows });
     
   } catch (error) {
@@ -62467,8 +62476,8 @@ app.post('/api/partner/:apiKey/property/:propertyId/taxes', async (req, res) => 
     const { propertyId } = req.params;
     const { name, country, amount_type, currency, amount, charge_per,
             max_nights, min_age, star_tier, season_start, season_end,
-            external_id } = req.body;
-    
+            property_ids, external_id } = req.body;
+
     if (!name || amount === undefined) {
       return res.status(400).json({ success: false, error: 'name and amount are required' });
     }
@@ -62508,12 +62517,15 @@ app.post('/api/partner/:apiKey/property/:propertyId/taxes', async (req, res) => 
       }
     }
     
+    // Multi-property scoping; URL property anchors the legacy column, optional property_ids[] covers extra targets
+    const propertyIdsArr = Array.isArray(property_ids) && property_ids.length > 0 ? property_ids : null;
+
     const result = await pool.query(`
-      INSERT INTO taxes (name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, user_id, external_id, source, active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'partner', true)
+      INSERT INTO taxes (name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, property_ids, user_id, external_id, source, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'partner', true)
       RETURNING *
-    `, [name, country || null, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights || null, min_age || null, star_tier || null, season_start || null, season_end || null, gasPropertyId, accountId, external_id || null]);
-    
+    `, [name, country || null, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights || null, min_age || null, star_tier || null, season_start || null, season_end || null, gasPropertyId, propertyIdsArr, accountId, external_id || null]);
+
     res.json({ success: true, tax: result.rows[0] });
     
   } catch (error) {
@@ -62553,11 +62565,12 @@ app.put('/api/partner/:apiKey/taxes/:taxId', async (req, res) => {
     const values = [];
     let pi = 1;
     
-    const allowedFields = ['name', 'country', 'amount_type', 'currency', 'amount', 'charge_per', 'max_nights', 'min_age', 'star_tier', 'season_start', 'season_end', 'active'];
-    
+    const allowedFields = ['name', 'country', 'amount_type', 'currency', 'amount', 'charge_per', 'max_nights', 'min_age', 'star_tier', 'season_start', 'season_end', 'property_ids', 'active'];
+
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
         updateFields.push(`${field} = $${pi++}`);
+        // property_ids is INTEGER[]; pg accepts a JS array directly
         values.push(updates[field]);
       }
     }

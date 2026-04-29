@@ -2296,32 +2296,32 @@
                 "get": {
                     "tags": ["Taxes"],
                     "summary": "List Property Taxes",
-                    "description": "Get all taxes configured for a property.",
+                    "description": "Get all taxes configured for a property. Returns taxes whose legacy property_id matches OR whose property_ids array includes the given property.",
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
-                    "responses": { "200": { "description": "Taxes list", "content": { "application/json": { "example": { "success": true, "property_id": 5, "taxes": [{ "id": 1, "name": "Tourist Tax", "amount": "2.50", "amount_type": "fixed", "currency": "CHF", "charge_per": "per_person_per_night", "max_nights": 7, "active": true }] } } } } }
+                    "responses": { "200": { "description": "Taxes list", "content": { "application/json": { "example": { "success": true, "property_id": 5, "taxes": [{ "id": 1, "name": "Tourist Tax", "amount": "2.50", "amount_type": "fixed", "currency": "CHF", "charge_per": "per_person_per_night", "max_nights": 7, "property_id": 5, "property_ids": [5, 6], "active": true }] } } } } }
                 },
                 "post": {
                     "tags": ["Taxes"],
                     "summary": "Create Tax",
-                    "description": "Create a tourist/city tax for a property. Fields: name (required), amount (required), amount_type (fixed|percentage), currency, charge_per (per_person_per_night|per_night|per_booking|per_person), max_nights, min_age, star_tier, season_start, season_end.",
+                    "description": "Create a tourist/city tax. Fields: name (required), amount (required), amount_type (fixed|percentage), currency, charge_per (per_person_per_night|per_night|per_booking|per_person), max_nights, min_age, star_tier, season_start, season_end, property_ids (optional integer[] — applies the tax to multiple properties; the URL propertyId still anchors the legacy property_id column for back-compat).",
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
-                    "requestBody": { "required": true, "content": { "application/json": { "example": { "name": "Kurtaxe", "amount": 3.50, "amount_type": "fixed", "currency": "CHF", "charge_per": "per_person_per_night", "max_nights": 21, "min_age": 16 } } } },
-                    "responses": { "200": { "description": "Tax created", "content": { "application/json": { "example": { "success": true, "tax": { "id": 1, "name": "Kurtaxe", "amount": "3.50", "charge_per": "per_person_per_night" } } } } } }
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "name": "Kurtaxe", "amount": 3.50, "amount_type": "fixed", "currency": "CHF", "charge_per": "per_person_per_night", "max_nights": 21, "min_age": 16, "property_ids": [5, 6] } } } },
+                    "responses": { "200": { "description": "Tax created", "content": { "application/json": { "example": { "success": true, "tax": { "id": 1, "name": "Kurtaxe", "amount": "3.50", "charge_per": "per_person_per_night", "property_id": 5, "property_ids": [5, 6] } } } } } }
                 }
             },
             "/api/partner/_KEY_/taxes/{taxId}": {
                 "put": {
                     "tags": ["Taxes"],
                     "summary": "Update Tax",
-                    "description": "Update a tax by GAS ID or external_id.",
+                    "description": "Update a tax by GAS ID or external_id. Updatable fields: name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_ids (integer[]), active. Note: property_id is the legacy single-property column — prefer property_ids for multi-property scoping.",
                     "parameters": [
                         { "name": "taxId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS tax ID or external_id" }
                     ],
-                    "requestBody": { "required": true, "content": { "application/json": { "example": { "amount": 4.00, "season_start": "2026-06-01", "season_end": "2026-09-30" } } } },
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "amount": 4.00, "season_start": "2026-06-01", "season_end": "2026-09-30", "property_ids": [5, 6, 7] } } } },
                     "responses": { "200": { "description": "Tax updated" } }
                 },
                 "delete": {
