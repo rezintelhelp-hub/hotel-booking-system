@@ -45380,8 +45380,15 @@ app.get('/api/admin/upsells', async (req, res) => {
         ORDER BY u.name
       `, [propertyId]);
     } else if (accountId) {
+      // Account-scoped listing. Match either:
+      //   - legacy property_id resolves to a property owned by this account, OR
+      //   - any property_ids[] element is owned by this account.
+      // Globally-unscoped rows (property_id NULL AND property_ids NULL) are NOT
+      // returned here — upsells.user_id is unreliable (admin POST never set it,
+      // so historic rows all have user_id = 1). Until a reliable account-scope
+      // column lands, "applies to all" upsells must be expressed via property_ids.
       result = await pool.query(`
-        SELECT u.*, 
+        SELECT DISTINCT u.*,
                p.name as property_name,
                r.name as room_name,
                v.name as vendor_name
@@ -45389,7 +45396,11 @@ app.get('/api/admin/upsells', async (req, res) => {
         LEFT JOIN properties p ON u.property_id = p.id
         LEFT JOIN rooms r ON u.room_id = r.id
         LEFT JOIN vendors v ON u.vendor_id = v.id
-        WHERE p.account_id = $1 OR u.property_id IS NULL
+        WHERE p.account_id = $1
+           OR EXISTS (
+             SELECT 1 FROM properties p2
+             WHERE p2.id = ANY(u.property_ids) AND p2.account_id = $1
+           )
         ORDER BY u.name
       `, [accountId]);
     } else {
