@@ -88248,7 +88248,10 @@ app.listen(PORT, '0.0.0.0', async () => {
     console.log('✅ properties.booking_page_multiplier + round_prices_up columns ensured');
 
     await pool.query(`ALTER TABLE taxes ADD COLUMN IF NOT EXISTS room_ids INTEGER[]`);
-    console.log('✅ taxes.room_ids column ensured');
+    await pool.query(`ALTER TABLE taxes ADD COLUMN IF NOT EXISTS property_ids INTEGER[]`);
+    await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS property_ids INTEGER[]`);
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS property_ids INTEGER[]`);
+    console.log('✅ taxes/vouchers/upsells property_ids + room_ids columns ensured');
 
     await pool.query(`ALTER TABLE gas_sync_connections ADD COLUMN IF NOT EXISTS description_source VARCHAR(20) DEFAULT 'room_setup'`);
     console.log('✅ gas_sync_connections.description_source column ensured');
