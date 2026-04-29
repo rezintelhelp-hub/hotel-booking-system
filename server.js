@@ -44614,20 +44614,32 @@ app.get('/api/admin/vouchers', async (req, res) => {
     let result;
     
     if (propertyId) {
-      // Filter by specific property - check both property_id and property_ids array
+      // Defensive: the requested property MUST belong to the requesting account.
+      // Without this gate, an authenticated caller could enumerate other accounts'
+      // vouchers by guessing sequential property IDs.
+      if (!accountId) {
+        return res.json({ success: false, error: 'account_id required when filtering by property_id' });
+      }
       result = await pool.query(`
         SELECT v.*, vn.name as vendor_name FROM vouchers v
         LEFT JOIN vendors vn ON v.vendor_id = vn.id
-        WHERE v.property_id = $1 OR $1 = ANY(v.property_ids)
+        WHERE (v.property_id = $1 OR $1 = ANY(v.property_ids))
+          AND $1 IN (SELECT id FROM properties WHERE account_id = $2)
         ORDER BY v.created_at DESC
-      `, [propertyId]);
+      `, [propertyId, accountId]);
     } else if (accountId) {
-      // Filter by account - only vouchers linked to properties owned by this account
+      // Filter by account — match legacy property_id-anchored OR multi-property scope
+      // includes a property owned by this account. (Voucher admin POST does not yet
+      // set user_id, so a user_id arm would not be reliable; deferred.)
       result = await pool.query(`
-        SELECT v.*, vn.name as vendor_name FROM vouchers v
+        SELECT DISTINCT v.*, vn.name as vendor_name FROM vouchers v
         LEFT JOIN properties p ON v.property_id = p.id
         LEFT JOIN vendors vn ON v.vendor_id = vn.id
         WHERE p.account_id = $1
+           OR EXISTS (
+             SELECT 1 FROM properties p2
+             WHERE p2.id = ANY(v.property_ids) AND p2.account_id = $1
+           )
         ORDER BY v.created_at DESC
       `, [accountId]);
     } else {
@@ -45366,7 +45378,12 @@ app.get('/api/admin/upsells', async (req, res) => {
     let result;
     
     if (propertyId) {
-      // Filter by specific property - match either legacy property_id or multi-property array
+      // Defensive: the requested property MUST belong to the requesting account.
+      // Without this gate, an authenticated caller could enumerate other accounts'
+      // upsells by guessing sequential property IDs.
+      if (!accountId) {
+        return res.json({ success: false, error: 'account_id required when filtering by property_id' });
+      }
       result = await pool.query(`
         SELECT u.*,
                p.name as property_name,
@@ -45376,17 +45393,17 @@ app.get('/api/admin/upsells', async (req, res) => {
         LEFT JOIN properties p ON u.property_id = p.id
         LEFT JOIN rooms r ON u.room_id = r.id
         LEFT JOIN vendors v ON u.vendor_id = v.id
-        WHERE u.property_id = $1 OR $1 = ANY(u.property_ids)
+        WHERE (u.property_id = $1 OR $1 = ANY(u.property_ids))
+          AND $1 IN (SELECT id FROM properties WHERE account_id = $2)
         ORDER BY u.name
-      `, [propertyId]);
+      `, [propertyId, accountId]);
     } else if (accountId) {
-      // Account-scoped listing. Match either:
-      //   - legacy property_id resolves to a property owned by this account, OR
-      //   - any property_ids[] element is owned by this account.
-      // Globally-unscoped rows (property_id NULL AND property_ids NULL) are NOT
-      // returned here — upsells.user_id is unreliable (admin POST never set it,
-      // so historic rows all have user_id = 1). Until a reliable account-scope
-      // column lands, "applies to all" upsells must be expressed via property_ids.
+      // Account-scoped listing. Match any of:
+      //   - legacy property_id resolves to a property owned by this account,
+      //   - any property_ids[] element is owned by this account, OR
+      //   - account-wide row (no property scope) owned by this account via user_id.
+      // The user_id arm is narrowed to no-property-scope rows to avoid re-exposing
+      // historic user_id=1 rows whose ownership is property-anchored elsewhere.
       result = await pool.query(`
         SELECT DISTINCT u.*,
                p.name as property_name,
@@ -45400,6 +45417,11 @@ app.get('/api/admin/upsells', async (req, res) => {
            OR EXISTS (
              SELECT 1 FROM properties p2
              WHERE p2.id = ANY(u.property_ids) AND p2.account_id = $1
+           )
+           OR (
+             u.user_id = $1
+             AND u.property_id IS NULL
+             AND (u.property_ids IS NULL OR cardinality(u.property_ids) = 0)
            )
         ORDER BY u.name
       `, [accountId]);
@@ -45429,7 +45451,7 @@ app.post('/api/admin/upsells', async (req, res) => {
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS property_ids INTEGER[]').catch(() => {});
 
-    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category } = req.body;
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, account_id } = req.body;
     // property_ids: null|undefined|[] all mean "applies to all properties" — empty array is not "scoped to nothing"
     // CSV asymmetry: upsells.room_ids is TEXT (legacy CSV); upsells.property_ids is INTEGER[]
 
@@ -45447,11 +45469,13 @@ app.post('/api/admin/upsells', async (req, res) => {
     // room_ids boundary — caller may send array or CSV string; column is TEXT
     const roomIdsCsv = Array.isArray(room_ids) ? room_ids.join(',') : (room_ids || null);
 
+    // Persist user_id = account_id so account-wide upsells (no property scope) can be
+    // resolved back to their owning account in GET. Mirrors how the tax handler works.
     const result = await pool.query(`
-      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, min_nights, max_nights)
-      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, min_nights, max_nights, user_id)
+      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active !== false, mandatory || false, is_external || false, vendor_id || null, category || null, req.body.min_nights || null, req.body.max_nights || null]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active !== false, mandatory || false, is_external || false, vendor_id || null, category || null, req.body.min_nights || null, req.body.max_nights || null, account_id || null]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -45612,14 +45636,20 @@ app.get('/api/admin/taxes', async (req, res) => {
     let result;
     
     if (propertyId) {
-      // Filter by specific property - match either legacy property_id or multi-property array
+      // Defensive: the requested property MUST belong to the requesting account.
+      // Without this gate, an authenticated caller could enumerate other accounts'
+      // taxes by guessing sequential property IDs.
+      if (!accountId) {
+        return res.json({ success: false, error: 'account_id required when filtering by property_id' });
+      }
       result = await pool.query(`
         SELECT t.*, p.name as property_name
         FROM taxes t
         LEFT JOIN properties p ON t.property_id = p.id
-        WHERE t.property_id = $1 OR $1 = ANY(t.property_ids)
+        WHERE (t.property_id = $1 OR $1 = ANY(t.property_ids))
+          AND $1 IN (SELECT id FROM properties WHERE account_id = $2)
         ORDER BY t.name
-      `, [propertyId]);
+      `, [propertyId, accountId]);
     } else if (accountId) {
       // Show taxes that:
       // 1. Have user_id matching this account, OR
