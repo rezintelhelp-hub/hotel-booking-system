@@ -70388,12 +70388,8 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
       }
     }
     
-    // SECURITY + FEATURE: account-anchor the applies-to-all arm (closes leak),
-    // honour property_ids[] in the property filter (multi-property scoping),
-    // and use string_to_array for room_ids matching (the previous LIKE
-    // substring match falsely matched e.g. unit 23 against "123,234").
     const upsells = await pool.query(`
-      SELECT DISTINCT
+      SELECT 
         u.id,
         u.name,
         u.name_ml,
@@ -70412,28 +70408,13 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
       FROM upsells u
       LEFT JOIN properties p ON u.property_id = p.id
       WHERE u.active = true
+        AND (p.account_id = $1 OR u.property_id IS NULL)
+        AND ($2::integer IS NULL OR u.property_id = $2)
         AND (
-          p.account_id = $1
-          OR EXISTS (
-            SELECT 1 FROM properties p2
-            WHERE p2.id = ANY(u.property_ids) AND p2.account_id = $1
-          )
-          OR (
-            u.user_id = $1
-            AND u.property_id IS NULL
-            AND (u.property_ids IS NULL OR cardinality(u.property_ids) = 0)
-          )
-        )
-        AND (
-          $2::integer IS NULL
-          OR u.property_id = $2
-          OR $2 = ANY(u.property_ids)
-        )
-        AND (
-          $3::integer IS NULL
-          OR (u.room_id IS NULL AND (u.room_ids IS NULL OR u.room_ids = ''))
+          $3::integer IS NULL 
+          OR u.room_id IS NULL 
           OR u.room_id = $3
-          OR $3 = ANY(string_to_array(u.room_ids, ',')::int[])
+          OR u.room_ids LIKE '%' || $3::text || '%'
         )
       ORDER BY u.category NULLS LAST, u.name
     `, [clientId, propId || null, unit_id || null]);
