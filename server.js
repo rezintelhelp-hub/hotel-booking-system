@@ -44675,20 +44675,22 @@ app.post('/api/admin/vouchers', async (req, res) => {
       valid_from, valid_until, active,
       is_external, vendor_id
     } = req.body;
-    
+    // property_ids: null|undefined|[] all mean "applies to all properties" — empty array is not "scoped to nothing"
+
     // Handle name/description being sent as objects from frontend
     const nameObj = (typeof name === 'object' && name !== null) ? name : (name_ml || (name ? { en: name } : null));
     const descObj = (typeof description === 'object' && description !== null) ? description : (description_ml || (description ? { en: description } : null));
     const termsObj = (typeof terms === 'object' && terms !== null) ? terms : (terms_ml || (terms ? { en: terms } : null));
-    
+
     const nameJson = nameObj ? JSON.stringify(nameObj) : null;
     const descJson = descObj ? JSON.stringify(descObj) : null;
     const termsJson = termsObj ? JSON.stringify(termsObj) : null;
     const englishName = nameObj?.en || (typeof name === 'string' ? name : '') || '';
     const englishDesc = descObj?.en || (typeof description === 'string' ? description : '') || '';
-    
-    // Get property_id from body - try single property_id first, then first of property_ids array
-    const propId = property_id || (property_ids && property_ids.length > 0 ? property_ids[0] : null) || null;
+
+    // Multi-property scoping; back-compat: write the first array element into legacy property_id
+    const propertyIdsArr = Array.isArray(property_ids) && property_ids.length > 0 ? property_ids : null;
+    const propId = property_id || (propertyIdsArr ? propertyIdsArr[0] : null);
     
     const result = await pool.query(`
       INSERT INTO vouchers (
@@ -44704,7 +44706,7 @@ app.post('/api/admin/vouchers', async (req, res) => {
       code.toUpperCase(), englishName, englishDesc, nameJson, descJson, termsJson,
       discount_type || 'percentage', discount_value, applies_to || 'total',
       min_nights || 1, min_total || null, max_uses || null, single_use_per_guest || false,
-      propId, property_ids || null, room_ids || null,
+      propId, propertyIdsArr, room_ids || null,
       valid_from || null, valid_until || null, active !== false,
       is_external || false, vendor_id || null
     ]);
@@ -44731,40 +44733,45 @@ app.put('/api/admin/vouchers/:id', async (req, res) => {
       code, name, description,
       discount_type, discount_value, applies_to,
       min_nights, min_total, max_uses, single_use_per_guest,
-      property_ids, room_ids,
+      property_ids, room_ids, property_id,
       valid_from, valid_until, active,
       is_external, vendor_id
     } = req.body;
-    
+    // property_ids: null|undefined|[] all mean "applies to all properties" — empty array is not "scoped to nothing"
+
     // Handle name/description being sent as objects from frontend
     const nameObj = (typeof name === 'object' && name !== null) ? name : (req.body.name_ml || (name ? { en: name } : null));
     const descObj = (typeof description === 'object' && description !== null) ? description : (req.body.description_ml || (description ? { en: description } : null));
     const termsObj = req.body.terms_ml || null;
-    
+
     const nameJson = nameObj ? JSON.stringify(nameObj) : null;
     const descJson = descObj ? JSON.stringify(descObj) : null;
     const termsJson = termsObj ? JSON.stringify(termsObj) : null;
     const englishName = nameObj?.en || (typeof name === 'string' ? name : '') || '';
     const englishDesc = descObj?.en || (typeof description === 'string' ? description : '') || '';
-    
+
+    // Multi-property scoping; back-compat: write the first array element into legacy property_id
+    const propertyIdsArr = Array.isArray(property_ids) && property_ids.length > 0 ? property_ids : null;
+    const propId = property_id || (propertyIdsArr ? propertyIdsArr[0] : null);
+
     const result = await pool.query(`
       UPDATE vouchers SET
         code = $1, name = $2, description = $3,
         name_ml = $4::jsonb, description_ml = $5::jsonb, terms_ml = $6::jsonb,
         discount_type = $7, discount_value = $8, applies_to = $9,
         min_nights = $10, min_total = $11, max_uses = $12, single_use_per_guest = $13,
-        property_ids = $14, room_ids = $15,
-        valid_from = $16, valid_until = $17, active = $18,
-        is_external = $19, vendor_id = $20,
+        property_id = $14, property_ids = $15, room_ids = $16,
+        valid_from = $17, valid_until = $18, active = $19,
+        is_external = $20, vendor_id = $21,
         updated_at = NOW()
-      WHERE id = $21
+      WHERE id = $22
       RETURNING *
     `, [
       code.toUpperCase(), englishName, englishDesc,
       nameJson, descJson, termsJson,
       discount_type, discount_value, applies_to,
       min_nights, min_total || null, max_uses || null, single_use_per_guest,
-      property_ids || null, room_ids || null,
+      propId, propertyIdsArr, room_ids || null,
       valid_from || null, valid_until || null, active,
       is_external || false, vendor_id || null,
       req.params.id
