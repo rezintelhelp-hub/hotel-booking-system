@@ -27,6 +27,40 @@ const path = require('path');
 const fs = require('fs');
 const { Pool } = require('pg');
 
+// =====================================================
+// VPS SSH key bootstrap — needed for custom-domain auto-provisioning.
+// Railway containers don't ship with ~/.ssh, so we materialise the
+// key from VPS_SSH_KEY env var to a tmp file at startup with mode 600.
+// Set VPS_SSH_KEY in Railway env (paste the OpenSSH private key, with
+// either real newlines or literal \n — both are handled below).
+// =====================================================
+const VPS_SSH_KEY_PATH = '/tmp/vps_id_ed25519';
+let VPS_SSH_AVAILABLE = false;
+try {
+  if (process.env.VPS_SSH_KEY && process.env.VPS_SSH_KEY.trim()) {
+    let key = process.env.VPS_SSH_KEY;
+    // Tolerate either real newlines or literal "\n" sequences pasted by Railway UI
+    if (!/\n/.test(key)) key = key.replace(/\\n/g, '\n');
+    if (!/\n$/.test(key)) key += '\n';
+    fs.writeFileSync(VPS_SSH_KEY_PATH, key, { mode: 0o600 });
+    VPS_SSH_AVAILABLE = true;
+    console.log('✅ VPS SSH key materialised at', VPS_SSH_KEY_PATH);
+  } else if (fs.existsSync('/root/.ssh/id_ed25519')) {
+    // Local dev fallback: existing key at conventional path
+    VPS_SSH_AVAILABLE = true;
+    console.log('ℹ️  Using local /root/.ssh/id_ed25519 for VPS SSH (dev fallback)');
+  } else {
+    console.warn('⚠️  VPS_SSH_KEY env var not set AND no /root/.ssh/id_ed25519 — custom-domain auto-provisioning will fail.');
+  }
+} catch (e) {
+  console.error('❌ Failed to materialise VPS SSH key:', e.message);
+}
+
+function getVpsSshKeyPath() {
+  if (process.env.VPS_SSH_KEY) return VPS_SSH_KEY_PATH;
+  return '/root/.ssh/id_ed25519';
+}
+
 // Image processing dependencies
 const multer = require('multer');
 const sharp = require('sharp');
@@ -28678,12 +28712,21 @@ app.put('/api/admin/deployed-sites/:id', async (req, res) => {
     // Auto-provision custom domain: create Nginx config + SSL on VPS
     if (custom_domain && updatedSite.blog_id) {
       console.log(`[DOMAIN] Auto-provisioning custom domain: ${custom_domain} for site ${id}, blog ${updatedSite.blog_id}`);
+      if (!VPS_SSH_AVAILABLE) {
+        const msg = `[DOMAIN] ❌ Cannot auto-provision ${custom_domain} — no VPS SSH key available. Set VPS_SSH_KEY env var on Railway (paste OpenSSH private key contents).`;
+        console.error(msg);
+        if (process.env.SLACK_WEBHOOK_URL) {
+          axios.post(process.env.SLACK_WEBHOOK_URL, { text: `❌ *Custom domain FAILED — VPS_SSH_KEY env var not set on Railway* (${custom_domain})` }).catch(() => {});
+        }
+      } else {
       // Queue the domain setup (async, don't block the response)
       setImmediate(async () => {
+        const stage = { current: 'init' };
         try {
           const { execSync } = require('child_process');
-          const vpsKey = '/root/.ssh/id_ed25519';
+          const vpsKey = getVpsSshKeyPath();
           const vpsHost = 'root@72.61.207.109';
+          const sshOpts = `-i ${vpsKey} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR`;
           const domain = custom_domain.replace(/[^a-z0-9.-]/gi, '');
           const wpPath = '/var/www/wordpress';
 
@@ -28698,18 +28741,24 @@ app.put('/api/admin/deployed-sites/:id', async (req, res) => {
     location ~ \\.php$ { include snippets/fastcgi-php.conf; fastcgi_pass unix:/var/run/php/php8.3-fpm.sock; }
     location ~ /\\.ht { deny all; }
 }`;
-          execSync(`ssh -i ${vpsKey} -o StrictHostKeyChecking=no ${vpsHost} "echo '${nginxConf.replace(/'/g, "'\\''")}' > /etc/nginx/sites-available/${domain} && ln -sf /etc/nginx/sites-available/${domain} /etc/nginx/sites-enabled/${domain} && nginx -t && systemctl reload nginx"`, { timeout: 30000 });
+          stage.current = 'nginx-vhost';
+          execSync(`ssh ${sshOpts} ${vpsHost} "echo '${nginxConf.replace(/'/g, "'\\''")}' > /etc/nginx/sites-available/${domain} && ln -sf /etc/nginx/sites-available/${domain} /etc/nginx/sites-enabled/${domain} && nginx -t && systemctl reload nginx"`, { timeout: 30000 });
           console.log(`[DOMAIN] Nginx configured for ${domain}`);
 
           // Get SSL cert
-          execSync(`ssh -i ${vpsKey} -o StrictHostKeyChecking=no ${vpsHost} "certbot --nginx -d ${domain} -d www.${domain} --non-interactive --agree-tos --email admin@gas.travel"`, { timeout: 120000 });
+          stage.current = 'certbot';
+          execSync(`ssh ${sshOpts} ${vpsHost} "certbot --nginx -d ${domain} -d www.${domain} --non-interactive --agree-tos --email admin@gas.travel --redirect"`, { timeout: 120000 });
           console.log(`[DOMAIN] SSL cert issued for ${domain}`);
 
-          // Map WP domain
-          execSync(`ssh -i ${vpsKey} -o StrictHostKeyChecking=no ${vpsHost} "cd ${wpPath} && wp option update siteurl 'https://${domain}' --url=https://${domain} --allow-root && wp option update home 'https://${domain}' --url=https://${domain} --allow-root"`, { timeout: 30000 });
+          // Map WP domain (multisite-aware: also update wp_blogs row for the blog_id)
+          stage.current = 'wp-blogs';
+          execSync(`ssh ${sshOpts} ${vpsHost} "cd ${wpPath} && wp db query \\"UPDATE wp_blogs SET domain='${domain}', path='/' WHERE blog_id=${updatedSite.blog_id}\\" --allow-root"`, { timeout: 15000 });
+          stage.current = 'wp-options';
+          execSync(`ssh ${sshOpts} ${vpsHost} "cd ${wpPath} && wp option update siteurl 'https://${domain}' --url=https://${domain} --allow-root && wp option update home 'https://${domain}' --url=https://${domain} --allow-root"`, { timeout: 30000 });
           console.log(`[DOMAIN] WP domain mapped: ${domain}`);
 
           // Update site_url in deployed_sites
+          stage.current = 'db-site_url';
           await pool.query("UPDATE deployed_sites SET site_url = $1 WHERE id = $2", ['https://' + domain + '/', id]);
           console.log(`[DOMAIN] ✅ Custom domain ${domain} fully provisioned`);
 
@@ -28720,14 +28769,17 @@ app.put('/api/admin/deployed-sites/:id', async (req, res) => {
             }).catch(() => {});
           }
         } catch (domainErr) {
-          console.error(`[DOMAIN] Auto-provision failed for ${custom_domain}:`, domainErr.message);
+          // Console gets the full message even when Slack is unconfigured.
+          console.error(`[DOMAIN] ❌ Auto-provision FAILED for ${custom_domain} at stage [${stage.current}]:`, domainErr.message);
+          if (domainErr.stderr) console.error('[DOMAIN] stderr:', domainErr.stderr.toString().slice(0, 1000));
           if (process.env.SLACK_WEBHOOK_URL) {
             axios.post(process.env.SLACK_WEBHOOK_URL, {
-              text: `❌ *Custom domain FAILED* — ${custom_domain} (site "${updatedSite.site_name}")\nError: ${domainErr.message?.substring(0, 200)}`
+              text: `❌ *Custom domain FAILED at [${stage.current}]* — ${custom_domain} (site "${updatedSite.site_name}")\nError: ${domainErr.message?.substring(0, 200)}`
             }).catch(() => {});
           }
         }
       });
+      }
     }
 
     res.json({ success: true, site: updatedSite });
@@ -30279,6 +30331,34 @@ app.post('/api/deployed-sites/remove-domain', async (req, res) => {
 });
 
 // Manually set custom domain (for already configured sites)
+// Diagnostic: probes whether the auto-provision SSH path actually works.
+// Hit this BEFORE pushing a custom domain — gives a quick yes/no on
+// whether VPS_SSH_KEY is set up correctly. Read-only on the VPS.
+app.get('/api/admin/test-vps-ssh', async (req, res) => {
+  if (!VPS_SSH_AVAILABLE) {
+    return res.json({
+      success: false,
+      ready: false,
+      reason: 'VPS_SSH_KEY env var not set on Railway and no /root/.ssh/id_ed25519 fallback. Custom-domain auto-provisioning will fail.',
+      fix: 'Add VPS_SSH_KEY env var on Railway with the OpenSSH private key contents (the same key Steve uses locally to SSH to the VPS).'
+    });
+  }
+  try {
+    const { execSync } = require('child_process');
+    const sshOpts = `-i ${getVpsSshKeyPath()} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10`;
+    const out = execSync(`ssh ${sshOpts} root@72.61.207.109 "hostname && nginx -v 2>&1 && certbot --version 2>&1 && wp --version --allow-root --path=/var/www/wordpress 2>&1"`, { timeout: 15000 }).toString();
+    res.json({ success: true, ready: true, vps_response: out.trim().split('\n') });
+  } catch (e) {
+    res.json({
+      success: false,
+      ready: false,
+      reason: 'SSH attempt failed',
+      error: e.message,
+      stderr: e.stderr ? e.stderr.toString().slice(0, 500) : null
+    });
+  }
+});
+
 app.post('/api/deployed-sites/set-custom-domain', async (req, res) => {
   try {
     const { site_id, domain } = req.body;
