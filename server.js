@@ -45450,6 +45450,62 @@ app.get('/api/admin/upsells', async (req, res) => {
   }
 });
 
+// Coverage view: one row per room in the account, with all matching upsells.
+// Mirrors the same property + room OR-of-matches the post-hardening pricing engine
+// uses, so this is faithful to "what would actually apply at booking time".
+// Returns inactive upsells too — Steve audits including disabled records.
+app.get('/api/admin/upsells/by-room', async (req, res) => {
+  try {
+    const accountId = parseInt(req.query.account_id, 10);
+    if (!accountId || Number.isNaN(accountId)) {
+      return res.status(400).json({ success: false, error: 'account_id required' });
+    }
+    const result = await pool.query(`
+      WITH account_rooms AS (
+        SELECT bu.id AS room_id, bu.name AS room_name, bu.display_name AS room_display,
+               p.id AS property_id, p.name AS property_name
+        FROM bookable_units bu
+        JOIN properties p ON p.id = bu.property_id
+        WHERE p.account_id = $1
+      )
+      SELECT
+        ar.room_id, ar.room_name, ar.room_display,
+        ar.property_id, ar.property_name,
+        COALESCE(json_agg(
+          json_build_object(
+            'id', u.id,
+            'name', u.name,
+            'name_ml', u.name_ml,
+            'price', u.price,
+            'charge_type', u.charge_type,
+            'category', u.category,
+            'active', u.active,
+            'mandatory', COALESCE(u.mandatory, false)
+          ) ORDER BY u.mandatory DESC NULLS LAST, u.name
+        ) FILTER (WHERE u.id IS NOT NULL), '[]'::json) AS upsells
+      FROM account_rooms ar
+      LEFT JOIN upsells u ON
+        (
+          u.property_id = ar.property_id
+          OR ar.property_id = ANY(u.property_ids)
+          OR (u.property_id IS NULL AND u.property_ids IS NULL AND u.user_id = $1)
+        )
+        AND
+        (
+          (u.room_id IS NULL AND (u.room_ids IS NULL OR u.room_ids = ''))
+          OR u.room_id = ar.room_id
+          OR ar.room_id = ANY(string_to_array(u.room_ids, ',')::int[])
+        )
+      GROUP BY ar.room_id, ar.room_name, ar.room_display, ar.property_id, ar.property_name
+      ORDER BY ar.property_name, ar.room_name
+    `, [accountId]);
+    res.json({ success: true, rooms: result.rows });
+  } catch (error) {
+    console.error('upsells/by-room error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/admin/upsells', async (req, res) => {
   try {
     // Ensure multilingual columns exist
