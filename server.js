@@ -98,6 +98,25 @@ function mlStr(value) {
   return String(value);
 }
 
+// Helper: check whether a voucher row matches a given property/room scope.
+// Mirrors the SQL pattern used in pricing queries:
+//   property_id IS NULL AND property_ids IS NULL  → applies to all properties
+//   property_id matches OR property_ids includes  → matches
+// Same shape for rooms. Both vouchers.property_ids and vouchers.room_ids are INTEGER[].
+function voucherMatchesScope(voucher, propertyId, roomId) {
+  const vPropIds = Array.isArray(voucher.property_ids) ? voucher.property_ids : [];
+  const vRoomIds = Array.isArray(voucher.room_ids) ? voucher.room_ids : [];
+  const propScopeEmpty = voucher.property_id == null && vPropIds.length === 0;
+  const roomScopeEmpty = voucher.room_id == null && vRoomIds.length === 0;
+  const propMatches = !propertyId || propScopeEmpty
+    || voucher.property_id === propertyId
+    || vPropIds.includes(propertyId);
+  const roomMatches = !roomId || roomScopeEmpty
+    || voucher.room_id === roomId
+    || vRoomIds.includes(roomId);
+  return propMatches && roomMatches;
+}
+
 // Initialize Google Auth from service account
 function initGoogleAuth() {
   try {
@@ -46609,12 +46628,10 @@ app.post('/api/vouchers/validate', async (req, res) => {
       return res.json({ success: false, error: `Minimum total of $${voucher.min_total} required` });
     }
     
-    // Check property/room restrictions
-    if (voucher.property_ids && property_id && !voucher.property_ids.includes(property_id)) {
-      return res.json({ success: false, error: 'Voucher not valid for this property' });
-    }
-    if (voucher.room_ids && room_id && !voucher.room_ids.includes(room_id)) {
-      return res.json({ success: false, error: 'Voucher not valid for this room' });
+    // Property/room restrictions — applies-to-all when no scope set; matches either
+    // the legacy single column or the array column.
+    if (!voucherMatchesScope(voucher, property_id, room_id)) {
+      return res.json({ success: false, error: 'Voucher not valid for this property or room' });
     }
     
     // Check single use per guest
@@ -65865,7 +65882,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
     
     // Get unit with occupancy settings
     const unit = await pool.query(`
-      SELECT bu.base_price, bu.max_guests, bu.name,
+      SELECT bu.base_price, bu.max_guests, bu.name, bu.property_id,
              bu.pricing_mode, bu.base_occupancy,
              bu.extra_adult_type, bu.extra_adult_charge,
              bu.single_discount_type, bu.single_discount_value,
@@ -66171,9 +66188,13 @@ app.post('/api/public/calculate-price', async (req, res) => {
           AND (valid_until IS NULL OR valid_until >= $5)
           AND (max_uses IS NULL OR uses_count < max_uses)
       `, [voucher_code.toUpperCase(), unit_id, nights, check_in, check_out]);
-      
+
       if (voucher.rows[0]) {
         const v = voucher.rows[0];
+        // property/room scope — applies-to-all when no scope is set on the voucher
+        if (!voucherMatchesScope(v, roomData.property_id, unit_id)) {
+          return res.json({ success: false, error: 'Voucher not valid for this property or room' });
+        }
         if (v.discount_type === 'percentage') {
           voucherDiscount = accommodationTotal * (v.discount_value / 100);
         } else {
@@ -66228,31 +66249,26 @@ app.post('/api/public/calculate-price', async (req, res) => {
     let taxTotal = 0;
     const taxBreakdown = [];
     
-    // Get taxes for this specific property
+    // Get taxes scoped to this property + room. Match either the legacy single
+    // column or the multi-property/multi-room arrays; null+null means applies-to-all.
     let taxes = { rows: [] };
     try {
       taxes = await pool.query(`
         SELECT t.* FROM taxes t
         WHERE t.active = true
-          AND t.property_id = (SELECT property_id FROM bookable_units WHERE id = $1)
+          AND (
+            (t.property_id IS NULL AND t.property_ids IS NULL)
+            OR t.property_id = $2
+            OR $2 = ANY(t.property_ids)
+          )
           AND (
             (t.room_id IS NULL AND t.room_ids IS NULL)
             OR t.room_id = $1
             OR $1 = ANY(t.room_ids)
           )
-      `, [unit_id]);
+      `, [unit_id, roomData.property_id]);
     } catch (taxQueryError) {
-      console.log('Tax query fallback - room_ids column may not exist yet, retrying without it');
-      try {
-        taxes = await pool.query(`
-          SELECT t.* FROM taxes t
-          WHERE t.active = true
-            AND t.property_id = (SELECT property_id FROM bookable_units WHERE id = $1)
-            AND (t.room_id IS NULL OR t.room_id = $1)
-        `, [unit_id]);
-      } catch (e) {
-        console.log('Tax fallback also failed:', e.message);
-      }
+      console.log('Tax query failed:', taxQueryError.message);
     }
     
     // Get fees marked as tax from fees table
@@ -67327,7 +67343,17 @@ app.post('/api/public/validate-voucher', async (req, res) => {
       if (v.min_nights && nights < v.min_nights) {
         return res.json({ success: true, valid: false, error: `Minimum ${v.min_nights} nights required` });
       }
-      
+
+      // Property/room scope check. Derive property_id from unit_id when supplied.
+      let propertyId = null;
+      if (unit_id) {
+        const propRes = await pool.query('SELECT property_id FROM bookable_units WHERE id = $1', [unit_id]);
+        propertyId = propRes.rows[0]?.property_id || null;
+      }
+      if (!voucherMatchesScope(v, propertyId, unit_id || null)) {
+        return res.json({ success: true, valid: false, error: 'Voucher not valid for this property or room' });
+      }
+
       // Resolve multilingual name
       const lang = req.body.lang || 'en';
       const resolvedName = (v.name_ml && (v.name_ml[lang] || v.name_ml.en)) || v.name;
@@ -67621,7 +67647,15 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
   // Add cleaning fee from unit — suppress if a cleaning upsell exists for this property
   if (unit.cleaning_fee && parseFloat(unit.cleaning_fee) > 0) {
     const cleaningUpsellExists = await pool.query(
-      `SELECT id FROM upsells WHERE active = true AND property_id = $1 AND (LOWER(name) LIKE '%cleaning%' OR category = 'cleaning') LIMIT 1`,
+      `SELECT id FROM upsells
+       WHERE active = true
+         AND (LOWER(name) LIKE '%cleaning%' OR category = 'cleaning')
+         AND (
+           (property_id IS NULL AND property_ids IS NULL)
+           OR property_id = $1
+           OR $1 = ANY(property_ids)
+         )
+       LIMIT 1`,
       [unit.property_id]
     );
     if (cleaningUpsellExists.rows.length === 0) {
@@ -67660,12 +67694,22 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
     }
   }
   
-  // Get taxes from GAS taxes table - property-level (room_id IS NULL) or this specific room
+  // Get taxes scoped to this property + room. Match either the legacy single
+  // column or the multi-property/multi-room arrays; null+null means applies-to-all.
   const taxesResult = await pool.query(`
     SELECT name, name_ml, amount_type, amount, charge_per, max_nights
     FROM taxes
     WHERE active = true
-      AND ((property_id = $1 AND room_id IS NULL) OR room_id = $2)
+      AND (
+        (property_id IS NULL AND property_ids IS NULL)
+        OR property_id = $1
+        OR $1 = ANY(property_ids)
+      )
+      AND (
+        (room_id IS NULL AND room_ids IS NULL)
+        OR room_id = $2
+        OR $2 = ANY(room_ids)
+      )
   `, [unit.property_id, unit.id]);
   
   for (const tax of taxesResult.rows) {
@@ -67716,13 +67760,25 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
   try {
     const { unitId } = req.params;
     
+    // Property/room scope. upsells.property_ids is INTEGER[]; upsells.room_ids is
+    // legacy CSV TEXT — parse via string_to_array to match. null+null = applies-to-all.
     const upsells = await pool.query(`
-      SELECT id, name, description, category, price, charge_type as price_type, COALESCE(mandatory, false) as mandatory
-      FROM upsells
-      WHERE active = true
-        AND property_id = (SELECT property_id FROM bookable_units WHERE id = $1)
-        AND (room_id IS NULL OR room_id = $1)
-      ORDER BY mandatory DESC, category, name
+      WITH unit AS (SELECT property_id FROM bookable_units WHERE id = $1)
+      SELECT u.id, u.name, u.description, u.category, u.price,
+             u.charge_type as price_type, COALESCE(u.mandatory, false) as mandatory
+      FROM upsells u, unit
+      WHERE u.active = true
+        AND (
+          (u.property_id IS NULL AND u.property_ids IS NULL)
+          OR u.property_id = unit.property_id
+          OR unit.property_id = ANY(u.property_ids)
+        )
+        AND (
+          (u.room_id IS NULL AND (u.room_ids IS NULL OR u.room_ids = ''))
+          OR u.room_id = $1
+          OR $1 = ANY(string_to_array(u.room_ids, ',')::int[])
+        )
+      ORDER BY u.mandatory DESC, u.category, u.name
     `, [unitId]);
     
     res.json({ success: true, upsells: upsells.rows });
