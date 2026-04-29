@@ -100,13 +100,19 @@ function mlStr(value) {
 
 // Helper: check whether a voucher row matches a given property/room scope.
 // Mirrors the SQL pattern used in pricing queries:
-//   property_id IS NULL AND property_ids IS NULL  → applies to all properties
-//   property_id matches OR property_ids includes  → matches
-// Same shape for rooms. Both vouchers.property_ids and vouchers.room_ids are INTEGER[].
-function voucherMatchesScope(voucher, propertyId, roomId) {
+//   property_id IS NULL AND property_ids IS NULL → applies to all properties,
+//     BUT only honoured when voucher.user_id matches the booked property's account
+//     (otherwise globally-unscoped vouchers leak across accounts).
+//   property_id matches OR property_ids includes  → matches.
+// Same shape for rooms; room scope inherits the property-scope account check.
+// propertyAccountId MUST be passed by the caller. If omitted/null, the
+// applies-to-all arm is rejected — strictest possible default.
+function voucherMatchesScope(voucher, propertyId, roomId, propertyAccountId) {
   const vPropIds = Array.isArray(voucher.property_ids) ? voucher.property_ids : [];
   const vRoomIds = Array.isArray(voucher.room_ids) ? voucher.room_ids : [];
-  const propScopeEmpty = voucher.property_id == null && vPropIds.length === 0;
+  const propScopeEmpty = voucher.property_id == null && vPropIds.length === 0
+    && propertyAccountId != null
+    && voucher.user_id === propertyAccountId;
   const roomScopeEmpty = voucher.room_id == null && vRoomIds.length === 0;
   const propMatches = !propertyId || propScopeEmpty
     || voucher.property_id === propertyId
@@ -46669,9 +46675,15 @@ app.post('/api/vouchers/validate', async (req, res) => {
       return res.json({ success: false, error: `Minimum total of $${voucher.min_total} required` });
     }
     
-    // Property/room restrictions — applies-to-all when no scope set; matches either
-    // the legacy single column or the array column.
-    if (!voucherMatchesScope(voucher, property_id, room_id)) {
+    // Property/room restrictions — applies-to-all only honoured when voucher is
+    // owned by the booked property's account (defence against globally-unscoped
+    // vouchers leaking across accounts).
+    let propertyAccountId = null;
+    if (property_id) {
+      const propRes = await pool.query('SELECT account_id FROM properties WHERE id = $1', [property_id]);
+      propertyAccountId = propRes.rows[0]?.account_id || null;
+    }
+    if (!voucherMatchesScope(voucher, property_id, room_id, propertyAccountId)) {
       return res.json({ success: false, error: 'Voucher not valid for this property or room' });
     }
     
@@ -65929,7 +65941,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
              bu.single_discount_type, bu.single_discount_value,
              bu.child_charge_type, bu.child_charge,
              bu.children_allowed,
-             p.currency, p.child_max_age, p.round_prices_up
+             p.currency, p.child_max_age, p.round_prices_up, p.account_id
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -66233,7 +66245,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       if (voucher.rows[0]) {
         const v = voucher.rows[0];
         // property/room scope — applies-to-all when no scope is set on the voucher
-        if (!voucherMatchesScope(v, roomData.property_id, unit_id)) {
+        if (!voucherMatchesScope(v, roomData.property_id, unit_id, roomData.account_id)) {
           return res.json({ success: false, error: 'Voucher not valid for this property or room' });
         }
         if (v.discount_type === 'percentage') {
@@ -66298,7 +66310,9 @@ app.post('/api/public/calculate-price', async (req, res) => {
         SELECT t.* FROM taxes t
         WHERE t.active = true
           AND (
-            (t.property_id IS NULL AND t.property_ids IS NULL)
+            -- Applies-to-all only when the tax is owned by the booked property's account
+            (t.property_id IS NULL AND t.property_ids IS NULL
+             AND t.user_id = (SELECT account_id FROM properties WHERE id = $2))
             OR t.property_id = $2
             OR $2 = ANY(t.property_ids)
           )
@@ -67385,13 +67399,18 @@ app.post('/api/public/validate-voucher', async (req, res) => {
         return res.json({ success: true, valid: false, error: `Minimum ${v.min_nights} nights required` });
       }
 
-      // Property/room scope check. Derive property_id from unit_id when supplied.
+      // Property/room scope check. Derive property_id + property's account_id from unit_id.
       let propertyId = null;
+      let propertyAccountId = null;
       if (unit_id) {
-        const propRes = await pool.query('SELECT property_id FROM bookable_units WHERE id = $1', [unit_id]);
+        const propRes = await pool.query(
+          'SELECT bu.property_id, p.account_id FROM bookable_units bu JOIN properties p ON p.id = bu.property_id WHERE bu.id = $1',
+          [unit_id]
+        );
         propertyId = propRes.rows[0]?.property_id || null;
+        propertyAccountId = propRes.rows[0]?.account_id || null;
       }
-      if (!voucherMatchesScope(v, propertyId, unit_id || null)) {
+      if (!voucherMatchesScope(v, propertyId, unit_id || null, propertyAccountId)) {
         return res.json({ success: true, valid: false, error: 'Voucher not valid for this property or room' });
       }
 
@@ -67692,7 +67711,9 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
        WHERE active = true
          AND (LOWER(name) LIKE '%cleaning%' OR category = 'cleaning')
          AND (
-           (property_id IS NULL AND property_ids IS NULL)
+           -- Applies-to-all only when owned by the booked property's account
+           (property_id IS NULL AND property_ids IS NULL
+            AND user_id = (SELECT account_id FROM properties WHERE id = $1))
            OR property_id = $1
            OR $1 = ANY(property_ids)
          )
@@ -67735,14 +67756,15 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
     }
   }
   
-  // Get taxes scoped to this property + room. Match either the legacy single
-  // column or the multi-property/multi-room arrays; null+null means applies-to-all.
+  // Get taxes scoped to this property + room. Applies-to-all (null+null) is
+  // only honoured when the tax is owned by the booked property's account.
   const taxesResult = await pool.query(`
     SELECT name, name_ml, amount_type, amount, charge_per, max_nights
     FROM taxes
     WHERE active = true
       AND (
-        (property_id IS NULL AND property_ids IS NULL)
+        (property_id IS NULL AND property_ids IS NULL
+         AND user_id = (SELECT account_id FROM properties WHERE id = $1))
         OR property_id = $1
         OR $1 = ANY(property_ids)
       )
@@ -67802,15 +67824,21 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
     const { unitId } = req.params;
     
     // Property/room scope. upsells.property_ids is INTEGER[]; upsells.room_ids is
-    // legacy CSV TEXT — parse via string_to_array to match. null+null = applies-to-all.
+    // legacy CSV TEXT — parse via string_to_array to match. Applies-to-all is only
+    // honoured when the upsell is owned by the booked property's account.
     const upsells = await pool.query(`
-      WITH unit AS (SELECT property_id FROM bookable_units WHERE id = $1)
+      WITH unit AS (
+        SELECT bu.property_id, p.account_id
+        FROM bookable_units bu
+        JOIN properties p ON p.id = bu.property_id
+        WHERE bu.id = $1
+      )
       SELECT u.id, u.name, u.description, u.category, u.price,
              u.charge_type as price_type, COALESCE(u.mandatory, false) as mandatory
       FROM upsells u, unit
       WHERE u.active = true
         AND (
-          (u.property_id IS NULL AND u.property_ids IS NULL)
+          (u.property_id IS NULL AND u.property_ids IS NULL AND u.user_id = unit.account_id)
           OR u.property_id = unit.property_id
           OR unit.property_id = ANY(u.property_ids)
         )
