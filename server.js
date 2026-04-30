@@ -78413,39 +78413,16 @@ async function runBookingStatusSync() {
                 }
               }
             }
-          } else {
-            // Status blacklist — DO NOT block dates for inquiries or cancellations.
-            // Beds24 returns these via /v2/bookings alongside confirmed records, and
-            // the chat-widget/Hostvana inquiry path creates them with default arrival
-            // dates ('today' + 1 night) so they were silently blocking today's
-            // availability across every Hostvana-connected account. Expand this list
-            // if the [TEMP] log above surfaces other phantom statuses.
-            const nonBlockingStatuses = ['inquiry', 'cancelled', 'cancel'];
-            if (nonBlockingStatuses.includes(booking.status)) continue;
-
-            // Check if this is a new booking we don't have
-            const existing = await pool.query('SELECT id FROM bookings WHERE beds24_booking_id = $1', [beds24Id]);
-            if (existing.rows.length === 0 && booking.roomId) {
-              // New booking made directly in Beds24 — block the dates
-              const roomResult = await pool.query('SELECT id FROM bookable_units WHERE beds24_room_id = $1', [booking.roomId]);
-              if (roomResult.rows[0]) {
-                const arrival = booking.arrival || booking.firstNight;
-                const departure = booking.departure || booking.lastNight;
-                if (arrival && departure) {
-                  for (let d = new Date(arrival); d < new Date(departure); d.setDate(d.getDate() + 1)) {
-                    await pool.query(`
-                      INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
-                      VALUES ($1, $2, false, false, 'beds24_status_sync')
-                      ON CONFLICT (room_id, date)
-                      DO UPDATE SET is_available = false, source = 'beds24_status_sync', updated_at = NOW()
-                    `, [roomResult.rows[0].id, d.toISOString().split('T')[0]]);
-                  }
-                  totalNewFound++;
-                  console.log(`  📥 Blocked dates for new Beds24 booking ${beds24Id} (account ${conn.account_id})`);
-                }
-              }
-            }
           }
+          // Non-cancelled statuses: do NOT block dates here. Beds24 stores room
+          // types with qty>1 (multiple physical units) but GAS represents each
+          // type as a single bookable_unit. Auto-blocking on any single booking
+          // marks the whole type unavailable even when 9 of 10 units are free.
+          // The 6-hour runBeds24InventorySync owns availability — it pulls
+          // qty-aware aggregated availability from Beds24 and writes the truth.
+          // This cron's job is now strictly to propagate cancellations from
+          // Beds24 back to GAS bookings + unblock the dates those cancellations
+          // free up.
         }
       } catch (connErr) {
         // Skip this account silently — token may be expired
