@@ -5394,6 +5394,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       
       // Extract numeric values
       const maxGuests = room.max_guests || roomRawData.maxPeople || roomRawData.maxAdults || 2;
+      // Beds24 owns adult/children caps. roomRawData.maxAdult (singular) is
+      // Beds24's per-room cap; roomRawData.maxChildren is null when "Don't Ask"
+      // is set. We pass null from Beds24 through; the UPDATE uses COALESCE so a
+      // null doesn't clobber an existing GAS value (owners often set this in GAS
+      // when they forget Beds24). For brand-new INSERTs, null max_children → 0.
+      const rawMaxAdult = (roomRawData.maxAdult !== undefined && roomRawData.maxAdult !== null) ? parseInt(roomRawData.maxAdult) : null;
+      const rawMaxChildren = (roomRawData.maxChildren !== undefined && roomRawData.maxChildren !== null) ? parseInt(roomRawData.maxChildren) : null;
+      const maxAdults = (room.max_adults !== undefined && room.max_adults !== null) ? room.max_adults : rawMaxAdult;
+      const maxChildren = (room.max_children !== undefined && room.max_children !== null) ? room.max_children : rawMaxChildren;
       const basePrice = parseFloat(room.base_price || roomRawData.rackRate) || null;
       const cleaningFee = parseFloat(roomRawData.cleaningFee) || null;
       const securityDeposit = parseFloat(roomRawData.securityDeposit) || null;
@@ -5485,6 +5494,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             beds24_room_id = COALESCE($13, beds24_room_id),
             num_bedrooms = COALESCE($5, num_bedrooms),
             num_bathrooms = COALESCE($7, num_bathrooms),
+            max_adults = COALESCE($14, max_adults),
+            max_children = COALESCE($15, max_children),
             updated_at = NOW()
           WHERE id = $12 AND content_locked = false
         `, [
@@ -5500,7 +5511,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           securityDeposit,
           featureCodes,
           gasRoomId,
-          prop.adapter_code === 'beds24' ? parseInt(room.external_id) : null
+          prop.adapter_code === 'beds24' ? parseInt(room.external_id) : null,
+          maxAdults,
+          maxChildren
         ]);
         
         // Update descriptions only if GAS fields are currently empty (don't overwrite manual edits)
@@ -5531,8 +5544,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             max_guests, base_price,
             room_type, bedrooms, beds, bathrooms, size_sqm,
             cleaning_fee, security_deposit, feature_codes,
+            max_adults, max_children,
             status, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'available', NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'available', NOW())
           RETURNING id
         `, [
           gasPropertyId,
@@ -5548,7 +5562,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           sizeSqm,
           cleaningFee,
           securityDeposit,
-          featureCodes
+          featureCodes,
+          maxAdults,
+          maxChildren ?? 0  // null/Don't-Ask → 0 on new rooms only (per Steve)
         ]);
         gasRoomId = roomResult.rows[0].id;
         

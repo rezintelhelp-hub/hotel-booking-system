@@ -506,6 +506,12 @@ class Beds24Adapter {
       name: raw.name,
       description: raw.description || '',
       maxGuests: raw.maxPeople || raw.maxGuests || 2,
+      // Beds24 owns adult/children caps (raw.maxAdult, raw.maxChildren).
+      // raw.maxChildren is null when "Don't Ask" is set in Beds24 — preserved
+      // as null here; the sync write converts null → 0 for new rooms only,
+      // and uses COALESCE to leave existing GAS values alone on update.
+      maxAdults: (raw.maxAdult !== undefined && raw.maxAdult !== null) ? parseInt(raw.maxAdult) : null,
+      maxChildren: (raw.maxChildren !== undefined && raw.maxChildren !== null) ? parseInt(raw.maxChildren) : null,
       bedrooms: raw.bedrooms || 1,
       beds: raw.beds || 1,
       bathrooms: raw.bathrooms || 1,
