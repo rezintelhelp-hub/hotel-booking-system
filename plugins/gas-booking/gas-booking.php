@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.6
+ * Version: 3.7.7
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.6');
+define('GAS_BOOKING_VERSION', '3.7.7');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -1255,7 +1255,13 @@ class GAS_Booking {
 
         $settings = array(
             'sms_consent_enabled' => !empty($checkout['sms_consent_enabled']),
-            'sms_consent_text' => $checkout['sms_consent_text'] ?? ''
+            'sms_consent_text' => $checkout['sms_consent_text'] ?? '',
+            // Marketing opt-in: API returns boolean (default true). Preserve as boolean
+            // so the checkout-render conditional can distinguish "explicitly false"
+            // (hide checkbox) from "not in API at all" (back-compat default = show).
+            'marketing_opt_in_enabled' => array_key_exists('marketing_opt_in_enabled', $checkout)
+                ? (bool) $checkout['marketing_opt_in_enabled']
+                : true
         );
 
         set_transient($cache_key, $settings, HOUR_IN_SECONDS);
