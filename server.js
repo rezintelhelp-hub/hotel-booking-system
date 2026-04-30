@@ -20538,9 +20538,10 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             
             // Get CM IDs for this unit (copied from working endpoint)
             const cmResult = await client.query(`
-                SELECT bu.beds24_room_id, bu.smoobu_id, bu.hostaway_listing_id, p.account_id
+                SELECT bu.beds24_room_id, bu.smoobu_id, bu.hostaway_listing_id, p.account_id, a.hostvana_connected
                 FROM bookable_units bu
                 LEFT JOIN properties p ON bu.property_id = p.id
+                LEFT JOIN accounts a ON p.account_id = a.id
                 WHERE bu.id = $1
             `, [roomId]);
             
@@ -20588,8 +20589,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                         city: guest_city || '',
                         postcode: guest_postcode || '',
                         country: guest_country || '',
-                        referer: `GAS Direct - GAS-${booking.id}`,
-                        refererEditable: `GAS Direct - GAS-${booking.id}`,
+                        referer: cmData?.hostvana_connected ? 'RezIntel-MyStayMessaging' : `GAS Direct - GAS-${booking.id}`,
+                        refererEditable: cmData?.hostvana_connected ? 'RezIntel-MyStayMessaging' : `GAS Direct - GAS-${booking.id}`,
                         reference: `GAS-${booking.id}`,
                         notes: payment_method === 'card_guarantee'
                             ? `Booked via GAS | Card Guarantee on file | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length}) | Ref: GAS-${booking.id}`
@@ -67039,10 +67040,11 @@ app.post('/api/public/book', async (req, res) => {
     // Get CM IDs for this unit
     const cmResult = await pool.query(`
       SELECT bu.beds24_room_id, bu.smoobu_id, bu.hostaway_listing_id,
-             p.account_id,
+             p.account_id, a.hostvana_connected,
              (SELECT gsp.external_id FROM gas_sync_room_types gsrt JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id WHERE gsrt.gas_room_id = bu.id LIMIT 1) as beds24_prop_id
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
       WHERE bu.id = $1
     `, [unit_id]);
     
@@ -67088,8 +67090,8 @@ app.post('/api/public/book', async (req, res) => {
             city: guest_city || '',
             postcode: guest_postcode || '',
             country: guest_country || '',
-            referer: `GAS Direct - GAS-${newBooking.id}`,
-            refererEditable: `GAS Direct - GAS-${newBooking.id}`,
+            referer: cmData?.hostvana_connected ? 'RezIntel-MyStayMessaging' : `GAS Direct - GAS-${newBooking.id}`,
+            refererEditable: cmData?.hostvana_connected ? 'RezIntel-MyStayMessaging' : `GAS Direct - GAS-${newBooking.id}`,
             reference: `GAS-${newBooking.id}`,
             notes: `Booked via GAS (Hostvana chat inquiry upgraded) | Ref: GAS-${newBooking.id}`,
             price: parseFloat(total_price) || 0,
@@ -67144,8 +67146,8 @@ app.post('/api/public/book', async (req, res) => {
           city: guest_city || '',
           postcode: guest_postcode || '',
           country: guest_country || '',
-          referer: `GAS Direct - GAS-${newBooking.id}`,
-          refererEditable: `GAS Direct - GAS-${newBooking.id}`,
+          referer: cmData?.hostvana_connected ? 'RezIntel-MyStayMessaging' : `GAS Direct - GAS-${newBooking.id}`,
+          refererEditable: cmData?.hostvana_connected ? 'RezIntel-MyStayMessaging' : `GAS Direct - GAS-${newBooking.id}`,
           reference: `GAS-${newBooking.id}`,
           notes: payment_method === 'card_guarantee'
             ? `Booked via GAS | Card Guarantee on file | Ref: GAS-${newBooking.id}`
