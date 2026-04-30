@@ -20266,24 +20266,35 @@ app.post('/api/public/payment-failed', async (req, res) => {
 
                     // V2 primary (per-client token)
                     let fpCreated = false;
+                    let fpV2Err = null;
                     if (accessToken) {
-                      const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Inquiry, {
-                          headers: getBeds24BookingHeaders(null, accessToken)
-                      });
-                      if (beds24Response.data?.[0]?.success) {
-                          fpCreated = true;
-                          console.log(`📋 Beds24 V2 inquiry created for failed payment: ${beds24Response.data[0]?.new?.id}`);
+                      try {
+                        const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Inquiry, {
+                            headers: getBeds24BookingHeaders(null, accessToken)
+                        });
+                        if (beds24Response.data?.[0]?.success) {
+                            fpCreated = true;
+                            console.log(`📋 Beds24 V2 inquiry created for failed payment: ${beds24Response.data[0]?.new?.id}`);
+                        } else {
+                            fpV2Err = JSON.stringify(beds24Response.data?.[0] || beds24Response.data);
+                        }
+                      } catch (e) {
+                        fpV2Err = e.response?.data ? JSON.stringify(e.response.data) : e.message;
                       }
                     }
-                    // V1 fallback (master key only)
+                    // V1 fallback — gated to marketplace-enrolled accounts only
                     if (!fpCreated) {
-                      const fpPropKey = await getBeds24PropKeyForRoom(pool, unit.id);
-                      if (fpPropKey) {
-                        try {
-                          const v1Inq = beds24Inquiry.map(b => toV1BookingFields(b));
-                          const v1Res = await createBeds24BookingV1(fpPropKey, v1Inq);
-                          if (v1Res.success) { fpCreated = true; console.log(`📋 Beds24 V1 fallback inquiry created for failed payment`); }
-                        } catch (v1Err) { console.error('[Beds24 V1 fallback] Failed payment inquiry error:', v1Err.message); }
+                      if (await accountHasBeds24Marketplace(pool, unit.id)) {
+                        const fpPropKey = await getBeds24PropKeyForRoom(pool, unit.id);
+                        if (fpPropKey) {
+                          try {
+                            const v1Inq = beds24Inquiry.map(b => toV1BookingFields(b));
+                            const v1Res = await createBeds24BookingV1(fpPropKey, v1Inq);
+                            if (v1Res.success) { fpCreated = true; console.log(`📋 Beds24 V1 fallback inquiry created for failed payment`); }
+                          } catch (v1Err) { console.error('[Beds24 V1 fallback] Failed payment inquiry error:', v1Err.message); }
+                        }
+                      } else {
+                        console.log(`[Beds24 V1] Skipping fallback for unit ${unit.id} (not in marketplace) — V2 failure was: ${fpV2Err || 'no V2 access token available'}`);
                       }
                     }
                 }
@@ -21562,29 +21573,39 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
             console.log('[Beds24 Push] Payload:', JSON.stringify(beds24Payload));
 
             // V2 primary (per-client token)
+            let pushV2Err = null;
             if (accessToken) {
-              const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', [beds24Payload], {
-                  headers: getBeds24BookingHeaders(null, accessToken)
-              });
-              console.log('[Beds24 V2 Push] Response:', JSON.stringify(beds24Response.data));
-              const respData = Array.isArray(beds24Response.data) ? beds24Response.data[0] : beds24Response.data;
-              newBeds24Id = respData?.id || respData?.bookingId || respData?.new?.id;
+              try {
+                const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', [beds24Payload], {
+                    headers: getBeds24BookingHeaders(null, accessToken)
+                });
+                console.log('[Beds24 V2 Push] Response:', JSON.stringify(beds24Response.data));
+                const respData = Array.isArray(beds24Response.data) ? beds24Response.data[0] : beds24Response.data;
+                newBeds24Id = respData?.id || respData?.bookingId || respData?.new?.id;
+                if (!newBeds24Id) pushV2Err = JSON.stringify(respData);
+              } catch (e) {
+                pushV2Err = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+              }
             }
-            // V1 fallback (master key only)
+            // V1 fallback — gated to marketplace-enrolled accounts only
             if (!newBeds24Id) {
-              const pushPropKey = await getBeds24PropKeyForRoom(pool, booking.unit_id);
-              if (pushPropKey) {
-                try {
-                  const v1Pay = [toV1BookingFields(beds24Payload)];
-                  const v1Res = await createBeds24BookingV1(pushPropKey, v1Pay);
-                  if (v1Res.success && v1Res.data) {
-                    const bookData = Array.isArray(v1Res.data) ? v1Res.data[0] : v1Res.data;
-                    newBeds24Id = bookData?.bookId || bookData?.id;
-                    console.log('[Beds24 V1 fallback Push] Created:', newBeds24Id);
+              if (await accountHasBeds24Marketplace(pool, booking.unit_id)) {
+                const pushPropKey = await getBeds24PropKeyForRoom(pool, booking.unit_id);
+                if (pushPropKey) {
+                  try {
+                    const v1Pay = [toV1BookingFields(beds24Payload)];
+                    const v1Res = await createBeds24BookingV1(pushPropKey, v1Pay);
+                    if (v1Res.success && v1Res.data) {
+                      const bookData = Array.isArray(v1Res.data) ? v1Res.data[0] : v1Res.data;
+                      newBeds24Id = bookData?.bookId || bookData?.id;
+                      console.log('[Beds24 V1 fallback Push] Created:', newBeds24Id);
+                    }
+                  } catch (v1Err) {
+                    console.error('[Beds24 V1 fallback Push] Error:', v1Err.message);
                   }
-                } catch (v1Err) {
-                  console.error('[Beds24 V1 fallback Push] Error:', v1Err.message);
                 }
+              } else {
+                console.log(`[Beds24 V1] Skipping fallback for unit ${booking.unit_id} (not in marketplace) — V2 failure was: ${pushV2Err || 'no V2 access token available'}`);
               }
             }
         }
@@ -34821,29 +34842,40 @@ app.post('/api/db/book', async (req, res) => {
         console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
 
         // V2 primary (per-client token)
+        let dbV2Err = null;
         if (accessToken) {
-          const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
-            headers: getBeds24BookingHeaders(null, accessToken)
-          });
-          console.log('Beds24 V2 response:', JSON.stringify(beds24Response.data));
-          if (beds24Response.data && beds24Response.data[0]?.success) {
-            beds24BookingId = beds24Response.data[0]?.new?.id;
+          try {
+            const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
+              headers: getBeds24BookingHeaders(null, accessToken)
+            });
+            console.log('Beds24 V2 response:', JSON.stringify(beds24Response.data));
+            if (beds24Response.data && beds24Response.data[0]?.success) {
+              beds24BookingId = beds24Response.data[0]?.new?.id;
+            } else {
+              dbV2Err = JSON.stringify(beds24Response.data?.[0] || beds24Response.data);
+            }
+          } catch (e) {
+            dbV2Err = e.response?.data ? JSON.stringify(e.response.data) : e.message;
           }
         }
-        // V1 fallback (master key only)
+        // V1 fallback — gated to marketplace-enrolled accounts only
         if (!beds24BookingId) {
-          const dbPropKey = await getBeds24PropKeyForRoom(pool, room_id);
-          if (dbPropKey) {
-            try {
-              const v1Booking = beds24Booking.map(b => toV1BookingFields(b));
-              const v1Result = await createBeds24BookingV1(dbPropKey, v1Booking);
-              if (v1Result.success && v1Result.data) {
-                const bookData = Array.isArray(v1Result.data) ? v1Result.data[0] : v1Result.data;
-                beds24BookingId = bookData?.bookId || bookData?.id;
+          if (await accountHasBeds24Marketplace(pool, room_id)) {
+            const dbPropKey = await getBeds24PropKeyForRoom(pool, room_id);
+            if (dbPropKey) {
+              try {
+                const v1Booking = beds24Booking.map(b => toV1BookingFields(b));
+                const v1Result = await createBeds24BookingV1(dbPropKey, v1Booking);
+                if (v1Result.success && v1Result.data) {
+                  const bookData = Array.isArray(v1Result.data) ? v1Result.data[0] : v1Result.data;
+                  beds24BookingId = bookData?.bookId || bookData?.id;
+                }
+              } catch (v1Err) {
+                console.error('[Beds24 V1 fallback] Direct booking error:', v1Err.message);
               }
-            } catch (v1Err) {
-              console.error('[Beds24 V1 fallback] Direct booking error:', v1Err.message);
             }
+          } else {
+            console.log(`[Beds24 V1] Skipping fallback for room ${room_id} (not in marketplace) — V2 failure was: ${dbV2Err || 'no V2 access token available'}`);
           }
         }
 
@@ -41086,6 +41118,30 @@ async function getBeds24PropKeyForRoom(pool, roomId) {
   } catch (e) {
     console.error('[Beds24 V1] propKey lookup error:', e.message);
     return null;
+  }
+}
+
+// Gate for the V1 master-key fallback. Only accounts that have explicitly enrolled
+// in the Rezintel marketplace (adapter_code='beds24-marketplace', status='connected')
+// are entitled to use Pedro's master key. Per-account OAuth accounts (adapter_code='beds24')
+// must NOT leak into the V1 path — Beds24 rejects with errorCode 2000 ("no access to property")
+// for non-enrolled properties, which previously masked real V2 failures.
+async function accountHasBeds24Marketplace(pool, roomId) {
+  try {
+    const result = await pool.query(`
+      SELECT 1
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      JOIN gas_sync_connections gsc ON gsc.account_id = p.account_id
+      WHERE bu.id = $1
+        AND gsc.adapter_code = 'beds24-marketplace'
+        AND gsc.status = 'connected'
+      LIMIT 1
+    `, [roomId]);
+    return result.rows.length > 0;
+  } catch (e) {
+    console.error('[Beds24 V1 gate] marketplace check error:', e.message);
+    return false;
   }
 }
 
@@ -67201,39 +67257,50 @@ app.post('/api/public/book', async (req, res) => {
 
         // V2 primary (per-client token) — supports invoiceItems + payments
         let beds24Response;
+        let nbV2Err = null;
         if (accessToken) {
-          beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
-            headers: getBeds24BookingHeaders(cmData.beds24_prop_id, accessToken)
-          });
+          try {
+            beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
+              headers: getBeds24BookingHeaders(cmData.beds24_prop_id, accessToken)
+            });
 
-          console.log('Beds24 V2 response:', JSON.stringify(beds24Response.data));
+            console.log('Beds24 V2 response:', JSON.stringify(beds24Response.data));
 
-          if (beds24Response.data && beds24Response.data[0]?.success) {
-            beds24BookingId = beds24Response.data[0]?.new?.id;
-            if (beds24BookingId) {
-              await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24BookingId, newBooking.id]);
+            if (beds24Response.data && beds24Response.data[0]?.success) {
+              beds24BookingId = beds24Response.data[0]?.new?.id;
+              if (beds24BookingId) {
+                await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24BookingId, newBooking.id]);
+              }
+            } else {
+              nbV2Err = JSON.stringify(beds24Response.data?.[0] || beds24Response.data);
             }
+          } catch (e) {
+            nbV2Err = e.response?.data ? JSON.stringify(e.response.data) : e.message;
           }
         }
 
-        // V1 fallback (master key / channel partner) — only if no per-client token
+        // V1 fallback — gated to marketplace-enrolled accounts only
         if (!beds24BookingId) {
-          const propKey = await getBeds24PropKeyForRoom(pool, unit_id);
-          if (propKey) {
-            try {
-              const v1Booking = beds24Booking.map(b => toV1BookingFields(b));
-              const v1Result = await createBeds24BookingV1(propKey, v1Booking);
-              if (v1Result.success && v1Result.data) {
-                const bookData = Array.isArray(v1Result.data) ? v1Result.data[0] : v1Result.data;
-                beds24BookingId = bookData?.bookId || bookData?.id;
-                if (beds24BookingId) {
-                  await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24BookingId, newBooking.id]);
+          if (await accountHasBeds24Marketplace(pool, unit_id)) {
+            const propKey = await getBeds24PropKeyForRoom(pool, unit_id);
+            if (propKey) {
+              try {
+                const v1Booking = beds24Booking.map(b => toV1BookingFields(b));
+                const v1Result = await createBeds24BookingV1(propKey, v1Booking);
+                if (v1Result.success && v1Result.data) {
+                  const bookData = Array.isArray(v1Result.data) ? v1Result.data[0] : v1Result.data;
+                  beds24BookingId = bookData?.bookId || bookData?.id;
+                  if (beds24BookingId) {
+                    await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24BookingId, newBooking.id]);
+                  }
+                  console.log('[Beds24 V1 fallback] Booking created:', beds24BookingId);
                 }
-                console.log('[Beds24 V1 fallback] Booking created:', beds24BookingId);
+              } catch (v1Err) {
+                console.error('[Beds24 V1 fallback] Error:', v1Err.message);
               }
-            } catch (v1Err) {
-              console.error('[Beds24 V1 fallback] Error:', v1Err.message);
             }
+          } else {
+            console.log(`[Beds24 V1] Skipping fallback for unit ${unit_id} (not in marketplace) — V2 failure was: ${nbV2Err || 'no V2 access token available'}`);
           }
         }
         } // end if (!beds24BookingId) — new booking creation
@@ -78310,11 +78377,6 @@ async function runBookingStatusSync() {
         for (const booking of bookings) {
           const beds24Id = booking.id?.toString();
           if (!beds24Id) continue;
-
-          // [TEMP — remove after 24h of clean monitoring] surface the booking status
-          // for every record so we can spot any unexpected status names that aren't
-          // in the blacklist below.
-          console.log('[beds24-status-sync] booking status:', booking.status, 'roomId:', booking.roomId);
 
           const isCancelled = booking.status === 'cancelled' || booking.status === 'Cancelled';
 
@@ -89476,43 +89538,54 @@ app.post('/api/hostvana/chat', async (req, res) => {
 
       // V2 primary (per-client token)
       let created = null;
+      let hvV2Err = null;
       if (v2Token) {
-        const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, {
-          headers: getBeds24BookingHeaders(beds24PropId, v2Token)
-        });
-        console.log(`[HOSTVANA V2] Beds24 response:`, JSON.stringify(response.data));
-        if (response.data && response.data.length > 0 && response.data[0].new) {
-          created = response.data[0].new;
+        try {
+          const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, {
+            headers: getBeds24BookingHeaders(beds24PropId, v2Token)
+          });
+          console.log(`[HOSTVANA V2] Beds24 response:`, JSON.stringify(response.data));
+          if (response.data && response.data.length > 0 && response.data[0].new) {
+            created = response.data[0].new;
+          } else {
+            hvV2Err = JSON.stringify(response.data?.[0] || response.data);
+          }
+        } catch (e) {
+          hvV2Err = e.response?.data ? JSON.stringify(e.response.data) : e.message;
         }
       }
-      // V1 fallback (master key only)
+      // V1 fallback — gated to marketplace-enrolled accounts only
       if (!created) {
-        const hvPropKey = await getBeds24PropKeyForRoom(pool, row.unit_id);
-        if (hvPropKey) {
-          try {
-            const v1Booking = [{
-              roomId: parseInt(beds24RoomId),
-              status: 0,
-              guestFirstName: guestFirst,
-              guestName: guestLast,
-              guestEmail: email || '',
-              guestPhone: phone || '',
-              firstNight: arrival || new Date().toISOString().split('T')[0],
-              lastNight: departure ? new Date(new Date(departure).getTime() - 86400000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-              referer: 'RezIntel-MyStayMessaging',
-              numAdult: 1
-            }];
-            const v1Result = await createBeds24BookingV1(hvPropKey, v1Booking);
-            if (v1Result.success && v1Result.data) {
-              const bookData = Array.isArray(v1Result.data) ? v1Result.data[0] : v1Result.data;
-              if (bookData?.bookId) {
-                created = { id: bookData.bookId };
-                console.log(`[HOSTVANA V1 fallback] Created inquiry booking ${created.id}`);
+        if (await accountHasBeds24Marketplace(pool, row.unit_id)) {
+          const hvPropKey = await getBeds24PropKeyForRoom(pool, row.unit_id);
+          if (hvPropKey) {
+            try {
+              const v1Booking = [{
+                roomId: parseInt(beds24RoomId),
+                status: 0,
+                guestFirstName: guestFirst,
+                guestName: guestLast,
+                guestEmail: email || '',
+                guestPhone: phone || '',
+                firstNight: arrival || new Date().toISOString().split('T')[0],
+                lastNight: departure ? new Date(new Date(departure).getTime() - 86400000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                referer: 'RezIntel-MyStayMessaging',
+                numAdult: 1
+              }];
+              const v1Result = await createBeds24BookingV1(hvPropKey, v1Booking);
+              if (v1Result.success && v1Result.data) {
+                const bookData = Array.isArray(v1Result.data) ? v1Result.data[0] : v1Result.data;
+                if (bookData?.bookId) {
+                  created = { id: bookData.bookId };
+                  console.log(`[HOSTVANA V1 fallback] Created inquiry booking ${created.id}`);
+                }
               }
+            } catch (v1Err) {
+              console.error('[HOSTVANA V1 fallback] Error:', v1Err.message);
             }
-          } catch (v1Err) {
-            console.error('[HOSTVANA V1 fallback] Error:', v1Err.message);
           }
+        } else {
+          console.log(`[Beds24 V1] Skipping HOSTVANA fallback for unit ${row.unit_id} (not in marketplace) — V2 failure was: ${hvV2Err || 'no V2 access token available'}`);
         }
       }
 
