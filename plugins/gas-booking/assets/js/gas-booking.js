@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.7.5
+ * Version: 3.7.6
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -4879,13 +4879,26 @@ jQuery(document).ready(function($) {
                             }
                         }
                     }
+                    // Cancellation policy is driven by deposit_rule which the server
+                    // returns regardless of Stripe state. The Stripe-enabled branch
+                    // above already stored it (line ~4750); for non-Stripe properties
+                    // the rule is still in the response — store it here so the policy
+                    // text renders correctly. Then trigger the pricing re-render so
+                    // updateCheckoutPricing's cancellation block picks it up (the
+                    // first render fired before this AJAX completed).
+                    if (!checkoutData.depositRule && response.deposit_rule) {
+                        checkoutData.depositRule = response.deposit_rule;
+                    }
+                    if (typeof updateCheckoutPricing === 'function') {
+                        try { updateCheckoutPricing(); } catch (e) { /* may run before pricing data loads */ }
+                    }
                 },
                 error: function() {
                     $('.gas-card-status').text(t('booking', 'not_available', 'Not available'));
                 }
             });
         }
-        
+
         function loadCheckoutData() {
             // Load room info
             $.ajax({
@@ -5155,15 +5168,41 @@ jQuery(document).ready(function($) {
                 $('.gas-taxes-section').hide();
             }
             
-            // Update cancellation policy based on rate type
+            // Update cancellation policy. Three cases:
+            //   1. Offer rate selected → non-refundable banner (offers are typically
+            //      non-refundable, the static .gas-policy-nonrefund span carries that copy).
+            //   2. depositRule with refund_policy → render the matching text.
+            //   3. Otherwise → static .gas-policy-standard fallback ("Free cancellation
+            //      until 48 hours before check-in"). NOTE: the same switch logic lives
+            //      in the disabled CM-quote dead block above (line ~5060) — keep them
+            //      in sync if either is changed.
             if (checkoutData.rateType === 'offer') {
                 $('.gas-policy-standard').hide();
                 $('.gas-policy-nonrefund').show();
+            } else if (checkoutData.depositRule && checkoutData.depositRule.refund_policy) {
+                var policyText = '';
+                switch (checkoutData.depositRule.refund_policy) {
+                    case 'flexible': policyText = 'Full refund up to 24 hours before check-in'; break;
+                    case 'moderate': policyText = 'Full refund up to 5 days before arrival'; break;
+                    case 'strict': policyText = '50% refund up to 7 days before arrival'; break;
+                    case 'refund_60': policyText = '100% refund up to 60 days before arrival'; break;
+                    case 'refund_30': policyText = '100% refund up to 30 days before arrival'; break;
+                    case 'refund_14': policyText = '100% refund up to 14 days before arrival'; break;
+                    case 'non_refundable': policyText = 'Non-refundable'; break;
+                    default: policyText = '';
+                }
+                if (policyText) {
+                    $('.gas-policy-standard').html('<p style="font-size: 0.85em; color: #64748b; margin: 0;">📋 ' + policyText + '</p>').show();
+                    $('.gas-policy-nonrefund').hide();
+                } else {
+                    $('.gas-policy-standard').show();
+                    $('.gas-policy-nonrefund').hide();
+                }
             } else {
                 $('.gas-policy-standard').show();
                 $('.gas-policy-nonrefund').hide();
             }
-            
+
             // Grand total
             var grandTotal = accommodationTotal + upsellsTotal - discount - voucherDiscount + taxTotal;
             if (isNaN(grandTotal)) grandTotal = 0;
