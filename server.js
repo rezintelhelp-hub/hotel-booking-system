@@ -78311,6 +78311,11 @@ async function runBookingStatusSync() {
           const beds24Id = booking.id?.toString();
           if (!beds24Id) continue;
 
+          // [TEMP — remove after 24h of clean monitoring] surface the booking status
+          // for every record so we can spot any unexpected status names that aren't
+          // in the blacklist below.
+          console.log('[beds24-status-sync] booking status:', booking.status, 'roomId:', booking.roomId);
+
           const isCancelled = booking.status === 'cancelled' || booking.status === 'Cancelled';
 
           if (isCancelled) {
@@ -78325,7 +78330,9 @@ async function runBookingStatusSync() {
               totalCancelled++;
               console.log(`  ✅ Cancelled GAS booking ${result.rows[0].id} (Beds24 ${beds24Id}) for account ${conn.account_id}`);
 
-              // Unblock dates
+              // Unblock dates. Source filter now includes 'beds24_status_sync' so
+              // phantom blocks written by THIS sync (when it was over-blocking
+              // pre-fix) can also be cleared by a subsequent cancellation.
               const roomId = booking.roomId;
               if (roomId) {
                 const roomResult = await pool.query('SELECT id FROM bookable_units WHERE beds24_room_id = $1', [roomId]);
@@ -78337,7 +78344,7 @@ async function runBookingStatusSync() {
                       await pool.query(`
                         UPDATE room_availability
                         SET is_available = true, is_blocked = false, source = 'beds24_status_sync', updated_at = NOW()
-                        WHERE room_id = $1 AND date = $2 AND source IN ('beds24_sync', 'beds24_webhook', 'beds24_inventory', 'booking')
+                        WHERE room_id = $1 AND date = $2 AND source IN ('beds24_sync', 'beds24_webhook', 'beds24_inventory', 'booking', 'beds24_status_sync')
                       `, [roomResult.rows[0].id, d.toISOString().split('T')[0]]);
                     }
                   }
@@ -78345,6 +78352,15 @@ async function runBookingStatusSync() {
               }
             }
           } else {
+            // Status blacklist — DO NOT block dates for inquiries or cancellations.
+            // Beds24 returns these via /v2/bookings alongside confirmed records, and
+            // the chat-widget/Hostvana inquiry path creates them with default arrival
+            // dates ('today' + 1 night) so they were silently blocking today's
+            // availability across every Hostvana-connected account. Expand this list
+            // if the [TEMP] log above surfaces other phantom statuses.
+            const nonBlockingStatuses = ['inquiry', 'cancelled', 'cancel'];
+            if (nonBlockingStatuses.includes(booking.status)) continue;
+
             // Check if this is a new booking we don't have
             const existing = await pool.query('SELECT id FROM bookings WHERE beds24_booking_id = $1', [beds24Id]);
             if (existing.rows.length === 0 && booking.roomId) {
