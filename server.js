@@ -4745,6 +4745,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS damage_policy TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS check_in_time VARCHAR(10)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS check_out_time VARCHAR(10)');
+    // Local cache of Beds24 bookingRules.bookingCutOffHour. Sourced from Beds24
+    // on every 6h sync — never set via a GAS admin UI. See checkSameDayCutoff().
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS same_day_cutoff_time TIME DEFAULT NULL');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS website VARCHAR(255)');
@@ -20389,7 +20392,16 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         if (!checkin || !checkout) {
             return res.status(400).json({ success: false, error: 'Check-in and check-out dates required' });
         }
-        
+
+        // Same-day booking cutoff (Beds24-sourced rule). Resolve property from first room.
+        if (rooms[0]?.roomId) {
+            const pidRes = await pool.query('SELECT property_id FROM bookable_units WHERE id = $1', [rooms[0].roomId]);
+            if (pidRes.rows[0]?.property_id) {
+                const cutoffErr = await checkSameDayCutoff(pool, pidRes.rows[0].property_id, checkin);
+                if (cutoffErr) return res.status(400).json({ success: false, ...cutoffErr });
+            }
+        }
+
         // Generate unique group booking ID
         const groupBookingId = 'GRP-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9).toUpperCase();
         
@@ -41088,6 +41100,30 @@ function getBeds24BookingHeaders(beds24PropId, accessToken) {
     'Content-Type': 'application/json',
     'token': accessToken || ''
   };
+}
+
+// Same-day booking cutoff gate. Beds24 owns the rule (bookingRules.bookingCutOffHour)
+// and the value is mirrored to properties.same_day_cutoff_time on each 6h sync.
+// Returns { error, error_code, cutoff_time } if the booking should be rejected, null otherwise.
+async function checkSameDayCutoff(pool, propertyId, checkinDateStr) {
+  const r = await pool.query('SELECT same_day_cutoff_time, timezone FROM properties WHERE id = $1', [propertyId]);
+  const cutoff = r.rows[0]?.same_day_cutoff_time;
+  if (!cutoff) return null; // no cutoff configured = pass
+  const tz = r.rows[0]?.timezone || 'UTC';
+  const dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+  const todayInTz = dateFmt.format(new Date());
+  if (checkinDateStr !== todayInTz) return null; // not booking for today = pass
+  const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
+  const nowHHMM = timeFmt.format(new Date());
+  const cutoffHHMM = String(cutoff).slice(0, 5);
+  if (nowHHMM > cutoffHHMM) {
+    return {
+      error_code: 'SAME_DAY_CUTOFF',
+      error: `Same-day bookings for this property closed at ${cutoffHHMM}. Please choose a different arrival date.`,
+      cutoff_time: cutoffHHMM
+    };
+  }
+  return null;
 }
 
 // Look up Beds24 propKey for a GAS room ID
@@ -66759,6 +66795,12 @@ app.post('/api/public/book', async (req, res) => {
 
     if (!unit.rows[0]) {
       return res.json({ success: false, error: 'Unit not found' });
+    }
+
+    // Same-day booking cutoff (Beds24-sourced rule, mirrored on every 6h sync).
+    {
+      const cutoffErr = await checkSameDayCutoff(pool, unit.rows[0].property_id, check_in);
+      if (cutoffErr) return res.status(400).json({ success: false, ...cutoffErr });
     }
 
     // ========== REAL-TIME AVAILABILITY CHECK ==========

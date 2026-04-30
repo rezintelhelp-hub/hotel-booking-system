@@ -1,0 +1,23 @@
+[
+  {
+    "title": "Same-day booking cutoff — set in Beds24, not GAS",
+    "category": "Settings",
+    "keywords": [
+      "same-day cutoff",
+      "booking cutoff",
+      "bookingCutOffHour",
+      "Beds24 booking rules",
+      "SAME_DAY_CUTOFF",
+      "today closed",
+      "cutoff hour",
+      "no GAS admin UI",
+      "Beds24-sourced rule",
+      "validation only",
+      "checkSameDayCutoff",
+      "same_day_cutoff_time"
+    ],
+    "status": "published",
+    "summary": "Where to set the same-day booking cutoff (Beds24, not GAS), what the GAS booking engine does with it, and the design principle: any rule Beds24 owns is sourced from Beds24, validated at booking submit, and never duplicated as a GAS admin control.",
+    "content": "## Where to set it\n\nIn **Beds24** → Property settings → Booking Rules → **Booking Cut Off Hour**. Integer 0–23 in the property's local time. e.g. `20` = bookings for today close at 8 PM.\n\n**There is no GAS admin control for this.** That's deliberate — see the principle below.\n\n## How GAS uses it\n\nThe value flows from Beds24 to GAS automatically:\n\n1. Every 6 hours, the GAS calendar sync (`runBeds24InventorySync`) reads the Beds24 property record.\n2. The Beds24 adapter extracts `bookingRules.bookingCutOffHour` and writes it to the local cache column `properties.same_day_cutoff_time` (e.g. `20` → `'20:00:00'`).\n3. When a guest tries to book with **arrival = today** in the property's timezone, GAS compares the current time to the cached cutoff. If past the cutoff, the booking submission is rejected with HTTP 400 and `error_code: 'SAME_DAY_CUTOFF'`.\n\nValidation lives in two endpoints:\n\n- `POST /api/public/book` (single-room booking)\n- `POST /api/public/create-group-booking` (multi-room group booking)\n\n## What the guest sees\n\n- **Calendar continues to show today as available.** GAS doesn't filter today out of the date picker — that would create stale calendar artefacts and would need its own cache invalidation.\n- **Submit-time rejection only.** When the guest clicks Book, the server returns:\n  ```json\n  {\n    \"success\": false,\n    \"error_code\": \"SAME_DAY_CUTOFF\",\n    \"error\": \"Same-day bookings for this property closed at 20:00. Please choose a different arrival date.\",\n    \"cutoff_time\": \"20:00\"\n  }\n  ```\n  The frontend renders the message above the booking form.\n\n## Property timezone matters\n\nThe cutoff is evaluated in `properties.timezone`, not the server's timezone. A property in Madrid with cutoff `20` rejects same-day bookings after 8 PM Madrid local — even if the guest is in Tokyo or the server's clock disagrees.\n\nIf `properties.timezone` is not set, GAS falls back to UTC. Make sure the timezone is correct in Beds24 (it syncs into GAS automatically).\n\n## Disabling the cutoff\n\nClear `bookingCutOffHour` in Beds24 → next 6h sync → `properties.same_day_cutoff_time` clears to NULL → no rejection.\n\n## Why no GAS admin UI\n\nThe principle: **any rule Beds24 already manages is sourced from Beds24, validated at booking submit, and never duplicated as a GAS control.**\n\nApplies to: same-day cutoff, min stay, max stay, closed-to-arrival, day-of-week restrictions, advance-booking limits.\n\nWhy:\n\n- One source of truth — Beds24 → channels (Booking.com, Airbnb, etc.). Adding a GAS-side override would create drift.\n- No support burden when the two disagree.\n- Owners learn one place to set rules, not two.\n\n## For developers\n\n- **Schema:** `properties.same_day_cutoff_time TIME DEFAULT NULL` — local cache only, never written from a UI form.\n- **Adapter:** `gas-sync/adapters/beds24-adapter.js` — `mapProperty()` extracts `sameDayCutoffHour`; `syncPropertyToDatabase()` writes it to `properties.same_day_cutoff_time` keyed on `beds24_property_id`.\n- **Validation:** `checkSameDayCutoff(pool, propertyId, checkinDateStr)` in `server.js` — returns rejection object or null. Used at the top of both booking endpoints.\n- **Future rules** (min stay, max stay, CTA, advance booking) follow this same template: schema column, adapter extracts + writes, validation at booking submit, KB article points users to Beds24."
+  }
+]

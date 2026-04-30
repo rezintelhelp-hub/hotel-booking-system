@@ -339,6 +339,10 @@ class Beds24Adapter {
       currency: raw.currency || 'GBP',
       checkInTime: raw.checkInStart || '15:00',
       checkOutTime: raw.checkOutEnd || '11:00',
+      // Beds24 owns same-day-cutoff as bookingRules.bookingCutOffHour (integer 0-23).
+      // Mirrored to properties.same_day_cutoff_time on each sync.
+      sameDayCutoffHour: (raw.bookingRules && Number.isInteger(raw.bookingRules.bookingCutOffHour))
+        ? raw.bookingRules.bookingCutOffHour : null,
       amenities: raw.amenities || [],
       roomTypes: raw.roomTypes || [], // V2 includes this with includeAllRooms
       metadata: {
@@ -1476,8 +1480,26 @@ class Beds24Adapter {
       JSON.stringify(property.raw),
       hash
     ]);
+
+    // Propagate Beds24-owned booking rules into the live `properties` row.
+    // First (and currently only) such field: same-day cutoff. Min stay / max
+    // stay / CTA / advance-booking limits will follow this exact pattern —
+    // Beds24 → properties column → validated at booking submit. No GAS admin UI.
+    if (property.sameDayCutoffHour !== null && property.sameDayCutoffHour !== undefined) {
+      const hh = String(property.sameDayCutoffHour).padStart(2, '0');
+      await this.pool.query(
+        `UPDATE properties SET same_day_cutoff_time = $1::time, updated_at = NOW() WHERE beds24_property_id = $2`,
+        [`${hh}:00:00`, property.externalId]
+      );
+    } else {
+      // Beds24 cleared the rule → drop our cached value too
+      await this.pool.query(
+        `UPDATE properties SET same_day_cutoff_time = NULL, updated_at = NOW() WHERE beds24_property_id = $1 AND same_day_cutoff_time IS NOT NULL`,
+        [property.externalId]
+      );
+    }
   }
-  
+
   async syncRoomTypeToDatabase(roomType, propertyExternalId) {
     if (!this.pool) return;
     
