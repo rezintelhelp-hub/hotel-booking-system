@@ -27101,9 +27101,36 @@ app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
     const deployedSiteId = parseInt(req.params.id);
     const section = req.params.section;
     const { settings } = req.body;
-    
+
     if (!settings) {
       return res.json({ success: false, error: 'Settings object required' });
+    }
+
+    // Cross-site URL guard — reject any payload field whose URL embeds a different
+    // deployed_site_id than this route's target. Catches the DOM-staleness bleed bug
+    // where switching sites in the Web Builder leaves stale image/slide URLs in hidden
+    // inputs, and the next save bundles them into the new site's settings row.
+    // Pattern matches /website/hero/<id>/, /website/hero-slide-N/<id>/, /website/hero-mobile/<id>/, etc.
+    {
+      const heroUrlPathPattern = /\/website\/hero[a-zA-Z0-9-]*\/(\d+)\//;
+      for (const [key, value] of Object.entries(settings)) {
+        if (typeof value !== 'string' || !value) continue;
+        const m = value.match(heroUrlPathPattern);
+        if (m) {
+          const urlSiteId = parseInt(m[1]);
+          if (urlSiteId !== deployedSiteId) {
+            console.warn(`[CROSS_SITE_URL_REJECTED] field=${key} url_site=${urlSiteId} target=${deployedSiteId} value=${value.substring(0,120)}`);
+            return res.status(400).json({
+              success: false,
+              error_code: 'CROSS_SITE_URL_REJECTED',
+              error: `Field "${key}" contains a URL belonging to deployed_site_id ${urlSiteId}, but this save targets deployed_site_id ${deployedSiteId}. Likely a stale form value from another site — refusing to overwrite.`,
+              field: key,
+              url_site_id: urlSiteId,
+              target_site_id: deployedSiteId
+            });
+          }
+        }
+      }
     }
 
     // Site protection — block writes to frozen sites
