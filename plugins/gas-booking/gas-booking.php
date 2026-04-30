@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.4
+ * Version: 3.7.5
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.4');
+define('GAS_BOOKING_VERSION', '3.7.5');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4250,8 +4250,9 @@ class GAS_Booking {
             $response = wp_remote_get($this->get_site_config_url(), array('timeout' => 5, 'sslverify' => false));
             if (!is_wp_error($response)) {
                 $data = json_decode(wp_remote_retrieve_body($response), true);
-                if (!empty($data['website']['hero']['search-max-guests'])) {
-                    $max_guests = intval($data['website']['hero']['search-max-guests']);
+                $hero = $data['config']['website']['hero'] ?? array();
+                if (!empty($hero['search-max-guests'])) {
+                    $max_guests = intval($hero['search-max-guests']);
                     set_transient($cache_key, $max_guests, 300);
                     return $max_guests;
                 }
