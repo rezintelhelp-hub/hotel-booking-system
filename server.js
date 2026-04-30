@@ -12442,7 +12442,9 @@ app.get('/api/account/language-settings', async (req, res) => {
       primary_language: settings.primary_language || 'en',
       supported_languages: settings.supported_languages || ['en'],
       sms_consent_enabled: settings.sms_consent_enabled || false,
-      sms_consent_text: settings.sms_consent_text || ''
+      sms_consent_text: settings.sms_consent_text || '',
+      // Marketing opt-in defaults to TRUE — only off when explicitly set false
+      marketing_opt_in_enabled: settings.marketing_opt_in_enabled !== false
     });
   } catch (error) {
     console.error('Get language settings error:', error);
@@ -12477,7 +12479,7 @@ app.put('/api/account/language-settings', async (req, res) => {
       }
     }
     
-    const { primary_language, supported_languages, sms_consent_enabled, sms_consent_text } = req.body;
+    const { primary_language, supported_languages, sms_consent_enabled, sms_consent_text, marketing_opt_in_enabled } = req.body;
 
     // Validate
     const validLangs = ['en', 'es', 'fr', 'de', 'nl', 'it', 'pt', 'pl', 'ru', 'ja', 'zh'];
@@ -12493,6 +12495,7 @@ app.put('/api/account/language-settings', async (req, res) => {
     const settingsUpdate = { primary_language, supported_languages };
     if (typeof sms_consent_enabled === 'boolean') settingsUpdate.sms_consent_enabled = sms_consent_enabled;
     if (typeof sms_consent_text === 'string') settingsUpdate.sms_consent_text = sms_consent_text;
+    if (typeof marketing_opt_in_enabled === 'boolean') settingsUpdate.marketing_opt_in_enabled = marketing_opt_in_enabled;
 
     // Update settings JSONB field
     await pool.query(`
@@ -66840,6 +66843,13 @@ app.post('/api/public/book', async (req, res) => {
       return res.json({ success: false, error: 'Unit not found' });
     }
 
+    // Defensive: if the account has explicitly disabled the marketing opt-in
+    // checkbox, force the flag to false regardless of what the form submitted.
+    // The plugin already hides the checkbox, so this only fires for direct API
+    // bypass attempts. account_settings.marketing_opt_in_enabled defaults to
+    // TRUE — only disabled when explicitly set to false.
+    const marketingAllowed = (unit.rows[0].account_settings?.marketing_opt_in_enabled !== false);
+
     // Same-day booking cutoff (Beds24-sourced rule, mirrored on every 6h sync).
     {
       const cutoffErr = await checkSameDayCutoff(pool, unit.rows[0].property_id, check_in);
@@ -67031,7 +67041,7 @@ app.post('/api/public/book', async (req, res) => {
       bookingStatus,
       unit.rows[0].currency || 'EUR',
       source_site_url || null,
-      marketing || false,
+      (marketingAllowed && marketing) || false,
       sms_consent || false,
       payment_method || null
     ]);
@@ -67333,7 +67343,7 @@ app.post('/api/public/book', async (req, res) => {
           })(),
           bookingInfoItems: [
             { code: 'SMS_CONSENT', text: sms_consent ? 'Yes' : 'No' },
-            { code: 'MARKETING_OPT_IN', text: marketing ? 'Yes' : 'No' }
+            { code: 'MARKETING_OPT_IN', text: (marketingAllowed && marketing) ? 'Yes' : 'No' }
           ]
         }];
         beds24Booking.forEach(b => b.allowWebhooks = true);
@@ -75586,7 +75596,9 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                     const acctSettings = langSettingsResult.rows[0]?.settings || {};
                     return {
                         sms_consent_enabled: acctSettings.sms_consent_enabled || false,
-                        sms_consent_text: acctSettings.sms_consent_text || ''
+                        sms_consent_text: acctSettings.sms_consent_text || '',
+                        // Marketing opt-in defaults to TRUE — plugin uses this to gate the checkbox
+                        marketing_opt_in_enabled: acctSettings.marketing_opt_in_enabled !== false
                     };
                 })()
             }

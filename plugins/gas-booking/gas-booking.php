@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.5
+ * Version: 3.7.6
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.5');
+define('GAS_BOOKING_VERSION', '3.7.6');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7223,6 +7223,12 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     </div>
                                 </div>
                                 
+                                <?php
+                                // Marketing opt-in: ON by default, only hidden if account explicitly opted out.
+                                // The ($val !== false) check means undefined/missing = TRUE (backwards compat for existing sites).
+                                $marketing_optin_enabled = !isset($checkout_settings['marketing_opt_in_enabled']) || $checkout_settings['marketing_opt_in_enabled'] !== false;
+                                if ($marketing_optin_enabled):
+                                ?>
                                 <div class="gas-form-row">
                                     <div class="gas-form-field full-width">
                                         <label class="gas-checkbox-label">
@@ -7231,6 +7237,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                         </label>
                                     </div>
                                 </div>
+                                <?php endif; ?>
                                 <?php if (!empty($checkout_settings['sms_consent_enabled'])): ?>
                                 <div class="gas-form-row">
                                     <div class="gas-form-field full-width">
