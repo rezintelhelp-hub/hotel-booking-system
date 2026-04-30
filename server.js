@@ -19988,17 +19988,20 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             }
         
         // === STEP 3: Get deposit rules ===
+        // Run regardless of Stripe — the cancellation/refund policy is shown on
+        // every checkout flow (Stripe, card-guarantee, pay-at-property). The
+        // Stripe-specific fields on the rule (payment_schedule, auto_charge_retry,
+        // max_retry_attempts) are only acted on elsewhere when Stripe is enabled,
+        // so returning the row on a non-Stripe property is harmless.
         let depositRule = null;
-        if (stripeEnabled) {
-            const ruleResult = await pool.query(`
-                SELECT dr.* FROM deposit_rules dr
-                LEFT JOIN properties p ON p.id = $1
-                WHERE (dr.property_id = $1 OR (dr.property_id IS NULL AND dr.account_id = p.account_id)) AND dr.is_active = true
-                ORDER BY dr.property_id NULLS LAST, dr.created_at DESC LIMIT 1
-            `, [propertyId]);
-            if (ruleResult.rows.length > 0) {
-                depositRule = ruleResult.rows[0];
-            }
+        const ruleResult = await pool.query(`
+            SELECT dr.* FROM deposit_rules dr
+            LEFT JOIN properties p ON p.id = $1
+            WHERE (dr.property_id = $1 OR (dr.property_id IS NULL AND dr.account_id = p.account_id)) AND dr.is_active = true
+            ORDER BY dr.property_id NULLS LAST, dr.created_at DESC LIMIT 1
+        `, [propertyId]);
+        if (ruleResult.rows.length > 0) {
+            depositRule = ruleResult.rows[0];
         }
         
         // === STEP 4: If no accepted_methods set but Stripe keys exist, default card to true (backwards compatibility) ===
