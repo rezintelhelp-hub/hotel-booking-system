@@ -88469,14 +88469,18 @@ async function stampBookingForHostvanaWebhook(beds24BookingId, opts = {}) {
       return { success: false, error: 'no booking id' };
     }
 
-    // Look up the booking's property (need propKey for V1 channel-partner auth).
+    // Look up the booking's property — the V1 channel-partner endpoint expects
+    // the NUMERIC Beds24 property ID as propKey (not the UUID PK_<xxx> we store
+    // in gas_sync_properties.prop_key, which is the V2-API format). Confirmed
+    // by reading the original Rezintel SetSeed plugin on app3 — propKey there
+    // was always an integer property_id passed via cookies, never a UUID.
     let propKey = opts.propKey || null;
     if (!propKey) {
       const lookup = await pool.query(
-        "SELECT gsp.prop_key FROM bookings b LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id LEFT JOIN properties p ON p.id = bu.property_id LEFT JOIN gas_sync_properties gsp ON gsp.external_id = p.beds24_property_id::text WHERE b.beds24_booking_id = $1 LIMIT 1",
+        "SELECT p.beds24_property_id FROM bookings b LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id LEFT JOIN properties p ON p.id = bu.property_id WHERE b.beds24_booking_id = $1 LIMIT 1",
         [parseInt(beds24BookingId, 10)]
       ).catch(() => ({ rows: [] }));
-      propKey = lookup.rows[0]?.prop_key || null;
+      propKey = lookup.rows[0]?.beds24_property_id || null;
     }
 
     const axios = require('axios');
