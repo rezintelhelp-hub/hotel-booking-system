@@ -4782,7 +4782,7 @@ jQuery(document).ready(function($) {
         
         function loadStripeInfo() {
             if (!checkoutData.propertyId) return;
-            
+
             $.ajax({
                 url: checkoutData.apiUrl + '/api/public/property/' + checkoutData.propertyId + '/stripe-info',
                 method: 'GET',
@@ -4843,10 +4843,6 @@ jQuery(document).ready(function($) {
                             }
                             
                             // Auto-select card if it's the only visible option.
-                            // trigger('click') on the option div fires both the radio change
-                            // AND the deposit-calc handler at .gas-payment-option:not(.disabled).
-                            // Previously triggered 'change' on the radio — the radio doesn't have
-                            // its own change-listener wired, so the deposit row stayed at £0.00.
                             var visibleOptions = $('.gas-payment-option:visible');
                             if (visibleOptions.length === 1) {
                                 visibleOptions.find('input').prop('disabled', false);
@@ -5518,7 +5514,7 @@ jQuery(document).ready(function($) {
             // Hide current, show next
             $('.gas-checkout-step-content').hide();
             $('.gas-checkout-step-content[data-step="' + nextStep + '"]').show();
-            
+
             // Update step indicators
             $('.gas-step').removeClass('active');
             $('.gas-step[data-step="' + nextStep + '"]').addClass('active');
@@ -5527,7 +5523,22 @@ jQuery(document).ready(function($) {
                     $(this).addClass('completed');
                 }
             });
-            
+
+            // Reaching step 3 (Payment): ensure the Stripe form is visible if card
+            // is the (auto-)selected payment method, and recalc the deposit so the
+            // row reflects the latest grandTotal. The auto-select click on page load
+            // ran slideDown while step 3 was still hidden — its display state may
+            // not have stuck. Force-show here.
+            if (parseInt(nextStep, 10) === 3) {
+                if (checkoutData.stripeEnabled && $('.gas-payment-card-option').hasClass('selected')) {
+                    $('.gas-stripe-form').show();
+                    $('.gas-payment-summary').show();
+                }
+                if (typeof window._gasRecalcCheckoutDeposit === 'function') {
+                    window._gasRecalcCheckoutDeposit();
+                }
+            }
+
             // Scroll to top
             $('html, body').animate({ scrollTop: $checkoutPage.offset().top - 20 }, 300);
         });
@@ -5547,13 +5558,41 @@ jQuery(document).ready(function($) {
             });
         });
         
+        // Build the right-hand label for the Balance row from the deposit rule.
+        // Picks the most specific case that matches the rule's fields:
+        //   schedule_mode='schedule'   → "Final payment N days before arrival"
+        //   auto_charge_balance=true   → "Balance — auto-charged N days before arrival"
+        //   balance_due_type='days_before' → "Balance due N days before arrival"
+        //   else                       → "Balance due at check-in" (legacy fallback)
+        function _gasBalanceDueLabel(rule) {
+            if (!rule) return t('payment', 'balance_due', 'Balance due at check-in');
+            if (rule.schedule_mode === 'schedule' && Array.isArray(rule.payment_schedule)) {
+                var futureTiers = rule.payment_schedule
+                    .filter(function(tt) { return tt.days_before !== null && tt.days_before !== undefined; })
+                    .map(function(tt) { return parseInt(tt.days_before, 10); })
+                    .filter(function(d) { return !isNaN(d); })
+                    .sort(function(a, b) { return a - b; });
+                if (futureTiers.length > 0) {
+                    return t('payment', 'balance_final_days', 'Final payment {days} days before arrival').replace('{days}', futureTiers[0]);
+                }
+            }
+            if (rule.auto_charge_balance && rule.auto_charge_days_before) {
+                var d = parseInt(rule.auto_charge_days_before, 10);
+                if (d > 0) return t('payment', 'balance_auto_days', 'Balance — auto-charged {days} days before arrival').replace('{days}', d);
+            }
+            if (rule.balance_due_type === 'days_before' && rule.balance_due_days) {
+                var d2 = parseInt(rule.balance_due_days, 10);
+                if (d2 > 0) return t('payment', 'balance_due_days', 'Balance due {days} days before arrival').replace('{days}', d2);
+            }
+            return t('payment', 'balance_due', 'Balance due at check-in');
+        }
+
         // Helper: trigger the deposit recalc on the currently-selected card option.
         // Called from updateCheckoutPricing when pricing data lands after card was
         // already selected (auto-select path), so the deposit row reflects the
         // freshly-calculated total instead of the static £0.00.
         window._gasRecalcCheckoutDeposit = function() {
             if (!checkoutData.stripeEnabled) return;
-            var $card = $('.gas-payment-option').filter(function() { return $(this).find('input[value="card"]').length > 0; });
             if (!$card.hasClass('selected')) return;
             $card.trigger('_gasRecalcDeposit');
         };
@@ -5613,19 +5652,20 @@ jQuery(document).ready(function($) {
                 checkoutData.balanceAmount = balanceAmount;
 
                 var currency = checkoutData.currency || '';
+                var balanceLabel = _gasBalanceDueLabel(checkoutData.depositRule);
 
                 if (depositAmount === 0 && balanceAmount > 0) {
                     // Deferred payment — hide deposit row, update balance label
                     $('.gas-deposit-amount-display').closest('.gas-payment-row').hide();
                     $('.gas-balance-row').show();
-                    $('.gas-balance-row span').first().text('Balance \u2014 card charged before arrival');
+                    $('.gas-balance-row span').first().text(balanceLabel);
                     $('.gas-balance-amount-display').text(formatPrice(balanceAmount, currency));
                 } else {
                     $('.gas-deposit-amount-display').closest('.gas-payment-row').show();
                     $('.gas-deposit-amount-display').text(formatPrice(depositAmount, currency));
                     if (balanceAmount > 0) {
                         $('.gas-balance-row').show();
-                        $('.gas-balance-row span').first().text(t('payment', 'balance_due', 'Balance due at check-in'));
+                        $('.gas-balance-row span').first().text(balanceLabel);
                         $('.gas-balance-amount-display').text(formatPrice(balanceAmount, currency));
                     } else {
                         $('.gas-balance-row').hide();
