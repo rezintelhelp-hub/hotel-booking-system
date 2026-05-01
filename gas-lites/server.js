@@ -1470,21 +1470,46 @@ app.get('/api/upsells/:roomId', async (req, res) => {
       }
     }
     
+    // Mirrors the public upsells endpoint in main server.js (~line 70720):
+    //   - account-anchored (via property's account_id, property_ids[] member's
+    //     account_id, or account-wide user_id with empty property scope)
+    //   - property filter strict: legacy property_id, property_ids[] member, OR
+    //     truly account-wide (no property scope at all)
+    //   - room filter uses string_to_array (not LIKE substring) to avoid '23'
+    //     falsely matching '123,234'
+    // Without this scoping, an upsell tied to one property of an account showed
+    // up on every other property's checkout under the same account.
     const result = await pool.query(`
-      SELECT u.id, u.name, u.description, u.price, u.charge_type, u.max_quantity,
-             u.image_url, u.category, u.property_id, u.room_id, u.room_ids,
-             u.mandatory, u.min_nights, u.max_nights
+      SELECT DISTINCT
+        u.id, u.name, u.description, u.price, u.charge_type, u.max_quantity,
+        u.image_url, u.category, u.property_id, u.property_ids, u.room_id, u.room_ids,
+        COALESCE(u.mandatory, false) AS mandatory, u.min_nights, u.max_nights
       FROM upsells u
       LEFT JOIN properties p ON u.property_id = p.id
       WHERE u.active = true
-        AND (p.account_id = $1 OR u.property_id = $2)
         AND (
-          u.room_id IS NULL 
+          p.account_id = $1
+          OR EXISTS (SELECT 1 FROM properties p2 WHERE p2.id = ANY(u.property_ids) AND p2.account_id = $1)
+          OR (
+            u.user_id = $1
+            AND u.property_id IS NULL
+            AND (u.property_ids IS NULL OR cardinality(u.property_ids) = 0)
+          )
+        )
+        AND (
+          $2::integer IS NULL
+          OR u.property_id = $2
+          OR $2 = ANY(u.property_ids)
+          OR (u.property_id IS NULL AND (u.property_ids IS NULL OR cardinality(u.property_ids) = 0))
+        )
+        AND (
+          $3::integer IS NULL
+          OR (u.room_id IS NULL AND (u.room_ids IS NULL OR u.room_ids = ''))
           OR u.room_id = $3
-          OR u.room_ids LIKE '%' || $3::text || '%'
+          OR $3 = ANY(string_to_array(u.room_ids, ',')::int[])
         )
       ORDER BY u.category NULLS LAST, u.name
-    `, [accId, propId, roomId]);
+    `, [accId, propId ? parseInt(propId, 10) : null, parseInt(roomId, 10) || null]);
     
     // Group by category
     const grouped = {};
@@ -4477,7 +4502,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       try {
         const res = await fetch('/api/upsells/' + roomId + '?propertyId=' + propertyId + '&accountId=' + accountId);
         const data = await res.json();
-        
+
         if (data.success && data.upsells && data.upsells.length > 0) {
           const list = document.getElementById('upsellsList');
           let html = '';
@@ -4492,6 +4517,14 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             return true;
           });
 
+          // Auto-include mandatory upsells in selectedUpsells. The guest can't
+          // deselect them — they're always charged. Re-seed on every load
+          // (filter out any mandatory ids first to avoid dupes).
+          const visibleUpsells = filterByNights(data.upsells);
+          const mandatoryIds = visibleUpsells.filter(u => u.mandatory).map(u => u.id);
+          selectedUpsells = selectedUpsells.filter(u => !mandatoryIds.includes(u.id));
+          visibleUpsells.filter(u => u.mandatory).forEach(u => selectedUpsells.push(u));
+
           // If we have categories, group them
           if (data.upsells_by_category && Object.keys(data.upsells_by_category).length > 1) {
             for (const [category, upsells] of Object.entries(data.upsells_by_category)) {
@@ -4501,17 +4534,18 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               html += filtered.map(u => renderUpsellItem(u)).join('');
             }
           } else {
-            html = filterByNights(data.upsells).map(u => renderUpsellItem(u)).join('');
+            html = visibleUpsells.map(u => renderUpsellItem(u)).join('');
           }
-          
+
           list.innerHTML = html;
           document.getElementById('upsellsSection').style.display = 'block';
+          updateTotal();
         }
       } catch (e) {
         console.log('No upsells available');
       }
     }
-    
+
     function renderUpsellItem(u) {
       let priceText = '';
       switch (u.charge_type) {
@@ -4520,13 +4554,20 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         case 'per_guest_per_night': priceText = '/guest/night'; break;
         default: priceText = '';
       }
-      
-      // Use btoa to safely encode the JSON data
+
+      // Mandatory upsells are auto-charged: render as locked (.selected +
+      // .mandatory classes), no onclick, '(included)' badge. Optional ones
+      // keep the existing toggle behaviour.
+      const mandatory = !!u.mandatory;
       const upsellData = btoa(JSON.stringify(u));
-      
-      return '<div class="upsell-item" data-id="' + u.id + '" data-upsell="' + upsellData + '" onclick="toggleUpsell(this)">' +
+      const classes = 'upsell-item' + (mandatory ? ' selected mandatory' : '');
+      const clickAttr = mandatory ? '' : ' onclick="toggleUpsell(this)"';
+      const styleAttr = mandatory ? ' style="cursor:default;"' : '';
+      const lockBadge = mandatory ? ' <small style="color:#64748b;font-weight:400;">(included)</small>' : '';
+
+      return '<div class="' + classes + '" data-id="' + u.id + '" data-upsell="' + upsellData + '"' + clickAttr + styleAttr + '>' +
         '<div class="upsell-checkbox"></div>' +
-        '<div class="upsell-info"><div class="upsell-name">' + (u.name || '').replace(/</g, '&lt;') + '</div>' +
+        '<div class="upsell-info"><div class="upsell-name">' + (u.name || '').replace(/</g, '&lt;') + lockBadge + '</div>' +
         (u.description ? '<div class="upsell-desc">' + u.description.replace(/</g, '&lt;') + '</div>' : '') + '</div>' +
         '<div class="upsell-price">' + currency + parseFloat(u.price).toFixed(2) + '<small>' + priceText + '</small></div>' +
       '</div>';
@@ -4576,8 +4617,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     
     function toggleUpsell(el) {
       const upsell = JSON.parse(atob(el.dataset.upsell));
+      // Mandatory upsells can't be deselected — guard in case a click reaches here.
+      if (upsell.mandatory) return;
       el.classList.toggle('selected');
-      
+
       if (el.classList.contains('selected')) {
         selectedUpsells.push(upsell);
       } else {
