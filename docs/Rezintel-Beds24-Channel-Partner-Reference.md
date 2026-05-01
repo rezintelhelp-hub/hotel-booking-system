@@ -144,7 +144,7 @@ that column stores the UUID `PK_<xxx>` format used by Beds24 V2 API and
 is **rejected** by the V1 channel-partner endpoint with
 `errorCode 2000 "no access to property"`.
 
-### Verified live (2026-05-01)
+### Verified live (2026-05-01) — propKey format
 
 | propKey sent | propKey type | Result |
 |---|---|---|
@@ -154,6 +154,14 @@ is **rejected** by the V1 channel-partner endpoint with
 | `PK_1424c76d-a52f-40f3-be5f-cb7330921003` | UUID | ❌ `errorCode 2000` |
 | `158899` | integer (Atlantis Bryan) | ✅ `bookId: 86164174` |
 | `131203` | integer (Atlantis Avocado) | ✅ `bookId: 86164197` |
+
+### Verified live (2026-05-01) — operation matrix
+
+| Operation | V1 result | apiSourceId stamped |
+|---|---|---|
+| V1 channel-partner **create** new booking (numeric propKey) | ✅ booking created | ❌ `46 (Airbnb)` for Atlantis — Beds24 routes through property's primary channel mapping, ignores explicit `apiSourceId: 70` / `apiSource: "Rezintel"` / `referer: "RezIntel-MyStayMessaging"` in payload |
+| V1 channel-partner **modify** V2-created booking (e.g. `bookId: 86163183`) | ❌ `errorCode 6001 "no access to bookId"` | n/a — master key can't touch bookings the channel partner didn't create |
+| V2 per-account OAuth (existing prod path for Atlantis) | ✅ booking created with full invoice | `apiSourceId: 0 (Direct)`, `apiSource: "Direct"` |
 
 ---
 
@@ -283,6 +291,41 @@ gracefully handling errorCode 2000 when it fails.
 2. **Pedro:** can/should Atlantis properties be re-mapped at Beds24 from Airbnb-as-primary to Rezintel/Direct?
 3. **Steve:** new flag `accounts.beds24_rezintel_partner BOOLEAN` to loosen the V1-fallback gate, vs. always-try-V1-and-tolerate-2000?
 4. **Architecture:** if Beds24 webhook routing can't be made reliable, fall back to Option 3 — GAS POSTs directly to Hostvana's ingest URL (still requires Pedro's URL + auth scheme).
+
+### Conclusion (as of 2026-05-01 evening)
+
+Neither Beds24-driven path can reliably trigger Pedro's Hostvana webhook
+for Atlantis bookings:
+
+- **V2 with per-account OAuth** stamps `apiSourceId: 0 (Direct)` — no
+  Rezintel routing.
+- **V1 channel-partner create** stamps `apiSourceId: 46 (Airbnb)` —
+  Beds24's channel-mapping for Atlantis properties overrides whatever
+  we send in the payload.
+- **V1 channel-partner modify** of V2-created bookings is rejected
+  with `errorCode 6001` — the master key has no permission over
+  bookings created by other systems.
+
+The April 4 commit message (`9787108`: *"This gives apiSourceId 70
+(Rezintel channel partner) which triggers Beds24 webhooks. Fixes
+Pedro's Hostvana webhook issue."*) was either:
+
+- Verified on a property mapped to Rezintel as primary channel at
+  Beds24, which Atlantis is not (now mapped to Airbnb), OR
+- Speculative — never end-to-end-confirmed that `apiSourceId: 70`
+  actually appeared on Atlantis bookings.
+
+**Recommended path forward: Option 3** — GAS fires the webhook directly
+to Hostvana, bypassing Beds24's webhook routing entirely. Works for
+every Hostvana customer regardless of their Beds24 channel-mapping
+state. Requires Pedro to provide:
+- Hostvana ingest URL (global or per-customer)
+- Auth scheme (`X-Hostvana-Key` header convention)
+- Payload schema (mirror Beds24's webhook format, or Hostvana's own)
+
+Until that's in place, Atlantis bookings will appear in Beds24 with
+correct invoice data (V2 per-account OAuth path) but will NOT trigger
+the Hostvana webhook automatically.
 
 ---
 
