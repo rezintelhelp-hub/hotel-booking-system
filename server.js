@@ -66414,16 +66414,19 @@ app.post('/api/public/calculate-price', async (req, res) => {
       SELECT * FROM offers
       WHERE active = true
         AND account_id = $6
-        AND property_id = (SELECT property_id FROM bookable_units WHERE id = $1)
+        AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
         AND (room_id IS NULL OR room_id = $1)
         AND (min_nights IS NULL OR min_nights <= $2)
+        AND (max_nights IS NULL OR max_nights >= $2)
         AND (valid_from IS NULL OR valid_from <= $3)
         AND (valid_until IS NULL OR valid_until >= $4)
         AND (pricing_tier IS NULL OR pricing_tier = $5)
         AND ($7::integer IS NULL OR min_advance_days IS NULL OR min_advance_days <= $7)
         AND ($7::integer IS NULL OR max_advance_days IS NULL OR max_advance_days >= $7)
+        AND ($8::integer IS NULL OR min_guests IS NULL OR min_guests <= $8)
+        AND ($8::integer IS NULL OR max_guests IS NULL OR max_guests >= $8)
       ORDER BY priority DESC, discount_value DESC
-    `, [unit_id, nights, check_in, check_out, requestedPricingTier, unitAccountId, advanceDays]);
+    `, [unit_id, nights, check_in, check_out, requestedPricingTier, unitAccountId, advanceDays, totalGuests]);
 
     // Build all_offers array for the frontend rate selector
     // Filter out agent-tier offers unless matching pricing_tier was requested
