@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.8
+ * Version: 3.7.9
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.8');
+define('GAS_BOOKING_VERSION', '3.7.9');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8487,8 +8487,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $content = get_option('gas_gallery_content', '<p>Browse photos of our beautiful property.</p>');
         $button_color = $this->get_effective_button_color();
 
-        // Pull the 12 gallery image URLs from the Web Builder API. Empty slots
-        // are skipped — owners with 6 uploads see a 6-image grid, not 12 placeholders.
+        // Pull the 12 gallery image URLs + columns setting from the Web Builder API.
+        // Empty slots are skipped — owners with 6 uploads see a 6-image grid.
         $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
         $gallery_images = array();
         for ($i = 1; $i <= 12; $i++) {
@@ -8497,6 +8497,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 $gallery_images[] = $url;
             }
         }
+        // Columns: 2 / 3 / 4 / 5. Default 4. Honour exactly what the owner picked
+        // at every viewport >= 768px; collapse to 2 on tablet, 1 on phone.
+        $columns = intval($api['page_gallery_columns'] ?? 4);
+        if ($columns < 2 || $columns > 5) { $columns = 4; }
 
         ob_start();
         ?>
@@ -8505,7 +8509,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 .gas-page { max-width: 1200px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; margin-bottom: 32px; }
-                .gas-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+                .gas-gallery-grid { display: grid; grid-template-columns: repeat(<?php echo $columns; ?>, 1fr); gap: 16px; }
+                @media (max-width: 1024px) { .gas-gallery-grid { grid-template-columns: repeat(2, 1fr); } }
+                @media (max-width: 600px) { .gas-gallery-grid { grid-template-columns: 1fr; } }
                 .gas-gallery-item { position: relative; overflow: hidden; border-radius: 12px; aspect-ratio: 1; }
                 .gas-gallery-item img { width: 100%; height: 100%; object-fit: cover; cursor: pointer; transition: transform 0.3s; display: block; }
                 .gas-gallery-item:hover img { transform: scale(1.05); }
