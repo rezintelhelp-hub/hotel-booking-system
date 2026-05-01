@@ -3309,6 +3309,16 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .upsell-price { font-weight: 700; font-size: 14px; color: var(--accent); }
     .upsell-price small { font-weight: 400; font-size: 11px; color: #64748b; }
     .upsell-category { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid #e2e8f0; }
+
+    /* Qty stepper for upsells with max_quantity > 1 (e.g. Pet fee for 2 dogs).
+       Tap card → +1 (cap at max). Small "−" corner button → −1. Visible only
+       when .upsell-qty-aware AND .selected (i.e. qty >= 1). */
+    .upsell-item.upsell-qty-aware { position: relative; }
+    .upsell-qty-badge { display: none; align-items: center; background: var(--accent); color: white; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-left: 6px; white-space: nowrap; }
+    .upsell-item.upsell-qty-aware.selected .upsell-qty-badge { display: inline-flex; }
+    .upsell-qty-minus { display: none; position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 1px solid #e2e8f0; background: white; border-radius: 50%; cursor: pointer; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; line-height: 1; color: #475569; box-shadow: 0 1px 3px rgba(0,0,0,0.08); z-index: 2; padding: 0; }
+    .upsell-qty-minus:hover { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+    .upsell-item.upsell-qty-aware.selected .upsell-qty-minus { display: inline-flex; }
     
     /* Voucher Section */
     .voucher-section { margin: 16px 0; padding-top: 16px; border-top: 1px solid #e2e8f0; }
@@ -4418,6 +4428,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             break;
           // 'per_booking' or default - no multiplication
         }
+        // Multiply by quantity (≥ 1). Mandatory + single-qty items default to 1.
+        uPrice *= (parseInt(u.quantity, 10) || 1);
         upsellTotal += uPrice;
       });
       
@@ -4518,12 +4530,12 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           });
 
           // Auto-include mandatory upsells in selectedUpsells. The guest can't
-          // deselect them — they're always charged. Re-seed on every load
-          // (filter out any mandatory ids first to avoid dupes).
+          // deselect them — they're always charged at quantity 1. Re-seed on
+          // every load (filter out any mandatory ids first to avoid dupes).
           const visibleUpsells = filterByNights(data.upsells);
           const mandatoryIds = visibleUpsells.filter(u => u.mandatory).map(u => u.id);
           selectedUpsells = selectedUpsells.filter(u => !mandatoryIds.includes(u.id));
-          visibleUpsells.filter(u => u.mandatory).forEach(u => selectedUpsells.push(u));
+          visibleUpsells.filter(u => u.mandatory).forEach(u => selectedUpsells.push(Object.assign({}, u, { quantity: 1 })));
 
           // If we have categories, group them
           if (data.upsells_by_category && Object.keys(data.upsells_by_category).length > 1) {
@@ -4555,21 +4567,42 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         default: priceText = '';
       }
 
-      // Mandatory upsells are auto-charged: render as locked (.selected +
-      // .mandatory classes), no onclick, '(included)' badge. Optional ones
-      // keep the existing toggle behaviour.
       const mandatory = !!u.mandatory;
+      const maxQty = parseInt(u.max_quantity, 10) || 1;
+      // Stepper UI for items where the guest can pick more than one (e.g.
+      // Pet fee with max_quantity = 2 dogs). Mandatory items are not stepper
+      // — they're a single fixed charge. Single-qty items keep the toggle.
+      const qtyAware = maxQty > 1 && !mandatory;
+
+      // Restore selection from the in-memory selectedUpsells (so re-renders
+      // after pricing update don't lose what the guest already picked).
+      const selected = selectedUpsells.find(s => s.id === u.id);
+      const currentQty = selected ? (selected.quantity || 1) : 0;
+
       const upsellData = btoa(JSON.stringify(u));
-      const classes = 'upsell-item' + (mandatory ? ' selected mandatory' : '');
+      let classes = 'upsell-item';
+      if (mandatory) classes += ' selected mandatory';
+      if (qtyAware) classes += ' upsell-qty-aware';
+      if (currentQty > 0) classes += ' selected';
+
       const clickAttr = mandatory ? '' : ' onclick="toggleUpsell(this)"';
       const styleAttr = mandatory ? ' style="cursor:default;"' : '';
       const lockBadge = mandatory ? ' <small style="color:#64748b;font-weight:400;">(included)</small>' : '';
+      const upToBadge = qtyAware ? ' <small style="color:#64748b;font-weight:400;">(up to ' + maxQty + ')</small>' : '';
 
-      return '<div class="' + classes + '" data-id="' + u.id + '" data-upsell="' + upsellData + '"' + clickAttr + styleAttr + '>' +
+      let qtyControls = '';
+      if (qtyAware) {
+        qtyControls =
+          '<button type="button" class="upsell-qty-minus" aria-label="Remove one" title="Remove one" onclick="upsellQtyMinus(event, this)">−</button>' +
+          '<span class="upsell-qty-badge">×&nbsp;<span class="upsell-qty-value">' + currentQty + '</span></span>';
+      }
+
+      return '<div class="' + classes + '" data-id="' + u.id + '" data-upsell="' + upsellData + '" data-max-quantity="' + maxQty + '"' + clickAttr + styleAttr + '>' +
         '<div class="upsell-checkbox"></div>' +
-        '<div class="upsell-info"><div class="upsell-name">' + (u.name || '').replace(/</g, '&lt;') + lockBadge + '</div>' +
+        '<div class="upsell-info"><div class="upsell-name">' + (u.name || '').replace(/</g, '&lt;') + lockBadge + upToBadge + '</div>' +
         (u.description ? '<div class="upsell-desc">' + u.description.replace(/</g, '&lt;') + '</div>' : '') + '</div>' +
         '<div class="upsell-price">' + currency + parseFloat(u.price).toFixed(2) + '<small>' + priceText + '</small></div>' +
+        qtyControls +
       '</div>';
     }
     
@@ -4619,13 +4652,55 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       const upsell = JSON.parse(atob(el.dataset.upsell));
       // Mandatory upsells can't be deselected — guard in case a click reaches here.
       if (upsell.mandatory) return;
-      el.classList.toggle('selected');
 
-      if (el.classList.contains('selected')) {
-        selectedUpsells.push(upsell);
+      const maxQty = parseInt(el.dataset.maxQuantity, 10) || 1;
+      const existing = selectedUpsells.find(u => u.id === upsell.id);
+      const currentQty = existing ? (existing.quantity || 1) : 0;
+
+      if (maxQty > 1) {
+        // Stepper: each tap +1, capped at max. Stop without changes when at max.
+        const newQty = Math.min(currentQty + 1, maxQty);
+        if (newQty === currentQty) return;
+        if (existing) {
+          existing.quantity = newQty;
+        } else {
+          selectedUpsells.push(Object.assign({}, upsell, { quantity: newQty }));
+        }
+        el.classList.add('selected');
+        const valEl = el.querySelector('.upsell-qty-value');
+        if (valEl) valEl.textContent = newQty;
       } else {
-        selectedUpsells = selectedUpsells.filter(u => u.id !== upsell.id);
+        // Single-qty toggle.
+        el.classList.toggle('selected');
+        if (el.classList.contains('selected')) {
+          selectedUpsells.push(Object.assign({}, upsell, { quantity: 1 }));
+        } else {
+          selectedUpsells = selectedUpsells.filter(u => u.id !== upsell.id);
+        }
       }
+      updateTotal();
+    }
+
+    // Decrement one from a qty-aware upsell card. Wired via inline onclick
+    // on the minus button — stops propagation so the card's own onclick
+    // doesn't also fire and increment.
+    function upsellQtyMinus(e, btn) {
+      e.stopPropagation();
+      const card = btn.closest('.upsell-item');
+      if (!card) return;
+      const upsell = JSON.parse(atob(card.dataset.upsell));
+      const existing = selectedUpsells.find(u => u.id === upsell.id);
+      const currentQty = existing ? (existing.quantity || 1) : 0;
+      if (currentQty <= 0) return;
+      const newQty = currentQty - 1;
+      if (newQty === 0) {
+        selectedUpsells = selectedUpsells.filter(u => u.id !== upsell.id);
+        card.classList.remove('selected');
+      } else {
+        existing.quantity = newQty;
+      }
+      const valEl = card.querySelector('.upsell-qty-value');
+      if (valEl) valEl.textContent = newQty;
       updateTotal();
     }
     
