@@ -88445,6 +88445,81 @@ app.post('/api/inbox/reply/email', async (req, res) => {
 });
 
 // ============================================================
+// Hostvana webhook trigger helper.
+// Fires a V1 channel-partner setBooking modification using Pedro's
+// Rezintel master creds, which causes Beds24 to stamp apiSourceId:70
+// on the existing booking and fire the configured outbound webhook
+// to Hostvana. Async, never blocks the caller. Use after a successful
+// V2 booking POST when accounts.hostvana_connected = true and the
+// account is NOT on the beds24-marketplace adapter (those already
+// stamp via the V1 fallback path).
+// ============================================================
+async function stampBookingForHostvanaWebhook(beds24BookingId, opts = {}) {
+  const tag = `[HV-STAMP] bookingId=${beds24BookingId}`;
+  try {
+    const user = process.env.BEDS24_MARKETPLACE_USER;
+    const pass = process.env.BEDS24_MARKETPLACE_PASS;
+    const apiKey = process.env.BEDS24_MASTER_API_KEY || process.env.BEDS24_MARKETPLACE_APIKEY;
+    if (!user || !pass || !apiKey) {
+      console.warn(`${tag} skip — Rezintel master creds missing on Railway`);
+      return { success: false, error: 'master creds missing' };
+    }
+    if (!beds24BookingId) {
+      console.warn(`${tag} skip — no booking id`);
+      return { success: false, error: 'no booking id' };
+    }
+
+    const payload = {
+      authentication: { apiKey },
+      modifyBooking: [{
+        bookId: parseInt(beds24BookingId, 10),
+        apiReference: `RZN-${beds24BookingId}`,
+        refererEditable: 'RezIntel-MyStayMessaging'
+      }]
+    };
+
+    const axios = require('axios');
+    const response = await axios.post(
+      'https://api.beds24.com/rezintel.net/setBooking',
+      `json=${encodeURIComponent(JSON.stringify(payload))}`,
+      {
+        auth: { username: user, password: pass },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 30000
+      }
+    );
+
+    const ok = response.data && (response.data.modifyBooking?.[0]?.bookId || response.data.bookId);
+    if (ok) {
+      console.log(`${tag} ✓ stamped via Rezintel V1 channel-partner`);
+      return { success: true, response: response.data };
+    } else {
+      console.warn(`${tag} ✗ Beds24 returned no bookId — response:`, JSON.stringify(response.data).slice(0, 400));
+      return { success: false, response: response.data };
+    }
+  } catch (e) {
+    console.error(`${tag} fail:`, e.response?.data || e.message);
+    return { success: false, error: e.response?.data || e.message };
+  }
+}
+
+// One-off admin endpoint to manually stamp an existing booking. Useful for
+// retroactively triggering the Hostvana webhook on bookings created before
+// the production wiring was in place. Gated on the same shared secret used
+// for other internal deploy/SCP calls.
+app.post('/api/admin/hostvana/stamp/:bookingId', async (req, res) => {
+  try {
+    if (req.headers['x-api-key'] !== 'gas-deploy-2024-secure-key') {
+      return res.status(401).json({ success: false, error: 'unauthorized' });
+    }
+    const result = await stampBookingForHostvanaWebhook(req.params.bookingId);
+    res.json(result);
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// ============================================================
 // TEST: Beds24 V1 channel partner booking creation
 // Isolated test endpoint — does NOT affect any live flows
 // DELETE THIS after testing is complete
