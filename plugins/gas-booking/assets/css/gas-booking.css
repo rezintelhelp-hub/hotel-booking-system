@@ -2095,6 +2095,62 @@
     text-align: center;
 }
 
+/* Multi-quantity card stepper.
+   Tap card → +1 (cap at max). The "−" corner button decrements one at a time.
+   Visible only on cards with max_quantity > 1 and once qty >= 1. */
+.gas-upsell-item.gas-upsell-qty-aware {
+    position: relative;
+}
+
+.gas-upsell-qty-badge {
+    display: none;
+    align-items: center;
+    background: var(--gas-primary);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-left: 6px;
+    white-space: nowrap;
+}
+.gas-upsell-item.gas-upsell-qty-aware.selected .gas-upsell-qty-badge {
+    display: inline-flex;
+}
+
+.gas-upsell-qty-minus {
+    display: none;
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--gas-border);
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    color: #475569;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.gas-upsell-qty-minus:hover {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
+}
+.gas-upsell-item.gas-upsell-qty-aware.selected .gas-upsell-qty-minus {
+    display: inline-flex;
+}
+
+/* When at max, the card itself stops looking "tap to add". Soft visual cue. */
+.gas-upsell-item.gas-upsell-qty-max {
+    cursor: default;
+}
+
 /* ==========================================================================
    Voucher Section
    ========================================================================== */

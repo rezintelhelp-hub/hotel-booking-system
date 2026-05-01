@@ -2239,7 +2239,7 @@ jQuery(document).ready(function($) {
         var priceLabel = '';
         var perNight = '/' + t('booking', 'night', 'night');
         var perGuest = '/' + t('booking', 'guest', 'guest');
-        
+
         switch (upsell.charge_type) {
             case 'per_night':
                 priceLabel = perNight;
@@ -2253,31 +2253,75 @@ jQuery(document).ready(function($) {
             default:
                 priceLabel = '';
         }
-        
-        return '<div class="gas-upsell-item" data-upsell-id="' + upsell.id + '">' +
+
+        // Multi-quantity items (e.g. Pet fee, Extra bed) render a stepper:
+        // tap card → +1 (cap at max_quantity); small "–" corner button → -1.
+        // Single-quantity items keep the existing checkbox toggle.
+        var maxQty = parseInt(upsell.max_quantity, 10) || 1;
+        var qtyAware = maxQty > 1;
+
+        var qtyControls = '';
+        if (qtyAware) {
+            qtyControls =
+                '<button type="button" class="gas-upsell-qty-minus" aria-label="Remove one" title="Remove one">−</button>' +
+                '<span class="gas-upsell-qty-badge">×&nbsp;<span class="gas-upsell-qty-value">0</span></span>';
+        } else {
+            // Hidden qty value so calculatePrice still reads "1" when selected.
+            qtyControls = '<span class="gas-upsell-qty-value" style="display:none;">0</span>';
+        }
+
+        return '<div class="gas-upsell-item' + (qtyAware ? ' gas-upsell-qty-aware' : '') + '" data-upsell-id="' + upsell.id + '" data-max-quantity="' + maxQty + '">' +
             '<div class="gas-upsell-checkbox"></div>' +
             '<div class="gas-upsell-info">' +
-                '<div class="gas-upsell-name">' + upsell.name + '</div>' +
+                '<div class="gas-upsell-name">' + upsell.name + (qtyAware ? ' <small style="color:#64748b;font-weight:400;">(up to ' + maxQty + ')</small>' : '') + '</div>' +
                 (upsell.description ? '<div class="gas-upsell-description">' + upsell.description + '</div>' : '') +
             '</div>' +
             '<div class="gas-upsell-price">' + priceText + '<small>' + priceLabel + '</small></div>' +
+            qtyControls +
         '</div>';
     }
-    
-    // Upsell item click handler
-    $(document).on('click', '.gas-upsell-item', function() {
-        $(this).toggleClass('selected');
-        
-        // Recalculate price if dates are selected
+
+    // Helper: read/write qty on a card and trigger price recalc.
+    function _gasSetUpsellQty($card, newQty) {
+        var maxQty = parseInt($card.attr('data-max-quantity'), 10) || 1;
+        if (newQty < 0) newQty = 0;
+        if (newQty > maxQty) newQty = maxQty;
+        $card.find('.gas-upsell-qty-value').text(newQty);
+        $card.toggleClass('selected', newQty > 0);
+        $card.toggleClass('gas-upsell-qty-max', newQty >= maxQty && maxQty > 1);
+
         var checkin = $('.gas-checkin').val();
         var checkout = $('.gas-checkout').val();
         var unitId = $roomWidget.data('unit-id');
-        
         if (checkin && checkout && unitId) {
             var adults = $('.gas-adults').val() || $('.gas-guests').val();
             var children = $('.gas-children').val() || 0;
             calculatePrice(unitId, checkin, checkout, null, adults, children);
         }
+    }
+
+    // Upsell card click — increments qty (qty-aware) or toggles (single-qty).
+    // Skip when the click originated on the minus button (handled separately).
+    $(document).on('click', '.gas-upsell-item', function(e) {
+        if ($(e.target).closest('.gas-upsell-qty-minus').length) return;
+        var $card = $(this);
+        var current = parseInt($card.find('.gas-upsell-qty-value').text(), 10) || 0;
+        var maxQty = parseInt($card.attr('data-max-quantity'), 10) || 1;
+        if (maxQty > 1) {
+            // Stepper: +1 each tap, capped at max
+            _gasSetUpsellQty($card, current + 1);
+        } else {
+            // Toggle: 0 ↔ 1
+            _gasSetUpsellQty($card, current ? 0 : 1);
+        }
+    });
+
+    // Minus button — decrement by 1.
+    $(document).on('click', '.gas-upsell-qty-minus', function(e) {
+        e.stopPropagation();
+        var $card = $(this).closest('.gas-upsell-item');
+        var current = parseInt($card.find('.gas-upsell-qty-value').text(), 10) || 0;
+        _gasSetUpsellQty($card, current - 1);
     });
     
     // Voucher toggle
