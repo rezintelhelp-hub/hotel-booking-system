@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.7
+ * Version: 3.7.8
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.7');
+define('GAS_BOOKING_VERSION', '3.7.8');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8486,7 +8486,18 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $title = get_option('gas_gallery_title', 'Gallery');
         $content = get_option('gas_gallery_content', '<p>Browse photos of our beautiful property.</p>');
         $button_color = $this->get_effective_button_color();
-        
+
+        // Pull the 12 gallery image URLs from the Web Builder API. Empty slots
+        // are skipped — owners with 6 uploads see a 6-image grid, not 12 placeholders.
+        $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+        $gallery_images = array();
+        for ($i = 1; $i <= 12; $i++) {
+            $url = $api['page_gallery_image_' . $i] ?? '';
+            if (!empty($url)) {
+                $gallery_images[] = $url;
+            }
+        }
+
         ob_start();
         ?>
         <div class="gas-page gas-gallery-page" translate="no">
@@ -8495,14 +8506,23 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; margin-bottom: 32px; }
                 .gas-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-                .gas-gallery-item img { width: 100%; height: 250px; object-fit: cover; border-radius: 12px; cursor: pointer; transition: transform 0.2s; }
-                .gas-gallery-item img:hover { transform: scale(1.02); }
+                .gas-gallery-item { position: relative; overflow: hidden; border-radius: 12px; aspect-ratio: 1; }
+                .gas-gallery-item img { width: 100%; height: 100%; object-fit: cover; cursor: pointer; transition: transform 0.3s; display: block; }
+                .gas-gallery-item:hover img { transform: scale(1.05); }
+                .gas-gallery-empty { color: #64748b; grid-column: 1 / -1; text-align: center; padding: 40px; }
             </style>
             <h1 class="gas-page-title"><?php echo esc_html($title); ?></h1>
             <div class="gas-page-content"><?php echo wp_kses_post($content); ?></div>
             <div class="gas-gallery-grid">
-                <!-- Gallery images will be loaded from API or can be added via content -->
-                <p style="color: #64748b; grid-column: 1 / -1; text-align: center; padding: 40px;">Add images to your gallery using the Media section above, or they will be pulled from your property images.</p>
+                <?php if (!empty($gallery_images)) : ?>
+                    <?php foreach ($gallery_images as $idx => $url) : ?>
+                        <div class="gas-gallery-item">
+                            <img src="<?php echo esc_url($url); ?>" alt="<?php echo esc_attr($title . ' image ' . ($idx + 1)); ?>" loading="lazy">
+                        </div>
+                    <?php endforeach; ?>
+                <?php else : ?>
+                    <p class="gas-gallery-empty">No gallery images yet — upload via the Web Builder Gallery section.</p>
+                <?php endif; ?>
             </div>
         </div>
         <?php
