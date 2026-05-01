@@ -41203,21 +41203,38 @@ async function getBeds24PropKeyForRoom(pool, roomId) {
   }
 }
 
-// Gate for the V1 master-key fallback. Only accounts that have explicitly enrolled
-// in the Rezintel marketplace (adapter_code='beds24-marketplace', status='connected')
-// are entitled to use Pedro's master key. Per-account OAuth accounts (adapter_code='beds24')
-// must NOT leak into the V1 path — Beds24 rejects with errorCode 2000 ("no access to property")
-// for non-enrolled properties, which previously masked real V2 failures.
+// Gate for the V1 master-key fallback. Allows the V1 channel-partner path
+// (api.beds24.com/rezintel.net/setBooking) for two populations of accounts:
+//
+//   1. adapter_code='beds24-marketplace' — accounts that enrolled in the
+//      Rezintel marketplace via the GAS adapter (Villa Lounge etc.).
+//
+//   2. accounts.hostvana_connected = true — accounts that depend on Beds24
+//      firing its outbound webhook to Hostvana on booking creation. These
+//      accounts may be on per-account OAuth in GAS but are independently
+//      enrolled with Pedro's Rezintel partner property list at Beds24's side
+//      (verified by V1 setBooking succeeding with numeric propKey for
+//      Atlantis Realty on 2026-05-01). This restores the April-4-era
+//      behaviour that commit 5a61bd3 (2026-04-30) inadvertently locked off
+//      for them — the cause of Pedro's "Hostvana webhook stopped firing"
+//      regression. See docs/Rezintel-Beds24-Channel-Partner-Reference.md.
+//
+// Per-account OAuth accounts WITHOUT Hostvana stay on V2-only — the original
+// gate's purpose (keeping non-marketplace V2 failures from leaking into the
+// master key path with errorCode 2000 noise) holds for them.
 async function accountHasBeds24Marketplace(pool, roomId) {
   try {
     const result = await pool.query(`
       SELECT 1
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
-      JOIN gas_sync_connections gsc ON gsc.account_id = p.account_id
-      WHERE bu.id = $1
+      JOIN accounts a ON a.id = p.account_id
+      LEFT JOIN gas_sync_connections gsc
+        ON gsc.account_id = p.account_id
         AND gsc.adapter_code = 'beds24-marketplace'
         AND gsc.status = 'connected'
+      WHERE bu.id = $1
+        AND (gsc.id IS NOT NULL OR a.hostvana_connected = true)
       LIMIT 1
     `, [roomId]);
     return result.rows.length > 0;
