@@ -5213,15 +5213,42 @@ jQuery(document).ready(function($) {
                 $('.gas-taxes-section').hide();
             }
             
-            // Update cancellation policy based on rate type
+            // Update cancellation policy. Three cases:
+            //   1. Offer rate → non-refundable banner (offers are typically
+            //      non-refundable, the static .gas-policy-nonrefund span carries that copy).
+            //   2. depositRule with refund_policy → render the matching text.
+            //   3. Otherwise → static .gas-policy-standard fallback ("Free cancellation
+            //      until 48 hours before check-in"). NOTE: same switch logic also lives
+            //      in the disabled CM-quote dead block above (~line 5117) — keep them
+            //      in sync if either is changed. Re-applied from 1ca503b after b89ef63
+            //      regression. See feedback_no_24_7_badge memory.
             if (checkoutData.rateType === 'offer') {
                 $('.gas-policy-standard').hide();
                 $('.gas-policy-nonrefund').show();
+            } else if (checkoutData.depositRule && checkoutData.depositRule.refund_policy) {
+                var policyText = '';
+                switch (checkoutData.depositRule.refund_policy) {
+                    case 'flexible': policyText = 'Full refund up to 24 hours before check-in'; break;
+                    case 'moderate': policyText = 'Full refund up to 5 days before arrival'; break;
+                    case 'strict': policyText = '50% refund up to 7 days before arrival'; break;
+                    case 'refund_60': policyText = '100% refund up to 60 days before arrival'; break;
+                    case 'refund_30': policyText = '100% refund up to 30 days before arrival'; break;
+                    case 'refund_14': policyText = '100% refund up to 14 days before arrival'; break;
+                    case 'non_refundable': policyText = 'Non-refundable'; break;
+                    default: policyText = '';
+                }
+                if (policyText) {
+                    $('.gas-policy-standard').html('<p style="font-size: 0.85em; color: #64748b; margin: 0;">📋 ' + policyText + '</p>').show();
+                    $('.gas-policy-nonrefund').hide();
+                } else {
+                    $('.gas-policy-standard').show();
+                    $('.gas-policy-nonrefund').hide();
+                }
             } else {
                 $('.gas-policy-standard').show();
                 $('.gas-policy-nonrefund').hide();
             }
-            
+
             // Grand total
             var grandTotal = accommodationTotal + upsellsTotal - discount - voucherDiscount + taxTotal;
             if (isNaN(grandTotal)) grandTotal = 0;
