@@ -88469,8 +88469,23 @@ async function stampBookingForHostvanaWebhook(beds24BookingId, opts = {}) {
       return { success: false, error: 'no booking id' };
     }
 
+    // Look up the booking's property (need propKey for V1 channel-partner auth).
+    let propKey = opts.propKey || null;
+    if (!propKey) {
+      const lookup = await pool.query(
+        "SELECT gsp.prop_key FROM bookings b LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id LEFT JOIN properties p ON p.id = bu.property_id LEFT JOIN gas_sync_properties gsp ON gsp.external_id = p.beds24_property_id::text WHERE b.beds24_booking_id = $1 LIMIT 1",
+        [parseInt(beds24BookingId, 10)]
+      ).catch(() => ({ rows: [] }));
+      propKey = lookup.rows[0]?.prop_key || null;
+    }
+
+    const axios = require('axios');
+
+    // Beds24 V1 setBooking accepts modifyBooking[] for existing bookings.
+    // Pass propKey in authentication so Beds24 can verify Rezintel access
+    // to the property — without it the call returns errorCode 2000.
     const payload = {
-      authentication: { apiKey },
+      authentication: propKey ? { apiKey, propKey } : { apiKey },
       modifyBooking: [{
         bookId: parseInt(beds24BookingId, 10),
         apiReference: `RZN-${beds24BookingId}`,
@@ -88478,7 +88493,6 @@ async function stampBookingForHostvanaWebhook(beds24BookingId, opts = {}) {
       }]
     };
 
-    const axios = require('axios');
     const response = await axios.post(
       'https://api.beds24.com/rezintel.net/setBooking',
       `json=${encodeURIComponent(JSON.stringify(payload))}`,
@@ -88491,11 +88505,11 @@ async function stampBookingForHostvanaWebhook(beds24BookingId, opts = {}) {
 
     const ok = response.data && (response.data.modifyBooking?.[0]?.bookId || response.data.bookId);
     if (ok) {
-      console.log(`${tag} ✓ stamped via Rezintel V1 channel-partner`);
+      console.log(`${tag} ✓ stamped via Rezintel V1 channel-partner (propKey=${propKey || 'none'})`);
       return { success: true, response: response.data };
     } else {
-      console.warn(`${tag} ✗ Beds24 returned no bookId — response:`, JSON.stringify(response.data).slice(0, 400));
-      return { success: false, response: response.data };
+      console.warn(`${tag} ✗ Beds24 response (propKey=${propKey || 'none'}):`, JSON.stringify(response.data).slice(0, 400));
+      return { success: false, response: response.data, propKey };
     }
   } catch (e) {
     console.error(`${tag} fail:`, e.response?.data || e.message);
