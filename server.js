@@ -88485,16 +88485,15 @@ async function stampBookingForHostvanaWebhook(beds24BookingId, opts = {}) {
 
     const axios = require('axios');
 
-    // Beds24 V1 setBooking accepts modifyBooking[] for existing bookings.
-    // Pass propKey in authentication so Beds24 can verify Rezintel access
-    // to the property — without it the call returns errorCode 2000.
+    // Beds24 V1 setBooking modify format (matches the old Rezintel SetSeed
+    // plugin's confirmBooking pattern): bookId + fields to modify at the
+    // top level, not nested in modifyBooking[]. propKey must be the integer
+    // Beds24 property ID, passed in authentication.
     const payload = {
-      authentication: propKey ? { apiKey, propKey } : { apiKey },
-      modifyBooking: [{
-        bookId: parseInt(beds24BookingId, 10),
-        apiReference: `RZN-${beds24BookingId}`,
-        refererEditable: 'RezIntel-MyStayMessaging'
-      }]
+      authentication: propKey ? { apiKey, propKey: String(propKey) } : { apiKey },
+      bookId: parseInt(beds24BookingId, 10),
+      apiReference: `RZN-${beds24BookingId}`,
+      refererEditable: 'RezIntel-MyStayMessaging'
     };
 
     const response = await axios.post(
@@ -88507,7 +88506,7 @@ async function stampBookingForHostvanaWebhook(beds24BookingId, opts = {}) {
       }
     );
 
-    const ok = response.data && (response.data.modifyBooking?.[0]?.bookId || response.data.bookId);
+    const ok = response.data && (response.data.bookId || response.data[0]?.bookId);
     if (ok) {
       console.log(`${tag} ✓ stamped via Rezintel V1 channel-partner (propKey=${propKey || 'none'})`);
       return { success: true, response: response.data };
