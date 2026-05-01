@@ -70736,6 +70736,7 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
           $2::integer IS NULL
           OR u.property_id = $2
           OR $2 = ANY(u.property_ids)
+          OR (u.property_id IS NULL AND (u.property_ids IS NULL OR cardinality(u.property_ids) = 0))
         )
         AND (
           $3::integer IS NULL
