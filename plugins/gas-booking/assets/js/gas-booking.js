@@ -4923,13 +4923,27 @@ jQuery(document).ready(function($) {
                             }
                         }
                     }
+
+                    // Cancellation policy is driven by deposit_rule which the server
+                    // returns regardless of Stripe state (server fix d6c12d4).
+                    // The Stripe-enabled branch above already stored it; for non-Stripe
+                    // properties the rule is still in the response — store it here so
+                    // the policy text renders correctly. Then trigger pricing re-render
+                    // so updateCheckoutPricing's cancellation switch picks it up
+                    // (the first render fired before this AJAX completed).
+                    if (!checkoutData.depositRule && response.deposit_rule) {
+                        checkoutData.depositRule = response.deposit_rule;
+                    }
+                    if (typeof updateCheckoutPricing === 'function') {
+                        try { updateCheckoutPricing(); } catch (e) { /* may run before pricing data loads */ }
+                    }
                 },
                 error: function() {
                     $('.gas-card-status').text(t('booking', 'not_available', 'Not available'));
                 }
             });
         }
-        
+
         function loadCheckoutData() {
             // Load room info
             $.ajax({
