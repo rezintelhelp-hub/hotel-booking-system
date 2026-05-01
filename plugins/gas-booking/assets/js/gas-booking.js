@@ -5270,7 +5270,9 @@ jQuery(document).ready(function($) {
                 }
                 
                 var isMandatory = upsell.mandatory === true || upsell.mandatory === 'true';
-                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + '" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-mandatory="' + isMandatory + '">';
+                var maxQty = parseInt(upsell.max_quantity, 10) || 1;
+                var qtyAware = maxQty > 1 && !isMandatory;
+                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + (qtyAware ? ' gas-upsell-qty-aware' : '') + '" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-mandatory="' + isMandatory + '" data-max-quantity="' + maxQty + '">';
 
                 // Image if available
                 if (upsell.image_url) {
@@ -5293,17 +5295,23 @@ jQuery(document).ready(function($) {
                 }
 
                 html += '<div class="gas-upsell-info">';
-                html += '<div class="gas-upsell-name">' + upsell.name + '</div>';
+                html += '<div class="gas-upsell-name">' + upsell.name + (qtyAware ? ' <small style="color:#64748b;font-weight:400;">(up to ' + maxQty + ')</small>' : '') + '</div>';
                 if (upsell.description) {
                     html += '<div class="gas-upsell-desc">' + upsell.description + '</div>';
                 }
                 html += '<div class="gas-upsell-price">' + formatPriceShort(upsell.price, currency) + '<small>' + priceLabel + '</small></div>';
                 html += '</div>';
-                
-                html += '<div class="gas-upsell-check">✓</div>';
+
+                if (qtyAware) {
+                    html += '<button type="button" class="gas-upsell-qty-minus" aria-label="Remove one" title="Remove one">−</button>';
+                    html += '<span class="gas-upsell-qty-badge">×&nbsp;<span class="gas-upsell-qty-value">0</span></span>';
+                } else {
+                    html += '<span class="gas-upsell-qty-value" style="display:none;">' + (isMandatory ? '1' : '0') + '</span>';
+                    html += '<div class="gas-upsell-check">✓</div>';
+                }
                 html += '</div>';
             });
-            
+
             if (html === '') {
                 $('.gas-no-upsells').show();
             } else {
@@ -5335,31 +5343,81 @@ jQuery(document).ready(function($) {
             updateCheckoutPricing();
         }
 
-        // Upsell click handler
-        $(document).on('click', '.gas-upsell-card', function() {
+        // Upsell click handler — single-property checkout flow.
+        // Skips when click came from the qty-minus button (handled separately).
+        $(document).on('click', '.gas-upsell-card', function(e) {
+            if ($(e.target).closest('.gas-upsell-qty-minus').length) return;
             var $card = $(this);
             if ($card.data('mandatory') === true || $card.data('mandatory') === 'true') return;
             var upsellId = $card.data('upsell-id');
-            var price = $card.data('price');
+            var unitPrice = parseFloat($card.data('price')) || 0;
             var chargeType = $card.data('charge-type');
             var name = $card.find('.gas-upsell-name').text();
-            
-            if ($card.hasClass('selected')) {
-                $card.removeClass('selected');
-                checkoutData.selectedUpsells = checkoutData.selectedUpsells.filter(function(u) {
-                    return u.id !== upsellId;
-                });
+            var maxQty = parseInt($card.attr('data-max-quantity'), 10) || 1;
+
+            if (maxQty > 1) {
+                // Stepper: each tap +1 (cap at max)
+                var currentQty = parseInt($card.find('.gas-upsell-qty-value').text(), 10) || 0;
+                var newQty = Math.min(currentQty + 1, maxQty);
+                if (newQty === currentQty) return;
+                $card.find('.gas-upsell-qty-value').text(newQty);
+                $card.toggleClass('selected', newQty > 0);
+
+                if (typeof checkoutData !== 'undefined' && checkoutData.selectedUpsells) {
+                    var existing = checkoutData.selectedUpsells.find(function(u) { return u.id === upsellId; });
+                    if (existing) {
+                        existing.quantity = newQty;
+                    } else {
+                        checkoutData.selectedUpsells.push({
+                            id: upsellId, name: name, price: unitPrice,
+                            charge_type: chargeType, quantity: newQty
+                        });
+                    }
+                }
             } else {
-                $card.addClass('selected');
-                checkoutData.selectedUpsells.push({
-                    id: upsellId,
-                    name: name,
-                    price: price,
-                    charge_type: chargeType,
-                    quantity: 1
-                });
+                if ($card.hasClass('selected')) {
+                    $card.removeClass('selected');
+                    if (typeof checkoutData !== 'undefined' && checkoutData.selectedUpsells) {
+                        checkoutData.selectedUpsells = checkoutData.selectedUpsells.filter(function(u) {
+                            return u.id !== upsellId;
+                        });
+                    }
+                } else {
+                    $card.addClass('selected');
+                    if (typeof checkoutData !== 'undefined' && checkoutData.selectedUpsells) {
+                        checkoutData.selectedUpsells.push({
+                            id: upsellId, name: name, price: unitPrice,
+                            charge_type: chargeType, quantity: 1
+                        });
+                    }
+                }
             }
-            
+
+            updateCheckoutPricing();
+        });
+
+        // Minus button on .gas-upsell-card — single-property checkout decrement.
+        // (.gas-upsell-item minus, room widget, has its own handler higher up.)
+        $(document).on('click', '.gas-upsell-card .gas-upsell-qty-minus', function(e) {
+            e.stopPropagation();
+            var $card = $(this).closest('.gas-upsell-card');
+            if (!$card.length) return;
+            var currentQty = parseInt($card.find('.gas-upsell-qty-value').text(), 10) || 0;
+            if (currentQty <= 0) return;
+            var newQty = currentQty - 1;
+            var upsellId = $card.data('upsell-id');
+            $card.find('.gas-upsell-qty-value').text(newQty);
+            $card.toggleClass('selected', newQty > 0);
+
+            if (typeof checkoutData !== 'undefined' && checkoutData.selectedUpsells) {
+                if (newQty === 0) {
+                    checkoutData.selectedUpsells = checkoutData.selectedUpsells.filter(function(u) { return u.id !== upsellId; });
+                } else {
+                    var existing = checkoutData.selectedUpsells.find(function(u) { return u.id === upsellId; });
+                    if (existing) existing.quantity = newQty;
+                }
+            }
+
             updateCheckoutPricing();
         });
         
