@@ -2095,10 +2095,11 @@
     text-align: center;
 }
 
-/* Multi-quantity card stepper.
-   Tap card → +1 (cap at max). The "−" corner button decrements one at a time.
-   Visible only on cards with max_quantity > 1 and once qty >= 1. */
-.gas-upsell-item.gas-upsell-qty-aware {
+/* Multi-quantity stepper. Applies to both .gas-upsell-item (room widget)
+   and .gas-upsell-card (checkout) — same UX, same class hooks.
+   Tap container → +1 (cap at max). The "−" corner button decrements one at a time.
+   Visible only on items with max_quantity > 1 (.gas-upsell-qty-aware) AND qty >= 1 (.selected). */
+.gas-upsell-qty-aware {
     position: relative;
 }
 
@@ -2114,7 +2115,7 @@
     margin-left: 6px;
     white-space: nowrap;
 }
-.gas-upsell-item.gas-upsell-qty-aware.selected .gas-upsell-qty-badge {
+.gas-upsell-qty-aware.selected .gas-upsell-qty-badge {
     display: inline-flex;
 }
 
@@ -2136,18 +2137,19 @@
     line-height: 1;
     color: #475569;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    z-index: 2;
 }
 .gas-upsell-qty-minus:hover {
     background: #fef2f2;
     color: #dc2626;
     border-color: #fecaca;
 }
-.gas-upsell-item.gas-upsell-qty-aware.selected .gas-upsell-qty-minus {
+.gas-upsell-qty-aware.selected .gas-upsell-qty-minus {
     display: inline-flex;
 }
 
 /* When at max, the card itself stops looking "tap to add". Soft visual cue. */
-.gas-upsell-item.gas-upsell-qty-max {
+.gas-upsell-qty-max {
     cursor: default;
 }
 
