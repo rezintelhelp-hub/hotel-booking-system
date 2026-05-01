@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.10
+ * Version: 3.7.11
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.10');
+define('GAS_BOOKING_VERSION', '3.7.11');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8509,10 +8509,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 .gas-page { max-width: 1200px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; margin-bottom: 32px; }
-                .gas-gallery-grid { display: grid; grid-template-columns: repeat(<?php echo $columns; ?>, 1fr); gap: 16px; }
-                /* Respect the owner's column choice down to tablet sizes;
-                   collapse to a single column only on phones. */
-                @media (max-width: 600px) { .gas-gallery-grid { grid-template-columns: 1fr; gap: 12px; } }
+                /* High-specificity + !important to defeat any theme/page-builder CSS that
+                   tries to flatten the grid back to a single column. body + .gas-gallery-page
+                   ancestry beats most plugin/theme rules; !important beats !important rules
+                   that aren't more-specific. min-width: 0 on items defeats CSS Grid's default
+                   min-width: auto which can cause tracks to overflow with image content. */
+                body .gas-gallery-page .gas-gallery-grid { display: grid !important; grid-template-columns: repeat(<?php echo $columns; ?>, minmax(0, 1fr)) !important; gap: 16px !important; }
+                body .gas-gallery-page .gas-gallery-grid > * { min-width: 0 !important; }
+                @media (max-width: 600px) { body .gas-gallery-page .gas-gallery-grid { grid-template-columns: 1fr !important; gap: 12px !important; } }
                 .gas-gallery-item { position: relative; overflow: hidden; border-radius: 12px; aspect-ratio: 1; }
                 .gas-gallery-item img { width: 100%; height: 100%; object-fit: cover; cursor: pointer; transition: transform 0.3s; display: block; }
                 .gas-gallery-item:hover img { transform: scale(1.05); }
