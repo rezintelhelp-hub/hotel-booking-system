@@ -4842,13 +4842,18 @@ jQuery(document).ready(function($) {
                                 $payAtProperty.find('.gas-pay-property-desc').text(response.pay_property_description);
                             }
                             
-                            // Auto-select card if it's the only visible option
+                            // Auto-select card if it's the only visible option.
+                            // trigger('click') on the option div fires both the radio change
+                            // AND the deposit-calc handler at .gas-payment-option:not(.disabled).
+                            // Previously triggered 'change' on the radio — the radio doesn't have
+                            // its own change-listener wired, so the deposit row stayed at £0.00.
                             var visibleOptions = $('.gas-payment-option:visible');
                             if (visibleOptions.length === 1) {
-                                visibleOptions.addClass('selected').find('input').prop('checked', true).prop('disabled', false).trigger('change');
+                                visibleOptions.find('input').prop('disabled', false);
+                                visibleOptions.trigger('click');
                             } else if (methods.pay_at_property === false && methods.card !== false) {
-                                $cardOption.addClass('selected').find('input').prop('checked', true).trigger('change');
                                 $payAtProperty.removeClass('selected');
+                                $cardOption.trigger('click');
                             }
                         }
                         if (typeof Stripe !== 'undefined') {
@@ -5253,10 +5258,16 @@ jQuery(document).ready(function($) {
             var grandTotal = accommodationTotal + upsellsTotal - discount - voucherDiscount + taxTotal;
             if (isNaN(grandTotal)) grandTotal = 0;
             $('.gas-grand-total').text(formatPrice(grandTotal, currency));
-            
+
             checkoutData.grandTotal = grandTotal;
+
+            // If card is already selected (e.g. auto-selected on load before
+            // pricing landed), refresh the deposit row from the new total.
+            if (typeof window._gasRecalcCheckoutDeposit === 'function') {
+                window._gasRecalcCheckoutDeposit();
+            }
         }
-        
+
         function calculateUpsellItemTotal(upsell) {
             var nights = checkoutData.pricing.nights || 1;
             var guests = checkoutData.guests || 1;
@@ -5536,18 +5547,35 @@ jQuery(document).ready(function($) {
             });
         });
         
-        // Payment option selection
-        $(document).on('click', '.gas-payment-option:not(.disabled)', function() {
-            $('.gas-payment-option').removeClass('selected');
-            $(this).addClass('selected');
-            $(this).find('input').prop('checked', true);
-            
+        // Helper: trigger the deposit recalc on the currently-selected card option.
+        // Called from updateCheckoutPricing when pricing data lands after card was
+        // already selected (auto-select path), so the deposit row reflects the
+        // freshly-calculated total instead of the static £0.00.
+        window._gasRecalcCheckoutDeposit = function() {
+            if (!checkoutData.stripeEnabled) return;
+            var $card = $('.gas-payment-option').filter(function() { return $(this).find('input[value="card"]').length > 0; });
+            if (!$card.hasClass('selected')) return;
+            $card.trigger('_gasRecalcDeposit');
+        };
+
+        // Payment option selection. Also listens for synthetic _gasRecalcDeposit
+        // event so updateCheckoutPricing can refresh the deposit row without
+        // re-running the click toggle.
+        $(document).on('click _gasRecalcDeposit', '.gas-payment-option:not(.disabled)', function(e) {
+            if (e.type === 'click') {
+                $('.gas-payment-option').removeClass('selected');
+                $(this).addClass('selected');
+                $(this).find('input').prop('checked', true);
+            }
+
             // Show/hide Stripe form based on selection
             var paymentMethod = $(this).find('input').val();
             if (paymentMethod === 'card' && checkoutData.stripeEnabled) {
-                $('.gas-stripe-form').slideDown(200);
-                $('.gas-payment-summary').show();
-                $('.gas-card-guarantee-note').remove();
+                if (e.type === 'click') {
+                    $('.gas-stripe-form').slideDown(200);
+                    $('.gas-payment-summary').show();
+                    $('.gas-card-guarantee-note').remove();
+                }
 
                 // Calculate deposit amount
                 var total = checkoutData.grandTotal || 0;
