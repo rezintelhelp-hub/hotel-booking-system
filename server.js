@@ -45681,14 +45681,14 @@ app.get('/api/admin/upsells/by-room', async (req, res) => {
     const result = await pool.query(`
       WITH account_rooms AS (
         SELECT bu.id AS room_id, bu.name AS room_name, bu.display_name AS room_display,
-               p.id AS property_id, p.name AS property_name
+               p.id AS property_id, p.name AS property_name, p.currency AS property_currency
         FROM bookable_units bu
         JOIN properties p ON p.id = bu.property_id
         WHERE p.account_id = $1
       )
       SELECT
         ar.room_id, ar.room_name, ar.room_display,
-        ar.property_id, ar.property_name,
+        ar.property_id, ar.property_name, ar.property_currency,
         COALESCE(json_agg(
           json_build_object(
             'id', u.id,
@@ -45714,7 +45714,7 @@ app.get('/api/admin/upsells/by-room', async (req, res) => {
           OR u.room_id = ar.room_id
           OR ar.room_id = ANY(string_to_array(u.room_ids, ',')::int[])
         )
-      GROUP BY ar.room_id, ar.room_name, ar.room_display, ar.property_id, ar.property_name
+      GROUP BY ar.room_id, ar.room_name, ar.room_display, ar.property_id, ar.property_name, ar.property_currency
       ORDER BY ar.property_name, ar.room_name
     `, [accountId]);
     res.json({ success: true, rooms: result.rows });
