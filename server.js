@@ -66398,13 +66398,18 @@ app.post('/api/public/calculate-price', async (req, res) => {
     
     // Get the account_id for the unit to scope offers correctly
     const unitAccountResult = await pool.query(`
-      SELECT p.account_id, p.client_id 
-      FROM bookable_units bu 
-      JOIN properties p ON bu.property_id = p.id 
+      SELECT p.account_id, p.client_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
     `, [unit_id]);
     const unitAccountId = unitAccountResult.rows[0]?.account_id || unitAccountResult.rows[0]?.client_id;
-    
+
+    // Days until check-in — used to gate offers with advance-window restrictions
+    // (e.g. last-minute, early-bird). Mirrors the filter in /api/public/client/:clientId/offers.
+    const advanceDays = check_in ?
+      Math.ceil((new Date(check_in) - new Date()) / (1000 * 60 * 60 * 24)) : null;
+
     const offers = await pool.query(`
       SELECT * FROM offers
       WHERE active = true
@@ -66415,8 +66420,10 @@ app.post('/api/public/calculate-price', async (req, res) => {
         AND (valid_from IS NULL OR valid_from <= $3)
         AND (valid_until IS NULL OR valid_until >= $4)
         AND (pricing_tier IS NULL OR pricing_tier = $5)
+        AND ($7::integer IS NULL OR min_advance_days IS NULL OR min_advance_days <= $7)
+        AND ($7::integer IS NULL OR max_advance_days IS NULL OR max_advance_days >= $7)
       ORDER BY priority DESC, discount_value DESC
-    `, [unit_id, nights, check_in, check_out, requestedPricingTier, unitAccountId]);
+    `, [unit_id, nights, check_in, check_out, requestedPricingTier, unitAccountId, advanceDays]);
 
     // Build all_offers array for the frontend rate selector
     // Filter out agent-tier offers unless matching pricing_tier was requested
