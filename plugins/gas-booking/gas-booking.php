@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.13
+ * Version: 3.7.14
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.13');
+define('GAS_BOOKING_VERSION', '3.7.14');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8516,7 +8516,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                    ragged "masonry-looking" visual where rows have varying heights and the row-gap
                    appears collapsed. min-width: 0 + minmax(0, 1fr) defeats grid's min-width:auto
                    gotcha. */
-                body .gas-gallery-page .gas-gallery-grid {
+                body .gas-gallery-page .gas-page-gallery-grid {
                     display: grid !important;
                     grid-template-columns: repeat(<?php echo $columns; ?>, minmax(0, 1fr)) !important;
                     grid-auto-flow: row !important;
@@ -8525,7 +8525,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     row-gap: 16px !important;
                     column-gap: 16px !important;
                 }
-                body .gas-gallery-page .gas-gallery-grid > .gas-gallery-item {
+                body .gas-gallery-page .gas-page-gallery-grid > .gas-page-gallery-item {
                     aspect-ratio: 1 / 1 !important;
                     position: relative !important;
                     overflow: hidden !important;
@@ -8534,7 +8534,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     margin: 0 !important;
                     padding: 0 !important;
                 }
-                body .gas-gallery-page .gas-gallery-grid > .gas-gallery-item > img {
+                body .gas-gallery-page .gas-page-gallery-grid > .gas-page-gallery-item > img {
                     width: 100% !important;
                     height: 100% !important;
                     object-fit: cover !important;
@@ -8544,27 +8544,27 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     margin: 0 !important;
                     padding: 0 !important;
                 }
-                body .gas-gallery-page .gas-gallery-grid > .gas-gallery-item:hover > img { transform: scale(1.05); }
+                body .gas-gallery-page .gas-page-gallery-grid > .gas-page-gallery-item:hover > img { transform: scale(1.05); }
                 @media (max-width: 600px) {
-                    body .gas-gallery-page .gas-gallery-grid {
+                    body .gas-gallery-page .gas-page-gallery-grid {
                         grid-template-columns: 1fr !important;
                         gap: 12px !important;
                         row-gap: 12px !important;
                     }
                 }
-                .gas-gallery-empty { color: #64748b; grid-column: 1 / -1; text-align: center; padding: 40px; }
+                .gas-page-gallery-empty { color: #64748b; grid-column: 1 / -1; text-align: center; padding: 40px; }
             </style>
             <h1 class="gas-page-title"><?php echo esc_html($title); ?></h1>
             <div class="gas-page-content"><?php echo wp_kses_post($content); ?></div>
-            <div class="gas-gallery-grid">
+            <div class="gas-page-gallery-grid">
                 <?php if (!empty($gallery_images)) : ?>
                     <?php foreach ($gallery_images as $idx => $url) : ?>
-                        <div class="gas-gallery-item">
+                        <div class="gas-page-gallery-item">
                             <img src="<?php echo esc_url($url); ?>" alt="<?php echo esc_attr($title . ' image ' . ($idx + 1)); ?>" loading="lazy">
                         </div>
                     <?php endforeach; ?>
                 <?php else : ?>
-                    <p class="gas-gallery-empty">No gallery images yet — upload via the Web Builder Gallery section.</p>
+                    <p class="gas-page-gallery-empty">No gallery images yet — upload via the Web Builder Gallery section.</p>
                 <?php endif; ?>
             </div>
         </div>
