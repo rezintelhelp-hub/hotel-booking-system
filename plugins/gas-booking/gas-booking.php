@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.14
+ * Version: 3.7.15
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.14');
+define('GAS_BOOKING_VERSION', '3.7.15');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8487,8 +8487,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $content = get_option('gas_gallery_content', '<p>Browse photos of our beautiful property.</p>');
         $button_color = $this->get_effective_button_color();
 
-        // Pull the 12 gallery image URLs + columns setting from the Web Builder API.
-        // Empty slots are skipped — owners with 6 uploads see a 6-image grid.
+        // Pull the 12 gallery image URLs + style settings from the Web Builder API.
+        // Empty slots are skipped — owners with 6 uploads see a 6-image gallery.
         $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
         $gallery_images = array();
         for ($i = 1; $i <= 12; $i++) {
@@ -8497,25 +8497,24 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 $gallery_images[] = $url;
             }
         }
-        // Columns: 2 / 3 / 4 / 5. Default 4. Honour exactly what the owner picked
-        // at every viewport >= 768px; collapse to 2 on tablet, 1 on phone.
         $columns = intval($api['page_gallery_columns'] ?? 4);
         if ($columns < 2 || $columns > 5) { $columns = 4; }
+        $style = $api['page_gallery_style'] ?? 'grid';
+        if (!in_array($style, ['grid', 'masonry', 'slider', 'featured'], true)) { $style = 'grid'; }
+        $bg = $api['page_gallery_bg'] ?? '#ffffff';
+        $lightbox_raw = $api['page_gallery_lightbox'] ?? true;
+        $lightbox = !($lightbox_raw === false || $lightbox_raw === 'false' || $lightbox_raw === 0 || $lightbox_raw === '0');
 
         ob_start();
         ?>
-        <div class="gas-page gas-gallery-page" translate="no">
+        <div class="gas-page gas-gallery-page" data-gallery-lightbox="<?php echo $lightbox ? '1' : '0'; ?>" style="background: <?php echo esc_attr($bg); ?>;" translate="no">
             <style>
-                .gas-page { max-width: 1200px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
-                .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
-                .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; margin-bottom: 32px; }
-                /* All gallery rules at body .gas-gallery-page > X specificity (0,2,1+) + !important.
-                   grid-auto-flow: row makes the LTR-then-down flow explicit (defeats any inherited
-                   masonry / column / dense layout). aspect-ratio: 1 / 1 forces square items at item
-                   level — without this, items take the image's natural ratio which produces a
-                   ragged "masonry-looking" visual where rows have varying heights and the row-gap
-                   appears collapsed. min-width: 0 + minmax(0, 1fr) defeats grid's min-width:auto
-                   gotcha. */
+                .gas-gallery-page { padding: 40px 0; }
+                .gas-gallery-page .gas-page-inner { max-width: 1200px; margin: 0 auto; padding: 0 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
+                .gas-gallery-page .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
+                .gas-gallery-page .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; margin-bottom: 32px; }
+
+                /* GRID: equal squares (default) */
                 body .gas-gallery-page .gas-page-gallery-grid {
                     display: grid !important;
                     grid-template-columns: repeat(<?php echo $columns; ?>, minmax(0, 1fr)) !important;
@@ -8539,34 +8538,172 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     height: 100% !important;
                     object-fit: cover !important;
                     display: block !important;
-                    cursor: pointer;
+                    cursor: <?php echo $lightbox ? 'zoom-in' : 'default'; ?>;
                     transition: transform 0.3s;
                     margin: 0 !important;
                     padding: 0 !important;
                 }
                 body .gas-gallery-page .gas-page-gallery-grid > .gas-page-gallery-item:hover > img { transform: scale(1.05); }
+
+                /* MASONRY: natural proportions packed into columns */
+                body .gas-gallery-page .gas-page-gallery-masonry {
+                    column-count: <?php echo $columns; ?> !important;
+                    column-gap: 16px !important;
+                    padding: 0 !important;
+                }
+                body .gas-gallery-page .gas-page-gallery-masonry > .gas-page-gallery-item {
+                    break-inside: avoid !important;
+                    margin: 0 0 16px 0 !important;
+                    border-radius: 12px !important;
+                    overflow: hidden !important;
+                    display: block !important;
+                }
+                body .gas-gallery-page .gas-page-gallery-masonry > .gas-page-gallery-item > img {
+                    width: 100% !important;
+                    height: auto !important;
+                    display: block !important;
+                    cursor: <?php echo $lightbox ? 'zoom-in' : 'default'; ?>;
+                    transition: transform 0.3s;
+                }
+                body .gas-gallery-page .gas-page-gallery-masonry > .gas-page-gallery-item:hover > img { transform: scale(1.03); }
+
+                /* SLIDER: horizontal scroll with snap (no JS dep) */
+                body .gas-gallery-page .gas-page-gallery-slider {
+                    display: flex !important;
+                    overflow-x: auto !important;
+                    scroll-snap-type: x mandatory !important;
+                    gap: 16px !important;
+                    padding: 0 0 16px 0 !important;
+                    scrollbar-width: thin !important;
+                }
+                body .gas-gallery-page .gas-page-gallery-slider > .gas-page-gallery-item {
+                    flex: 0 0 80% !important;
+                    max-width: 800px !important;
+                    scroll-snap-align: center !important;
+                    aspect-ratio: 16 / 9 !important;
+                    overflow: hidden !important;
+                    border-radius: 12px !important;
+                }
+                body .gas-gallery-page .gas-page-gallery-slider > .gas-page-gallery-item > img {
+                    width: 100% !important;
+                    height: 100% !important;
+                    object-fit: cover !important;
+                    display: block !important;
+                    cursor: <?php echo $lightbox ? 'zoom-in' : 'grab'; ?>;
+                }
+
+                /* FEATURED: first image hero, rest in grid */
+                body .gas-gallery-page .gas-page-gallery-featured {
+                    display: grid !important;
+                    grid-template-columns: repeat(<?php echo $columns; ?>, minmax(0, 1fr)) !important;
+                    gap: 16px !important;
+                }
+                body .gas-gallery-page .gas-page-gallery-featured > .gas-page-gallery-item-hero {
+                    grid-column: 1 / -1 !important;
+                    aspect-ratio: 21 / 9 !important;
+                    overflow: hidden !important;
+                    border-radius: 12px !important;
+                }
+                body .gas-gallery-page .gas-page-gallery-featured > .gas-page-gallery-item-hero > img {
+                    width: 100% !important;
+                    height: 100% !important;
+                    object-fit: cover !important;
+                    display: block !important;
+                    cursor: <?php echo $lightbox ? 'zoom-in' : 'default'; ?>;
+                }
+                body .gas-gallery-page .gas-page-gallery-featured > .gas-page-gallery-item {
+                    aspect-ratio: 1 / 1 !important;
+                    overflow: hidden !important;
+                    border-radius: 12px !important;
+                    min-width: 0 !important;
+                }
+                body .gas-gallery-page .gas-page-gallery-featured > .gas-page-gallery-item > img {
+                    width: 100% !important;
+                    height: 100% !important;
+                    object-fit: cover !important;
+                    display: block !important;
+                    cursor: <?php echo $lightbox ? 'zoom-in' : 'default'; ?>;
+                    transition: transform 0.3s;
+                }
+                body .gas-gallery-page .gas-page-gallery-featured > .gas-page-gallery-item:hover > img { transform: scale(1.05); }
+
                 @media (max-width: 600px) {
-                    body .gas-gallery-page .gas-page-gallery-grid {
+                    body .gas-gallery-page .gas-page-gallery-grid,
+                    body .gas-gallery-page .gas-page-gallery-featured {
                         grid-template-columns: 1fr !important;
                         gap: 12px !important;
-                        row-gap: 12px !important;
+                    }
+                    body .gas-gallery-page .gas-page-gallery-masonry {
+                        column-count: 1 !important;
                     }
                 }
+
                 .gas-page-gallery-empty { color: #64748b; grid-column: 1 / -1; text-align: center; padding: 40px; }
+
+                /* Lightbox overlay */
+                .gas-gallery-lightbox-overlay {
+                    position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: none;
+                    align-items: center; justify-content: center; z-index: 99999; cursor: zoom-out;
+                }
+                .gas-gallery-lightbox-overlay.is-open { display: flex; }
+                .gas-gallery-lightbox-overlay img { max-width: 95vw; max-height: 95vh; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+                .gas-gallery-lightbox-close { position: fixed; top: 24px; right: 32px; color: #fff; font-size: 2.5rem; cursor: pointer; line-height: 1; background: none; border: 0; }
             </style>
-            <h1 class="gas-page-title"><?php echo esc_html($title); ?></h1>
-            <div class="gas-page-content"><?php echo wp_kses_post($content); ?></div>
-            <div class="gas-page-gallery-grid">
-                <?php if (!empty($gallery_images)) : ?>
-                    <?php foreach ($gallery_images as $idx => $url) : ?>
-                        <div class="gas-page-gallery-item">
-                            <img src="<?php echo esc_url($url); ?>" alt="<?php echo esc_attr($title . ' image ' . ($idx + 1)); ?>" loading="lazy">
-                        </div>
-                    <?php endforeach; ?>
-                <?php else : ?>
-                    <p class="gas-page-gallery-empty">No gallery images yet — upload via the Web Builder Gallery section.</p>
+            <div class="gas-page-inner">
+                <h1 class="gas-page-title"><?php echo esc_html($title); ?></h1>
+                <div class="gas-page-content"><?php echo wp_kses_post($content); ?></div>
+                <?php if (empty($gallery_images)) : ?>
+                    <div class="gas-page-gallery-grid"><p class="gas-page-gallery-empty">No gallery images yet — upload via the Web Builder Gallery section.</p></div>
+                <?php elseif ($style === 'masonry') : ?>
+                    <div class="gas-page-gallery-masonry">
+                        <?php foreach ($gallery_images as $idx => $url) : ?>
+                            <div class="gas-page-gallery-item"><img src="<?php echo esc_url($url); ?>" alt="<?php echo esc_attr($title . ' image ' . ($idx + 1)); ?>" loading="lazy"></div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php elseif ($style === 'slider') : ?>
+                    <div class="gas-page-gallery-slider">
+                        <?php foreach ($gallery_images as $idx => $url) : ?>
+                            <div class="gas-page-gallery-item"><img src="<?php echo esc_url($url); ?>" alt="<?php echo esc_attr($title . ' image ' . ($idx + 1)); ?>" loading="lazy"></div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php elseif ($style === 'featured') : ?>
+                    <div class="gas-page-gallery-featured">
+                        <?php foreach ($gallery_images as $idx => $url) : ?>
+                            <?php $cls = $idx === 0 ? 'gas-page-gallery-item-hero' : 'gas-page-gallery-item'; ?>
+                            <div class="<?php echo $cls; ?>"><img src="<?php echo esc_url($url); ?>" alt="<?php echo esc_attr($title . ' image ' . ($idx + 1)); ?>" loading="lazy"></div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php else : /* grid */ ?>
+                    <div class="gas-page-gallery-grid">
+                        <?php foreach ($gallery_images as $idx => $url) : ?>
+                            <div class="gas-page-gallery-item"><img src="<?php echo esc_url($url); ?>" alt="<?php echo esc_attr($title . ' image ' . ($idx + 1)); ?>" loading="lazy"></div>
+                        <?php endforeach; ?>
+                    </div>
                 <?php endif; ?>
             </div>
+            <?php if ($lightbox && !empty($gallery_images)) : ?>
+            <div class="gas-gallery-lightbox-overlay" id="gas-gallery-lightbox">
+                <button type="button" class="gas-gallery-lightbox-close" aria-label="Close">&times;</button>
+                <img src="" alt="">
+            </div>
+            <script>
+            (function(){
+                var page = document.querySelector('.gas-gallery-page[data-gallery-lightbox="1"]');
+                if (!page) return;
+                var overlay = document.getElementById('gas-gallery-lightbox');
+                if (!overlay) return;
+                var overlayImg = overlay.querySelector('img');
+                page.addEventListener('click', function(e){
+                    var img = e.target.closest('.gas-page-gallery-item img, .gas-page-gallery-item-hero img');
+                    if (!img) return;
+                    overlayImg.src = img.src;
+                    overlay.classList.add('is-open');
+                });
+                overlay.addEventListener('click', function(){ overlay.classList.remove('is-open'); overlayImg.src = ''; });
+                document.addEventListener('keydown', function(e){ if (e.key === 'Escape') { overlay.classList.remove('is-open'); overlayImg.src = ''; } });
+            })();
+            </script>
+            <?php endif; ?>
         </div>
         <?php
         return ob_get_clean();
