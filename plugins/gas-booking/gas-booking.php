@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.12
+ * Version: 3.7.13
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.12');
+define('GAS_BOOKING_VERSION', '3.7.13');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8509,22 +8509,42 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 .gas-page { max-width: 1200px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; margin-bottom: 32px; }
-                /* High-specificity + !important. Explicit row-gap + column-gap because
-                   shorthand "gap" can be partially overridden by theme/WP global rules.
-                   min-width: 0 + minmax(0, 1fr) defeats CSS Grid's min-width:auto gotcha
-                   that lets tracks overflow with image content. Item margin reset defends
-                   against theme rules pulling rows together. */
+                /* All gallery rules at body .gas-gallery-page > X specificity (0,2,1+) + !important.
+                   grid-auto-flow: row makes the LTR-then-down flow explicit (defeats any inherited
+                   masonry / column / dense layout). aspect-ratio: 1 / 1 forces square items at item
+                   level — without this, items take the image's natural ratio which produces a
+                   ragged "masonry-looking" visual where rows have varying heights and the row-gap
+                   appears collapsed. min-width: 0 + minmax(0, 1fr) defeats grid's min-width:auto
+                   gotcha. */
                 body .gas-gallery-page .gas-gallery-grid {
                     display: grid !important;
                     grid-template-columns: repeat(<?php echo $columns; ?>, minmax(0, 1fr)) !important;
+                    grid-auto-flow: row !important;
+                    grid-auto-rows: auto !important;
                     gap: 16px !important;
                     row-gap: 16px !important;
                     column-gap: 16px !important;
                 }
                 body .gas-gallery-page .gas-gallery-grid > .gas-gallery-item {
+                    aspect-ratio: 1 / 1 !important;
+                    position: relative !important;
+                    overflow: hidden !important;
+                    border-radius: 12px !important;
                     min-width: 0 !important;
                     margin: 0 !important;
+                    padding: 0 !important;
                 }
+                body .gas-gallery-page .gas-gallery-grid > .gas-gallery-item > img {
+                    width: 100% !important;
+                    height: 100% !important;
+                    object-fit: cover !important;
+                    display: block !important;
+                    cursor: pointer;
+                    transition: transform 0.3s;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+                body .gas-gallery-page .gas-gallery-grid > .gas-gallery-item:hover > img { transform: scale(1.05); }
                 @media (max-width: 600px) {
                     body .gas-gallery-page .gas-gallery-grid {
                         grid-template-columns: 1fr !important;
@@ -8532,9 +8552,6 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         row-gap: 12px !important;
                     }
                 }
-                .gas-gallery-item { position: relative; overflow: hidden; border-radius: 12px; aspect-ratio: 1; }
-                .gas-gallery-item img { width: 100%; height: 100%; object-fit: cover; cursor: pointer; transition: transform 0.3s; display: block; }
-                .gas-gallery-item:hover img { transform: scale(1.05); }
                 .gas-gallery-empty { color: #64748b; grid-column: 1 / -1; text-align: center; padding: 40px; }
             </style>
             <h1 class="gas-page-title"><?php echo esc_html($title); ?></h1>
