@@ -67214,13 +67214,15 @@ app.post('/api/public/book', async (req, res) => {
     let smoobuBookingId = null;
     let hostawayReservationId = null;
     
-    // Get CM IDs for this unit
+    // Get CM IDs for this unit + Hostvana flag (controls whether the
+    // V1-channel-partner stamp fires after V2 success — see below).
     const cmResult = await pool.query(`
       SELECT bu.beds24_room_id, bu.smoobu_id, bu.hostaway_listing_id,
-             p.account_id,
+             p.account_id, a.hostvana_connected,
              (SELECT gsp.external_id FROM gas_sync_room_types gsrt JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id WHERE gsrt.gas_room_id = bu.id LIMIT 1) as beds24_prop_id
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
+      LEFT JOIN accounts a ON a.id = p.account_id
       WHERE bu.id = $1
     `, [unit_id]);
     
@@ -67392,6 +67394,17 @@ app.post('/api/public/book', async (req, res) => {
               beds24BookingId = beds24Response.data[0]?.new?.id;
               if (beds24BookingId) {
                 await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24BookingId, newBooking.id]);
+
+                // Hostvana webhook stamp: V2 succeeded with apiSourceId 0 (Direct).
+                // Beds24 won't fire the Rezintel webhook to Hostvana on that.
+                // Fire a V1 channel-partner modify to re-stamp apiSourceId 70
+                // and trigger the outbound webhook. Async, never blocks the
+                // response. Skipped for non-Hostvana accounts.
+                if (cmData?.hostvana_connected) {
+                  stampBookingForHostvanaWebhook(beds24BookingId)
+                    .then(r => console.log(`[HV-STAMP] /api/public/book → bookingId=${beds24BookingId} ok=${r.success}`))
+                    .catch(e => console.error('[HV-STAMP] /api/public/book error:', e.message));
+                }
               }
             } else {
               nbV2Err = JSON.stringify(beds24Response.data?.[0] || beds24Response.data);
