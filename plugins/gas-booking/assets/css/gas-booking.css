@@ -2622,6 +2622,20 @@ button:active, .gas-view-btn:active, .gas-search-button:active, .gas-book-btn:ac
 .gas-description-full ol {
     margin: 0.5em 0;
 }
+/* Description-heading sizing — match .gas-room-title (28px/700) so the lead
+   heading inside a room description visually aligns with the room name above
+   the photos, regardless of which heading level (h1/h2/h3) the imported
+   description used. */
+.gas-description-short h1,
+.gas-description-short h2,
+.gas-description-short h3,
+.gas-description-full h1,
+.gas-description-full h2,
+.gas-description-full h3 {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.3;
+}
 .gas-description-short li,
 .gas-description-full li {
     margin: 0;
