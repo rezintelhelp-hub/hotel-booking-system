@@ -417,13 +417,51 @@ planned for marketplace) safer to launch later.
    > If neither works, we ship a verified V1+V2 hybrid on our side — you
    > change nothing.
 
-2. If Pedro says "ship the hybrid," verify cancellation path (V2 OAuth
-   cancelling a V1-created booking) before merging.
+2. If Pedro says "ship the hybrid," see "Final hybrid spec" below — it's the
+   captured implementation, ready to build from.
 
 3. If you decide to do the marketplace migration (3b) instead of the hybrid:
-   - Run the lite-diff script first
-   - Then flip `gas_sync_connections.adapter_code` to `beds24-marketplace`
-   - Re-sync via V1 path
+   - Stand up parallel `gas_sync_connections` row with `adapter_code='beds24-marketplace'`
+   - Compare property/room/rate/calendar/content side-by-side in admin UI
+   - When satisfied, flip the active connection to marketplace, retire OAuth row
+
+#### Final hybrid spec (option 3a, ready to ship)
+
+Architecture (decided 2026-05-02):
+
+- New flag `gas_sync_connections.book_via_master_key BOOLEAN DEFAULT false`
+- Per-connection toggle, master-admin-only UI in Settings page (entire row
+  hidden from non-master users via `data-roles="master_admin"` guard)
+- When flag is true, ALL writes for this connection's bookings route via
+  V1 channel-partner master key, NOT just create:
+  - Create: V1 master key `setBooking` (stamps Rezintel/70)
+  - invoiceItems: V2 OAuth POST modify (one-time after create — verified)
+  - Modify: V1 master key
+  - Cancel: V1 master key `setBooking` with `status: 2` (verified)
+- Sync inbound (Beds24 → GAS) stays on V2 OAuth — unchanged
+- Fallback: if flag is true but `properties.beds24_property_id` or
+  `bookable_units.beds24_room_id` is null, log a warning and fall through
+  to V2 OAuth path. Don't block the booking.
+
+The numeric IDs needed for V1 calls already exist:
+- `properties.beds24_property_id` (V1 propKey, integer)
+- `bookable_units.beds24_room_id` (V1 roomId, integer)
+
+No new ID columns needed.
+
+DB migration:
+```sql
+ALTER TABLE gas_sync_connections
+  ADD COLUMN IF NOT EXISTS book_via_master_key BOOLEAN DEFAULT false;
+```
+
+Estimated change: ~60-80 lines across `server.js` (booking flow + new admin
+PATCH endpoint) and `gas-admin.html` (one checkbox in the OAuth connection
+card with master-role guard).
+
+Trade-off accepted: the booking write code path forks based on this flag.
+For one or two clients, fine. If half the accounts end up needing it,
+revisit by switching them to the marketplace adapter (option 3b).
 
 ---
 
