@@ -13932,7 +13932,7 @@ app.get('/api/distribution/properties', async (req, res) => {
              a.name as owner_name, a.business_name as owner_business
       FROM properties p
       LEFT JOIN accounts a ON p.account_id = a.id
-      WHERE p.distribution_mode IN ('open', 'request') AND p.active = true
+      WHERE p.distribution_mode IN ('open', 'request') AND p.status = 'active'
     `;
     const params = [];
     let paramIndex = 1;
@@ -25132,7 +25132,7 @@ app.get('/api/admin/agent/available-properties', async (req, res) => {
              a.name as owner_name, a.business_name as owner_business
       FROM properties p
       LEFT JOIN accounts a ON p.account_id = a.id
-      WHERE p.distribution_mode IN ('open','request') AND p.active = true
+      WHERE p.distribution_mode IN ('open','request') AND p.status = 'active'
     `;
 
     // For agency_admin, exclude properties they already have access to (pending/proposed/countered/approved)
