@@ -5115,6 +5115,12 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS short_description TEXT');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS full_description TEXT');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS content_locked BOOLEAN NOT NULL DEFAULT false');
+    // Per-room toggle: when true, /api/public/book routes booking writes
+    // through the V1 channel-partner master key (apiSourceId 70 / Rezintel)
+    // for that bookable_unit, then POSTs invoiceItems back via V2 OAuth.
+    // Default false → existing V2 OAuth path. See docs/Rezintel-Beds24-
+    // Channel-Partner-Reference.md section "Final hybrid spec".
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS book_via_master_key BOOLEAN NOT NULL DEFAULT false');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS bedrooms INTEGER');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS beds INTEGER');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS bathrooms DECIMAL(3,1)');
@@ -47406,10 +47412,17 @@ app.put('/api/admin/units/:id', async (req, res) => {
     const { id } = req.params;
     console.log('PUT /api/admin/units/' + id, 'body:', JSON.stringify(req.body));
     
-    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description, repuso_widget_id } = req.body;
+    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description, repuso_widget_id, book_via_master_key } = req.body;
 
     // Ensure repuso_widget_id column exists
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS repuso_widget_id VARCHAR(255)').catch(() => {});
+
+    // Master-admin-only toggle: route booking writes via V1 channel-partner
+    // master key for this room. Only applied when payload explicitly includes
+    // the field (so non-master save paths can't clobber it).
+    if (book_via_master_key !== undefined) {
+      await pool.query('UPDATE bookable_units SET book_via_master_key = $1 WHERE id = $2', [!!book_via_master_key, id]);
+    }
 
     // Update basic fields only - no JSONB casting to avoid errors
     const result = await pool.query(`
@@ -67218,7 +67231,8 @@ app.post('/api/public/book', async (req, res) => {
     // V1-channel-partner stamp fires after V2 success — see below).
     const cmResult = await pool.query(`
       SELECT bu.beds24_room_id, bu.smoobu_id, bu.hostaway_listing_id,
-             p.account_id, a.hostvana_connected,
+             bu.book_via_master_key,
+             p.account_id, p.beds24_property_id, a.hostvana_connected,
              (SELECT gsp.external_id FROM gas_sync_room_types gsrt JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id WHERE gsrt.gas_room_id = bu.id LIMIT 1) as beds24_prop_id
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
@@ -67379,10 +67393,50 @@ app.post('/api/public/book', async (req, res) => {
 
         console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
 
-        // V2 primary (per-client token) — supports invoiceItems + payments
+        // Master-key-first path (per-room book_via_master_key flag).
+        // V1 channel-partner create stamps apiSourceId 70 / Rezintel — fires
+        // Beds24's Rezintel-channel webhook to Hostvana etc. After create we
+        // POST invoiceItems back via V2 OAuth so the Beds24 dashboard still
+        // shows the full line-item breakdown. If V1 fails for any reason we
+        // fall through to the existing V2 OAuth path so the booking is never
+        // lost. See docs/Rezintel-Beds24-Channel-Partner-Reference.md.
         let beds24Response;
         let nbV2Err = null;
-        if (accessToken) {
+        if (cmData?.book_via_master_key && cmData?.beds24_property_id) {
+          try {
+            const v1Booking = beds24Booking.map(b => toV1BookingFields(b));
+            const v1Result = await createBeds24BookingV1(cmData.beds24_property_id, v1Booking);
+            if (v1Result.success && v1Result.data) {
+              const bookData = Array.isArray(v1Result.data) ? v1Result.data[0] : v1Result.data;
+              beds24BookingId = bookData?.bookId || bookData?.id;
+              if (beds24BookingId) {
+                await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24BookingId, newBooking.id]);
+                console.log('[Beds24 master-key] V1 create OK, bookId:', beds24BookingId);
+
+                // POST invoiceItems via V2 OAuth so Beds24 dashboard gets the breakdown
+                if (accessToken && beds24Booking[0]?.invoiceItems?.length) {
+                  try {
+                    const modifyResp = await axios.post('https://beds24.com/api/v2/bookings', [{
+                      id: beds24BookingId,
+                      invoiceItems: beds24Booking[0].invoiceItems
+                    }], { headers: getBeds24BookingHeaders(cmData.beds24_prop_id, accessToken) });
+                    console.log('[Beds24 master-key] V2 invoiceItems modify OK:', JSON.stringify(modifyResp.data?.[0]?.success));
+                  } catch (modifyErr) {
+                    console.error('[Beds24 master-key] V2 invoiceItems modify failed (booking still live in Beds24):', modifyErr.response?.data || modifyErr.message);
+                  }
+                }
+              }
+            } else {
+              console.error('[Beds24 master-key] V1 create failed:', v1Result.error || JSON.stringify(v1Result));
+            }
+          } catch (mkErr) {
+            console.error('[Beds24 master-key] V1 create exception:', mkErr.response?.data || mkErr.message);
+          }
+        }
+
+        // V2 primary (per-client token) — runs unless master-key path already
+        // produced a beds24BookingId. Supports invoiceItems + payments.
+        if (!beds24BookingId && accessToken) {
           try {
             beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
               headers: getBeds24BookingHeaders(cmData.beds24_prop_id, accessToken)
