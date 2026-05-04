@@ -3,7 +3,7 @@
  * Plugin Name: GAS Reviews
  * Plugin URI: https://gas.travel
  * Description: Display guest reviews from Repuso/The Reviews Place or GAS internal reviews with Review schema markup. Colors controlled via GAS Admin.
- * Version: 1.1.5
+ * Version: 1.1.7
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -232,12 +232,11 @@ class GAS_Reviews {
 
         ob_start();
         ?>
-        <!-- Width match: outer .wp-block-shortcode wrapper is constrained to the
-             standard Pro Builder section width by gas-theme-burger. The inner
-             wrap fills its parent (width:100%) with 20px top/bottom for a
-             thin orange band and 0 left/right so the card row aligns flush
-             with the two-column section edges. -->
-        <div class="gas-reviews-wrap" style="<?php if ($bg_color) echo 'background:' . esc_attr($bg_color) . ';'; else echo 'background:' . $bg . ';'; ?> font-family:<?php echo $body_font; ?>; padding:20px 0; width:100%; margin:0 auto; box-sizing:border-box;">
+        <!-- WordPress doesn't actually wrap shortcodes in a .wp-block-shortcode
+             div in rendered output — so theme rules targeting that won't apply.
+             The wrap therefore self-constrains to calc(100% - 200px) to match
+             the standard Pro Builder section width (covers, columns, groups). -->
+        <div class="gas-reviews-wrap" style="<?php if ($bg_color) echo 'background:' . esc_attr($bg_color) . ';'; else echo 'background:' . $bg . ';'; ?> font-family:<?php echo $body_font; ?>; padding:20px; width:calc(100% - 200px); max-width:calc(100% - 200px); margin:0 auto; box-sizing:border-box;">
             <style>
                 .gas-reviews-wrap, .gas-reviews-wrap * { text-align:left !important; }
                 .gas-reviews-wrap .gas-reviews-loading { text-align:center !important; }
