@@ -87478,9 +87478,28 @@ async function proBuilderFetchContent(blogId, pageId) {
   );
   const licenseKey = license.rows.length > 0 ? license.rows[0].license_key : '';
 
-  const wpRes = await fetch(`${siteUrl}/wp-json/gas/v1/page-content/${pageId}?api_key=${encodeURIComponent(licenseKey)}&_t=${Date.now()}`, {
-    signal: AbortSignal.timeout(15000)
-  });
+  // Retry transient network failures up to 3 times. Some hosts (Hostinger,
+  // shared hosting behind WAF) intermittently drop or reset Railway's
+  // outbound requests; a quick retry usually succeeds. Explicit User-Agent
+  // set in case the upstream blocks empty UAs.
+  const url = `${siteUrl}/wp-json/gas/v1/page-content/${pageId}?api_key=${encodeURIComponent(licenseKey)}&_t=${Date.now()}`;
+  const fetchOptions = {
+    signal: AbortSignal.timeout(15000),
+    headers: { 'User-Agent': 'GAS-ProBuilder/1.0 (admin.gas.travel)' }
+  };
+  let wpRes = null;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      wpRes = await fetch(url, fetchOptions);
+      break;
+    } catch (e) {
+      lastErr = e;
+      console.log(`[proBuilderFetchContent] attempt ${attempt} failed for blog ${blogId} page ${pageId}:`, e.message, e.cause?.code || '');
+      if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
+    }
+  }
+  if (!wpRes) return { error: `Fetch to WordPress failed after 3 retries: ${lastErr?.message || 'unknown'}${lastErr?.cause?.code ? ' (' + lastErr.cause.code + ')' : ''}` };
   if (!wpRes.ok) return { error: `WordPress API returned ${wpRes.status}` };
 
   const pageData = await wpRes.json();
