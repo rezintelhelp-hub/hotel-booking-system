@@ -722,7 +722,7 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
                 </tr>
                 ${paymentSchedule && paymentSchedule.length > 0 ? paymentSchedule.map(tier => `
                 <tr>
-                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">${tier.status === 'charged' ? '✅' : '🕐'} ${tier.days_before === null ? 'Paid at booking' : (tier.status === 'charged' ? 'Charged (rolled up)' : 'Due ' + formatDate(tier.due_date))}</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">${tier.status === 'charged' ? '✅' : '🕐'} ${tier.days_before === null ? 'Paid at booking' : (tier.status === 'charged' ? 'Charged (rolled up)' : (tier.days_before === 0 ? 'Due on arrival' : 'Due ' + formatDate(tier.due_date)))}</td>
                   <td style="padding: 8px 0; font-size: 14px; color: ${tier.status === 'charged' ? '#10b981' : '#f59e0b'}; text-align: right; font-weight: 500;">${booking.currency || '$'}${parseFloat(tier.amount).toFixed(2)} (${tier.percentage}%)</td>
                 </tr>
                 `).join('') : `
@@ -15383,8 +15383,8 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
             propertyId, accountId, rule_name || 'Default', ruleNameJson,
             deposit_type || 'percentage', deposit_percentage ?? 0,
             deposit_fixed_amount, balance_due_type || 'days_before',
-            balance_due_days || 14, auto_charge_balance || false,
-            auto_charge_days_before || 14, refund_policy || 'flexible',
+            balance_due_days ?? 14, auto_charge_balance || false,
+            auto_charge_days_before ?? 14, refund_policy || 'flexible',
             valid_from || null, valid_until || null,
             min_nights || null, max_nights || null, is_active !== false,
             schedule_mode || 'basic', scheduleJson,
@@ -15729,8 +15729,8 @@ app.post('/api/accounts/:accountId/deposit-rules', async (req, res) => {
             accountId, rule_name || 'Account Default',
             deposit_type || 'percentage', deposit_percentage ?? 0,
             deposit_fixed_amount, balance_due_type || 'days_before',
-            balance_due_days || 14, auto_charge_balance || false,
-            auto_charge_days_before || 14, refund_policy || 'flexible',
+            balance_due_days ?? 14, auto_charge_balance || false,
+            auto_charge_days_before ?? 14, refund_policy || 'flexible',
             is_active !== false,
             schedule_mode || 'basic', scheduleJson,
             auto_charge_retry || false, max_retry_attempts || 3
@@ -33268,9 +33268,12 @@ function calculatePaymentScheduleForBooking(rule, totalAmount, arrivalDate, book
     // Multi-tier schedule from JSONB
     tiers = rule.payment_schedule.map(t => ({ ...t }));
   } else {
-    // Legacy: synthesize schedule from deposit_percentage + balance_due_days
+    // Legacy: synthesize schedule from deposit_percentage + balance_due_days.
+    // Use nullish-coalesce (??) so a deliberate 0 ("balance due on arrival")
+    // is preserved instead of being silently rewritten to 14.
     const pct = parseFloat(rule.deposit_percentage);
-    const daysBefore = parseInt(rule.balance_due_days) || 14;
+    const parsedDays = parseInt(rule.balance_due_days);
+    const daysBefore = isNaN(parsedDays) ? 14 : parsedDays;
     if (pct > 0) {
       // Two tiers: deposit now + balance later
       tiers = [
