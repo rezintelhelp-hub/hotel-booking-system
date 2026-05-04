@@ -22680,6 +22680,11 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'manual'`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS min_nights INTEGER`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS max_nights INTEGER`);
+    // Tiered nightly pricing: when set on a per_night / per_guest_per_night charge type,
+    // night 1 uses first_night_price and nights 2..N use subsequent_night_price.
+    // Both NULL = legacy behaviour (price × nights).
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS first_night_price DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS subsequent_night_price DECIMAL(10,2)`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
     
     // Partner tracking for taxes
@@ -45792,11 +45797,16 @@ app.post('/api/admin/upsells', async (req, res) => {
 
     // Persist user_id = account_id so account-wide upsells (no property scope) can be
     // resolved back to their owning account in GET. Mirrors how the tax handler works.
+    // Tiered nightly pricing: optional, only meaningful for per_night / per_guest_per_night.
+    // Empty string from form inputs → null (untouched legacy upsells stay simple).
+    const firstNightPrice = (req.body.first_night_price === '' || req.body.first_night_price == null) ? null : parseFloat(req.body.first_night_price);
+    const subsequentNightPrice = (req.body.subsequent_night_price === '' || req.body.subsequent_night_price == null) ? null : parseFloat(req.body.subsequent_night_price);
+
     const result = await pool.query(`
-      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, min_nights, max_nights, user_id)
-      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, min_nights, max_nights, first_night_price, subsequent_night_price, user_id)
+      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active !== false, mandatory || false, is_external || false, vendor_id || null, category || null, req.body.min_nights || null, req.body.max_nights || null, account_id || null]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active !== false, mandatory || false, is_external || false, vendor_id || null, category || null, req.body.min_nights || null, req.body.max_nights || null, firstNightPrice, subsequentNightPrice, account_id || null]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -45829,6 +45839,10 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
     // room_ids boundary — caller may send array or CSV string; column is TEXT
     const roomIdsCsv = Array.isArray(room_ids) ? room_ids.join(',') : (room_ids || null);
 
+    // Tiered nightly pricing — same semantics as POST (empty/null clears, otherwise parsed float).
+    const firstNightPrice = (req.body.first_night_price === '' || req.body.first_night_price == null) ? null : parseFloat(req.body.first_night_price);
+    const subsequentNightPrice = (req.body.subsequent_night_price === '' || req.body.subsequent_night_price == null) ? null : parseFloat(req.body.subsequent_night_price);
+
     const result = await pool.query(`
       UPDATE upsells SET
         name = COALESCE($1, name),
@@ -45849,10 +45863,12 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
         category = $16,
         min_nights = $17,
         max_nights = $18,
+        first_night_price = $19,
+        subsequent_night_price = $20,
         updated_at = NOW()
-      WHERE id = $19
+      WHERE id = $21
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active, mandatory || false, is_external, vendor_id, category || null, req.body.min_nights || null, req.body.max_nights || null, req.params.id]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active, mandatory || false, is_external, vendor_id, category || null, req.body.min_nights || null, req.body.max_nights || null, firstNightPrice, subsequentNightPrice, req.params.id]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -66603,25 +66619,45 @@ app.post('/api/public/calculate-price', async (req, res) => {
         
         if (upsellResult.rows[0]) {
           const u = upsellResult.rows[0];
-          let itemTotal = parseFloat(u.price);
-          
-          // Calculate based on charge type
-          if (u.charge_type === 'per_night') {
-            itemTotal = itemTotal * nights;
-          } else if (u.charge_type === 'per_guest') {
-            itemTotal = itemTotal * (guests || 1);
-          } else if (u.charge_type === 'per_guest_per_night') {
-            itemTotal = itemTotal * nights * (guests || 1);
+          const basePrice = parseFloat(u.price) || 0;
+          const fnp = u.first_night_price != null ? parseFloat(u.first_night_price) : null;
+          const snp = u.subsequent_night_price != null ? parseFloat(u.subsequent_night_price) : null;
+          // Tiered nightly pricing only kicks in for per_night / per_guest_per_night charge types
+          // when at least one tier is set. First night uses fnp (or basePrice), nights 2..N use
+          // snp (or basePrice). Empty tiers fall back to basePrice cleanly.
+          const isPerNight = (u.charge_type === 'per_night' || u.charge_type === 'per_guest_per_night');
+          const tiered = isPerNight && (fnp != null || snp != null);
+
+          let itemTotal;
+          if (tiered) {
+            const firstNight = fnp != null ? fnp : basePrice;
+            const otherNight = snp != null ? snp : basePrice;
+            const otherNightCount = Math.max(0, (nights || 1) - 1);
+            itemTotal = firstNight + (otherNight * otherNightCount);
+            if (u.charge_type === 'per_guest_per_night') {
+              itemTotal = itemTotal * (guests || 1);
+            }
+          } else {
+            itemTotal = basePrice;
+            if (u.charge_type === 'per_night') {
+              itemTotal = itemTotal * nights;
+            } else if (u.charge_type === 'per_guest') {
+              itemTotal = itemTotal * (guests || 1);
+            } else if (u.charge_type === 'per_guest_per_night') {
+              itemTotal = itemTotal * nights * (guests || 1);
+            }
           }
-          
+
           // Apply quantity
           itemTotal = itemTotal * (item.quantity || 1);
-          
+
           upsellsTotal += itemTotal;
           upsellsBreakdown.push({
             id: u.id,
             name: u.name,
-            unit_price: parseFloat(u.price),
+            unit_price: basePrice,
+            first_night_price: fnp,
+            subsequent_night_price: snp,
             charge_type: u.charge_type,
             quantity: item.quantity || 1,
             total: itemTotal

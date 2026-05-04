@@ -408,6 +408,30 @@ jQuery(document).ready(function($) {
         return symbol + Math.round(num).toLocaleString();
     }
     
+    // Calculate the total cost of one upsell instance (multiplied by guests/nights as
+    // dictated by charge_type). Mirrors the server math in /api/public/calculate-price
+    // including tiered pricing (first_night_price / subsequent_night_price). Use this
+    // everywhere the JS does upsell math so the UI total matches the server.
+    function calculateUpsellLineTotal(upsell, nights, guests) {
+        var n = nights || 1;
+        var g = guests || 1;
+        var basePrice = parseFloat(upsell.price) || 0;
+        var fnp = (upsell.first_night_price !== undefined && upsell.first_night_price !== null && upsell.first_night_price !== '') ? parseFloat(upsell.first_night_price) : null;
+        var snp = (upsell.subsequent_night_price !== undefined && upsell.subsequent_night_price !== null && upsell.subsequent_night_price !== '') ? parseFloat(upsell.subsequent_night_price) : null;
+        var isPerNight = (upsell.charge_type === 'per_night' || upsell.charge_type === 'per_guest_per_night');
+        if (isPerNight && (fnp !== null || snp !== null)) {
+            var firstNight = fnp !== null ? fnp : basePrice;
+            var otherNight = snp !== null ? snp : basePrice;
+            var total = firstNight + (otherNight * Math.max(0, n - 1));
+            if (upsell.charge_type === 'per_guest_per_night') total = total * g;
+            return total;
+        }
+        if (upsell.charge_type === 'per_night') return basePrice * n;
+        if (upsell.charge_type === 'per_guest') return basePrice * g;
+        if (upsell.charge_type === 'per_guest_per_night') return basePrice * n * g;
+        return basePrice;
+    }
+
     // Initialize Flatpickr date pickers
     function initDatePickers() {
         if (typeof flatpickr === 'undefined') return;
@@ -4304,7 +4328,9 @@ jQuery(document).ready(function($) {
                                 }
 
                                 var isMandatory = upsell.mandatory === true || upsell.mandatory === 'true';
-                                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + '" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-mandatory="' + isMandatory + '">';
+                                var fnpAttr = (upsell.first_night_price !== undefined && upsell.first_night_price !== null) ? upsell.first_night_price : '';
+                                var snpAttr = (upsell.subsequent_night_price !== undefined && upsell.subsequent_night_price !== null) ? upsell.subsequent_night_price : '';
+                                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + '" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-first-night-price="' + fnpAttr + '" data-subsequent-night-price="' + snpAttr + '" data-mandatory="' + isMandatory + '">';
 
                                 // Icon based on name
                                 var icon = '✨';
@@ -4349,10 +4375,7 @@ jQuery(document).ready(function($) {
                                 }
                                 var alreadyAdded = ug.selectedUpsells.some(function(u) { return String(u.id) === String(upsell.id); });
                                 if (alreadyAdded) return;
-                                var actualPrice = parseFloat(upsell.price);
-                                if (upsell.charge_type === 'per_night') actualPrice *= ugNights;
-                                else if (upsell.charge_type === 'per_guest') actualPrice *= ugGuests;
-                                else if (upsell.charge_type === 'per_guest_per_night') actualPrice *= ugNights * ugGuests;
+                                var actualPrice = calculateUpsellLineTotal(upsell, ugNights, ugGuests);
                                 ug.selectedUpsells.push({
                                     id: upsell.id,
                                     name: upsell.name,
@@ -4591,18 +4614,16 @@ jQuery(document).ready(function($) {
                 var upsellName = $card.find('.gas-upsell-name').text();
                 var chargeType = $card.data('charge-type');
 
-                // Calculate actual price based on charge type using current group's items
+                // Calculate actual price based on charge type using current group's items.
+                // Pass the full upsell-card dataset through so tiered pricing is honoured.
                 var nights = upsellGroup.items[0].nights || 1;
                 var guests = upsellGroup.items.reduce(function(sum, item) { return sum + (item.guests || 1); }, 0);
-                var actualPrice = upsellPrice;
-
-                if (chargeType === 'per_night') {
-                    actualPrice = upsellPrice * nights;
-                } else if (chargeType === 'per_guest') {
-                    actualPrice = upsellPrice * guests;
-                } else if (chargeType === 'per_guest_per_night') {
-                    actualPrice = upsellPrice * nights * guests;
-                }
+                var actualPrice = calculateUpsellLineTotal({
+                    price: upsellPrice,
+                    charge_type: chargeType,
+                    first_night_price: $card.data('first-night-price'),
+                    subsequent_night_price: $card.data('subsequent-night-price')
+                }, nights, guests);
 
                 if ($card.hasClass('selected')) {
                     upsellGroup.selectedUpsells.push({
@@ -5267,36 +5288,16 @@ jQuery(document).ready(function($) {
         function calculateUpsellItemTotal(upsell) {
             var nights = checkoutData.pricing.nights || 1;
             var guests = checkoutData.guests || 1;
-            var price = parseFloat(upsell.price);
-            
-            if (upsell.charge_type === 'per_night') {
-                price = price * nights;
-            } else if (upsell.charge_type === 'per_guest') {
-                price = price * guests;
-            } else if (upsell.charge_type === 'per_guest_per_night') {
-                price = price * nights * guests;
-            }
-            
-            return price * (upsell.quantity || 1);
+            return calculateUpsellLineTotal(upsell, nights, guests) * (upsell.quantity || 1);
         }
-        
+
         function calculateUpsellsTotal() {
             var total = 0;
             var nights = checkoutData.pricing.nights || 1;
             var guests = checkoutData.guests || 1;
-            
             checkoutData.selectedUpsells.forEach(function(upsell) {
-                var price = parseFloat(upsell.price);
-                if (upsell.charge_type === 'per_night') {
-                    price = price * nights;
-                } else if (upsell.charge_type === 'per_guest') {
-                    price = price * guests;
-                } else if (upsell.charge_type === 'per_guest_per_night') {
-                    price = price * nights * guests;
-                }
-                total += price * (upsell.quantity || 1);
+                total += calculateUpsellLineTotal(upsell, nights, guests) * (upsell.quantity || 1);
             });
-            
             return total;
         }
         
@@ -5320,7 +5321,9 @@ jQuery(document).ready(function($) {
                 var isMandatory = upsell.mandatory === true || upsell.mandatory === 'true';
                 var maxQty = parseInt(upsell.max_quantity, 10) || 1;
                 var qtyAware = maxQty > 1 && !isMandatory;
-                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + (qtyAware ? ' gas-upsell-qty-aware' : '') + '" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-mandatory="' + isMandatory + '" data-max-quantity="' + maxQty + '">';
+                var fnpAttr2 = (upsell.first_night_price !== undefined && upsell.first_night_price !== null) ? upsell.first_night_price : '';
+                var snpAttr2 = (upsell.subsequent_night_price !== undefined && upsell.subsequent_night_price !== null) ? upsell.subsequent_night_price : '';
+                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + (qtyAware ? ' gas-upsell-qty-aware' : '') + '" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-first-night-price="' + fnpAttr2 + '" data-subsequent-night-price="' + snpAttr2 + '" data-mandatory="' + isMandatory + '" data-max-quantity="' + maxQty + '">';
 
                 // Image if available
                 if (upsell.image_url) {
