@@ -3,7 +3,7 @@
  * Plugin Name: GAS Reviews
  * Plugin URI: https://gas.travel
  * Description: Display guest reviews from Repuso/The Reviews Place or GAS internal reviews with Review schema markup. Colors controlled via GAS Admin.
- * Version: 1.1.1
+ * Version: 1.1.2
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -234,9 +234,9 @@ class GAS_Reviews {
         ?>
         <!-- Width match: outer .wp-block-shortcode wrapper is constrained to the
              standard Pro Builder section width by gas-theme-burger. This inner
-             wrap fills its parent (no separate max-width cap) so reviews align
-             with covers/columns/groups. -->
-        <div class="gas-reviews-wrap" style="<?php if ($bg_color) echo 'background:' . esc_attr($bg_color) . ';'; else echo 'background:' . $bg . ';'; ?> font-family:<?php echo $body_font; ?>; padding:40px 20px <?php echo $padding_bottom; ?>px; width:100%; margin:0 auto; box-sizing:border-box;">
+             wrap fills its parent and uses padding:40px 0 (no horizontal
+             padding) so the card row aligns flush with the section edges. -->
+        <div class="gas-reviews-wrap" style="<?php if ($bg_color) echo 'background:' . esc_attr($bg_color) . ';'; else echo 'background:' . $bg . ';'; ?> font-family:<?php echo $body_font; ?>; padding:40px 0 <?php echo $padding_bottom; ?>px; width:100%; margin:0 auto; box-sizing:border-box;">
             <style>
                 .gas-reviews-wrap, .gas-reviews-wrap * { text-align:left !important; }
                 .gas-reviews-wrap .gas-reviews-loading { text-align:center !important; }
