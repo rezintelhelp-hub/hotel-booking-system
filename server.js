@@ -27109,11 +27109,17 @@ app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
   try {
     const deployedSiteId = parseInt(req.params.id);
     const section = req.params.section;
-    const { settings } = req.body;
+    const { settings, clear_keys } = req.body;
 
     if (!settings) {
       return res.json({ success: false, error: 'Settings object required' });
     }
+
+    // clear_keys: keys the user explicitly cleared via a × delete button.
+    // The merge guard below preserves existing image/url/logo values when an empty
+    // string is incoming (defends against stale-form blank submissions). clear_keys
+    // overrides that guard for fields the user actually intended to remove.
+    const explicitlyCleared = Array.isArray(clear_keys) ? clear_keys : [];
 
     // Cross-site URL guard — reject any payload field whose URL embeds a different
     // deployed_site_id than this route's target. Catches the DOM-staleness bleed bug
@@ -27173,13 +27179,22 @@ app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
       const existing = existingResult.rows[0].settings;
       mergedSettings = { ...existing };
       // Apply incoming values — but don't let empty strings overwrite non-empty image/url fields
+      // unless the user explicitly cleared them via clear_keys (× delete button).
       for (const [key, value] of Object.entries(settings)) {
-        if (value === '' && existing[key] && (key.includes('image') || key.includes('url') || key.includes('logo'))) {
+        if (value === '' && existing[key] && (key.includes('image') || key.includes('url') || key.includes('logo')) && !explicitlyCleared.includes(key)) {
           // Skip — don't blank out image/url/logo fields with empty strings
           console.log(`[Settings merge] Preserving existing ${key}: ${existing[key]}`);
           continue;
         }
         mergedSettings[key] = value;
+      }
+      // Force-clear explicitly cleared keys (covers cases where the key isn't in `settings`
+      // at all, e.g. the field wasn't collected because its DOM container wasn't visible)
+      for (const key of explicitlyCleared) {
+        if (Object.prototype.hasOwnProperty.call(mergedSettings, key)) {
+          mergedSettings[key] = '';
+          console.log(`[Settings merge] Explicitly cleared ${key}`);
+        }
       }
     }
 
