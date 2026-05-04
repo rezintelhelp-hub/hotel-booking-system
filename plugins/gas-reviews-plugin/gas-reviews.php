@@ -3,7 +3,7 @@
  * Plugin Name: GAS Reviews
  * Plugin URI: https://gas.travel
  * Description: Display guest reviews from Repuso/The Reviews Place or GAS internal reviews with Review schema markup. Colors controlled via GAS Admin.
- * Version: 1.1.8
+ * Version: 1.1.9
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -232,13 +232,14 @@ class GAS_Reviews {
 
         ob_start();
         ?>
-        <!-- Edge-to-edge orange banner: outer wrap is full viewport width so
-             the coloured background reaches the page edges (banner feel).
-             Inside, an inner constraint matches the standard Pro Builder
-             section width so the card row is inset like the surrounding
-             cover/column sections. -->
-        <div class="gas-reviews-wrap" style="<?php if ($bg_color) echo 'background:' . esc_attr($bg_color) . ';'; else echo 'background:' . $bg . ';'; ?> font-family:<?php echo $body_font; ?>; padding:20px 0; width:100vw; margin-left:calc(-50vw + 50%); margin-right:calc(-50vw + 50%); box-sizing:border-box;">
-        <div class="gas-reviews-inner" style="width:calc(100% - 200px); max-width:calc(100% - 200px); margin:0 auto; padding:0 20px; box-sizing:border-box;">
+        <!-- Standard frame: gas-theme-burger constrains every Pro Builder
+             section to calc(100% - 200px) (100px gap each side from page
+             edge). The reviews wrap respects this same frame so it aligns
+             with covers/columns/groups. WordPress shortcode output has no
+             wp-block-shortcode wrapper in DOM, so the constraint is applied
+             directly on the wrap. -->
+        <div class="gas-reviews-wrap" style="<?php if ($bg_color) echo 'background:' . esc_attr($bg_color) . ';'; else echo 'background:' . $bg . ';'; ?> font-family:<?php echo $body_font; ?>; padding:20px; width:calc(100% - 200px); max-width:calc(100% - 200px); margin:0 auto; box-sizing:border-box;">
+        <div class="gas-reviews-inner" style="width:100%; box-sizing:border-box;">
             <style>
                 .gas-reviews-wrap, .gas-reviews-wrap * { text-align:left !important; }
                 .gas-reviews-wrap .gas-reviews-loading { text-align:center !important; }
