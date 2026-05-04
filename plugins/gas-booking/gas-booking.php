@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.23
+ * Version: 3.7.24
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.23');
+define('GAS_BOOKING_VERSION', '3.7.24');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4635,22 +4635,47 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     $body = json_decode(wp_remote_retrieve_body($resp), true);
                     $s = $body['config']['website']['pro-settings'] ?? array();
                     $r = $body['config']['website']['page-rooms'] ?? array();
+                    // Settings live in page-rooms ($r) for almost all clients;
+                    // pro-settings ($s) is a legacy fallback that's empty in
+                    // current accounts. Read from page-rooms first, fall back
+                    // to pro-settings, then to default. This is what fixes
+                    // "I unticked show map and it didn't go away" — show-map
+                    // boolean is stored under page-rooms but the plugin was
+                    // only checking pro-settings.
+                    $get = function($key, $default = null) use ($r, $s) {
+                        if (array_key_exists($key, $r) && $r[$key] !== '' && $r[$key] !== null) return $r[$key];
+                        if (array_key_exists($key, $s) && $s[$key] !== '' && $s[$key] !== null) return $s[$key];
+                        return $default;
+                    };
+                    $boolFlag = function($key) use ($r, $s) {
+                        // Coerce true/false/'true'/'false'/'1'/'0' to PHP boolean.
+                        // Returns null if the key is absent in both sections.
+                        foreach (array($r, $s) as $src) {
+                            if (array_key_exists($key, $src)) {
+                                $v = $src[$key];
+                                if (is_bool($v)) return $v;
+                                if ($v === 'true' || $v === '1' || $v === 1) return true;
+                                if ($v === 'false' || $v === '0' || $v === 0 || $v === '') return false;
+                            }
+                        }
+                        return null;
+                    };
                     $api_settings = array(
-                        'rooms_filter_bg' => $s['filter-bg'] ?: ($r['filter-bg'] ?? null),
-                        'page_rooms_search_btn_bg' => $s['search-btn-bg'] ?: ($r['search-btn-bg'] ?? null),
-                        'page_rooms_search_btn_text' => $s['search-btn-text'] ?: ($r['search-btn-text'] ?? null),
-                        'rooms_card_radius' => $s['card-radius'] ?? null,
-                        'rooms_book_btn_bg' => $s['book-btn-bg'] ?? null,
-                        'rooms_book_btn_text' => $s['book-btn-text'] ?? null,
-                        'rooms_btn_radius' => $s['btn-radius'] ?? null,
+                        'rooms_filter_bg' => $get('filter-bg'),
+                        'page_rooms_search_btn_bg' => $get('search-btn-bg'),
+                        'page_rooms_search_btn_text' => $get('search-btn-text'),
+                        'rooms_card_radius' => $get('card-radius'),
+                        'rooms_book_btn_bg' => $get('book-btn-bg'),
+                        'rooms_book_btn_text' => $get('book-btn-text'),
+                        'rooms_btn_radius' => $get('btn-radius'),
                         'page_rooms_btn_radius' => $r['btn-radius'] ?? null,
-                        'rooms_show_map' => $s['show-map'] ?? 'true',
-                        'rooms_show_filters' => isset($s['show-filters']) ? ($s['show-filters'] === 'true') : null,
-                        'rooms_show_date_filters' => isset($s['show-date-filters']) ? ($s['show-date-filters'] === 'true') : null,
-                        'rooms_show_guest_filter' => isset($s['show-guest-filter']) ? ($s['show-guest-filter'] === 'true') : null,
-                        'rooms_show_amenity_filter' => isset($s['show-amenity-filter']) ? ($s['show-amenity-filter'] === 'true') : null,
-                        'rooms_show_location_filter' => isset($s['show-location-filter']) ? ($s['show-location-filter'] === 'true') : null,
-                        'rooms_show_property_filter' => isset($s['show-property-filter']) ? ($s['show-property-filter'] === 'true') : null,
+                        'rooms_show_map' => ($boolFlag('show-map') === false) ? 'false' : 'true',
+                        'rooms_show_filters' => $boolFlag('show-filters'),
+                        'rooms_show_date_filters' => $boolFlag('show-date-filters'),
+                        'rooms_show_guest_filter' => $boolFlag('show-guest-filter'),
+                        'rooms_show_amenity_filter' => $boolFlag('show-amenity-filter'),
+                        'rooms_show_location_filter' => $boolFlag('show-location-filter'),
+                        'rooms_show_property_filter' => $boolFlag('show-property-filter'),
                     );
                     set_transient($cache_key, $api_settings, 300);
                 }
