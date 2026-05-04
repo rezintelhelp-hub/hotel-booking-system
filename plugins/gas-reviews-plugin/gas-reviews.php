@@ -3,7 +3,7 @@
  * Plugin Name: GAS Reviews
  * Plugin URI: https://gas.travel
  * Description: Display guest reviews from Repuso/The Reviews Place or GAS internal reviews with Review schema markup. Colors controlled via GAS Admin.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -234,13 +234,10 @@ class GAS_Reviews {
         ?>
         <!-- Standard frame: gas-theme-burger constrains every Pro Builder
              section to calc(100% - 200px) (100px gap each side from page
-             edge). The reviews wrap respects this frame AND has zero
-             horizontal padding so the cards inside line up at the SAME x
-             edges as the cover content and the 4-card columns section
-             above (theme applies padding:0 to those, so cards are flush
-             at the section frame edge). 20px top/bottom padding gives a
-             thin visible orange band above/below the card row. -->
-        <div class="gas-reviews-wrap" style="<?php if ($bg_color) echo 'background:' . esc_attr($bg_color) . ';'; else echo 'background:' . $bg . ';'; ?> font-family:<?php echo $body_font; ?>; padding:20px 0; width:calc(100% - 200px); max-width:calc(100% - 200px); margin:0 auto; box-sizing:border-box;">
+             edge). The reviews wrap respects this frame AND has 20px
+             padding on all four sides so there's a visible orange band
+             surrounding the card row. -->
+        <div class="gas-reviews-wrap" style="<?php if ($bg_color) echo 'background:' . esc_attr($bg_color) . ';'; else echo 'background:' . $bg . ';'; ?> font-family:<?php echo $body_font; ?>; padding:20px; width:calc(100% - 200px); max-width:calc(100% - 200px); margin:0 auto; box-sizing:border-box;">
         <div class="gas-reviews-inner" style="width:100%; box-sizing:border-box;">
             <style>
                 .gas-reviews-wrap, .gas-reviews-wrap * { text-align:left !important; }
