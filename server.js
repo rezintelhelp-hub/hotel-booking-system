@@ -22595,6 +22595,11 @@ app.get('/api/setup-database', async (req, res) => {
     // Add source tracking for partner-pushed offers
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'manual'`);
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
+    // refund_policy: per-offer cancellation terms shown at checkout. 'inherit' = use the
+    // property's deposit_rule.refund_policy (default for offers that don't change cancel terms).
+    // Vocabulary mirrors deposit_rules.refund_policy: flexible | moderate | strict |
+    // refund_60 | refund_30 | refund_14 | non_refundable | inherit.
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS refund_policy VARCHAR(30) DEFAULT 'inherit'`);
     
     // Create vouchers table
     await pool.query(`
@@ -44667,11 +44672,11 @@ app.post('/api/admin/offers', async (req, res) => {
       valid_from, valid_until, valid_days_of_week,
       allowed_checkin_days, allowed_checkout_days,
       stackable, priority, active, pricing_tier, price_per_night, offer_code,
-      replaces_standard, hide_discount_badge
+      replaces_standard, hide_discount_badge, refund_policy
     } = req.body;
     const name = mlStr(rawName);
     const description = mlStr(rawDesc);
-    
+
     // CRITICAL: Get account_id from property if not provided
     // This ensures offers are always scoped to an account
     let finalAccountId = account_id;
@@ -44698,8 +44703,8 @@ app.post('/api/admin/offers', async (req, res) => {
           valid_from, valid_until, valid_days_of_week,
           allowed_checkin_days, allowed_checkout_days,
           stackable, priority, active, pricing_tier, offer_code,
-          replaces_standard, hide_discount_badge
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+          replaces_standard, hide_discount_badge, refund_policy
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -44710,7 +44715,7 @@ app.post('/api/admin/offers', async (req, res) => {
         valid_from || null, valid_until || null, valid_days_of_week || null,
         allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
         stackable || false, priority || 0, active !== false, pricing_tier || 'standard', offer_code || null,
-        replaces_standard || false, hide_discount_badge || false
+        replaces_standard || false, hide_discount_badge || false, refund_policy || 'inherit'
       ]);
     } catch (colErr) {
       // Fallback without array columns
@@ -44755,7 +44760,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
       allowed_checkin_days, allowed_checkout_days,
       stackable, priority, active,
       available_website, available_agents, pricing_tier, offer_code,
-      replaces_standard, hide_discount_badge
+      replaces_standard, hide_discount_badge, refund_policy
     } = req.body;
     const name = mlStr(rawName);
     const description = mlStr(rawDesc);
@@ -44796,8 +44801,9 @@ app.put('/api/admin/offers/:id', async (req, res) => {
           offer_code = $29,
           replaces_standard = COALESCE($30, replaces_standard),
           hide_discount_badge = COALESCE($31, hide_discount_badge),
+          refund_policy = COALESCE($32, refund_policy),
           updated_at = NOW()
-        WHERE id = $32
+        WHERE id = $33
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -44812,6 +44818,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         account_id || null, offer_code || null,
         replaces_standard !== undefined ? replaces_standard : null,
         hide_discount_badge !== undefined ? hide_discount_badge : null,
+        refund_policy || null,
         req.params.id
       ]);
     } catch (colErr) {
@@ -70708,7 +70715,7 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
       // Filter by account_id directly on offer OR via property's account_id
       // Do NOT use user_id as that's the admin who created it, not the account it belongs to
       offers = await pool.query(`
-        SELECT 
+        SELECT
           o.id,
           o.name,
           o.description,
@@ -70723,6 +70730,7 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
           o.valid_until,
           o.property_id,
           o.room_id,
+          o.refund_policy,
           p.name as property_name
         FROM offers o
         LEFT JOIN properties p ON o.property_id = p.id

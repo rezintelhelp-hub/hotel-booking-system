@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.25
+ * Version: 3.7.26
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.25');
+define('GAS_BOOKING_VERSION', '3.7.26');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7004,6 +7004,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $adults = isset($_GET['adults']) ? intval($_GET['adults']) : $guests;
         $children = isset($_GET['children']) ? intval($_GET['children']) : 0;
         $rate_type = isset($_GET['rate']) ? sanitize_text_field($_GET['rate']) : 'standard';
+        // offer_id: identity-based pointer to the selected offer. Lets checkout display the
+        // actual offer name + refund policy regardless of the rate=offer-N positional index
+        // (which can drift if the offers list changes between room view and checkout).
+        $offer_id = isset($_GET['offer_id']) ? intval($_GET['offer_id']) : 0;
         $property_id = isset($_GET['property']) ? intval($_GET['property']) : 0;
         $currency_param = isset($_GET['currency']) ? sanitize_text_field($_GET['currency']) : '';
         // Apply site currency override so checkout always uses the correct display currency
@@ -7029,6 +7033,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
              data-adults="<?php echo esc_attr($adults); ?>"
              data-children="<?php echo esc_attr($children); ?>"
              data-rate-type="<?php echo esc_attr($rate_type); ?>"
+             data-offer-id="<?php echo esc_attr($offer_id); ?>"
              data-api-url="<?php echo esc_attr($api_url); ?>"
              data-client-id="<?php echo esc_attr($client_id); ?>"
              data-currency="<?php echo esc_attr($currency_param); ?>"
@@ -7092,8 +7097,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     }
                                     ?>
                                 </span>
-                                <span class="gas-rate-badge <?php echo $rate_type === 'offer' ? 'offer' : ''; ?>">
-                                    <?php echo $rate_type === 'offer' ? '🎉 ' . esc_html($t_checkout['special_offer'] ?? 'Special Offer') : esc_html($t_checkout['standard_rate'] ?? 'Standard Rate'); ?>
+                                <?php
+                                // Treat any rate beginning with 'offer' (e.g. offer, offer-0, offer-1, …)
+                                // as an offer rate. JS replaces the badge text with the actual offer
+                                // name once the offer record has loaded — this is just the placeholder.
+                                $is_offer_rate = (strpos($rate_type, 'offer') === 0);
+                                ?>
+                                <span class="gas-rate-badge <?php echo $is_offer_rate ? 'offer' : ''; ?>">
+                                    <?php echo $is_offer_rate ? '🎉 ' . esc_html($t_checkout['special_offer'] ?? 'Special Offer') : esc_html($t_checkout['standard_rate'] ?? 'Standard Rate'); ?>
                                 </span>
                             </div>
                         </div>

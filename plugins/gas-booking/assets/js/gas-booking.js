@@ -2434,12 +2434,13 @@ jQuery(document).ready(function($) {
         var checkin = $('.gas-checkin').val();
         var checkout = $('.gas-checkout').val();
         var rateType = $roomWidget.data('selected-rate') || 'standard';
-        
+        var activeOffer = $roomWidget.data('active-offer'); // {id, name, ...} when an offer is selected
+
         // Get adults and children from new dropdowns
         var numAdults = parseInt($('.gas-adults').val()) || parseInt($('.gas-guests').val()) || 2;
         var numChildren = parseInt($('.gas-children').val()) || 0;
         var totalGuests = numAdults + numChildren;
-        
+
         // Build checkout URL - check if URL already has query params
         var checkoutUrl = gasBooking.checkoutUrl || '/checkout/';
         var separator = checkoutUrl.indexOf('?') === -1 ? '?' : '&';
@@ -2450,6 +2451,11 @@ jQuery(document).ready(function($) {
         checkoutUrl += '&adults=' + numAdults;
         checkoutUrl += '&children=' + numChildren;
         checkoutUrl += '&rate=' + rateType;
+        // Pass the actual offer ID so checkout can show the right name + refund policy.
+        // The positional rate=offer-N alone is fragile (depends on offer list ordering).
+        if (activeOffer && activeOffer.id) {
+            checkoutUrl += '&offer_id=' + encodeURIComponent(activeOffer.id);
+        }
         var roomCurrency = $roomWidget.data('currency') || '';
         if (roomCurrency) {
             checkoutUrl += '&currency=' + encodeURIComponent(roomCurrency);
@@ -2457,7 +2463,7 @@ jQuery(document).ready(function($) {
         if (propertyId) {
             checkoutUrl += '&property=' + propertyId;
         }
-        
+
         // Redirect to checkout
         window.location.href = checkoutUrl;
     });
@@ -4764,6 +4770,7 @@ jQuery(document).ready(function($) {
             adults: $checkoutPage.data('adults') || $checkoutPage.data('guests'),
             children: $checkoutPage.data('children') || 0,
             rateType: $checkoutPage.data('rate-type'),
+            offerId: parseInt($checkoutPage.data('offer-id')) || null,
             apiUrl: $checkoutPage.data('api-url'),
             clientId: $checkoutPage.data('client-id'),
             propertyId: $checkoutPage.data('property-id'),
@@ -4774,11 +4781,75 @@ jQuery(document).ready(function($) {
             stripeEnabled: false,
             stripe: null,
             cardElement: null,
-            depositRule: null
+            depositRule: null,
+            selectedOffer: null  // populated by loadSelectedOffer when offerId is present
         };
+
+        // Map a refund_policy code to the human-readable line shown on checkout.
+        // Used for both the offer's per-offer policy and the property's deposit_rule fallback.
+        function refundPolicyText(code) {
+            switch (code) {
+                case 'flexible': return 'Full refund up to 24 hours before check-in';
+                case 'moderate': return 'Full refund up to 5 days before arrival';
+                case 'strict': return '50% refund up to 7 days before arrival';
+                case 'refund_60': return '100% refund up to 60 days before arrival';
+                case 'refund_30': return '100% refund up to 30 days before arrival';
+                case 'refund_14': return '100% refund up to 14 days before arrival';
+                case 'non_refundable': return 'Non-refundable';
+                default: return '';
+            }
+        }
+
+        // Pick the policy that should drive the checkout banner. Priority:
+        //   1. Offer's refund_policy if it's set AND not 'inherit'
+        //   2. Property deposit_rule.refund_policy
+        //   3. Empty (caller falls back to the static "Free cancellation" copy)
+        function effectiveRefundPolicy() {
+            var offerPolicy = checkoutData.selectedOffer && checkoutData.selectedOffer.refund_policy;
+            if (offerPolicy && offerPolicy !== 'inherit') return offerPolicy;
+            return (checkoutData.depositRule && checkoutData.depositRule.refund_policy) || '';
+        }
+
+        function applyCancellationPolicy() {
+            var code = effectiveRefundPolicy();
+            var text = refundPolicyText(code);
+            if (text) {
+                $('.gas-policy-standard').html('<p style="font-size: 0.85em; color: #64748b; margin: 0;">📋 ' + text + '</p>').show();
+                $('.gas-policy-nonrefund').hide();
+            } else {
+                // No policy resolved — fall back to the static "Free cancellation" copy.
+                $('.gas-policy-standard').show();
+                $('.gas-policy-nonrefund').hide();
+            }
+        }
         
         // Load room details and pricing
         loadCheckoutData();
+
+        // If a specific offer was selected on the room page, fetch its details so the rate
+        // badge shows the actual offer name and the cancellation banner reflects the offer's
+        // refund_policy (rather than the generic "Special Offer" / non-refundable fallback).
+        function loadSelectedOffer() {
+            if (!checkoutData.offerId || !checkoutData.clientId) return;
+            $.ajax({
+                url: checkoutData.apiUrl + '/api/public/client/' + checkoutData.clientId + '/offers?include_future=1&unit_id=' + checkoutData.unitId,
+                method: 'GET',
+                success: function(response) {
+                    if (!response || !response.success || !Array.isArray(response.offers)) return;
+                    var match = response.offers.find(function(o) { return parseInt(o.id) === parseInt(checkoutData.offerId); });
+                    if (!match) return;
+                    checkoutData.selectedOffer = match;
+                    // Replace the placeholder "Special Offer" badge with the actual offer name.
+                    var name = (match.name && typeof match.name === 'object') ? (match.name.en || Object.values(match.name)[0]) : match.name;
+                    if (name) {
+                        $('.gas-rate-badge').addClass('offer').text('🎉 ' + name);
+                    }
+                    // Re-apply cancellation now that we know the offer's refund_policy.
+                    applyCancellationPolicy();
+                }
+            });
+        }
+        loadSelectedOffer();
         
         // Check Stripe availability (only if property ID already available)
         if (checkoutData.propertyId) {
@@ -5132,31 +5203,10 @@ jQuery(document).ready(function($) {
                 checkoutData.priceBreakdown = q.breakdown;
                 checkoutData.damageDeposit = q.damageDeposit;
                 
-                // Update cancellation policy based on deposit rule
-                if (checkoutData.rateType === 'offer') {
-                    $('.gas-policy-standard').hide();
-                    $('.gas-policy-nonrefund').show();
-                } else if (checkoutData.depositRule && checkoutData.depositRule.refund_policy) {
-                    var policyText = '';
-                    switch (checkoutData.depositRule.refund_policy) {
-                        case 'flexible': policyText = 'Full refund up to 24 hours before check-in'; break;
-                        case 'moderate': policyText = 'Full refund up to 5 days before arrival'; break;
-                        case 'strict': policyText = '50% refund up to 7 days before arrival'; break;
-                        case 'refund_60': policyText = '100% refund up to 60 days before arrival'; break;
-                        case 'refund_30': policyText = '100% refund up to 30 days before arrival'; break;
-                        case 'refund_14': policyText = '100% refund up to 14 days before arrival'; break;
-                        case 'non_refundable': policyText = 'Non-refundable'; break;
-                        default: policyText = '';
-                    }
-                    if (policyText) {
-                        $('.gas-policy-standard').html('<p style="font-size: 0.85em; color: #64748b; margin: 0;">📋 ' + policyText + '</p>').show();
-                        $('.gas-policy-nonrefund').hide();
-                    }
-                } else {
-                    $('.gas-policy-standard').show();
-                    $('.gas-policy-nonrefund').hide();
-                }
-                
+                // Cancellation policy: offer's refund_policy wins if set and not 'inherit',
+                // otherwise the property's deposit_rule.refund_policy. See applyCancellationPolicy.
+                applyCancellationPolicy();
+
                 return;
             }
             
@@ -5235,41 +5285,9 @@ jQuery(document).ready(function($) {
                 $('.gas-taxes-section').hide();
             }
             
-            // Update cancellation policy. Three cases:
-            //   1. Offer rate → non-refundable banner (offers are typically
-            //      non-refundable, the static .gas-policy-nonrefund span carries that copy).
-            //   2. depositRule with refund_policy → render the matching text.
-            //   3. Otherwise → static .gas-policy-standard fallback ("Free cancellation
-            //      until 48 hours before check-in"). NOTE: same switch logic also lives
-            //      in the disabled CM-quote dead block above (~line 5117) — keep them
-            //      in sync if either is changed. Re-applied from 1ca503b after b89ef63
-            //      regression. See feedback_no_24_7_badge memory.
-            if (checkoutData.rateType === 'offer') {
-                $('.gas-policy-standard').hide();
-                $('.gas-policy-nonrefund').show();
-            } else if (checkoutData.depositRule && checkoutData.depositRule.refund_policy) {
-                var policyText = '';
-                switch (checkoutData.depositRule.refund_policy) {
-                    case 'flexible': policyText = 'Full refund up to 24 hours before check-in'; break;
-                    case 'moderate': policyText = 'Full refund up to 5 days before arrival'; break;
-                    case 'strict': policyText = '50% refund up to 7 days before arrival'; break;
-                    case 'refund_60': policyText = '100% refund up to 60 days before arrival'; break;
-                    case 'refund_30': policyText = '100% refund up to 30 days before arrival'; break;
-                    case 'refund_14': policyText = '100% refund up to 14 days before arrival'; break;
-                    case 'non_refundable': policyText = 'Non-refundable'; break;
-                    default: policyText = '';
-                }
-                if (policyText) {
-                    $('.gas-policy-standard').html('<p style="font-size: 0.85em; color: #64748b; margin: 0;">📋 ' + policyText + '</p>').show();
-                    $('.gas-policy-nonrefund').hide();
-                } else {
-                    $('.gas-policy-standard').show();
-                    $('.gas-policy-nonrefund').hide();
-                }
-            } else {
-                $('.gas-policy-standard').show();
-                $('.gas-policy-nonrefund').hide();
-            }
+            // Cancellation policy: offer's refund_policy wins when set and not 'inherit',
+            // otherwise property deposit_rule.refund_policy. See applyCancellationPolicy.
+            applyCancellationPolicy();
 
             // Grand total
             var grandTotal = accommodationTotal + upsellsTotal - discount - voucherDiscount + taxTotal;
