@@ -408,6 +408,43 @@ jQuery(document).ready(function($) {
         return symbol + Math.round(num).toLocaleString();
     }
     
+    // For a date-bound upsell (e.g. a tour mirrored from a shop product), compute the
+    // list of valid dates inside the guest's stay. Intersection of:
+    //   - stay nights (check_in inclusive, check_out exclusive — guests don't book
+    //     the checkout night),
+    //   - available_days_of_week (CSV of 0=Sun..6=Sat; empty = any day),
+    //   - valid_from..valid_until window (any null = unbounded that side).
+    // Returns array of "YYYY-MM-DD". Empty array means no valid date — caller hides
+    // the upsell entirely.
+    function computeValidUpsellDates(upsell, checkin, checkout) {
+        if (!upsell || !checkin || !checkout) return [];
+        var allowedDays = (upsell.available_days_of_week || '').split(',').map(function(s){return s.trim();}).filter(Boolean);
+        var validFrom = upsell.valid_from ? new Date(upsell.valid_from) : null;
+        var validUntil = upsell.valid_until ? new Date(upsell.valid_until) : null;
+        var start = new Date(checkin);
+        var end = new Date(checkout); // exclusive
+        var dates = [];
+        for (var d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+            if (allowedDays.length && allowedDays.indexOf(String(d.getDay())) === -1) continue;
+            if (validFrom && d < validFrom) continue;
+            if (validUntil && d > validUntil) continue;
+            // YYYY-MM-DD using local components — avoids the off-by-one from .toISOString()
+            // when the user's TZ is west of UTC.
+            var y = d.getFullYear();
+            var m = String(d.getMonth() + 1).padStart(2, '0');
+            var dd = String(d.getDate()).padStart(2, '0');
+            dates.push(y + '-' + m + '-' + dd);
+        }
+        return dates;
+    }
+
+    // Format a YYYY-MM-DD for display in the date dropdown — short month + weekday.
+    function formatUpsellDate(yyyymmdd) {
+        var parts = yyyymmdd.split('-');
+        var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    }
+
     // Calculate the total cost of one upsell instance (multiplied by guests/nights as
     // dictated by charge_type). Mirrors the server math in /api/public/calculate-price
     // including tiered pricing (first_night_price / subsequent_night_price). Use this
@@ -4325,6 +4362,11 @@ jQuery(document).ready(function($) {
                                     if (upsell.min_nights && bookingNights < upsell.min_nights) return;
                                     if (upsell.max_nights && bookingNights > upsell.max_nights) return;
                                 }
+                                // Date-bound upsells (e.g. tours mirrored from shop products):
+                                // Phase 1 ships the admin + mirror plumbing. Until the booking
+                                // widget grows a date dropdown (phase 2), keep these hidden so
+                                // they never reach a customer with no way to pick a day.
+                                if (upsell.requires_date) return;
                                 var priceLabel = '';
                                 switch(upsell.charge_type) {
                                     case 'per_night': priceLabel = perNight; break;
@@ -5328,6 +5370,8 @@ jQuery(document).ready(function($) {
             var perNight = '/' + t('booking', 'night', 'night');
             var perGuest = '/' + t('booking', 'guest', 'guest');
             upsells.forEach(function(upsell) {
+                // Date-bound upsells hidden until phase 2 ships the date dropdown.
+                if (upsell.requires_date) return;
                 var priceLabel = '';
                 switch (upsell.charge_type) {
                     case 'per_night': priceLabel = perNight; break;
