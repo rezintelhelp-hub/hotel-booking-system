@@ -92596,6 +92596,7 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
         valid_from = $10, valid_until = $11,
         min_notice_hours = $15,
         included_nights_per_unit = $16,
+        category = $17,
         active = $12, source = 'shop_link', linked_shop_product_id = $13,
         updated_at = NOW()
       WHERE id = $14
@@ -92614,7 +92615,8 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
       productRow.id,
       productRow.linked_upsell_id,
       productRow.min_notice_hours || null,
-      productRow.included_nights_per_unit || null
+      productRow.included_nights_per_unit || null,
+      productRow.category || 'Events'
     ]);
     return;
   }
@@ -92632,6 +92634,7 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
       requires_date, available_days_of_week, valid_from, valid_until,
       min_notice_hours,
       included_nights_per_unit,
+      category,
       active, mandatory, is_external, source, linked_shop_product_id, user_id
     ) VALUES (
       $1, $2, $3::jsonb, $4::jsonb, $5, 'per_booking',
@@ -92640,6 +92643,7 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
       true, $9, $10, $11,
       $15,
       $16,
+      $17,
       $12, false, false, 'shop_link', $13, $14
     ) RETURNING id
   `, [
@@ -92657,7 +92661,8 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
     productRow.id,
     clientId,
     productRow.min_notice_hours || null,
-    productRow.included_nights_per_unit || null
+    productRow.included_nights_per_unit || null,
+    productRow.category || 'Events'
   ]);
   const newUpsellId = ins.rows[0].id;
   await pool.query('UPDATE shop_products SET linked_upsell_id = $1 WHERE id = $2', [newUpsellId, productRow.id]);

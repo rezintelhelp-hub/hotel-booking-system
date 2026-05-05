@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.33
+ * Version: 3.7.35
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.33');
+define('GAS_BOOKING_VERSION', '3.7.35');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7732,27 +7732,38 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-payment-details strong { display: block; font-size: 15px; color: #1e293b; }
         .gas-payment-details span { font-size: 13px; color: #64748b; }
         
-        /* Upsells */
-        .gas-checkout-upsells { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-        .gas-upsell-card { display: flex; flex-direction: column; padding: 20px; border: 2px solid #e2e8f0; border-radius: 12px; cursor: pointer; transition: all 0.2s; position: relative; text-align: center; }
+        /* Upsells — compact list grouped by category. Cards flow as horizontal rows
+           (thumb + body + price/stepper), stacked under section titles. Scales to many
+           extras without exploding the checkout layout. */
+        .gas-checkout-upsells { display: flex; flex-direction: column; gap: 18px; }
+        .gas-upsell-section { display: flex; flex-direction: column; gap: 8px; }
+        .gas-upsell-section-title { margin: 0 0 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #64748b; }
+        .gas-upsell-section-list { display: flex; flex-direction: column; gap: 8px; }
+        .gas-upsell-card { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 10px; cursor: pointer; transition: border-color 0.15s, background 0.15s; position: relative; text-align: left; background: #fff; }
         .gas-upsell-card:hover { border-color: #cbd5e1; background: #f8fafc; }
-        .gas-upsell-card.selected { border-color: <?php echo esc_attr($button_color); ?>; background: <?php echo esc_attr($button_color); ?>08; }
-        .gas-upsell-check { position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; border: 2px solid #d1d5db; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-size: 12px; color: transparent; }
+        .gas-upsell-card.selected { border-color: <?php echo esc_attr($button_color); ?>; background: <?php echo esc_attr($button_color); ?>0d; }
+        .gas-upsell-check { width: 22px; height: 22px; border: 2px solid #d1d5db; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-size: 12px; color: transparent; flex-shrink: 0; }
         .gas-upsell-card.selected .gas-upsell-check { background: <?php echo esc_attr($button_color); ?>; border-color: <?php echo esc_attr($button_color); ?>; color: white; }
-        .gas-upsell-card.mandatory { cursor: default; opacity: 0.95; }
-        .gas-upsell-card.mandatory::after { content: '<?php echo esc_attr($t_checkout['included'] ?? 'Included'); ?>'; position: absolute; top: 8px; left: 10px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: <?php echo esc_attr($button_color); ?>; }
-        .gas-upsell-image { width: 80px; height: 80px; margin: 0 auto 12px; border-radius: 8px; overflow: hidden; }
+        .gas-upsell-image { width: 64px; height: 64px; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
         .gas-upsell-image img { width: 100%; height: 100%; object-fit: cover; }
-        .gas-upsell-icon { width: 60px; height: 60px; margin: 0 auto 12px; background: #f1f5f9; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; }
-        .gas-upsell-info { flex: 1; }
-        .gas-upsell-name { font-weight: 600; font-size: 15px; color: #1e293b; margin-bottom: 4px; }
-        .gas-upsell-desc { font-size: 12px; color: #64748b; margin-bottom: 8px; line-height: 1.4; }
-        /* Two-line clamp by default keeps upsell tiles uniform; "more" toggles the .gas-upsell-desc-clamp class. */
-        .gas-upsell-desc.gas-upsell-desc-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .gas-upsell-desc-more { display: inline-block; font-size: 11px; color: #3b82f6; cursor: pointer; margin: -4px 0 8px; user-select: none; text-decoration: underline; }
+        .gas-upsell-icon { width: 48px; height: 48px; background: #f1f5f9; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+        .gas-upsell-info { flex: 1 1 auto; min-width: 0; }
+        .gas-upsell-name { font-weight: 600; font-size: 14px; color: #1e293b; margin-bottom: 2px; }
+        .gas-upsell-desc { font-size: 12px; color: #64748b; line-height: 1.4; }
+        /* Single-line clamp keeps the row compact; "more" toggles to expand. */
+        .gas-upsell-desc.gas-upsell-desc-clamp { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+        .gas-upsell-desc-more { display: inline-block; font-size: 11px; color: #3b82f6; cursor: pointer; margin-top: 2px; user-select: none; text-decoration: underline; }
         .gas-upsell-desc-more:hover { color: #1d4ed8; }
-        .gas-upsell-price { font-weight: 700; font-size: 16px; color: <?php echo esc_attr($button_color); ?>; }
-        .gas-upsell-price small { font-weight: 400; font-size: 12px; color: #94a3b8; }
+        .gas-upsell-date-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+        .gas-upsell-date-row label { font-size: 12px; color: #64748b; margin: 0; }
+        .gas-upsell-date-row select { padding: 4px 8px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; }
+        .gas-upsell-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; min-width: 90px; }
+        .gas-upsell-price { font-weight: 700; font-size: 15px; color: <?php echo esc_attr($button_color); ?>; white-space: nowrap; }
+        .gas-upsell-price small { font-weight: 400; font-size: 11px; color: #94a3b8; }
+        .gas-upsell-stepper { display: flex; align-items: center; gap: 6px; }
+        .gas-upsell-qty-minus { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #cbd5e1; background: #fff; font-size: 16px; line-height: 1; cursor: pointer; color: #475569; }
+        .gas-upsell-qty-minus:hover { background: #f1f5f9; }
+        .gas-upsell-qty-badge { font-size: 13px; font-weight: 600; color: #1e293b; min-width: 32px; text-align: right; }
         
         /* Voucher */
         .gas-voucher-row { display: flex; gap: 8px; }
@@ -7836,13 +7847,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             .gas-checkout-container { flex-direction: column; align-items: center; }
             .gas-checkout-summary-col { flex: none; width: 100%; max-width: 600px; position: static; }
             .gas-checkout-steps-col { flex: none; width: 100%; max-width: 600px; }
-            .gas-checkout-upsells { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 600px) {
             .gas-checkout-page { padding: 15px; }
             .gas-form-row { grid-template-columns: 1fr; }
             .gas-checkout-steps { flex-direction: column; }
-            .gas-checkout-upsells { grid-template-columns: 1fr; }
+            .gas-upsell-image { width: 56px; height: 56px; }
+            .gas-upsell-meta { min-width: 76px; }
             .gas-summary-row { grid-template-columns: 1fr; }
         }
         </style>
