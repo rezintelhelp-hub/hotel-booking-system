@@ -93303,7 +93303,8 @@ app.get('/api/public/client/:clientId/shop/products', async (req, res) => {
 
     const result = await pool.query(
       `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking,
-              product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, external_url, external_button_label
+              product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, external_url, external_button_label,
+              gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months
        FROM shop_products WHERE account_id = $1 AND is_active = true ORDER BY sort_order, created_at DESC`,
       [clientId]
     );
@@ -93336,7 +93337,8 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
 
     const result = await pool.query(
       `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, gallery_urls, category, stock_quantity, stock_tracking,
-              product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, external_url, external_button_label
+              product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, external_url, external_button_label,
+              gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months
        FROM shop_products WHERE account_id = $1 AND slug = $2 AND is_active = true`,
       [clientId, slug]
     );
