@@ -93498,26 +93498,69 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
         return res.status(400).json({ success: false, error: `Insufficient stock for ${product.name} (${product.stock_quantity} available)` });
       }
 
-      const lineTotal = parseFloat(product.price) * qty;
+      // Gift certificates: unit_price comes from the buyer (preset or custom amount).
+      // Validate against the product's preset list / allow_custom flag / min-max bounds.
+      let unitPrice = parseFloat(product.price);
+      let giftMetadata = null;
+      let lineProductName = product.name;
+
+      if (product.product_type === 'gift_certificate') {
+        const giftAmt = parseFloat(item.gift_amount);
+        if (!isFinite(giftAmt) || giftAmt <= 0) {
+          return res.status(400).json({ success: false, error: `Pick an amount for ${product.name}` });
+        }
+        const presets = Array.isArray(product.gift_preset_values)
+          ? product.gift_preset_values.map(Number)
+          : (product.gift_preset_values ? Object.values(product.gift_preset_values).map(Number) : []);
+        const allowCustom = !!product.gift_allow_custom;
+        const isPreset = presets.some(v => Math.abs(v - giftAmt) < 0.01);
+        if (!isPreset && !allowCustom) {
+          return res.status(400).json({ success: false, error: `${product.name}: pick one of the listed amounts` });
+        }
+        if (allowCustom) {
+          if (product.gift_min_amount && giftAmt < parseFloat(product.gift_min_amount)) {
+            return res.status(400).json({ success: false, error: `${product.name}: minimum is ${product.gift_min_amount}` });
+          }
+          if (product.gift_max_amount && giftAmt > parseFloat(product.gift_max_amount)) {
+            return res.status(400).json({ success: false, error: `${product.name}: maximum is ${product.gift_max_amount}` });
+          }
+        }
+        unitPrice = giftAmt;
+        lineProductName = `${product.name} — ${(product.currency || 'EUR')} ${giftAmt.toFixed(2)}`;
+        if (item.gift_metadata && typeof item.gift_metadata === 'object') {
+          // Whitelist the keys we trust forward into the email + voucher row.
+          giftMetadata = {
+            recipient_name: String(item.gift_metadata.recipient_name || '').slice(0, 200),
+            recipient_email: String(item.gift_metadata.recipient_email || '').slice(0, 200),
+            sender_name: String(item.gift_metadata.sender_name || '').slice(0, 200),
+            sender_email: String(item.gift_metadata.sender_email || '').slice(0, 200),
+            message: String(item.gift_metadata.message || item.gift_metadata.recipient_message || '').slice(0, 500),
+            send_on: item.gift_metadata.send_on || null
+          };
+        }
+      }
+
+      const lineTotal = unitPrice * qty;
       subtotal += lineTotal;
       currency = (product.currency || acc.currency || 'EUR').toLowerCase();
 
       validatedItems.push({
         product_id: product.id,
-        product_name: product.name,
+        product_name: lineProductName,
         quantity: qty,
-        unit_price: parseFloat(product.price),
-        total: lineTotal
+        unit_price: unitPrice,
+        total: lineTotal,
+        gift_metadata: giftMetadata
       });
 
       lineItems.push({
         price_data: {
           currency: currency,
           product_data: {
-            name: product.name,
+            name: lineProductName,
             ...(product.image_url ? { images: [product.image_url] } : {})
           },
-          unit_amount: Math.round(parseFloat(product.price) * 100)
+          unit_amount: Math.round(unitPrice * 100)
         },
         quantity: qty
       });
@@ -93672,10 +93715,11 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
     // Insert order items
     for (const vi of validatedItems) {
       await client.query(`
-        INSERT INTO shop_order_items (order_id, product_id, product_name, quantity, unit_price, total, accommodation_details)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO shop_order_items (order_id, product_id, product_name, quantity, unit_price, total, accommodation_details, gift_metadata)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       `, [order.id, vi.product_id, vi.product_name, vi.quantity, vi.unit_price, vi.total,
-          (accommodationDetails && vi.product_id === firstProduct?.id) ? JSON.stringify(accommodationDetails) : null]);
+          (accommodationDetails && vi.product_id === firstProduct?.id) ? JSON.stringify(accommodationDetails) : null,
+          vi.gift_metadata ? JSON.stringify(vi.gift_metadata) : null]);
     }
 
     // Create Stripe Checkout Session

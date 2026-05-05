@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -423,7 +423,11 @@ class GAS_Shop {
         }
         echo '<br><br>';
         echo '<h1 style="margin:0 0 16px;color:'.$c['text'].'">'.esc_html($name).'</h1>';
-        echo '<div class="gas-shop-card-price" style="font-size:1.5rem;margin-bottom:20px">'.$curr.' '.$price.'</div>';
+
+        $isGift = ($p['product_type'] ?? '') === 'gift_certificate';
+        if (!$isGift) {
+            echo '<div class="gas-shop-card-price" style="font-size:1.5rem;margin-bottom:20px">'.$curr.' '.$price.'</div>';
+        }
         if ($desc) echo '<div style="color:'.$c['text_secondary'].';line-height:1.8;margin-bottom:24px">'.wp_kses_post(nl2br($desc)).'</div>';
 
         // Stock indicator
@@ -451,6 +455,60 @@ class GAS_Shop {
         if (($p['product_type'] ?? '') === 'external' && !empty($p['external_url'])) {
             $btnLabel = esc_html($p['external_button_label'] ?? 'Buy Now');
             echo '<a href="'.esc_url($p['external_url']).'" target="_blank" rel="noopener" class="gas-shop-btn">'.$btnLabel.' &rarr;</a>';
+        } elseif ($isGift) {
+            // Gift certificate buy form: preset value chips + optional custom amount,
+            // plus recipient name/email/message + sender name + optional send-on date.
+            // The cart entry carries gift_amount + gift_metadata; server validates and
+            // overrides unit_price + writes gift_metadata onto the order item.
+            $presets = $p['gift_preset_values'] ?? array();
+            if (is_string($presets)) $presets = json_decode($presets, true) ?: array();
+            $allowCustom = !empty($p['gift_allow_custom']);
+            $minAmt = $p['gift_min_amount'] ? floatval($p['gift_min_amount']) : null;
+            $maxAmt = $p['gift_max_amount'] ? floatval($p['gift_max_amount']) : null;
+
+            echo '<div class="gas-gift-form" style="margin-bottom:20px">';
+            echo '<label style="display:block;font-weight:600;margin-bottom:8px;color:'.$c['text'].'">Choose amount</label>';
+            echo '<div class="gas-gift-presets" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
+            foreach ($presets as $v) {
+                $vNum = floatval($v);
+                if ($vNum <= 0) continue;
+                echo '<button type="button" class="gas-gift-preset" data-value="'.esc_attr($vNum).'" style="padding:10px 18px;border:2px solid #e5e7eb;background:#fff;border-radius:10px;font-size:1rem;font-weight:600;color:'.$c['text'].';cursor:pointer">'.$curr.' '.number_format($vNum, 2).'</button>';
+            }
+            echo '</div>';
+            if ($allowCustom) {
+                $minAttr = $minAmt ? ' min="'.esc_attr($minAmt).'"' : ' min="1"';
+                $maxAttr = $maxAmt ? ' max="'.esc_attr($maxAmt).'"' : '';
+                $hint = '';
+                if ($minAmt && $maxAmt) $hint = $curr.' '.number_format($minAmt, 0).' – '.number_format($maxAmt, 0);
+                elseif ($minAmt) $hint = 'Min '.$curr.' '.number_format($minAmt, 0);
+                elseif ($maxAmt) $hint = 'Max '.$curr.' '.number_format($maxAmt, 0);
+                echo '<label style="display:block;font-size:0.9rem;color:'.$c['text_secondary'].';margin-bottom:6px">Or enter your own '.($hint ? '<span style="color:#94a3b8">('.$hint.')</span>' : '').'</label>';
+                echo '<input type="number" id="gas-gift-custom" placeholder="0.00" step="0.01"'.$minAttr.$maxAttr.' style="width:100%;padding:10px 12px;border:2px solid #e5e7eb;border-radius:10px;font-size:1rem;margin-bottom:16px">';
+            }
+
+            echo '<div style="border-top:1px solid #e5e7eb;padding-top:16px;margin-top:8px">';
+            echo '<label style="display:block;font-weight:600;margin-bottom:10px;color:'.$c['text'].'">Send to</label>';
+            echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">';
+            echo '<input type="text" id="gas-gift-recipient-name" placeholder="Recipient name" style="padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.95rem">';
+            echo '<input type="email" id="gas-gift-recipient-email" placeholder="Recipient email" style="padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.95rem">';
+            echo '</div>';
+            echo '<input type="text" id="gas-gift-sender-name" placeholder="Your name (sender)" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.95rem;margin-bottom:10px">';
+            echo '<textarea id="gas-gift-message" rows="3" placeholder="Personal message (optional)" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.95rem;resize:vertical;margin-bottom:10px"></textarea>';
+            echo '<small style="color:'.$c['text_secondary'].';display:block;margin-bottom:16px">If recipient is left blank the certificate is emailed to you at checkout.</small>';
+            echo '</div>';
+
+            $giftJson = wp_json_encode(array(
+                'id' => $p['id'],
+                'slug' => $p['slug'],
+                'name' => $name,
+                'currency' => $curr,
+                'image_url' => $p['image_thumbnail_url'] ?? $p['image_url'] ?? '',
+                'product_type' => 'gift_certificate'
+            ), JSON_HEX_APOS | JSON_HEX_QUOT);
+            echo '<button class="gas-shop-btn" id="gas-add-to-cart" onclick=\'gasShopAddGiftCert('.$giftJson.')\'>Add to Cart</button>';
+            echo '<a href="'.esc_url(home_url('/shop/cart/')).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';margin-left:12px" id="gas-shop-go-cart">View Cart</a>';
+            echo '<div id="gas-gift-error" style="color:#ef4444;margin-top:10px;display:none;font-size:0.9rem"></div>';
+            echo '</div>';
         } else {
             $disabled = ($p['stock_tracking'] && intval($p['stock_quantity'] ?? 0) <= 0) ? ' disabled style="opacity:.5;cursor:not-allowed"' : '';
             echo '<button class="gas-shop-btn" id="gas-add-to-cart"'.$disabled.' onclick=\'gasShopAddToCart('.$product_json.')\'>Add to Cart</button>';
@@ -459,6 +517,67 @@ class GAS_Shop {
         echo '</div></div></div>';
 
         echo '<script>
+// Gift cert preset selection — toggle .selected class, store value on a window var.
+(function(){
+  var presets = document.querySelectorAll(".gas-gift-preset");
+  var custom = document.getElementById("gas-gift-custom");
+  function pickPreset(btn) {
+    presets.forEach(function(b){ b.classList.remove("selected"); b.style.background = "#fff"; b.style.color = ""; b.style.borderColor = "#e5e7eb"; });
+    btn.classList.add("selected");
+    btn.style.background = "'.esc_js($c['accent']).'";
+    btn.style.color = "#fff";
+    btn.style.borderColor = "'.esc_js($c['accent']).'";
+    if (custom) custom.value = "";
+    window._gasGiftAmount = parseFloat(btn.dataset.value) || 0;
+  }
+  presets.forEach(function(btn){ btn.addEventListener("click", function(){ pickPreset(btn); }); });
+  if (custom) {
+    custom.addEventListener("input", function(){
+      presets.forEach(function(b){ b.classList.remove("selected"); b.style.background = "#fff"; b.style.color = ""; b.style.borderColor = "#e5e7eb"; });
+      window._gasGiftAmount = parseFloat(custom.value) || 0;
+    });
+  }
+})();
+
+function gasShopAddGiftCert(product) {
+  var amt = parseFloat(window._gasGiftAmount || 0);
+  var err = document.getElementById("gas-gift-error");
+  err.style.display = "none";
+  if (!amt || amt <= 0) { err.textContent = "Pick an amount."; err.style.display = "block"; return; }
+
+  var recName = document.getElementById("gas-gift-recipient-name").value.trim();
+  var recEmail = document.getElementById("gas-gift-recipient-email").value.trim();
+  var sender = document.getElementById("gas-gift-sender-name").value.trim();
+  var message = document.getElementById("gas-gift-message").value.trim();
+
+  // Each gift cert is unique (different amount, different recipient, different message)
+  // so always push as a new line — never merge into an existing entry.
+  var cart = JSON.parse(localStorage.getItem("gas_shop_cart") || "[]");
+  cart.push({
+    id: product.id,
+    slug: product.slug,
+    name: product.name,
+    price: amt,
+    currency: product.currency,
+    image_url: product.image_url,
+    quantity: 1,
+    product_type: "gift_certificate",
+    gift_amount: amt,
+    gift_metadata: {
+      recipient_name: recName,
+      recipient_email: recEmail,
+      sender_name: sender,
+      message: message
+    },
+    // Per-line uid so the cart row can target this exact certificate for remove/edit.
+    cart_uid: "gift_" + Date.now() + "_" + Math.floor(Math.random() * 1000)
+  });
+  localStorage.setItem("gas_shop_cart", JSON.stringify(cart));
+  var btn = document.getElementById("gas-add-to-cart");
+  btn.textContent = "Added!";
+  setTimeout(function(){ btn.textContent = "Add to Cart"; }, 1500);
+}
+
 function gasShopAddToCart(product) {
   var cart = JSON.parse(localStorage.getItem("gas_shop_cart") || "[]");
   var found = false;
@@ -549,7 +668,20 @@ function gasShopAddToCart(product) {
       var lineTotal = item.price * (item.quantity || 1);
       total += lineTotal;
       var img = item.image_url ? \'<img src="\'+item.image_url+\'" alt="">\' : \'<div style="width:80px;height:80px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.5rem">🛍</div>\';
-      html += \'<div class="gas-cart-item">\'+img+\'<div style="flex:1"><strong>\'+item.name+\'</strong><div style="color:#64748b;font-size:0.9rem">\'+curr+\' \'+item.price.toFixed(2)+\'</div></div><div class="gas-cart-qty"><button onclick="gasCartQty(\'+idx+\',-1)">-</button><span>\'+( item.quantity||1)+\'</span><button onclick="gasCartQty(\'+idx+\',1)">+</button></div><div style="min-width:80px;text-align:right;font-weight:600">\'+curr+\' \'+lineTotal.toFixed(2)+\'</div><button onclick="gasCartRemove(\'+idx+\')" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:#ef4444" title="Remove">&times;</button></div>\';
+      // Gift certs are unique per (amount, recipient) — qty=1 fixed, show recipient summary
+      // instead of the qty stepper.
+      if (item.product_type === "gift_certificate") {
+        var meta = item.gift_metadata || {};
+        var sumLine = "Gift Certificate &middot; " + curr + " " + parseFloat(item.price).toFixed(2);
+        if (meta.recipient_name || meta.recipient_email) {
+          sumLine += "<br><span style=\"font-size:0.85rem\">To: " + (meta.recipient_name || meta.recipient_email) + "</span>";
+        } else {
+          sumLine += "<br><span style=\"font-size:0.85rem;color:#94a3b8\">(emailed to you at checkout)</span>";
+        }
+        html += \'<div class="gas-cart-item">\'+img+\'<div style="flex:1"><strong>\'+item.name+\'</strong><div style="color:#64748b;font-size:0.9rem;line-height:1.5">\'+sumLine+\'</div></div><div style="min-width:80px;text-align:right;font-weight:600">\'+curr+\' \'+lineTotal.toFixed(2)+\'</div><button onclick="gasCartRemove(\'+idx+\')" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:#ef4444" title="Remove">&times;</button></div>\';
+      } else {
+        html += \'<div class="gas-cart-item">\'+img+\'<div style="flex:1"><strong>\'+item.name+\'</strong><div style="color:#64748b;font-size:0.9rem">\'+curr+\' \'+item.price.toFixed(2)+\'</div></div><div class="gas-cart-qty"><button onclick="gasCartQty(\'+idx+\',-1)">-</button><span>\'+( item.quantity||1)+\'</span><button onclick="gasCartQty(\'+idx+\',1)">+</button></div><div style="min-width:80px;text-align:right;font-weight:600">\'+curr+\' \'+lineTotal.toFixed(2)+\'</div><button onclick="gasCartRemove(\'+idx+\')" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:#ef4444" title="Remove">&times;</button></div>\';
+      }
     });
     container.innerHTML = html;
     var subtotal = total;
@@ -817,7 +949,15 @@ function gasShopCheckout() {
   btn.textContent = "Processing...";
 
   var cart = JSON.parse(localStorage.getItem("gas_shop_cart") || "[]");
-  var items = cart.map(function(i){ return { product_id: i.id, quantity: i.quantity || 1 }; });
+  var items = cart.map(function(i){
+    var line = { product_id: i.id, quantity: i.quantity || 1 };
+    // Gift certs carry the buyer-picked amount + recipient details through to the server.
+    if (i.product_type === "gift_certificate") {
+      line.gift_amount = i.gift_amount || i.price;
+      line.gift_metadata = i.gift_metadata || {};
+    }
+    return line;
+  });
 
   fetch("'.$api_url.'api/public/shop/create-checkout-session", {
     method: "POST",
