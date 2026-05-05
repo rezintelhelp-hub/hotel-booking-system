@@ -66617,13 +66617,18 @@ app.post('/api/public/calculate-price', async (req, res) => {
     // Calculate upsells total
     let upsellsTotal = 0;
     const upsellsBreakdown = [];
-    
+    // Bundle / package: tour upsells with included_nights_per_unit > 0 deduct that
+    // many nights from the room subtotal at the guest's selected rate (avg per night).
+    // Capped at total nights so the room can't go negative.
+    let bundleNights = 0;
+    const bundleParts = []; // [{name, qty, included_nights}] for the breakdown line
+
     if (upsells && upsells.length > 0) {
       for (const item of upsells) {
         const upsellResult = await pool.query(`
           SELECT * FROM upsells WHERE id = $1 AND active = true
         `, [item.id]);
-        
+
         if (upsellResult.rows[0]) {
           const u = upsellResult.rows[0];
           const basePrice = parseFloat(u.price) || 0;
@@ -66656,7 +66661,16 @@ app.post('/api/public/calculate-price', async (req, res) => {
           }
 
           // Apply quantity
-          itemTotal = itemTotal * (item.quantity || 1);
+          const qty = item.quantity || 1;
+          itemTotal = itemTotal * qty;
+
+          // Bundle accumulator — we need totalIncluded across all bundle upsells before
+          // we know the avg nightly rate to apply (computed after this loop).
+          if (u.included_nights_per_unit && u.included_nights_per_unit > 0) {
+            const requested = qty * parseInt(u.included_nights_per_unit);
+            bundleParts.push({ name: u.name, qty, per_unit: u.included_nights_per_unit, requested });
+            bundleNights += requested;
+          }
 
           upsellsTotal += itemTotal;
           // Carry the customer-picked date (when present) onto the booking's
@@ -66670,13 +66684,26 @@ app.post('/api/public/calculate-price', async (req, res) => {
             first_night_price: fnp,
             subsequent_night_price: snp,
             charge_type: u.charge_type,
-            quantity: item.quantity || 1,
+            quantity: qty,
             total: itemTotal,
             requires_date: !!u.requires_date,
-            upsell_date: item.upsell_date || null
+            upsell_date: item.upsell_date || null,
+            included_nights_per_unit: u.included_nights_per_unit || null
           });
         }
       }
+    }
+
+    // Compute the bundle deduction at the guest's chosen room rate.
+    // accommodationTotal is the post-offer/voucher room subtotal — we use its average
+    // per-night so the deduction reflects whatever rate the guest selected (standard
+    // or discounted). Capped at the actual nights stayed.
+    let bundleDeduction = 0;
+    let bundleAppliedNights = 0;
+    if (bundleNights > 0 && nights > 0 && accommodationTotal > 0) {
+      bundleAppliedNights = Math.min(bundleNights, nights);
+      const avgNightly = accommodationTotal / nights;
+      bundleDeduction = Math.min(bundleAppliedNights * avgNightly, accommodationTotal);
     }
     
     // Get applicable taxes
@@ -66732,7 +66759,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       console.log('Fee-tax query failed:', feeTaxError.message);
     }
 
-    const subtotalAfterDiscounts = accommodationTotal - discount - voucherDiscount + upsellsTotal;
+    const subtotalAfterDiscounts = accommodationTotal - discount - voucherDiscount + upsellsTotal - bundleDeduction;
 
     taxes.rows.forEach(tax => {
       let taxAmount = 0;
@@ -66860,6 +66887,9 @@ app.post('/api/public/calculate-price', async (req, res) => {
       voucher_applied: voucherApplied,
       upsells_total: upsellsTotal,
       upsells_breakdown: upsellsBreakdown,
+      bundle_deduction: bundleDeduction,
+      bundle_applied_nights: bundleAppliedNights,
+      bundle_parts: bundleParts,
       subtotal: subtotalAfterDiscounts,
       taxes: taxBreakdown,
       tax_total: taxTotal,
@@ -70874,6 +70904,7 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
         u.valid_from,
         u.valid_until,
         u.min_notice_hours,
+        u.included_nights_per_unit,
         u.linked_shop_product_id,
         COALESCE(u.mandatory, false) as mandatory,
         p.name as property_name
@@ -89003,6 +89034,13 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS min_notice_hours INTEGER`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS min_notice_hours INTEGER`);
 
+    // Bundle / package: when a tour upsell "includes accommodation", this is how many
+    // nights per unit purchased come bundled in. At checkout we subtract qty × per_unit
+    // (capped at booking nights) × avg nightly rate from the room subtotal — guest keeps
+    // whatever room rate they already picked.
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS included_nights_per_unit INTEGER`);
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS included_nights_per_unit INTEGER`);
+
     console.log('✅ Shop tables ensured (shop_products, shop_orders, shop_order_items)');
 
     // Pro Builder page content backups — snapshot before destructive edits
@@ -92534,6 +92572,7 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
         requires_date = true, available_days_of_week = $9,
         valid_from = $10, valid_until = $11,
         min_notice_hours = $15,
+        included_nights_per_unit = $16,
         active = $12, source = 'shop_link', linked_shop_product_id = $13,
         updated_at = NOW()
       WHERE id = $14
@@ -92551,7 +92590,8 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
       productRow.is_active !== false,
       productRow.id,
       productRow.linked_upsell_id,
-      productRow.min_notice_hours || null
+      productRow.min_notice_hours || null,
+      productRow.included_nights_per_unit || null
     ]);
     return;
   }
@@ -92568,6 +92608,7 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
       property_id, property_ids, image_url,
       requires_date, available_days_of_week, valid_from, valid_until,
       min_notice_hours,
+      included_nights_per_unit,
       active, mandatory, is_external, source, linked_shop_product_id, user_id
     ) VALUES (
       $1, $2, $3::jsonb, $4::jsonb, $5, 'per_booking',
@@ -92575,6 +92616,7 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
       $6, $7, $8,
       true, $9, $10, $11,
       $15,
+      $16,
       $12, false, false, 'shop_link', $13, $14
     ) RETURNING id
   `, [
@@ -92591,7 +92633,8 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
     productRow.is_active !== false,
     productRow.id,
     clientId,
-    productRow.min_notice_hours || null
+    productRow.min_notice_hours || null,
+    productRow.included_nights_per_unit || null
   ]);
   const newUpsellId = ins.rows[0].id;
   await pool.query('UPDATE shop_products SET linked_upsell_id = $1 WHERE id = $2', [newUpsellId, productRow.id]);
@@ -92622,7 +92665,7 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.body.client_id || decoded.accountId || decoded.id;
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit } = req.body;
 
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Product name is required' });
     const numPrice = parseFloat(price);
@@ -92650,8 +92693,8 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     const wantsAsUpsell = available_as_upsell === 'true' || available_as_upsell === true;
 
     const result = await pool.query(`
-      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
       RETURNING *
     `, [
       clientId, name.trim(),
@@ -92679,7 +92722,8 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
       valid_until || null,
       wantsAsUpsell,
       upsellPropertyIdsArr,
-      min_notice_hours ? parseInt(min_notice_hours) : null
+      min_notice_hours ? parseInt(min_notice_hours) : null,
+      included_nights_per_unit ? parseInt(included_nights_per_unit) : null
     ]);
 
     // Mirror to upsells table if owner ticked "Also offer as booking upsell".
@@ -92705,7 +92749,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
     const existing = await pool.query('SELECT * FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
     if (!existing.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit } = req.body;
 
     if (name && !name.trim()) return res.status(400).json({ success: false, error: 'Product name cannot be empty' });
     if (price !== undefined) {
@@ -92772,6 +92816,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
         available_as_upsell = $29,
         upsell_property_ids = $30,
         min_notice_hours = $31,
+        included_nights_per_unit = $32,
         updated_at = NOW()
       WHERE id = $15 AND account_id = $16
       RETURNING *
@@ -92804,7 +92849,8 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
       valid_until !== undefined ? (valid_until || null) : existing.rows[0].valid_until,
       wantsAsUpsell,
       upsellPropertyIdsArr,
-      min_notice_hours !== undefined ? (min_notice_hours ? parseInt(min_notice_hours) : null) : existing.rows[0].min_notice_hours
+      min_notice_hours !== undefined ? (min_notice_hours ? parseInt(min_notice_hours) : null) : existing.rows[0].min_notice_hours,
+      included_nights_per_unit !== undefined ? (included_nights_per_unit ? parseInt(included_nights_per_unit) : null) : existing.rows[0].included_nights_per_unit
     ]);
 
     // Mirror to upsells table — create/update/delete the linked row based on the new state.

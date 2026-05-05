@@ -5329,7 +5329,21 @@ jQuery(document).ready(function($) {
             } else {
                 $('.gas-voucher-line').hide();
             }
-            
+
+            // Bundle / package deduction — server reports it on calculate-price as
+            // bundle_deduction + bundle_applied_nights when a tour upsell with
+            // included_nights_per_unit is in cart.
+            var bundleDeduction = parseFloat(checkoutData.pricing && checkoutData.pricing.bundle_deduction) || 0;
+            var bundleNights = parseInt(checkoutData.pricing && checkoutData.pricing.bundle_applied_nights) || 0;
+            if (bundleDeduction > 0) {
+                var nightWord2 = bundleNights > 1 ? 'nights' : 'night';
+                $('.gas-bundle-label').text('Package includes ' + bundleNights + ' ' + nightWord2);
+                $('.gas-bundle-amount').text('-' + formatPrice(bundleDeduction, currency));
+                $('.gas-bundle-line').show();
+            } else {
+                $('.gas-bundle-line').hide();
+            }
+
             // Taxes breakdown
             if (taxes && taxes.length > 0) {
                 var taxesHtml = '';
@@ -5351,8 +5365,9 @@ jQuery(document).ready(function($) {
             // otherwise property deposit_rule.refund_policy. See applyCancellationPolicy.
             applyCancellationPolicy();
 
-            // Grand total
-            var grandTotal = accommodationTotal + upsellsTotal - discount - voucherDiscount + taxTotal;
+            // Grand total — bundle deduction reduces the room subtotal at the guest's
+            // selected rate; mirrors the server math in /api/public/calculate-price.
+            var grandTotal = accommodationTotal + upsellsTotal - discount - voucherDiscount - bundleDeduction + taxTotal;
             if (isNaN(grandTotal)) grandTotal = 0;
             $('.gas-grand-total').text(formatPrice(grandTotal, currency));
 
