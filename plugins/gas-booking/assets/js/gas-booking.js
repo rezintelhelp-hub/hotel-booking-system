@@ -413,7 +413,8 @@ jQuery(document).ready(function($) {
     //   - stay nights (check_in inclusive, check_out exclusive — guests don't book
     //     the checkout night),
     //   - available_days_of_week (CSV of 0=Sun..6=Sat; empty = any day),
-    //   - valid_from..valid_until window (any null = unbounded that side).
+    //   - valid_from..valid_until window (any null = unbounded that side),
+    //   - min_notice_hours (drops dates closer than now+N hours).
     // Returns array of "YYYY-MM-DD". Empty array means no valid date — caller hides
     // the upsell entirely.
     function computeValidUpsellDates(upsell, checkin, checkout) {
@@ -421,6 +422,8 @@ jQuery(document).ready(function($) {
         var allowedDays = (upsell.available_days_of_week || '').split(',').map(function(s){return s.trim();}).filter(Boolean);
         var validFrom = upsell.valid_from ? new Date(upsell.valid_from) : null;
         var validUntil = upsell.valid_until ? new Date(upsell.valid_until) : null;
+        var noticeHours = parseInt(upsell.min_notice_hours);
+        var earliestAllowed = isNaN(noticeHours) || noticeHours <= 0 ? null : new Date(Date.now() + noticeHours * 3600 * 1000);
         var start = new Date(checkin);
         var end = new Date(checkout); // exclusive
         var dates = [];
@@ -428,6 +431,7 @@ jQuery(document).ready(function($) {
             if (allowedDays.length && allowedDays.indexOf(String(d.getDay())) === -1) continue;
             if (validFrom && d < validFrom) continue;
             if (validUntil && d > validUntil) continue;
+            if (earliestAllowed && d < earliestAllowed) continue;
             // YYYY-MM-DD using local components — avoids the off-by-one from .toISOString()
             // when the user's TZ is west of UTC.
             var y = d.getFullYear();
@@ -4362,11 +4366,13 @@ jQuery(document).ready(function($) {
                                     if (upsell.min_nights && bookingNights < upsell.min_nights) return;
                                     if (upsell.max_nights && bookingNights > upsell.max_nights) return;
                                 }
-                                // Date-bound upsells (e.g. tours mirrored from shop products):
-                                // Phase 1 ships the admin + mirror plumbing. Until the booking
-                                // widget grows a date dropdown (phase 2), keep these hidden so
-                                // they never reach a customer with no way to pick a day.
-                                if (upsell.requires_date) return;
+                                // Date-bound upsell — compute the valid dates within the guest's
+                                // stay and skip the card entirely when nothing intersects.
+                                var validDates = null;
+                                if (upsell.requires_date) {
+                                    validDates = computeValidUpsellDates(upsell, ci, co);
+                                    if (!validDates.length) return;
+                                }
                                 var priceLabel = '';
                                 switch(upsell.charge_type) {
                                     case 'per_night': priceLabel = perNight; break;
@@ -4401,6 +4407,16 @@ jQuery(document).ready(function($) {
                                     html += '<div class="gas-upsell-desc">' + upsell.description + '</div>';
                                 }
                                 html += '<div class="gas-upsell-price">' + formatPrice(upsell.price, ug.currency) + '<small>' + priceLabel + '</small></div>';
+                                // Date dropdown for date-bound upsells (tours/experiences mirrored from shop).
+                                // Click chain: tapping the card toggles selection, but tapping the dropdown
+                                // shouldn't bubble — wired with a stopPropagation in the change/click handlers.
+                                if (validDates && validDates.length) {
+                                    var optsHtml = validDates.map(function(d){ return '<option value="' + d + '">' + formatUpsellDate(d) + '</option>'; }).join('');
+                                    html += '<div class="gas-upsell-date-row" style="margin-top:6px;">';
+                                    html += '<label style="font-size:0.78rem;color:#64748b;display:block;margin-bottom:2px;">Pick date:</label>';
+                                    html += '<select class="gas-upsell-date" onclick="event.stopPropagation()" style="padding:4px 8px;font-size:0.85rem;border:1px solid #cbd5e1;border-radius:4px;background:#fff;">' + optsHtml + '</select>';
+                                    html += '</div>';
+                                }
                                 html += '</div>';
 
                                 html += '<div class="gas-upsell-check">✓</div>';
@@ -4674,10 +4690,12 @@ jQuery(document).ready(function($) {
                 }, nights, guests);
 
                 if ($card.hasClass('selected')) {
+                    var pickedDate = $card.find('.gas-upsell-date').val() || null;
                     upsellGroup.selectedUpsells.push({
                         id: upsellId,
                         price: actualPrice,
-                        name: upsellName
+                        name: upsellName,
+                        upsell_date: pickedDate
                     });
                 } else {
                     upsellGroup.selectedUpsells = upsellGroup.selectedUpsells.filter(function(u) {
@@ -5369,9 +5387,16 @@ jQuery(document).ready(function($) {
             
             var perNight = '/' + t('booking', 'night', 'night');
             var perGuest = '/' + t('booking', 'guest', 'guest');
+            // Stay range for date-bound upsells.
+            var coCi = checkoutData.checkin || (checkoutData.pricing && checkoutData.pricing.check_in);
+            var coCo = checkoutData.checkout || (checkoutData.pricing && checkoutData.pricing.check_out);
             upsells.forEach(function(upsell) {
-                // Date-bound upsells hidden until phase 2 ships the date dropdown.
-                if (upsell.requires_date) return;
+                // Date-bound upsell — compute valid dates within the stay; skip card if none intersect.
+                var validDates = null;
+                if (upsell.requires_date) {
+                    validDates = computeValidUpsellDates(upsell, coCi, coCo);
+                    if (!validDates.length) return;
+                }
                 var priceLabel = '';
                 switch (upsell.charge_type) {
                     case 'per_night': priceLabel = perNight; break;
@@ -5413,6 +5438,13 @@ jQuery(document).ready(function($) {
                     html += '<div class="gas-upsell-desc">' + upsell.description + '</div>';
                 }
                 html += '<div class="gas-upsell-price">' + formatPriceShort(upsell.price, currency) + '<small>' + priceLabel + '</small></div>';
+                if (validDates && validDates.length) {
+                    var optsHtml2 = validDates.map(function(d){ return '<option value="' + d + '">' + formatUpsellDate(d) + '</option>'; }).join('');
+                    html += '<div class="gas-upsell-date-row" style="margin-top:6px;">';
+                    html += '<label style="font-size:0.78rem;color:#64748b;display:block;margin-bottom:2px;">Pick date:</label>';
+                    html += '<select class="gas-upsell-date" onclick="event.stopPropagation()" style="padding:4px 8px;font-size:0.85rem;border:1px solid #cbd5e1;border-radius:4px;background:#fff;">' + optsHtml2 + '</select>';
+                    html += '</div>';
+                }
                 html += '</div>';
 
                 if (qtyAware) {
@@ -5456,6 +5488,29 @@ jQuery(document).ready(function($) {
             updateCheckoutPricing();
         }
 
+        // Date-bound upsell — keep the cart entry in sync when the user changes the
+        // dropdown after selecting the upsell. Covers both single-property checkout
+        // (checkoutData.selectedUpsells) and group/room-widget context (the click
+        // handler above stores upsell_date on first add; this catches subsequent
+        // edits without having to deselect/reselect).
+        $(document).on('change', '.gas-upsell-card .gas-upsell-date', function(e) {
+            var $card = $(this).closest('.gas-upsell-card');
+            var upsellId = $card.data('upsell-id');
+            var newDate = this.value || null;
+            if (typeof checkoutData !== 'undefined' && Array.isArray(checkoutData.selectedUpsells)) {
+                var sel = checkoutData.selectedUpsells.find(function(u){ return String(u.id) === String(upsellId); });
+                if (sel) sel.upsell_date = newDate;
+            }
+            // Group / room-widget context (hasMultiplePaymentGroups path).
+            try {
+                var ug = (typeof getCurrentGroup === 'function') ? getCurrentGroup() : null;
+                if (ug && Array.isArray(ug.selectedUpsells)) {
+                    var sel2 = ug.selectedUpsells.find(function(u){ return String(u.id) === String(upsellId); });
+                    if (sel2) sel2.upsell_date = newDate;
+                }
+            } catch (err) { /* getCurrentGroup may not exist on every page */ }
+        });
+
         // Upsell click handler — single-property checkout flow.
         // Skips when click came from the qty-minus button (handled separately).
         $(document).on('click', '.gas-upsell-card', function(e) {
@@ -5467,6 +5522,10 @@ jQuery(document).ready(function($) {
             var chargeType = $card.data('charge-type');
             var name = $card.find('.gas-upsell-name').text();
             var maxQty = parseInt($card.attr('data-max-quantity'), 10) || 1;
+
+            // Capture the chosen date for date-bound upsells so the booking record
+            // carries which day the property should schedule the tour for.
+            var pickedDate = $card.find('.gas-upsell-date').val() || null;
 
             if (maxQty > 1) {
                 // Stepper: each tap +1 (cap at max)
@@ -5480,10 +5539,12 @@ jQuery(document).ready(function($) {
                     var existing = checkoutData.selectedUpsells.find(function(u) { return u.id === upsellId; });
                     if (existing) {
                         existing.quantity = newQty;
+                        if (pickedDate) existing.upsell_date = pickedDate;
                     } else {
                         checkoutData.selectedUpsells.push({
                             id: upsellId, name: name, price: unitPrice,
-                            charge_type: chargeType, quantity: newQty
+                            charge_type: chargeType, quantity: newQty,
+                            upsell_date: pickedDate
                         });
                     }
                 }
@@ -5500,7 +5561,8 @@ jQuery(document).ready(function($) {
                     if (typeof checkoutData !== 'undefined' && checkoutData.selectedUpsells) {
                         checkoutData.selectedUpsells.push({
                             id: upsellId, name: name, price: unitPrice,
-                            charge_type: chargeType, quantity: 1
+                            charge_type: chargeType, quantity: 1,
+                            upsell_date: pickedDate
                         });
                     }
                 }

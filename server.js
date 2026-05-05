@@ -66659,6 +66659,10 @@ app.post('/api/public/calculate-price', async (req, res) => {
           itemTotal = itemTotal * (item.quantity || 1);
 
           upsellsTotal += itemTotal;
+          // Carry the customer-picked date (when present) onto the booking's
+          // upsells_breakdown so the property dashboard can show "Garden Tour ×4
+          // on Wed 18 Jun" for prep purposes. Also stamp the upsell's date config
+          // (requires_date) so the breakdown is self-describing.
           upsellsBreakdown.push({
             id: u.id,
             name: u.name,
@@ -66667,7 +66671,9 @@ app.post('/api/public/calculate-price', async (req, res) => {
             subsequent_night_price: snp,
             charge_type: u.charge_type,
             quantity: item.quantity || 1,
-            total: itemTotal
+            total: itemTotal,
+            requires_date: !!u.requires_date,
+            upsell_date: item.upsell_date || null
           });
         }
       }
@@ -70867,6 +70873,7 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
         u.available_days_of_week,
         u.valid_from,
         u.valid_until,
+        u.min_notice_hours,
         u.linked_shop_product_id,
         COALESCE(u.mandatory, false) as mandatory,
         p.name as property_name
@@ -88991,6 +88998,10 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS valid_from DATE`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS valid_until DATE`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS linked_shop_product_id INTEGER`);
+    // Notice period — minimum hours between "now" and the chosen date (e.g. 48 for tours
+    // that need a day or two to organise). Empty / 0 = no constraint.
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS min_notice_hours INTEGER`);
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS min_notice_hours INTEGER`);
 
     console.log('✅ Shop tables ensured (shop_products, shop_orders, shop_order_items)');
 
@@ -92521,6 +92532,7 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
         property_id = $6, property_ids = $7, image_url = $8,
         requires_date = true, available_days_of_week = $9,
         valid_from = $10, valid_until = $11,
+        min_notice_hours = $15,
         active = $12, source = 'shop_link', linked_shop_product_id = $13,
         updated_at = NOW()
       WHERE id = $14
@@ -92537,7 +92549,8 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
       productRow.valid_until || null,
       productRow.is_active !== false,
       productRow.id,
-      productRow.linked_upsell_id
+      productRow.linked_upsell_id,
+      productRow.min_notice_hours || null
     ]);
     return;
   }
@@ -92548,11 +92561,13 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
       name, description, name_ml, description_ml, price, charge_type,
       property_id, property_ids, image_url,
       requires_date, available_days_of_week, valid_from, valid_until,
+      min_notice_hours,
       active, mandatory, is_external, source, linked_shop_product_id, user_id
     ) VALUES (
       $1, $2, $3::jsonb, $4::jsonb, $5, 'per_guest',
       $6, $7, $8,
       true, $9, $10, $11,
+      $15,
       $12, false, false, 'shop_link', $13, $14
     ) RETURNING id
   `, [
@@ -92568,7 +92583,8 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
     productRow.valid_until || null,
     productRow.is_active !== false,
     productRow.id,
-    clientId
+    clientId,
+    productRow.min_notice_hours || null
   ]);
   const newUpsellId = ins.rows[0].id;
   await pool.query('UPDATE shop_products SET linked_upsell_id = $1 WHERE id = $2', [newUpsellId, productRow.id]);
@@ -92599,7 +92615,7 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.body.client_id || decoded.accountId || decoded.id;
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours } = req.body;
 
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Product name is required' });
     const numPrice = parseFloat(price);
@@ -92627,8 +92643,8 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     const wantsAsUpsell = available_as_upsell === 'true' || available_as_upsell === true;
 
     const result = await pool.query(`
-      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
       RETURNING *
     `, [
       clientId, name.trim(),
@@ -92655,7 +92671,8 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
       valid_from || null,
       valid_until || null,
       wantsAsUpsell,
-      upsellPropertyIdsArr
+      upsellPropertyIdsArr,
+      min_notice_hours ? parseInt(min_notice_hours) : null
     ]);
 
     // Mirror to upsells table if owner ticked "Also offer as booking upsell".
@@ -92681,7 +92698,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
     const existing = await pool.query('SELECT * FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
     if (!existing.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours } = req.body;
 
     if (name && !name.trim()) return res.status(400).json({ success: false, error: 'Product name cannot be empty' });
     if (price !== undefined) {
@@ -92747,6 +92764,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
         valid_until = $28,
         available_as_upsell = $29,
         upsell_property_ids = $30,
+        min_notice_hours = $31,
         updated_at = NOW()
       WHERE id = $15 AND account_id = $16
       RETURNING *
@@ -92778,7 +92796,8 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
       valid_from !== undefined ? (valid_from || null) : existing.rows[0].valid_from,
       valid_until !== undefined ? (valid_until || null) : existing.rows[0].valid_until,
       wantsAsUpsell,
-      upsellPropertyIdsArr
+      upsellPropertyIdsArr,
+      min_notice_hours !== undefined ? (min_notice_hours ? parseInt(min_notice_hours) : null) : existing.rows[0].min_notice_hours
     ]);
 
     // Mirror to upsells table — create/update/delete the linked row based on the new state.
