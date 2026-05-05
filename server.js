@@ -66602,16 +66602,44 @@ app.post('/api/public/calculate-price', async (req, res) => {
 
       if (voucher.rows[0]) {
         const v = voucher.rows[0];
-        // property/room scope — applies-to-all when no scope is set on the voucher
-        if (!voucherMatchesScope(v, roomData.property_id, unit_id, roomData.account_id)) {
-          return res.json({ success: false, error: 'Voucher not valid for this property or room' });
-        }
-        if (v.discount_type === 'percentage') {
-          voucherDiscount = accommodationTotal * (v.discount_value / 100);
+        const isGiftCert = v.voucher_type === 'gift_certificate';
+
+        if (isGiftCert) {
+          if (v.expires_at && new Date(v.expires_at) < new Date()) {
+            return res.json({ success: false, error: 'This gift certificate has expired' });
+          }
+          const balance = parseFloat(v.current_balance || 0);
+          if (balance <= 0) {
+            return res.json({ success: false, error: 'This gift certificate has no remaining balance' });
+          }
+          // Account scope: cert must be issued by the booked property's account.
+          if (v.user_id && roomData.account_id && v.user_id !== roomData.account_id) {
+            return res.json({ success: false, error: 'This gift certificate is not valid for this property' });
+          }
+          // Apply min(balance, accommodationTotal) — partial-balance redemption supported.
+          voucherDiscount = Math.min(balance, accommodationTotal);
+          voucherApplied = {
+            code: v.code,
+            name: v.name || 'Gift Certificate',
+            voucher_type: 'gift_certificate',
+            initial_balance: parseFloat(v.initial_balance || balance),
+            current_balance: balance,
+            applied_amount: voucherDiscount,
+            remaining_after: Math.max(0, balance - voucherDiscount),
+            currency: v.currency || null
+          };
         } else {
-          voucherDiscount = parseFloat(v.discount_value);
+          // property/room scope — applies-to-all when no scope is set on the voucher
+          if (!voucherMatchesScope(v, roomData.property_id, unit_id, roomData.account_id)) {
+            return res.json({ success: false, error: 'Voucher not valid for this property or room' });
+          }
+          if (v.discount_type === 'percentage') {
+            voucherDiscount = accommodationTotal * (v.discount_value / 100);
+          } else {
+            voucherDiscount = parseFloat(v.discount_value);
+          }
+          voucherApplied = { code: v.code, name: v.name, voucher_type: 'discount', discount_type: v.discount_type, discount_value: v.discount_value };
         }
-        voucherApplied = { code: v.code, name: v.name, discount_type: v.discount_type, discount_value: v.discount_value };
       } else {
         return res.json({ success: false, error: 'Invalid or expired voucher code' });
       }
@@ -67223,11 +67251,31 @@ app.post('/api/public/book', async (req, res) => {
       }
     }
     
-    // If voucher was used, increment usage
+    // If voucher was used, finalise it.
+    //   Discount voucher → bump times_used (existing behaviour).
+    //   Gift cert       → deduct the applied amount from current_balance and
+    //                     deactivate when the balance hits 0. The applied amount
+    //                     is read from the client's price_breakdown.voucher_discount
+    //                     and capped server-side at current_balance to defend
+    //                     against client tampering.
     if (voucher_code) {
-      await pool.query(`
-        UPDATE vouchers SET times_used = times_used + 1 WHERE code = $1
-      `, [voucher_code.toUpperCase()]);
+      const vRes = await pool.query('SELECT id, voucher_type, current_balance FROM vouchers WHERE code = $1', [voucher_code.toUpperCase()]);
+      const v = vRes.rows[0];
+      if (v && v.voucher_type === 'gift_certificate') {
+        let breakdownObj = price_breakdown;
+        if (typeof breakdownObj === 'string') { try { breakdownObj = JSON.parse(breakdownObj); } catch (e) { breakdownObj = {}; } }
+        const claimed = parseFloat(breakdownObj && breakdownObj.voucher_discount) || 0;
+        const balance = parseFloat(v.current_balance || 0);
+        const applied = Math.max(0, Math.min(claimed, balance));
+        const newBalance = Math.max(0, balance - applied);
+        await pool.query(
+          'UPDATE vouchers SET current_balance = $1, times_used = times_used + 1, active = $2, updated_at = NOW() WHERE id = $3',
+          [newBalance, newBalance > 0, v.id]
+        );
+        console.log('[GIFT CERT] Redeemed', voucher_code, '— applied', applied, 'remaining', newBalance);
+      } else {
+        await pool.query(`UPDATE vouchers SET times_used = times_used + 1 WHERE code = $1`, [voucher_code.toUpperCase()]);
+      }
     }
     
     // If card guarantee was used, store card token from Enigma
@@ -67909,6 +67957,42 @@ app.post('/api/public/validate-voucher', async (req, res) => {
     
     if (voucher.rows[0]) {
       const v = voucher.rows[0];
+      const isGiftCert = v.voucher_type === 'gift_certificate';
+
+      // Gift certs are account-wide by design (any property under the issuing account).
+      // Skip min-nights and property/room scope checks; only verify expiry + balance.
+      if (isGiftCert) {
+        if (v.expires_at && new Date(v.expires_at) < new Date()) {
+          return res.json({ success: true, valid: false, error: 'This gift certificate has expired' });
+        }
+        if (v.current_balance == null || parseFloat(v.current_balance) <= 0) {
+          return res.json({ success: true, valid: false, error: 'This gift certificate has no remaining balance' });
+        }
+        // Verify the cert was issued by the booked property's account.
+        if (unit_id) {
+          const propRes = await pool.query(
+            'SELECT p.account_id FROM bookable_units bu JOIN properties p ON p.id = bu.property_id WHERE bu.id = $1',
+            [unit_id]
+          );
+          const accId = propRes.rows[0]?.account_id || null;
+          if (accId && v.user_id !== accId) {
+            return res.json({ success: true, valid: false, error: 'This gift certificate is not valid for this property' });
+          }
+        }
+        return res.json({
+          success: true,
+          valid: true,
+          voucher: {
+            code: v.code,
+            name: v.name || 'Gift Certificate',
+            voucher_type: 'gift_certificate',
+            current_balance: parseFloat(v.current_balance),
+            initial_balance: parseFloat(v.initial_balance || v.current_balance),
+            currency: v.currency || null
+          }
+        });
+      }
+
       // Check min_nights if column exists
       if (v.min_nights && nights < v.min_nights) {
         return res.json({ success: true, valid: false, error: `Minimum ${v.min_nights} nights required` });
@@ -67939,6 +68023,7 @@ app.post('/api/public/validate-voucher', async (req, res) => {
         voucher: {
           code: v.code,
           name: resolvedName,
+          voucher_type: v.voucher_type || 'discount',
           discount_type: v.discount_type,
           discount_value: v.discount_value
         }

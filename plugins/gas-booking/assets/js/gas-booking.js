@@ -2419,13 +2419,19 @@ jQuery(document).ready(function($) {
                 if (response.success && response.valid) {
                     // Store voucher
                     $roomWidget.data('voucher-code', code);
-                    
-                    // Show applied state
+
+                    // Show applied state. Gift certs surface their balance so the guest
+                    // sees what's in the wallet before the price recalc lands.
                     $('.gas-voucher-input').hide();
                     $('.gas-voucher-toggle').hide();
-                    $('.gas-voucher-name').text('✓ ' + response.voucher.name + ' (' + code + ')');
+                    var label = '✓ ' + response.voucher.name + ' (' + code + ')';
+                    if (response.voucher.voucher_type === 'gift_certificate' && response.voucher.current_balance != null) {
+                        var balCurr = response.voucher.currency || (typeof currency !== 'undefined' ? currency : '');
+                        label += ' — balance ' + (balCurr ? balCurr + ' ' : '') + parseFloat(response.voucher.current_balance).toFixed(2);
+                    }
+                    $('.gas-voucher-name').text(label);
                     $('.gas-voucher-applied').show();
-                    
+
                     // Recalculate price
                     var checkin = $('.gas-checkin').val();
                     var checkout = $('.gas-checkout').val();
@@ -6001,21 +6007,35 @@ jQuery(document).ready(function($) {
                     if (response.success && response.valid) {
                         checkoutData.voucherCode = code;
                         checkoutData.voucher = response.voucher;
-                        $('.gas-voucher-result').html('<span class="gas-voucher-success">✓ ' + response.voucher.name + ' applied!</span>');
-                        
-                        // Show voucher discount in summary
+
+                        // Gift cert: applied = min(balance, accommodationTotal); show
+                        // remaining-after balance so the guest knows what's left for next time.
+                        var isGiftCert = response.voucher.voucher_type === 'gift_certificate';
                         var discount = 0;
-                        var subtotal = checkoutData.grandTotal;
-                        if (response.voucher.discount_type === 'percentage') {
-                            discount = subtotal * (response.voucher.discount_value / 100);
+                        if (isGiftCert) {
+                            var bal = parseFloat(response.voucher.current_balance) || 0;
+                            var accomTotal = parseFloat(checkoutData.pricing && checkoutData.pricing.accommodation_total) || checkoutData.grandTotal;
+                            discount = Math.min(bal, accomTotal);
+                            var remaining = Math.max(0, bal - discount);
+                            var balCurr = response.voucher.currency || checkoutData.currency || '';
+                            var msg = '✓ Gift certificate applied — ' + (balCurr ? balCurr + ' ' : '') + discount.toFixed(2) + ' of ' + (balCurr ? balCurr + ' ' : '') + bal.toFixed(2);
+                            if (remaining > 0) msg += ' (' + (balCurr ? balCurr + ' ' : '') + remaining.toFixed(2) + ' remaining for next time)';
+                            $('.gas-voucher-result').html('<span class="gas-voucher-success">' + msg + '</span>');
+                            $('.gas-voucher-label').text('Gift certificate: ' + code);
                         } else {
-                            discount = parseFloat(response.voucher.discount_value);
+                            $('.gas-voucher-result').html('<span class="gas-voucher-success">✓ ' + response.voucher.name + ' applied!</span>');
+                            var subtotal = checkoutData.grandTotal;
+                            if (response.voucher.discount_type === 'percentage') {
+                                discount = subtotal * (response.voucher.discount_value / 100);
+                            } else {
+                                discount = parseFloat(response.voucher.discount_value);
+                            }
+                            $('.gas-voucher-label').text('Promo: ' + code);
                         }
-                        
+
                         $('.gas-voucher-line').show();
-                        $('.gas-voucher-label').text('Promo: ' + code);
                         $('.gas-voucher-discount').text('-' + formatPrice(discount, checkoutData.currency));
-                        
+
                         checkoutData.voucherDiscount = discount;
                         checkoutData.grandTotal = checkoutData.grandTotal - discount;
                         $('.gas-grand-total').text(formatPrice(checkoutData.grandTotal, checkoutData.currency));
