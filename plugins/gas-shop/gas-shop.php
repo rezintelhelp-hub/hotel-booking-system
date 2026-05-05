@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -452,9 +452,23 @@ class GAS_Shop {
             'event_start_date' => $p['event_start_date'] ?? null,
             'event_end_date' => $p['event_end_date'] ?? null,
         ), JSON_HEX_APOS | JSON_HEX_QUOT);
+        $isEventBookable = (($p['product_type'] ?? '') === 'event') && !empty($p['offers_accommodation']) && !empty($p['booking_url']) && !empty($p['event_start_date']);
         if (($p['product_type'] ?? '') === 'external' && !empty($p['external_url'])) {
             $btnLabel = esc_html($p['external_button_label'] ?? 'Buy Now');
             echo '<a href="'.esc_url($p['external_url']).'" target="_blank" rel="noopener" class="gas-shop-btn">'.$btnLabel.' &rarr;</a>';
+        } elseif ($isEventBookable) {
+            // Event with accommodation: push the buyer to the booking page with
+            // dates locked + event slug pre-filled. The booking page handles
+            // availability, room choice, offers, vouchers, upsells in one flow.
+            $checkIn = date('Y-m-d', strtotime($p['event_start_date']));
+            $checkOut = !empty($p['event_end_date']) ? date('Y-m-d', strtotime($p['event_end_date'])) : null;
+            if (!$checkOut && !empty($p['event_duration_nights'])) {
+                $checkOut = date('Y-m-d', strtotime($p['event_start_date'].' +'.intval($p['event_duration_nights']).' days'));
+            }
+            if (!$checkOut) $checkOut = date('Y-m-d', strtotime($p['event_start_date'].' +1 day'));
+            $bookingUrl = rtrim($p['booking_url'], '/').'/?check_in='.$checkIn.'&check_out='.$checkOut.'&event='.urlencode($p['slug']);
+            echo '<a href="'.esc_url($bookingUrl).'" class="gas-shop-btn" id="gas-book-event">Book Now &rarr;</a>';
+            echo '<p style="margin:12px 0 0;color:'.$c['text_secondary'].';font-size:0.9rem">You\'ll choose a room on the next page. Event price + room rate combine into one booking.</p>';
         } elseif ($isGift) {
             // Gift certificate buy form: preset value chips + optional custom amount,
             // plus recipient name/email/message + sender name + optional send-on date.

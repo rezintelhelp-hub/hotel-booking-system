@@ -92642,6 +92642,23 @@ async function extractAccountFromToken(req) {
   }
 }
 
+// Sign / verify a gift cert action token. Lets the buyer (not the world) hit
+// the preview page and "send to recipient" endpoint. Token is HMAC of
+// cert_id + buyer_email against JWT_SECRET — long enough to be unguessable.
+function signGiftCertToken(certId, buyerEmail) {
+  const secret = process.env.JWT_SECRET || 'dev-secret-change-me';
+  const payload = `${certId}:${(buyerEmail || '').toLowerCase()}`;
+  return crypto.createHmac('sha256', secret).update(payload).digest('hex');
+}
+function verifyGiftCertToken(token, certId, buyerEmail) {
+  if (!token || !certId) return false;
+  const expected = signGiftCertToken(certId, buyerEmail);
+  // constant-time compare
+  if (token.length !== expected.length) return false;
+  try { return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected)); }
+  catch (e) { return false; }
+}
+
 // Generate a unique gift certificate code. Format: GIFT-XXXXXXXX (no ambiguous chars).
 // Retries on collision against the vouchers.code unique index.
 async function generateUniqueGiftCode() {
@@ -93429,7 +93446,24 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
     );
     if (!result.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    res.json({ success: true, product: result.rows[0] });
+    const product = result.rows[0];
+
+    // For event products with offers_accommodation, look up the property's
+    // deployed booking site so the shop can render a "Book Now" link that
+    // pre-fills the event dates and event_id on the booking page.
+    if (product.product_type === 'event' && product.offers_accommodation && product.property_id) {
+      const ds = await pool.query(
+        `SELECT site_url FROM deployed_sites
+          WHERE account_id = $1 AND (property_id = $2 OR property_ids @> to_jsonb($2::int))
+          ORDER BY id LIMIT 1`,
+        [clientId, product.property_id]
+      );
+      if (ds.rows[0]?.site_url) {
+        product.booking_url = ds.rows[0].site_url;
+      }
+    }
+
+    res.json({ success: true, product });
   } catch (error) {
     console.error('Public shop product detail error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -93842,6 +93876,243 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
   }
 });
 
+// GET /api/public/event/:slug — booking page reads ?event=<slug> from the URL
+// (the shop's "Book Now" button puts it there) and calls this to render a small
+// "You're booking <event name>" banner. Light read — no auth.
+app.get('/api/public/event/:slug', async (req, res) => {
+  try {
+    const slug = String(req.params.slug || '').trim();
+    if (!slug) return res.json({ success: false, error: 'Missing slug' });
+    const r = await pool.query(
+      `SELECT id, account_id, name, slug, description, image_url, image_thumbnail_url,
+              price, currency, event_start_date, event_end_date, event_duration_nights, property_id
+       FROM shop_products WHERE slug = $1 AND product_type = 'event' AND is_active = true LIMIT 1`,
+      [slug]
+    );
+    if (!r.rows.length) return res.json({ success: false, error: 'Event not found' });
+    res.json({ success: true, event: r.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/public/gift-cert/:code — buyer-facing manage page (HTML).
+// Token-gated to the buyer's email so links shared by accident don't expose the cert.
+// Includes: cert preview (code + QR + amount), print button (browser print → PDF),
+// recipient form (pre-filled), "Send to recipient" button.
+app.get('/api/public/gift-cert/:code', async (req, res) => {
+  try {
+    const code = String(req.params.code || '').trim().toUpperCase();
+    const token = String(req.query.token || '');
+    if (!code) return res.status(400).send('Missing code');
+
+    const r = await pool.query(
+      `SELECT v.*, a.name AS account_name, a.email AS account_email, o.customer_email
+       FROM vouchers v
+       LEFT JOIN accounts a ON v.user_id = a.id
+       LEFT JOIN shop_orders o ON v.linked_shop_order_id = o.id
+       WHERE UPPER(v.code) = $1 AND v.voucher_type = 'gift_certificate'`,
+      [code]
+    );
+    if (!r.rows.length) return res.status(404).send('Certificate not found');
+    const v = r.rows[0];
+
+    const buyerEmail = v.customer_email || v.sender_email;
+    if (!verifyGiftCertToken(token, v.id, buyerEmail)) {
+      return res.status(403).send('Invalid or expired link');
+    }
+
+    const accountName = v.account_name || 'Shop';
+    const certCurrency = v.currency || 'EUR';
+    const balance = parseFloat(v.current_balance || 0);
+    const initial = parseFloat(v.initial_balance || balance);
+    const amountFmt = `${certCurrency} ${initial.toFixed(2)}`;
+    const balanceFmt = `${certCurrency} ${balance.toFixed(2)}`;
+    const expiry = v.expires_at ? new Date(v.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
+    const redeemUrl = `https://admin.gas.travel/redeem?code=${encodeURIComponent(v.code)}`;
+    const qrDataUrl = await QRCode.toDataURL(redeemUrl, { width: 220, margin: 1 });
+
+    const sendEndpoint = `/api/public/gift-cert/${encodeURIComponent(v.code)}/send`;
+    const recipientName = (v.recipient_name || '').replace(/"/g, '&quot;');
+    const recipientEmail = (v.recipient_email || '').replace(/"/g, '&quot;');
+    const senderName = (v.sender_name || '').replace(/"/g, '&quot;');
+    const message = (v.recipient_message || '').replace(/</g, '&lt;');
+
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gift Certificate · ${accountName}</title>
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #334155; background: #f8fafc; margin: 0; padding: 20px; }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  .cert { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 24px; }
+  .cert-head { background: linear-gradient(135deg, #10b981, #059669); padding: 32px 24px; text-align: center; color: #fff; }
+  .cert-head .label { margin: 0 0 4px; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.9; }
+  .cert-head h1 { margin: 0; font-size: 32px; font-weight: 700; }
+  .cert-head .org { margin: 8px 0 0; font-size: 14px; opacity: 0.95; }
+  .cert-body { padding: 24px; text-align: center; }
+  .cert-code { display: inline-block; padding: 14px 22px; border: 2px dashed #10b981; border-radius: 10px; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 22px; font-weight: 700; letter-spacing: 2px; color: #047857; margin: 12px 0; }
+  .cert-qr { display: block; margin: 16px auto; width: 200px; height: 200px; }
+  .cert-msg { background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 8px; padding: 14px; margin: 16px 0; font-style: italic; color: #78350f; text-align: left; }
+  .cert-meta { font-size: 13px; color: #64748b; margin-top: 12px; }
+  .cert-balance { font-size: 13px; color: #047857; font-weight: 600; margin-top: 8px; }
+  .actions { background: #fff; border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+  .actions h2 { margin: 0 0 16px; font-size: 18px; color: #1e293b; }
+  .field { display: block; margin-bottom: 12px; }
+  .field label { display: block; font-size: 13px; color: #475569; margin-bottom: 4px; font-weight: 600; }
+  .field input, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; box-sizing: border-box; font-family: inherit; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .btn { display: inline-block; padding: 12px 22px; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; border: none; text-decoration: none; }
+  .btn-primary { background: #10b981; color: #fff; }
+  .btn-secondary { background: #fff; color: #475569; border: 2px solid #e2e8f0; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .status { margin-top: 12px; font-size: 14px; }
+  .status.ok { color: #047857; }
+  .status.err { color: #dc2626; }
+  @media print {
+    body { background: #fff; }
+    .actions, .no-print { display: none !important; }
+    .cert { box-shadow: none; border: 1px solid #e5e7eb; }
+  }
+</style>
+</head><body>
+  <div class="wrap">
+    <div class="cert" id="gift-cert">
+      <div class="cert-head">
+        <p class="label">Gift Certificate</p>
+        <h1>${amountFmt}</h1>
+        <p class="org">${accountName}</p>
+      </div>
+      <div class="cert-body">
+        ${senderName ? `<p style="margin:0 0 6px"><strong>From:</strong> ${senderName}</p>` : ''}
+        ${recipientName ? `<p style="margin:0 0 6px"><strong>To:</strong> ${recipientName}</p>` : ''}
+        ${message ? `<div class="cert-msg">"${message}"</div>` : ''}
+        <p style="margin:0;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#64748b">Code</p>
+        <div class="cert-code">${v.code}</div>
+        <img class="cert-qr" src="${qrDataUrl}" alt="QR code">
+        <p class="cert-meta">Scan or visit ${redeemUrl} to redeem</p>
+        ${expiry ? `<p class="cert-meta">Valid until ${expiry}</p>` : ''}
+        ${balance < initial ? `<p class="cert-balance">Balance remaining: ${balanceFmt}</p>` : ''}
+      </div>
+    </div>
+
+    <div class="actions no-print">
+      <h2>Print or send</h2>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="window.print()">🖨 Print / Save as PDF</button>
+      </div>
+
+      <h2 style="margin-top:24px">Email to recipient</h2>
+      <div class="row">
+        <div class="field"><label>Recipient name</label><input id="rcp-name" value="${recipientName}" placeholder="Their name"></div>
+        <div class="field"><label>Recipient email</label><input id="rcp-email" type="email" value="${recipientEmail}" placeholder="them@example.com" required></div>
+      </div>
+      <div class="field"><label>Your name (sender)</label><input id="snd-name" value="${senderName}" placeholder="Your name"></div>
+      <div class="field"><label>Personal message (optional)</label><textarea id="msg" rows="3" placeholder="Add a note">${message}</textarea></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="send-btn">📧 Send to recipient</button>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('send-btn').addEventListener('click', async function(){
+      var btn = this;
+      var status = document.getElementById('status');
+      status.textContent = '';
+      status.className = 'status';
+      var email = document.getElementById('rcp-email').value.trim();
+      if (!email) { status.textContent = 'Recipient email is required.'; status.className = 'status err'; return; }
+      btn.disabled = true; btn.textContent = 'Sending...';
+      try {
+        var res = await fetch('${sendEndpoint}?token=' + encodeURIComponent('${token}'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipient_name: document.getElementById('rcp-name').value.trim(),
+            recipient_email: email,
+            sender_name: document.getElementById('snd-name').value.trim(),
+            message: document.getElementById('msg').value.trim()
+          })
+        });
+        var data = await res.json();
+        if (data.success) { status.textContent = '✓ Sent to ' + email; status.className = 'status ok'; }
+        else { status.textContent = data.error || 'Send failed.'; status.className = 'status err'; btn.disabled = false; btn.textContent = '📧 Send to recipient'; return; }
+      } catch (e) { status.textContent = 'Connection error.'; status.className = 'status err'; }
+      btn.disabled = false; btn.textContent = '📧 Send again';
+    });
+  </script>
+</body></html>`);
+  } catch (err) {
+    console.error('Gift cert preview error:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// POST /api/public/gift-cert/:code/send — buyer triggers email to recipient.
+// Same token gating as the preview page.
+app.post('/api/public/gift-cert/:code/send', express.json(), async (req, res) => {
+  try {
+    const code = String(req.params.code || '').trim().toUpperCase();
+    const token = String(req.query.token || '');
+    const { recipient_name, recipient_email, sender_name, message } = req.body || {};
+
+    if (!recipient_email) return res.json({ success: false, error: 'Recipient email is required' });
+
+    const r = await pool.query(
+      `SELECT v.*, a.name AS account_name, a.email AS account_email, o.customer_email
+       FROM vouchers v
+       LEFT JOIN accounts a ON v.user_id = a.id
+       LEFT JOIN shop_orders o ON v.linked_shop_order_id = o.id
+       WHERE UPPER(v.code) = $1 AND v.voucher_type = 'gift_certificate'`,
+      [code]
+    );
+    if (!r.rows.length) return res.json({ success: false, error: 'Certificate not found' });
+    const v = r.rows[0];
+
+    const buyerEmail = v.customer_email || v.sender_email;
+    if (!verifyGiftCertToken(token, v.id, buyerEmail)) {
+      return res.status(403).json({ success: false, error: 'Invalid link' });
+    }
+
+    const accountName = v.account_name || 'Shop';
+    const certCurrency = v.currency || 'EUR';
+    const initial = parseFloat(v.initial_balance || v.current_balance || 0);
+    const expiresAt = v.expires_at;
+    const redeemUrl = `https://admin.gas.travel/redeem?code=${encodeURIComponent(v.code)}`;
+
+    const html = await renderGiftCertEmail({
+      accountName,
+      code: v.code,
+      amount: initial,
+      currency: certCurrency,
+      sender: sender_name || v.sender_name || '',
+      recipient: recipient_name || '',
+      message: message || '',
+      expiresAt,
+      redeemUrl
+    });
+
+    await sendEmail({
+      to: recipient_email,
+      subject: `${certCurrency} ${initial.toFixed(2)} Gift Certificate from ${sender_name || v.sender_name || accountName}`,
+      html,
+      replyTo: buyerEmail || v.account_email || undefined
+    });
+
+    // Track delivery so the buyer can see it was sent and to whom.
+    await pool.query(
+      `UPDATE vouchers SET recipient_email = $1, recipient_name = $2, recipient_message = $3, sender_name = COALESCE($4, sender_name), updated_at = NOW() WHERE id = $5`,
+      [recipient_email, recipient_name || null, message || null, sender_name || null, v.id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Gift cert send error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/webhooks/stripe-shop — handle shop payment completion
 app.post('/api/webhooks/stripe-shop', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
@@ -93937,10 +94208,14 @@ app.post('/api/webhooks/stripe-shop', express.raw({ type: 'application/json' }),
       const accountName = acc.rows[0]?.name || 'Shop';
       const operatorEmail = acc.rows[0]?.email;
 
-      // Gift certificate fulfilment — for each line item whose product is a gift_certificate,
-      // create a vouchers row with the paid amount as initial+current balance, generate a
-      // unique code + QR, and email the recipient (or fall back to the buyer). Each ticket
-      // in the line item gets its own voucher (qty=3 → 3 separate certificates).
+      // Gift certificate fulfilment — for each line item whose product is a
+      // gift_certificate, create a vouchers row with the paid amount as
+      // initial+current balance, generate a unique code, and email the BUYER
+      // a "ready to send" notification with a tokenised manage link. The buyer
+      // chooses when to email the recipient (or to print the cert and hand it
+      // over). The intended-recipient details from the buy form are pre-filled
+      // on the manage page but not auto-fired.
+      const buyerCerts = [];
       try {
         for (const item of orderItems.rows) {
           if (!item.product_id) continue;
@@ -93954,10 +94229,10 @@ app.post('/api/webhooks/stripe-shop', express.raw({ type: 'application/json' }),
           const meta = item.gift_metadata
             ? (typeof item.gift_metadata === 'string' ? JSON.parse(item.gift_metadata) : item.gift_metadata)
             : {};
-          const recipientEmail = meta.recipient_email || order.customer_email;
-          const recipientName = meta.recipient_name || order.customer_name || '';
+          const recipientEmail = meta.recipient_email || null;
+          const recipientName = meta.recipient_name || null;
           const senderName = meta.sender_name || order.customer_name || '';
-          const senderEmail = meta.sender_email || order.customer_email;
+          const senderEmail = order.customer_email;
           const messageText = meta.message || meta.recipient_message || '';
           const certCurrency = prod.currency || order.currency || 'EUR';
           const expiryMonths = prod.gift_expiry_months || 12;
@@ -93969,7 +94244,7 @@ app.post('/api/webhooks/stripe-shop', express.raw({ type: 'application/json' }),
           for (let i = 0; i < qty; i++) {
             const code = await generateUniqueGiftCode();
             const certName = `Gift Certificate — ${certCurrency} ${parseFloat(item.unit_price).toFixed(2)}`;
-            await pool.query(`
+            const insRes = await pool.query(`
               INSERT INTO vouchers (
                 user_id, code, name, voucher_type,
                 discount_type, discount_value,
@@ -93986,35 +94261,71 @@ app.post('/api/webhooks/stripe-shop', express.raw({ type: 'application/json' }),
                 $9, $10,
                 $11, $12,
                 'all', NULL, 0, true
-              )
+              ) RETURNING id
             `, [
               accountId, code, certName,
               parseFloat(item.unit_price),
               certCurrency,
-              recipientName || null, recipientEmail, messageText || null,
+              recipientName, recipientEmail, messageText || null,
               senderName || null, senderEmail || null,
               expiresAt, order.id
             ]);
-
-            const redeemUrl = `https://admin.gas.travel/redeem?code=${encodeURIComponent(code)}`;
-            const html = await renderGiftCertEmail({
-              accountName,
-              code, amount: item.unit_price, currency: certCurrency,
-              sender: senderName, recipient: recipientName, message: messageText,
-              expiresAt, redeemUrl
+            buyerCerts.push({
+              cert_id: insRes.rows[0].id,
+              code,
+              amount: parseFloat(item.unit_price),
+              currency: certCurrency,
+              expiresAt,
+              recipientEmail, recipientName, senderName, message: messageText
             });
+          }
+        }
 
-            try {
-              await sendEmail({
-                to: recipientEmail,
-                subject: `${certCurrency} ${parseFloat(item.unit_price).toFixed(2)} Gift Certificate from ${senderName || accountName}`,
-                html,
-                replyTo: senderEmail || operatorEmail || undefined
-              });
-              console.log('[SHOP] Gift certificate emailed:', code, '→', recipientEmail);
-            } catch (mailErr) {
-              console.error('[SHOP] Gift cert email failed:', mailErr.message);
-            }
+        // One email to the buyer summarising every certificate purchased, each
+        // with a manage-page link (signed token) where they can preview, print,
+        // or send to the recipient.
+        if (buyerCerts.length > 0) {
+          const certBlocks = await Promise.all(buyerCerts.map(async (c) => {
+            const token = signGiftCertToken(c.cert_id, order.customer_email);
+            const manageUrl = `https://admin.gas.travel/api/public/gift-cert/${encodeURIComponent(c.code)}?token=${token}`;
+            const qrDataUrl = await QRCode.toDataURL(manageUrl, { width: 160, margin: 1 });
+            return `
+              <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin-bottom:16px">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+                  <div>
+                    <p style="margin:0 0 4px;color:#64748b;font-size:12px;letter-spacing:1px;text-transform:uppercase">Gift Certificate</p>
+                    <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#047857">${c.currency} ${c.amount.toFixed(2)}</p>
+                    <p style="margin:0 0 4px;font-family:'SFMono-Regular',Consolas,monospace;font-size:14px;letter-spacing:1.5px;color:#1e293b">${c.code}</p>
+                    ${c.recipientName ? `<p style="margin:8px 0 0;font-size:13px;color:#475569">For: ${c.recipientName}${c.recipientEmail ? ` &lt;${c.recipientEmail}&gt;` : ''}</p>` : ''}
+                    ${c.expiresAt ? `<p style="margin:4px 0 0;font-size:12px;color:#94a3b8">Valid until ${new Date(c.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>` : ''}
+                  </div>
+                  <img src="${qrDataUrl}" alt="QR" style="width:90px;height:90px;flex-shrink:0">
+                </div>
+                <div style="margin-top:14px;text-align:center">
+                  <a href="${manageUrl}" style="display:inline-block;padding:10px 20px;background:#10b981;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View, Print, or Send</a>
+                </div>
+              </div>`;
+          }));
+
+          const buyerHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:'Segoe UI',Arial,sans-serif;color:#334155;max-width:600px;margin:0 auto;padding:20px;background:#f8fafc">
+            <div style="background:#fff;border-radius:16px;padding:24px;margin-bottom:16px">
+              <h1 style="margin:0 0 8px;color:#047857;font-size:22px">Your gift ${buyerCerts.length > 1 ? 'certificates are' : 'certificate is'} ready</h1>
+              <p style="margin:0;color:#64748b;font-size:14px">Order ${order.order_number} · ${accountName}</p>
+            </div>
+            ${certBlocks.join('')}
+            <p style="text-align:center;color:#64748b;font-size:13px;margin:20px 0 0">Click <strong>View, Print, or Send</strong> to preview the certificate, print it, or email it to the recipient when you're ready.</p>
+          </body></html>`;
+
+          try {
+            await sendEmail({
+              to: order.customer_email,
+              subject: `Your gift ${buyerCerts.length > 1 ? 'certificates' : 'certificate'} from ${accountName}`,
+              html: buyerHtml,
+              replyTo: operatorEmail || undefined
+            });
+            console.log('[SHOP] Gift cert buyer email sent — certs:', buyerCerts.length);
+          } catch (mailErr) {
+            console.error('[SHOP] Gift cert buyer email failed:', mailErr.message);
           }
         }
       } catch (giftErr) {

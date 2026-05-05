@@ -41,6 +41,38 @@ jQuery(document).ready(function($) {
     
     var currentLanguage = getCurrentLanguage();
     var dateLocale = { en: 'en-GB', fr: 'fr-FR', de: 'de-DE', es: 'es-ES', nl: 'nl-NL', ja: 'ja-JP', it: 'it-IT', pt: 'pt-PT' }[currentLanguage] || 'en-GB';
+
+    // Shop event entry-point — when the user lands here from a shop event's
+    // "Book Now" button (?event=<slug>), fetch the event details and prepend a
+    // small banner above the rooms grid / room widget so they know what they're
+    // booking. Dates pre-fill from the same URL via existing check_in/check_out
+    // params; we don't lock them — guests can still extend/shorten their stay.
+    (function showEventBanner() {
+        var eventSlug = new URLSearchParams(window.location.search).get('event');
+        if (!eventSlug) return;
+        $.ajax({
+            url: gasBooking.apiUrl + '/api/public/event/' + encodeURIComponent(eventSlug),
+            method: 'GET',
+            success: function(resp) {
+                if (!resp.success || !resp.event) return;
+                var ev = resp.event;
+                var fmt = function(d) { return new Date(d).toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' }); };
+                var dateRange = fmt(ev.event_start_date) + (ev.event_end_date ? ' – ' + fmt(ev.event_end_date) : '');
+                var priceLabel = (ev.currency || '') + ' ' + parseFloat(ev.price).toFixed(2);
+                var img = ev.image_thumbnail_url || ev.image_url;
+                var banner = '<div class="gas-event-banner" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #bfdbfe;border-radius:12px;padding:16px 20px;margin:16px auto;max-width:1200px;display:flex;gap:16px;align-items:center">';
+                if (img) banner += '<img src="' + img + '" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0">';
+                banner += '<div style="flex:1;min-width:0"><p style="margin:0 0 4px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#1d4ed8;font-weight:600">You\'re booking</p>';
+                banner += '<h3 style="margin:0 0 6px;color:#1e3a8a;font-size:18px">' + (ev.name || 'Event') + '</h3>';
+                banner += '<p style="margin:0;color:#475569;font-size:14px">' + dateRange + ' · ' + priceLabel + ' event ticket</p>';
+                banner += '<p style="margin:6px 0 0;color:#64748b;font-size:12px">Pick a room below — event ticket will be added at checkout.</p>';
+                banner += '</div></div>';
+                var $target = $('.gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget').first();
+                if ($target.length) $target.before(banner);
+                else $('body').prepend(banner);
+            }
+        });
+    })();
     
     // Override with PHP-provided language if available
     if (typeof gasBooking !== 'undefined' && gasBooking.currentLanguage) {
