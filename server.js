@@ -114,6 +114,9 @@ function sanitizeRoomDescription(value) {
 const Stripe = require('stripe');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// QR codes for gift certificates (data-URL embedded in emails)
+const QRCode = require('qrcode');
+
 // Google APIs for Analytics & Search Console
 const { google } = require('googleapis');
 let googleAuth = null;
@@ -92554,6 +92557,53 @@ async function extractAccountFromToken(req) {
   }
 }
 
+// Generate a unique gift certificate code. Format: GIFT-XXXXXXXX (no ambiguous chars).
+// Retries on collision against the vouchers.code unique index.
+async function generateUniqueGiftCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // skips 0/O/1/I to avoid recipient typos
+  for (let attempt = 0; attempt < 8; attempt++) {
+    let s = 'GIFT-';
+    for (let i = 0; i < 8; i++) s += alphabet[Math.floor(Math.random() * alphabet.length)];
+    const r = await pool.query('SELECT 1 FROM vouchers WHERE code = $1', [s]);
+    if (!r.rows.length) return s;
+  }
+  // Fallback: timestamp-suffixed (statistically unique).
+  return 'GIFT-' + Date.now().toString(36).toUpperCase();
+}
+
+// Build the gift certificate email — QR encoded as a data URL so it embeds inline.
+async function renderGiftCertEmail({ accountName, code, amount, currency, sender, recipient, message, expiresAt, redeemUrl }) {
+  const qrDataUrl = await QRCode.toDataURL(redeemUrl, { width: 220, margin: 1, errorCorrectionLevel: 'M' });
+  const fmtAmount = `${currency} ${parseFloat(amount).toFixed(2)}`;
+  const expiryLine = expiresAt ? `<p style="margin:0;color:#64748b;font-size:13px">Valid until ${new Date(expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>` : '';
+  const fromLine = sender ? `<p style="margin:0 0 4px"><strong>From:</strong> ${sender}</p>` : '';
+  const messageBlock = message ? `<div style="margin:16px 0;padding:14px;background:#fef3c7;border-radius:8px;border-left:3px solid #f59e0b"><p style="margin:0;font-style:italic;color:#78350f">"${message}"</p></div>` : '';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:'Segoe UI',Arial,sans-serif;color:#334155;max-width:600px;margin:0 auto;padding:20px;background:#f8fafc">
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.05)">
+      <div style="background:linear-gradient(135deg,#10b981,#059669);padding:32px 24px;text-align:center;color:#fff">
+        <p style="margin:0 0 4px;font-size:13px;letter-spacing:1px;text-transform:uppercase;opacity:0.9">Gift Certificate</p>
+        <h1 style="margin:0;font-size:32px;font-weight:700">${fmtAmount}</h1>
+        <p style="margin:8px 0 0;font-size:14px;opacity:0.95">${accountName}</p>
+      </div>
+      <div style="padding:24px">
+        ${fromLine}
+        ${recipient ? `<p style="margin:0 0 4px"><strong>To:</strong> ${recipient}</p>` : ''}
+        ${messageBlock}
+        <div style="text-align:center;margin:20px 0;padding:18px;border:2px dashed #10b981;border-radius:12px">
+          <p style="margin:0 0 6px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#64748b">Code</p>
+          <p style="margin:0;font-family:'SFMono-Regular',Consolas,monospace;font-size:22px;font-weight:700;letter-spacing:2px;color:#047857">${code}</p>
+        </div>
+        <div style="text-align:center;margin:24px 0">
+          <img src="${qrDataUrl}" alt="Gift certificate QR code" style="width:200px;height:200px"/>
+          <p style="margin:8px 0 0;font-size:12px;color:#94a3b8">Scan to redeem</p>
+        </div>
+        ${expiryLine}
+        <p style="margin:24px 0 0;font-size:13px;color:#475569;line-height:1.6">Enter this code at checkout when booking with ${accountName}. Partial-balance redemption is supported — any remainder stays on the certificate for next time.</p>
+      </div>
+    </div>
+  </body></html>`;
+}
+
 // Sync the linked upsell mirror for a shop product. Owner manages tours/experiences
 // in the Shop area; ticking "Also offer as booking upsell" on the product flows the
 // row into upsells via this helper. The upsell mirror is read-only (source='shop_link');
@@ -92693,11 +92743,15 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.body.client_id || decoded.accountId || decoded.id;
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months } = req.body;
 
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Product name is required' });
-    const numPrice = parseFloat(price);
-    if (isNaN(numPrice) || numPrice < 0 || numPrice > 999999.99) return res.status(400).json({ success: false, error: 'Price must be between 0 and 999999.99' });
+    // Gift certificates carry no fixed price — buyer picks at checkout — so accept 0 here.
+    const isGiftCert = product_type === 'gift_certificate';
+    const numPrice = parseFloat(price) || 0;
+    if (!isGiftCert) {
+      if (isNaN(numPrice) || numPrice < 0 || numPrice > 999999.99) return res.status(400).json({ success: false, error: 'Price must be between 0 and 999999.99' });
+    }
 
     const slug = await generateUniqueShopSlug(clientId, name.trim());
 
@@ -92720,9 +92774,18 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     }
     const wantsAsUpsell = available_as_upsell === 'true' || available_as_upsell === true;
 
+    // Gift cert config — preset values (numeric array), allow_custom, min/max bounds, expiry months.
+    let giftPresetsArr = null;
+    if (gift_preset_values) {
+      try {
+        const parsed = typeof gift_preset_values === 'string' ? JSON.parse(gift_preset_values) : gift_preset_values;
+        if (Array.isArray(parsed)) giftPresetsArr = parsed.map(Number).filter(n => !isNaN(n) && n > 0);
+      } catch (e) { giftPresetsArr = null; }
+    }
+
     const result = await pool.query(`
-      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
+      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32::jsonb, $33, $34, $35, $36)
       RETURNING *
     `, [
       clientId, name.trim(),
@@ -92751,7 +92814,12 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
       wantsAsUpsell,
       upsellPropertyIdsArr,
       min_notice_hours ? parseInt(min_notice_hours) : null,
-      included_nights_per_unit ? parseInt(included_nights_per_unit) : null
+      included_nights_per_unit ? parseInt(included_nights_per_unit) : null,
+      giftPresetsArr ? JSON.stringify(giftPresetsArr) : null,
+      gift_allow_custom === 'true' || gift_allow_custom === true,
+      gift_min_amount ? parseFloat(gift_min_amount) : null,
+      gift_max_amount ? parseFloat(gift_max_amount) : null,
+      gift_expiry_months !== undefined && gift_expiry_months !== '' ? parseInt(gift_expiry_months) : 12
     ]);
 
     // Mirror to upsells table if owner ticked "Also offer as booking upsell".
@@ -92777,7 +92845,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
     const existing = await pool.query('SELECT * FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
     if (!existing.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months } = req.body;
 
     if (name && !name.trim()) return res.status(400).json({ success: false, error: 'Product name cannot be empty' });
     if (price !== undefined) {
@@ -92813,6 +92881,15 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
       ? (available_as_upsell === 'true' || available_as_upsell === true)
       : existing.rows[0].available_as_upsell;
 
+    // Gift cert presets — same coercion as POST.
+    let giftPresetsArr = undefined;
+    if (gift_preset_values !== undefined) {
+      try {
+        const parsed = typeof gift_preset_values === 'string' ? JSON.parse(gift_preset_values) : gift_preset_values;
+        giftPresetsArr = Array.isArray(parsed) ? parsed.map(Number).filter(n => !isNaN(n) && n > 0) : null;
+      } catch (e) { giftPresetsArr = null; }
+    }
+
     const result = await pool.query(`
       UPDATE shop_products SET
         name = COALESCE($1, name),
@@ -92845,6 +92922,11 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
         upsell_property_ids = $30,
         min_notice_hours = $31,
         included_nights_per_unit = $32,
+        gift_preset_values = COALESCE($33::jsonb, gift_preset_values),
+        gift_allow_custom = COALESCE($34, gift_allow_custom),
+        gift_min_amount = $35,
+        gift_max_amount = $36,
+        gift_expiry_months = COALESCE($37, gift_expiry_months),
         updated_at = NOW()
       WHERE id = $15 AND account_id = $16
       RETURNING *
@@ -92878,7 +92960,12 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
       wantsAsUpsell,
       upsellPropertyIdsArr,
       min_notice_hours !== undefined ? (min_notice_hours ? parseInt(min_notice_hours) : null) : existing.rows[0].min_notice_hours,
-      included_nights_per_unit !== undefined ? (included_nights_per_unit ? parseInt(included_nights_per_unit) : null) : existing.rows[0].included_nights_per_unit
+      included_nights_per_unit !== undefined ? (included_nights_per_unit ? parseInt(included_nights_per_unit) : null) : existing.rows[0].included_nights_per_unit,
+      giftPresetsArr !== undefined ? JSON.stringify(giftPresetsArr) : null,
+      gift_allow_custom !== undefined ? (gift_allow_custom === 'true' || gift_allow_custom === true) : null,
+      gift_min_amount !== undefined && gift_min_amount !== '' ? parseFloat(gift_min_amount) : null,
+      gift_max_amount !== undefined && gift_max_amount !== '' ? parseFloat(gift_max_amount) : null,
+      gift_expiry_months !== undefined && gift_expiry_months !== '' ? parseInt(gift_expiry_months) : null
     ]);
 
     // Mirror to upsells table — create/update/delete the linked row based on the new state.
@@ -93718,6 +93805,90 @@ app.post('/api/webhooks/stripe-shop', express.raw({ type: 'application/json' }),
       const acc = await pool.query('SELECT name, email FROM accounts WHERE id = $1', [accountId]);
       const accountName = acc.rows[0]?.name || 'Shop';
       const operatorEmail = acc.rows[0]?.email;
+
+      // Gift certificate fulfilment — for each line item whose product is a gift_certificate,
+      // create a vouchers row with the paid amount as initial+current balance, generate a
+      // unique code + QR, and email the recipient (or fall back to the buyer). Each ticket
+      // in the line item gets its own voucher (qty=3 → 3 separate certificates).
+      try {
+        for (const item of orderItems.rows) {
+          if (!item.product_id) continue;
+          const prodRes = await pool.query(
+            'SELECT id, product_type, currency, gift_expiry_months FROM shop_products WHERE id = $1',
+            [item.product_id]
+          );
+          const prod = prodRes.rows[0];
+          if (!prod || prod.product_type !== 'gift_certificate') continue;
+
+          const meta = item.gift_metadata
+            ? (typeof item.gift_metadata === 'string' ? JSON.parse(item.gift_metadata) : item.gift_metadata)
+            : {};
+          const recipientEmail = meta.recipient_email || order.customer_email;
+          const recipientName = meta.recipient_name || order.customer_name || '';
+          const senderName = meta.sender_name || order.customer_name || '';
+          const senderEmail = meta.sender_email || order.customer_email;
+          const messageText = meta.message || meta.recipient_message || '';
+          const certCurrency = prod.currency || order.currency || 'EUR';
+          const expiryMonths = prod.gift_expiry_months || 12;
+          const expiresAt = expiryMonths > 0
+            ? new Date(Date.now() + expiryMonths * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            : null;
+
+          const qty = parseInt(item.quantity) || 1;
+          for (let i = 0; i < qty; i++) {
+            const code = await generateUniqueGiftCode();
+            const certName = `Gift Certificate — ${certCurrency} ${parseFloat(item.unit_price).toFixed(2)}`;
+            await pool.query(`
+              INSERT INTO vouchers (
+                user_id, code, name, voucher_type,
+                discount_type, discount_value,
+                initial_balance, current_balance, currency,
+                recipient_name, recipient_email, recipient_message,
+                sender_name, sender_email,
+                expires_at, linked_shop_order_id,
+                applies_to, max_uses, uses_count, active
+              ) VALUES (
+                $1, $2, $3, 'gift_certificate',
+                'fixed', $4,
+                $4, $4, $5,
+                $6, $7, $8,
+                $9, $10,
+                $11, $12,
+                'all', NULL, 0, true
+              )
+            `, [
+              accountId, code, certName,
+              parseFloat(item.unit_price),
+              certCurrency,
+              recipientName || null, recipientEmail, messageText || null,
+              senderName || null, senderEmail || null,
+              expiresAt, order.id
+            ]);
+
+            const redeemUrl = `https://admin.gas.travel/redeem?code=${encodeURIComponent(code)}`;
+            const html = await renderGiftCertEmail({
+              accountName,
+              code, amount: item.unit_price, currency: certCurrency,
+              sender: senderName, recipient: recipientName, message: messageText,
+              expiresAt, redeemUrl
+            });
+
+            try {
+              await sendEmail({
+                to: recipientEmail,
+                subject: `${certCurrency} ${parseFloat(item.unit_price).toFixed(2)} Gift Certificate from ${senderName || accountName}`,
+                html,
+                replyTo: senderEmail || operatorEmail || undefined
+              });
+              console.log('[SHOP] Gift certificate emailed:', code, '→', recipientEmail);
+            } catch (mailErr) {
+              console.error('[SHOP] Gift cert email failed:', mailErr.message);
+            }
+          }
+        }
+      } catch (giftErr) {
+        console.error('[SHOP] Gift certificate fulfilment failed:', giftErr.message);
+      }
 
       const curr = order.currency || 'EUR';
       const itemsHtml = orderItems.rows.map(i =>
