@@ -4384,7 +4384,8 @@ jQuery(document).ready(function($) {
                                 var isMandatory = upsell.mandatory === true || upsell.mandatory === 'true';
                                 var fnpAttr = (upsell.first_night_price !== undefined && upsell.first_night_price !== null) ? upsell.first_night_price : '';
                                 var snpAttr = (upsell.subsequent_night_price !== undefined && upsell.subsequent_night_price !== null) ? upsell.subsequent_night_price : '';
-                                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + '" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-first-night-price="' + fnpAttr + '" data-subsequent-night-price="' + snpAttr + '" data-mandatory="' + isMandatory + '">';
+                                var inclAttr = (upsell.included_nights_per_unit !== undefined && upsell.included_nights_per_unit !== null) ? upsell.included_nights_per_unit : '';
+                                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + '" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-first-night-price="' + fnpAttr + '" data-subsequent-night-price="' + snpAttr + '" data-included-nights-per-unit="' + inclAttr + '" data-mandatory="' + isMandatory + '">';
 
                                 // Icon based on name
                                 var icon = '✨';
@@ -4693,11 +4694,13 @@ jQuery(document).ready(function($) {
 
                 if ($card.hasClass('selected')) {
                     var pickedDate = $card.find('.gas-upsell-date').val() || null;
+                    var inclPerUnit = parseInt($card.attr('data-included-nights-per-unit')) || null;
                     upsellGroup.selectedUpsells.push({
                         id: upsellId,
                         price: actualPrice,
                         name: upsellName,
-                        upsell_date: pickedDate
+                        upsell_date: pickedDate,
+                        included_nights_per_unit: inclPerUnit
                     });
                 } else {
                     upsellGroup.selectedUpsells = upsellGroup.selectedUpsells.filter(function(u) {
@@ -5330,11 +5333,20 @@ jQuery(document).ready(function($) {
                 $('.gas-voucher-line').hide();
             }
 
-            // Bundle / package deduction — server reports it on calculate-price as
-            // bundle_deduction + bundle_applied_nights when a tour upsell with
-            // included_nights_per_unit is in cart.
-            var bundleDeduction = parseFloat(checkoutData.pricing && checkoutData.pricing.bundle_deduction) || 0;
-            var bundleNights = parseInt(checkoutData.pricing && checkoutData.pricing.bundle_applied_nights) || 0;
+            // Bundle / package deduction — computed locally from selected upsells'
+            // included_nights_per_unit. The initial calculate-price call has no
+            // upsells in the request so the server returns 0 there; we mirror the
+            // server math here so the breakdown updates as the guest toggles tours.
+            var bundleNightsRequested = 0;
+            (checkoutData.selectedUpsells || []).forEach(function(u) {
+                var inpu = parseInt(u.included_nights_per_unit);
+                var qty = parseInt(u.quantity) || 1;
+                if (inpu > 0) bundleNightsRequested += qty * inpu;
+            });
+            var bundleNights = Math.min(bundleNightsRequested, nights);
+            var bundleDeduction = (bundleNights > 0 && nights > 0)
+                ? Math.min(bundleNights * (accommodationTotal / nights), accommodationTotal)
+                : 0;
             if (bundleDeduction > 0) {
                 var nightWord2 = bundleNights > 1 ? 'nights' : 'night';
                 $('.gas-bundle-label').text('Package includes ' + bundleNights + ' ' + nightWord2);
@@ -5427,7 +5439,8 @@ jQuery(document).ready(function($) {
                 var qtyAware = maxQty > 1 && !isMandatory;
                 var fnpAttr2 = (upsell.first_night_price !== undefined && upsell.first_night_price !== null) ? upsell.first_night_price : '';
                 var snpAttr2 = (upsell.subsequent_night_price !== undefined && upsell.subsequent_night_price !== null) ? upsell.subsequent_night_price : '';
-                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + (qtyAware ? ' gas-upsell-qty-aware' : '') + '" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-first-night-price="' + fnpAttr2 + '" data-subsequent-night-price="' + snpAttr2 + '" data-mandatory="' + isMandatory + '" data-max-quantity="' + maxQty + '">';
+                var inclAttr2 = (upsell.included_nights_per_unit !== undefined && upsell.included_nights_per_unit !== null) ? upsell.included_nights_per_unit : '';
+                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + (qtyAware ? ' gas-upsell-qty-aware' : '') + '" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-first-night-price="' + fnpAttr2 + '" data-subsequent-night-price="' + snpAttr2 + '" data-included-nights-per-unit="' + inclAttr2 + '" data-mandatory="' + isMandatory + '" data-max-quantity="' + maxQty + '">';
 
                 // Image if available
                 if (upsell.image_url) {
@@ -5570,6 +5583,7 @@ jQuery(document).ready(function($) {
             // Capture the chosen date for date-bound upsells so the booking record
             // carries which day the property should schedule the tour for.
             var pickedDate = $card.find('.gas-upsell-date').val() || null;
+            var inclPerUnit = parseInt($card.attr('data-included-nights-per-unit')) || null;
 
             if (maxQty > 1) {
                 // Stepper: each tap +1 (cap at max)
@@ -5588,7 +5602,8 @@ jQuery(document).ready(function($) {
                         checkoutData.selectedUpsells.push({
                             id: upsellId, name: name, price: unitPrice,
                             charge_type: chargeType, quantity: newQty,
-                            upsell_date: pickedDate
+                            upsell_date: pickedDate,
+                            included_nights_per_unit: inclPerUnit
                         });
                     }
                 }
@@ -5606,7 +5621,8 @@ jQuery(document).ready(function($) {
                         checkoutData.selectedUpsells.push({
                             id: upsellId, name: name, price: unitPrice,
                             charge_type: chargeType, quantity: 1,
-                            upsell_date: pickedDate
+                            upsell_date: pickedDate,
+                            included_nights_per_unit: inclPerUnit
                         });
                     }
                 }
