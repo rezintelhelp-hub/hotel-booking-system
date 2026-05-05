@@ -92638,8 +92638,13 @@ app.delete('/api/admin/shop/products/:id', async (req, res) => {
     const productId = parseInt(req.params.id);
     const clientId = req.query.client_id || decoded.accountId || decoded.id;
 
+    // Hard-delete — the previous soft-delete (is_active=false) confused users because
+    // the admin list shows all rows regardless of is_active, so the product visually
+    // didn't go away. shop_order_items.product_id is ON DELETE SET NULL, so existing
+    // orders keep their line items (with the snapshotted product name/price already
+    // copied into the order_items row) — no order data lost.
     const result = await pool.query(
-      'UPDATE shop_products SET is_active = false, updated_at = NOW() WHERE id = $1 AND account_id = $2 RETURNING id',
+      'DELETE FROM shop_products WHERE id = $1 AND account_id = $2 RETURNING id',
       [productId, clientId]
     );
     if (!result.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
