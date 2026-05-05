@@ -4404,7 +4404,8 @@ jQuery(document).ready(function($) {
                                 html += '<div class="gas-upsell-info">';
                                 html += '<div class="gas-upsell-name">' + upsell.name + '</div>';
                                 if (upsell.description) {
-                                    html += '<div class="gas-upsell-desc">' + upsell.description + '</div>';
+                                    html += '<div class="gas-upsell-desc gas-upsell-desc-clamp">' + upsell.description + '</div>';
+                                    html += '<a class="gas-upsell-desc-more" onclick="event.stopPropagation()">more</a>';
                                 }
                                 html += '<div class="gas-upsell-price">' + formatPrice(upsell.price, ug.currency) + '<small>' + priceLabel + '</small></div>';
                                 // Date dropdown for date-bound upsells (tours/experiences mirrored from shop).
@@ -4423,6 +4424,7 @@ jQuery(document).ready(function($) {
                                 html += '</div>';
                             });
                             $('.gas-checkout-upsells').html(html);
+                            $(document).trigger('gas:upsells-rendered');
 
                             // Auto-add mandatory upsells to ug.selectedUpsells. Multi-group
                             // convention: store TOTAL (after charge_type multiplication),
@@ -5435,7 +5437,8 @@ jQuery(document).ready(function($) {
                 html += '<div class="gas-upsell-info">';
                 html += '<div class="gas-upsell-name">' + upsell.name + (qtyAware ? ' <small style="color:#64748b;font-weight:400;">(up to ' + maxQty + ')</small>' : '') + '</div>';
                 if (upsell.description) {
-                    html += '<div class="gas-upsell-desc">' + upsell.description + '</div>';
+                    html += '<div class="gas-upsell-desc gas-upsell-desc-clamp">' + upsell.description + '</div>';
+                    html += '<a class="gas-upsell-desc-more" onclick="event.stopPropagation()">more</a>';
                 }
                 html += '<div class="gas-upsell-price">' + formatPriceShort(upsell.price, currency) + '<small>' + priceLabel + '</small></div>';
                 if (validDates && validDates.length) {
@@ -5461,6 +5464,7 @@ jQuery(document).ready(function($) {
                 $('.gas-no-upsells').show();
             } else {
                 $('.gas-checkout-upsells').html(html);
+                $(document).trigger('gas:upsells-rendered');
             }
 
             // Auto-add mandatory upsells to selectedUpsells so they appear in PRICE DETAILS
@@ -5487,6 +5491,31 @@ jQuery(document).ready(function($) {
             });
             updateCheckoutPricing();
         }
+
+        // "more"/"less" toggle for upsell descriptions. The link sits under a clamped
+        // .gas-upsell-desc; clicking it removes the clamp class and swaps the label.
+        // We also auto-hide the link if the description fits within 2 lines (no clamp
+        // happened), so single-line upsells like "Pet fee" don't show a useless toggle.
+        function gasInitUpsellMoreLinks($scope) {
+            var $links = $scope ? $scope.find('.gas-upsell-desc-more') : $('.gas-upsell-desc-more');
+            $links.each(function() {
+                var $more = $(this);
+                if ($more.data('gas-init')) return;
+                $more.data('gas-init', '1');
+                var $desc = $more.prev('.gas-upsell-desc');
+                if (!$desc.length) return;
+                // Hide when content fits within the clamp (no overflow → toggle pointless).
+                if ($desc[0].scrollHeight <= $desc[0].clientHeight + 1) { $more.hide(); return; }
+                $more.on('click', function(e) {
+                    e.stopPropagation();
+                    var clamped = $desc.toggleClass('gas-upsell-desc-clamp').hasClass('gas-upsell-desc-clamp');
+                    $more.text(clamped ? 'more' : 'less');
+                });
+            });
+        }
+        // Run once after render and again after any upsell list refresh — listeners are
+        // delegated for click but the visibility test needs DOM to be settled.
+        $(document).on('gas:upsells-rendered', function() { setTimeout(function() { gasInitUpsellMoreLinks(); }, 30); });
 
         // Date-bound upsell — keep the cart entry in sync when the user changes the
         // dropdown after selecting the upsell. Covers both single-property checkout

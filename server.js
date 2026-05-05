@@ -92528,7 +92528,8 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
     await pool.query(`
       UPDATE upsells SET
         name = $1, description = $2, name_ml = $3::jsonb, description_ml = $4::jsonb,
-        price = $5, charge_type = 'per_guest',
+        price = $5, charge_type = 'per_booking',
+        max_quantity = 10,
         property_id = $6, property_ids = $7, image_url = $8,
         requires_date = true, available_days_of_week = $9,
         valid_from = $10, valid_until = $11,
@@ -92556,15 +92557,21 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
   }
 
   // Create a new mirror row.
+  // charge_type='per_booking' + max_quantity=10 gives the same stepper UX as the
+  // pet-fee upsell — guest picks how many tickets they want, total = price × qty.
+  // (Was 'per_guest' which auto-multiplied by booking guest count, removing the
+  //  customer's choice of how many.)
   const ins = await pool.query(`
     INSERT INTO upsells (
       name, description, name_ml, description_ml, price, charge_type,
+      max_quantity,
       property_id, property_ids, image_url,
       requires_date, available_days_of_week, valid_from, valid_until,
       min_notice_hours,
       active, mandatory, is_external, source, linked_shop_product_id, user_id
     ) VALUES (
-      $1, $2, $3::jsonb, $4::jsonb, $5, 'per_guest',
+      $1, $2, $3::jsonb, $4::jsonb, $5, 'per_booking',
+      10,
       $6, $7, $8,
       true, $9, $10, $11,
       $15,

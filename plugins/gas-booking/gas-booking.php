@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.28
+ * Version: 3.7.29
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.28');
+define('GAS_BOOKING_VERSION', '3.7.29');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7740,6 +7740,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-upsell-info { flex: 1; }
         .gas-upsell-name { font-weight: 600; font-size: 15px; color: #1e293b; margin-bottom: 4px; }
         .gas-upsell-desc { font-size: 12px; color: #64748b; margin-bottom: 8px; line-height: 1.4; }
+        /* Two-line clamp by default keeps upsell tiles uniform; "more" toggles the .gas-upsell-desc-clamp class. */
+        .gas-upsell-desc.gas-upsell-desc-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .gas-upsell-desc-more { display: inline-block; font-size: 11px; color: #3b82f6; cursor: pointer; margin: -4px 0 8px; user-select: none; text-decoration: underline; }
+        .gas-upsell-desc-more:hover { color: #1d4ed8; }
         .gas-upsell-price { font-weight: 700; font-size: 16px; color: <?php echo esc_attr($button_color); ?>; }
         .gas-upsell-price small { font-weight: 400; font-size: 12px; color: #94a3b8; }
         
