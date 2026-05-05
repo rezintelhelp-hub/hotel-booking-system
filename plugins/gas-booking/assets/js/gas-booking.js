@@ -4409,19 +4409,29 @@ jQuery(document).ready(function($) {
                                     html += '<a class="gas-upsell-desc-more" onclick="event.stopPropagation()">more</a>';
                                 }
                                 html += '<div class="gas-upsell-price">' + formatPrice(upsell.price, ug.currency) + '<small>' + priceLabel + '</small></div>';
-                                // Date dropdown for date-bound upsells (tours/experiences mirrored from shop).
-                                // Click chain: tapping the card toggles selection, but tapping the dropdown
-                                // shouldn't bubble — wired with a stopPropagation in the change/click handlers.
+                                // Date-bound upsells render per-date steppers — each ticket assigned to a
+                                // specific day so the receipt can show "2 × Tour on Sat 9, 2 × Tour on Sun 10".
+                                // Replaces the previous single-dropdown UX.
                                 if (validDates && validDates.length) {
-                                    var optsHtml = validDates.map(function(d){ return '<option value="' + d + '">' + formatUpsellDate(d) + '</option>'; }).join('');
-                                    html += '<div class="gas-upsell-date-row" style="margin-top:6px;">';
-                                    html += '<label style="font-size:0.78rem;color:#64748b;display:block;margin-bottom:2px;">Pick date:</label>';
-                                    html += '<select class="gas-upsell-date" onclick="event.stopPropagation()" style="padding:4px 8px;font-size:0.85rem;border:1px solid #cbd5e1;border-radius:4px;background:#fff;">' + optsHtml + '</select>';
+                                    html += '<div class="gas-upsell-date-list" style="margin-top:8px; border-top:1px solid #e2e8f0; padding-top:8px;">';
+                                    html += '<div style="font-size:0.78rem;color:#64748b;margin-bottom:6px;">Tickets per date:</div>';
+                                    validDates.forEach(function(d){
+                                        html += '<div class="gas-upsell-date-row" data-date="' + d + '" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:0.85rem;">';
+                                        html += '<span style="flex:1;">' + formatUpsellDate(d) + '</span>';
+                                        html += '<button type="button" class="gas-upsell-date-minus" onclick="event.stopPropagation()" style="width:24px;height:24px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;cursor:pointer;">−</button>';
+                                        html += '<span class="gas-upsell-date-qty" style="min-width:18px;text-align:center;font-weight:600;">0</span>';
+                                        html += '<button type="button" class="gas-upsell-date-plus" onclick="event.stopPropagation()" style="width:24px;height:24px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;cursor:pointer;">+</button>';
+                                        html += '</div>';
+                                    });
                                     html += '</div>';
                                 }
                                 html += '</div>';
 
-                                html += '<div class="gas-upsell-check">✓</div>';
+                                // Date-bound upsells use the per-date steppers for selection so the click-card
+                                // toggle doesn't apply — hide the check icon for them.
+                                if (!(validDates && validDates.length)) {
+                                    html += '<div class="gas-upsell-check">✓</div>';
+                                }
                                 html += '</div>';
                             });
                             $('.gas-checkout-upsells').html(html);
@@ -4673,6 +4683,9 @@ jQuery(document).ready(function($) {
                 var $card = $(this);
                 // Mandatory upsells can't be deselected
                 if ($card.data('mandatory') === true || $card.data('mandatory') === 'true') return;
+                // Date-bound upsells with per-date steppers handle their own selection;
+                // the card-toggle would only confuse the state.
+                if ($card.find('.gas-upsell-date-list').length) return;
                 $card.toggleClass('selected');
                 var upsellGroup = getCurrentGroup();
 
@@ -5310,15 +5323,31 @@ jQuery(document).ready(function($) {
                 $('.gas-mandatory-extras').empty().hide();
             }
 
-            // Optional: under "Your Extras" header (existing behaviour)
+            // Optional: under "Your Extras" header. Tour upsells with a per-date
+            // dates map render one line per date — "2 × Tour on Sat 9 May" — so
+            // the receipt reads like a ticket stub.
             if (optionalItems.length > 0) {
                 var extrasHtml = '';
                 optionalItems.forEach(function(upsell) {
                     var itemTotal = calculateUpsellItemTotal(upsell);
-                    extrasHtml += '<div class="gas-extra-item">';
-                    extrasHtml += '<span>' + (extractText(upsell.name_ml) || upsell.name) + '</span>';
-                    extrasHtml += '<span>' + formatPrice(itemTotal, currency) + '</span>';
-                    extrasHtml += '</div>';
+                    var name = extractText(upsell.name_ml) || upsell.name;
+                    if (upsell.dates && Object.keys(upsell.dates).length) {
+                        var totalQty = upsell.quantity || Object.values(upsell.dates).reduce(function(s,n){return s+n;}, 0);
+                        var unitTotal = totalQty > 0 ? itemTotal / totalQty : 0;
+                        Object.keys(upsell.dates).sort().forEach(function(d) {
+                            var dQty = upsell.dates[d];
+                            if (!dQty) return;
+                            extrasHtml += '<div class="gas-extra-item">';
+                            extrasHtml += '<span>' + dQty + ' × ' + name + ' on ' + formatUpsellDate(d) + '</span>';
+                            extrasHtml += '<span>' + formatPrice(unitTotal * dQty, currency) + '</span>';
+                            extrasHtml += '</div>';
+                        });
+                    } else {
+                        extrasHtml += '<div class="gas-extra-item">';
+                        extrasHtml += '<span>' + name + '</span>';
+                        extrasHtml += '<span>' + formatPrice(itemTotal, currency) + '</span>';
+                        extrasHtml += '</div>';
+                    }
                 });
                 $('.gas-extras-list').html(extrasHtml);
                 $('.gas-selected-extras').show();
@@ -5470,15 +5499,25 @@ jQuery(document).ready(function($) {
                 }
                 html += '<div class="gas-upsell-price">' + formatPriceShort(upsell.price, currency) + '<small>' + priceLabel + '</small></div>';
                 if (validDates && validDates.length) {
-                    var optsHtml2 = validDates.map(function(d){ return '<option value="' + d + '">' + formatUpsellDate(d) + '</option>'; }).join('');
-                    html += '<div class="gas-upsell-date-row" style="margin-top:6px;">';
-                    html += '<label style="font-size:0.78rem;color:#64748b;display:block;margin-bottom:2px;">Pick date:</label>';
-                    html += '<select class="gas-upsell-date" onclick="event.stopPropagation()" style="padding:4px 8px;font-size:0.85rem;border:1px solid #cbd5e1;border-radius:4px;background:#fff;">' + optsHtml2 + '</select>';
+                    html += '<div class="gas-upsell-date-list" style="margin-top:8px; border-top:1px solid #e2e8f0; padding-top:8px;">';
+                    html += '<div style="font-size:0.78rem;color:#64748b;margin-bottom:6px;">Tickets per date:</div>';
+                    validDates.forEach(function(d){
+                        html += '<div class="gas-upsell-date-row" data-date="' + d + '" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:0.85rem;">';
+                        html += '<span style="flex:1;">' + formatUpsellDate(d) + '</span>';
+                        html += '<button type="button" class="gas-upsell-date-minus" onclick="event.stopPropagation()" style="width:24px;height:24px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;cursor:pointer;">−</button>';
+                        html += '<span class="gas-upsell-date-qty" style="min-width:18px;text-align:center;font-weight:600;">0</span>';
+                        html += '<button type="button" class="gas-upsell-date-plus" onclick="event.stopPropagation()" style="width:24px;height:24px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;cursor:pointer;">+</button>';
+                        html += '</div>';
+                    });
                     html += '</div>';
                 }
                 html += '</div>';
 
-                if (qtyAware) {
+                if (validDates && validDates.length) {
+                    // Per-date steppers handle quantity for date-bound upsells; hide the
+                    // standard qty stepper / check icon to avoid double UX.
+                    html += '<span class="gas-upsell-qty-value" style="display:none;">0</span>';
+                } else if (qtyAware) {
                     html += '<button type="button" class="gas-upsell-qty-minus" aria-label="Remove one" title="Remove one">−</button>';
                     html += '<span class="gas-upsell-qty-badge">×&nbsp;<span class="gas-upsell-qty-value">0</span></span>';
                 } else {
@@ -5545,6 +5584,89 @@ jQuery(document).ready(function($) {
         // delegated for click but the visibility test needs DOM to be settled.
         $(document).on('gas:upsells-rendered', function() { setTimeout(function() { gasInitUpsellMoreLinks(); }, 30); });
 
+        // Per-date stepper for date-bound upsells (tours/experiences). Each date row has
+        // its own − / + which adjusts how many tickets are assigned to that day. Cart
+        // entry tracks dates as a {YYYY-MM-DD: qty} map; quantity = sum.
+        // Total cap = upsell.max_quantity across all dates combined.
+        function gasOnDateStepper($card, $row, delta) {
+            var upsellId = $card.data('upsell-id');
+            var unitPrice = parseFloat($card.data('price')) || 0;
+            var name = $card.find('.gas-upsell-name').text();
+            var chargeType = $card.data('charge-type');
+            var maxQty = parseInt($card.attr('data-max-quantity'), 10) || 10;
+            var inclPerUnit = parseInt($card.attr('data-included-nights-per-unit')) || null;
+            var date = $row.attr('data-date');
+            if (!date) return;
+            var $qty = $row.find('.gas-upsell-date-qty');
+            var current = parseInt($qty.text(), 10) || 0;
+
+            // Sum across all date rows in this card (for the cap)
+            var totalThisCard = 0;
+            $card.find('.gas-upsell-date-row').each(function() {
+                if (this !== $row[0]) totalThisCard += parseInt($(this).find('.gas-upsell-date-qty').text(), 10) || 0;
+            });
+            var newRowQty = Math.max(0, current + delta);
+            if (delta > 0 && totalThisCard + newRowQty > maxQty) return; // cap reached
+            $qty.text(newRowQty);
+
+            var totalQty = totalThisCard + newRowQty;
+            $card.toggleClass('selected', totalQty > 0);
+
+            // Build the dates map from the current state of all rows
+            var datesMap = {};
+            $card.find('.gas-upsell-date-row').each(function() {
+                var d = $(this).attr('data-date');
+                var q = parseInt($(this).find('.gas-upsell-date-qty').text(), 10) || 0;
+                if (d && q > 0) datesMap[d] = q;
+            });
+
+            // Sync into whichever cart we're using (group flow vs single-property checkout).
+            // For multi-group room widget context, getCurrentGroup() exists and stores per-group.
+            // For single-property checkout, checkoutData is in scope.
+            var cartEntry = null;
+            try {
+                var ug = (typeof getCurrentGroup === 'function') ? getCurrentGroup() : null;
+                if (ug && Array.isArray(ug.selectedUpsells)) {
+                    cartEntry = ug.selectedUpsells.find(function(u){ return String(u.id) === String(upsellId); });
+                    if (totalQty === 0) {
+                        ug.selectedUpsells = ug.selectedUpsells.filter(function(u){ return String(u.id) !== String(upsellId); });
+                    } else if (!cartEntry) {
+                        ug.selectedUpsells.push({
+                            id: upsellId, name: name, price: unitPrice, charge_type: chargeType,
+                            quantity: totalQty, dates: datesMap, included_nights_per_unit: inclPerUnit
+                        });
+                    } else {
+                        cartEntry.quantity = totalQty;
+                        cartEntry.dates = datesMap;
+                    }
+                }
+            } catch (e) { /* getCurrentGroup may not exist on every page */ }
+
+            if (typeof checkoutData !== 'undefined' && Array.isArray(checkoutData.selectedUpsells)) {
+                cartEntry = checkoutData.selectedUpsells.find(function(u){ return String(u.id) === String(upsellId); });
+                if (totalQty === 0) {
+                    checkoutData.selectedUpsells = checkoutData.selectedUpsells.filter(function(u){ return String(u.id) !== String(upsellId); });
+                } else if (!cartEntry) {
+                    checkoutData.selectedUpsells.push({
+                        id: upsellId, name: name, price: unitPrice, charge_type: chargeType,
+                        quantity: totalQty, dates: datesMap, included_nights_per_unit: inclPerUnit
+                    });
+                } else {
+                    cartEntry.quantity = totalQty;
+                    cartEntry.dates = datesMap;
+                }
+                if (typeof updateCheckoutPricing === 'function') updateCheckoutPricing();
+            }
+        }
+        $(document).on('click', '.gas-upsell-date-plus', function(e) {
+            e.stopPropagation();
+            gasOnDateStepper($(this).closest('.gas-upsell-card'), $(this).closest('.gas-upsell-date-row'), +1);
+        });
+        $(document).on('click', '.gas-upsell-date-minus', function(e) {
+            e.stopPropagation();
+            gasOnDateStepper($(this).closest('.gas-upsell-card'), $(this).closest('.gas-upsell-date-row'), -1);
+        });
+
         // Date-bound upsell — keep the cart entry in sync when the user changes the
         // dropdown after selecting the upsell. Covers both single-property checkout
         // (checkoutData.selectedUpsells) and group/room-widget context (the click
@@ -5572,8 +5694,11 @@ jQuery(document).ready(function($) {
         // Skips when click came from the qty-minus button (handled separately).
         $(document).on('click', '.gas-upsell-card', function(e) {
             if ($(e.target).closest('.gas-upsell-qty-minus').length) return;
+            if ($(e.target).closest('.gas-upsell-date-plus, .gas-upsell-date-minus').length) return;
             var $card = $(this);
             if ($card.data('mandatory') === true || $card.data('mandatory') === 'true') return;
+            // Date-bound upsells with per-date steppers handle their own selection.
+            if ($card.find('.gas-upsell-date-list').length) return;
             var upsellId = $card.data('upsell-id');
             var unitPrice = parseFloat($card.data('price')) || 0;
             var chargeType = $card.data('charge-type');

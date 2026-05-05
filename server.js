@@ -66673,23 +66673,46 @@ app.post('/api/public/calculate-price', async (req, res) => {
           }
 
           upsellsTotal += itemTotal;
-          // Carry the customer-picked date (when present) onto the booking's
-          // upsells_breakdown so the property dashboard can show "Garden Tour ×4
-          // on Wed 18 Jun" for prep purposes. Also stamp the upsell's date config
-          // (requires_date) so the breakdown is self-describing.
-          upsellsBreakdown.push({
-            id: u.id,
-            name: u.name,
-            unit_price: basePrice,
-            first_night_price: fnp,
-            subsequent_night_price: snp,
-            charge_type: u.charge_type,
-            quantity: qty,
-            total: itemTotal,
-            requires_date: !!u.requires_date,
-            upsell_date: item.upsell_date || null,
-            included_nights_per_unit: u.included_nights_per_unit || null
-          });
+          // Per-date split: when the customer assigns tickets to specific days
+          // ({"2026-05-09": 2, "2026-05-10": 2}) we emit one breakdown row per
+          // date so the receipt and property dashboard show "2 × Tour on Sat 9
+          // May" / "2 × Tour on Sun 10 May" instead of a single bulk line.
+          // Falls back to the legacy single upsell_date when dates map is absent.
+          const datesMap = (item.dates && typeof item.dates === 'object') ? item.dates : null;
+          if (datesMap && Object.keys(datesMap).length) {
+            const datesEntries = Object.keys(datesMap).sort();
+            for (const d of datesEntries) {
+              const dQty = parseInt(datesMap[d]) || 0;
+              if (dQty <= 0) continue;
+              upsellsBreakdown.push({
+                id: u.id,
+                name: u.name,
+                unit_price: basePrice,
+                first_night_price: fnp,
+                subsequent_night_price: snp,
+                charge_type: u.charge_type,
+                quantity: dQty,
+                total: (itemTotal / qty) * dQty,
+                requires_date: !!u.requires_date,
+                upsell_date: d,
+                included_nights_per_unit: u.included_nights_per_unit || null
+              });
+            }
+          } else {
+            upsellsBreakdown.push({
+              id: u.id,
+              name: u.name,
+              unit_price: basePrice,
+              first_night_price: fnp,
+              subsequent_night_price: snp,
+              charge_type: u.charge_type,
+              quantity: qty,
+              total: itemTotal,
+              requires_date: !!u.requires_date,
+              upsell_date: item.upsell_date || null,
+              included_nights_per_unit: u.included_nights_per_unit || null
+            });
+          }
         }
       }
     }
