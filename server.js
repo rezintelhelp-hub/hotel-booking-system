@@ -50236,6 +50236,25 @@ function cleanImageUrl(url) {
  * Process and upload image to R2 in multiple sizes
  * Returns URLs for all variants
  */
+// Upload an arbitrary file (PDF, DOCX, etc.) to R2 — no Sharp processing,
+// just direct put. Used for lead-magnet downloads on lead forms. Returns
+// the public URL.
+async function uploadFileToR2(buffer, type, entityId, filename, contentType) {
+  const ext = path.extname(filename).toLowerCase() || '';
+  const safeBase = path.basename(filename, ext).replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80);
+  const uniqueId = uuidv4();
+  const key = `${type}/${entityId}/${uniqueId}-${safeBase}${ext}`;
+  await r2Client.send(new PutObjectCommand({
+    Bucket: R2_BUCKET,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType || 'application/octet-stream',
+    CacheControl: 'public, max-age=31536000',
+    ContentDisposition: `inline; filename="${safeBase}${ext}"`
+  }));
+  return `${R2_PUBLIC_URL}/${key}`;
+}
+
 async function processAndUploadImage(buffer, type, entityId, filename) {
   const ext = path.extname(filename).toLowerCase();
   const baseFilename = path.basename(filename, ext);
@@ -94527,6 +94546,45 @@ app.delete('/api/admin/lead-forms/:id', async (req, res) => {
     await pool.query('DELETE FROM lead_forms WHERE id = $1 AND account_id = $2', [id, accountId]);
     res.json({ success: true });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Upload a lead-magnet file (PDF, DOCX, ZIP, etc.) for a form. Accepted MIME
+// types whitelisted to keep this from becoming a generic file host. 25 MB cap
+// is generous for most guides; bump if a customer needs more.
+const LEAD_FORM_ALLOWED_MIMES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/zip',
+  'application/epub+zip',
+  'image/jpeg', 'image/png', 'image/webp'
+]);
+app.post('/api/admin/lead-forms/:id/upload', upload.single('file'), async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.body.client_id || decoded.accountId || decoded.id;
+    const id = parseInt(req.params.id);
+
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+    if (req.file.size > 25 * 1024 * 1024) return res.status(400).json({ success: false, error: 'File too large (25MB max)' });
+    if (!LEAD_FORM_ALLOWED_MIMES.has(req.file.mimetype)) {
+      return res.status(400).json({ success: false, error: `File type not allowed (${req.file.mimetype})` });
+    }
+
+    // Verify ownership before stashing the file under their bucket prefix.
+    const own = await pool.query('SELECT id FROM lead_forms WHERE id = $1 AND account_id = $2', [id, accountId]);
+    if (!own.rows.length) return res.status(404).json({ success: false, error: 'Form not found' });
+
+    const url = await uploadFileToR2(req.file.buffer, 'lead-form', accountId, req.file.originalname, req.file.mimetype);
+    await pool.query('UPDATE lead_forms SET freebie_file_url = $1, updated_at = NOW() WHERE id = $2 AND account_id = $3', [url, id, accountId]);
+    res.json({ success: true, file_url: url, filename: req.file.originalname });
+  } catch (e) {
+    console.error('Lead form upload error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 // Submissions list — for the audit log + retry-failed-pushes UI.
