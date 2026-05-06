@@ -3,7 +3,7 @@
  * Plugin Name: GAS Form
  * Plugin URI: https://gas.travel
  * Description: On-brand lead capture forms for GAS clients — replaces Keap/Mailchimp hosted forms with shortcode-embedded forms that push to the configured CRM via the GAS API.
- * Version: 1.0.1
+ * Version: 1.1.0
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -66,7 +66,11 @@ class GAS_Form {
         $atts = shortcode_atts(array(
             'slug' => '',
             'account' => '',
-            'theme' => 'auto'  // light / dark / auto
+            'theme' => 'auto',  // light / dark / auto
+            'card_bg' => '',
+            'card_radius' => '',
+            'button_color' => '',
+            'button_text_color' => ''
         ), $atts, 'gas_form');
 
         if (empty($atts['slug'])) return '<p style="color:#ef4444">[gas_form] missing slug attribute.</p>';
@@ -80,12 +84,29 @@ class GAS_Form {
         // Unique container id so multiple forms can co-exist on the same page.
         $cid = 'gas-form-' . wp_generate_uuid4();
 
+        // Per-instance style overrides — scoped to #cid so they don't leak across forms.
+        $cardBg     = $atts['card_bg'] ?: '#ffffff';
+        $cardRadius = ($atts['card_radius'] !== '' ? intval($atts['card_radius']) : 12) . 'px';
+        $btnBg      = $atts['button_color'] ?: '#10b981';
+        $btnText    = $atts['button_text_color'] ?: '#ffffff';
+
         ob_start();
         ?>
         <div id="<?php echo esc_attr($cid); ?>" class="gas-form-wrap" data-config="<?php echo esc_attr($configEndpoint); ?>" data-submit="<?php echo esc_attr($submitEndpoint); ?>">
             <div class="gas-form-loading" style="text-align:center; padding:32px; color:#94a3b8;">Loading…</div>
         </div>
         <style>
+        #<?php echo esc_attr($cid); ?> .gas-form-card {
+            background: <?php echo esc_attr($cardBg); ?> !important;
+            border-radius: <?php echo esc_attr($cardRadius); ?> !important;
+        }
+        #<?php echo esc_attr($cid); ?> .gas-form-card button[type=submit] {
+            background: <?php echo esc_attr($btnBg); ?> !important;
+            color: <?php echo esc_attr($btnText); ?> !important;
+        }
+        #<?php echo esc_attr($cid); ?> .gas-form-card button[type=submit]:hover {
+            filter: brightness(0.92);
+        }
         .gas-form-wrap { max-width: 100%; margin: 24px auto; font-family: 'Segoe UI', Arial, sans-serif; }
         .gas-form-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 28px 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
         .gas-form-card h3 { margin: 0 0 8px; font-size: 1.4rem; color: #1e293b; }
