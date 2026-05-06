@@ -94156,6 +94156,416 @@ app.post('/api/public/gift-cert/:code/send', express.json(), async (req, res) =>
   }
 });
 
+// =====================================================
+// CRM CONNECTIONS + LEAD FORMS
+// =====================================================
+// Lets account owners connect a CRM (Keap, Mailchimp) once and embed branded
+// lead-capture forms on their site instead of using the CRM's hosted forms
+// (which break brand and conversion). Submissions are saved locally regardless
+// so a CRM outage doesn't lose leads.
+
+// Provider adapter pattern — same shape as channel managers. Each adapter
+// returns { ok, response, error } with response/error captured for the
+// submissions audit log.
+
+async function crmPushKeap({ email, first_name, last_name, phone, custom }, credentials, mapping) {
+  const apiKey = credentials.api_key;
+  const baseUrl = credentials.base_url || 'https://api.infusionsoft.com';
+  if (!apiKey) return { ok: false, error: 'Missing Keap API key' };
+
+  // Try to find existing contact by email first — Keap's create endpoint will
+  // 409 on duplicates, so we upsert by searching first then PATCH or POST.
+  const headers = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+
+  try {
+    const search = await fetch(`${baseUrl}/crm/rest/v1/contacts?email=${encodeURIComponent(email)}`, { headers });
+    const searchData = await search.json();
+    let contactId = searchData?.contacts?.[0]?.id || null;
+
+    const payload = {
+      email_addresses: [{ email, field: 'EMAIL1' }],
+      given_name: first_name || '',
+      family_name: last_name || '',
+      phone_numbers: phone ? [{ number: phone, field: 'PHONE1' }] : []
+    };
+
+    let resp, data;
+    if (contactId) {
+      resp = await fetch(`${baseUrl}/crm/rest/v1/contacts/${contactId}`, {
+        method: 'PATCH', headers, body: JSON.stringify(payload)
+      });
+    } else {
+      resp = await fetch(`${baseUrl}/crm/rest/v1/contacts`, {
+        method: 'POST', headers, body: JSON.stringify(payload)
+      });
+    }
+    data = await resp.json();
+    if (!resp.ok) return { ok: false, error: data?.message || `Keap ${resp.status}`, response: data };
+    contactId = contactId || data.id;
+
+    // Apply tag(s) — mapping.tag_id can be comma-separated.
+    const tagIds = String(mapping?.tag_or_list_id || '').split(',').map(s => parseInt(s.trim())).filter(Boolean);
+    if (contactId && tagIds.length) {
+      const tagResp = await fetch(`${baseUrl}/crm/rest/v1/contacts/${contactId}/tags`, {
+        method: 'POST', headers, body: JSON.stringify({ tagIds })
+      });
+      if (!tagResp.ok) {
+        const tagData = await tagResp.json().catch(() => ({}));
+        return { ok: true, response: { contact_id: contactId, tag_warning: tagData?.message || `Tag apply ${tagResp.status}` } };
+      }
+    }
+
+    return { ok: true, response: { contact_id: contactId } };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+async function crmPushMailchimp({ email, first_name, last_name, phone, custom }, credentials, mapping) {
+  const apiKey = credentials.api_key;
+  if (!apiKey) return { ok: false, error: 'Missing Mailchimp API key' };
+  const dc = credentials.dc || (apiKey.split('-')[1]);  // API key suffix encodes the data center
+  if (!dc) return { ok: false, error: 'Could not derive Mailchimp data center from API key' };
+  const audienceId = mapping?.tag_or_list_id || credentials.audience_id;
+  if (!audienceId) return { ok: false, error: 'Missing Mailchimp audience/list id' };
+
+  const baseUrl = `https://${dc}.api.mailchimp.com/3.0`;
+  const auth = 'Basic ' + Buffer.from(`anystring:${apiKey}`).toString('base64');
+  const subscriberHash = crypto.createHash('md5').update(email.toLowerCase()).digest('hex');
+
+  try {
+    // PUT upserts (member create-or-update) — avoids 400 on existing subscriber.
+    const resp = await fetch(`${baseUrl}/lists/${audienceId}/members/${subscriberHash}`, {
+      method: 'PUT',
+      headers: { 'Authorization': auth, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email_address: email,
+        status_if_new: 'subscribed',
+        merge_fields: {
+          FNAME: first_name || '',
+          LNAME: last_name || '',
+          ...(phone ? { PHONE: phone } : {})
+        }
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) return { ok: false, error: data?.detail || `Mailchimp ${resp.status}`, response: data };
+
+    // Tag(s) — comma-separated. Only sent if the form has any.
+    const tags = String(mapping?.tags || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (tags.length) {
+      await fetch(`${baseUrl}/lists/${audienceId}/members/${subscriberHash}/tags`, {
+        method: 'POST',
+        headers: { 'Authorization': auth, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: tags.map(name => ({ name, status: 'active' })) })
+      });
+    }
+
+    return { ok: true, response: { id: data.id, email_address: data.email_address } };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+async function crmPush(connection, formMapping, contact) {
+  const creds = connection.credentials || {};
+  const mapping = { tag_or_list_id: formMapping?.tag_or_list_id, tags: formMapping?.tags };
+  if (connection.provider === 'keap') return crmPushKeap(contact, creds, mapping);
+  if (connection.provider === 'mailchimp') return crmPushMailchimp(contact, creds, mapping);
+  return { ok: false, error: 'Unknown provider: ' + connection.provider };
+}
+
+// Hide the actual API key when listing connections back to the admin UI.
+function maskCrmCredentials(creds) {
+  const out = {};
+  for (const k of Object.keys(creds || {})) {
+    const v = creds[k];
+    if (typeof v === 'string' && v.length > 8 && (k.includes('key') || k.includes('secret') || k.includes('token'))) {
+      out[k] = v.slice(0, 4) + '••••' + v.slice(-4);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+// ── Admin: CRM connections ──
+app.get('/api/admin/crm-connections', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.query.client_id || decoded.accountId || decoded.id;
+    const r = await pool.query(
+      'SELECT id, provider, label, credentials, active, last_test_at, last_test_ok, last_test_message, created_at FROM crm_connections WHERE account_id = $1 ORDER BY created_at DESC',
+      [accountId]
+    );
+    res.json({ success: true, connections: r.rows.map(row => ({ ...row, credentials: maskCrmCredentials(row.credentials) })) });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/admin/crm-connections', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.body.client_id || decoded.accountId || decoded.id;
+    const { provider, label, credentials } = req.body;
+    if (!provider || !credentials) return res.status(400).json({ success: false, error: 'provider + credentials required' });
+    const r = await pool.query(
+      'INSERT INTO crm_connections (account_id, provider, label, credentials) VALUES ($1, $2, $3, $4) RETURNING id, provider, label, active',
+      [accountId, provider, label || null, credentials]
+    );
+    res.json({ success: true, connection: r.rows[0] });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.put('/api/admin/crm-connections/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.body.client_id || decoded.accountId || decoded.id;
+    const id = parseInt(req.params.id);
+    const { label, credentials, active } = req.body;
+    // Merge into existing creds so a partial update doesn't blow away the API key
+    // (frontend sends masked values it doesn't want to overwrite as null).
+    const existing = await pool.query('SELECT credentials FROM crm_connections WHERE id = $1 AND account_id = $2', [id, accountId]);
+    if (!existing.rows.length) return res.status(404).json({ success: false, error: 'Not found' });
+    let mergedCreds = existing.rows[0].credentials || {};
+    if (credentials && typeof credentials === 'object') {
+      for (const k of Object.keys(credentials)) {
+        const v = credentials[k];
+        if (typeof v === 'string' && v.includes('••••')) continue;  // masked, don't overwrite
+        mergedCreds[k] = v;
+      }
+    }
+    const r = await pool.query(
+      `UPDATE crm_connections SET label = COALESCE($1, label), credentials = $2, active = COALESCE($3, active), updated_at = NOW() WHERE id = $4 AND account_id = $5 RETURNING id`,
+      [label, mergedCreds, active, id, accountId]
+    );
+    if (!r.rows.length) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.delete('/api/admin/crm-connections/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.query.client_id || decoded.accountId || decoded.id;
+    const id = parseInt(req.params.id);
+    await pool.query('DELETE FROM crm_connections WHERE id = $1 AND account_id = $2', [id, accountId]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Test a connection — sends a probe contact and reports back.
+app.post('/api/admin/crm-connections/:id/test', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.body.client_id || decoded.accountId || decoded.id;
+    const id = parseInt(req.params.id);
+    const r = await pool.query('SELECT * FROM crm_connections WHERE id = $1 AND account_id = $2', [id, accountId]);
+    if (!r.rows.length) return res.status(404).json({ success: false, error: 'Not found' });
+    const conn = r.rows[0];
+
+    const result = await crmPush(conn, { tag_or_list_id: req.body.tag_or_list_id }, {
+      email: req.body.email || 'gas-test@example.com',
+      first_name: 'GAS',
+      last_name: 'Test',
+      phone: ''
+    });
+
+    await pool.query(
+      'UPDATE crm_connections SET last_test_at = NOW(), last_test_ok = $1, last_test_message = $2 WHERE id = $3',
+      [result.ok, result.ok ? 'OK' : (result.error || 'Failed'), id]
+    );
+    res.json({ success: true, ok: result.ok, error: result.error || null, response: result.response || null });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// ── Admin: Lead forms ──
+app.get('/api/admin/lead-forms', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.query.client_id || decoded.accountId || decoded.id;
+    const r = await pool.query('SELECT * FROM lead_forms WHERE account_id = $1 ORDER BY created_at DESC', [accountId]);
+    res.json({ success: true, forms: r.rows });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/admin/lead-forms', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.body.client_id || decoded.accountId || decoded.id;
+    const { slug, title, description, fields, success_message, post_submit_action, freebie_file_url, redirect_url, crm_connection_id, crm_tag_or_list_id, active } = req.body;
+    if (!slug || !title) return res.status(400).json({ success: false, error: 'slug + title required' });
+
+    // slug must be lowercase, hyphenated. Accept letters/digits/hyphens only.
+    const cleanSlug = String(slug).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    if (!cleanSlug) return res.status(400).json({ success: false, error: 'Invalid slug' });
+
+    const r = await pool.query(
+      `INSERT INTO lead_forms (account_id, slug, title, description, fields, success_message, post_submit_action, freebie_file_url, redirect_url, crm_connection_id, crm_tag_or_list_id, active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      [accountId, cleanSlug, title, description || null,
+       fields ? (typeof fields === 'string' ? fields : JSON.stringify(fields)) : '[]',
+       success_message || 'Thank you! Check your inbox.',
+       post_submit_action || 'show_message',
+       freebie_file_url || null, redirect_url || null,
+       crm_connection_id || null, crm_tag_or_list_id || null,
+       active !== false]
+    );
+    res.json({ success: true, form: r.rows[0] });
+  } catch (e) {
+    if (e.code === '23505') return res.status(400).json({ success: false, error: 'A form with that slug already exists' });
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.put('/api/admin/lead-forms/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.body.client_id || decoded.accountId || decoded.id;
+    const id = parseInt(req.params.id);
+    const { title, description, fields, success_message, post_submit_action, freebie_file_url, redirect_url, crm_connection_id, crm_tag_or_list_id, active } = req.body;
+    const r = await pool.query(
+      `UPDATE lead_forms SET
+         title = COALESCE($1, title),
+         description = $2,
+         fields = COALESCE($3, fields),
+         success_message = COALESCE($4, success_message),
+         post_submit_action = COALESCE($5, post_submit_action),
+         freebie_file_url = $6,
+         redirect_url = $7,
+         crm_connection_id = $8,
+         crm_tag_or_list_id = $9,
+         active = COALESCE($10, active),
+         updated_at = NOW()
+       WHERE id = $11 AND account_id = $12 RETURNING *`,
+      [title, description || null,
+       fields ? (typeof fields === 'string' ? fields : JSON.stringify(fields)) : null,
+       success_message, post_submit_action,
+       freebie_file_url || null, redirect_url || null,
+       crm_connection_id || null, crm_tag_or_list_id || null,
+       active, id, accountId]
+    );
+    if (!r.rows.length) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, form: r.rows[0] });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.delete('/api/admin/lead-forms/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.query.client_id || decoded.accountId || decoded.id;
+    const id = parseInt(req.params.id);
+    await pool.query('DELETE FROM lead_forms WHERE id = $1 AND account_id = $2', [id, accountId]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Submissions list — for the audit log + retry-failed-pushes UI.
+app.get('/api/admin/lead-forms/:id/submissions', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.query.client_id || decoded.accountId || decoded.id;
+    const id = parseInt(req.params.id);
+    const r = await pool.query(
+      `SELECT id, data, ip, user_agent, referrer, crm_pushed, crm_pushed_at, crm_error, created_at
+       FROM lead_form_submissions WHERE form_id = $1 AND account_id = $2 ORDER BY created_at DESC LIMIT 200`,
+      [id, accountId]
+    );
+    res.json({ success: true, submissions: r.rows });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// ── Public: form config + submit ──
+app.get('/api/public/forms/:account/:slug', async (req, res) => {
+  try {
+    const accountId = parseInt(req.params.account);
+    const slug = String(req.params.slug).toLowerCase();
+    const r = await pool.query(
+      'SELECT id, slug, title, description, fields, success_message, post_submit_action FROM lead_forms WHERE account_id = $1 AND slug = $2 AND active = true',
+      [accountId, slug]
+    );
+    if (!r.rows.length) return res.status(404).json({ success: false, error: 'Form not found' });
+    res.json({ success: true, form: r.rows[0] });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/public/forms/:account/:slug/submit', express.json(), async (req, res) => {
+  try {
+    const accountId = parseInt(req.params.account);
+    const slug = String(req.params.slug).toLowerCase();
+    const data = req.body || {};
+
+    // Honeypot — bots fill the hidden 'website' field, real users won't see it.
+    if (data._hp || data.website_url) {
+      return res.json({ success: true, action: 'show_message', message: 'Thank you!' });  // silent reject
+    }
+
+    const formRes = await pool.query(
+      'SELECT * FROM lead_forms WHERE account_id = $1 AND slug = $2 AND active = true',
+      [accountId, slug]
+    );
+    if (!formRes.rows.length) return res.status(404).json({ success: false, error: 'Form not found' });
+    const form = formRes.rows[0];
+
+    if (!data.email) return res.status(400).json({ success: false, error: 'Email is required' });
+
+    // Save submission first — never lose a lead even if the CRM push fails.
+    const subRes = await pool.query(
+      `INSERT INTO lead_form_submissions (form_id, account_id, data, ip, user_agent, referrer)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [form.id, accountId, data,
+       req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || null,
+       req.headers['user-agent'] || null,
+       req.headers['referer'] || null]
+    );
+    const submissionId = subRes.rows[0].id;
+    await pool.query('UPDATE lead_forms SET submission_count = submission_count + 1 WHERE id = $1', [form.id]);
+
+    // Push to CRM (best-effort — record success/failure on the submission row).
+    if (form.crm_connection_id) {
+      const connRes = await pool.query('SELECT * FROM crm_connections WHERE id = $1 AND account_id = $2 AND active = true', [form.crm_connection_id, accountId]);
+      if (connRes.rows.length) {
+        const conn = connRes.rows[0];
+        const pushResult = await crmPush(conn, { tag_or_list_id: form.crm_tag_or_list_id }, {
+          email: data.email,
+          first_name: data.first_name || data.fname || '',
+          last_name: data.last_name || data.lname || '',
+          phone: data.phone || '',
+          custom: data
+        });
+        await pool.query(
+          'UPDATE lead_form_submissions SET crm_pushed = $1, crm_pushed_at = NOW(), crm_response = $2, crm_error = $3 WHERE id = $4',
+          [pushResult.ok, pushResult.response ? JSON.stringify(pushResult.response) : null, pushResult.error || null, submissionId]
+        );
+      }
+    }
+
+    res.json({
+      success: true,
+      action: form.post_submit_action || 'show_message',
+      message: form.success_message || 'Thank you!',
+      redirect_url: form.redirect_url || null,
+      file_url: form.freebie_file_url || null
+    });
+  } catch (e) {
+    console.error('Form submit error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST /api/webhooks/stripe-shop — handle shop payment completion
 app.post('/api/webhooks/stripe-shop', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
