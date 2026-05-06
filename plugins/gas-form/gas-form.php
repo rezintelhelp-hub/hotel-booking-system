@@ -3,7 +3,7 @@
  * Plugin Name: GAS Form
  * Plugin URI: https://gas.travel
  * Description: On-brand lead capture forms for GAS clients — replaces Keap/Mailchimp hosted forms with shortcode-embedded forms that push to the configured CRM via the GAS API.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -100,12 +100,25 @@ class GAS_Form {
             background: <?php echo esc_attr($cardBg); ?> !important;
             border-radius: <?php echo esc_attr($cardRadius); ?> !important;
         }
-        #<?php echo esc_attr($cid); ?> .gas-form-card button[type=submit] {
+        #<?php echo esc_attr($cid); ?> .gas-form-card button[type=submit],
+        #<?php echo esc_attr($cid); ?> .gas-form-success a.gas-form-download {
             background: <?php echo esc_attr($btnBg); ?> !important;
             color: <?php echo esc_attr($btnText); ?> !important;
+            border-color: <?php echo esc_attr($btnBg); ?> !important;
         }
-        #<?php echo esc_attr($cid); ?> .gas-form-card button[type=submit]:hover {
+        #<?php echo esc_attr($cid); ?> .gas-form-card button[type=submit]:hover,
+        #<?php echo esc_attr($cid); ?> .gas-form-success a.gas-form-download:hover {
             filter: brightness(0.92);
+        }
+        /* Success box mirrors the form's card so it doesn't suddenly jump to a green that
+           clashes with the brand palette. CTA uses the configured button colour above. */
+        #<?php echo esc_attr($cid); ?> .gas-form-success {
+            background: <?php echo esc_attr($cardBg); ?> !important;
+            border-radius: <?php echo esc_attr($cardRadius); ?> !important;
+            border-color: <?php echo esc_attr($btnBg); ?> !important;
+        }
+        #<?php echo esc_attr($cid); ?> .gas-form-success h3 {
+            color: <?php echo esc_attr($btnBg); ?> !important;
         }
         .gas-form-wrap { max-width: 100%; margin: 24px auto; font-family: 'Segoe UI', Arial, sans-serif; }
         .gas-form-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 28px 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
