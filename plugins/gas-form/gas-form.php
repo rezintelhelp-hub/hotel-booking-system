@@ -3,7 +3,7 @@
  * Plugin Name: GAS Form
  * Plugin URI: https://gas.travel
  * Description: On-brand lead capture forms for GAS clients — replaces Keap/Mailchimp hosted forms with shortcode-embedded forms that push to the configured CRM via the GAS API.
- * Version: 1.1.1
+ * Version: 1.1.2
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -96,15 +96,29 @@ class GAS_Form {
             <div class="gas-form-loading" style="text-align:center; padding:32px; color:#94a3b8;">Loading…</div>
         </div>
         <style>
+        /* Apply the configured radius to the outer card AND the inputs/buttons so the
+           whole form reads as one consistent shape. Inputs use a smaller proportional
+           radius (cap at 12px) so a 24px card doesn't make the inputs look like pills. */
+        <?php
+        $r = (int) trim($cardRadius, 'px');
+        $inputRadius = min($r, 12) . 'px';
+        ?>
         #<?php echo esc_attr($cid); ?> .gas-form-card {
             background: <?php echo esc_attr($cardBg); ?> !important;
             border-radius: <?php echo esc_attr($cardRadius); ?> !important;
+        }
+        #<?php echo esc_attr($cid); ?> .gas-form-card input[type=text],
+        #<?php echo esc_attr($cid); ?> .gas-form-card input[type=email],
+        #<?php echo esc_attr($cid); ?> .gas-form-card input[type=tel],
+        #<?php echo esc_attr($cid); ?> .gas-form-card textarea {
+            border-radius: <?php echo esc_attr($inputRadius); ?> !important;
         }
         #<?php echo esc_attr($cid); ?> .gas-form-card button[type=submit],
         #<?php echo esc_attr($cid); ?> .gas-form-success a.gas-form-download {
             background: <?php echo esc_attr($btnBg); ?> !important;
             color: <?php echo esc_attr($btnText); ?> !important;
             border-color: <?php echo esc_attr($btnBg); ?> !important;
+            border-radius: <?php echo esc_attr($inputRadius); ?> !important;
         }
         #<?php echo esc_attr($cid); ?> .gas-form-card button[type=submit]:hover,
         #<?php echo esc_attr($cid); ?> .gas-form-success a.gas-form-download:hover {
