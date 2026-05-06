@@ -94361,6 +94361,63 @@ app.delete('/api/admin/crm-connections/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
+// Fetch the dropdown options for a connection — Keap tags or Mailchimp
+// audiences. Returns {id, name} pairs so the lead form modal can render a
+// real picker instead of asking owners to copy-paste IDs.
+async function fetchKeapTags(credentials) {
+  const apiKey = credentials.api_key;
+  const baseUrl = credentials.base_url || 'https://api.infusionsoft.com';
+  if (!apiKey) return { ok: false, error: 'Missing API key' };
+  const headers = { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' };
+  try {
+    // Keap's /tags endpoint paginates at 1000 — single page is fine for the
+    // vast majority of accounts. Add cursoring later if a customer needs it.
+    const r = await fetch(`${baseUrl}/crm/rest/v1/tags?limit=1000`, { headers });
+    const data = await r.json();
+    if (!r.ok) return { ok: false, error: data?.message || `Keap ${r.status}` };
+    const tags = (data.tags || []).map(t => ({ id: String(t.id), name: t.name + (t.category ? ' · ' + t.category.name : '') }));
+    tags.sort((a, b) => a.name.localeCompare(b.name));
+    return { ok: true, options: tags, label: 'Tag' };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+async function fetchMailchimpAudiences(credentials) {
+  const apiKey = credentials.api_key;
+  if (!apiKey) return { ok: false, error: 'Missing API key' };
+  const dc = credentials.dc || (apiKey.split('-')[1]);
+  if (!dc) return { ok: false, error: 'Could not derive data center from API key' };
+  const auth = 'Basic ' + Buffer.from(`anystring:${apiKey}`).toString('base64');
+  try {
+    const r = await fetch(`https://${dc}.api.mailchimp.com/3.0/lists?count=100&fields=lists.id,lists.name`, {
+      headers: { 'Authorization': auth }
+    });
+    const data = await r.json();
+    if (!r.ok) return { ok: false, error: data?.detail || `Mailchimp ${r.status}` };
+    const audiences = (data.lists || []).map(l => ({ id: l.id, name: l.name }));
+    return { ok: true, options: audiences, label: 'Audience' };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+app.get('/api/admin/crm-connections/:id/options', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.query.client_id || decoded.accountId || decoded.id;
+    const id = parseInt(req.params.id);
+    const r = await pool.query('SELECT * FROM crm_connections WHERE id = $1 AND account_id = $2', [id, accountId]);
+    if (!r.rows.length) return res.status(404).json({ success: false, error: 'Not found' });
+    const conn = r.rows[0];
+
+    let result;
+    if (conn.provider === 'keap') result = await fetchKeapTags(conn.credentials);
+    else if (conn.provider === 'mailchimp') result = await fetchMailchimpAudiences(conn.credentials);
+    else return res.json({ success: false, error: 'Unknown provider' });
+
+    if (!result.ok) return res.json({ success: false, error: result.error });
+    res.json({ success: true, provider: conn.provider, label: result.label, options: result.options });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 // Test a connection — sends a probe contact and reports back.
 app.post('/api/admin/crm-connections/:id/test', async (req, res) => {
   try {
