@@ -94587,6 +94587,30 @@ app.post('/api/admin/lead-forms/:id/upload', upload.single('file'), async (req, 
   }
 });
 
+// Account-wide submissions list — drives the Marketing → Submissions tab.
+// Optional ?form_id=N narrows to one form; default returns 500 most recent.
+app.get('/api/admin/lead-form-submissions', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const accountId = req.query.client_id || decoded.accountId || decoded.id;
+    const formFilter = req.query.form_id ? parseInt(req.query.form_id) : null;
+    const params = [accountId];
+    let where = 's.account_id = $1';
+    if (formFilter) { params.push(formFilter); where += ' AND s.form_id = $' + params.length; }
+    const r = await pool.query(
+      `SELECT s.id, s.form_id, s.data, s.ip, s.referrer, s.crm_pushed, s.crm_pushed_at,
+              s.crm_error, s.created_at, f.title AS form_title, f.slug AS form_slug
+       FROM lead_form_submissions s
+       LEFT JOIN lead_forms f ON s.form_id = f.id
+       WHERE ${where}
+       ORDER BY s.created_at DESC LIMIT 500`,
+      params
+    );
+    res.json({ success: true, submissions: r.rows });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 // Submissions list — for the audit log + retry-failed-pushes UI.
 app.get('/api/admin/lead-forms/:id/submissions', async (req, res) => {
   try {
