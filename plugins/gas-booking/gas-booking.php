@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.37
+ * Version: 3.7.38
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.37');
+define('GAS_BOOKING_VERSION', '3.7.38');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7137,7 +7137,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             </div>
                             
                             <div class="gas-price-line gas-voucher-line" style="display:none;">
-                                <span class="gas-voucher-label"><?php echo esc_html($t_checkout['promo_code'] ?? 'Promo Code'); ?></span>
+                                <span class="gas-voucher-label"><?php echo esc_html($t_checkout['promo_code'] ?? 'Voucher or Gift Certificate'); ?></span>
                                 <span class="gas-voucher-discount"></span>
                             </div>
 
@@ -7333,9 +7333,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         
                         <!-- Voucher Code -->
                         <div class="gas-checkout-section">
-                            <h2 class="gas-section-title">🎟️ <?php echo esc_html($t_checkout['promo_code'] ?? 'Promo Code'); ?></h2>
+                            <h2 class="gas-section-title">🎟️ <?php echo esc_html($t_checkout['promo_code'] ?? 'Voucher or Gift Certificate Code'); ?></h2>
                             <div class="gas-voucher-row">
-                                <input type="text" name="voucher_code" class="gas-voucher-input" placeholder="<?php echo esc_attr($t_checkout['enter_promo'] ?? 'Enter promo code'); ?>" />
+                                <input type="text" name="voucher_code" class="gas-voucher-input" placeholder="<?php echo esc_attr($t_checkout['enter_promo'] ?? 'Enter voucher or gift certificate code'); ?>" />
                                 <button type="button" class="gas-btn-apply"><?php echo esc_html($t_common['apply'] ?? 'Apply'); ?></button>
                             </div>
                             <div class="gas-voucher-result"></div>
