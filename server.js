@@ -92845,7 +92845,7 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.body.client_id || decoded.accountId || decoded.id;
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee } = req.body;
 
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Product name is required' });
     // Gift certificates carry no fixed price — buyer picks at checkout — so accept 0 here.
@@ -92886,8 +92886,8 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     }
 
     const result = await pool.query(`
-      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32::jsonb, $33, $34, $35, $36)
+      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32::jsonb, $33, $34, $35, $36, $37, $38, $39)
       RETURNING *
     `, [
       clientId, name.trim(),
@@ -92921,7 +92921,10 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
       gift_allow_custom === 'true' || gift_allow_custom === true,
       gift_min_amount ? parseFloat(gift_min_amount) : null,
       gift_max_amount ? parseFloat(gift_max_amount) : null,
-      gift_expiry_months !== undefined && gift_expiry_months !== '' ? parseInt(gift_expiry_months) : 12
+      gift_expiry_months !== undefined && gift_expiry_months !== '' ? parseInt(gift_expiry_months) : 12,
+      tax_rate !== undefined && tax_rate !== '' ? parseFloat(tax_rate) : null,
+      tax_exempt === 'true' || tax_exempt === true || isGiftCert,
+      delivery_fee !== undefined && delivery_fee !== '' ? parseFloat(delivery_fee) : (isGiftCert ? 0 : null)
     ]);
 
     // Mirror to upsells table if owner ticked "Also offer as booking upsell".
@@ -92947,7 +92950,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
     const existing = await pool.query('SELECT * FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
     if (!existing.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee } = req.body;
 
     if (name && !name.trim()) return res.status(400).json({ success: false, error: 'Product name cannot be empty' });
     if (price !== undefined) {
@@ -93029,6 +93032,9 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
         gift_min_amount = $35,
         gift_max_amount = $36,
         gift_expiry_months = COALESCE($37, gift_expiry_months),
+        tax_rate = $38,
+        tax_exempt = COALESCE($39, tax_exempt),
+        delivery_fee = $40,
         updated_at = NOW()
       WHERE id = $15 AND account_id = $16
       RETURNING *
@@ -93067,7 +93073,10 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
       gift_allow_custom !== undefined ? (gift_allow_custom === 'true' || gift_allow_custom === true) : null,
       gift_min_amount !== undefined && gift_min_amount !== '' ? parseFloat(gift_min_amount) : null,
       gift_max_amount !== undefined && gift_max_amount !== '' ? parseFloat(gift_max_amount) : null,
-      gift_expiry_months !== undefined && gift_expiry_months !== '' ? parseInt(gift_expiry_months) : null
+      gift_expiry_months !== undefined && gift_expiry_months !== '' ? parseInt(gift_expiry_months) : null,
+      tax_rate !== undefined && tax_rate !== '' ? parseFloat(tax_rate) : null,
+      tax_exempt !== undefined ? (tax_exempt === 'true' || tax_exempt === true) : null,
+      delivery_fee !== undefined && delivery_fee !== '' ? parseFloat(delivery_fee) : null
     ]);
 
     // Mirror to upsells table — create/update/delete the linked row based on the new state.
@@ -93406,7 +93415,8 @@ app.get('/api/public/client/:clientId/shop/products', async (req, res) => {
     const result = await pool.query(
       `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking,
               product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, external_url, external_button_label,
-              gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months
+              gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months,
+              tax_rate, tax_exempt, delivery_fee
        FROM shop_products WHERE account_id = $1 AND is_active = true ORDER BY sort_order, created_at DESC`,
       [clientId]
     );
@@ -93440,7 +93450,8 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
     const result = await pool.query(
       `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, gallery_urls, category, stock_quantity, stock_tracking,
               product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, external_url, external_button_label,
-              gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months
+              gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months,
+              tax_rate, tax_exempt, delivery_fee
        FROM shop_products WHERE account_id = $1 AND slug = $2 AND is_active = true`,
       [clientId, slug]
     );
@@ -93604,6 +93615,10 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
     productsResult.rows.forEach(p => { productsMap[p.id] = p; });
 
     let subtotal = 0;
+    let taxableSubtotal = 0;            // sum of items NOT marked tax_exempt
+    let perItemDeliveryTotal = 0;        // sum of per-product delivery_fee overrides
+    let anyDeliveryOverride = false;     // if any item has its own override, skip the shop-wide flat fee
+    let allItemsTaxExempt = true;        // gift-cert-only orders => no tax line at all
     const validatedItems = [];
     const lineItems = [];
     let currency = (acc.currency || 'EUR').toLowerCase();
@@ -93665,13 +93680,30 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
       subtotal += lineTotal;
       currency = (product.currency || acc.currency || 'EUR').toLowerCase();
 
+      // Per-item tax/delivery overrides. tax_exempt forces 0% regardless of any rate.
+      // tax_rate = numeric override (% applied to this line only); when null, fall back
+      // to the shop-wide rate later. delivery_fee column on the product overrides the
+      // shop default ONLY when set; null = use shop default.
+      const itemTaxExempt = product.tax_exempt === true;
+      if (!itemTaxExempt) {
+        allItemsTaxExempt = false;
+        taxableSubtotal += lineTotal;
+      }
+      if (product.delivery_fee !== null && product.delivery_fee !== undefined) {
+        anyDeliveryOverride = true;
+        perItemDeliveryTotal += parseFloat(product.delivery_fee) * qty;
+      }
+
       validatedItems.push({
         product_id: product.id,
         product_name: lineProductName,
         quantity: qty,
         unit_price: unitPrice,
         total: lineTotal,
-        gift_metadata: giftMetadata
+        gift_metadata: giftMetadata,
+        tax_exempt: itemTaxExempt,
+        tax_rate_override: (product.tax_rate !== null && product.tax_rate !== undefined) ? parseFloat(product.tax_rate) : null,
+        delivery_fee_override: (product.delivery_fee !== null && product.delivery_fee !== undefined) ? parseFloat(product.delivery_fee) : null
       });
 
       lineItems.push({
@@ -93687,25 +93719,36 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
       });
     }
 
-    // Tax and delivery calculation
-    const taxRate = parseFloat(acc.shop_tax_rate) || 0;
+    // Tax and delivery calculation — per-item aware.
+    //   tax_exempt items contribute 0 to the tax base.
+    //   tax_rate override on a product applies only to that line; otherwise fall
+    //     back to the shop-wide rate.
+    //   delivery: if ANY item has a per-product override, we use the sum of those
+    //     overrides and skip the shop-wide flat fee (cleanest mental model — owner
+    //     opted into per-item delivery). Otherwise the flat fee applies once.
+    //   gift-cert-only orders (allItemsTaxExempt): no tax line at all.
+    const shopRate = parseFloat(acc.shop_tax_rate) || 0;
     const taxInclusive = acc.shop_tax_inclusive || false;
-    const deliveryFee = parseFloat(acc.shop_delivery_fee) || 0;
+    const shopDeliveryFee = parseFloat(acc.shop_delivery_fee) || 0;
     const taxLabel = acc.shop_tax_label || 'VAT';
     const deliveryLabel = acc.shop_delivery_label || 'Delivery';
 
     let tax = 0;
-    if (taxRate > 0) {
-      if (taxInclusive) {
-        // Prices already include tax — extract it
-        tax = subtotal - (subtotal / (1 + taxRate / 100));
-      } else {
-        // Tax added on top
-        tax = subtotal * (taxRate / 100);
+    if (!allItemsTaxExempt) {
+      // Sum tax line by line — per-item override wins, else shop default.
+      for (const vi of validatedItems) {
+        if (vi.tax_exempt) continue;
+        const rate = vi.tax_rate_override !== null ? vi.tax_rate_override : shopRate;
+        if (rate <= 0) continue;
+        const lineTax = taxInclusive
+          ? vi.total - (vi.total / (1 + rate / 100))
+          : vi.total * (rate / 100);
+        tax += lineTax;
       }
       tax = Math.round(tax * 100) / 100;
     }
 
+    const deliveryFee = anyDeliveryOverride ? Math.round(perItemDeliveryTotal * 100) / 100 : shopDeliveryFee;
     const total = (taxInclusive ? subtotal : subtotal + tax) + deliveryFee;
 
     // Add delivery fee as a Stripe line item if > 0

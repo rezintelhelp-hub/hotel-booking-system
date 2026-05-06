@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -328,7 +328,10 @@ class GAS_Shop {
                 if ($isExternal) {
                     $btnLabel = esc_html($p['external_button_label'] ?? 'Buy Now');
                     echo '<div class="gas-shop-card-price" style="font-size:0.95rem">'.$btnLabel.' &rarr;</div>';
-                } else {
+                } elseif (($p['product_type'] ?? '') === 'gift_certificate') {
+                    // Gift certs: buyer picks the value at the detail page, no card price.
+                    echo '<div class="gas-shop-card-price" style="font-size:0.95rem">From any amount &rarr;</div>';
+                } elseif ((float)$p['price'] > 0) {
                     echo '<div class="gas-shop-card-price">'.$curr.' '.$price.'</div>';
                 }
                 echo '</div></a></article>';
@@ -425,7 +428,9 @@ class GAS_Shop {
         echo '<h1 style="margin:0 0 16px;color:'.$c['text'].'">'.esc_html($name).'</h1>';
 
         $isGift = ($p['product_type'] ?? '') === 'gift_certificate';
-        if (!$isGift) {
+        // Hide the headline price for gift certs (buyer picks value below) and for any
+        // product priced at 0 — showing "$0.00" reads as broken to the customer.
+        if (!$isGift && (float)$p['price'] > 0) {
             echo '<div class="gas-shop-card-price" style="font-size:1.5rem;margin-bottom:20px">'.$curr.' '.$price.'</div>';
         }
         if ($desc) echo '<div style="color:'.$c['text_secondary'].';line-height:1.8;margin-bottom:24px">'.wp_kses_post(nl2br($desc)).'</div>';
@@ -451,6 +456,11 @@ class GAS_Shop {
             'offers_accommodation' => !empty($p['offers_accommodation']),
             'event_start_date' => $p['event_start_date'] ?? null,
             'event_end_date' => $p['event_end_date'] ?? null,
+            // Per-item tax + delivery — drives the cart-page totals so we don't
+            // have to re-fetch the product. null fields mean "use shop default".
+            'tax_exempt' => !empty($p['tax_exempt']),
+            'tax_rate' => isset($p['tax_rate']) && $p['tax_rate'] !== null ? floatval($p['tax_rate']) : null,
+            'delivery_fee' => isset($p['delivery_fee']) && $p['delivery_fee'] !== null ? floatval($p['delivery_fee']) : null,
         ), JSON_HEX_APOS | JSON_HEX_QUOT);
         $isEventBookable = (($p['product_type'] ?? '') === 'event') && !empty($p['offers_accommodation']) && !empty($p['booking_url']) && !empty($p['event_start_date']);
         if (($p['product_type'] ?? '') === 'external' && !empty($p['external_url'])) {
@@ -583,6 +593,10 @@ function gasShopAddGiftCert(product) {
       sender_name: sender,
       message: message
     },
+    // Gift certs are digital — no VAT until redeemed, no delivery cost.
+    tax_exempt: true,
+    tax_rate: null,
+    delivery_fee: 0,
     // Per-line uid so the cart row can target this exact certificate for remove/edit.
     cart_uid: "gift_" + Date.now() + "_" + Math.floor(Math.random() * 1000)
   });
@@ -699,27 +713,45 @@ function gasShopAddToCart(product) {
     });
     container.innerHTML = html;
     var subtotal = total;
+
+    // Per-item tax + delivery. Item override on tax_rate / delivery_fee wins;
+    // if any item has its own delivery override the shop-wide flat fee is skipped
+    // (mirrors server logic). tax_exempt items contribute 0 to the tax base.
     var tax = 0;
-    if (taxRate > 0) {
-      tax = taxInclusive ? (subtotal - subtotal / (1 + taxRate / 100)) : (subtotal * taxRate / 100);
-      tax = Math.round(tax * 100) / 100;
-    }
+    var anyDeliveryOverride = false;
+    var perItemDelivery = 0;
+    cart.forEach(function(item){
+      var lineTotal = item.price * (item.quantity || 1);
+      if (!item.tax_exempt) {
+        var rate = (item.tax_rate != null) ? item.tax_rate : taxRate;
+        if (rate > 0) {
+          tax += taxInclusive ? (lineTotal - lineTotal / (1 + rate / 100)) : (lineTotal * rate / 100);
+        }
+      }
+      if (item.delivery_fee != null) {
+        anyDeliveryOverride = true;
+        perItemDelivery += item.delivery_fee * (item.quantity || 1);
+      }
+    });
+    tax = Math.round(tax * 100) / 100;
+    var effectiveDelivery = anyDeliveryOverride ? Math.round(perItemDelivery * 100) / 100 : deliveryFee;
+
     // Add accommodation cost if selected
     var accomCost = 0;
     var selectedRoom = JSON.parse(localStorage.getItem("gas_shop_room") || "null");
     if (selectedRoom) accomCost = selectedRoom.total || 0;
 
-    var grandTotal = (taxInclusive ? subtotal : subtotal + tax) + deliveryFee + accomCost;
+    var grandTotal = (taxInclusive ? subtotal : subtotal + tax) + effectiveDelivery + accomCost;
     var lines = "<div style=\"font-size:0.95rem;color:#64748b\">";
     lines += "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px\"><span>Subtotal</span><span>" + curr + " " + subtotal.toFixed(2) + "</span></div>";
     if (accomCost > 0) {
       lines += "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px\"><span>" + selectedRoom.name + " (" + selectedRoom.nights + " night" + (selectedRoom.nights > 1 ? "s" : "") + ")</span><span>" + curr + " " + accomCost.toFixed(2) + "</span></div>";
     }
-    if (taxRate > 0) {
-      lines += "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px\"><span>" + taxLabel + " (" + taxRate + "%" + (taxInclusive ? " incl." : "") + ")</span><span>" + curr + " " + tax.toFixed(2) + "</span></div>";
+    if (tax > 0) {
+      lines += "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px\"><span>" + taxLabel + (taxInclusive ? " (incl.)" : "") + "</span><span>" + curr + " " + tax.toFixed(2) + "</span></div>";
     }
-    if (deliveryFee > 0) {
-      lines += "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px\"><span>" + deliveryLabel + "</span><span>" + curr + " " + deliveryFee.toFixed(2) + "</span></div>";
+    if (effectiveDelivery > 0) {
+      lines += "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px\"><span>" + deliveryLabel + "</span><span>" + curr + " " + effectiveDelivery.toFixed(2) + "</span></div>";
     }
     lines += "</div>";
     lines += "<div style=\"display:flex;justify-content:space-between;font-size:1.3rem;font-weight:700;margin-top:8px;padding-top:8px;border-top:2px solid #e5e7eb\"><span>Total</span><span>" + curr + " " + grandTotal.toFixed(2) + "</span></div>";
