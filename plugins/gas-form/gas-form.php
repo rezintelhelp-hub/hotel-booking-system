@@ -3,7 +3,7 @@
  * Plugin Name: GAS Form
  * Plugin URI: https://gas.travel
  * Description: On-brand lead capture forms for GAS clients — replaces Keap/Mailchimp hosted forms with shortcode-embedded forms that push to the configured CRM via the GAS API.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -86,7 +86,7 @@ class GAS_Form {
             <div class="gas-form-loading" style="text-align:center; padding:32px; color:#94a3b8;">Loading…</div>
         </div>
         <style>
-        .gas-form-wrap { max-width: 480px; margin: 24px auto; font-family: 'Segoe UI', Arial, sans-serif; }
+        .gas-form-wrap { max-width: 100%; margin: 24px auto; font-family: 'Segoe UI', Arial, sans-serif; }
         .gas-form-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 28px 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
         .gas-form-card h3 { margin: 0 0 8px; font-size: 1.4rem; color: #1e293b; }
         .gas-form-card .gas-form-desc { color: #64748b; margin: 0 0 20px; line-height: 1.5; }
