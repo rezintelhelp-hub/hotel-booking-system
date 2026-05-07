@@ -5401,16 +5401,40 @@ jQuery(document).ready(function($) {
                 $('.gas-bundle-line').hide();
             }
 
-            // Taxes breakdown
+            // Taxes breakdown. The server returns its computed values, but Total
+            // Tax has to recalc on the client when the cart changes (mandatory
+            // upsells get added AFTER the initial calculate-price fires, and the
+            // server doesn't re-run on cart edits). For type='total_tax' rows
+            // we rebuild the amount from the live cart so VAT compounds onto
+            // non-exempt upsells correctly.
             if (taxes && taxes.length > 0) {
                 var taxesHtml = '';
+                var nonExemptUpsells = 0;
+                var nonExemptOtherTaxes = 0;
+                (checkoutData.selectedUpsells || []).forEach(function(u) {
+                    if (u.total_tax_exempt !== true) nonExemptUpsells += calculateUpsellItemTotal(u);
+                });
+                taxes.forEach(function(tax) {
+                    if (tax.type !== 'total_tax' && tax.total_tax_exempt === false) {
+                        nonExemptOtherTaxes += parseFloat(tax.amount) || 0;
+                    }
+                });
                 taxes.forEach(function(tax) {
                     var taxAmt = parseFloat(tax.amount) || 0;
+                    if (tax.type === 'total_tax' && tax.rate) {
+                        var base = accommodationTotal - discount - voucherDiscount - bundleDeduction + nonExemptUpsells + nonExemptOtherTaxes;
+                        if (base < 0) base = 0;
+                        taxAmt = tax.inclusive
+                            ? base - (base / (1 + tax.rate / 100))
+                            : base * (tax.rate / 100);
+                        taxAmt = Math.round(taxAmt * 100) / 100;
+                    }
                     taxesHtml += '<div class="gas-tax-item">';
                     taxesHtml += '<span>' + (extractText(tax.name_ml) || tax.name) + '</span>';
                     taxesHtml += '<span>' + formatPrice(taxAmt, currency) + '</span>';
                     taxesHtml += '</div>';
-                    taxTotal += taxAmt;
+                    // Inclusive Total Tax is already in the prices — don't add again to grandTotal.
+                    if (!(tax.type === 'total_tax' && tax.inclusive)) taxTotal += taxAmt;
                 });
                 $('.gas-taxes-list').html(taxesHtml);
                 $('.gas-taxes-section').show();

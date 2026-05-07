@@ -71168,6 +71168,7 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
         u.included_nights_per_unit,
         u.linked_shop_product_id,
         COALESCE(u.mandatory, false) as mandatory,
+        COALESCE(u.total_tax_exempt, false) as total_tax_exempt,
         p.name as property_name
       FROM upsells u
       LEFT JOIN properties p ON u.property_id = p.id
