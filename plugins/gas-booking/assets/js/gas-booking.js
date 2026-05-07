@@ -6588,6 +6588,11 @@ jQuery(document).ready(function($) {
                 source_site_url: window.location.origin + window.location.pathname,
                 deposit_amount: checkoutData.depositAmount,
                 balance_amount: checkoutData.balanceAmount,
+                // Forward event slug so the booking endpoint can find the
+                // matching event_hold and convert it instead of inserting
+                // a fresh booking + skip the real-time Beds24 availability
+                // check (which would see our own hold as unavailable).
+                event_slug: new URLSearchParams(window.location.search).get('event') || undefined,
                 price_breakdown: (function() {
                     var bd = checkoutData.gasBreakdown;
                     if (!bd) return null;
@@ -6782,6 +6787,7 @@ jQuery(document).ready(function($) {
                 rate_type: checkoutData.rateType,
                 upsells: checkoutData.selectedUpsells,
                 voucher_code: checkoutData.voucherCode,
+                event_slug: new URLSearchParams(window.location.search).get('event') || undefined,
                 stripe_payment_intent_id: paymentIntentId,
                 enigma_reference_id: window.gasEnigmaReferenceId || null,
                 stripe_setup_intent_id: window.gasStripeSetupIntentId || null,

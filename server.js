@@ -67252,9 +67252,24 @@ app.post('/api/public/book', async (req, res) => {
     }
 
     // ========== REAL-TIME AVAILABILITY CHECK ==========
-    // Check Beds24 for latest availability BEFORE taking payment
+    // Check Beds24 for latest availability BEFORE taking payment.
+    //   Skipped in event flow: we already hold the room via a confirmed
+    //   booking on Beds24 — the real-time check would see THAT booking as
+    //   "unavailable" and reject the conversion. The hold IS the inventory
+    //   reservation; the conversion path's atomic UPDATE handles oversell.
     const beds24RoomId = unit.rows[0].beds24_room_id;
-    if (beds24RoomId) {
+    const incomingEventSlug = req.body.event_slug || req.body.event || null;
+    let skipBeds24AvailCheck = false;
+    if (incomingEventSlug && beds24RoomId) {
+      const holdMatch = await pool.query(
+        `SELECT 1 FROM bookings b
+         JOIN shop_products sp ON sp.id = b.held_for_event_id
+         WHERE b.bookable_unit_id = $1 AND b.status = 'event_hold' AND sp.slug = $2 LIMIT 1`,
+        [unit_id, String(incomingEventSlug).toLowerCase()]
+      );
+      if (holdMatch.rows.length) skipBeds24AvailCheck = true;
+    }
+    if (beds24RoomId && !skipBeds24AvailCheck) {
       try {
         const accessToken = await getBeds24AccessTokenForProperty(pool, unit.rows[0].property_id, unit_id);
         if (accessToken) {
