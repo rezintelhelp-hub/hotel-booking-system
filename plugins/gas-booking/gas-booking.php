@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.49
+ * Version: 3.7.50
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.49');
+define('GAS_BOOKING_VERSION', '3.7.50');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7816,18 +7816,18 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         /* Confirmation */
         .gas-checkout-confirmation { }
-        .gas-confirmation-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #d1fae5 100%); z-index: 9999; overflow-y: auto; animation: fadeIn 0.3s ease; }
+        .gas-confirmation-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(135deg, <?php echo esc_attr($button_color); ?>0d 0%, <?php echo esc_attr($button_color); ?>1a 50%, <?php echo esc_attr($button_color); ?>26 100%); z-index: 9999; overflow-y: auto; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .gas-confirmation-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; box-sizing: border-box; }
         .gas-confirmation-header { text-align: center; margin-bottom: 32px; }
-        .gas-confirmation-icon { width: 80px; height: 80px; background: #10b981; color: white; font-size: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4); animation: scaleIn 0.4s ease 0.2s both; }
+        .gas-confirmation-icon { width: 80px; height: 80px; background: <?php echo esc_attr($button_color); ?>; color: white; font-size: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; box-shadow: 0 4px 14px <?php echo esc_attr($button_color); ?>66; animation: scaleIn 0.4s ease 0.2s both; }
         @keyframes scaleIn { from { transform: scale(0); } to { transform: scale(1); } }
         .gas-confirmation-title { font-size: 32px; font-weight: 700; color: #1e293b; margin: 0 0 8px 0; }
         .gas-confirmation-subtitle { font-size: 18px; color: #64748b; margin: 0; }
-        .gas-confirmation-card { background: #ffffff; border-radius: 20px; padding: 32px; width: 100%; max-width: 480px; text-align: left; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
-        .gas-confirmation-ref-box { background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border: 2px solid #10b981; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 24px; }
-        .gas-ref-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #059669; margin-bottom: 4px; }
-        .gas-booking-ref { font-size: 28px; font-weight: 700; color: #047857; word-break: break-all; }
+        .gas-confirmation-card { background: <?php echo esc_attr($summary_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 32px; width: 100%; max-width: 480px; text-align: left; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+        .gas-confirmation-ref-box { background: <?php echo esc_attr($button_color); ?>14; border: 2px solid <?php echo esc_attr($button_color); ?>; border-radius: <?php echo intval($btn_radius); ?>px; padding: 20px; text-align: center; margin-bottom: 24px; }
+        .gas-ref-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: <?php echo esc_attr($button_color); ?>; margin-bottom: 4px; }
+        .gas-booking-ref { font-size: 28px; font-weight: 700; color: <?php echo esc_attr($button_color); ?>; word-break: break-all; }
         .gas-booking-ref.gas-ref-small { font-size: 18px; }
         .gas-confirmation-property { margin-bottom: 24px; text-align: center; }
         .gas-conf-property-name { font-size: 20px; font-weight: 600; color: #1e293b; margin: 0 0 4px 0; }
@@ -7839,7 +7839,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-conf-room-box:last-child { margin-bottom: 0; }
         .gas-conf-room-box .room-name { font-weight: 600; color: #1e293b; font-size: 14px; }
         .gas-conf-room-box .room-guests { font-size: 13px; color: #64748b; }
-        .gas-conf-room-box .room-price { font-weight: 600; color: #047857; font-size: 14px; }
+        .gas-conf-room-box .room-price { font-weight: 600; color: <?php echo esc_attr($button_color); ?>; font-size: 14px; }
         
         /* Extras/Upsells list */
         .gas-conf-extras-list { margin-bottom: 24px; }
@@ -7861,7 +7861,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-confirmation-pricing { }
         .gas-price-row { display: flex; justify-content: space-between; padding: 10px 0; font-size: 15px; color: #475569; }
         .gas-price-row.gas-price-total { font-weight: 600; font-size: 18px; color: #1e293b; border-bottom: 1px dashed #e2e8f0; padding-bottom: 14px; margin-bottom: 10px; }
-        .gas-price-row.gas-price-paid span:last-child { color: #10b981; font-weight: 600; }
+        .gas-price-row.gas-price-paid span:last-child { color: <?php echo esc_attr($button_color); ?>; font-weight: 600; }
         .gas-price-row.gas-price-balance span:last-child { color: #f59e0b; font-weight: 600; }
         .gas-confirmation-contact { text-align: center; }
         .gas-confirmation-email-text { font-size: 14px; color: #64748b; margin: 0; }
