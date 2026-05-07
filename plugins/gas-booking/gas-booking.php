@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.42
+ * Version: 3.7.43
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.42');
+define('GAS_BOOKING_VERSION', '3.7.43');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3564,7 +3564,10 @@ class GAS_Booking {
             'currentLanguage' => $current_lang,
             'spinnerStyle' => $spinner_style,
             'nonce' => wp_create_nonce('gas_booking_nonce'),
-            'buttonColor' => $this->get_effective_button_color()
+            'buttonColor' => $this->get_effective_button_color(),
+            // Shop palette so JS-injected surfaces (event banner etc.) follow
+            // the same brand colours as the booking widget + shop.
+            'shopPalette' => $this->get_shop_palette()
         ));
 
         // Output custom CSS from settings - add to footer so it overrides inline styles

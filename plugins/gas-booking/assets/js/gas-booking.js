@@ -72,6 +72,12 @@ jQuery(document).ready(function($) {
                 if (ev.min_notice_hours && ev.min_notice_hours > 0) {
                     rules.minDate = new Date(Date.now() + parseInt(ev.min_notice_hours) * 3600 * 1000);
                 }
+                // Stay-overlap window: a check-in is valid if AT LEAST ONE night of
+                // the stay falls on an allowed day. e.g. event runs Fri/Sat/Sun
+                // with 2-night min — Thursday check-in is fine because the stay is
+                // Thu+Fri and Fri is an event day. Defaults to 1 if no event
+                // duration is set (backwards-compatible — previous strict behaviour).
+                rules.minNights = parseInt(ev.event_duration_nights) > 0 ? parseInt(ev.event_duration_nights) : 1;
                 window._gasEventDateRules = rules;
 
                 // Apply rules to any flatpickr already-initialised. New ones pick
@@ -93,10 +99,16 @@ jQuery(document).ready(function($) {
 
                 var priceLabel = (ev.currency || '') + ' ' + parseFloat(ev.price).toFixed(2);
                 var img = ev.image_thumbnail_url || ev.image_url;
-                var banner = '<div class="gas-event-banner" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #bfdbfe;border-radius:12px;padding:16px 20px;margin:16px auto;max-width:1200px;display:flex;gap:16px;align-items:center">';
-                if (img) banner += '<img src="' + img + '" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0">';
-                banner += '<div style="flex:1;min-width:0"><p style="margin:0 0 4px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#1d4ed8;font-weight:600">You\'re booking</p>';
-                banner += '<h3 style="margin:0 0 6px;color:#1e3a8a;font-size:18px">' + (ev.name || 'Event') + '</h3>';
+                // Pull brand colours from the shop palette so the banner matches
+                // the property's accent rather than hardcoded blue.
+                var pal = (typeof gasBooking !== 'undefined' && gasBooking.shopPalette) ? gasBooking.shopPalette : {};
+                var accent = pal.accent || '#1d4ed8';
+                var cardBg = pal.card_bg || '#ffffff';
+                var radius = (pal.card_radius != null) ? parseInt(pal.card_radius) : 12;
+                var banner = '<div class="gas-event-banner" style="background:' + cardBg + ';border:1px solid ' + accent + ';border-radius:' + radius + 'px;padding:16px 20px;margin:16px auto;max-width:1200px;display:flex;gap:16px;align-items:center">';
+                if (img) banner += '<img src="' + img + '" style="width:80px;height:80px;object-fit:cover;border-radius:' + Math.min(radius, 8) + 'px;flex-shrink:0">';
+                banner += '<div style="flex:1;min-width:0"><p style="margin:0 0 4px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:' + accent + ';font-weight:600">You\'re booking</p>';
+                banner += '<h3 style="margin:0 0 6px;color:' + accent + ';font-size:18px">' + (ev.name || 'Event') + '</h3>';
                 banner += '<p style="margin:0;color:#475569;font-size:14px">' + priceLabel + ' event ticket' + (ruleLines.length ? ' · ' + ruleLines.join(' · ') : '') + '</p>';
                 banner += '<p style="margin:6px 0 0;color:#64748b;font-size:12px">Pick eligible dates and a room — event ticket will be added at checkout.</p>';
                 banner += '</div></div>';
@@ -109,13 +121,23 @@ jQuery(document).ready(function($) {
 
     // Disable callback shared by all flatpickr instances. Reads the live rules
     // each call so newly-initialised pickers honour rules even if the fetch
-    // resolved after them.
+    // resolved after them. The day-of-week check looks forward minNights nights
+    // so a check-in that *leads to* an event-attending stay stays selectable
+    // even when the check-in day itself isn't an event day.
     window._gasEventDateDisable = function(date) {
         var r = window._gasEventDateRules;
         if (!r) return false;
-        if (r.allowedDays && r.allowedDays.length && r.allowedDays.indexOf(date.getDay()) === -1) return true;
         if (r.validFrom && date < r.validFrom) return true;
         if (r.validUntil && date > r.validUntil) return true;
+        if (r.allowedDays && r.allowedDays.length) {
+            var span = r.minNights || 1;
+            var anyMatch = false;
+            for (var i = 0; i < span; i++) {
+                var probe = new Date(date.getFullYear(), date.getMonth(), date.getDate() + i);
+                if (r.allowedDays.indexOf(probe.getDay()) !== -1) { anyMatch = true; break; }
+            }
+            if (!anyMatch) return true;
+        }
         return false;
     };
 
