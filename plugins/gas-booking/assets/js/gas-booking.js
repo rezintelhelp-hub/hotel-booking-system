@@ -117,15 +117,19 @@ jQuery(document).ready(function($) {
                 html += '</div>';
             }
 
-            // Inject AFTER the standard rooms-grid container and hide the
-            // original. Putting it inside the grid container caused the cards
-            // to stack vertically (parent has flex column / single-column
-            // layout from the theme). Sibling = full width every time.
+            // Hide the entire standard rooms-page-wrapper (rooms grid AND its
+            // map panel + date filter) and inject our event rooms grid as its
+            // sibling. Hiding only .gas-rooms-grid left the map panel rendering
+            // beside the event cards and squashing the layout.
             $('.gas-event-rooms-wrap').remove();  // idempotent re-renders
             var wrapHtml = '<div class="gas-event-rooms-wrap" style="max-width:1200px;width:100%;margin:24px auto;padding:0 16px;box-sizing:border-box;">' + html + '</div>';
-            if ($target.length) {
-                $target.css('display','none');
-                $target.after(wrapHtml);
+            var $hideTarget = $('.gas-rooms-page-wrapper').first();
+            if (!$hideTarget.length) $hideTarget = $target;
+            if ($hideTarget.length) {
+                $hideTarget.css('display','none');
+                // Also hide siblings the theme may render alongside (map, filter).
+                $('.gas-rooms-map-panel, .gas-date-filter').css('display','none');
+                $hideTarget.after(wrapHtml);
             } else {
                 $('body').append(wrapHtml);
             }
