@@ -50,6 +50,92 @@ jQuery(document).ready(function($) {
     (function showEventBanner() {
         var eventSlug = new URLSearchParams(window.location.search).get('event');
         if (!eventSlug) return;
+        // Pull event details + held rooms in parallel. The /rooms endpoint
+        // drives the locked event-flow rooms grid below; the banner uses the
+        // event details from the existing endpoint.
+        var palAccent = (typeof gasBooking !== 'undefined' && gasBooking.shopPalette && gasBooking.shopPalette.accent) || '#1d4ed8';
+        var palCardBg = (typeof gasBooking !== 'undefined' && gasBooking.shopPalette && gasBooking.shopPalette.card_bg) || '#ffffff';
+        var palRadius = (typeof gasBooking !== 'undefined' && gasBooking.shopPalette && gasBooking.shopPalette.card_radius != null) ? parseInt(gasBooking.shopPalette.card_radius) : 12;
+
+        // Lock the date inputs visually + functionally as soon as the param
+        // hits the URL so the user can't fight with the picker before our
+        // grid renders. Per-room "Select date" widgets get a different fix
+        // below (we hide the standard rooms grid altogether).
+        function lockEventDates(checkin, checkout) {
+            document.querySelectorAll('.gas-checkin, .gas-checkout, .gas-checkin-date, .gas-checkout-date, .gas-search-checkin, .gas-search-checkout').forEach(function(el){
+                if (el._flatpickr) {
+                    if ((el.classList.contains('gas-checkin') || el.classList.contains('gas-checkin-date') || el.classList.contains('gas-search-checkin')) && checkin) el._flatpickr.setDate(checkin, true);
+                    if ((el.classList.contains('gas-checkout') || el.classList.contains('gas-checkout-date') || el.classList.contains('gas-search-checkout')) && checkout) el._flatpickr.setDate(checkout, true);
+                }
+                if (el.tagName === 'INPUT') { el.readOnly = true; el.style.cursor = 'not-allowed'; el.style.opacity = '0.7'; }
+            });
+        }
+
+        // Build the locked event-flow rooms grid + replace the standard rooms
+        // grid with it. Bypasses room_availability rules — inventory comes from
+        // the count of active event_hold rows the server returned.
+        function renderEventRoomsGrid(data) {
+            var checkout_url = (gasBooking.checkoutUrl || '/checkout/');
+            var rooms = data.rooms || [];
+            var ev = data.event;
+            var ci = data.checkin;
+            var co = data.checkout;
+            var ticketPrice = parseFloat(ev.price) || 0;
+            var currency = ev.currency || '';
+
+            var $target = $('.gas-rooms-grid, .gas-rooms-wrapper, .gas-rooms-list').first();
+            // Hide any existing rooms grid markup — we replace it with our own.
+            $target.find('.gas-room-card').remove();
+            var html = '';
+            if (data.sold_out) {
+                html = '<div style="padding:32px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;text-align:center;color:#991b1b;font-weight:600;">⚠ Event sold out — all rooms have been booked.</div>';
+            } else {
+                html = '<div class="gas-event-rooms-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:16px;">';
+                rooms.forEach(function(r) {
+                    var total = r.total_rate + ticketPrice;
+                    var img = r.image_url ? ('<img src="' + r.image_url + '" alt="' + r.name + '" style="width:100%;height:180px;object-fit:cover;display:block;">') : '<div style="width:100%;height:180px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:0.9rem;">No image</div>';
+                    var url = checkout_url + '?room=' + r.id + '&checkin=' + ci + '&checkout=' + co + '&guests=' + r.max_guests + '&adults=' + r.max_guests + '&children=0&currency=' + r.currency + '&event=' + encodeURIComponent(eventSlug);
+                    html += '<a href="' + url + '" class="gas-event-room-card" style="display:block;background:' + palCardBg + ';border:1px solid #e2e8f0;border-radius:' + palRadius + 'px;overflow:hidden;text-decoration:none;color:inherit;transition:transform 0.15s, box-shadow 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.05);">';
+                    html += img;
+                    html += '<div style="padding:14px 16px;">';
+                    html += '<h3 style="margin:0 0 6px;font-size:16px;color:#1e293b;">' + r.name + '</h3>';
+                    html += '<p style="margin:0 0 8px;color:#64748b;font-size:13px;">👥 Up to ' + r.max_guests + ' guests · ' + data.nights + ' night' + (data.nights > 1 ? 's' : '') + '</p>';
+                    html += '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;padding-top:10px;">';
+                    html += '<span style="font-size:13px;color:#64748b;">Room: ' + r.currency + ' ' + r.total_rate.toFixed(2) + (ticketPrice > 0 ? ' + Event: ' + r.currency + ' ' + ticketPrice.toFixed(2) : '') + '</span>';
+                    html += '<span style="font-size:18px;font-weight:700;color:' + palAccent + ';">' + r.currency + ' ' + total.toFixed(2) + '</span>';
+                    html += '</div>';
+                    html += '<button style="width:100%;margin-top:10px;padding:10px;background:' + palAccent + ';color:#fff;border:none;border-radius:' + Math.min(palRadius, 10) + 'px;font-weight:600;cursor:pointer;">Book This Room</button>';
+                    html += '</div></a>';
+                });
+                html += '</div>';
+            }
+
+            // Inject after the banner (which has been added before $target)
+            // and hide the standard rooms grid contents.
+            if ($target.length) {
+                $target.find(':not(.gas-event-banner):not(.gas-event-rooms-grid)').css('display','none');
+                $target.append('<div class="gas-event-rooms-wrap">' + html + '</div>');
+            } else {
+                $('body').append('<div class="gas-event-rooms-wrap" style="max-width:1200px;margin:24px auto;padding:0 16px;">' + html + '</div>');
+            }
+        }
+
+        // Fetch event-rooms (the inventory ledger) — source of truth for
+        // what's available in event flow.
+        $.ajax({
+            url: gasBooking.apiUrl + '/api/public/event/' + encodeURIComponent(eventSlug) + '/rooms',
+            method: 'GET',
+            success: function(resp) {
+                if (!resp.success) return;
+                var ev = resp.event;
+                if (!ev) return;
+                lockEventDates(resp.checkin, resp.checkout);
+                renderEventRoomsGrid(resp);
+            }
+        });
+
+        // Banner fetch (kept separate for the date-rules / banner UI). Race
+        // with the rooms fetch is fine — they update independent DOM regions.
         $.ajax({
             url: gasBooking.apiUrl + '/api/public/event/' + encodeURIComponent(eventSlug),
             method: 'GET',

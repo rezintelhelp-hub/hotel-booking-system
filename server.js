@@ -93120,11 +93120,10 @@ async function releaseEventHolds(productRow) {
 // Beds24's automation pipeline (confirmation email, payment-due reminder,
 // key-code automation) takes over from there.
 async function convertHoldToBooking(holdId, guestData) {
-  const holdRes = await pool.query(`SELECT * FROM bookings WHERE id = $1 AND status = 'event_hold'`, [holdId]);
-  if (!holdRes.rows.length) return { ok: false, error: 'Hold not found' };
-  const hold = holdRes.rows[0];
-
-  // Update local row to confirmed + populate guest fields.
+  // Atomic claim — UPDATE checks status in WHERE and only fires if still
+  // event_hold. Two simultaneous conversions can't both succeed: the second
+  // gets affected_rows=0 and bails. Caller falls back to fresh INSERT path
+  // (double-booking risk handled there by Beds24's own conflict detection).
   const upd = await pool.query(
     `UPDATE bookings SET
        status = 'confirmed',
@@ -93133,7 +93132,7 @@ async function convertHoldToBooking(holdId, guestData) {
        num_adults = $5, num_children = $6,
        grand_total = $7, accommodation_price = $7, subtotal = $7,
        updated_at = NOW()
-     WHERE id = $8 RETURNING *`,
+     WHERE id = $8 AND status = 'event_hold' RETURNING *`,
     [
       guestData.guest_first_name || '', guestData.guest_last_name || '',
       guestData.guest_email || '', guestData.guest_phone || '',
@@ -93142,6 +93141,8 @@ async function convertHoldToBooking(holdId, guestData) {
       holdId
     ]
   );
+  if (!upd.rows.length) return { ok: false, error: 'Hold not found or already taken' };
+  const hold = upd.rows[0];
 
   // PATCH Beds24 booking to confirmed with real guest details.
   if (hold.beds24_booking_id) {
@@ -94563,6 +94564,93 @@ app.get('/api/public/event/:slug', async (req, res) => {
     if (!r.rows.length) return res.json({ success: false, error: 'Event not found' });
     res.json({ success: true, event: r.rows[0] });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Event-flow rooms grid — drives the locked-dates booking page when the user
+// arrives via ?event=<slug>. Bypasses room_availability's blocking/min_stay
+// rules entirely; the inventory IS the count of active event_hold rows.
+app.get('/api/public/event/:slug/rooms', async (req, res) => {
+  try {
+    const slug = String(req.params.slug || '').trim().toLowerCase();
+    if (!slug) return res.json({ success: false, error: 'Missing slug' });
+
+    const evRes = await pool.query(
+      `SELECT id, account_id, name, slug, description, image_url, image_thumbnail_url,
+              price, currency, event_start_date, event_end_date, event_duration_nights, property_id
+       FROM shop_products WHERE slug = $1 AND product_type = 'event' AND is_active = true LIMIT 1`,
+      [slug]
+    );
+    if (!evRes.rows.length) return res.json({ success: false, error: 'Event not found' });
+    const ev = evRes.rows[0];
+
+    const checkin = String(ev.event_start_date).split('T')[0];
+    const checkout = String(ev.event_end_date).split('T')[0];
+    const nights = Math.max(1, Math.round((new Date(checkout) - new Date(checkin)) / 86400000));
+
+    // Group active holds by room — count = available qty.
+    const holds = await pool.query(
+      `SELECT bookable_unit_id, COUNT(*)::int AS qty
+       FROM bookings
+       WHERE held_for_event_id = $1 AND status = 'event_hold'
+       GROUP BY bookable_unit_id`,
+      [ev.id]
+    );
+    if (!holds.rows.length) {
+      return res.json({ success: true, event: ev, nights, rooms: [], sold_out: true });
+    }
+    const holdsMap = {};
+    holds.rows.forEach(h => { holdsMap[h.bookable_unit_id] = h.qty; });
+
+    // Pull the rooms with their pricing (use room_availability for rate only —
+    // we IGNORE is_available / is_blocked / min_stay for event flow).
+    const roomIds = Object.keys(holdsMap).map(Number);
+    const roomsRes = await pool.query(
+      `SELECT bu.id, bu.name, bu.display_name, bu.max_guests,
+              (SELECT image_url FROM room_images WHERE room_id = bu.id ORDER BY display_order LIMIT 1) AS image_url,
+              -- Avg rate for the event window — falls back to base_price when calendar empty.
+              COALESCE(
+                (SELECT SUM(COALESCE(direct_price, cm_price))::numeric / NULLIF(COUNT(*), 0)
+                 FROM room_availability WHERE room_id = bu.id AND date >= $2 AND date < $3 AND COALESCE(direct_price, cm_price) > 0),
+                bu.base_price
+              ) AS rate_per_night
+       FROM bookable_units bu
+       WHERE bu.id = ANY($1::int[])`,
+      [roomIds, checkin, checkout]
+    );
+
+    const lang = req.query.lang || 'en';
+    const pluck = (v) => {
+      if (!v) return '';
+      if (typeof v === 'string') return v;
+      if (typeof v === 'object') return v[lang] || v.en || v[Object.keys(v)[0]] || '';
+      return String(v);
+    };
+
+    const rooms = roomsRes.rows.map(r => {
+      const rate = parseFloat(r.rate_per_night) || 0;
+      return {
+        id: r.id,
+        name: pluck(r.display_name) || pluck(r.name) || ('Room ' + r.id),
+        image_url: r.image_url || null,
+        max_guests: r.max_guests || 2,
+        rate_per_night: Math.round(rate * 100) / 100,
+        total_rate: Math.round(rate * nights * 100) / 100,
+        currency: ev.currency || 'EUR',
+        available_qty: holdsMap[r.id] || 0
+      };
+    }).filter(r => r.available_qty > 0);
+
+    res.json({
+      success: true,
+      event: ev,
+      checkin, checkout, nights,
+      rooms,
+      sold_out: rooms.length === 0
+    });
+  } catch (err) {
+    console.error('[event-rooms] error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
