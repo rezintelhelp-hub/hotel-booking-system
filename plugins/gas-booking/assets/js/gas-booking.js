@@ -110,7 +110,8 @@ jQuery(document).ready(function($) {
                 banner += '<div style="flex:1;min-width:0"><p style="margin:0 0 4px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:' + accent + ';font-weight:600">You\'re booking</p>';
                 banner += '<h3 style="margin:0 0 6px;color:' + accent + ';font-size:18px">' + (ev.name || 'Event') + '</h3>';
                 banner += '<p style="margin:0;color:#475569;font-size:14px">' + priceLabel + ' event ticket' + (ruleLines.length ? ' · ' + ruleLines.join(' · ') : '') + '</p>';
-                banner += '<p style="margin:6px 0 0;color:#64748b;font-size:12px">Pick eligible dates and a room — event ticket will be added at checkout.</p>';
+                banner += '<p class="gas-event-stay-default" style="margin:6px 0 0;color:#64748b;font-size:12px">Pick eligible dates and a room — event ticket will be added at checkout.</p>';
+                banner += '<p class="gas-event-stay-warning" style="display:none;margin:6px 0 0;color:#b91c1c;font-size:13px;font-weight:600;"></p>';
                 banner += '</div></div>';
                 var $target = $('.gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget').first();
                 if ($target.length) $target.before(banner);
@@ -119,26 +120,62 @@ jQuery(document).ready(function($) {
         });
     })();
 
-    // Disable callback shared by all flatpickr instances. Reads the live rules
-    // each call so newly-initialised pickers honour rules even if the fetch
-    // resolved after them. The day-of-week check looks forward minNights nights
-    // so a check-in that *leads to* an event-attending stay stays selectable
-    // even when the check-in day itself isn't an event day.
+    // Disable callback for flatpickr instances. We DON'T filter by day-of-week
+    // on the picker itself — the event runs on certain nights but the
+    // accommodation min stay is a separate property-level setting we can't
+    // know in advance. Instead the picker enforces the valid window + min
+    // notice, and gasValidateEventStay() runs after both dates are picked to
+    // catch stays that don't overlap any event day.
     window._gasEventDateDisable = function(date) {
         var r = window._gasEventDateRules;
         if (!r) return false;
         if (r.validFrom && date < r.validFrom) return true;
         if (r.validUntil && date > r.validUntil) return true;
-        if (r.allowedDays && r.allowedDays.length) {
-            var span = r.minNights || 1;
-            var anyMatch = false;
-            for (var i = 0; i < span; i++) {
-                var probe = new Date(date.getFullYear(), date.getMonth(), date.getDate() + i);
-                if (r.allowedDays.indexOf(probe.getDay()) !== -1) { anyMatch = true; break; }
-            }
-            if (!anyMatch) return true;
-        }
         return false;
+    };
+
+    // After both dates are picked, check that at least one night of the stay
+    // falls on an event day. Returns null if no event in URL or no allowedDays
+    // restriction; otherwise { ok, message }. Caller decides what to do (toast,
+    // inline error, block search).
+    window.gasValidateEventStay = function(checkinStr, checkoutStr) {
+        var r = window._gasEventDateRules;
+        if (!r || !r.allowedDays || !r.allowedDays.length) return null;
+        if (!checkinStr || !checkoutStr) return null;
+        var p1 = checkinStr.split('-'), p2 = checkoutStr.split('-');
+        var ci = new Date(parseInt(p1[0]), parseInt(p1[1])-1, parseInt(p1[2]));
+        var co = new Date(parseInt(p2[0]), parseInt(p2[1])-1, parseInt(p2[2]));
+        for (var d = new Date(ci); d < co; d.setDate(d.getDate()+1)) {
+            if (r.allowedDays.indexOf(d.getDay()) !== -1) return { ok: true };
+        }
+        var dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        var allowed = r.allowedDays.map(function(d){ return dayNames[d]; }).join(', ');
+        return { ok: false, message: 'Your stay must include at least one ' + allowed + ' night to attend ' + (r.name || 'this event') + '.' };
+    };
+
+    // Reads currently-selected check-in/check-out from any of the visible
+    // pickers and updates the banner's warning line. Called from each picker's
+    // onChange so the warning toggles as the user adjusts dates.
+    window.gasUpdateEventStayWarning = function() {
+        var $banner = $('.gas-event-banner');
+        if (!$banner.length) return;
+        var $warn = $banner.find('.gas-event-stay-warning');
+        var $defaultLine = $banner.find('.gas-event-stay-default');
+        if (!$warn.length) return;
+        // Pull whichever date inputs are populated. Room widget + search widget
+        // + filter all share the same Y-m-d format internally.
+        var pickEl = function(sel) { var el = document.querySelector(sel); return el && el._flatpickr && el._flatpickr.input.value ? el._flatpickr.input.value : null; };
+        var ci = pickEl('.gas-checkin') || pickEl('.gas-checkin-date') || pickEl('.gas-filter-checkin');
+        var co = pickEl('.gas-checkout') || pickEl('.gas-checkout-date') || pickEl('.gas-filter-checkout');
+        if (!ci || !co) { $warn.hide(); $defaultLine.show(); return; }
+        var result = window.gasValidateEventStay(ci, co);
+        if (result && !result.ok) {
+            $warn.text('⚠ ' + result.message).show();
+            $defaultLine.hide();
+        } else {
+            $warn.hide();
+            $defaultLine.show();
+        }
     };
 
     // Pushes the rules onto every already-active flatpickr instance — sets
@@ -656,10 +693,11 @@ jQuery(document).ready(function($) {
                         var availTab = document.querySelector('.gas-tab-btn[data-tab="availability"]');
                         if (availTab) availTab.click();
                     }
+                    if (typeof window.gasUpdateEventStayWarning === 'function') window.gasUpdateEventStayWarning();
                 }
             });
         }
-        
+
         // Pre-fill dates and property from URL params (e.g. from offers page links)
         setTimeout(function() {
             var pageUrlParams = new URLSearchParams(window.location.search);
@@ -781,7 +819,8 @@ jQuery(document).ready(function($) {
                     altInput: true,
                     altFormat: 'd M Y',
                     disableMobile: true,
-                    disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }]
+                    disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
+                    onChange: function() { if (typeof window.gasUpdateEventStayWarning === 'function') window.gasUpdateEventStayWarning(); }
                 });
             }
         });
