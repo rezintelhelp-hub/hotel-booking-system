@@ -19435,7 +19435,15 @@ app.get('/api/invoices/:invoiceId', async (req, res) => {
       SELECT i.*, a.name as account_name, a.email as account_email, a.phone as account_phone,
              a.contact_name, a.address_line1, a.address_line2, a.city, a.region, a.postcode, a.country,
              a.vat_number, a.company_reg,
-             a.total_tax_label, a.total_tax_reference
+             a.total_tax_label, a.total_tax_reference,
+             -- Per-property Total Tax row (if owner has set one) — overrides the
+             -- legacy account-level vat_number on the printed invoice.
+             (SELECT json_build_object('label', t.name, 'reference', t.tax_reference)
+              FROM taxes t
+              WHERE t.is_total_tax = true AND t.active = true
+                AND t.user_id = i.account_id
+                AND (t.property_id IS NULL AND t.property_ids IS NULL)
+              ORDER BY t.id LIMIT 1) AS total_tax_row
       FROM invoices i
       JOIN accounts a ON i.account_id = a.id
       WHERE i.id = $1
@@ -19457,7 +19465,15 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
       SELECT i.*, a.name as account_name, a.email as account_email, a.phone as account_phone,
              a.contact_name, a.address_line1, a.address_line2, a.city, a.region, a.postcode, a.country,
              a.vat_number, a.company_reg,
-             a.total_tax_label, a.total_tax_reference
+             a.total_tax_label, a.total_tax_reference,
+             -- Per-property Total Tax row (if owner has set one) — overrides the
+             -- legacy account-level vat_number on the printed invoice.
+             (SELECT json_build_object('label', t.name, 'reference', t.tax_reference)
+              FROM taxes t
+              WHERE t.is_total_tax = true AND t.active = true
+                AND t.user_id = i.account_id
+                AND (t.property_id IS NULL AND t.property_ids IS NULL)
+              ORDER BY t.id LIMIT 1) AS total_tax_row
       FROM invoices i
       JOIN accounts a ON i.account_id = a.id
       WHERE i.id = $1
@@ -19612,7 +19628,7 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
     <p>${[inv.city, inv.region, inv.postcode].filter(Boolean).join(', ')}</p>
     ${inv.country ? `<p>${inv.country}</p>` : ''}
     ${inv.account_email ? `<p>${inv.account_email}</p>` : ''}
-    ${(inv.total_tax_reference || inv.vat_number) ? `<p>${inv.total_tax_label || 'VAT'}: ${inv.total_tax_reference || inv.vat_number}</p>` : ''}
+    ${(inv.total_tax_row?.reference || inv.total_tax_reference || inv.vat_number) ? `<p>${inv.total_tax_row?.label || inv.total_tax_label || 'VAT'}: ${inv.total_tax_row?.reference || inv.total_tax_reference || inv.vat_number}</p>` : ''}
     ${inv.company_reg ? `<p>Reg: ${inv.company_reg}</p>` : ''}
   </div>
   <div class="addr-block" style="text-align:right;">
@@ -46069,7 +46085,7 @@ app.post('/api/admin/taxes', async (req, res) => {
     await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS room_ids INTEGER[]').catch(() => {});
     await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS property_ids INTEGER[]').catch(() => {});
-    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, property_ids, room_ids, active, account_id, total_tax_exempt } = req.body;
+    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, property_ids, room_ids, active, account_id, total_tax_exempt, is_total_tax, tax_reference, tax_inclusive } = req.body;
     // Support legacy room_id or new room_ids array
     const roomId = req.body.room_id || (room_ids && room_ids.length === 1 ? room_ids[0] : null);
     const roomIdsArr = room_ids && room_ids.length > 0 ? room_ids : null;
@@ -46080,11 +46096,15 @@ app.post('/api/admin/taxes', async (req, res) => {
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (rawName ? { en: rawName } : null);
     const nameJson = nameObj ? JSON.stringify(nameObj) : null;
 
+    // is_total_tax and total_tax_exempt are mutually exclusive — when this row IS
+    // the Total Tax it can't also be exempt from itself.
+    const isTotalTax = !!is_total_tax;
+    const exempt = isTotalTax ? false : (total_tax_exempt !== false);
     const result = await pool.query(`
-      INSERT INTO taxes (name, name_ml, country, amount_type, currency, amount, charge_per, max_nights, max_amount, min_age, star_tier, season_start, season_end, property_id, property_ids, room_id, room_ids, active, user_id, total_tax_exempt)
-      VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      INSERT INTO taxes (name, name_ml, country, amount_type, currency, amount, charge_per, max_nights, max_amount, min_age, star_tier, season_start, season_end, property_id, property_ids, room_id, room_ids, active, user_id, total_tax_exempt, is_total_tax, tax_reference, tax_inclusive)
+      VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       RETURNING *
-    `, [name, nameJson, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, legacyPropertyId, propertyIdsArr, roomId, roomIdsArr, active !== false, account_id, total_tax_exempt !== false]);
+    `, [name, nameJson, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, legacyPropertyId, propertyIdsArr, roomId, roomIdsArr, active !== false, account_id, exempt, isTotalTax, tax_reference || null, !!tax_inclusive]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -46097,7 +46117,7 @@ app.put('/api/admin/taxes/:id', async (req, res) => {
     await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS room_ids INTEGER[]').catch(() => {});
     await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS property_ids INTEGER[]').catch(() => {});
-    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, property_ids, room_ids, active, total_tax_exempt } = req.body;
+    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, property_ids, room_ids, active, total_tax_exempt, is_total_tax, tax_reference, tax_inclusive } = req.body;
     // Support legacy room_id or new room_ids array
     const roomId = req.body.room_id || (room_ids && room_ids.length === 1 ? room_ids[0] : null);
     const roomIdsArr = room_ids && room_ids.length > 0 ? room_ids : null;
@@ -46108,6 +46128,9 @@ app.put('/api/admin/taxes/:id', async (req, res) => {
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (rawName ? { en: rawName } : null);
     const nameJson = nameObj ? JSON.stringify(nameObj) : null;
 
+    // Mutually-exclusive: setting is_total_tax = true forces total_tax_exempt = false.
+    const isTotalTaxUpd = (is_total_tax === true || is_total_tax === false) ? !!is_total_tax : null;
+    const exemptUpd = isTotalTaxUpd === true ? false : total_tax_exempt;
     const result = await pool.query(`
       UPDATE taxes SET
         name = COALESCE($1, name),
@@ -46129,10 +46152,13 @@ app.put('/api/admin/taxes/:id', async (req, res) => {
         room_ids = $17,
         active = COALESCE($18, active),
         total_tax_exempt = COALESCE($20, total_tax_exempt),
+        is_total_tax = COALESCE($21, is_total_tax),
+        tax_reference = $22,
+        tax_inclusive = COALESCE($23, tax_inclusive),
         updated_at = NOW()
       WHERE id = $19
       RETURNING *
-    `, [name, nameJson, country, amount_type, currency, amount, charge_per, max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, legacyPropertyId, propertyIdsArr, roomId, roomIdsArr, active, req.params.id, total_tax_exempt]);
+    `, [name, nameJson, country, amount_type, currency, amount, charge_per, max_nights, req.body.max_amount || null, min_age, star_tier, season_start, season_end, legacyPropertyId, propertyIdsArr, roomId, roomIdsArr, active, req.params.id, exemptUpd, isTotalTaxUpd, tax_reference !== undefined ? (tax_reference || null) : null, (tax_inclusive === true || tax_inclusive === false) ? !!tax_inclusive : null]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -66878,8 +66904,14 @@ app.post('/api/public/calculate-price', async (req, res) => {
 
     const subtotalAfterDiscounts = accommodationTotal - discount - voucherDiscount + upsellsTotal - bundleDeduction;
 
+    // Total Tax row (VAT/HST/GST) — owner flags one tax row as is_total_tax=true
+    // for the relevant property scope. We compute it AFTER the regular tax loop
+    // so we know the non-exempt base. Pull it out of the regular pass here.
+    const totalTaxRow = taxes.rows.find(t => t.is_total_tax === true);
+    const regularTaxes = taxes.rows.filter(t => !t.is_total_tax);
+
     let otherTaxesNonExempt = 0;  // taxes that DO compound into the Total Tax base (rare — e.g. Barcelona)
-    taxes.rows.forEach(tax => {
+    regularTaxes.forEach(tax => {
       let taxAmount = 0;
       // Support both old (tax_type/rate) and new (amount_type/amount) column names
       const taxType = tax.tax_type || tax.amount_type || tax.charge_per || 'fixed';
@@ -66970,50 +67002,47 @@ app.post('/api/public/calculate-price', async (req, res) => {
       console.log('Tourist tax columns not available:', touristTaxError.message);
     }
 
-    // === Total Tax (account-level VAT/HST/GST etc.) ===
-    // Applies on the non-exempt portion of the booking. Accommodation always counts;
-    // upsells flagged total_tax_exempt skip; tourist taxes are exempt by default
-    // (untick the per-tax flag if local rules compound them — e.g. Barcelona).
+    // === Total Tax (per-property VAT/HST/GST etc.) ===
+    // Applied as the tax row flagged is_total_tax=true scoped to this property.
+    // Different properties on the same account can have different VAT rates by
+    // creating separate is_total_tax rows scoped to different property_ids.
     let totalTaxAmount = 0;
     let totalTaxLabel = null;
     let totalTaxRate = 0;
     let totalTaxInclusive = false;
     let totalTaxReference = null;
-    try {
-      const acctRes = await pool.query(
-        `SELECT total_tax_enabled, total_tax_label, total_tax_rate, total_tax_inclusive, total_tax_reference
-         FROM accounts WHERE id = $1`,
-        [roomData.account_id]
-      );
-      const acct = acctRes.rows[0];
-      if (acct && acct.total_tax_enabled && acct.total_tax_rate > 0) {
-        totalTaxLabel = acct.total_tax_label || 'VAT';
-        totalTaxRate = parseFloat(acct.total_tax_rate);
-        totalTaxInclusive = !!acct.total_tax_inclusive;
-        totalTaxReference = acct.total_tax_reference || null;
+    if (totalTaxRow) {
+      const lang = req.body.lang || 'en';
+      totalTaxLabel = (totalTaxRow.name_ml && (totalTaxRow.name_ml[lang] || totalTaxRow.name_ml.en)) || totalTaxRow.name || 'VAT';
+      totalTaxRate = parseFloat(totalTaxRow.amount) || 0;
+      totalTaxInclusive = !!totalTaxRow.tax_inclusive;
+      totalTaxReference = totalTaxRow.tax_reference || null;
+      const ttType = totalTaxRow.amount_type || 'percentage';
 
-        const accommodationNet = accommodationTotal - discount - voucherDiscount - bundleDeduction;
-        const totalTaxBase = Math.max(0, accommodationNet + upsellsTotalNonExempt + otherTaxesNonExempt);
+      const accommodationNet = accommodationTotal - discount - voucherDiscount - bundleDeduction;
+      const totalTaxBase = Math.max(0, accommodationNet + upsellsTotalNonExempt + otherTaxesNonExempt);
+
+      if (ttType === 'percentage' && totalTaxRate > 0) {
         if (totalTaxInclusive) {
-          // Prices already include the tax — extract it from the base
           totalTaxAmount = totalTaxBase - (totalTaxBase / (1 + totalTaxRate / 100));
         } else {
           totalTaxAmount = totalTaxBase * (totalTaxRate / 100);
         }
-        totalTaxAmount = Math.round(totalTaxAmount * 100) / 100;
-        // Push to breakdown so the booking widget shows it as its own line
-        taxBreakdown.push({
-          name: totalTaxLabel,
-          amount: totalTaxAmount,
-          type: 'total_tax',
-          rate: totalTaxRate,
-          inclusive: totalTaxInclusive,
-          reference: totalTaxReference
-        });
-        if (!totalTaxInclusive) taxTotal += totalTaxAmount;  // when inclusive, it's already in subtotal
+      } else if (ttType === 'fixed') {
+        // Flat fee Total Tax — unusual but legal (some jurisdictions)
+        totalTaxAmount = totalTaxRate;
       }
-    } catch (e) {
-      console.warn('Total Tax calc skipped:', e.message);
+      totalTaxAmount = Math.round(totalTaxAmount * 100) / 100;
+
+      taxBreakdown.push({
+        name: totalTaxLabel,
+        amount: totalTaxAmount,
+        type: 'total_tax',
+        rate: totalTaxRate,
+        inclusive: totalTaxInclusive,
+        reference: totalTaxReference
+      });
+      if (!totalTaxInclusive) taxTotal += totalTaxAmount;
     }
 
     const grandTotal = subtotalAfterDiscounts + taxTotal;
@@ -93844,16 +93873,22 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
 
     // Tax and delivery calculation — per-item aware.
     //   tax_exempt items contribute 0 to the tax base.
-    //   Account-level Total Tax (VAT/HST/GST) wins when total_tax_enabled is on;
-    //     otherwise fall back to the legacy shop_tax_* fields.
-    //   delivery: if ANY item has a per-product override, we use the sum of those
-    //     overrides and skip the shop-wide flat fee (cleanest mental model — owner
-    //     opted into per-item delivery). Otherwise the flat fee applies once.
-    //   gift-cert-only orders (allItemsTaxExempt): no tax line at all.
-    const useTotalTax = acc.total_tax_enabled && parseFloat(acc.total_tax_rate) > 0;
-    const shopRate = useTotalTax ? parseFloat(acc.total_tax_rate) : (parseFloat(acc.shop_tax_rate) || 0);
-    const taxInclusive = useTotalTax ? !!acc.total_tax_inclusive : !!acc.shop_tax_inclusive;
-    const taxLabel = useTotalTax ? (acc.total_tax_label || 'VAT') : (acc.shop_tax_label || 'VAT');
+    //   Total Tax: look up the most permissive is_total_tax tax row (no property
+    //     scope, since shop is account-wide). Falls back to legacy shop_tax_*
+    //     fields if no Total Tax row exists.
+    const totalTaxRow = await client.query(
+      `SELECT name, amount, tax_inclusive, tax_reference, amount_type
+       FROM taxes
+       WHERE user_id = $1 AND active = true AND is_total_tax = true
+         AND (property_id IS NULL AND property_ids IS NULL)
+       ORDER BY id LIMIT 1`,
+      [client_id]
+    );
+    const ttRow = totalTaxRow.rows[0];
+    const useTotalTax = ttRow && parseFloat(ttRow.amount) > 0 && (ttRow.amount_type || 'percentage') === 'percentage';
+    const shopRate = useTotalTax ? parseFloat(ttRow.amount) : (parseFloat(acc.shop_tax_rate) || 0);
+    const taxInclusive = useTotalTax ? !!ttRow.tax_inclusive : !!acc.shop_tax_inclusive;
+    const taxLabel = useTotalTax ? (ttRow.name || 'VAT') : (acc.shop_tax_label || 'VAT');
     const shopDeliveryFee = parseFloat(acc.shop_delivery_fee) || 0;
     const deliveryLabel = acc.shop_delivery_label || 'Delivery';
 
