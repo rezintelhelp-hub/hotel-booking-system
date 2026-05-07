@@ -5597,6 +5597,15 @@ jQuery(document).ready(function($) {
             } else {
                 $('.gas-mandatory-extras').empty().hide();
             }
+            // Event ticket — when this booking arrived via ?event=<slug>, the
+            // server returns event_ticket: {amount, name, currency} on the
+            // calc-price response. Render it as a sibling of Accommodation
+            // (it's already in subtotal/grand_total — this is the breakdown row).
+            var evt = checkoutData.pricing && checkoutData.pricing.event_ticket;
+            if (evt && parseFloat(evt.amount) > 0) {
+                var evtHtml = '<div class="gas-price-line"><span>🎟 ' + (evt.name || 'Event ticket') + '</span><span>' + formatPrice(parseFloat(evt.amount), currency) + '</span></div>';
+                $('.gas-mandatory-extras').append(evtHtml).show();
+            }
 
             // Optional: under "Your Extras" header. Tour upsells render with the
             // ticket count and the chosen date — "4 × Tour on Sat 9 May" — so the

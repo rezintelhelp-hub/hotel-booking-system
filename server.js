@@ -66956,7 +66956,26 @@ app.post('/api/public/calculate-price', async (req, res) => {
       console.log('Fee-tax query failed:', feeTaxError.message);
     }
 
-    const subtotalAfterDiscounts = accommodationTotal - discount - voucherDiscount + upsellsTotal - bundleDeduction;
+    // Event ticket — when calc-price is called with event_slug from the
+    // checkout (forwarded via the URL ?event= param), pull the event's ticket
+    // price from shop_products and add it as a line item. The room rate is
+    // already in accommodationTotal; the event ticket is on top.
+    let eventTicket = { amount: 0, name: null, currency: null };
+    if (req.body.event_slug || req.body.event) {
+      try {
+        const evSlug = String(req.body.event_slug || req.body.event).toLowerCase();
+        const evRow = await pool.query(
+          `SELECT name, price, currency FROM shop_products WHERE slug = $1 AND product_type = 'event' AND is_active = true LIMIT 1`,
+          [evSlug]
+        );
+        if (evRow.rows.length) {
+          const amt = parseFloat(evRow.rows[0].price) || 0;
+          if (amt > 0) eventTicket = { amount: amt, name: evRow.rows[0].name, currency: evRow.rows[0].currency };
+        }
+      } catch (e) { console.warn('[calc-price] event ticket lookup failed:', e.message); }
+    }
+
+    const subtotalAfterDiscounts = accommodationTotal - discount - voucherDiscount + upsellsTotal - bundleDeduction + eventTicket.amount;
 
     // Total Tax row (VAT/HST/GST) — owner flags one tax row as is_total_tax=true
     // for the relevant property scope. We compute it AFTER the regular tax loop
@@ -67141,6 +67160,10 @@ app.post('/api/public/calculate-price', async (req, res) => {
       bundle_deduction: bundleDeduction,
       bundle_applied_nights: bundleAppliedNights,
       bundle_parts: bundleParts,
+      // Event ticket fee (when ?event=<slug> is supplied) — already added
+      // into subtotalAfterDiscounts; surfaced here so the checkout breakdown
+      // can render it as its own line.
+      event_ticket: eventTicket,
       subtotal: subtotalAfterDiscounts,
       taxes: taxBreakdown,
       tax_total: taxTotal,
