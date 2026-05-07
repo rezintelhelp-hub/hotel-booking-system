@@ -117,13 +117,17 @@ jQuery(document).ready(function($) {
                 html += '</div>';
             }
 
-            // Inject after the banner (which has been added before $target)
-            // and hide the standard rooms grid contents.
+            // Inject AFTER the standard rooms-grid container and hide the
+            // original. Putting it inside the grid container caused the cards
+            // to stack vertically (parent has flex column / single-column
+            // layout from the theme). Sibling = full width every time.
+            $('.gas-event-rooms-wrap').remove();  // idempotent re-renders
+            var wrapHtml = '<div class="gas-event-rooms-wrap" style="max-width:1200px;width:100%;margin:24px auto;padding:0 16px;box-sizing:border-box;">' + html + '</div>';
             if ($target.length) {
-                $target.find(':not(.gas-event-banner):not(.gas-event-rooms-grid)').css('display','none');
-                $target.append('<div class="gas-event-rooms-wrap">' + html + '</div>');
+                $target.css('display','none');
+                $target.after(wrapHtml);
             } else {
-                $('body').append('<div class="gas-event-rooms-wrap" style="max-width:1200px;margin:24px auto;padding:0 16px;">' + html + '</div>');
+                $('body').append(wrapHtml);
             }
         }
 
@@ -190,19 +194,24 @@ jQuery(document).ready(function($) {
                     ruleLines.push('book at least ' + ev.min_notice_hours + 'h ahead');
                 }
 
-                var priceLabel = (ev.currency || '') + ' ' + parseFloat(ev.price).toFixed(2);
+                var ticketAmt = parseFloat(ev.price) || 0;
                 var img = ev.image_thumbnail_url || ev.image_url;
                 // Pull brand colours from the shop palette so the banner matches
                 // the property's accent rather than hardcoded blue.
-                var pal = (typeof gasBooking !== 'undefined' && gasBooking.shopPalette) ? gasBooking.shopPalette : {};
-                var accent = pal.accent || '#1d4ed8';
-                var cardBg = pal.card_bg || '#ffffff';
-                var radius = (pal.card_radius != null) ? parseInt(pal.card_radius) : 12;
-                var banner = '<div class="gas-event-banner" style="background:' + cardBg + ';border:1px solid ' + accent + ';border-radius:' + radius + 'px;padding:16px 20px;margin:16px auto;max-width:1200px;display:flex;gap:16px;align-items:center">';
-                if (img) banner += '<img src="' + img + '" style="width:80px;height:80px;object-fit:cover;border-radius:' + Math.min(radius, 8) + 'px;flex-shrink:0">';
-                banner += '<div style="flex:1;min-width:0"><p style="margin:0 0 4px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:' + accent + ';font-weight:600">You\'re booking</p>';
-                banner += '<h3 style="margin:0 0 6px;color:' + accent + ';font-size:18px">' + (ev.name || 'Event') + '</h3>';
-                banner += '<p style="margin:0;color:#475569;font-size:14px">' + priceLabel + ' event ticket' + (ruleLines.length ? ' · ' + ruleLines.join(' · ') : '') + '</p>';
+                var pal2 = (typeof gasBooking !== 'undefined' && gasBooking.shopPalette) ? gasBooking.shopPalette : {};
+                var accent2 = pal2.accent || '#1d4ed8';
+                var cardBg2 = pal2.card_bg || '#ffffff';
+                var radius2 = (pal2.card_radius != null) ? parseInt(pal2.card_radius) : 12;
+                var banner = '<div class="gas-event-banner" style="background:' + cardBg2 + ';border:1px solid ' + accent2 + ';border-radius:' + radius2 + 'px;padding:16px 20px;margin:16px auto;max-width:1200px;display:flex;gap:16px;align-items:center">';
+                if (img) banner += '<img src="' + img + '" style="width:80px;height:80px;object-fit:cover;border-radius:' + Math.min(radius2, 8) + 'px;flex-shrink:0">';
+                banner += '<div style="flex:1;min-width:0"><p style="margin:0 0 4px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:' + accent2 + ';font-weight:600">You\'re booking</p>';
+                banner += '<h3 style="margin:0 0 6px;color:' + accent2 + ';font-size:18px">' + (ev.name || 'Event') + '</h3>';
+                // Skip the "$0 event ticket" line entirely — when there's no
+                // extra event fee just show the date/rule constraints.
+                var infoBits = [];
+                if (ticketAmt > 0) infoBits.push((ev.currency || '') + ' ' + ticketAmt.toFixed(2) + ' event ticket');
+                if (ruleLines.length) infoBits = infoBits.concat(ruleLines);
+                if (infoBits.length) banner += '<p style="margin:0;color:#475569;font-size:14px">' + infoBits.join(' · ') + '</p>';
                 banner += '<p class="gas-event-stay-default" style="margin:6px 0 0;color:#64748b;font-size:12px">Pick eligible dates and a room — event ticket will be added at checkout.</p>';
                 banner += '<p class="gas-event-stay-warning" style="display:none;margin:6px 0 0;color:#b91c1c;font-size:13px;font-weight:600;"></p>';
                 banner += '</div></div>';
