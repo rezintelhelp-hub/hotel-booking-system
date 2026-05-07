@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.41
+ * Version: 3.7.42
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.41');
+define('GAS_BOOKING_VERSION', '3.7.42');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7011,12 +7011,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $currency = get_option('gas_currency_symbol', '');
         $button_color = $this->get_effective_button_color();
 
-        // Shop palette drives the booking summary card styling — one place
+        // Shop palette drives the booking widget styling — one place
         // (Shop → Settings → Display) styles both surfaces. Falls back to defaults
-        // when the shop isn't set up.
+        // when the shop isn't set up. card_radius shapes the summary + form
+        // sections; btn_radius shapes inputs + buttons + steps.
         $shop_palette = $this->get_shop_palette();
         $summary_bg = $shop_palette['card_bg'] ?? '#ffffff';
-        $summary_radius = intval($shop_palette['card_radius'] ?? 16);
+        $card_radius = intval($shop_palette['card_radius'] ?? 16);
+        $btn_radius = intval($shop_palette['btn_radius'] ?? 10);
         
         // Get translations for checkout
         $t = $this->get_translations();
@@ -7618,7 +7620,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         /* Left Column: Summary */
         .gas-checkout-summary-col { flex: 0 0 480px; position: sticky; top: 20px; height: fit-content; }
-        .gas-booking-summary { background: <?php echo esc_attr($summary_bg); ?>; border: 1px solid #e2e8f0; border-radius: <?php echo esc_attr($summary_radius); ?>px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+        .gas-booking-summary { background: <?php echo esc_attr($summary_bg); ?>; border: 1px solid #e2e8f0; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
         
         /* Right Column: Steps */
         .gas-checkout-steps-col { flex: 0 0 580px; }
@@ -7705,7 +7707,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         /* Right Column: Steps */
         .gas-checkout-steps-col { }
         .gas-checkout-steps { display: flex; gap: 12px; margin-bottom: 32px; }
-        .gas-step { display: flex; align-items: center; gap: 10px; padding: 14px 20px; background: #f1f5f9; border-radius: 10px; flex: 1; }
+        .gas-step { display: flex; align-items: center; gap: 10px; padding: 14px 20px; background: #f1f5f9; border-radius: <?php echo esc_attr($btn_radius); ?>px; flex: 1; }
         .gas-step.active { background: <?php echo esc_attr($button_color); ?>; color: white; }
         .gas-step.completed { background: #10b981; color: white; }
         .gas-step-number { width: 28px; height: 28px; border-radius: 50%; background: rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; }
@@ -7713,7 +7715,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-step-label { font-size: 14px; font-weight: 500; }
         
         /* Form styles */
-        .gas-checkout-section { background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: 28px; margin-bottom: 24px; }
+        .gas-checkout-section { background: <?php echo esc_attr($summary_bg); ?>; border: 1px solid #e2e8f0; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 28px; margin-bottom: 24px; }
         .gas-section-title { font-size: 20px; font-weight: 600; margin-bottom: 10px; color: #1e293b; }
         .gas-section-subtitle { color: #64748b; font-size: 15px; margin-bottom: 24px; }
         .gas-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
@@ -7722,7 +7724,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-form-field label { font-weight: 500; font-size: 15px; color: #374151; }
         .gas-form-field label .required { color: #ef4444; }
         .gas-form-field label .optional { color: #9ca3af; font-weight: 400; }
-        .gas-form-field input, .gas-form-field select, .gas-form-field textarea { padding: 14px 16px; border: 1px solid #d1d5db; border-radius: 10px; font-size: 16px; transition: border-color 0.2s, box-shadow 0.2s; }
+        .gas-form-field input, .gas-form-field select, .gas-form-field textarea { padding: 14px 16px; border: 1px solid #d1d5db; border-radius: <?php echo esc_attr($btn_radius); ?>px; font-size: 16px; transition: border-color 0.2s, box-shadow 0.2s; }
         .gas-form-field input:focus, .gas-form-field select:focus, .gas-form-field textarea:focus { outline: none; border-color: <?php echo esc_attr($button_color); ?>; box-shadow: 0 0 0 3px <?php echo esc_attr($button_color); ?>20; }
         .gas-field-hint { font-size: 13px; color: #9ca3af; margin-top: 4px; }
         .gas-email-match { color: #10b981; font-size: 13px; }
@@ -7734,7 +7736,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         /* Navigation */
         .gas-checkout-nav { display: flex; justify-content: space-between; gap: 20px; margin-top: 28px; }
-        .gas-btn-primary, .gas-btn-secondary, .gas-btn-confirm { padding: 16px 32px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
+        .gas-btn-primary, .gas-btn-secondary, .gas-btn-confirm { padding: 16px 32px; border-radius: <?php echo esc_attr($btn_radius); ?>px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
         .gas-btn-primary, .gas-btn-confirm { background: <?php echo esc_attr($button_color); ?>; color: white; }
         .gas-btn-primary:hover, .gas-btn-confirm:hover { filter: brightness(0.9); }
         .gas-btn-secondary { background: white; border: 1px solid #d1d5db; color: #374151; }
@@ -7745,7 +7747,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-payment-options { display: flex; flex-direction: column; gap: 12px; }
         .gas-payment-option { display: block; cursor: pointer; }
         .gas-payment-option input { display: none; }
-        .gas-payment-option-content { display: flex; align-items: center; gap: 16px; padding: 16px; border: 2px solid #e2e8f0; border-radius: 10px; transition: all 0.2s; }
+        .gas-payment-option-content { display: flex; align-items: center; gap: 16px; padding: 16px; border: 2px solid #e2e8f0; border-radius: <?php echo esc_attr($btn_radius); ?>px; transition: all 0.2s; }
         .gas-payment-option.selected .gas-payment-option-content { border-color: <?php echo esc_attr($button_color); ?>; background: <?php echo esc_attr($button_color); ?>08; }
         .gas-payment-option.disabled { opacity: 0.5; cursor: not-allowed; }
         .gas-payment-option.stripe-enabled { opacity: 1; cursor: pointer; }
