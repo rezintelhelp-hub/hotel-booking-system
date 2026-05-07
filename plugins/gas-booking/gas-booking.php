@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.40
+ * Version: 3.7.41
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.40');
+define('GAS_BOOKING_VERSION', '3.7.41');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4031,7 +4031,36 @@ class GAS_Booking {
         $this->effective_button_color = $button_color;
         return $button_color;
     }
-    
+
+    /**
+     * Pull the shop's display-settings palette so the booking widget can match
+     * the same brand styling as the shop. One source of truth: when the owner
+     * tweaks card_bg/card_radius/accent in Shop → Settings → Display, the
+     * booking summary card and other surfaces follow. 5-minute transient cache.
+     */
+    public function get_shop_palette() {
+        $cached = get_transient('gas_booking_shop_palette');
+        if ($cached !== false) return $cached;
+
+        $defaults = array('accent'=>'#10b981','bg'=>'#ffffff','card_bg'=>'#ffffff','text'=>'#1a1a1a','text_secondary'=>'#666666','card_radius'=>'16','btn_radius'=>'10');
+        $client_id = get_option('gas_client_id', '');
+        if (!$client_id) { set_transient('gas_booking_shop_palette', $defaults, 5 * MINUTE_IN_SECONDS); return $defaults; }
+
+        $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
+        $url = rtrim($api_url, '/') . '/api/public/client/' . $client_id . '/app-settings/shop';
+        $response = wp_remote_get($url, array('timeout' => 10));
+        if (!is_wp_error($response)) {
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+            if ($body && !empty($body['success']) && !empty($body['colors'])) {
+                $palette = wp_parse_args($body['colors'], $defaults);
+                set_transient('gas_booking_shop_palette', $palette, 5 * MINUTE_IN_SECONDS);
+                return $palette;
+            }
+        }
+        set_transient('gas_booking_shop_palette', $defaults, 5 * MINUTE_IN_SECONDS);
+        return $defaults;
+    }
+
     /**
      * Inject SEO Meta Tags, Schema, and Analytics
      * This runs early in wp_head to ensure meta tags are near the top
@@ -6976,11 +7005,18 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
      */
     public function checkout_shortcode($atts) {
         $atts = shortcode_atts(array(), $atts);
-        
+
         $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
         $client_id = get_option('gas_client_id', '');
         $currency = get_option('gas_currency_symbol', '');
         $button_color = $this->get_effective_button_color();
+
+        // Shop palette drives the booking summary card styling — one place
+        // (Shop → Settings → Display) styles both surfaces. Falls back to defaults
+        // when the shop isn't set up.
+        $shop_palette = $this->get_shop_palette();
+        $summary_bg = $shop_palette['card_bg'] ?? '#ffffff';
+        $summary_radius = intval($shop_palette['card_radius'] ?? 16);
         
         // Get translations for checkout
         $t = $this->get_translations();
@@ -7582,7 +7618,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         /* Left Column: Summary */
         .gas-checkout-summary-col { flex: 0 0 480px; position: sticky; top: 20px; height: fit-content; }
-        .gas-booking-summary { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+        .gas-booking-summary { background: <?php echo esc_attr($summary_bg); ?>; border: 1px solid #e2e8f0; border-radius: <?php echo esc_attr($summary_radius); ?>px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
         
         /* Right Column: Steps */
         .gas-checkout-steps-col { flex: 0 0 580px; }
