@@ -46182,14 +46182,19 @@ app.delete('/api/admin/taxes/:id', async (req, res) => {
 app.get('/api/admin/bookings', async (req, res) => {
   try {
     const { account_id, property_id, room_id, status } = req.query;
+    // Hide event_hold rows by default — they're operational placeholders, not
+    // real reservations. Owner can opt into seeing them via ?include_holds=1
+    // (e.g. a future "manage event holds" admin panel).
+    const includeHolds = req.query.include_holds === '1' || status === 'event_hold';
     let query = `
-      SELECT b.*, 
+      SELECT b.*,
              bu.name as unit_name,
              p.name as property_name
       FROM bookings b
       LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
       LEFT JOIN properties p ON b.property_id = p.id
       WHERE 1=1
+        ${includeHolds ? '' : "AND b.status != 'event_hold'"}
     `;
     const params = [];
     let paramIndex = 1;
@@ -46251,7 +46256,8 @@ app.get('/api/admin/bookings', async (req, res) => {
 app.get('/api/admin/payment-stats', async (req, res) => {
   try {
     const { account_id, property_id, from_date } = req.query;
-    let where = '1=1';
+    // Event holds are placeholders, not revenue — exclude from stats.
+    let where = "1=1 AND b.status != 'event_hold'";
     const params = [];
     let paramIndex = 1;
 
@@ -66260,13 +66266,42 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
   try {
     const { unitId } = req.params;
     const { from, to } = req.query;
-    
+
     // Default to next 90 days if not specified
     const startDate = from || new Date().toISOString().split('T')[0];
     const endDate = to || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    
+
+    // When the guest enters via the event flow (?event=<slug>), nights blocked
+    // by that event's holds need to be UNblocked for them. Look up the held
+    // (room × date) tuples for this event and skip them when computing the
+    // dayAvailable flag below.
+    let eventUnlockSet = null;  // set of "YYYY-MM-DD" strings
+    if (req.query.event) {
+      try {
+        const evRes = await pool.query(
+          `SELECT id, event_start_date, event_end_date, event_held_room_ids, property_id
+           FROM shop_products WHERE slug = $1 AND product_type = 'event' AND event_block_rooms = true LIMIT 1`,
+          [String(req.query.event).toLowerCase()]
+        );
+        const ev = evRes.rows[0];
+        if (ev) {
+          const heldRooms = Array.isArray(ev.event_held_room_ids) && ev.event_held_room_ids.length
+            ? ev.event_held_room_ids
+            : (await pool.query('SELECT id FROM bookable_units WHERE property_id = $1', [ev.property_id])).rows.map(r => r.id);
+          if (heldRooms.includes(parseInt(unitId))) {
+            eventUnlockSet = new Set();
+            const ci = new Date(String(ev.event_start_date).split('T')[0] + 'T00:00:00');
+            const co = new Date(String(ev.event_end_date).split('T')[0] + 'T00:00:00');
+            for (let d = new Date(ci); d < co; d.setDate(d.getDate() + 1)) {
+              eventUnlockSet.add(d.toISOString().split('T')[0]);
+            }
+          }
+        }
+      } catch (e) { console.warn('[event-unlock] lookup failed:', e.message); }
+    }
+
     const availability = await pool.query(`
-      SELECT 
+      SELECT
         date,
         COALESCE(direct_price, cm_price) as price,
         is_available,
@@ -66307,8 +66342,13 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       const dayData = availMap[dateStr];
 
       const dayPrice = dayData?.price ? parseFloat(dayData.price) : null;
-      // Day is unavailable if: no calendar data, explicitly unavailable, blocked, OR no price
-      const dayAvailable = dayData ? (dayData.is_available && !dayData.is_blocked && dayPrice > 0) : false;
+      // Day is unavailable if: no calendar data, explicitly unavailable, blocked, OR no price.
+      // Event-flow override: nights held by THIS event for THIS room are unlocked
+      // so the guest who arrived via ?event=<slug> can buy them.
+      let dayAvailable = dayData ? (dayData.is_available && !dayData.is_blocked && dayPrice > 0) : false;
+      if (!dayAvailable && eventUnlockSet && eventUnlockSet.has(dateStr) && dayPrice > 0) {
+        dayAvailable = true;
+      }
 
       calendar.push({
         date: dateStr,
@@ -67340,9 +67380,36 @@ app.post('/api/public/book', async (req, res) => {
     const arrivalDate = new Date(check_in);
     const balanceDueDate = new Date(arrivalDate);
     balanceDueDate.setDate(balanceDueDate.getDate() - 14);
-    
-    // Create booking
-    const booking = await pool.query(`
+
+    // Event-flow conversion: if guest entered via ?event=<slug> AND there's a
+    // matching event_hold for this room + dates, upgrade the hold in place
+    // (Beds24 booking_id preserved, status flipped to confirmed, guest fields
+    // populated). Saves us creating a fresh booking + cancelling the hold,
+    // and Beds24's automation pipeline takes over cleanly.
+    const eventSlug = req.body.event_slug || req.body.event || null;
+    let booking = null;
+    if (eventSlug) {
+      try {
+        const holdRes = await pool.query(`
+          SELECT b.id FROM bookings b
+          JOIN shop_products sp ON sp.id = b.held_for_event_id
+          WHERE b.bookable_unit_id = $1 AND b.status = 'event_hold'
+            AND b.arrival_date::text = $2 AND b.departure_date::text = $3
+            AND sp.slug = $4 LIMIT 1
+        `, [unit_id, check_in, check_out, String(eventSlug).toLowerCase()]);
+        if (holdRes.rows.length) {
+          const conv = await convertHoldToBooking(holdRes.rows[0].id, {
+            guest_first_name, guest_last_name, guest_email, guest_phone,
+            num_adults: guests || 1, num_children: 0,
+            total_price: total_price || 0
+          });
+          if (conv.ok) booking = { rows: [conv.booking] };
+        }
+      } catch (e) { console.warn('[event-holds] conversion in /book failed, falling back to INSERT:', e.message); }
+    }
+
+    // Create booking (skipped when an event hold was already upgraded above)
+    if (!booking) booking = await pool.query(`
       INSERT INTO bookings (
         property_id, property_owner_id, bookable_unit_id,
         arrival_date, departure_date,
@@ -92812,6 +92879,238 @@ function verifyGiftCertToken(token, certId, buyerEmail) {
 
 // Generate a unique gift certificate code. Format: GIFT-XXXXXXXX (no ambiguous chars).
 // Retries on collision against the vouchers.code unique index.
+// =====================================================
+// SEMINAR / FIXED-DATE EVENT HOLDS
+// =====================================================
+// Owner creates a fixed-date event with rooms to hold; we push one
+// status='request' booking to Beds24 per (room × event night). Beds24 closes
+// out external channels for those nights → no double-bookings. We mirror
+// each Beds24 hold as a row in our `bookings` table with booking_status =
+// 'event_hold' and held_for_event_id = <shop_product.id>. When a real
+// guest buys via the event flow, the matching hold row is upgraded in
+// place (booking_status -> 'confirmed', guest fields filled, payment
+// recorded) and Beds24 PATCHed to 'confirmed' — Beds24's automation
+// pipeline (guest emails, key codes, cleaner schedule) takes over from
+// there.
+async function createEventHolds(productRow) {
+  if (!productRow || productRow.product_type !== 'event') return { ok: false, error: 'Not an event' };
+  if (productRow.event_recurring) return { ok: false, error: 'Recurring events do not block rooms' };
+  if (!productRow.event_block_rooms) return { ok: false, error: 'event_block_rooms is off' };
+  if (!productRow.event_start_date || !productRow.event_end_date) return { ok: false, error: 'Missing event dates' };
+  if (!productRow.property_id) return { ok: false, error: 'No property linked' };
+
+  const accountId = productRow.account_id;
+  const productId = productRow.id;
+  const eventName = productRow.name || 'Event';
+
+  // Default to all rooms on the property when held_room_ids is empty.
+  let roomIds = Array.isArray(productRow.event_held_room_ids) ? productRow.event_held_room_ids : [];
+  if (!roomIds.length) {
+    const r = await pool.query('SELECT id FROM bookable_units WHERE property_id = $1 AND status = $2', [productRow.property_id, 'active']);
+    roomIds = r.rows.map(x => x.id);
+  }
+  if (!roomIds.length) return { ok: false, error: 'No rooms to hold' };
+
+  await pool.query(`UPDATE shop_products SET event_holds_status = 'pending' WHERE id = $1`, [productId]);
+
+  // Strip ISO time from the date columns (pg returns YYYY-MM-DD as a string
+  // because of our DATE type-parser override at line 1015).
+  const checkin = String(productRow.event_start_date).split('T')[0];
+  const checkout = String(productRow.event_end_date).split('T')[0];
+
+  let pushedOk = 0;
+  let pushedFail = 0;
+
+  for (const roomId of roomIds) {
+    try {
+      // Skip rooms that already have a hold row for this event (idempotent).
+      const existing = await pool.query(
+        `SELECT id FROM bookings WHERE held_for_event_id = $1 AND bookable_unit_id = $2 AND status = 'event_hold' LIMIT 1`,
+        [productId, roomId]
+      );
+      if (existing.rows.length) { pushedOk++; continue; }
+
+      // Look up the room → property → beds24 mapping
+      const roomRow = await pool.query(
+        `SELECT bu.id, bu.beds24_room_id, p.id AS property_id, p.account_id
+         FROM bookable_units bu JOIN properties p ON p.id = bu.property_id
+         WHERE bu.id = $1`,
+        [roomId]
+      );
+      const room = roomRow.rows[0];
+      if (!room) { pushedFail++; continue; }
+
+      let beds24Id = null;
+      if (room.beds24_room_id) {
+        try {
+          const accessToken = await getBeds24AccessTokenForProperty(pool, room.property_id, room.id);
+          if (accessToken) {
+            const payload = [{
+              roomId: room.beds24_room_id,
+              status: 'request',
+              arrival: checkin,
+              departure: checkout,
+              numAdult: 1,
+              numChild: 0,
+              firstName: 'Event Hold',
+              lastName: '— ' + eventName,
+              email: '',
+              referer: `GAS Event Hold - ${productId}`,
+              refererEditable: `GAS Event Hold - ${productId}`,
+              reference: `GAS-EVT-${productId}-R${roomId}`,
+              notes: `Held for event: ${eventName} (GAS shop_product ${productId}). Will convert to confirmed when sold via event flow.`,
+              allowWebhooks: false  // suppress operator webhooks for placeholder bookings
+            }];
+            const resp = await axios.post('https://beds24.com/api/v2/bookings', payload, {
+              headers: getBeds24BookingHeaders(null, accessToken)
+            });
+            if (resp.data && resp.data[0] && resp.data[0].success) {
+              beds24Id = resp.data[0]?.new?.id || null;
+            } else {
+              console.warn('[event-holds] Beds24 push rejected for room', roomId, JSON.stringify(resp.data));
+            }
+          }
+        } catch (b24err) {
+          console.warn('[event-holds] Beds24 error for room', roomId, b24err.response?.data || b24err.message);
+        }
+      }
+
+      // Mirror locally regardless — even if CM push failed, we want our DB to
+      // know about the hold so the admin can see + retry. CM-pushed=false is
+      // the partial-state signal.
+      await pool.query(
+        `INSERT INTO bookings (
+            property_id, property_owner_id, bookable_unit_id,
+            arrival_date, departure_date, num_adults, num_children,
+            guest_first_name, guest_last_name, guest_email,
+            status, held_for_event_id, beds24_booking_id,
+            booking_source, currency, payment_status
+         ) VALUES (
+            $1, 1, $2, $3, $4, 1, 0,
+            $5, $6, '',
+            'event_hold', $7, $8,
+            'gas_event_hold', $9, 'unpaid'
+         )`,
+        [
+          room.property_id, roomId, checkin, checkout,
+          'Event Hold', '— ' + eventName,
+          productId, beds24Id,
+          productRow.currency || 'EUR'
+        ]
+      );
+
+      if (beds24Id) pushedOk++; else pushedFail++;
+    } catch (err) {
+      console.error('[event-holds] failed for room', roomId, err.message);
+      pushedFail++;
+    }
+  }
+
+  const finalStatus = (pushedFail === 0) ? 'active' : (pushedOk > 0 ? 'partial' : 'none');
+  await pool.query(`UPDATE shop_products SET event_holds_status = $1 WHERE id = $2`, [finalStatus, productId]);
+  return { ok: true, pushedOk, pushedFail, status: finalStatus };
+}
+
+async function releaseEventHolds(productRow) {
+  if (!productRow) return { ok: false, error: 'No product' };
+  const productId = productRow.id;
+
+  await pool.query(`UPDATE shop_products SET event_holds_status = 'releasing' WHERE id = $1`, [productId]);
+
+  const holds = await pool.query(
+    `SELECT id, bookable_unit_id, beds24_booking_id, property_id
+     FROM bookings WHERE held_for_event_id = $1 AND status = 'event_hold'`,
+    [productId]
+  );
+
+  let releasedOk = 0;
+  let releasedFail = 0;
+  for (const hold of holds.rows) {
+    try {
+      if (hold.beds24_booking_id) {
+        try {
+          const accessToken = await getBeds24AccessTokenForProperty(pool, hold.property_id, hold.bookable_unit_id);
+          if (accessToken) {
+            await axios.post('https://beds24.com/api/v2/bookings', [{
+              id: hold.beds24_booking_id,
+              status: 'cancelled'
+            }], { headers: getBeds24BookingHeaders(null, accessToken) });
+          }
+        } catch (b24err) {
+          console.warn('[event-holds] release beds24 error:', b24err.response?.data || b24err.message);
+        }
+      }
+      await pool.query(`UPDATE bookings SET status = 'cancelled', updated_at = NOW() WHERE id = $1`, [hold.id]);
+      releasedOk++;
+    } catch (err) {
+      releasedFail++;
+      console.error('[event-holds] release failed for booking', hold.id, err.message);
+    }
+  }
+
+  await pool.query(`UPDATE shop_products SET event_holds_status = 'none' WHERE id = $1`, [productId]);
+  return { ok: true, releasedOk, releasedFail };
+}
+
+// Convert one event_hold row into a real confirmed booking. Used by the
+// public booking submit endpoint when ?event=<slug> is present and the
+// guest's chosen room/dates match a hold. Single transaction; PATCHes the
+// linked Beds24 booking to 'confirmed' with the real guest details so
+// Beds24's automation pipeline (confirmation email, payment-due reminder,
+// key-code automation) takes over from there.
+async function convertHoldToBooking(holdId, guestData) {
+  const holdRes = await pool.query(`SELECT * FROM bookings WHERE id = $1 AND status = 'event_hold'`, [holdId]);
+  if (!holdRes.rows.length) return { ok: false, error: 'Hold not found' };
+  const hold = holdRes.rows[0];
+
+  // Update local row to confirmed + populate guest fields.
+  const upd = await pool.query(
+    `UPDATE bookings SET
+       status = 'confirmed',
+       held_for_event_id = NULL,
+       guest_first_name = $1, guest_last_name = $2, guest_email = $3, guest_phone = $4,
+       num_adults = $5, num_children = $6,
+       grand_total = $7, accommodation_price = $7, subtotal = $7,
+       updated_at = NOW()
+     WHERE id = $8 RETURNING *`,
+    [
+      guestData.guest_first_name || '', guestData.guest_last_name || '',
+      guestData.guest_email || '', guestData.guest_phone || '',
+      parseInt(guestData.num_adults) || 1, parseInt(guestData.num_children) || 0,
+      parseFloat(guestData.total_price) || 0,
+      holdId
+    ]
+  );
+
+  // PATCH Beds24 booking to confirmed with real guest details.
+  if (hold.beds24_booking_id) {
+    try {
+      const accessToken = await getBeds24AccessTokenForProperty(pool, hold.property_id, hold.bookable_unit_id);
+      if (accessToken) {
+        await axios.post('https://beds24.com/api/v2/bookings', [{
+          id: hold.beds24_booking_id,
+          status: 'confirmed',
+          firstName: guestData.guest_first_name || '',
+          lastName: guestData.guest_last_name || '',
+          email: guestData.guest_email || '',
+          mobile: guestData.guest_phone || '',
+          phone: guestData.guest_phone || '',
+          numAdult: parseInt(guestData.num_adults) || 1,
+          numChild: parseInt(guestData.num_children) || 0,
+          price: parseFloat(guestData.total_price) || 0,
+          allowWebhooks: true,  // re-enable so confirmation emails fire
+          notes: `Converted from event hold. Guest: ${guestData.guest_email}`
+        }], { headers: getBeds24BookingHeaders(null, accessToken) });
+      }
+    } catch (b24err) {
+      console.warn('[event-holds] Beds24 conversion patch failed:', b24err.response?.data || b24err.message);
+      // Local conversion still succeeded — flag for reconcile.
+    }
+  }
+
+  return { ok: true, booking: upd.rows[0] };
+}
+
 async function generateUniqueGiftCode() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // skips 0/O/1/I to avoid recipient typos
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -92996,7 +93295,7 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.body.client_id || decoded.accountId || decoded.id;
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, event_block_rooms, event_held_room_ids, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee } = req.body;
 
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Product name is required' });
     // Gift certificates carry no fixed price — buyer picks at checkout — so accept 0 here.
@@ -93036,9 +93335,17 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
       } catch (e) { giftPresetsArr = null; }
     }
 
+    // event_held_room_ids — coerce repeated FormData values or array to INTEGER[]
+    let heldRoomIdsArr = null;
+    if (event_held_room_ids) {
+      const raw = Array.isArray(event_held_room_ids) ? event_held_room_ids : [event_held_room_ids];
+      heldRoomIdsArr = raw.map(v => parseInt(v)).filter(v => !isNaN(v));
+      if (heldRoomIdsArr.length === 0) heldRoomIdsArr = null;
+    }
+
     const result = await pool.query(`
-      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee, event_recurring)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32::jsonb, $33, $34, $35, $36, $37, $38, $39, $40)
+      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee, event_recurring, event_block_rooms, event_held_room_ids)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32::jsonb, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42)
       RETURNING *
     `, [
       clientId, name.trim(),
@@ -93076,13 +93383,23 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
       tax_rate !== undefined && tax_rate !== '' ? parseFloat(tax_rate) : null,
       tax_exempt === 'true' || tax_exempt === true || isGiftCert,
       delivery_fee !== undefined && delivery_fee !== '' ? parseFloat(delivery_fee) : (isGiftCert ? 0 : null),
-      event_recurring === 'true' || event_recurring === true
+      event_recurring === 'true' || event_recurring === true,
+      event_block_rooms === 'true' || event_block_rooms === true,
+      heldRoomIdsArr
     ]);
 
     // Mirror to upsells table if owner ticked "Also offer as booking upsell".
     try { await syncShopProductUpsellMirror(result.rows[0], clientId); } catch (e) { console.warn('[shop→upsell] sync skipped on create:', e.message); }
 
-    res.json({ success: true, product: result.rows[0] });
+    // Push event holds to Beds24 + mirror locally when this is a fixed-date
+    // event with block-rooms enabled. Async to keep the admin save snappy;
+    // owner sees status update via the next admin fetch.
+    const created = result.rows[0];
+    if (created.product_type === 'event' && !created.event_recurring && created.event_block_rooms) {
+      createEventHolds(created).catch(e => console.error('[event-holds] create failed on POST:', e.message));
+    }
+
+    res.json({ success: true, product: created });
   } catch (error) {
     console.error('Shop product create error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -93102,7 +93419,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
     const existing = await pool.query('SELECT * FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
     if (!existing.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, event_block_rooms, event_held_room_ids, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee } = req.body;
 
     if (name && !name.trim()) return res.status(400).json({ success: false, error: 'Product name cannot be empty' });
     if (price !== undefined) {
@@ -93188,6 +93505,8 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
         tax_exempt = COALESCE($39, tax_exempt),
         delivery_fee = $40,
         event_recurring = COALESCE($41, event_recurring),
+        event_block_rooms = COALESCE($42, event_block_rooms),
+        event_held_room_ids = COALESCE($43, event_held_room_ids),
         updated_at = NOW()
       WHERE id = $15 AND account_id = $16
       RETURNING *
@@ -93230,11 +93549,50 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
       tax_rate !== undefined && tax_rate !== '' ? parseFloat(tax_rate) : null,
       tax_exempt !== undefined ? (tax_exempt === 'true' || tax_exempt === true) : null,
       delivery_fee !== undefined && delivery_fee !== '' ? parseFloat(delivery_fee) : null,
-      event_recurring !== undefined ? (event_recurring === 'true' || event_recurring === true) : null
+      event_recurring !== undefined ? (event_recurring === 'true' || event_recurring === true) : null,
+      event_block_rooms !== undefined ? (event_block_rooms === 'true' || event_block_rooms === true) : null,
+      (function() {
+        if (event_held_room_ids === undefined) return null;
+        const raw = Array.isArray(event_held_room_ids) ? event_held_room_ids : (event_held_room_ids ? [event_held_room_ids] : []);
+        const arr = raw.map(v => parseInt(v)).filter(v => !isNaN(v));
+        return arr.length ? arr : null;
+      })()
     ]);
 
     // Mirror to upsells table — create/update/delete the linked row based on the new state.
     try { await syncShopProductUpsellMirror(result.rows[0], clientId); } catch (e) { console.warn('[shop→upsell] sync skipped on update:', e.message); }
+
+    // Event holds reconciliation — compare old vs new and fire create/release.
+    // Cases:
+    //   was on, still on, dates unchanged   → no-op (createEventHolds is idempotent so safe to call but skipped)
+    //   was on, still on, dates changed     → release old + create new
+    //   was on,  off                        → release
+    //   was off, on                         → create
+    //   was off, off                        → no-op
+    try {
+      const before = existing.rows[0];
+      const after = result.rows[0];
+      const isFixedEvent = after.product_type === 'event' && !after.event_recurring;
+      const wasBlocking = !!before.event_block_rooms;
+      const isBlocking = !!after.event_block_rooms;
+      const datesChanged = String(before.event_start_date).split('T')[0] !== String(after.event_start_date).split('T')[0]
+                        || String(before.event_end_date).split('T')[0] !== String(after.event_end_date).split('T')[0];
+      const roomsChanged = JSON.stringify(before.event_held_room_ids || []) !== JSON.stringify(after.event_held_room_ids || []);
+
+      if (wasBlocking && (!isBlocking || !isFixedEvent)) {
+        // Toggled off OR no longer fixed-date — release everything.
+        releaseEventHolds(before).catch(e => console.error('[event-holds] release on PUT:', e.message));
+      } else if (!wasBlocking && isBlocking && isFixedEvent) {
+        // Toggled on — create.
+        createEventHolds(after).catch(e => console.error('[event-holds] create on PUT:', e.message));
+      } else if (wasBlocking && isBlocking && isFixedEvent && (datesChanged || roomsChanged)) {
+        // Still blocking but dates/rooms changed — release old, create new.
+        (async () => {
+          await releaseEventHolds(before);
+          await createEventHolds(after);
+        })().catch(e => console.error('[event-holds] reconcile on PUT:', e.message));
+      }
+    } catch (e) { console.warn('[event-holds] reconcile error:', e.message); }
 
     res.json({ success: true, product: result.rows[0] });
   } catch (error) {
@@ -93258,11 +93616,17 @@ app.delete('/api/admin/shop/products/:id', async (req, res) => {
     // orders keep their line items (with the snapshotted product name/price already
     // copied into the order_items row) — no order data lost.
     // Also drop the linked upsell mirror if "Also offer as booking upsell" was set.
-    const existing = await pool.query('SELECT linked_upsell_id FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
+    const existing = await pool.query('SELECT * FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
     if (existing.rows[0] && existing.rows[0].linked_upsell_id) {
       try {
         await pool.query('DELETE FROM upsells WHERE id = $1 AND user_id = $2', [existing.rows[0].linked_upsell_id, clientId]);
       } catch (e) { console.warn('[shop→upsell] mirror delete failed:', e.message); }
+    }
+    // Release any event holds before nuking the product so Beds24 sees the
+    // cancellations and external channels reopen those nights.
+    if (existing.rows[0] && existing.rows[0].event_block_rooms) {
+      try { await releaseEventHolds(existing.rows[0]); }
+      catch (e) { console.warn('[event-holds] release on DELETE failed:', e.message); }
     }
     const result = await pool.query(
       'DELETE FROM shop_products WHERE id = $1 AND account_id = $2 RETURNING id',
@@ -93568,7 +93932,7 @@ app.get('/api/public/client/:clientId/shop/products', async (req, res) => {
 
     const result = await pool.query(
       `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking,
-              product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, offers_accommodation, property_id, external_url, external_button_label,
+              product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, event_block_rooms, event_held_room_ids, event_holds_status, offers_accommodation, property_id, external_url, external_button_label,
               gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months,
               tax_rate, tax_exempt, delivery_fee
        FROM shop_products WHERE account_id = $1 AND is_active = true ORDER BY sort_order, created_at DESC`,
@@ -93603,7 +93967,7 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
 
     const result = await pool.query(
       `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, gallery_urls, category, stock_quantity, stock_tracking,
-              product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, offers_accommodation, property_id, external_url, external_button_label,
+              product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, event_block_rooms, event_held_room_ids, event_holds_status, offers_accommodation, property_id, external_url, external_button_label,
               gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months,
               tax_rate, tax_exempt, delivery_fee
        FROM shop_products WHERE account_id = $1 AND slug = $2 AND is_active = true`,
