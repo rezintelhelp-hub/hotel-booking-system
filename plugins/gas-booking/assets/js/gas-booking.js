@@ -5707,7 +5707,9 @@ jQuery(document).ready(function($) {
 
             // Grand total — bundle deduction reduces the room subtotal at the guest's
             // selected rate; mirrors the server math in /api/public/calculate-price.
-            var grandTotal = accommodationTotal + upsellsTotal - discount - voucherDiscount - bundleDeduction + taxTotal;
+            // Event ticket flows in when the booking entered via ?event=<slug>.
+            var eventTicketAmt = (evt && parseFloat(evt.amount) > 0) ? parseFloat(evt.amount) : 0;
+            var grandTotal = accommodationTotal + upsellsTotal - discount - voucherDiscount - bundleDeduction + taxTotal + eventTicketAmt;
             if (isNaN(grandTotal)) grandTotal = 0;
             $('.gas-grand-total').text(formatPrice(grandTotal, currency));
 

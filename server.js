@@ -67457,7 +67457,11 @@ app.post('/api/public/book', async (req, res) => {
           const conv = await convertHoldToBooking(holdRes.rows[0].id, {
             guest_first_name, guest_last_name, guest_email, guest_phone,
             num_adults: guests || 1, num_children: 0,
-            total_price: total_price || 0
+            total_price: total_price || 0,
+            price_breakdown: req.body.price_breakdown || null,
+            event_slug: String(eventSlug).toLowerCase(),
+            stripe_payment_intent_id: stripe_payment_intent_id || null,
+            deposit_amount: deposit_amount != null ? deposit_amount : null
           });
           if (conv.ok) {
             booking = { rows: [conv.booking] };
@@ -93195,31 +93199,72 @@ async function convertHoldToBooking(holdId, guestData) {
   // event_hold. Two simultaneous conversions can't both succeed: the second
   // gets affected_rows=0 and bails. Caller falls back to fresh INSERT path
   // (double-booking risk handled there by Beds24's own conflict detection).
+  const tp = parseFloat(guestData.total_price) || 0;
+  const accomPrice = parseFloat(guestData.price_breakdown?.accommodation_total) || tp;
+  const subtotal = parseFloat(guestData.price_breakdown?.subtotal) || tp;
   const upd = await pool.query(
     `UPDATE bookings SET
        status = 'confirmed',
        held_for_event_id = NULL,
        guest_first_name = $1, guest_last_name = $2, guest_email = $3, guest_phone = $4,
        num_adults = $5, num_children = $6,
-       grand_total = $7, accommodation_price = $7, subtotal = $7,
+       accommodation_price = $7, subtotal = $8, grand_total = $9,
        updated_at = NOW()
-     WHERE id = $8 AND status = 'event_hold' RETURNING *`,
+     WHERE id = $10 AND status = 'event_hold' RETURNING *`,
     [
       guestData.guest_first_name || '', guestData.guest_last_name || '',
       guestData.guest_email || '', guestData.guest_phone || '',
       parseInt(guestData.num_adults) || 1, parseInt(guestData.num_children) || 0,
-      parseFloat(guestData.total_price) || 0,
+      accomPrice, subtotal, tp,
       holdId
     ]
   );
   if (!upd.rows.length) return { ok: false, error: 'Hold not found or already taken' };
   const hold = upd.rows[0];
 
-  // PATCH Beds24 booking to confirmed with real guest details.
+  // PATCH Beds24 booking to confirmed with real guest details + invoiceItems
+  // breakdown. Without invoiceItems the Beds24 dashboard shows 0.00 charges
+  // even though the price field is set — the dashboard only renders line
+  // items, not the bare price. Build the same items the /book INSERT path
+  // builds so the host sees room + extras + event ticket + payment.
   if (hold.beds24_booking_id) {
     try {
       const accessToken = await getBeds24AccessTokenForProperty(pool, hold.property_id, hold.bookable_unit_id);
       if (accessToken) {
+        const pb = guestData.price_breakdown || null;
+        const tp = parseFloat(guestData.total_price) || 0;
+        const items = [];
+        const grossRoom = parseFloat(pb?.accommodation_total) || tp;
+        const offerDisc = parseFloat(pb?.offer_discount) || 0;
+        const voucherDisc = parseFloat(pb?.voucher_discount) || 0;
+        items.push({ description: 'Accommodation', status: '', qty: 1, amount: grossRoom + offerDisc + voucherDisc, vatRate: 0 });
+        if (offerDisc > 0 && pb?.offer_applied) {
+          items.push({ description: `Offer: ${pb.offer_applied.name || 'Discount'}`, status: '', qty: 1, amount: -offerDisc, vatRate: 0 });
+        }
+        if (voucherDisc > 0 && pb?.voucher_applied) {
+          items.push({ description: `Voucher: ${pb.voucher_applied.code || 'Discount'}`, status: '', qty: 1, amount: -voucherDisc, vatRate: 0 });
+        }
+        // Event ticket — pulled from shop_products on calc-price; mirror it
+        // here so the dashboard line item matches what the guest paid for.
+        if (guestData.event_slug) {
+          try {
+            const ev = await pool.query(`SELECT name, price FROM shop_products WHERE slug=$1 AND product_type='event' LIMIT 1`, [guestData.event_slug]);
+            const evAmt = parseFloat(ev.rows?.[0]?.price) || 0;
+            if (evAmt > 0) items.push({ description: `Event: ${ev.rows[0].name || 'Ticket'}`, status: '', qty: 1, amount: evAmt, vatRate: 0 });
+          } catch(_) {}
+        }
+        if (Array.isArray(pb?.upsells_breakdown)) {
+          for (const u of pb.upsells_breakdown) items.push({ description: u.name || 'Extra', status: '', qty: u.quantity || 1, amount: parseFloat(u.total) || 0, vatRate: 0 });
+        }
+        if (Array.isArray(pb?.fees)) {
+          for (const f of pb.fees) items.push({ description: f.name || 'Fee', status: '', qty: 1, amount: parseFloat(f.amount) || 0, vatRate: 0 });
+        }
+        if (Array.isArray(pb?.taxes)) {
+          for (const t of pb.taxes) items.push({ description: t.name || 'Tax', status: '', qty: 1, amount: parseFloat(t.amount) || 0, vatRate: 0 });
+        }
+        if (guestData.stripe_payment_intent_id && guestData.deposit_amount) {
+          items.push({ type: 'payment', description: 'Payment via Stripe', amount: parseFloat(guestData.deposit_amount) });
+        }
         await axios.post('https://beds24.com/api/v2/bookings', [{
           id: hold.beds24_booking_id,
           status: 'confirmed',
@@ -93230,7 +93275,9 @@ async function convertHoldToBooking(holdId, guestData) {
           phone: guestData.guest_phone || '',
           numAdult: parseInt(guestData.num_adults) || 1,
           numChild: parseInt(guestData.num_children) || 0,
-          price: parseFloat(guestData.total_price) || 0,
+          price: tp,
+          deposit: guestData.deposit_amount != null ? parseFloat(guestData.deposit_amount) : 0,
+          invoiceItems: items,
           // Flip notifications back on so the guest gets the confirmation email
           // and the host gets their normal new-booking ping. Webhooks too.
           notifyGuest: true,
