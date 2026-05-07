@@ -92945,9 +92945,15 @@ async function createEventHolds(productRow) {
         try {
           const accessToken = await getBeds24AccessTokenForProperty(pool, room.property_id, room.id);
           if (accessToken) {
+            // status='confirmed' with notify flags off: reliably blocks inventory
+            // across external channels (no Beds24 per-property setting needed)
+            // and emits no guest/host emails for the placeholder. On conversion
+            // we PATCH the same booking with the real guest details and flip
+            // notify back on so Beds24's confirmation pipeline fires once for
+            // the actual sale.
             const payload = [{
               roomId: room.beds24_room_id,
-              status: 'request',
+              status: 'confirmed',
               arrival: checkin,
               departure: checkout,
               numAdult: 1,
@@ -92958,8 +92964,10 @@ async function createEventHolds(productRow) {
               referer: `GAS Event Hold - ${productId}`,
               refererEditable: `GAS Event Hold - ${productId}`,
               reference: `GAS-EVT-${productId}-R${roomId}`,
-              notes: `Held for event: ${eventName} (GAS shop_product ${productId}). Will convert to confirmed when sold via event flow.`,
-              allowWebhooks: false  // suppress operator webhooks for placeholder bookings
+              notes: `Held for event: ${eventName} (GAS shop_product ${productId}). Will convert to real guest details when sold via event flow.`,
+              notifyGuest: false,
+              notifyHost: false,
+              allowWebhooks: false
             }];
             const resp = await axios.post('https://beds24.com/api/v2/bookings', payload, {
               headers: getBeds24BookingHeaders(null, accessToken)
@@ -93151,7 +93159,11 @@ async function convertHoldToBooking(holdId, guestData) {
           numAdult: parseInt(guestData.num_adults) || 1,
           numChild: parseInt(guestData.num_children) || 0,
           price: parseFloat(guestData.total_price) || 0,
-          allowWebhooks: true,  // re-enable so confirmation emails fire
+          // Flip notifications back on so the guest gets the confirmation email
+          // and the host gets their normal new-booking ping. Webhooks too.
+          notifyGuest: true,
+          notifyHost: true,
+          allowWebhooks: true,
           notes: `Converted from event hold. Guest: ${guestData.guest_email}`
         }], { headers: getBeds24BookingHeaders(null, accessToken) });
       }
