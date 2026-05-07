@@ -67417,6 +67417,10 @@ app.post('/api/public/book', async (req, res) => {
     // and Beds24's automation pipeline takes over cleanly.
     const eventSlug = req.body.event_slug || req.body.event || null;
     let booking = null;
+    // Declared up here (was further down) so the conversion can adopt the
+    // hold's existing Beds24 booking id — that prevents the create-new-Beds24-
+    // booking block in the channel-manager-sync section from firing a duplicate.
+    let beds24BookingId = null;
     if (eventSlug) {
       try {
         const holdRes = await pool.query(`
@@ -67432,7 +67436,16 @@ app.post('/api/public/book', async (req, res) => {
             num_adults: guests || 1, num_children: 0,
             total_price: total_price || 0
           });
-          if (conv.ok) booking = { rows: [conv.booking] };
+          if (conv.ok) {
+            booking = { rows: [conv.booking] };
+            // Critical: stamp the hold's existing Beds24 booking id onto the
+            // local variable so the create-Beds24-booking block below SKIPS
+            // (it guards on !beds24BookingId). Without this, /book pushes a
+            // second Beds24 booking → duplicate + inventory goes negative.
+            if (conv.booking && conv.booking.beds24_booking_id) {
+              beds24BookingId = conv.booking.beds24_booking_id;
+            }
+          }
         }
       } catch (e) { console.warn('[event-holds] conversion in /book failed, falling back to INSERT:', e.message); }
     }
@@ -67640,7 +67653,9 @@ app.post('/api/public/book', async (req, res) => {
     console.log('Finished blocking dates');
     
     // ========== CHANNEL MANAGER SYNC ==========
-    let beds24BookingId = null;
+    // beds24BookingId may have been pre-populated by the event-flow conversion
+    // path above (we adopt the hold's existing Beds24 booking id so the
+    // create-new-booking block below skips). Declared up there with `let`.
     let smoobuBookingId = null;
     let hostawayReservationId = null;
     
