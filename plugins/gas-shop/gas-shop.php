@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.4.0
+ * Version: 1.4.1
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -67,7 +67,15 @@ class GAS_Shop {
         return $defaults;
     }
 
-    public function clear_colors_cache() { delete_transient('gas_shop_colors'); delete_transient('gas_shop_fonts'); wp_send_json_success(); }
+    public function clear_colors_cache() {
+        delete_transient('gas_shop_colors');
+        delete_transient('gas_shop_fonts');
+        // Also bust the gas-booking plugin's palette cache — shop and booking
+        // share the same colour source, so flushing both at once is the only
+        // sane behaviour from the owner's perspective.
+        delete_transient('gas_booking_shop_palette');
+        wp_send_json_success();
+    }
 
     private function get_fonts() {
         $cached = get_transient('gas_shop_fonts');
