@@ -93011,6 +93011,59 @@ async function createEventHolds(productRow) {
   return { ok: true, pushedOk, pushedFail, status: finalStatus };
 }
 
+// Update existing holds' dates in place — used when the owner edits the
+// event's start/end without changing which rooms are held. Avoids the
+// release-then-create churn that leaves cancelled placeholders visible
+// on the Beds24 calendar.
+async function updateEventHoldDates(productRow) {
+  if (!productRow) return { ok: false, error: 'No product' };
+  const productId = productRow.id;
+  const checkin = String(productRow.event_start_date).split('T')[0];
+  const checkout = String(productRow.event_end_date).split('T')[0];
+
+  const holds = await pool.query(
+    `SELECT id, bookable_unit_id, beds24_booking_id, property_id, arrival_date, departure_date
+     FROM bookings WHERE held_for_event_id = $1 AND status = 'event_hold'`,
+    [productId]
+  );
+
+  let updatedOk = 0;
+  let updatedFail = 0;
+  for (const hold of holds.rows) {
+    try {
+      // Skip if dates already match (no-op).
+      const haveCi = String(hold.arrival_date).split('T')[0];
+      const haveCo = String(hold.departure_date).split('T')[0];
+      if (haveCi === checkin && haveCo === checkout) { updatedOk++; continue; }
+
+      if (hold.beds24_booking_id) {
+        try {
+          const accessToken = await getBeds24AccessTokenForProperty(pool, hold.property_id, hold.bookable_unit_id);
+          if (accessToken) {
+            await axios.post('https://beds24.com/api/v2/bookings', [{
+              id: hold.beds24_booking_id,
+              arrival: checkin,
+              departure: checkout
+            }], { headers: getBeds24BookingHeaders(null, accessToken) });
+          }
+        } catch (b24err) {
+          console.warn('[event-holds] update beds24 error:', b24err.response?.data || b24err.message);
+        }
+      }
+      await pool.query(
+        `UPDATE bookings SET arrival_date = $1, departure_date = $2, updated_at = NOW() WHERE id = $3`,
+        [checkin, checkout, hold.id]
+      );
+      updatedOk++;
+    } catch (err) {
+      updatedFail++;
+      console.error('[event-holds] update failed for booking', hold.id, err.message);
+    }
+  }
+
+  return { ok: true, updatedOk, updatedFail };
+}
+
 async function releaseEventHolds(productRow) {
   if (!productRow) return { ok: false, error: 'No product' };
   const productId = productRow.id;
@@ -93585,12 +93638,44 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
       } else if (!wasBlocking && isBlocking && isFixedEvent) {
         // Toggled on — create.
         createEventHolds(after).catch(e => console.error('[event-holds] create on PUT:', e.message));
-      } else if (wasBlocking && isBlocking && isFixedEvent && (datesChanged || roomsChanged)) {
-        // Still blocking but dates/rooms changed — release old, create new.
-        (async () => {
-          await releaseEventHolds(before);
-          await createEventHolds(after);
-        })().catch(e => console.error('[event-holds] reconcile on PUT:', e.message));
+      } else if (wasBlocking && isBlocking && isFixedEvent) {
+        // Still blocking — patch in place rather than release+create so we
+        // don't leave cancelled placeholders cluttering the Beds24 calendar.
+        if (datesChanged && !roomsChanged) {
+          // Just dates changed — update each existing hold in place.
+          updateEventHoldDates(after).catch(e => console.error('[event-holds] update dates on PUT:', e.message));
+        } else if (roomsChanged) {
+          // Room list changed — release the existing holds for rooms no longer
+          // selected, then call create (which is idempotent — skips rooms that
+          // already have a hold) to add holds for newly-selected rooms.
+          // For rooms that stayed in the list AND dates changed: update those.
+          (async () => {
+            const beforeRooms = Array.isArray(before.event_held_room_ids) ? before.event_held_room_ids.map(Number) : [];
+            const afterRooms = Array.isArray(after.event_held_room_ids) ? after.event_held_room_ids.map(Number) : [];
+            const removedRooms = beforeRooms.filter(r => !afterRooms.includes(r));
+            // Cancel holds for removed rooms only (not whole release).
+            for (const rId of removedRooms) {
+              const holdRow = await pool.query(
+                `SELECT * FROM bookings WHERE held_for_event_id = $1 AND bookable_unit_id = $2 AND status = 'event_hold' LIMIT 1`,
+                [before.id, rId]
+              );
+              if (holdRow.rows[0]) {
+                const h = holdRow.rows[0];
+                if (h.beds24_booking_id) {
+                  try {
+                    const tok = await getBeds24AccessTokenForProperty(pool, h.property_id, h.bookable_unit_id);
+                    if (tok) await axios.post('https://beds24.com/api/v2/bookings', [{ id: h.beds24_booking_id, status: 'cancelled' }], { headers: getBeds24BookingHeaders(null, tok) });
+                  } catch (e) { console.warn('[event-holds] cancel removed-room failed:', e.response?.data || e.message); }
+                }
+                await pool.query(`UPDATE bookings SET status = 'cancelled', updated_at = NOW() WHERE id = $1`, [h.id]);
+              }
+            }
+            // Update dates on remaining holds.
+            if (datesChanged) await updateEventHoldDates(after);
+            // Add holds for newly-added rooms (createEventHolds is idempotent on existing rooms).
+            await createEventHolds(after);
+          })().catch(e => console.error('[event-holds] reconcile on PUT:', e.message));
+        }
       }
     } catch (e) { console.warn('[event-holds] reconcile error:', e.message); }
 
