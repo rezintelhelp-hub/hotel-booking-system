@@ -92996,7 +92996,7 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.body.client_id || decoded.accountId || decoded.id;
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee } = req.body;
 
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Product name is required' });
     // Gift certificates carry no fixed price — buyer picks at checkout — so accept 0 here.
@@ -93037,8 +93037,8 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     }
 
     const result = await pool.query(`
-      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32::jsonb, $33, $34, $35, $36, $37, $38, $39)
+      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee, event_recurring)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32::jsonb, $33, $34, $35, $36, $37, $38, $39, $40)
       RETURNING *
     `, [
       clientId, name.trim(),
@@ -93075,7 +93075,8 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
       gift_expiry_months !== undefined && gift_expiry_months !== '' ? parseInt(gift_expiry_months) : 12,
       tax_rate !== undefined && tax_rate !== '' ? parseFloat(tax_rate) : null,
       tax_exempt === 'true' || tax_exempt === true || isGiftCert,
-      delivery_fee !== undefined && delivery_fee !== '' ? parseFloat(delivery_fee) : (isGiftCert ? 0 : null)
+      delivery_fee !== undefined && delivery_fee !== '' ? parseFloat(delivery_fee) : (isGiftCert ? 0 : null),
+      event_recurring === 'true' || event_recurring === true
     ]);
 
     // Mirror to upsells table if owner ticked "Also offer as booking upsell".
@@ -93101,7 +93102,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
     const existing = await pool.query('SELECT * FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
     if (!existing.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee } = req.body;
 
     if (name && !name.trim()) return res.status(400).json({ success: false, error: 'Product name cannot be empty' });
     if (price !== undefined) {
@@ -93186,6 +93187,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
         tax_rate = $38,
         tax_exempt = COALESCE($39, tax_exempt),
         delivery_fee = $40,
+        event_recurring = COALESCE($41, event_recurring),
         updated_at = NOW()
       WHERE id = $15 AND account_id = $16
       RETURNING *
@@ -93227,7 +93229,8 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
       gift_expiry_months !== undefined && gift_expiry_months !== '' ? parseInt(gift_expiry_months) : null,
       tax_rate !== undefined && tax_rate !== '' ? parseFloat(tax_rate) : null,
       tax_exempt !== undefined ? (tax_exempt === 'true' || tax_exempt === true) : null,
-      delivery_fee !== undefined && delivery_fee !== '' ? parseFloat(delivery_fee) : null
+      delivery_fee !== undefined && delivery_fee !== '' ? parseFloat(delivery_fee) : null,
+      event_recurring !== undefined ? (event_recurring === 'true' || event_recurring === true) : null
     ]);
 
     // Mirror to upsells table — create/update/delete the linked row based on the new state.
@@ -93565,7 +93568,7 @@ app.get('/api/public/client/:clientId/shop/products', async (req, res) => {
 
     const result = await pool.query(
       `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking,
-              product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, external_url, external_button_label,
+              product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, offers_accommodation, property_id, external_url, external_button_label,
               gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months,
               tax_rate, tax_exempt, delivery_fee
        FROM shop_products WHERE account_id = $1 AND is_active = true ORDER BY sort_order, created_at DESC`,
@@ -93600,7 +93603,7 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
 
     const result = await pool.query(
       `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, gallery_urls, category, stock_quantity, stock_tracking,
-              product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, external_url, external_button_label,
+              product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, offers_accommodation, property_id, external_url, external_button_label,
               gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months,
               tax_rate, tax_exempt, delivery_fee
        FROM shop_products WHERE account_id = $1 AND slug = $2 AND is_active = true`,
@@ -94088,7 +94091,7 @@ app.get('/api/public/event/:slug', async (req, res) => {
     if (!slug) return res.json({ success: false, error: 'Missing slug' });
     const r = await pool.query(
       `SELECT id, account_id, name, slug, description, image_url, image_thumbnail_url,
-              price, currency, event_start_date, event_end_date, event_duration_nights, property_id
+              price, currency, event_start_date, event_end_date, event_duration_nights, event_recurring, property_id
        FROM shop_products WHERE slug = $1 AND product_type = 'event' AND is_active = true LIMIT 1`,
       [slug]
     );
