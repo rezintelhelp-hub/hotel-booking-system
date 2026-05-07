@@ -50,6 +50,11 @@ jQuery(document).ready(function($) {
     (function showEventBanner() {
         var eventSlug = new URLSearchParams(window.location.search).get('event');
         if (!eventSlug) return;
+        // Only run on pages that host the rooms grid (book-now style). On the
+        // checkout page the booking summary already shows event details, so a
+        // floating banner above the header would be confusing.
+        if (!document.querySelector('.gas-rooms-page-wrapper, .gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget')) return;
+        if (document.querySelector('.gas-checkout-page, .gas-booking-summary, .gas-checkout-container')) return;
         // Pull event details + held rooms in parallel. The /rooms endpoint
         // drives the locked event-flow rooms grid below; the banner uses the
         // event details from the existing endpoint.
