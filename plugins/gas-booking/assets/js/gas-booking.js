@@ -6750,16 +6750,19 @@ jQuery(document).ready(function($) {
             $('.gas-conf-rooms-list').html(roomHtml).show();
             $('.gas-conf-room-name').hide();
 
-            // Extras
+            // Extras (room upsells + event ticket when booking entered via ?event=<slug>)
+            var extrasParts = [];
             if (checkoutData.selectedUpsells && checkoutData.selectedUpsells.length > 0) {
-                var extrasHtml = '<div class="gas-conf-extras-title">Extras</div>';
                 checkoutData.selectedUpsells.forEach(function(upsell) {
-                    extrasHtml += '<div class="gas-conf-extra-box">';
-                    extrasHtml += '<span class="extra-name">' + escapeHtml(upsell.name) + '</span>';
-                    extrasHtml += '<span class="extra-price">' + formatPrice(upsell.price, currency) + '</span>';
-                    extrasHtml += '</div>';
+                    extrasParts.push('<div class="gas-conf-extra-box"><span class="extra-name">' + escapeHtml(upsell.name) + '</span><span class="extra-price">' + formatPrice(upsell.price, currency) + '</span></div>');
                 });
-                $('.gas-conf-extras-list').html(extrasHtml).show();
+            }
+            var evtConf = checkoutData.pricing && checkoutData.pricing.event_ticket;
+            if (evtConf && parseFloat(evtConf.amount) > 0) {
+                extrasParts.push('<div class="gas-conf-extra-box"><span class="extra-name">🎟 ' + escapeHtml(evtConf.name || 'Event ticket') + '</span><span class="extra-price">' + formatPrice(parseFloat(evtConf.amount), currency) + '</span></div>');
+            }
+            if (extrasParts.length > 0) {
+                $('.gas-conf-extras-list').html('<div class="gas-conf-extras-title">Extras</div>' + extrasParts.join('')).show();
             }
 
             // Dates
@@ -6885,16 +6888,19 @@ jQuery(document).ready(function($) {
                         $('.gas-conf-rooms-list').html(roomHtml).show();
                         $('.gas-conf-room-name').hide(); // Hide the simple text
                         
-                        // Show extras/upsells if any
+                        // Show extras/upsells + event ticket if any
+                        var extrasParts2 = [];
                         if (checkoutData.selectedUpsells && checkoutData.selectedUpsells.length > 0) {
-                            var extrasHtml = '<div class="gas-conf-extras-title">Extras</div>';
                             checkoutData.selectedUpsells.forEach(function(upsell) {
-                                extrasHtml += '<div class="gas-conf-extra-box">';
-                                extrasHtml += '<span class="extra-name">' + escapeHtml(upsell.name) + '</span>';
-                                extrasHtml += '<span class="extra-price">' + formatPrice(upsell.price, currency) + '</span>';
-                                extrasHtml += '</div>';
+                                extrasParts2.push('<div class="gas-conf-extra-box"><span class="extra-name">' + escapeHtml(upsell.name) + '</span><span class="extra-price">' + formatPrice(upsell.price, currency) + '</span></div>');
                             });
-                            $('.gas-conf-extras-list').html(extrasHtml).show();
+                        }
+                        var evtConf2 = checkoutData.pricing && checkoutData.pricing.event_ticket;
+                        if (evtConf2 && parseFloat(evtConf2.amount) > 0) {
+                            extrasParts2.push('<div class="gas-conf-extra-box"><span class="extra-name">🎟 ' + escapeHtml(evtConf2.name || 'Event ticket') + '</span><span class="extra-price">' + formatPrice(parseFloat(evtConf2.amount), currency) + '</span></div>');
+                        }
+                        if (extrasParts2.length > 0) {
+                            $('.gas-conf-extras-list').html('<div class="gas-conf-extras-title">Extras</div>' + extrasParts2.join('')).show();
                         }
                         
                         // Format and display dates
