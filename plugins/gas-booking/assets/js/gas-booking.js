@@ -219,8 +219,13 @@ jQuery(document).ready(function($) {
                 banner += '<p class="gas-event-stay-default" style="margin:6px 0 0;color:#64748b;font-size:12px">Pick eligible dates and a room — event ticket will be added at checkout.</p>';
                 banner += '<p class="gas-event-stay-warning" style="display:none;margin:6px 0 0;color:#b91c1c;font-size:13px;font-weight:600;"></p>';
                 banner += '</div></div>';
-                var $target = $('.gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget').first();
-                if ($target.length) $target.before(banner);
+                $('.gas-event-banner').remove();  // idempotent
+                // Insert OUTSIDE the rooms-page wrapper — we hide that wrapper
+                // when rendering the event grid, and a banner inside the
+                // wrapper would disappear with it.
+                var $bannerAnchor = $('.gas-rooms-page-wrapper').first();
+                if (!$bannerAnchor.length) $bannerAnchor = $('.gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget').first();
+                if ($bannerAnchor.length) $bannerAnchor.before(banner);
                 else $('body').prepend(banner);
             }
         });
