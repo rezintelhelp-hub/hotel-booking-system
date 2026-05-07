@@ -94074,12 +94074,13 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
 
     const product = result.rows[0];
 
-    // For event products with offers_accommodation, look up the property's
-    // deployed booking site so the shop can render a "Book Now" link that
-    // hits the search-results page with date/event params. Append /book-now/
-    // (the standard GAS booking page slug) so we don't land on the homepage,
-    // which may not host the search widget.
-    if (product.product_type === 'event' && product.offers_accommodation && product.property_id) {
+    // For event products that need a booking site (offers_accommodation OR
+    // event_block_rooms — both imply the guest will stay), look up the
+    // property's deployed booking site so the shop can render a "Book Now"
+    // link that hits the search-results page with date/event params. Append
+    // /book-now/ so we don't land on the homepage which may not host the
+    // search widget.
+    if (product.product_type === 'event' && (product.offers_accommodation || product.event_block_rooms) && product.property_id) {
       const ds = await pool.query(
         `SELECT site_url FROM deployed_sites
           WHERE account_id = $1 AND (property_id = $2 OR property_ids @> to_jsonb($2::int))

@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.4.1
+ * Version: 1.5.0
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -476,7 +476,11 @@ class GAS_Shop {
         $isEvent = ($p['product_type'] ?? '') === 'event';
         $isEventRecurring = $isEvent && !empty($p['event_recurring']);
         $isEventFixed = $isEvent && !$isEventRecurring && !empty($p['event_start_date']);
-        $isEventBookable = $isEvent && !empty($p['offers_accommodation']) && !empty($p['booking_url']) && ($isEventRecurring || $isEventFixed);
+        // Bookable when offers_accommodation OR event_block_rooms is on — the
+        // latter implies accommodation by definition (you can't hold rooms for
+        // a guest who isn't going to stay in one).
+        $hasAccommodation = !empty($p['offers_accommodation']) || !empty($p['event_block_rooms']);
+        $isEventBookable = $isEvent && $hasAccommodation && !empty($p['booking_url']) && ($isEventRecurring || $isEventFixed);
         if (($p['product_type'] ?? '') === 'external' && !empty($p['external_url'])) {
             $btnLabel = esc_html($p['external_button_label'] ?? 'Buy Now');
             echo '<a href="'.esc_url($p['external_url']).'" target="_blank" rel="noopener" class="gas-shop-btn">'.$btnLabel.' &rarr;</a>';
