@@ -93615,7 +93615,9 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
 
     // For event products with offers_accommodation, look up the property's
     // deployed booking site so the shop can render a "Book Now" link that
-    // pre-fills the event dates and event_id on the booking page.
+    // hits the search-results page with date/event params. Append /book-now/
+    // (the standard GAS booking page slug) so we don't land on the homepage,
+    // which may not host the search widget.
     if (product.product_type === 'event' && product.offers_accommodation && product.property_id) {
       const ds = await pool.query(
         `SELECT site_url FROM deployed_sites
@@ -93624,7 +93626,7 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
         [clientId, product.property_id]
       );
       if (ds.rows[0]?.site_url) {
-        product.booking_url = ds.rows[0].site_url;
+        product.booking_url = ds.rows[0].site_url.replace(/\/+$/, '') + '/book-now/';
       }
     }
 
