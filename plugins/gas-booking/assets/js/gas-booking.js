@@ -57,15 +57,48 @@ jQuery(document).ready(function($) {
                 if (!resp.success || !resp.event) return;
                 var ev = resp.event;
                 var fmt = function(d) { return new Date(d).toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' }); };
-                var dateRange = fmt(ev.event_start_date) + (ev.event_end_date ? ' – ' + fmt(ev.event_end_date) : '');
+
+                // Build event date rules — pushed to flatpickr so the user can't pick
+                // dates the event isn't available on (was discovering the mismatch
+                // only at the extras step which is too late).
+                var rules = { name: ev.name };
+                if (ev.available_days_of_week) {
+                    rules.allowedDays = String(ev.available_days_of_week).split(',').map(function(s){ return parseInt(s, 10); }).filter(function(n){ return !isNaN(n); });
+                }
+                // valid_from/until are sent as ISO; strip to date-only and parse as local midnight to avoid TZ shift.
+                var toLocalDate = function(s) { if (!s) return null; var iso = String(s).split('T')[0]; var p = iso.split('-'); return new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2])); };
+                rules.validFrom = toLocalDate(ev.valid_from || ev.event_start_date);
+                rules.validUntil = toLocalDate(ev.valid_until || ev.event_end_date);
+                if (ev.min_notice_hours && ev.min_notice_hours > 0) {
+                    rules.minDate = new Date(Date.now() + parseInt(ev.min_notice_hours) * 3600 * 1000);
+                }
+                window._gasEventDateRules = rules;
+
+                // Apply rules to any flatpickr already-initialised. New ones pick
+                // them up from window._gasEventDateRules via the disable callback below.
+                applyEventRulesToPickers();
+
+                // Friendly summary line for the banner.
+                var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+                var ruleLines = [];
+                if (rules.allowedDays && rules.allowedDays.length && rules.allowedDays.length < 7) {
+                    ruleLines.push('Available ' + rules.allowedDays.map(function(d){ return dayNames[d]; }).join(', '));
+                }
+                if (rules.validFrom && rules.validUntil) {
+                    ruleLines.push(fmt(rules.validFrom) + ' – ' + fmt(rules.validUntil));
+                }
+                if (ev.min_notice_hours && ev.min_notice_hours > 0) {
+                    ruleLines.push('book at least ' + ev.min_notice_hours + 'h ahead');
+                }
+
                 var priceLabel = (ev.currency || '') + ' ' + parseFloat(ev.price).toFixed(2);
                 var img = ev.image_thumbnail_url || ev.image_url;
                 var banner = '<div class="gas-event-banner" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #bfdbfe;border-radius:12px;padding:16px 20px;margin:16px auto;max-width:1200px;display:flex;gap:16px;align-items:center">';
                 if (img) banner += '<img src="' + img + '" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0">';
                 banner += '<div style="flex:1;min-width:0"><p style="margin:0 0 4px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#1d4ed8;font-weight:600">You\'re booking</p>';
                 banner += '<h3 style="margin:0 0 6px;color:#1e3a8a;font-size:18px">' + (ev.name || 'Event') + '</h3>';
-                banner += '<p style="margin:0;color:#475569;font-size:14px">' + dateRange + ' · ' + priceLabel + ' event ticket</p>';
-                banner += '<p style="margin:6px 0 0;color:#64748b;font-size:12px">Pick a room below — event ticket will be added at checkout.</p>';
+                banner += '<p style="margin:0;color:#475569;font-size:14px">' + priceLabel + ' event ticket' + (ruleLines.length ? ' · ' + ruleLines.join(' · ') : '') + '</p>';
+                banner += '<p style="margin:6px 0 0;color:#64748b;font-size:12px">Pick eligible dates and a room — event ticket will be added at checkout.</p>';
                 banner += '</div></div>';
                 var $target = $('.gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget').first();
                 if ($target.length) $target.before(banner);
@@ -73,6 +106,34 @@ jQuery(document).ready(function($) {
             }
         });
     })();
+
+    // Disable callback shared by all flatpickr instances. Reads the live rules
+    // each call so newly-initialised pickers honour rules even if the fetch
+    // resolved after them.
+    window._gasEventDateDisable = function(date) {
+        var r = window._gasEventDateRules;
+        if (!r) return false;
+        if (r.allowedDays && r.allowedDays.length && r.allowedDays.indexOf(date.getDay()) === -1) return true;
+        if (r.validFrom && date < r.validFrom) return true;
+        if (r.validUntil && date > r.validUntil) return true;
+        return false;
+    };
+
+    // Pushes the rules onto every already-active flatpickr instance — sets
+    // disable + tightens minDate when min_notice_hours is in effect.
+    function applyEventRulesToPickers() {
+        var r = window._gasEventDateRules;
+        if (!r) return;
+        document.querySelectorAll('.gas-checkin, .gas-checkout, .gas-checkin-date, .gas-checkout-date, .gas-filter-checkin, .gas-filter-checkout').forEach(function(el) {
+            if (!el._flatpickr) return;
+            el._flatpickr.set('disable', [window._gasEventDateDisable]);
+            if (r.minDate) {
+                var current = el._flatpickr.config.minDate;
+                if (!current || new Date(current) < r.minDate) el._flatpickr.set('minDate', r.minDate);
+            }
+            if (r.validUntil) el._flatpickr.set('maxDate', r.validUntil);
+        });
+    }
     
     // Override with PHP-provided language if available
     if (typeof gasBooking !== 'undefined' && gasBooking.currentLanguage) {
@@ -530,6 +591,9 @@ jQuery(document).ready(function($) {
                 altFormat: 'd M Y',
                 disableMobile: true,
                 locale: flatpickrLocale,
+                // When ?event=<slug> is in the URL, this delegates to the rules
+                // fetched in showEventBanner so non-matching weekdays/dates grey out.
+                disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
                 onOpen: function() {
                     var availTab = document.querySelector('.gas-tab-btn[data-tab="availability"]');
                     if (availTab && !availTab.classList.contains('active')) availTab.click();
@@ -561,6 +625,7 @@ jQuery(document).ready(function($) {
                 altFormat: 'd M Y',
                 disableMobile: true,
                 locale: flatpickrLocale,
+                disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
                 onChange: function(selectedDates, dateStr, instance) {
                     // When checkout date is selected on room detail page, switch to availability tab
                     var checkinInput = instance.element.closest('.gas-room-widget, .gas-booking-card')?.querySelector('.gas-checkin');
@@ -668,11 +733,12 @@ jQuery(document).ready(function($) {
                     altInput: true,
                     altFormat: 'd M Y',
                     disableMobile: true,
+                    disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
                     onChange: function(selectedDates, dateStr, instance) {
                         if (selectedDates.length && $checkout.length) {
                             var nextDay = new Date(selectedDates[0]);
                             nextDay.setDate(nextDay.getDate() + 1);
-                            
+
                             if ($checkout[0]._flatpickr) {
                                 $checkout[0]._flatpickr.set('minDate', nextDay);
                                 // Jump to check-in month and auto-open
@@ -685,25 +751,26 @@ jQuery(document).ready(function($) {
                     }
                 });
             }
-            
+
             if ($checkout.length) {
                 flatpickr($checkout[0], {
                     dateFormat: 'Y-m-d',
                     minDate: tomorrow,
                     altInput: true,
                     altFormat: 'd M Y',
-                    disableMobile: true
+                    disableMobile: true,
+                    disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }]
                 });
             }
         });
-        
+
         // Filter date pickers (on rooms page) - same logic
         $('.gas-date-filter').each(function() {
             var $filter = $(this);
             var $checkin = $filter.find('.gas-filter-checkin');
             var $checkout = $filter.find('.gas-filter-checkout');
             var isMobile = window.innerWidth <= 768;
-            
+
             if ($checkin.length) {
                 flatpickr($checkin[0], {
                     dateFormat: 'Y-m-d',
@@ -711,11 +778,12 @@ jQuery(document).ready(function($) {
                     altInput: true,
                     altFormat: 'd M Y',
                     disableMobile: true, // Use native picker on mobile for better UX
+                    disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
                     onChange: function(selectedDates, dateStr, instance) {
                         if (selectedDates.length && $checkout.length) {
                             var nextDay = new Date(selectedDates[0]);
                             nextDay.setDate(nextDay.getDate() + 1);
-                            
+
                             if ($checkout[0]._flatpickr) {
                                 $checkout[0]._flatpickr.set('minDate', nextDay);
                                 // Jump to check-in month and auto-open
@@ -728,14 +796,15 @@ jQuery(document).ready(function($) {
                     }
                 });
             }
-            
+
             if ($checkout.length) {
                 flatpickr($checkout[0], {
                     dateFormat: 'Y-m-d',
                     minDate: tomorrow,
                     altInput: true,
                     altFormat: 'd M Y',
-                    disableMobile: true // Use native picker on mobile for better UX
+                    disableMobile: true, // Use native picker on mobile for better UX
+                    disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }]
                 });
             }
         });

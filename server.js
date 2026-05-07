@@ -94093,7 +94093,8 @@ app.get('/api/public/event/:slug', async (req, res) => {
     if (!slug) return res.json({ success: false, error: 'Missing slug' });
     const r = await pool.query(
       `SELECT id, account_id, name, slug, description, image_url, image_thumbnail_url,
-              price, currency, event_start_date, event_end_date, event_duration_nights, event_recurring, property_id
+              price, currency, event_start_date, event_end_date, event_duration_nights, event_recurring, property_id,
+              available_days_of_week, valid_from, valid_until, min_notice_hours
        FROM shop_products WHERE slug = $1 AND product_type = 'event' AND is_active = true LIMIT 1`,
       [slug]
     );
