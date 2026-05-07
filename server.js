@@ -66444,9 +66444,23 @@ app.post('/api/public/calculate-price', async (req, res) => {
       return res.json({ success: false, error: 'Invalid date range' });
     }
     
-    // Check minimum stay requirement - use the max min_stay from any day in the range
+    // Check minimum stay requirement - use the max min_stay from any day in the range.
+    // Event flow (?event=<slug>) bypasses this — the event's window IS the
+    // stay length, owner has consciously held the room for those exact nights,
+    // we trust that contract over the calendar's general property rule.
     let maxMinStay = 1;
     let minStayDate = null;
+    let bypassMinStay = false;
+    if (req.body.event_slug || req.body.event) {
+      const evSlug = String(req.body.event_slug || req.body.event).toLowerCase();
+      const evCheck = await pool.query(
+        `SELECT 1 FROM shop_products sp
+         JOIN bookings b ON b.held_for_event_id = sp.id
+         WHERE sp.slug = $1 AND b.bookable_unit_id = $2 AND b.status = 'event_hold' LIMIT 1`,
+        [evSlug, unit_id]
+      );
+      bypassMinStay = evCheck.rows.length > 0;
+    }
     for (const dayData of availability.rows) {
       const dayMinStay = parseInt(dayData.min_stay) || 1;
       if (dayMinStay > maxMinStay) {
@@ -66454,10 +66468,10 @@ app.post('/api/public/calculate-price', async (req, res) => {
         minStayDate = dayData.date;
       }
     }
-    
-    if (nights < maxMinStay) {
-      return res.json({ 
-        success: false, 
+
+    if (!bypassMinStay && nights < maxMinStay) {
+      return res.json({
+        success: false,
         error: `Minimum stay of ${maxMinStay} nights required`,
         min_stay_required: maxMinStay,
         nights_selected: nights,

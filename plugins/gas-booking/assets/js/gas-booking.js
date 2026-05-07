@@ -95,8 +95,15 @@ jQuery(document).ready(function($) {
                     var total = r.total_rate + ticketPrice;
                     var img = r.image_url ? ('<img src="' + r.image_url + '" alt="' + r.name + '" style="width:100%;height:180px;object-fit:cover;display:block;">') : '<div style="width:100%;height:180px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:0.9rem;">No image</div>';
                     var url = checkout_url + '?room=' + r.id + '&checkin=' + ci + '&checkout=' + co + '&guests=' + r.max_guests + '&adults=' + r.max_guests + '&children=0&currency=' + r.currency + '&event=' + encodeURIComponent(eventSlug);
-                    html += '<a href="' + url + '" class="gas-event-room-card" style="display:block;background:' + palCardBg + ';border:1px solid #e2e8f0;border-radius:' + palRadius + 'px;overflow:hidden;text-decoration:none;color:inherit;transition:transform 0.15s, box-shadow 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.05);">';
-                    html += img;
+                    // Inventory badge — drives visibility into "almost gone".
+                    var qty = r.available_qty || 0;
+                    var qtyBadge = '';
+                    if (qty <= 0) qtyBadge = '<span style="position:absolute;top:10px;right:10px;background:#ef4444;color:#fff;font-size:11px;font-weight:600;padding:4px 8px;border-radius:6px;">Sold out</span>';
+                    else if (qty === 1) qtyBadge = '<span style="position:absolute;top:10px;right:10px;background:#f59e0b;color:#fff;font-size:11px;font-weight:600;padding:4px 8px;border-radius:6px;">Last one!</span>';
+                    else qtyBadge = '<span style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.65);color:#fff;font-size:11px;font-weight:600;padding:4px 8px;border-radius:6px;">' + qty + ' left</span>';
+
+                    html += '<a href="' + url + '" class="gas-event-room-card" style="display:block;background:' + palCardBg + ';border:1px solid #e2e8f0;border-radius:' + palRadius + 'px;overflow:hidden;text-decoration:none;color:inherit;transition:transform 0.15s, box-shadow 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.05);position:relative;' + (qty <= 0 ? 'pointer-events:none;opacity:0.6;' : '') + '">';
+                    html += '<div style="position:relative;">' + img + qtyBadge + '</div>';
                     html += '<div style="padding:14px 16px;">';
                     html += '<h3 style="margin:0 0 6px;font-size:16px;color:#1e293b;">' + r.name + '</h3>';
                     html += '<p style="margin:0 0 8px;color:#64748b;font-size:13px;">👥 Up to ' + r.max_guests + ' guests · ' + data.nights + ' night' + (data.nights > 1 ? 's' : '') + '</p>';
@@ -104,7 +111,7 @@ jQuery(document).ready(function($) {
                     html += '<span style="font-size:13px;color:#64748b;">Room: ' + r.currency + ' ' + r.total_rate.toFixed(2) + (ticketPrice > 0 ? ' + Event: ' + r.currency + ' ' + ticketPrice.toFixed(2) : '') + '</span>';
                     html += '<span style="font-size:18px;font-weight:700;color:' + palAccent + ';">' + r.currency + ' ' + total.toFixed(2) + '</span>';
                     html += '</div>';
-                    html += '<button style="width:100%;margin-top:10px;padding:10px;background:' + palAccent + ';color:#fff;border:none;border-radius:' + Math.min(palRadius, 10) + 'px;font-weight:600;cursor:pointer;">Book This Room</button>';
+                    html += '<button style="width:100%;margin-top:10px;padding:10px;background:' + (qty <= 0 ? '#94a3b8' : palAccent) + ';color:#fff;border:none;border-radius:' + Math.min(palRadius, 10) + 'px;font-weight:600;cursor:' + (qty <= 0 ? 'not-allowed' : 'pointer') + ';">' + (qty <= 0 ? 'Sold Out' : 'Book This Room') + '</button>';
                     html += '</div></a>';
                 });
                 html += '</div>';
@@ -5399,8 +5406,11 @@ jQuery(document).ready(function($) {
                 }
             });
             
-            // Load pricing
+            // Load pricing — pass event slug through so the server bypasses
+            // min_stay enforcement (event holds intentionally use a window
+            // that may be shorter than the property's general min_stay rule).
             console.log('GAS DEBUG currentLanguage:', currentLanguage);
+            var checkoutEventSlug = new URLSearchParams(window.location.search).get('event');
             $.ajax({
                 url: checkoutData.apiUrl + '/api/public/calculate-price',
                 method: 'POST',
@@ -5412,6 +5422,7 @@ jQuery(document).ready(function($) {
                     guests: checkoutData.guests,
                     adults: checkoutData.adults,
                     children: checkoutData.children,
+                    event_slug: checkoutEventSlug || undefined,
                     lang: currentLanguage
                 }),
                 success: function(response) {
