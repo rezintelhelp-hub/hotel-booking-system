@@ -92985,17 +92985,21 @@ async function createEventHolds(productRow) {
 
       // Mirror locally regardless — even if CM push failed, we want our DB to
       // know about the hold so the admin can see + retry. CM-pushed=false is
-      // the partial-state signal.
+      // the partial-state signal. accommodation_price/subtotal/grand_total are
+      // NOT NULL on the bookings table — set to 0 (placeholder; actual paid
+      // amount is stamped by convertHoldToBooking on conversion).
       await pool.query(
         `INSERT INTO bookings (
             property_id, property_owner_id, bookable_unit_id,
             arrival_date, departure_date, num_adults, num_children,
             guest_first_name, guest_last_name, guest_email,
+            accommodation_price, subtotal, grand_total,
             status, held_for_event_id, beds24_booking_id,
             booking_source, currency, payment_status
          ) VALUES (
             $1, 1, $2, $3, $4, 1, 0,
             $5, $6, '',
+            0, 0, 0,
             'event_hold', $7, $8,
             'gas_event_hold', $9, 'unpaid'
          )`,
