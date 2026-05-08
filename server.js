@@ -68,6 +68,7 @@ const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/cl
 const { v4: uuidv4 } = require('uuid');
 const archiver = require('archiver');
 const sanitizeHtml = require('sanitize-html');
+const { formatChannelDescription } = require('./lib/description-formatter');
 
 // Shared HTML sanitiser for room descriptions.
 // Matches the client-side DOMPurify allowlist from Step 1.
@@ -1273,6 +1274,11 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS zip_code VARCHAR(50)`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS cm_property_id VARCHAR(100)`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS cm_source VARCHAR(50)`);
+      // description_format_version: 1 = legacy in-line sanitiseHtml, 2 = lib/description-formatter.
+      // Per-property opt-in so we can flip Vo Rental's many Airbnb-style listings
+      // (account 239) without touching production Beds24-HTML descriptions on
+      // accounts that already look fine. Default 1 keeps existing behaviour.
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS description_format_version INTEGER DEFAULT 1`);
       console.log('✅ Property Stripe keys columns ensured');
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
@@ -8699,6 +8705,134 @@ app.post('/api/gas-sync/connections/:connectionId/sync-content', async (req, res
 });
 
 /**
+ * Preview the formatter output for a single GAS property without writing
+ * anything to the DB. Fetches fresh Beds24 texts, runs the v2 formatter
+ * on each description field, returns before/after JSON.
+ *
+ * GET /api/admin/format-preview?property_id=<gas_property_id>
+ *
+ * Use this to validate the structure-builder against a host's actual
+ * source text before flipping description_format_version on properties.
+ * Master-admin only.
+ */
+app.get('/api/admin/format-preview', async (req, res) => {
+  try {
+    const propertyId = parseInt(req.query.property_id);
+    if (!propertyId) return res.status(400).json({ success: false, error: 'property_id required' });
+
+    // Resolve to the gas_sync_property + connection
+    const linkRow = await pool.query(
+      `SELECT sp.id AS sync_property_id, sp.external_id, sp.name AS prop_name,
+              c.refresh_token, c.credentials, c.adapter_code,
+              p.id AS gas_property_id, p.description_format_version
+       FROM gas_sync_properties sp
+       JOIN gas_sync_connections c ON c.id = sp.connection_id
+       JOIN gas_sync_room_types rt ON rt.sync_property_id = sp.id
+       JOIN bookable_units bu ON bu.id = rt.gas_room_id
+       JOIN properties p ON p.id = bu.property_id
+       WHERE p.id = $1 LIMIT 1`,
+      [propertyId]
+    );
+    if (linkRow.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'No Beds24 sync link found for this property' });
+    }
+    const link = linkRow.rows[0];
+    if (link.adapter_code !== 'beds24') {
+      return res.status(400).json({ success: false, error: 'Preview only supported for Beds24 adapter today' });
+    }
+
+    let creds = link.credentials || {};
+    if (typeof creds === 'string') creds = JSON.parse(creds);
+    const refreshToken = link.refresh_token || creds.refreshToken || creds.refresh_token;
+    if (!refreshToken) return res.status(400).json({ success: false, error: 'No Beds24 refresh token' });
+
+    const tokenResp = await axios.get('https://beds24.com/api/v2/authentication/token', {
+      headers: { refreshToken }
+    });
+    const accessToken = tokenResp.data.token;
+    const propResp = await axios.get('https://beds24.com/api/v2/properties', {
+      headers: { token: accessToken },
+      params: { id: link.external_id, includeTexts: 'all', includeLanguages: 'all', includeAllRooms: true }
+    });
+    const b24Props = Array.isArray(propResp.data) ? propResp.data : (propResp.data?.data || [propResp.data]);
+    const b24Prop = b24Props[0] || {};
+    const propertyTexts = b24Prop.texts || [];
+    const b24Rooms = b24Prop.roomTypes || b24Prop.rooms || [];
+
+    // Pluck a single English-ish value from Beds24's array-of-text-objects
+    // OR object-of-language-keys shape.
+    const pluck = (texts, fieldName) => {
+      if (!texts) return '';
+      if (Array.isArray(texts)) {
+        const en = texts.find(t => (t.language || '').toLowerCase() === 'en') || texts[0];
+        return (en && en[fieldName]) || '';
+      }
+      if (typeof texts === 'object' && texts[fieldName]) {
+        const v = texts[fieldName];
+        if (typeof v === 'string') return v;
+        return v.EN || v.en || Object.values(v)[0] || '';
+      }
+      return '';
+    };
+
+    const propPreview = {
+      propertyDescription1: {
+        before: pluck(propertyTexts, 'propertyDescription1'),
+        after: formatChannelDescription(pluck(propertyTexts, 'propertyDescription1'))
+      },
+      propertyDescription2: {
+        before: pluck(propertyTexts, 'propertyDescription2'),
+        after: formatChannelDescription(pluck(propertyTexts, 'propertyDescription2'))
+      }
+    };
+
+    const roomPreviews = b24Rooms.map(r => ({
+      beds24_room_id: r.id || r.roomId,
+      name: r.name,
+      roomDescription: {
+        before: pluck(r.texts, 'roomDescription') || pluck(r.texts, 'roomDescription1') || pluck(r.texts, 'description'),
+        after: formatChannelDescription(pluck(r.texts, 'roomDescription') || pluck(r.texts, 'roomDescription1') || pluck(r.texts, 'description'))
+      },
+      auxiliary: {
+        before: pluck(r.texts, 'auxiliary') || pluck(r.texts, 'auxiliaryText'),
+        after: formatChannelDescription(pluck(r.texts, 'auxiliary') || pluck(r.texts, 'auxiliaryText'))
+      }
+    }));
+
+    res.json({
+      success: true,
+      property: { id: link.gas_property_id, name: link.prop_name, current_format_version: link.description_format_version },
+      property_texts: propPreview,
+      rooms: roomPreviews
+    });
+  } catch (err) {
+    console.error('[format-preview] error:', err.response?.data || err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Flip a property's description_format_version. Use after Preview shows
+ * the formatter output is good. The next sync-content call will write
+ * formatted descriptions to bookable_units.
+ *
+ * POST /api/admin/property/:id/description-format-version
+ * Body: { version: 1 | 2 }
+ */
+app.post('/api/admin/property/:id/description-format-version', async (req, res) => {
+  try {
+    const propertyId = parseInt(req.params.id);
+    const version = parseInt(req.body.version);
+    if (![1, 2].includes(version)) return res.status(400).json({ success: false, error: 'version must be 1 or 2' });
+    const r = await pool.query(`UPDATE properties SET description_format_version = $1 WHERE id = $2 RETURNING id, name, description_format_version`, [version, propertyId]);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Property not found' });
+    res.json({ success: true, property: r.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * Sync content (descriptions, amenities) for a SINGLE property
  */
 app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) => {
@@ -8823,9 +8957,36 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
 
       // Helper: Beds24 V2 texts can be array or object — normalize to multilingual object
       // mode: 'strip' (plain text), 'sanitise' (clean HTML), 'raw' (as-is)
+      // Lookup the GAS-side property's description_format_version. v2
+      // routes the text through lib/description-formatter (mojibake repair,
+      // section heading inference, bullet/list reconstruction). v1 keeps
+      // the inline sanitiseHtml behaviour for backwards compatibility.
+      let propFormatVersion = 1;
+      try {
+        const fvRow = await pool.query(
+          `SELECT p.description_format_version FROM properties p
+           JOIN bookable_units bu ON bu.property_id = p.id
+           JOIN gas_sync_room_types rt ON rt.gas_room_id = bu.id
+           WHERE rt.sync_property_id = $1 LIMIT 1`,
+          [prop.id]
+        );
+        propFormatVersion = parseInt(fvRow.rows[0]?.description_format_version) || 1;
+      } catch (e) {
+        console.warn('[content-sync] could not read description_format_version, defaulting to 1:', e.message);
+      }
+      console.log('[content-sync] description_format_version =', propFormatVersion);
+
       const extractMultilang = (roomTexts, fieldName, mode = 'strip') => {
         if (!roomTexts) return null;
-        const clean = mode === 'sanitise' ? sanitiseHtml : (mode === 'raw' ? (s) => s.trim() : stripHtmlSimple);
+        const v2Clean = (s) => formatChannelDescription(s, { sourceFormat: 'auto' });
+        // displayName is a label, not prose — never run it through the structural
+        // formatter regardless of version (it'd wrap the room title in <p>).
+        const isLabelField = fieldName === 'displayName' || fieldName === 'name';
+        const clean = mode === 'raw' || isLabelField
+          ? (s) => s.trim()
+          : (propFormatVersion === 2
+              ? v2Clean
+              : (mode === 'sanitise' ? sanitiseHtml : stripHtmlSimple));
         // Array format: [{language: "en", displayName: "...", roomDescription: "..."}, ...]
         if (Array.isArray(roomTexts)) {
           const result = {};
