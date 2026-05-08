@@ -8978,10 +8978,16 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
 
       const extractMultilang = (roomTexts, fieldName, mode = 'strip') => {
         if (!roomTexts) return null;
-        const v2Clean = (s) => formatChannelDescription(s, { sourceFormat: 'auto' });
-        // displayName is a label, not prose — never run it through the structural
-        // formatter regardless of version (it'd wrap the room title in <p>).
+        // displayName is a label, not prose — never structurise. Short fields
+        // (roomDescription, propertyDescription1, description) feed an
+        // <input type="text"> in admin so they need plain text, not HTML.
+        // Long fields (auxiliary, propertyDescription2) feed a contenteditable
+        // WYSIWYG — they get the rich HTML output.
         const isLabelField = fieldName === 'displayName' || fieldName === 'name';
+        const isShortDescField = /^(?:roomDescription|propertyDescription1|description|shortDescription)$/i.test(fieldName);
+        const v2Clean = isShortDescField
+          ? (s) => formatChannelDescription(s, { sourceFormat: 'auto', outputFormat: 'text' })
+          : (s) => formatChannelDescription(s, { sourceFormat: 'auto', outputFormat: 'html' });
         const clean = mode === 'raw' || isLabelField
           ? (s) => s.trim()
           : (propFormatVersion === 2
