@@ -96129,7 +96129,22 @@ function startTieredSyncScheduler() {
 async function processAutoChargePayments() {
     console.log('[AUTO-CHARGE] Running balance payment check...');
     try {
-        // Find bookings where balance is due today based on deposit_rules config
+        // Match bookings whose trigger date is exactly today. No catch-up:
+        // a missed daily run still results in a permanent skip, but operator
+        // can manually charge via scripts/manual-charge-balance.js. Catch-up
+        // logic is intentionally NOT in this hot-fix because deploying it
+        // would auto-charge already-overdue bookings without explicit
+        // operator approval.
+        //
+        // Days-before priority: balance_due_days (the field the UI saves) is
+        // the user's intent. auto_charge_days_before is a legacy column that
+        // defaulted to 14 and was rarely synced to the UI value — use it
+        // only as a last-resort fallback.
+        //
+        // payment_method filter: card_guarantee uses Enigma (not Stripe),
+        // pay_at_property and bank_transfer are out-of-band — none of those
+        // should be auto-charged via Stripe regardless of which fields are
+        // populated.
         const result = await pool.query(`
             SELECT
                 b.id as booking_id,
@@ -96146,14 +96161,15 @@ async function processAutoChargePayments() {
                 b.stripe_payment_intent_id,
                 b.payment_status,
                 b.currency,
-                dr.auto_charge_days_before,
+                COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14) AS effective_days_before,
                 dr.auto_charge_balance,
                 COALESCE(p.stripe_secret_key, a.stripe_secret_key) as stripe_secret_key,
                 b.stripe_setup_intent_id,
                 p.currency as property_currency,
                 p.name as property_name,
                 a.email as owner_email,
-                pc.credentials as payment_config_credentials
+                pc.credentials as payment_config_credentials,
+                (b.arrival_date - INTERVAL '1 day' * COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14))::date AS trigger_date
             FROM bookings b
             JOIN properties p ON p.id = b.property_id
             JOIN accounts a ON a.id = p.account_id
@@ -96165,7 +96181,8 @@ async function processAutoChargePayments() {
             AND b.payment_status != 'paid'
             AND b.balance_amount > 0
             AND b.status NOT IN ('cancelled', 'rejected')
-            AND (b.arrival_date - INTERVAL '1 day' * dr.auto_charge_days_before)::date = CURRENT_DATE
+            AND (b.payment_method IS NULL OR b.payment_method NOT IN ('card_guarantee','pay_at_property','bank_transfer','enigma'))
+            AND (b.arrival_date - INTERVAL '1 day' * COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14))::date = CURRENT_DATE
         `);
 
         if (result.rows.length === 0) {
@@ -96217,6 +96234,11 @@ async function processAutoChargePayments() {
                     continue;
                 }
 
+                // Idempotency key: per booking per day. If the cron runs
+                // twice in one day (server restart inside the 24h window),
+                // Stripe returns the same PaymentIntent rather than charging
+                // the customer twice.
+                const idempotencyKey = `auto-charge-${booking.booking_id}-${new Date().toISOString().slice(0, 10)}`;
                 const paymentIntent = await stripeClient.paymentIntents.create({
                     amount: Math.round(booking.balance_amount * 100),
                     currency: chargeCurrency,
@@ -96228,9 +96250,11 @@ async function processAutoChargePayments() {
                     metadata: {
                         booking_id: String(booking.booking_id),
                         account_id: String(booking.account_id),
-                        type: 'balance_payment'
+                        type: 'balance_payment',
+                        trigger_date: String(booking.trigger_date || ''),
+                        days_before: String(booking.effective_days_before || '')
                     }
-                });
+                }, { idempotencyKey });
 
                 if (paymentIntent.status === 'succeeded') {
                     await pool.query(`
@@ -96238,10 +96262,12 @@ async function processAutoChargePayments() {
                         SET payment_status = 'paid',
                             balance_amount = 0,
                             balance_paid_at = NOW(),
+                            stripe_payment_intent_id = COALESCE(stripe_payment_intent_id, $2),
+                            stripe_charge_id = COALESCE(stripe_charge_id, $3),
                             updated_at = NOW()
                         WHERE id = $1
-                    `, [booking.booking_id]);
-                    console.log(`[AUTO-CHARGE] Successfully charged balance for booking ${booking.booking_id} - ${guestName}`);
+                    `, [booking.booking_id, paymentIntent.id, paymentIntent.latest_charge || null]);
+                    console.log(`[AUTO-CHARGE] Successfully charged balance for booking ${booking.booking_id} - ${guestName} pi=${paymentIntent.id}`);
                 }
 
             } catch (chargeErr) {
