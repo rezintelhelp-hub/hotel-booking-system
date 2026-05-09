@@ -4658,6 +4658,9 @@ jQuery(document).ready(function($) {
                         $('.gas-upsells-loading').hide();
                         var ug = getCurrentGroup();
                         if (response.success && response.upsells && response.upsells.length > 0) {
+                            // Cache full upsell records by ID for the click handler.
+                            window._gasUpsellMap = window._gasUpsellMap || {};
+                            response.upsells.forEach(function(u) { window._gasUpsellMap[String(u.id)] = u; });
                             var html = '';
                             var perNight = '/' + t('booking', 'night', 'night');
                             var perGuest = '/' + t('booking', 'guest', 'guest');
@@ -4985,24 +4988,35 @@ jQuery(document).ready(function($) {
                 var upsellGroup = getCurrentGroup();
 
                 var upsellId = $card.data('upsell-id');
-                var upsellPrice = parseFloat($card.data('price')) || 0;
                 var upsellName = $card.attr('data-upsell-name') || $card.find('.gas-upsell-name').text();
-                var chargeType = $card.data('charge-type');
 
-                // Calculate actual price based on charge type using current group's items.
-                // Pass the full upsell-card dataset through so tiered pricing is honoured.
-                var nights = upsellGroup.items[0].nights || 1;
-                var guests = upsellGroup.items.reduce(function(sum, item) { return sum + (item.guests || 1); }, 0);
-                var actualPrice = calculateUpsellLineTotal({
-                    price: upsellPrice,
-                    charge_type: chargeType,
+                // Look up the full upsell record from the cache populated at render
+                // time. This carries first_night_price / subsequent_night_price /
+                // charge_type as their original API values, sidestepping the
+                // data-attribute round-trip that has historically dropped tier
+                // fields in some render paths. Falls back to data attributes if
+                // cache is empty (e.g. legacy code paths without the cache).
+                var fullUpsell = (window._gasUpsellMap || {})[String(upsellId)];
+                var upsellForCalc = fullUpsell || {
+                    price: parseFloat($card.data('price')) || 0,
+                    charge_type: $card.data('charge-type'),
                     first_night_price: $card.data('first-night-price'),
                     subsequent_night_price: $card.data('subsequent-night-price')
-                }, nights, guests);
+                };
+
+                var nights = upsellGroup.items[0].nights || 1;
+                var guests = upsellGroup.items.reduce(function(sum, item) { return sum + (item.guests || 1); }, 0);
+                var actualPrice = calculateUpsellLineTotal(upsellForCalc, nights, guests);
 
                 if ($card.hasClass('selected')) {
                     var pickedDate = $card.find('.gas-upsell-date').val() || null;
                     var inclPerUnit = parseInt($card.attr('data-included-nights-per-unit')) || null;
+                    // selectedUpsells.price is the line total. Don't include
+                    // charge_type / tier fields here — calculateUpsellsTotal
+                    // recomputes via calculateUpsellLineTotal and would
+                    // over-multiply (treat the stored line total as a base
+                    // and multiply by nights again). The price field already
+                    // carries the correct total.
                     upsellGroup.selectedUpsells.push({
                         id: upsellId,
                         price: actualPrice,
@@ -5495,6 +5509,9 @@ jQuery(document).ready(function($) {
                         if (response.success && response.upsells && response.upsells.length > 0) {
                             console.log('GAS DEBUG upsell[0] raw:', JSON.stringify(response.upsells[0], null, 2));
                             console.log('GAS DEBUG upsell[0].name:', response.upsells[0].name, 'name_ml:', response.upsells[0].name_ml);
+                            // Cache full upsell records — same reason as renderCheckoutUpsells.
+                            window._gasUpsellMap = window._gasUpsellMap || {};
+                            response.upsells.forEach(function(u) { window._gasUpsellMap[String(u.id)] = u; });
                             renderCheckoutUpsells(response.upsells);
                         } else {
                             $('.gas-no-upsells').show();
@@ -5786,6 +5803,14 @@ jQuery(document).ready(function($) {
         function renderCheckoutUpsells(upsells) {
             var currency = checkoutData.currency || '';
             console.log('Rendering upsells:', upsells);
+
+            // Cache full upsell records by ID. The click handler looks up the
+            // complete record here instead of relying on data-attribute round-
+            // tripping (which has historically dropped tiered fields when the
+            // attribute string was empty / parsed-to-undefined by jQuery).
+            // No-op if anyone else has already populated it; we just merge.
+            window._gasUpsellMap = window._gasUpsellMap || {};
+            upsells.forEach(function(u) { window._gasUpsellMap[String(u.id)] = u; });
 
             var perNight = '/' + t('booking', 'night', 'night');
             var perGuest = '/' + t('booking', 'guest', 'guest');
