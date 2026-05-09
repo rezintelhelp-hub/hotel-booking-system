@@ -5991,20 +5991,37 @@ jQuery(document).ready(function($) {
             var $card = $(this);
             if ($card.data('mandatory') === true || $card.data('mandatory') === 'true') return;
             var upsellId = $card.data('upsell-id');
-            var unitPrice = parseFloat($card.data('price')) || 0;
-            var chargeType = $card.data('charge-type');
             var name = $card.attr('data-upsell-name') || $card.find('.gas-upsell-name').text();
             var maxQty = parseInt($card.attr('data-max-quantity'), 10) || 1;
+
+            // Look up the full upsell record from cache populated at render time.
+            // This carries first_night_price / subsequent_night_price as their
+            // original API values, so tiered upsells (e.g. €75 first night /
+            // €45 thereafter) compute correctly. Falls back to data attributes
+            // if cache is missing.
+            var fullUpsell = (window._gasUpsellMap || {})[String(upsellId)];
+            var basePrice = fullUpsell ? (parseFloat(fullUpsell.price) || 0) : (parseFloat($card.data('price')) || 0);
+            var chargeType = fullUpsell ? fullUpsell.charge_type : $card.data('charge-type');
 
             // Capture the chosen date for date-bound upsells so the booking record
             // carries which day the property should schedule the tour for.
             var pickedDate = $card.find('.gas-upsell-date').val() || null;
             var inclPerUnit = parseInt($card.attr('data-included-nights-per-unit')) || null;
 
+            // Compute the line total NOW using the full upsell record, not at
+            // calculateUpsellsTotal time. We then store basePrice + tier fields
+            // separately so calculateUpsellsTotal can recompute consistently
+            // (it uses calculateUpsellLineTotal which applies the same tiered
+            // logic from these stored fields).
+            var nightsForCalc = (checkoutData && checkoutData.pricing && checkoutData.pricing.nights) || 1;
+            var guestsForCalc = (checkoutData && checkoutData.guests) || 1;
+            var calcInput = fullUpsell || {
+                price: basePrice, charge_type: chargeType,
+                first_night_price: $card.data('first-night-price'),
+                subsequent_night_price: $card.data('subsequent-night-price')
+            };
+
             if (maxQty > 1) {
-                // Stepper: each tap +1 (cap at max across all dates).
-                // Cart entries are keyed by (id, date) — adding for a different date
-                // creates a new line so the receipt reads like a ticket stub.
                 if (typeof checkoutData === 'undefined' || !checkoutData.selectedUpsells) return;
                 var sumQty = checkoutData.selectedUpsells
                     .filter(function(u){ return u.id === upsellId; })
@@ -6017,9 +6034,14 @@ jQuery(document).ready(function($) {
                 if (existing) {
                     existing.quantity = (parseInt(existing.quantity)||0) + 1;
                 } else {
+                    // Store basePrice (per-unit) + tier fields. calculateUpsellsTotal
+                    // re-runs calculateUpsellLineTotal which applies the tiered logic.
                     checkoutData.selectedUpsells.push({
-                        id: upsellId, name: name, price: unitPrice,
-                        charge_type: chargeType, quantity: 1,
+                        id: upsellId, name: name, price: basePrice,
+                        charge_type: chargeType,
+                        first_night_price: calcInput.first_night_price,
+                        subsequent_night_price: calcInput.subsequent_night_price,
+                        quantity: 1,
                         upsell_date: pickedDate,
                         included_nights_per_unit: inclPerUnit
                     });
@@ -6039,8 +6061,11 @@ jQuery(document).ready(function($) {
                     $card.addClass('selected');
                     if (typeof checkoutData !== 'undefined' && checkoutData.selectedUpsells) {
                         checkoutData.selectedUpsells.push({
-                            id: upsellId, name: name, price: unitPrice,
-                            charge_type: chargeType, quantity: 1,
+                            id: upsellId, name: name, price: basePrice,
+                            charge_type: chargeType,
+                            first_night_price: calcInput.first_night_price,
+                            subsequent_night_price: calcInput.subsequent_night_price,
+                            quantity: 1,
                             upsell_date: pickedDate,
                             included_nights_per_unit: inclPerUnit
                         });
