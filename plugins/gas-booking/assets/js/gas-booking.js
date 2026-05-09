@@ -741,6 +741,47 @@ jQuery(document).ready(function($) {
         return basePrice;
     }
 
+    // Build the price snippet for an upsell card. Single source of truth for
+    // every place we render "€45/night" style labels. When tiered pricing is
+    // set (first_night_price and/or subsequent_night_price), shows
+    //   €75 first night
+    //   then €45/night
+    // so the host's tiered policy is visible to the guest before they tick
+    // the box. Without this every card just showed `upsell.price` and the
+    // tiered structure was invisible — the cart math was already correct,
+    // only the label was lying. Used by 3 selection sites + 2 confirmation
+    // sites (confirmation calls upsellLineTotalHtml below for the actual
+    // amount the guest paid).
+    function upsellPriceCardHtml(upsell, currency, formatFn) {
+        formatFn = formatFn || formatPriceShort;
+        var basePrice = parseFloat(upsell.price) || 0;
+        var fnp = (upsell.first_night_price !== undefined && upsell.first_night_price !== null && upsell.first_night_price !== '') ? parseFloat(upsell.first_night_price) : null;
+        var snp = (upsell.subsequent_night_price !== undefined && upsell.subsequent_night_price !== null && upsell.subsequent_night_price !== '') ? parseFloat(upsell.subsequent_night_price) : null;
+        var perNight = '/' + t('booking', 'night', 'night');
+        var perGuest = '/' + t('booking', 'guest', 'guest');
+        var isPerNight = (upsell.charge_type === 'per_night' || upsell.charge_type === 'per_guest_per_night');
+        var afterSuffix = upsell.charge_type === 'per_guest_per_night' ? perGuest + perNight : perNight;
+
+        if (isPerNight && (fnp !== null || snp !== null)) {
+            var firstNight = fnp !== null ? fnp : basePrice;
+            var otherNight = snp !== null ? snp : basePrice;
+            if (firstNight !== otherNight) {
+                return formatFn(firstNight, currency)
+                    + '<small> ' + t('booking', 'first_night_short', 'first night') + '</small>'
+                    + '<br><small style="opacity:0.85">' + t('booking', 'then', 'then') + ' '
+                    + formatFn(otherNight, currency) + afterSuffix + '</small>';
+            }
+        }
+
+        var label = '';
+        switch (upsell.charge_type) {
+            case 'per_night': label = perNight; break;
+            case 'per_guest': label = perGuest; break;
+            case 'per_guest_per_night': label = perGuest + perNight; break;
+        }
+        return formatFn(basePrice, currency) + (label ? '<small>' + label + '</small>' : '');
+    }
+
     // Initialize Flatpickr date pickers
     function initDatePickers() {
         if (typeof flatpickr === 'undefined') return;
@@ -2578,24 +2619,7 @@ jQuery(document).ready(function($) {
     }
     
     function renderUpsellItem(upsell, currency) {
-        var priceText = formatPriceShort(upsell.price, currency);
-        var priceLabel = '';
-        var perNight = '/' + t('booking', 'night', 'night');
-        var perGuest = '/' + t('booking', 'guest', 'guest');
-
-        switch (upsell.charge_type) {
-            case 'per_night':
-                priceLabel = perNight;
-                break;
-            case 'per_guest':
-                priceLabel = perGuest;
-                break;
-            case 'per_guest_per_night':
-                priceLabel = perGuest + perNight;
-                break;
-            default:
-                priceLabel = '';
-        }
+        var priceCardHtml = upsellPriceCardHtml(upsell, currency, formatPriceShort);
 
         // Multi-quantity items (e.g. Pet fee, Extra bed) render a stepper:
         // tap card → +1 (cap at max_quantity); small "–" corner button → -1.
@@ -2619,7 +2643,7 @@ jQuery(document).ready(function($) {
                 '<div class="gas-upsell-name">' + upsell.name + (qtyAware ? ' <small style="color:#64748b;font-weight:400;">(up to ' + maxQty + ')</small>' : '') + '</div>' +
                 (upsell.description ? '<div class="gas-upsell-description">' + upsell.description + '</div>' : '') +
             '</div>' +
-            '<div class="gas-upsell-price">' + priceText + '<small>' + priceLabel + '</small></div>' +
+            '<div class="gas-upsell-price">' + priceCardHtml + '</div>' +
             qtyControls +
         '</div>';
     }
@@ -4693,7 +4717,7 @@ jQuery(document).ready(function($) {
                                     html += '<div class="gas-upsell-desc gas-upsell-desc-clamp">' + upsell.description + '</div>';
                                     html += '<a class="gas-upsell-desc-more" onclick="event.stopPropagation()">more</a>';
                                 }
-                                html += '<div class="gas-upsell-price">' + formatPrice(upsell.price, ug.currency) + '<small>' + priceLabel + '</small></div>';
+                                html += '<div class="gas-upsell-price">' + upsellPriceCardHtml(upsell, ug.currency, formatPrice) + '</div>';
                                 // Date-bound upsell — single dropdown to pick the date for all tickets.
                                 // (Earlier per-date stepper UX got noisy on long stays.)
                                 if (validDates && validDates.length) {
@@ -5845,7 +5869,7 @@ jQuery(document).ready(function($) {
                 row += '</div>';
 
                 row += '<div class="gas-upsell-meta">';
-                row += '<div class="gas-upsell-price">' + formatPriceShort(upsell.price, currency) + '<small>' + priceLabel + '</small></div>';
+                row += '<div class="gas-upsell-price">' + upsellPriceCardHtml(upsell, currency, formatPriceShort) + '</div>';
                 if (qtyAware) {
                     row += '<div class="gas-upsell-stepper">';
                     row += '<button type="button" class="gas-upsell-qty-minus" aria-label="Remove one" title="Remove one">−</button>';
@@ -6751,10 +6775,16 @@ jQuery(document).ready(function($) {
             $('.gas-conf-room-name').hide();
 
             // Extras (room upsells + event ticket when booking entered via ?event=<slug>)
+            // Per-line total uses calculateUpsellLineTotal so tiered upsells
+            // (first_night_price / subsequent_night_price) show the actual
+            // amount the guest paid, not the misleading per-unit price.
             var extrasParts = [];
             if (checkoutData.selectedUpsells && checkoutData.selectedUpsells.length > 0) {
+                var confNights = (checkoutData.pricing && checkoutData.pricing.nights) || 1;
+                var confGuests = checkoutData.guests || 1;
                 checkoutData.selectedUpsells.forEach(function(upsell) {
-                    extrasParts.push('<div class="gas-conf-extra-box"><span class="extra-name">' + escapeHtml(upsell.name) + '</span><span class="extra-price">' + formatPrice(upsell.price, currency) + '</span></div>');
+                    var lineTotal = calculateUpsellLineTotal(upsell, confNights, confGuests);
+                    extrasParts.push('<div class="gas-conf-extra-box"><span class="extra-name">' + escapeHtml(upsell.name) + '</span><span class="extra-price">' + formatPrice(lineTotal, currency) + '</span></div>');
                 });
             }
             var evtConf = checkoutData.pricing && checkoutData.pricing.event_ticket;
@@ -6888,11 +6918,16 @@ jQuery(document).ready(function($) {
                         $('.gas-conf-rooms-list').html(roomHtml).show();
                         $('.gas-conf-room-name').hide(); // Hide the simple text
                         
-                        // Show extras/upsells + event ticket if any
+                        // Show extras/upsells + event ticket if any.
+                        // Per-line uses calculateUpsellLineTotal so tiered upsells
+                        // (75 first night / 45 thereafter) show the actual paid amount.
                         var extrasParts2 = [];
                         if (checkoutData.selectedUpsells && checkoutData.selectedUpsells.length > 0) {
+                            var conf2Nights = (checkoutData.pricing && checkoutData.pricing.nights) || 1;
+                            var conf2Guests = checkoutData.guests || 1;
                             checkoutData.selectedUpsells.forEach(function(upsell) {
-                                extrasParts2.push('<div class="gas-conf-extra-box"><span class="extra-name">' + escapeHtml(upsell.name) + '</span><span class="extra-price">' + formatPrice(upsell.price, currency) + '</span></div>');
+                                var lineTotal = calculateUpsellLineTotal(upsell, conf2Nights, conf2Guests);
+                                extrasParts2.push('<div class="gas-conf-extra-box"><span class="extra-name">' + escapeHtml(upsell.name) + '</span><span class="extra-price">' + formatPrice(lineTotal, currency) + '</span></div>');
                             });
                         }
                         var evtConf2 = checkoutData.pricing && checkoutData.pricing.event_ticket;
