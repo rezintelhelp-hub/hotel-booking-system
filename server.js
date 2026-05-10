@@ -1350,6 +1350,177 @@ async function runMigrations() {
     } catch (chanErr) {
       console.log('ℹ️  Channel tables:', chanErr.message);
     }
+
+    // ============================================================
+    // PHASE 1 — GUEST ENTITY + COMMS + ID VERIFICATION
+    //
+    // Five new tables that form the spine of the PMS layer:
+    //   guests                — canonical guest record per (account, email)
+    //   booking_guests        — N:N booking↔guest for multi-guest stays
+    //   guest_documents       — uploaded ID images + verification status
+    //   guest_communications  — every email/SMS/inbox message logged
+    //   guest_consent_log     — GDPR audit trail of opt-in / opt-out events
+    //
+    // Plus: bookings.guest_id FK, accounts.id_policy JSONB.
+    //
+    // All additive. CREATE/ALTER IF NOT EXISTS. No existing-feature risk.
+    // See docs/phase-1-guest-entity-plan.md for the full design.
+    // ============================================================
+    try {
+      await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+
+      // NOTE: email is VARCHAR not CITEXT — there's a pre-existing rule on
+      // the guests table (likely from the legacy guests table that pre-dates
+      // Phase 1) that blocks ALTER COLUMN to CITEXT. Codebase compares
+      // emails via lower(email) consistently — same pattern, no semantic loss.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS guests (
+          id                       SERIAL PRIMARY KEY,
+          account_id               INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+          email                    VARCHAR(255) NOT NULL,
+          first_name               VARCHAR(255),
+          last_name                VARCHAR(255),
+          phone                    VARCHAR(64),
+          address                  TEXT,
+          city                     VARCHAR(255),
+          postcode                 VARCHAR(64),
+          country                  CHAR(2),
+          date_of_birth            DATE,
+          language                 CHAR(2),
+          stripe_customer_id       VARCHAR(255),
+          stripe_identity_verified BOOLEAN DEFAULT false,
+          opt_in_status            VARCHAR(20) DEFAULT 'unknown',
+          opt_in_source            VARCHAR(40),
+          opt_in_at                TIMESTAMP,
+          unsubscribe_token        UUID DEFAULT gen_random_uuid(),
+          magic_link_secret        VARCHAR(64) DEFAULT encode(gen_random_bytes(32), 'hex'),
+          recognised_at            TIMESTAMP,
+          last_seen_at             TIMESTAMP,
+          total_bookings           INT DEFAULT 0,
+          total_spent_cents        BIGINT DEFAULT 0,
+          last_stay_at             TIMESTAMP,
+          notes                    TEXT,
+          created_at               TIMESTAMP DEFAULT NOW(),
+          updated_at               TIMESTAMP DEFAULT NOW(),
+          UNIQUE (account_id, email)
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_guests_email_account ON guests(account_id, email)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_guests_last_seen ON guests(account_id, last_seen_at DESC NULLS LAST)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_guests_stripe ON guests(stripe_customer_id) WHERE stripe_customer_id IS NOT NULL`);
+
+      // Note: booking_guests pre-existed in some envs with passport-style columns
+      // (guest_type, title, passport_number, nationality, etc.). We don't drop
+      // those — just ADD the Phase 1 link columns. Legacy rows survive with
+      // guest_id NULL; new code reads/writes via guest_id.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS booking_guests (
+          id              SERIAL PRIMARY KEY,
+          booking_id      INT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+          guest_id        INT REFERENCES guests(id) ON DELETE RESTRICT,
+          role            VARCHAR(20) DEFAULT 'lead',
+          added_at        TIMESTAMP DEFAULT NOW(),
+          invited_at      TIMESTAMP,
+          invite_token    VARCHAR(255)
+        )
+      `);
+      // ALTERs for envs where the legacy table existed
+      await pool.query(`ALTER TABLE booking_guests ADD COLUMN IF NOT EXISTS guest_id INT REFERENCES guests(id) ON DELETE RESTRICT`);
+      await pool.query(`ALTER TABLE booking_guests ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'lead'`);
+      await pool.query(`ALTER TABLE booking_guests ADD COLUMN IF NOT EXISTS added_at TIMESTAMP DEFAULT NOW()`);
+      await pool.query(`ALTER TABLE booking_guests ADD COLUMN IF NOT EXISTS invited_at TIMESTAMP`);
+      await pool.query(`ALTER TABLE booking_guests ADD COLUMN IF NOT EXISTS invite_token VARCHAR(255)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_booking_guests_booking ON booking_guests(booking_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_booking_guests_guest ON booking_guests(guest_id) WHERE guest_id IS NOT NULL`);
+      await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS booking_guests_booking_guest_unique ON booking_guests(booking_id, guest_id) WHERE guest_id IS NOT NULL`);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS guest_documents (
+          id                       SERIAL PRIMARY KEY,
+          guest_id                 INT NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+          booking_id               INT REFERENCES bookings(id) ON DELETE SET NULL,
+          document_type            VARCHAR(40),
+          issuing_country          CHAR(2),
+          document_number_last4    VARCHAR(8),
+          document_number_full     VARCHAR(64),
+          file_url                 VARCHAR(1024),
+          thumbnail_url            VARCHAR(1024),
+          file_size_bytes          BIGINT,
+          mime_type                VARCHAR(64),
+          status                   VARCHAR(20) DEFAULT 'pending',
+          verification_method      VARCHAR(40),
+          stripe_verification_id   VARCHAR(255),
+          verified_at              TIMESTAMP,
+          verified_by_user_id      INT,
+          rejection_reason         TEXT,
+          document_expires_at      DATE,
+          retention_until          TIMESTAMP,
+          created_at               TIMESTAMP DEFAULT NOW(),
+          updated_at               TIMESTAMP DEFAULT NOW(),
+          deleted_at               TIMESTAMP
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_guest_documents_guest ON guest_documents(guest_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_guest_documents_retention ON guest_documents(retention_until) WHERE deleted_at IS NULL`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_guest_documents_stripe ON guest_documents(stripe_verification_id) WHERE stripe_verification_id IS NOT NULL`);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS guest_communications (
+          id                       SERIAL PRIMARY KEY,
+          guest_id                 INT NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+          booking_id               INT REFERENCES bookings(id) ON DELETE SET NULL,
+          channel                  VARCHAR(20),
+          direction                VARCHAR(10),
+          event_type               VARCHAR(60),
+          subject                  TEXT,
+          body                     TEXT,
+          status                   VARCHAR(20) DEFAULT 'pending',
+          sent_at                  TIMESTAMP,
+          opened_at                TIMESTAMP,
+          clicked_at               TIMESTAMP,
+          provider_message_id      VARCHAR(255),
+          metadata                 JSONB DEFAULT '{}',
+          created_at               TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_guest_comms_guest ON guest_communications(guest_id, created_at DESC)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_guest_comms_booking ON guest_communications(booking_id) WHERE booking_id IS NOT NULL`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_guest_comms_event ON guest_communications(event_type, created_at DESC)`);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS guest_consent_log (
+          id              SERIAL PRIMARY KEY,
+          guest_id        INT NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+          action          VARCHAR(40),
+          source          VARCHAR(60),
+          ip_address      INET,
+          user_agent      TEXT,
+          created_at      TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_guest_consent_guest ON guest_consent_log(guest_id, created_at DESC)`);
+
+      // bookings.guest_id — nullable initially, enforced after backfill
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_id INT REFERENCES guests(id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_bookings_guest ON bookings(guest_id) WHERE guest_id IS NOT NULL`);
+
+      // accounts.id_policy — JSONB with default-off policy
+      await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS id_policy JSONB DEFAULT '{
+        "require_guest_id": false,
+        "require_id_for_lead_only": true,
+        "required_documents": ["passport"],
+        "required_id_countries": [],
+        "verification_mode": "manual",
+        "stripe_identity_enabled": false,
+        "retention_days_post_stay": 90,
+        "collect_at": "pre_arrival",
+        "full_number_required": false
+      }'::jsonb`);
+
+      console.log('✅ Phase 1 guest tables ensured (guests, booking_guests, guest_documents, guest_communications, guest_consent_log)');
+    } catch (guestErr) {
+      console.log('ℹ️  Guest tables:', guestErr.message);
+    }
     
     // Add occupancy pricing columns to bookable_units
     try {
