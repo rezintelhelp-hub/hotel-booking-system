@@ -21410,7 +21410,11 @@ app.post('/api/public/payment-failed', async (req, res) => {
 async function resolveYourStayToken(token) {
   const peek = peekGuestToken(token);
   if (!peek.ok) return { ok: false, status: 401, error: 'Invalid link' };
-  if (peek.purpose !== GUEST_TOKEN_PURPOSES.YOUR_STAY) {
+  // Both your_stay (lead guest) and co_traveller_invite share the same
+  // portal — same view of the booking, same self-service profile, same
+  // upload widget. Co-travellers see the booking they were invited to.
+  const acceptedPurposes = [GUEST_TOKEN_PURPOSES.YOUR_STAY, GUEST_TOKEN_PURPOSES.CO_TRAVELLER_INVITE];
+  if (!acceptedPurposes.includes(peek.purpose)) {
     return { ok: false, status: 403, error: 'Wrong link type' };
   }
   const g = await pool.query(
@@ -21423,7 +21427,7 @@ async function resolveYourStayToken(token) {
   if (!verified.ok) {
     return { ok: false, status: 401, error: verified.reason === 'expired' ? 'Link expired' : 'Invalid link' };
   }
-  return { ok: true, guest: g.rows[0], bookingId: verified.bookingId };
+  return { ok: true, guest: g.rows[0], bookingId: verified.bookingId, purpose: peek.purpose };
 }
 
 app.get('/api/public/your-stay/:token', async (req, res) => {
@@ -95732,6 +95736,145 @@ app.patch('/api/admin/guests/:id', async (req, res) => {
   } catch (error) {
     console.error('Guest update error:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =============================================================================
+// Phase 1 Guest Entity — ID & compliance policy + co-traveller invites
+//
+// id_policy is JSONB on accounts. Schema-default keys:
+//   require_guest_id              master switch
+//   collect_at                    'pre_arrival' | 'on_arrival'
+//   verification_mode             'manual' | 'stripe_identity'
+//   required_documents            ['passport', 'driving_licence', ...]
+//   full_number_required          collect full doc number, not just last4
+//   required_id_countries         restrict to property countries (empty = all)
+//   stripe_identity_enabled       allow the Request Stripe Identity action
+//   require_id_for_lead_only      lead guest only, or every co-traveller
+//   retention_days_post_stay      auto-delete after this many days post-stay
+// =============================================================================
+
+app.get('/api/admin/accounts/:id/id-policy', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const accountId = parseInt(req.params.id);
+    const isMaster = decoded.role === 'master_admin';
+    if (!isMaster && accountId !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+    const r = await pool.query('SELECT id_policy FROM accounts WHERE id = $1', [accountId]);
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Account not found' });
+    res.json({ success: true, id_policy: r.rows[0].id_policy });
+  } catch (err) {
+    console.error('id-policy get error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/admin/accounts/:id/id-policy', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const accountId = parseInt(req.params.id);
+    const isMaster = decoded.role === 'master_admin';
+    if (!isMaster && accountId !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    // Whitelist incoming keys — we only persist the documented schema keys.
+    const allowed = ['require_guest_id', 'collect_at', 'verification_mode',
+                     'required_documents', 'full_number_required',
+                     'required_id_countries', 'stripe_identity_enabled',
+                     'require_id_for_lead_only', 'retention_days_post_stay'];
+    const policy = {};
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) policy[k] = req.body[k];
+    }
+
+    const r = await pool.query(
+      `UPDATE accounts SET id_policy = id_policy || $2::jsonb, updated_at = NOW()
+        WHERE id = $1 RETURNING id_policy`,
+      [accountId, JSON.stringify(policy)]
+    );
+    res.json({ success: true, id_policy: r.rows[0].id_policy });
+  } catch (err) {
+    console.error('id-policy update error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Invite a co-traveller to a booking. Creates / recognises a guest for the
+// invited email, links them to the booking with role='co_traveller', and
+// emails a magic link to the same /your-stay portal.
+app.post('/api/admin/bookings/:id/invite-co-traveller', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    const bookingId = parseInt(req.params.id);
+    const { email, first_name, last_name } = req.body || {};
+    if (!email) return res.status(400).json({ success: false, error: 'email is required' });
+
+    const bk = await pool.query(
+      `SELECT b.id, b.guest_id, b.arrival_date, p.account_id, p.name AS property_name
+         FROM bookings b LEFT JOIN properties p ON p.id = b.property_id
+         WHERE b.id = $1`,
+      [bookingId]
+    );
+    if (!bk.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    const booking = bk.rows[0];
+    if (!isMaster && booking.account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    const recog = await recogniseGuest(pool, {
+      accountId: booking.account_id,
+      email, firstName: first_name, lastName: last_name
+    });
+    if (!recog) return res.status(400).json({ success: false, error: 'Could not resolve invited guest' });
+
+    // Add to booking_guests as co_traveller, idempotent on (booking_id, guest_id).
+    const inviteToken = require('crypto').randomBytes(16).toString('hex');
+    await pool.query(
+      `INSERT INTO booking_guests (booking_id, guest_id, role, invited_at, invite_token, email, first_name, last_name)
+       VALUES ($1, $2, 'co_traveller', NOW(), $3, $4, $5, $6)
+       ON CONFLICT DO NOTHING`,
+      [bookingId, recog.guestId, inviteToken, email, first_name || null, last_name || null]
+    );
+
+    // Sign a magic-link token bound to the new guest + this booking.
+    const guestRow = await pool.query('SELECT magic_link_secret FROM guests WHERE id = $1', [recog.guestId]);
+    const magicToken = signGuestToken({
+      guestId: recog.guestId,
+      bookingId,
+      purpose: GUEST_TOKEN_PURPOSES.CO_TRAVELLER_INVITE,
+      secret: guestRow.rows[0].magic_link_secret
+    });
+    const portalUrl = `${req.protocol}://${req.get('host')}/your-stay.html#${magicToken}`;
+
+    const result = await sendEmail({
+      to: email,
+      subject: `You've been added to a booking at ${booking.property_name || 'a property'}`,
+      html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
+        <h2>Hi ${first_name || 'there'},</h2>
+        <p>You've been added as a co-traveller on a booking. Use the link below to confirm your details and (if requested) upload your ID — it'll save time on arrival.</p>
+        <p><a href="${portalUrl}" style="display:inline-block;background:#3b82f6;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:500;">Open your details</a></p>
+        <p style="color:#666;font-size:13px;">This link is private to you. It expires in 30 days.</p>
+      </body></html>`,
+      context: {
+        guestId: recog.guestId,
+        bookingId,
+        eventType: 'co_traveller_invite',
+        accountId: booking.account_id
+      }
+    });
+
+    if (!result.success) return res.status(502).json({ success: false, error: result.error });
+    res.json({ success: true, sent_to: email, guest_id: recog.guestId });
+  } catch (err) {
+    console.error('invite-co-traveller error:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
