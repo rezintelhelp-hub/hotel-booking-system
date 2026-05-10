@@ -1680,6 +1680,10 @@ async function runMigrations() {
     try {
       // Booking-level hold tracking. deposit_hold_gateway is forward-compatible
       // ('stripe' is the only Phase 2 value; 'enigma'|'authnet' reserved).
+      // Also defensive-add refund_amount: declared in another migration block
+      // at server.js ~line 24012 but not actually present on prod — see
+      // Phase 2 Commit 1 audit finding. Re-declaring here is idempotent.
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10,2) DEFAULT 0`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_gateway VARCHAR(20) DEFAULT 'stripe'`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_pi_id VARCHAR(255)`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_setup_id VARCHAR(255)`);
@@ -21648,6 +21652,303 @@ app.post('/api/admin/bookings/:id/send-portal-link', async (req, res) => {
     res.json({ success: true, sent_to: booking.guest_email });
   } catch (err) {
     console.error('send-portal-link error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================
+// Phase 2 Booking Payment Ops — refund + add-charge
+//
+// Admin-driven, scope-checked, idempotent at the ledger level. Refunds
+// always insert a payment_transactions row with parent_transaction_id
+// linking back to the original charge — that's the audit trail.
+//
+//   POST /api/admin/bookings/:id/refund      body: { amount?, reason? }
+//   POST /api/admin/bookings/:id/add-charge  body: { amount, label, reason? }
+// =====================================================
+
+// Helper: load a booking + scope-check it against the requesting admin.
+// Returns { ok, booking, error, status } — status is the HTTP code on error.
+async function loadBookingForAdmin(req, bookingId) {
+  const decoded = await extractAccountFromToken(req);
+  if (!decoded) return { ok: false, status: 401, error: 'Authentication required' };
+  const isMaster = decoded.role === 'master_admin';
+
+  const r = await pool.query(`
+    SELECT b.*, p.account_id AS property_account_id, p.name AS property_name,
+           p.currency AS property_currency, a.stripe_account_id, a.email AS account_email
+    FROM bookings b
+    LEFT JOIN properties p ON p.id = b.property_id
+    LEFT JOIN accounts a ON p.account_id = a.id
+    WHERE b.id = $1
+  `, [bookingId]);
+  if (!r.rows[0]) return { ok: false, status: 404, error: 'Booking not found' };
+  const booking = r.rows[0];
+  if (!isMaster && booking.property_account_id !== (decoded.accountId || decoded.id)) {
+    return { ok: false, status: 403, error: 'Forbidden' };
+  }
+  return { ok: true, booking, decoded, isMaster };
+}
+
+app.post('/api/admin/bookings/:id/refund', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.id);
+    const ctx = await loadBookingForAdmin(req, bookingId);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+    const { booking } = ctx;
+
+    const reason = (req.body.reason || '').slice(0, 500) || null;
+    if (!booking.stripe_payment_intent_id) {
+      return res.status(400).json({ success: false, error: 'No Stripe charge on this booking — record manual refunds via the ledger directly' });
+    }
+
+    // Refund amount: if not specified, refund the full remaining balance
+    // (booking_total - already_refunded). Stripe rejects amount > captured.
+    const alreadyRefunded = Number(booking.refund_amount || 0);
+    const fullRefundable = Number(booking.grand_total || booking.deposit_paid || 0) - alreadyRefunded;
+    const requestedAmount = req.body.amount ? Number(req.body.amount) : fullRefundable;
+    if (!(requestedAmount > 0)) {
+      return res.status(400).json({ success: false, error: 'Nothing left to refund' });
+    }
+    if (requestedAmount > fullRefundable + 0.01) {
+      return res.status(400).json({ success: false, error: `Cannot refund more than ${fullRefundable.toFixed(2)}` });
+    }
+
+    // Find the original charge tx to link the refund back to it. Best-effort.
+    const parent = await pool.query(
+      `SELECT id FROM payment_transactions
+        WHERE booking_id = $1 AND transaction_type IN ('deposit', 'balance', 'charge')
+        ORDER BY created_at ASC LIMIT 1`,
+      [bookingId]
+    );
+    const parentTxId = parent.rows[0]?.id || null;
+
+    // Stripe refund. stripeAccount is set if the property has Connect; falls
+    // back to platform Stripe otherwise.
+    const stripeOpts = booking.stripe_account_id ? { stripeAccount: booking.stripe_account_id } : undefined;
+    const refund = await stripe.refunds.create({
+      payment_intent: booking.stripe_payment_intent_id,
+      amount: Math.round(requestedAmount * 100),
+      reason: reason ? 'requested_by_customer' : undefined,
+      metadata: { gas_booking_id: String(bookingId), gas_reason: reason || '' }
+    }, stripeOpts);
+
+    // Update booking refund_amount and (if fully refunded) payment_status.
+    const newTotalRefunded = alreadyRefunded + (refund.amount / 100);
+    const isFullRefund = newTotalRefunded >= fullRefundable - 0.01 && alreadyRefunded === 0
+      ? false  // partial of full
+      : newTotalRefunded >= Number(booking.grand_total || 0) - 0.01;
+    await pool.query(
+      `UPDATE bookings SET refund_amount = $1, payment_status = $2, updated_at = NOW() WHERE id = $3`,
+      [newTotalRefunded, isFullRefund ? 'refunded' : booking.payment_status, bookingId]
+    );
+
+    // Ledger entry. parent_transaction_id wires the audit trail.
+    const txIns = await pool.query(
+      `INSERT INTO payment_transactions
+         (booking_id, account_id, guest_id, transaction_type, amount, currency,
+          payment_gateway, gateway_transaction_id, status, description,
+          parent_transaction_id, initiated_at, completed_at, created_at)
+       VALUES ($1, $2, $3, 'refund', $4, $5, 'stripe', $6, 'completed', $7, $8, NOW(), NOW(), NOW())
+       RETURNING id`,
+      [
+        bookingId, booking.property_account_id, booking.guest_id || null,
+        refund.amount / 100, (booking.currency || booking.property_currency || 'GBP').toUpperCase(),
+        refund.id, reason, parentTxId
+      ]
+    );
+
+    // Notify guest via the Phase 1 sendEmail wrapper — auto-logs to
+    // guest_communications.
+    if (booking.guest_email) {
+      sendEmail({
+        to: booking.guest_email,
+        subject: `Refund processed: ${booking.property_name || 'your booking'}`,
+        html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
+          <h2>Hi ${booking.guest_first_name || 'there'},</h2>
+          <p>We've processed a refund of <strong>${(refund.amount / 100).toFixed(2)} ${(booking.currency || 'GBP').toUpperCase()}</strong> on your booking.</p>
+          ${reason ? `<p><em>Reason:</em> ${reason}</p>` : ''}
+          <p>It typically takes 5–10 business days to appear on your statement, depending on your bank.</p>
+          <p style="color:#666;font-size:13px;">If you weren't expecting this, reply to this email.</p>
+        </body></html>`,
+        context: {
+          guestId: booking.guest_id || null,
+          bookingId,
+          accountId: booking.property_account_id,
+          eventType: 'refund_processed',
+          autoCreateGuest: false,
+          metadata: { refund_id: refund.id, amount_cents: refund.amount }
+        }
+      }).catch(e => console.error('refund email skipped:', e.message));
+    }
+
+    res.json({
+      success: true,
+      refund_id: refund.id,
+      amount: refund.amount / 100,
+      currency: refund.currency.toUpperCase(),
+      transaction_id: txIns.rows[0].id,
+      booking_total_refunded: newTotalRefunded
+    });
+  } catch (err) {
+    console.error('admin refund error:', err);
+    if (err.type && err.type.startsWith('Stripe')) {
+      return res.status(400).json({ success: false, error: err.message, stripe_code: err.code });
+    }
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/bookings/:id/add-charge', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.id);
+    const ctx = await loadBookingForAdmin(req, bookingId);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+    const { booking } = ctx;
+
+    const amount = Number(req.body.amount || 0);
+    const label = (req.body.label || '').slice(0, 200);
+    const reason = (req.body.reason || '').slice(0, 500) || null;
+    if (!(amount > 0)) return res.status(400).json({ success: false, error: 'amount must be > 0' });
+    if (!label) return res.status(400).json({ success: false, error: 'label is required' });
+    if (!booking.stripe_payment_method_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'No saved payment method on this booking. Phase 2 v1 requires a saved card; payment-link fallback ships in a later commit.'
+      });
+    }
+    if (!booking.stripe_customer_id) {
+      return res.status(400).json({ success: false, error: 'No saved customer on this booking' });
+    }
+
+    const currency = (booking.currency || booking.property_currency || 'GBP').toLowerCase();
+    const stripeOpts = booking.stripe_account_id ? { stripeAccount: booking.stripe_account_id } : undefined;
+
+    // off_session charge against the saved PM. 3DS may still be required; if
+    // so we return requires_action so the UI can prompt the admin to send
+    // the guest a confirmation link.
+    const intent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100),
+      currency,
+      customer: booking.stripe_customer_id,
+      payment_method: booking.stripe_payment_method_id,
+      off_session: true,
+      confirm: true,
+      description: label,
+      metadata: {
+        gas_booking_id: String(bookingId),
+        gas_reason: reason || '',
+        gas_charge_label: label
+      }
+    }, stripeOpts);
+
+    const success = intent.status === 'succeeded';
+    const requiresAction = intent.status === 'requires_action' || intent.next_action;
+
+    const txIns = await pool.query(
+      `INSERT INTO payment_transactions
+         (booking_id, account_id, guest_id, transaction_type, amount, currency,
+          payment_gateway, gateway_transaction_id, status, description,
+          initiated_at, completed_at, created_at)
+       VALUES ($1, $2, $3, 'charge', $4, $5, 'stripe', $6, $7, $8,
+               NOW(), $9, NOW())
+       RETURNING id`,
+      [
+        bookingId, booking.property_account_id, booking.guest_id || null,
+        amount, currency.toUpperCase(),
+        intent.id,
+        success ? 'completed' : (requiresAction ? 'requires_action' : 'pending'),
+        label + (reason ? ` — ${reason}` : ''),
+        success ? new Date() : null
+      ]
+    );
+
+    if (success && booking.guest_email) {
+      sendEmail({
+        to: booking.guest_email,
+        subject: `Charge: ${label}`,
+        html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
+          <h2>Hi ${booking.guest_first_name || 'there'},</h2>
+          <p>We've charged <strong>${amount.toFixed(2)} ${currency.toUpperCase()}</strong> on your booking for <em>${label}</em>.</p>
+          ${reason ? `<p><em>Reason:</em> ${reason}</p>` : ''}
+          <p style="color:#666;font-size:13px;">If you weren't expecting this, reply to this email.</p>
+        </body></html>`,
+        context: {
+          guestId: booking.guest_id || null,
+          bookingId,
+          accountId: booking.property_account_id,
+          eventType: 'extra_charge',
+          autoCreateGuest: false,
+          metadata: { intent_id: intent.id, label, amount_cents: intent.amount }
+        }
+      }).catch(e => console.error('charge email skipped:', e.message));
+    }
+
+    res.json({
+      success,
+      requires_action: requiresAction || false,
+      payment_intent_id: intent.id,
+      payment_intent_status: intent.status,
+      amount,
+      currency: currency.toUpperCase(),
+      transaction_id: txIns.rows[0].id,
+      message: requiresAction ? 'Charge requires guest authentication — they will receive a Stripe email to confirm' : 'Charge completed'
+    });
+  } catch (err) {
+    console.error('admin add-charge error:', err);
+    if (err.type && err.type.startsWith('Stripe')) {
+      // Card declined / insufficient funds / etc — record as failed in the ledger.
+      try {
+        await pool.query(
+          `INSERT INTO payment_transactions
+             (booking_id, account_id, guest_id, transaction_type, amount, currency,
+              payment_gateway, status, failure_reason, description,
+              created_at)
+           VALUES ($1, $2, $3, 'charge', $4, $5, 'stripe', 'failed', $6, $7, NOW())`,
+          [parseInt(req.params.id), null, null,
+           Number(req.body.amount || 0),
+           (req.body.currency || 'GBP').toUpperCase(),
+           err.message,
+           (req.body.label || '') + ' (failed)']
+        );
+      } catch (logErr) { console.error('failed-charge log skipped:', logErr.message); }
+      return res.status(400).json({ success: false, error: err.message, stripe_code: err.code });
+    }
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET ledger for a booking — Phase 2 reads, used by the Payment Ops UI.
+app.get('/api/admin/bookings/:id/payment-transactions', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.id);
+    const ctx = await loadBookingForAdmin(req, bookingId);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+
+    const r = await pool.query(
+      `SELECT id, transaction_type, amount, currency, status, payment_gateway,
+              gateway_transaction_id, description, parent_transaction_id,
+              created_at, completed_at, failure_reason
+         FROM payment_transactions
+        WHERE booking_id = $1
+        ORDER BY created_at ASC, id ASC`,
+      [bookingId]
+    );
+    res.json({
+      success: true,
+      transactions: r.rows,
+      booking: {
+        id: ctx.booking.id,
+        currency: ctx.booking.currency || ctx.booking.property_currency,
+        grand_total: ctx.booking.grand_total,
+        deposit_paid: ctx.booking.deposit_paid,
+        refund_amount: ctx.booking.refund_amount || 0,
+        payment_status: ctx.booking.payment_status,
+        has_saved_pm: !!ctx.booking.stripe_payment_method_id
+      }
+    });
+  } catch (err) {
+    console.error('payment-transactions list error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
