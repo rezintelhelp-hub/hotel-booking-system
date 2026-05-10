@@ -603,6 +603,71 @@ async function logGuestCommunication({ to, subject, html, result, context }) {
   await pool.query('UPDATE guests SET last_seen_at = NOW() WHERE id = $1', [guestId]);
 }
 
+// Find or create a guest record for (account, email). Idempotent.
+//
+// Behaviour:
+//   - If a guest already exists for this (account, lower(email)), bump
+//     last_seen_at and only fill in name/phone/address fields the
+//     record was missing (never overwrite existing data).
+//   - Otherwise INSERT a new guest with all available fields and set
+//     recognised_at = NOW(). ON CONFLICT guards against a race where
+//     two parallel requests both miss the SELECT.
+//
+// `db` is either the pool or a transaction client — the helper passes
+// queries through whichever was given so callers can include guest
+// resolution inside their existing transaction.
+//
+// Returns { guestId, isReturning, priorBookings } or null if it can't run
+// (missing accountId/email). Failures inside should be caught by the
+// caller — recognition is enrichment, not a hard requirement.
+async function recogniseGuest(db, { accountId, email, firstName, lastName, phone, address, city, postcode, country, language }) {
+  if (!accountId || !email) return null;
+  const normEmail = String(email).toLowerCase().trim();
+  if (!normEmail) return null;
+
+  const existing = await db.query(
+    'SELECT id, total_bookings FROM guests WHERE account_id = $1 AND lower(email) = $2 LIMIT 1',
+    [accountId, normEmail]
+  );
+
+  if (existing.rows[0]) {
+    await db.query(
+      `UPDATE guests SET
+         first_name = COALESCE(NULLIF(first_name, ''), $2),
+         last_name  = COALESCE(NULLIF(last_name,  ''), $3),
+         phone      = COALESCE(NULLIF(phone,      ''), $4),
+         address    = COALESCE(NULLIF(address,    ''), $5),
+         city       = COALESCE(NULLIF(city,       ''), $6),
+         postcode   = COALESCE(NULLIF(postcode,   ''), $7),
+         country    = COALESCE(NULLIF(country,    ''), $8),
+         language   = COALESCE(NULLIF(language,   ''), $9),
+         last_seen_at = NOW(),
+         updated_at = NOW()
+       WHERE id = $1`,
+      [existing.rows[0].id, firstName || null, lastName || null, phone || null,
+       address || null, city || null, postcode || null, country || null, language || null]
+    );
+    return {
+      guestId: existing.rows[0].id,
+      isReturning: (existing.rows[0].total_bookings || 0) > 0,
+      priorBookings: existing.rows[0].total_bookings || 0
+    };
+  }
+
+  const ins = await db.query(
+    `INSERT INTO guests (
+        account_id, email, first_name, last_name, phone,
+        address, city, postcode, country, language,
+        recognised_at, last_seen_at, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW(), NOW(), NOW())
+     ON CONFLICT (account_id, email) DO UPDATE SET last_seen_at = NOW()
+     RETURNING id`,
+    [accountId, normEmail, firstName || null, lastName || null, phone || null,
+     address || null, city || null, postcode || null, country || null, language || null]
+  );
+  return { guestId: ins.rows[0].id, isReturning: false, priorBookings: 0 };
+}
+
 // Get email branding for an account — colours, logo, name, from address
 async function getEmailBranding(pool, accountId, propertyId) {
   const branding = {
@@ -21390,7 +21455,39 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         
         const createdBookings = [];
         const cmResults = { beds24: [], hostaway: [], smoobu: [] };
-        
+
+        // Recognise the guest before the loop — same guest, multiple rooms.
+        // Non-blocking: failure leaves recognisedGuestId null and the bookings
+        // proceed without a guest_id link. The pre-existing nightly job /
+        // backfill script can pick up any unmapped rows later.
+        let recognisedGuestId = null;
+        try {
+            const acctLookup = await client.query(
+                'SELECT p.account_id FROM bookable_units bu JOIN properties p ON bu.property_id = p.id WHERE bu.id = $1',
+                [rooms[0]?.roomId]
+            );
+            const _accountId = acctLookup.rows[0]?.account_id;
+            if (_accountId && guest_email) {
+                const recog = await recogniseGuest(client, {
+                    accountId: _accountId,
+                    email: guest_email,
+                    firstName: guest_first_name,
+                    lastName: guest_last_name,
+                    phone: guest_phone,
+                    address: guest_address,
+                    city: guest_city,
+                    postcode: guest_postcode,
+                    country: guest_country
+                });
+                if (recog) {
+                    recognisedGuestId = recog.guestId;
+                    console.log(`[Guest] ${recog.isReturning ? 'returning' : 'new'} guest ${recog.guestId} (prior bookings: ${recog.priorBookings})`);
+                }
+            }
+        } catch (recogErr) {
+            console.error('[Guest] recognition failed (non-blocking):', recogErr.message);
+        }
+
         // Process each room
         for (let i = 0; i < rooms.length; i++) {
             const room = rooms[i];
@@ -21485,9 +21582,10 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                     guest_address, guest_city, guest_postcode, guest_country,
                     special_requests,
                     accommodation_price, subtotal, grand_total,
-                    status, booking_source, currency, group_booking_id, source_site_url
+                    status, booking_source, currency, group_booking_id, source_site_url,
+                    guest_id
                 )
-                VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, $16, 'confirmed', 'direct', $17, $18, $19)
+                VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, $16, 'confirmed', 'direct', $17, $18, $19, $20)
                 RETURNING *
             `, [
                 roomData.property_id,
@@ -21508,7 +21606,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 roomPrice,
                 roomData.currency,
                 groupBookingId,
-                source_site_url || null
+                source_site_url || null,
+                recognisedGuestId
             ]);
             
             const booking = bookingResult.rows[0];
@@ -21986,6 +22085,23 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         
         console.log(`Group booking created: ${groupBookingId} with ${createdBookings.length} rooms`);
         console.log(`Created booking IDs: ${createdBookings.map(b => b.id).join(', ')}`);
+
+        // Bump guest stats post-COMMIT — total_bookings + last_stay_at.
+        // Wrapped & swallowed so a stats failure can never affect the response.
+        if (recognisedGuestId) {
+            try {
+                await pool.query(
+                    `UPDATE guests SET
+                       total_bookings = total_bookings + $2,
+                       last_stay_at = GREATEST(COALESCE(last_stay_at, '1970-01-01'::timestamp), $3::timestamp),
+                       updated_at = NOW()
+                     WHERE id = $1`,
+                    [recognisedGuestId, createdBookings.length, checkin]
+                );
+            } catch (statsErr) {
+                console.error('[Guest] stat bump failed (non-blocking):', statsErr.message);
+            }
+        }
         
         // DEBUG: Verify bookings exist after commit on DIFFERENT connection
         try {
