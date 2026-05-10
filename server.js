@@ -4284,8 +4284,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
             }
           }
 
-          // V1 Fixed Price fallback — if V2 wrote zero prices, try V1 getRates
-          if (!hasAnyPrices && v1ApiKey && propKey) {
+          // V1 Fixed Price fallback — ALWAYS run when V1 creds present. The
+          // function has its own internal coverage check (line ~7360) and
+          // short-circuits when V2 already covers everything V1 knows about.
+          // The previous `!hasAnyPrices` gate skipped V1 entirely for any
+          // room where V2 wrote even ONE price — leaving the remaining
+          // dates unpriced + blocked on mixed V1/V2 properties like Chester.
+          if (v1ApiKey && propKey) {
             try {
               const v1Result = await applyV1RatesFallback({
                 gasRoomId: room.gas_room_id,
@@ -8247,8 +8252,13 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
             }
           }
           
-          // V1 Fixed Price fallback — if V2 wrote zero prices, try V1 getRates
-          if (daysWithPrice === 0 && v1ApiKey && prop.prop_key) {
+          // V1 Fixed Price fallback — ALWAYS run when V1 creds present.
+          // See the matching change at line ~4287 for the full rationale:
+          // mixed V1/V2 properties (Chester) had V2 daily prices on some
+          // dates and fixed V1 prices for the rest; the previous gate of
+          // `daysWithPrice === 0` skipped V1 entirely once V2 wrote even
+          // one daily price, leaving the rest of the year unpriced + blocked.
+          if (v1ApiKey && prop.prop_key) {
             try {
               const v1Result = await applyV1RatesFallback({
                 gasRoomId: room.gas_room_id,
@@ -8258,7 +8268,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                 roomName: room.name
               });
               if (!v1Result.skipped) {
-                daysWithPrice = v1Result.daysUpdated;
+                daysWithPrice += v1Result.daysUpdated;
                 totalDaysUpdated += v1Result.daysUpdated;
               }
             } catch (v1Err) {
@@ -8740,8 +8750,10 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
             }
           }
         }
-        // V1 Fixed Price fallback — use getRates instead of broken getPrice endpoint
-        else if (!hasAnyPrices && v1ApiKey && prop.prop_key) {
+        // V1 Fixed Price fallback — ALWAYS run when V1 creds present (mixed
+        // V1/V2 properties need both: V2 daily prices override, V1 fixed
+        // fills the gaps via COALESCE inside applyV1RatesFallback's UPSERT).
+        if (v1ApiKey && prop.prop_key) {
           try {
             const v1Result = await applyV1RatesFallback({
               gasRoomId: room.gas_room_id,
