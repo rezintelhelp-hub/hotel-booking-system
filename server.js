@@ -50599,6 +50599,44 @@ app.get('/api/admin/amenities', async (req, res) => {
   }
 });
 
+// Per-account "show from-price using best offer" toggle.
+// When true, the booking-app listing-card from_price reflects the lowest
+// rate after applying the best applicable percentage offer; when false
+// (default), shows the raw lowest standard rate. Opt-in per account.
+app.get('/api/admin/accounts/:id/show-offer-price-from', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const accountId = parseInt(req.params.id);
+    if (decoded.role !== 'master_admin' && accountId !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+    const r = await pool.query('SELECT show_offer_price_from FROM accounts WHERE id = $1', [accountId]);
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Account not found' });
+    res.json({ success: true, enabled: !!r.rows[0].show_offer_price_from });
+  } catch (err) {
+    console.error('show-offer-price-from get error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/admin/accounts/:id/show-offer-price-from', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const accountId = parseInt(req.params.id);
+    if (decoded.role !== 'master_admin' && accountId !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+    const enabled = !!req.body.enabled;
+    await pool.query('UPDATE accounts SET show_offer_price_from = $2, updated_at = NOW() WHERE id = $1', [accountId, enabled]);
+    res.json({ success: true, enabled });
+  } catch (err) {
+    console.error('show-offer-price-from put error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Per-account filter-amenity selection.
 //   GET → list of selected codes + which codes are available to pick from
 //   PUT → replace the selection wholesale (body: { codes: [...] })
@@ -73857,9 +73895,58 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     // = show only those codes. Two-layer curation: master sets eligible list,
     // client picks from it.
     let filterAmenityCodes = [];
+    let showOfferPriceFrom = false;
     if (!skipAccountFilter) {
-      const acctRow = await pool.query('SELECT filter_amenity_codes FROM accounts WHERE id = $1', [clientId]).catch(() => ({ rows: [] }));
+      const acctRow = await pool.query('SELECT filter_amenity_codes, show_offer_price_from FROM accounts WHERE id = $1', [clientId]).catch(() => ({ rows: [] }));
       filterAmenityCodes = acctRow.rows[0]?.filter_amenity_codes || [];
+      showOfferPriceFrom = !!acctRow.rows[0]?.show_offer_price_from;
+    }
+
+    // Apply best percentage offer to each room's from_price if the account
+    // has opted in. Strategy: find max applicable percentage discount per
+    // room from website-visible, currently-valid offers; apply to from_price.
+    // Fixed-amount and price_per_night offers skipped in this v1.
+    if (showOfferPriceFrom && rooms.length > 0) {
+      try {
+        const roomIdList = rooms.map(r => r.id);
+        // Resolve account_id from one of the rooms (all are same account
+        // since skipAccountFilter only triggered when no clientId is
+        // available, but we have clientId here).
+        const offers = await pool.query(`
+          SELECT bu.id AS room_id, MAX(o.discount_value) AS best_pct
+            FROM bookable_units bu
+            JOIN properties p ON p.id = bu.property_id
+            JOIN offers o
+              ON o.active = true
+             AND COALESCE(o.available_website, true) = true
+             AND o.discount_type = 'percentage'
+             AND o.discount_value > 0
+             AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE + INTERVAL '365 days')
+             AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
+             AND (
+                 o.room_id = bu.id
+              OR o.property_id = bu.property_id
+              OR o.account_id = p.account_id
+              OR bu.id = ANY(COALESCE(o.room_ids, ARRAY[]::int[]))
+              OR bu.property_id = ANY(COALESCE(o.property_ids, ARRAY[]::int[]))
+             )
+           WHERE bu.id = ANY($1::int[])
+           GROUP BY bu.id`,
+          [roomIdList]
+        );
+        const bestPctByRoom = {};
+        offers.rows.forEach(r => { bestPctByRoom[r.room_id] = Number(r.best_pct); });
+        rooms.forEach(r => {
+          const pct = bestPctByRoom[r.id];
+          if (pct && pct > 0 && r.from_price != null && r.from_price > 0) {
+            r.from_price = Math.round(r.from_price * (1 - pct / 100) * 100) / 100;
+            r.from_price_offer_pct = pct;
+          }
+        });
+      } catch (offerErr) {
+        // Offer enrichment is non-blocking — leave raw from_price if anything throws.
+        console.error('from_price offer enrichment skipped:', offerErr.message);
+      }
     }
 
     res.json({
