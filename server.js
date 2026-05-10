@@ -70,6 +70,7 @@ const archiver = require('archiver');
 const sanitizeHtml = require('sanitize-html');
 const { formatChannelDescription } = require('./lib/description-formatter');
 const { signGuestToken, verifyGuestToken, peekGuestToken, PURPOSES: GUEST_TOKEN_PURPOSES } = require('./lib/guest-tokens');
+const depositGateway = require('./lib/payment-gateways');
 
 // Shared HTML sanitiser for room descriptions.
 // Matches the client-side DOMPurify allowlist from Step 1.
@@ -21944,12 +21945,366 @@ app.get('/api/admin/bookings/:id/payment-transactions', async (req, res) => {
         deposit_paid: ctx.booking.deposit_paid,
         refund_amount: ctx.booking.refund_amount || 0,
         payment_status: ctx.booking.payment_status,
-        has_saved_pm: !!ctx.booking.stripe_payment_method_id
+        has_saved_pm: !!ctx.booking.stripe_payment_method_id,
+        deposit_hold_status: ctx.booking.deposit_hold_status || 'none',
+        deposit_hold_amount: ctx.booking.deposit_hold_amount,
+        deposit_hold_currency: ctx.booking.deposit_hold_currency,
+        deposit_hold_expires_at: ctx.booking.deposit_hold_expires_at,
+        deposit_hold_gateway: ctx.booking.deposit_hold_gateway || 'stripe'
       }
     });
   } catch (err) {
     console.error('payment-transactions list error:', err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================
+// Phase 2 Booking Payment Ops — security deposit hold
+//
+// Three states + three actions, plus a Stripe webhook for status sync.
+//
+// States are tracked on bookings.deposit_hold_status:
+//   'none'       no hold ever set up
+//   'authorised' active manual-capture PI, money reserved on card
+//   'released'   auth voided (no money moved)
+//   'captured'   funds captured (full or partial)
+//   'expired'    auth window passed (Stripe webhook flips this)
+//
+// Actions:
+//   POST /api/admin/bookings/:id/deposit/block      body: { amount, currency? }
+//   POST /api/admin/bookings/:id/deposit/release
+//   POST /api/admin/bookings/:id/deposit/capture    body: { amount?, reason? }
+//   POST /api/webhooks/stripe-deposit               (express.raw, signed)
+//
+// Claim/dispute flow lives in a later commit. Capture for now is a direct
+// admin action with a free-form reason — formal claim with guest dispute
+// window comes when the master_admin queue UI is built.
+// =====================================================
+
+app.post('/api/admin/bookings/:id/deposit/block', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.id);
+    const ctx = await loadBookingForAdmin(req, bookingId);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+    const { booking } = ctx;
+
+    if (booking.deposit_hold_status === 'authorised') {
+      return res.status(400).json({ success: false, error: 'A hold is already active. Release it first or capture before re-blocking.' });
+    }
+
+    const amount = Number(req.body.amount || 0);
+    const currency = (req.body.currency || booking.currency || booking.property_currency || 'GBP').toLowerCase();
+    if (!(amount > 0)) return res.status(400).json({ success: false, error: 'amount must be > 0' });
+
+    const returnUrl = `${req.protocol}://${req.get('host')}/your-stay.html?deposit=verified`;
+    const idempotencyKey = `deposit-block-${bookingId}-${Date.now()}`;
+
+    const result = await depositGateway.block(booking, {
+      stripe, amount, currency, returnUrl, idempotencyKey
+    });
+
+    if (!result.ok) {
+      return res.status(400).json({ success: false, error: result.error, stripe_code: result.stripeCode });
+    }
+
+    // Persist hold state on the booking + ledger row.
+    await pool.query(
+      `UPDATE bookings SET
+         deposit_hold_pi_id = $1, deposit_hold_status = 'authorised',
+         deposit_hold_amount = $2, deposit_hold_currency = $3,
+         deposit_hold_expires_at = $4, deposit_hold_gateway = 'stripe',
+         updated_at = NOW()
+       WHERE id = $5`,
+      [result.paymentIntentId, amount, currency.toUpperCase(), result.expiresAt, bookingId]
+    );
+
+    await pool.query(
+      `INSERT INTO payment_transactions
+         (booking_id, account_id, guest_id, transaction_type, amount, currency,
+          payment_gateway, gateway_transaction_id, status, description,
+          initiated_at, created_at)
+       VALUES ($1, $2, $3, 'auth', $4, $5, 'stripe', $6, $7, $8, NOW(), NOW())`,
+      [
+        bookingId, booking.property_account_id, booking.guest_id || null,
+        amount, currency.toUpperCase(),
+        result.paymentIntentId,
+        result.requiresAction ? 'requires_action' : 'completed',
+        `Security deposit hold (${amount.toFixed(2)} ${currency.toUpperCase()})`
+      ]
+    );
+
+    if (booking.guest_email) {
+      sendEmail({
+        to: booking.guest_email,
+        subject: `${booking.property_name || 'Your booking'}: ${amount.toFixed(2)} ${currency.toUpperCase()} security hold`,
+        html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
+          <h2>Hi ${booking.guest_first_name || 'there'},</h2>
+          <p>We've placed a security hold of <strong>${amount.toFixed(2)} ${currency.toUpperCase()}</strong> on your card. <strong>This is a hold, not a charge</strong> — the funds remain in your account but are temporarily reserved by your bank.</p>
+          <p>The hold will be released after your stay if there are no issues. Your bank may show this as a pending transaction until then.</p>
+          <p style="color:#666;font-size:13px;">If you have questions, reply to this email.</p>
+        </body></html>`,
+        context: {
+          guestId: booking.guest_id || null, bookingId,
+          accountId: booking.property_account_id,
+          eventType: 'deposit_hold_placed',
+          metadata: { pi_id: result.paymentIntentId, amount_cents: Math.round(amount * 100) }
+        }
+      }).catch(e => console.error('hold email skipped:', e.message));
+    }
+
+    res.json({
+      success: true,
+      payment_intent_id: result.paymentIntentId,
+      status: result.status,
+      requires_action: result.requiresAction,
+      amount,
+      currency: currency.toUpperCase(),
+      expires_at: result.expiresAt
+    });
+  } catch (err) {
+    console.error('deposit/block error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/bookings/:id/deposit/release', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.id);
+    const ctx = await loadBookingForAdmin(req, bookingId);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+    const { booking } = ctx;
+
+    if (booking.deposit_hold_status !== 'authorised') {
+      return res.status(400).json({ success: false, error: 'No active hold to release' });
+    }
+    if (!booking.deposit_hold_pi_id) {
+      return res.status(400).json({ success: false, error: 'Booking has no deposit_hold_pi_id' });
+    }
+
+    const result = await depositGateway.release(booking, {
+      stripe, idempotencyKey: `deposit-release-${bookingId}-${Date.now()}`
+    });
+
+    if (!result.ok) {
+      return res.status(400).json({ success: false, error: result.error, stripe_code: result.stripeCode });
+    }
+
+    await pool.query(
+      `UPDATE bookings SET deposit_hold_status = 'released', updated_at = NOW() WHERE id = $1`,
+      [bookingId]
+    );
+
+    // Find the auth row to link the release back to.
+    const parent = await pool.query(
+      `SELECT id FROM payment_transactions
+        WHERE booking_id = $1 AND transaction_type = 'auth'
+          AND gateway_transaction_id = $2
+        ORDER BY created_at DESC LIMIT 1`,
+      [bookingId, booking.deposit_hold_pi_id]
+    );
+
+    await pool.query(
+      `INSERT INTO payment_transactions
+         (booking_id, account_id, guest_id, transaction_type, amount, currency,
+          payment_gateway, gateway_transaction_id, status, description,
+          parent_transaction_id, initiated_at, completed_at, created_at)
+       VALUES ($1, $2, $3, 'release', $4, $5, 'stripe', $6, 'completed', $7, $8,
+               NOW(), NOW(), NOW())`,
+      [
+        bookingId, booking.property_account_id, booking.guest_id || null,
+        booking.deposit_hold_amount, (booking.deposit_hold_currency || 'GBP'),
+        booking.deposit_hold_pi_id,
+        'Security hold released',
+        parent.rows[0]?.id || null
+      ]
+    );
+
+    if (booking.guest_email) {
+      sendEmail({
+        to: booking.guest_email,
+        subject: `${booking.property_name || 'Your booking'}: security hold released`,
+        html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
+          <h2>Hi ${booking.guest_first_name || 'there'},</h2>
+          <p>The <strong>${Number(booking.deposit_hold_amount).toFixed(2)} ${booking.deposit_hold_currency || 'GBP'}</strong> security hold on your card has been released. No charge was applied.</p>
+          <p>The pending line on your bank statement will drop off in 1-7 days, depending on your bank.</p>
+          <p>Thanks for staying with us.</p>
+        </body></html>`,
+        context: {
+          guestId: booking.guest_id || null, bookingId,
+          accountId: booking.property_account_id,
+          eventType: 'deposit_hold_released'
+        }
+      }).catch(e => console.error('release email skipped:', e.message));
+    }
+
+    res.json({ success: true, status: result.status });
+  } catch (err) {
+    console.error('deposit/release error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/bookings/:id/deposit/capture', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.id);
+    const ctx = await loadBookingForAdmin(req, bookingId);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+    const { booking } = ctx;
+
+    if (booking.deposit_hold_status !== 'authorised') {
+      return res.status(400).json({ success: false, error: 'No active hold to capture' });
+    }
+    if (!booking.deposit_hold_pi_id) {
+      return res.status(400).json({ success: false, error: 'Booking has no deposit_hold_pi_id' });
+    }
+
+    const reason = (req.body.reason || '').slice(0, 500) || null;
+    const requestedAmount = req.body.amount ? Number(req.body.amount) : null;
+    const holdAmount = Number(booking.deposit_hold_amount || 0);
+    if (requestedAmount !== null) {
+      if (!(requestedAmount > 0)) return res.status(400).json({ success: false, error: 'amount must be > 0' });
+      if (requestedAmount > holdAmount + 0.01) {
+        return res.status(400).json({ success: false, error: `Cannot capture more than the held amount (${holdAmount.toFixed(2)})` });
+      }
+    }
+
+    const result = await depositGateway.capture(booking, {
+      stripe,
+      amountToCapture: requestedAmount || undefined,
+      idempotencyKey: `deposit-capture-${bookingId}-${Date.now()}`
+    });
+
+    if (!result.ok) {
+      return res.status(400).json({ success: false, error: result.error, stripe_code: result.stripeCode });
+    }
+
+    await pool.query(
+      `UPDATE bookings SET deposit_hold_status = 'captured', updated_at = NOW() WHERE id = $1`,
+      [bookingId]
+    );
+
+    // Link the capture row to the original auth.
+    const parent = await pool.query(
+      `SELECT id FROM payment_transactions
+        WHERE booking_id = $1 AND transaction_type = 'auth'
+          AND gateway_transaction_id = $2
+        ORDER BY created_at DESC LIMIT 1`,
+      [bookingId, booking.deposit_hold_pi_id]
+    );
+
+    await pool.query(
+      `INSERT INTO payment_transactions
+         (booking_id, account_id, guest_id, transaction_type, amount, currency,
+          payment_gateway, gateway_transaction_id, status, description,
+          parent_transaction_id, initiated_at, completed_at, created_at)
+       VALUES ($1, $2, $3, 'capture', $4, $5, 'stripe', $6, 'completed', $7, $8,
+               NOW(), NOW(), NOW())`,
+      [
+        bookingId, booking.property_account_id, booking.guest_id || null,
+        result.capturedAmount, result.currency,
+        booking.deposit_hold_pi_id,
+        reason ? `Security deposit captured — ${reason}` : 'Security deposit captured',
+        parent.rows[0]?.id || null
+      ]
+    );
+
+    if (booking.guest_email) {
+      sendEmail({
+        to: booking.guest_email,
+        subject: `${booking.property_name || 'Your booking'}: ${result.capturedAmount.toFixed(2)} ${result.currency} captured from security hold`,
+        html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
+          <h2>Hi ${booking.guest_first_name || 'there'},</h2>
+          <p>We've captured <strong>${result.capturedAmount.toFixed(2)} ${result.currency}</strong> from the security hold on your card${holdAmount > result.capturedAmount ? ` — the remaining ${(holdAmount - result.capturedAmount).toFixed(2)} ${result.currency} has been released` : ''}.</p>
+          ${reason ? `<p><em>Reason:</em> ${reason}</p>` : ''}
+          <p style="color:#666;font-size:13px;">If you weren't expecting this, please reply to this email — we want to hear from you.</p>
+        </body></html>`,
+        context: {
+          guestId: booking.guest_id || null, bookingId,
+          accountId: booking.property_account_id,
+          eventType: 'deposit_hold_captured',
+          metadata: { amount_cents: Math.round(result.capturedAmount * 100), reason }
+        }
+      }).catch(e => console.error('capture email skipped:', e.message));
+    }
+
+    res.json({
+      success: true,
+      captured_amount: result.capturedAmount,
+      currency: result.currency,
+      status: result.status
+    });
+  } catch (err) {
+    console.error('deposit/capture error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Stripe webhook for hold lifecycle. Separate endpoint with its own secret
+// (set STRIPE_DEPOSIT_WEBHOOK_SECRET in Railway env, register the endpoint
+// in Stripe Dashboard for events listed below).
+//
+// Body parser MUST be express.raw — Stripe verifies the raw bytes.
+app.post('/api/webhooks/stripe-deposit', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const secret = process.env.STRIPE_DEPOSIT_WEBHOOK_SECRET;
+  if (!secret) {
+    console.error('STRIPE_DEPOSIT_WEBHOOK_SECRET not set — refusing event');
+    return res.status(500).send('Webhook secret not configured');
+  }
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, secret);
+  } catch (err) {
+    console.error('Stripe deposit webhook signature failure:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    const intent = event.data.object;
+    if (intent.metadata?.gas_purpose !== 'security_deposit_hold') {
+      return res.json({ received: true, note: 'not a deposit-hold PI' });
+    }
+    const bookingId = parseInt(intent.metadata.gas_booking_id || '0');
+    if (!bookingId) return res.json({ received: true, note: 'no gas_booking_id' });
+
+    if (event.type === 'payment_intent.canceled') {
+      await pool.query(
+        `UPDATE bookings SET deposit_hold_status = 'released', updated_at = NOW()
+          WHERE id = $1 AND deposit_hold_pi_id = $2 AND deposit_hold_status = 'authorised'`,
+        [bookingId, intent.id]
+      );
+    } else if (event.type === 'payment_intent.succeeded') {
+      // Capture confirmed by Stripe — flip to captured if not already.
+      await pool.query(
+        `UPDATE bookings SET deposit_hold_status = 'captured', updated_at = NOW()
+          WHERE id = $1 AND deposit_hold_pi_id = $2 AND deposit_hold_status = 'authorised'`,
+        [bookingId, intent.id]
+      );
+    } else if (event.type === 'payment_intent.requires_action') {
+      // Hold needs 3DS — flip the matching ledger row.
+      await pool.query(
+        `UPDATE payment_transactions SET status = 'requires_action', updated_at = NOW()
+          WHERE gateway_transaction_id = $1 AND booking_id = $2 AND transaction_type = 'auth'`,
+        [intent.id, bookingId]
+      );
+    } else if (event.type === 'payment_intent.payment_failed') {
+      await pool.query(
+        `UPDATE bookings SET deposit_hold_status = 'released', updated_at = NOW()
+          WHERE id = $1 AND deposit_hold_pi_id = $2`,
+        [bookingId, intent.id]
+      );
+      await pool.query(
+        `UPDATE payment_transactions SET status = 'failed', failure_reason = $1, updated_at = NOW()
+          WHERE gateway_transaction_id = $2 AND booking_id = $3 AND transaction_type = 'auth'`,
+        [intent.last_payment_error?.message || 'payment_failed', intent.id, bookingId]
+      );
+    }
+    res.json({ received: true });
+  } catch (err) {
+    console.error('Stripe deposit webhook handler error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
