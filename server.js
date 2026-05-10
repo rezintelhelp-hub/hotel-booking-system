@@ -49710,67 +49710,22 @@ app.post('/api/bookings/:id/send-receipt', async (req, res) => {
   }
 });
 
-// Process refund
-app.post('/api/bookings/:id/refund', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { amount } = req.body; // Optional - full refund if not specified
-    
-    // Get booking and payment details
-    const result = await pool.query(`
-      SELECT b.*, a.stripe_account_id
-      FROM bookings b
-      LEFT JOIN properties p ON b.property_id = p.id
-      LEFT JOIN accounts a ON p.account_id = a.id
-      WHERE b.id = $1
-    `, [id]);
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Booking not found' });
-    }
-    
-    const booking = result.rows[0];
-    
-    if (!booking.stripe_payment_intent_id) {
-      return res.json({ success: false, error: 'No payment found for this booking' });
-    }
-    
-    // Process refund via Stripe
-    const refundAmount = amount ? Math.round(parseFloat(amount) * 100) : undefined; // undefined = full refund
-    
-    try {
-      const refund = await stripe.refunds.create({
-        payment_intent: booking.stripe_payment_intent_id,
-        amount: refundAmount
-      }, {
-        stripeAccount: booking.stripe_account_id
-      });
-      
-      // Update booking status
-      await pool.query(`
-        UPDATE bookings 
-        SET payment_status = 'refunded', 
-            refund_amount = COALESCE(refund_amount, 0) + $1
-        WHERE id = $2
-      `, [refund.amount / 100, id]);
-      
-      // Record transaction
-      await pool.query(`
-        INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, gateway_transaction_id, payment_gateway, created_at)
-        VALUES ($1, 'refund', $2, 'USD', 'completed', $3, 'stripe', NOW())
-      `, [id, refund.amount / 100, refund.id]);
-      
-      res.json({ success: true, refund_id: refund.id, amount: refund.amount / 100 });
-      
-    } catch (stripeError) {
-      console.error('Stripe refund error:', stripeError);
-      res.json({ success: false, error: stripeError.message });
-    }
-    
-  } catch (error) {
-    console.error('Process refund error:', error);
-    res.json({ success: false, error: error.message });
-  }
+// Legacy /api/bookings/:id/refund — RETIRED in Phase 2 Commit 5.
+//
+// Replaced by /api/admin/bookings/:id/refund which is auth-gated, scope-
+// checked, writes to the payment_transactions ledger with parent_transaction_id
+// linkage, and emails the guest a confirmation through the comms log.
+// The admin UI's processRefund() shim was repointed at the same time.
+//
+// Returning 410 Gone so any rogue callers fail loudly rather than silently
+// hitting a half-built path.
+app.post('/api/bookings/:id/refund', (req, res) => {
+  console.warn(`[deprecated] POST /api/bookings/${req.params.id}/refund — use /api/admin/bookings/:id/refund`);
+  res.status(410).json({
+    success: false,
+    error: 'This endpoint has been retired. Use POST /api/admin/bookings/:id/refund (admin auth required).',
+    replacement: '/api/admin/bookings/:id/refund'
+  });
 });
 
 // Cancel booking
