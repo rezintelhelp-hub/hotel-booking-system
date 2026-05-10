@@ -1283,6 +1283,53 @@ async function runMigrations() {
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
     }
+
+    // gas_sync_channels: one row per Channex channel connection (BDC, Airbnb,
+    // Expedia, etc.) attached to a customer. Sits below gas_sync_connections
+    // — a connection can have many channels. Stores Channex's channel_id
+    // (UUID) so we can drive update/delete/activate without re-fetching.
+    //
+    // gas_sync_channel_mappings: per-rate-plan mapping. For BDC: one row per
+    // (rate_plan, occupancy) pair. For Airbnb: one row per Airbnb listing
+    // mapped to a GAS bookable_unit. Stores the OTA-side IDs so the GAS
+    // UI can show "your Tranquility room is mapped to BDC's room 586818903 /
+    // rate 16385048".
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS gas_sync_channels (
+          id SERIAL PRIMARY KEY,
+          connection_id INTEGER NOT NULL REFERENCES gas_sync_connections(id) ON DELETE CASCADE,
+          channex_channel_id VARCHAR(255) NOT NULL,
+          channel_code VARCHAR(50) NOT NULL,
+          title VARCHAR(255),
+          is_active BOOLEAN DEFAULT false,
+          settings JSONB DEFAULT '{}',
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          last_pull_at TIMESTAMP,
+          UNIQUE(connection_id, channex_channel_id)
+        )
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS gas_sync_channel_mappings (
+          id SERIAL PRIMARY KEY,
+          channel_id INTEGER NOT NULL REFERENCES gas_sync_channels(id) ON DELETE CASCADE,
+          channex_mapping_id VARCHAR(255),
+          gas_rate_plan_id VARCHAR(255),
+          gas_bookable_unit_id INTEGER,
+          ota_room_id VARCHAR(255),
+          ota_rate_id VARCHAR(255),
+          ota_listing_id VARCHAR(255),
+          settings JSONB DEFAULT '{}',
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_channel_mappings_channel ON gas_sync_channel_mappings(channel_id)`);
+      console.log('✅ gas_sync_channels + gas_sync_channel_mappings ensured');
+    } catch (chanErr) {
+      console.log('ℹ️  Channel tables:', chanErr.message);
+    }
     
     // Add occupancy pricing columns to bookable_units
     try {
@@ -8827,6 +8874,187 @@ app.post('/api/admin/property/:id/description-format-version', async (req, res) 
     const r = await pool.query(`UPDATE properties SET description_format_version = $1 WHERE id = $2 RETURNING id, name, description_format_version`, [version, propertyId]);
     if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Property not found' });
     res.json({ success: true, property: r.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================
+// CHANNEX CHANNEL CONNECTION ENDPOINTS
+//
+// Master-admin-only. Drives the GAS Admin "Connect a channel" wizard.
+// Each endpoint is a thin wrapper around channex-adapter methods —
+// shape changes in Channex's private API blast-radius to one server.js
+// route. Persists state in gas_sync_channels + gas_sync_channel_mappings
+// on success.
+//
+// Adapter is loaded via SyncManager.getAdapterForConnection so the
+// connection's stored apiKey + groupId + environment flow through.
+// =====================================================
+
+// GET /api/admin/channex/:connectionId/available — catalogue of OTAs
+app.get('/api/admin/channex/:connectionId/available', async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.connectionId);
+    const { SyncManager } = require('./gas-sync/adapters');
+    const sm = new SyncManager(pool);
+    const adapter = await sm.getAdapterForConnection(connectionId);
+    const result = await adapter.listAvailableChannels();
+    res.json(result);
+  } catch (err) {
+    console.error('[channex/available]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/channex/:connectionId/test — validate user-supplied creds
+// Body: { channel_code, settings }
+app.post('/api/admin/channex/:connectionId/test', async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.connectionId);
+    const { channel_code, settings } = req.body;
+    if (!channel_code || !settings) {
+      return res.status(400).json({ success: false, error: 'channel_code + settings required' });
+    }
+    const { SyncManager } = require('./gas-sync/adapters');
+    const adapter = await new SyncManager(pool).getAdapterForConnection(connectionId);
+    res.json(await adapter.testChannelConnection(channel_code, settings));
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/channex/:connectionId/mapping-details
+// Body: { channel_code, settings }
+app.post('/api/admin/channex/:connectionId/mapping-details', async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.connectionId);
+    const { channel_code, settings } = req.body;
+    const { SyncManager } = require('./gas-sync/adapters');
+    const adapter = await new SyncManager(pool).getAdapterForConnection(connectionId);
+    const [mapping, conn] = await Promise.all([
+      adapter.getChannelMappingDetails(channel_code, settings),
+      adapter.getChannelConnectionDetails(channel_code, settings)
+    ]);
+    res.json({
+      success: mapping.success && conn.success,
+      mapping_details: mapping.data,
+      connection_details: conn.data,
+      currency: conn.data?.attributes?.currency
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/admin/channex/:connectionId/channels — list connected channels
+app.get('/api/admin/channex/:connectionId/channels', async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.connectionId);
+    const channels = await pool.query(
+      `SELECT c.*,
+        (SELECT COUNT(*)::int FROM gas_sync_channel_mappings m WHERE m.channel_id = c.id) AS mapping_count
+       FROM gas_sync_channels c
+       WHERE c.connection_id = $1 ORDER BY c.created_at DESC`,
+      [connectionId]
+    );
+    res.json({ success: true, channels: channels.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/channex/:connectionId/save-bdc — create BDC channel
+// Body: { hotel_id, gas_property_id, title?, mappings: [{rate_plan_id, settings}] }
+app.post('/api/admin/channex/:connectionId/save-bdc', async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.connectionId);
+    const { hotel_id, gas_property_id, title, mappings, channex_property_id } = req.body;
+    if (!hotel_id || !channex_property_id || !Array.isArray(mappings) || mappings.length === 0) {
+      return res.status(400).json({ success: false, error: 'hotel_id, channex_property_id, mappings required' });
+    }
+    const { SyncManager } = require('./gas-sync/adapters');
+    const adapter = await new SyncManager(pool).getAdapterForConnection(connectionId);
+    const connRow = await pool.query(
+      `SELECT external_account_id FROM gas_sync_connections WHERE id = $1`, [connectionId]
+    );
+    const groupId = connRow.rows[0]?.external_account_id;
+    if (!groupId) return res.status(400).json({ success: false, error: 'connection has no Channex group_id' });
+
+    const createRes = await adapter.createChannel({
+      channel: 'BookingCom',
+      group_id: groupId,
+      is_active: false,
+      title: title || `BDC ${hotel_id}`,
+      properties: [channex_property_id],
+      rate_plans: mappings,
+      settings: { hotel_id }
+    });
+    if (!createRes.success) {
+      return res.status(422).json({ success: false, error: createRes.error, details: createRes.details, code: createRes.code });
+    }
+    const ch = createRes.data;
+    const channexChannelId = ch?.id;
+    const insRow = await pool.query(`
+      INSERT INTO gas_sync_channels (connection_id, channex_channel_id, channel_code, title, is_active, settings)
+      VALUES ($1, $2, 'BookingCom', $3, false, $4)
+      ON CONFLICT (connection_id, channex_channel_id) DO UPDATE SET
+        title = EXCLUDED.title, settings = EXCLUDED.settings, updated_at = NOW()
+      RETURNING id
+    `, [connectionId, channexChannelId, title || `BDC ${hotel_id}`, JSON.stringify({ hotel_id, gas_property_id })]);
+    const channelDbId = insRow.rows[0].id;
+    // Persist per-rate mapping rows
+    const ratePlans = ch?.attributes?.rate_plans || ch?.rate_plans || [];
+    for (const rp of ratePlans) {
+      await pool.query(`
+        INSERT INTO gas_sync_channel_mappings
+          (channel_id, channex_mapping_id, gas_rate_plan_id, ota_room_id, ota_rate_id, settings)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [
+        channelDbId, rp.id, rp.rate_plan_id,
+        String(rp.settings?.room_type_code || ''), String(rp.settings?.rate_plan_code || ''),
+        JSON.stringify(rp.settings || {})
+      ]);
+    }
+    res.json({ success: true, channel_id: channelDbId, channex_channel_id: channexChannelId });
+  } catch (err) {
+    console.error('[channex/save-bdc]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/channex/channel/:id/activate
+app.post('/api/admin/channex/channel/:id/activate', async (req, res) => {
+  try {
+    const channelDbId = parseInt(req.params.id);
+    const row = await pool.query(
+      `SELECT c.*, c.connection_id FROM gas_sync_channels c WHERE c.id = $1`, [channelDbId]
+    );
+    if (row.rows.length === 0) return res.status(404).json({ success: false, error: 'channel not found' });
+    const { SyncManager } = require('./gas-sync/adapters');
+    const adapter = await new SyncManager(pool).getAdapterForConnection(row.rows[0].connection_id);
+    const r = await adapter.activateChannel(row.rows[0].channex_channel_id);
+    if (r.success) {
+      await pool.query(`UPDATE gas_sync_channels SET is_active = true, updated_at = NOW() WHERE id = $1`, [channelDbId]);
+    }
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/admin/channex/channel/:id
+app.delete('/api/admin/channex/channel/:id', async (req, res) => {
+  try {
+    const channelDbId = parseInt(req.params.id);
+    const row = await pool.query(`SELECT * FROM gas_sync_channels WHERE id = $1`, [channelDbId]);
+    if (row.rows.length === 0) return res.status(404).json({ success: false, error: 'not found' });
+    const { SyncManager } = require('./gas-sync/adapters');
+    const adapter = await new SyncManager(pool).getAdapterForConnection(row.rows[0].connection_id);
+    const r = await adapter.deleteChannel(row.rows[0].channex_channel_id);
+    // Always clean up our DB even if Channex returns 404 (already deleted there)
+    await pool.query(`DELETE FROM gas_sync_channels WHERE id = $1`, [channelDbId]);
+    res.json({ success: true, channex_response: r });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
