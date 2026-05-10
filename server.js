@@ -1662,7 +1662,88 @@ async function runMigrations() {
     } catch (guestErr) {
       console.log('ℹ️  Guest tables:', guestErr.message);
     }
-    
+
+    // ============================================================
+    // Phase 2 — Booking Payment Ops schema (additive, idempotent)
+    //
+    // Adds:
+    //   bookings.deposit_hold_*               manual-capture PI tracking
+    //   accounts.deposit_policy               JSONB, account-level defaults
+    //   properties.deposit_policy             JSONB, property override (NULL = inherit)
+    //   payment_transactions.parent_transaction_id  refund/capture → original
+    //   booking_deposit_claims                claim lifecycle table
+    //
+    // No behaviour change for existing flows. Phase 2 endpoints in
+    // a later commit consume these columns.
+    // See: docs/phase-2-booking-payment-ops-plan.md
+    // ============================================================
+    try {
+      // Booking-level hold tracking. deposit_hold_gateway is forward-compatible
+      // ('stripe' is the only Phase 2 value; 'enigma'|'authnet' reserved).
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_gateway VARCHAR(20) DEFAULT 'stripe'`);
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_pi_id VARCHAR(255)`);
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_setup_id VARCHAR(255)`);
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_amount DECIMAL(10,2)`);
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_currency VARCHAR(3)`);
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_expires_at TIMESTAMP`);
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_status VARCHAR(20)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_bookings_deposit_hold_status ON bookings(deposit_hold_status, deposit_hold_expires_at) WHERE deposit_hold_status = 'authorised'`);
+
+      // Account-level default policy. Properties inherit unless they override.
+      await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS deposit_policy JSONB DEFAULT '{
+        "hold_mode": "on_demand",
+        "default_amount": 200,
+        "max_amount": 1000,
+        "currency_inherits_from_property": true,
+        "disclosure_required": true,
+        "evidence_required": true,
+        "auto_accept_hours": 48,
+        "notify_before_capture": true,
+        "allowed_reason_categories": ["damage", "cleaning", "missing_item", "extra_guest", "noise_violation", "smoking", "other"],
+        "max_per_claim": null
+      }'::jsonb`);
+
+      // Property override. NULL means "use the account default".
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS deposit_policy JSONB`);
+
+      // Link refunds/captures back to the original auth/charge for audit clarity.
+      await pool.query(`ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS parent_transaction_id INT REFERENCES payment_transactions(id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_payment_tx_parent ON payment_transactions(parent_transaction_id) WHERE parent_transaction_id IS NOT NULL`);
+
+      // Claim lifecycle. evidence_doc_ids points at Phase 1 guest_documents rows.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS booking_deposit_claims (
+          id                  SERIAL PRIMARY KEY,
+          booking_id          INT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+          filed_by_user_id    INT,
+          amount              DECIMAL(10,2) NOT NULL,
+          currency            VARCHAR(3),
+          reason_category     VARCHAR(40),
+          reason_text         TEXT,
+          evidence_doc_ids    INT[] DEFAULT '{}',
+          status              VARCHAR(20) NOT NULL DEFAULT 'draft',
+          filed_at            TIMESTAMP,
+          guest_responded_at  TIMESTAMP,
+          guest_response      TEXT,
+          auto_accept_at      TIMESTAMP,
+          resolved_at         TIMESTAMP,
+          resolved_by_user_id INT,
+          resolved_outcome    VARCHAR(20),
+          resolved_amount     DECIMAL(10,2),
+          resolved_notes      TEXT,
+          capture_tx_id       INT REFERENCES payment_transactions(id),
+          created_at          TIMESTAMP DEFAULT NOW(),
+          updated_at          TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_claims_booking ON booking_deposit_claims(booking_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_claims_status ON booking_deposit_claims(status, auto_accept_at) WHERE status IN ('filed', 'admin_review')`);
+
+      console.log('✅ Phase 2 booking-payment-ops schema ensured (bookings.deposit_hold_*, accounts.deposit_policy, properties.deposit_policy, payment_transactions.parent_transaction_id, booking_deposit_claims)');
+    } catch (depositErr) {
+      console.log('ℹ️  Phase 2 schema:', depositErr.message);
+    }
+
     // Add occupancy pricing columns to bookable_units
     try {
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS pricing_mode VARCHAR(20) DEFAULT 'per_room'`);
