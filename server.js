@@ -8211,8 +8211,13 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
               const dateObj = new Date(today);
               dateObj.setDate(dateObj.getDate() + i);
               const dateStr = dateObj.toISOString().split('T')[0];
-              
-              const isAvailable = availData[dateStr] === true;
+
+              // Beds24 /inventory/rooms/availability returns NUMERIC counts
+              // per date (e.g. 2 = two units available, 0 = blocked).
+              // The previous `=== true` check was always false because the
+              // value is a number — every fixed-price-only room was getting
+              // 100% blocked. Number() coerces booleans (true→1) for safety.
+              const isAvailable = Number(availData[dateStr]) > 0;
               const isBlocked = !isAvailable;
               
               const priceInfo = findPriceForDate(dateStr);
@@ -83998,7 +84003,9 @@ async function runGasSyncScheduler() {
                 for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
                   const dateStr = d.toISOString().split('T')[0];
                   if (availData[dateStr] === undefined) continue; // no data for this date
-                  const isAvailable = availData[dateStr] === true;
+                  // Beds24 returns NUMERIC counts per date (qty available),
+                  // not booleans. Same fix as line ~8215.
+                  const isAvailable = Number(availData[dateStr]) > 0;
                   const priceInfo = findPriceForDate(dateStr);
                   const price = priceInfo?.price || null;
                   const minStay = priceInfo?.minStay || 1;
