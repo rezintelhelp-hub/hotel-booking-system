@@ -95066,6 +95066,169 @@ app.put('/api/admin/shop/orders/:id/status', async (req, res) => {
   }
 });
 
+// =============================================================================
+// Phase 1 Guest Entity — admin endpoints
+//
+// GET    /api/admin/guests           paginated list, search by name/email
+// GET    /api/admin/guests/:id       full detail + bookings + comms + docs
+// PATCH  /api/admin/guests/:id       update notes / language / opt-in
+//
+// Scoping: master_admin sees all (or filters by ?account_id=N); every other
+// role is locked to their own account.
+// =============================================================================
+
+app.get('/api/admin/guests', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const isMaster = decoded.role === 'master_admin';
+    const filterAccountId = req.query.account_id ? parseInt(req.query.account_id) : null;
+    const scopedAccountId = isMaster ? filterAccountId : (decoded.accountId || decoded.id);
+
+    const q = (req.query.q || '').trim();
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const perPage = Math.min(100, Math.max(1, parseInt(req.query.per_page) || 25));
+    const offset = (page - 1) * perPage;
+
+    const where = [];
+    const params = [];
+    if (scopedAccountId) {
+      params.push(scopedAccountId);
+      where.push(`g.account_id = $${params.length}`);
+    }
+    if (q) {
+      params.push(`%${q.toLowerCase()}%`);
+      const i = params.length;
+      where.push(`(lower(g.email) LIKE $${i} OR lower(g.first_name) LIKE $${i} OR lower(g.last_name) LIKE $${i} OR lower(coalesce(g.first_name,'') || ' ' || coalesce(g.last_name,'')) LIKE $${i})`);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const listSql = `
+      SELECT g.id, g.account_id, a.name AS account_name, g.email, g.first_name, g.last_name,
+             g.phone, g.country, g.total_bookings, g.total_spent_cents, g.last_stay_at,
+             g.recognised_at, g.last_seen_at, g.opt_in_status,
+             g.stripe_identity_verified, g.created_at
+      FROM guests g
+      LEFT JOIN accounts a ON a.id = g.account_id
+      ${whereSql}
+      ORDER BY g.last_seen_at DESC NULLS LAST, g.id DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+    const countSql = `SELECT COUNT(*)::int AS total FROM guests g ${whereSql}`;
+    const [list, count] = await Promise.all([
+      pool.query(listSql, [...params, perPage, offset]),
+      pool.query(countSql, params)
+    ]);
+
+    res.json({
+      success: true,
+      guests: list.rows,
+      total: count.rows[0].total,
+      page, per_page: perPage,
+      has_more: offset + list.rows.length < count.rows[0].total
+    });
+  } catch (error) {
+    console.error('Guests list error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/admin/guests/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    const guestId = parseInt(req.params.id);
+
+    const guestRow = await pool.query(
+      `SELECT g.*, a.name AS account_name FROM guests g
+       LEFT JOIN accounts a ON a.id = g.account_id WHERE g.id = $1`,
+      [guestId]
+    );
+    if (!guestRow.rows[0]) return res.status(404).json({ success: false, error: 'Guest not found' });
+    const guest = guestRow.rows[0];
+    if (!isMaster && guest.account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    // Don't leak the magic-link secret to the admin UI — it's a token-signing key.
+    delete guest.magic_link_secret;
+
+    const [bookings, comms, docs] = await Promise.all([
+      pool.query(
+        `SELECT id, group_booking_id, property_id, bookable_unit_id, arrival_date, departure_date,
+                num_adults, num_children, status, payment_status, grand_total, currency, created_at
+           FROM bookings WHERE guest_id = $1 ORDER BY arrival_date DESC NULLS LAST, id DESC LIMIT 50`,
+        [guestId]
+      ),
+      pool.query(
+        `SELECT id, booking_id, channel, direction, event_type, subject, status,
+                sent_at, opened_at, clicked_at, created_at
+           FROM guest_communications WHERE guest_id = $1
+           ORDER BY created_at DESC LIMIT 100`,
+        [guestId]
+      ),
+      pool.query(
+        `SELECT id, booking_id, document_type, status, verification_method,
+                stripe_identity_verified_at, created_at
+           FROM guest_documents WHERE guest_id = $1 ORDER BY created_at DESC`,
+        [guestId]
+      )
+    ]);
+
+    res.json({
+      success: true,
+      guest,
+      bookings: bookings.rows,
+      communications: comms.rows,
+      documents: docs.rows
+    });
+  } catch (error) {
+    console.error('Guest detail error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.patch('/api/admin/guests/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    const guestId = parseInt(req.params.id);
+
+    const existing = await pool.query('SELECT account_id FROM guests WHERE id = $1', [guestId]);
+    if (!existing.rows[0]) return res.status(404).json({ success: false, error: 'Guest not found' });
+    if (!isMaster && existing.rows[0].account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    // Whitelist of writable fields. Email + account_id intentionally NOT
+    // editable — they're identity. Stats columns are derived. Magic-link
+    // secret is rotated through a dedicated endpoint when we add one.
+    const allowed = ['notes', 'language', 'tags', 'phone', 'first_name', 'last_name',
+                     'address', 'city', 'postcode', 'country', 'date_of_birth', 'opt_in_status'];
+    const sets = [];
+    const params = [guestId];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        params.push(req.body[key]);
+        sets.push(`${key} = $${params.length}`);
+      }
+    }
+    if (!sets.length) return res.json({ success: true, updated: false });
+
+    sets.push('updated_at = NOW()');
+    const updateSql = `UPDATE guests SET ${sets.join(', ')} WHERE id = $1 RETURNING *`;
+    const r = await pool.query(updateSql, params);
+    delete r.rows[0].magic_link_secret;
+    res.json({ success: true, updated: true, guest: r.rows[0] });
+  } catch (error) {
+    console.error('Guest update error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/admin/shop/settings — shop config for account
 app.get('/api/admin/shop/settings', async (req, res) => {
   try {
