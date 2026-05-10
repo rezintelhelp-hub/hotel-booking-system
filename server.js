@@ -17329,8 +17329,20 @@ async function beds24MarketplaceRequest(endpoint, extraData = {}, extraAuth = {}
 // Connect account via Beds24 marketplace (master admin only)
 // Properties are OBJECTS keyed by propId, roomTypes are OBJECTS keyed by roomId
 // Structure: { getAccounts: { ownerId: { ownerId, masterId, username, properties: { propId: { name, propId, roomTypes: { roomId: {...} } } } } } }
+// Master-admin guard for marketplace endpoints. The Beds24 marketplace
+// master key sees every property across the Rezintel partnership — exposing
+// it to client admins would leak other clients' Beds24 properties. Lock to
+// master_admin only.
+async function requireMasterAdmin(req, res) {
+  const decoded = await extractAccountFromToken(req);
+  if (!decoded) { res.status(401).json({ success: false, error: 'Authentication required' }); return null; }
+  if (decoded.role !== 'master_admin') { res.status(403).json({ success: false, error: 'Master admin only' }); return null; }
+  return decoded;
+}
+
 app.post('/api/accounts/:id/beds24v2/connect', async (req, res) => {
   try {
+    if (!await requireMasterAdmin(req, res)) return;
     const { id } = req.params;
     const data = await beds24MarketplaceRequest('getAccounts', {});
     const accountsObj = data?.getAccounts || {};
@@ -17382,9 +17394,10 @@ app.post('/api/accounts/:id/beds24v2/connect', async (req, res) => {
   }
 });
 
-// List all marketplace accounts with property counts (debug/admin)
+// List all marketplace accounts with property counts (master admin only)
 app.get('/api/accounts/:id/beds24v2/properties', async (req, res) => {
   try {
+    if (!await requireMasterAdmin(req, res)) return;
     const data = await beds24MarketplaceRequest('getAccounts', {});
     const accountsObj = data?.getAccounts || {};
     const summary = [];
@@ -17406,8 +17419,10 @@ app.get('/api/accounts/:id/beds24v2/properties', async (req, res) => {
 });
 
 // Debug: raw getPropertyContent response for a marketplace connection
+// (master admin only — pulls via the marketplace master key)
 app.get('/api/gas-sync/connections/:connectionId/debug-content', async (req, res) => {
   try {
+    if (!await requireMasterAdmin(req, res)) return;
     const conn = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [req.params.connectionId]);
     if (conn.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const connection = conn.rows[0];
@@ -17447,6 +17462,7 @@ app.get('/api/gas-sync/connections/:connectionId/debug-content', async (req, res
 // Creates a gas_sync_connections row with adapter_code='beds24-marketplace' — does NOT touch existing beds24 connections
 app.post('/api/accounts/:id/beds24v2/link', async (req, res) => {
   try {
+    if (!await requireMasterAdmin(req, res)) return;
     const accountId = parseInt(req.params.id);
     const { propId, propKey, propName, ownerId, rooms } = req.body;
     if (!propId || !ownerId) return res.status(400).json({ success: false, error: 'propId and ownerId required' });
