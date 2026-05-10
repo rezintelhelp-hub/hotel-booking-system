@@ -50,6 +50,16 @@ try {
   console.log('Hostfully adapter not available:', e.message);
 }
 
+// Try to load Channex adapter (trial — multi-tenant via Groups)
+let ChannexAdapter = null;
+try {
+  const channexModule = require('./channex-adapter');
+  ChannexAdapter = channexModule.ChannexAdapter;
+  console.log('✅ Channex adapter loaded successfully');
+} catch (e) {
+  console.log('Channex adapter not available:', e.message);
+}
+
 // =====================================================
 // ADAPTER REGISTRY
 // =====================================================
@@ -81,6 +91,12 @@ if (CalryAdapter) {
 if (HostfullyAdapter) {
   adapters.hostfully = HostfullyAdapter;
   console.log('✅ Hostfully adapter registered (direct)');
+}
+
+// Add Channex if available (trial — multi-tenant via Groups)
+if (ChannexAdapter) {
+  adapters.channex = ChannexAdapter;
+  console.log('✅ Channex adapter registered (direct)');
 }
 
 // PMS types that should route through Calry (excluding those with direct adapters)
@@ -232,6 +248,12 @@ class SyncManager {
       accountId: credentials.accountId || credentials.clientId,
       // Hostfully specific
       agencyUid: credentials.agencyUid,
+      // Channex specific — Group ID per tenant + environment toggle.
+      // Falls back to connection.external_account_id (the column already
+      // exists, semantically suits a "tenant scope" string).
+      groupId: credentials.groupId || connection.external_account_id,
+      environment: credentials.environment || 'staging',
+      baseUrl: credentials.baseUrl,
       pool: this.pool,
       connectionId: connectionId
     });

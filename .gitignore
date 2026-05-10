@@ -1,3 +1,6 @@
 node_modules/
 .env
 .env.*
+
+# Channex research + partner-supplied API docs (gitignored — sensitive)
+docs/channex-research/
