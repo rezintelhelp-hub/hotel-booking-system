@@ -9289,14 +9289,21 @@ app.post('/api/admin/channex/channel/:id/airbnb/import', async (req, res) => {
     let imgCount = 0;
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
-      const url = img.large_url || img.extra_large_url || img.extra_medium_url || img.small_url || img.thumbnail_url;
-      if (!url) continue;
+      const rawUrl = img.large_url || img.extra_large_url || img.extra_medium_url || img.small_url || img.thumbnail_url;
+      if (!rawUrl) continue;
+      // cleanImageUrl strips Airbnb's aki_policy compression param, so we
+      // always store + serve the originals (the .../original/... path on
+      // muscache.com gives the full-size source when aki_policy is removed).
+      // Without this, Channex's listing_details only returns *_medium /
+      // _small / _thumbnail URLs and the rendered website looks blurred.
+      const url = cleanImageUrl(rawUrl);
+      const thumbUrl = img.thumbnail_url ? cleanImageUrl(img.thumbnail_url) : url;
       const imageKey = img.id ? `airbnb-${img.id}` : `airbnb-${listing_id}-${i}`;
       try {
         await pool.query(`
           INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, caption, display_order, is_primary, is_active, upload_source, created_at)
           VALUES ($1, $2, $3, $4, $5, $6, $7, true, 'airbnb_import', NOW())
-        `, [bookableUnitId, imageKey, url, img.thumbnail_url || url, img.caption || '', i, i === 0]);
+        `, [bookableUnitId, imageKey, url, thumbUrl, img.caption || '', i, i === 0]);
         imgCount++;
       } catch (imgErr) { console.warn('[airbnb import] image insert failed:', imgErr.message); }
     }
