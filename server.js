@@ -21737,52 +21737,85 @@ app.post('/api/admin/bookings/:id/refund', async (req, res) => {
     const { booking } = ctx;
 
     const reason = (req.body.reason || '').slice(0, 500) || null;
-    if (!booking.stripe_payment_intent_id) {
-      return res.status(400).json({ success: false, error: 'No Stripe charge on this booking — record manual refunds via the ledger directly' });
+    const transactionId = req.body.transaction_id ? parseInt(req.body.transaction_id) : null;
+
+    // Resolve which charge to refund.
+    //   - If the caller passed transaction_id, use that exact ledger row.
+    //   - Otherwise fall back to the most-recent successful refundable
+    //     charge on this booking.
+    let sourceTx;
+    if (transactionId) {
+      const r = await pool.query(
+        `SELECT * FROM payment_transactions WHERE id = $1 AND booking_id = $2`,
+        [transactionId, bookingId]
+      );
+      if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Transaction not found on this booking' });
+      sourceTx = r.rows[0];
+    } else {
+      const r = await pool.query(
+        `SELECT * FROM payment_transactions
+          WHERE booking_id = $1
+            AND transaction_type IN ('deposit', 'balance', 'charge', 'capture')
+            AND status = 'completed'
+            AND payment_gateway = 'stripe'
+            AND gateway_transaction_id IS NOT NULL
+          ORDER BY created_at DESC LIMIT 1`,
+        [bookingId]
+      );
+      sourceTx = r.rows[0];
+    }
+    if (!sourceTx) {
+      return res.status(400).json({ success: false, error: 'No refundable charge found on this booking. Pass transaction_id or record a manual refund.' });
+    }
+    if (!sourceTx.gateway_transaction_id || sourceTx.payment_gateway !== 'stripe') {
+      return res.status(400).json({ success: false, error: 'Selected transaction is not a Stripe charge — cannot auto-refund. Record manually via the ledger.' });
+    }
+    if (sourceTx.status !== 'completed') {
+      return res.status(400).json({ success: false, error: `Selected transaction is ${sourceTx.status}, not completed — nothing to refund` });
     }
 
-    // Refund amount: if not specified, refund the full remaining balance
-    // (booking_total - already_refunded). Stripe rejects amount > captured.
-    const alreadyRefunded = Number(booking.refund_amount || 0);
-    const fullRefundable = Number(booking.grand_total || booking.deposit_paid || 0) - alreadyRefunded;
-    const requestedAmount = req.body.amount ? Number(req.body.amount) : fullRefundable;
-    if (!(requestedAmount > 0)) {
-      return res.status(400).json({ success: false, error: 'Nothing left to refund' });
-    }
-    if (requestedAmount > fullRefundable + 0.01) {
-      return res.status(400).json({ success: false, error: `Cannot refund more than ${fullRefundable.toFixed(2)}` });
-    }
-
-    // Find the original charge tx to link the refund back to it. Best-effort.
-    const parent = await pool.query(
-      `SELECT id FROM payment_transactions
-        WHERE booking_id = $1 AND transaction_type IN ('deposit', 'balance', 'charge')
-        ORDER BY created_at ASC LIMIT 1`,
-      [bookingId]
+    // Per-transaction refundable: original amount minus refunds already
+    // linked to this row via parent_transaction_id.
+    const priorRefunds = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM payment_transactions
+        WHERE parent_transaction_id = $1 AND transaction_type = 'refund' AND status = 'completed'`,
+      [sourceTx.id]
     );
-    const parentTxId = parent.rows[0]?.id || null;
+    const alreadyRefunded = Number(priorRefunds.rows[0].total || 0);
+    const refundable = Number(sourceTx.amount) - alreadyRefunded;
+    const requestedAmount = req.body.amount ? Number(req.body.amount) : refundable;
+    if (!(requestedAmount > 0)) {
+      return res.status(400).json({ success: false, error: 'Nothing left to refund on this transaction' });
+    }
+    if (requestedAmount > refundable + 0.01) {
+      return res.status(400).json({ success: false, error: `Cannot refund more than ${refundable.toFixed(2)} on this transaction` });
+    }
 
-    // Stripe refund. stripeAccount is set if the property has Connect; falls
-    // back to platform Stripe otherwise.
+    // Stripe refund against the SOURCE transaction's PI — not the booking-level
+    // PI which may be a different (or unpaid) charge.
     const stripeOpts = booking.stripe_account_id ? { stripeAccount: booking.stripe_account_id } : undefined;
     const refund = await stripe.refunds.create({
-      payment_intent: booking.stripe_payment_intent_id,
+      payment_intent: sourceTx.gateway_transaction_id,
       amount: Math.round(requestedAmount * 100),
       reason: reason ? 'requested_by_customer' : undefined,
-      metadata: { gas_booking_id: String(bookingId), gas_reason: reason || '' }
+      metadata: { gas_booking_id: String(bookingId), gas_source_tx_id: String(sourceTx.id), gas_reason: reason || '' }
     }, stripeOpts);
 
-    // Update booking refund_amount and (if fully refunded) payment_status.
-    const newTotalRefunded = alreadyRefunded + (refund.amount / 100);
-    const isFullRefund = newTotalRefunded >= fullRefundable - 0.01 && alreadyRefunded === 0
-      ? false  // partial of full
-      : newTotalRefunded >= Number(booking.grand_total || 0) - 0.01;
+    // Roll up booking-level refund_amount (sum across all refunds) for the
+    // legacy summary field. Source-of-truth is the ledger.
+    const totalAcross = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM payment_transactions
+        WHERE booking_id = $1 AND transaction_type = 'refund' AND status = 'completed'`,
+      [bookingId]
+    );
+    const newTotalRefunded = Number(totalAcross.rows[0].total || 0) + (refund.amount / 100);
     await pool.query(
-      `UPDATE bookings SET refund_amount = $1, payment_status = $2, updated_at = NOW() WHERE id = $3`,
-      [newTotalRefunded, isFullRefund ? 'refunded' : booking.payment_status, bookingId]
+      `UPDATE bookings SET refund_amount = $1, updated_at = NOW() WHERE id = $2`,
+      [newTotalRefunded, bookingId]
     );
 
-    // Ledger entry. parent_transaction_id wires the audit trail.
+    // Ledger entry — parent_transaction_id is the SOURCE charge.
+    const txCurrency = (sourceTx.currency || booking.currency || booking.property_currency || 'GBP').toUpperCase();
     const txIns = await pool.query(
       `INSERT INTO payment_transactions
          (booking_id, account_id, guest_id, transaction_type, amount, currency,
@@ -21792,8 +21825,10 @@ app.post('/api/admin/bookings/:id/refund', async (req, res) => {
        RETURNING id`,
       [
         bookingId, booking.property_account_id, booking.guest_id || null,
-        refund.amount / 100, (booking.currency || booking.property_currency || 'GBP').toUpperCase(),
-        refund.id, reason, parentTxId
+        refund.amount / 100, txCurrency,
+        refund.id,
+        reason ? `Refund of "${sourceTx.description || 'charge'}" — ${reason}` : `Refund of "${sourceTx.description || 'charge'}"`,
+        sourceTx.id
       ]
     );
 
@@ -21805,7 +21840,7 @@ app.post('/api/admin/bookings/:id/refund', async (req, res) => {
         subject: `Refund processed: ${booking.property_name || 'your booking'}`,
         html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
           <h2>Hi ${booking.guest_first_name || 'there'},</h2>
-          <p>We've processed a refund of <strong>${(refund.amount / 100).toFixed(2)} ${(booking.currency || 'GBP').toUpperCase()}</strong> on your booking.</p>
+          <p>We've processed a refund of <strong>${(refund.amount / 100).toFixed(2)} ${txCurrency}</strong> on your booking${sourceTx.description ? ` (against "${sourceTx.description}")` : ''}.</p>
           ${reason ? `<p><em>Reason:</em> ${reason}</p>` : ''}
           <p>It typically takes 5–10 business days to appear on your statement, depending on your bank.</p>
           <p style="color:#666;font-size:13px;">If you weren't expecting this, reply to this email.</p>
@@ -21965,13 +22000,24 @@ app.get('/api/admin/bookings/:id/payment-transactions', async (req, res) => {
     const ctx = await loadBookingForAdmin(req, bookingId);
     if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
 
+    // Per-tx refundable_remaining = amount - sum of refunds linked back via
+    // parent_transaction_id. Lets the UI show what's still refundable on
+    // each charge. Only meaningful for refundable charge types.
     const r = await pool.query(
-      `SELECT id, transaction_type, amount, currency, status, payment_gateway,
-              gateway_transaction_id, description, parent_transaction_id,
-              created_at, completed_at, failure_reason
-         FROM payment_transactions
-        WHERE booking_id = $1
-        ORDER BY created_at ASC, id ASC`,
+      `SELECT t.id, t.transaction_type, t.amount, t.currency, t.status, t.payment_gateway,
+              t.gateway_transaction_id, t.description, t.parent_transaction_id,
+              t.created_at, t.completed_at, t.failure_reason,
+              CASE WHEN t.transaction_type IN ('deposit', 'balance', 'charge', 'capture')
+                   AND t.status = 'completed'
+                THEN t.amount - COALESCE(
+                  (SELECT SUM(r.amount) FROM payment_transactions r
+                    WHERE r.parent_transaction_id = t.id
+                      AND r.transaction_type = 'refund'
+                      AND r.status = 'completed'), 0)
+                ELSE NULL END AS refundable_remaining
+         FROM payment_transactions t
+        WHERE t.booking_id = $1
+        ORDER BY t.created_at ASC, t.id ASC`,
       [bookingId]
     );
     res.json({
