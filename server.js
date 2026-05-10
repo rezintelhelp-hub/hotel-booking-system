@@ -90434,6 +90434,8 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS delivery_label VARCHAR(50) DEFAULT 'Delivery'`);
     await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS billing_address JSONB DEFAULT '{}'`);
     await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS delivery_address JSONB DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS guest_id INTEGER REFERENCES guests(id) ON DELETE SET NULL`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_shop_orders_guest ON shop_orders(guest_id) WHERE guest_id IS NOT NULL`);
 
     await pool.query(`CREATE TABLE IF NOT EXISTS shop_order_items (
       id SERIAL PRIMARY KEY,
@@ -95672,11 +95674,37 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
     // Create order in transaction
     await client.query('BEGIN');
 
+    // Recognise the shop customer as a guest. Same recogniseGuest() helper
+    // used by booking flow — one canonical guest record across stays + shop.
+    let recognisedGuestId = null;
+    try {
+      if (client_id && customer_email) {
+        const nameParts = (customer_name || '').trim().split(/\s+/);
+        const recog = await recogniseGuest(client, {
+          accountId: client_id,
+          email: customer_email,
+          firstName: nameParts[0] || null,
+          lastName: nameParts.length > 1 ? nameParts.slice(1).join(' ') : null,
+          phone: customer_phone,
+          address: billing_address?.line1 || null,
+          city: billing_address?.city || null,
+          postcode: billing_address?.postcode || billing_address?.postal_code || null,
+          country: billing_address?.country || null
+        });
+        if (recog) {
+          recognisedGuestId = recog.guestId;
+          console.log(`[Shop] ${recog.isReturning ? 'returning' : 'new'} customer ${recog.guestId}`);
+        }
+      }
+    } catch (recogErr) {
+      console.error('[Shop] guest recognition failed (non-blocking):', recogErr.message);
+    }
+
     const orderResult = await client.query(`
-      INSERT INTO shop_orders (account_id, order_number, customer_email, customer_name, customer_phone, items, subtotal, tax, total, currency, status, payment_status, stripe_config_id_snapshot, delivery_fee, tax_label, delivery_label, billing_address, delivery_address)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', 'unpaid', $11, $12, $13, $14, $15, $16)
+      INSERT INTO shop_orders (account_id, order_number, customer_email, customer_name, customer_phone, items, subtotal, tax, total, currency, status, payment_status, stripe_config_id_snapshot, delivery_fee, tax_label, delivery_label, billing_address, delivery_address, guest_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', 'unpaid', $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
-    `, [client_id, orderNumber, customer_email, customer_name || null, customer_phone || null, JSON.stringify(validatedItems), subtotal, tax, grandTotal, currency.toUpperCase(), stripeConfig.id, deliveryFee, taxLabel, deliveryLabel, JSON.stringify(billing_address || {}), JSON.stringify(delivery_address || {})]);
+    `, [client_id, orderNumber, customer_email, customer_name || null, customer_phone || null, JSON.stringify(validatedItems), subtotal, tax, grandTotal, currency.toUpperCase(), stripeConfig.id, deliveryFee, taxLabel, deliveryLabel, JSON.stringify(billing_address || {}), JSON.stringify(delivery_address || {}), recognisedGuestId]);
     const order = orderResult.rows[0];
 
     // Insert order items
