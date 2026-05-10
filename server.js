@@ -9212,12 +9212,21 @@ app.get('/api/admin/channex/channel/:id/airbnb/listings', async (req, res) => {
 app.post('/api/admin/channex/channel/:id/airbnb/import', async (req, res) => {
   try {
     const channelDbId = parseInt(req.params.id);
-    const { listing_id, account_id } = req.body;
-    if (!listing_id || !account_id) {
-      return res.status(400).json({ success: false, error: 'listing_id + account_id required' });
+    const { listing_id } = req.body;
+    if (!listing_id) {
+      return res.status(400).json({ success: false, error: 'listing_id required' });
     }
-    const row = await pool.query(`SELECT * FROM gas_sync_channels WHERE id = $1`, [channelDbId]);
+    // Derive account_id from the connection — ignore client-supplied account_id
+    // to prevent a master-admin viewer with selectedAccountId=null from
+    // accidentally creating properties under account 1.
+    const row = await pool.query(`
+      SELECT c.*, conn.account_id
+      FROM gas_sync_channels c
+      JOIN gas_sync_connections conn ON conn.id = c.connection_id
+      WHERE c.id = $1
+    `, [channelDbId]);
     if (row.rows.length === 0) return res.status(404).json({ success: false, error: 'channel not found' });
+    const account_id = row.rows[0].account_id;
     const { SyncManager } = require('./gas-sync/adapters');
     const adapter = await new SyncManager(pool).getAdapterForConnection(row.rows[0].connection_id);
     const detail = await adapter.getAirbnbListingDetails(row.rows[0].channex_channel_id, listing_id);
@@ -9273,18 +9282,21 @@ app.post('/api/admin/channex/channel/:id/airbnb/import', async (req, res) => {
     ]);
     const bookableUnitId = unitIns.rows[0].id;
 
-    // Insert room_images from Airbnb's images[]
+    // Insert room_images from Airbnb's images[].
+    // image_key is NOT NULL — use Airbnb's stable image id, fall back to a
+    // synthesised unique key if missing.
     const images = L.images || [];
     let imgCount = 0;
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
-      const url = img.large_url || img.extra_large_url || img.extra_medium_url || img.thumbnail_url;
+      const url = img.large_url || img.extra_large_url || img.extra_medium_url || img.small_url || img.thumbnail_url;
       if (!url) continue;
+      const imageKey = img.id ? `airbnb-${img.id}` : `airbnb-${listing_id}-${i}`;
       try {
         await pool.query(`
-          INSERT INTO room_images (room_id, image_url, thumbnail_url, caption, display_order, is_primary, is_active, source, created_at)
-          VALUES ($1, $2, $3, $4, $5, $6, true, 'airbnb_import', NOW())
-        `, [bookableUnitId, url, img.thumbnail_url || url, img.caption || '', i, i === 0]);
+          INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, caption, display_order, is_primary, is_active, upload_source, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, true, 'airbnb_import', NOW())
+        `, [bookableUnitId, imageKey, url, img.thumbnail_url || url, img.caption || '', i, i === 0]);
         imgCount++;
       } catch (imgErr) { console.warn('[airbnb import] image insert failed:', imgErr.message); }
     }
