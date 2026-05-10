@@ -6090,6 +6090,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         if (codes.length > 0) {
           // Ensure beds24_code column exists on master_amenities
           await pool.query('ALTER TABLE master_amenities ADD COLUMN IF NOT EXISTS beds24_code VARCHAR(100)').catch(() => {});
+          // Filter-eligibility flag — controls which amenities appear in the
+          // booking-app filter dropdown. Defaults to false; common ones are
+          // seeded via scripts/seed-filter-eligible-amenities.js.
+          await pool.query('ALTER TABLE master_amenities ADD COLUMN IF NOT EXISTS is_filter_eligible BOOLEAN DEFAULT false').catch(() => {});
           
           // Ensure bookable_unit_amenities table exists
           await pool.query(`
@@ -50591,6 +50595,27 @@ app.get('/api/admin/amenities', async (req, res) => {
   }
 });
 
+// Toggle whether an amenity is eligible for the booking-app filter dropdown.
+// Master admin only — this is a platform-wide curation decision.
+app.patch('/api/admin/amenities/:id/filter-eligible', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    if (decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const id = parseInt(req.params.id);
+    const flag = !!req.body.is_filter_eligible;
+    const r = await pool.query(
+      'UPDATE master_amenities SET is_filter_eligible = $2, updated_at = NOW() WHERE id = $1 RETURNING id, amenity_code, is_filter_eligible',
+      [id, flag]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Amenity not found' });
+    res.json({ success: true, amenity: r.rows[0] });
+  } catch (err) {
+    console.error('amenity filter-eligible update error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Toggle content lock on a room
 app.patch('/api/admin/units/:id/lock', async (req, res) => {
   try {
@@ -73689,14 +73714,15 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     let amenitiesByRoom = {};
     if (roomIds.length > 0) {
       const amenitiesResult = await pool.query(`
-        SELECT DISTINCT ON (room_id, code) room_id, code, name, icon, category, display_order FROM (
+        SELECT DISTINCT ON (room_id, code) room_id, code, name, icon, category, display_order, is_filter_eligible FROM (
           SELECT
             ras.room_id as room_id,
             ma.amenity_code as code,
             COALESCE(ma.amenity_name->>$2, ma.amenity_name->>UPPER($2), ma.amenity_name->>'en', ma.amenity_name->>'EN') as name,
             ma.icon,
             ma.category,
-            ras.display_order
+            ras.display_order,
+            COALESCE(ma.is_filter_eligible, false) as is_filter_eligible
           FROM room_amenity_selections ras
           JOIN master_amenities ma ON ras.amenity_id = ma.id
           WHERE ras.room_id = ANY($1::int[])
@@ -73707,15 +73733,18 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
             COALESCE(ma.amenity_name->>$2, ma.amenity_name->>UPPER($2), ma.amenity_name->>'en', ma.amenity_name->>'EN') as name,
             ma.icon,
             ma.category,
-            bua.display_order
+            bua.display_order,
+            COALESCE(ma.is_filter_eligible, false) as is_filter_eligible
           FROM bookable_unit_amenities bua
           JOIN master_amenities ma ON bua.amenity_id = ma.id
           WHERE bua.bookable_unit_id = ANY($1::int[])
         ) combined
         ORDER BY room_id, code, display_order
       `, [roomIds, amenityLang]);
-      
-      // Group amenities by room
+
+      // Group amenities by room. is_filter_eligible is included so the
+      // booking-app plugin can curate which amenities appear in the
+      // filter dropdown (added in the "no toilet rolls in filter" fix).
       amenitiesResult.rows.forEach(a => {
         if (!amenitiesByRoom[a.room_id]) {
           amenitiesByRoom[a.room_id] = [];
@@ -73724,7 +73753,8 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
           code: a.code,
           name: a.name,
           icon: a.icon,
-          category: a.category
+          category: a.category,
+          is_filter_eligible: a.is_filter_eligible
         });
       });
     }
