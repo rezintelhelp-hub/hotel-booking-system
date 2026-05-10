@@ -78,6 +78,28 @@
       </div>
     </div>
 
+    <div class="card">
+      <h2>ID upload</h2>
+      <p style="color:var(--muted); margin:0 0 12px; font-size:0.9rem;">
+        Some properties ask for ID at check-in. Uploading it here saves time on arrival. Files are private — only the property staff can see them.
+      </p>
+
+      <div id="docs-list" style="margin-bottom:12px;"></div>
+
+      <label>Type</label>
+      <select id="doc-type">
+        <option value="passport">Passport</option>
+        <option value="driving_licence">Driving licence</option>
+        <option value="national_id">National ID card</option>
+        <option value="id_other">Other</option>
+      </select>
+      <label>File (JPEG, PNG, HEIC, or PDF — 10MB max)</label>
+      <input id="doc-file" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf">
+      <div style="margin-top:16px; text-align:right;">
+        <button class="btn" id="upload-btn" onclick="uploadDoc()">Upload</button>
+      </div>
+    </div>
+
     <p style="color:var(--muted); font-size:0.8rem; text-align:center; margin-top:32px;">
       This is your private link. It expires after 90 days.
     </p>
@@ -135,8 +157,57 @@
 
       $('loading').style.display = 'none';
       $('content').style.display = '';
+
+      // Load any docs already uploaded.
+      loadDocs();
     } catch (e) {
       showError(e.message || 'Could not load your stay.');
+    }
+  }
+
+  async function loadDocs() {
+    const target = $('docs-list');
+    if (!target) return;
+    try {
+      const r = await fetch('/api/public/your-stay/' + encodeURIComponent(TOKEN) + '/documents');
+      const data = await r.json();
+      if (!r.ok || !data.success) { target.innerHTML = ''; return; }
+      const docs = data.documents || [];
+      if (docs.length === 0) { target.innerHTML = '<p style="color:var(--muted); font-size:0.9rem; margin:0;">No documents uploaded yet.</p>'; return; }
+      target.innerHTML = '<ul style="list-style:none; padding:0; margin:0;">' + docs.map(d => {
+        const statusColor = d.status === 'approved' ? '#16a34a' : d.status === 'rejected' ? '#dc2626' : '#ca8a04';
+        const sizeMb = (Number(d.file_size_bytes||0) / (1024*1024)).toFixed(1);
+        return `<li style="padding:8px 0; border-bottom:1px solid var(--border);">
+          <strong>${(d.document_type||'').replace(/_/g,' ')}</strong>
+          <span style="color:${statusColor}; margin-left:8px; font-size:0.85rem;">${d.status}</span>
+          <span style="color:var(--muted); float:right; font-size:0.85rem;">${sizeMb} MB · ${new Date(d.created_at).toLocaleDateString()}</span>
+        </li>`;
+      }).join('') + '</ul>';
+    } catch (e) {
+      target.innerHTML = '';
+    }
+  }
+
+  async function uploadDoc() {
+    const fileEl = $('doc-file');
+    const file = fileEl.files[0];
+    if (!file) { toast('Pick a file first'); return; }
+    if (file.size > 10 * 1024 * 1024) { toast('Max file size is 10 MB'); return; }
+    const btn = $('upload-btn'); btn.disabled = true; btn.textContent = 'Uploading…';
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('document_type', $('doc-type').value);
+      const r = await fetch('/api/public/your-stay/' + encodeURIComponent(TOKEN) + '/documents', { method: 'POST', body: fd });
+      const data = await r.json();
+      if (!r.ok || !data.success) throw new Error(data.error || 'Upload failed');
+      toast('Uploaded — staff will review');
+      fileEl.value = '';
+      loadDocs();
+    } catch (e) {
+      toast('Upload failed: ' + (e.message || ''));
+    } finally {
+      btn.disabled = false; btn.textContent = 'Upload';
     }
   }
 

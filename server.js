@@ -64,7 +64,7 @@ function getVpsSshKeyPath() {
 // Image processing dependencies
 const multer = require('multer');
 const sharp = require('sharp');
-const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
 const archiver = require('archiver');
 const sanitizeHtml = require('sanitize-html');
@@ -21563,6 +21563,192 @@ app.post('/api/admin/bookings/:id/send-portal-link', async (req, res) => {
     res.json({ success: true, sent_to: booking.guest_email });
   } catch (err) {
     console.error('send-portal-link error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================
+// Phase 1 Guest Entity — ID document upload
+//
+// Upload from the guest portal (token-authenticated).
+// Files go to R2 under guest-documents/<guest_id>/... — keys, not public
+// URLs, are stored. Admin previews stream from R2 via the proxy below.
+// =====================================================
+
+const ID_DOC_MIME_ALLOWED = [
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+  'image/heic', 'image/heif', 'application/pdf'
+];
+
+app.post('/api/public/your-stay/:token/documents', upload.single('file'), async (req, res) => {
+  try {
+    const r = await resolveYourStayToken(req.params.token);
+    if (!r.ok) return res.status(r.status).json({ success: false, error: r.error });
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+    if (!ID_DOC_MIME_ALLOWED.includes(req.file.mimetype)) {
+      return res.status(400).json({ success: false, error: `Unsupported file type: ${req.file.mimetype}` });
+    }
+
+    const guestId = r.guest.id;
+    const documentType = (req.body.document_type || 'id_other').slice(0, 40);
+
+    // R2 key: guest-documents/<guest_id>/<uuid>-<safe-filename>
+    const ext = path.extname(req.file.originalname || '').toLowerCase();
+    const safeBase = path.basename(req.file.originalname || 'doc', ext).replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 60);
+    const key = `guest-documents/${guestId}/${uuidv4()}-${safeBase}${ext || ''}`;
+
+    await r2Client.send(new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+      // No CacheControl — these are private, must always re-fetch from R2
+      ContentDisposition: `inline; filename="${safeBase}${ext}"`
+    }));
+
+    // Retention default: 5 years from now (covers most jurisdictional minimums).
+    // Compliance settings (#82) will override per-account.
+    const retentionUntil = new Date();
+    retentionUntil.setFullYear(retentionUntil.getFullYear() + 5);
+
+    const ins = await pool.query(
+      `INSERT INTO guest_documents
+         (guest_id, booking_id, document_type, file_url, file_size_bytes, mime_type,
+          status, verification_method, retention_until)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending', 'manual', $7)
+       RETURNING id, document_type, status, mime_type, file_size_bytes, created_at`,
+      [guestId, r.bookingId || null, documentType, key, req.file.size, req.file.mimetype, retentionUntil]
+    );
+
+    res.json({ success: true, document: ins.rows[0] });
+  } catch (err) {
+    console.error('your-stay document upload error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// List the guest's own uploaded docs (so the portal can show what's there).
+app.get('/api/public/your-stay/:token/documents', async (req, res) => {
+  try {
+    const r = await resolveYourStayToken(req.params.token);
+    if (!r.ok) return res.status(r.status).json({ success: false, error: r.error });
+    const docs = await pool.query(
+      `SELECT id, document_type, status, mime_type, file_size_bytes, created_at, verified_at
+         FROM guest_documents
+        WHERE guest_id = $1 AND deleted_at IS NULL
+        ORDER BY created_at DESC`,
+      [r.guest.id]
+    );
+    res.json({ success: true, documents: docs.rows });
+  } catch (err) {
+    console.error('your-stay docs list error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin-only proxy: streams the R2 object back to the authenticated admin.
+// We proxy rather than hand out signed R2 URLs so every read is auth-checked
+// against the current session, not a long-lived URL that could leak.
+app.get('/api/admin/guest-documents/:id/preview', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    const docId = parseInt(req.params.id);
+
+    const docRow = await pool.query(
+      `SELECT d.id, d.guest_id, d.file_url, d.mime_type, d.deleted_at, g.account_id
+         FROM guest_documents d JOIN guests g ON g.id = d.guest_id
+        WHERE d.id = $1`,
+      [docId]
+    );
+    if (!docRow.rows[0]) return res.status(404).json({ success: false, error: 'Not found' });
+    const doc = docRow.rows[0];
+    if (doc.deleted_at) return res.status(410).json({ success: false, error: 'Deleted' });
+    if (!isMaster && doc.account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    const obj = await r2Client.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: doc.file_url }));
+    res.setHeader('Content-Type', doc.mime_type || obj.ContentType || 'application/octet-stream');
+    if (obj.ContentLength) res.setHeader('Content-Length', obj.ContentLength);
+    // Disposition: inline so images render in-browser; PDFs render in PDF viewer.
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'private, no-store');
+    obj.Body.pipe(res);
+  } catch (err) {
+    console.error('guest-document preview error:', err);
+    if (!res.headersSent) res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin: mark verified / rejected.
+app.patch('/api/admin/guest-documents/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    const docId = parseInt(req.params.id);
+
+    const docRow = await pool.query(
+      `SELECT d.id, g.account_id FROM guest_documents d JOIN guests g ON g.id = d.guest_id WHERE d.id = $1`,
+      [docId]
+    );
+    if (!docRow.rows[0]) return res.status(404).json({ success: false, error: 'Not found' });
+    if (!isMaster && docRow.rows[0].account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    const status = req.body.status;
+    if (!['approved', 'rejected', 'pending'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'status must be approved | rejected | pending' });
+    }
+    const sets = ['status = $2', 'updated_at = NOW()'];
+    const params = [docId, status];
+    if (status === 'approved') {
+      params.push(decoded.id || decoded.accountId);
+      sets.push('verified_at = NOW()');
+      sets.push(`verified_by_user_id = $${params.length}`);
+    }
+    if (status === 'rejected' && req.body.reason) {
+      params.push(String(req.body.reason).slice(0, 500));
+      sets.push(`rejection_reason = $${params.length}`);
+    }
+    const upd = await pool.query(`UPDATE guest_documents SET ${sets.join(', ')} WHERE id = $1 RETURNING *`, params);
+    res.json({ success: true, document: upd.rows[0] });
+  } catch (err) {
+    console.error('guest-document update error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Soft delete + R2 delete.
+app.delete('/api/admin/guest-documents/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    const docId = parseInt(req.params.id);
+
+    const docRow = await pool.query(
+      `SELECT d.id, d.file_url, g.account_id FROM guest_documents d
+         JOIN guests g ON g.id = d.guest_id WHERE d.id = $1 AND d.deleted_at IS NULL`,
+      [docId]
+    );
+    if (!docRow.rows[0]) return res.status(404).json({ success: false, error: 'Not found' });
+    if (!isMaster && docRow.rows[0].account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    try {
+      await r2Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: docRow.rows[0].file_url }));
+    } catch (r2Err) {
+      console.error('R2 delete failed (continuing with soft delete):', r2Err.message);
+    }
+    await pool.query('UPDATE guest_documents SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1', [docId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('guest-document delete error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
