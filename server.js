@@ -73725,6 +73725,18 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         p.currency,
         (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_active = true ORDER BY is_primary DESC, display_order ASC LIMIT 1) as image_url,
         (SELECT COALESCE(standard_price, cm_price) FROM room_availability WHERE room_id = bu.id AND date = $2 LIMIT 1) as todays_rate,
+        -- "From price" — cheapest available night in the next 365 days.
+        -- Used as the listing card "From £X / night" headline so guests
+        -- get a meaningful starting figure regardless of today's
+        -- availability or rate.
+        (SELECT MIN(COALESCE(standard_price, cm_price))
+           FROM room_availability
+          WHERE room_id = bu.id
+            AND date >= CURRENT_DATE
+            AND date < CURRENT_DATE + INTERVAL '365 days'
+            AND COALESCE(standard_price, cm_price) > 0
+            AND is_available = true
+            AND COALESCE(is_blocked, false) = false) as from_price,
         (SELECT pc.payment_account_id FROM payment_configurations pc WHERE pc.property_id = p.id AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1) as payment_account_id,
         bu.external_booking_url
       FROM bookable_units bu
@@ -73828,6 +73840,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       ...room,
       property_name: room.property_name && room.property_name.includes(' - ') ? room.property_name.split(' - ').slice(1).join(' - ').trim() : room.property_name,
       price: room.todays_rate || room.base_price || 0,
+      from_price: room.from_price != null ? Number(room.from_price) : null,
       amenities: amenitiesByRoom[room.id] || []
     }));
     

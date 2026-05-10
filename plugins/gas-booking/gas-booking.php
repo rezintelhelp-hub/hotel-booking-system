@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.57
+ * Version: 3.7.58
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.57');
+define('GAS_BOOKING_VERSION', '3.7.58');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5042,14 +5042,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $room_url_base = get_option('gas_room_url_base', '/room/');
         $view_button_text = get_option('gas_view_button_text', 'View & Book');
 
-        // LISTING CARD PRICE DISPLAY — disabled 2026-04-29 per Steve's request.
-        // Source: $room['price'] || $room['base_price'] from /api/public/rooms (server.js
-        // maps display_price → wholesale_price → 0 in the room payload). The figure was
-        // a static "from" rate computed without dates and was misleading on listings.
-        // Detail page price (gas-booking-card, line ~6803) goes through calculate-price
-        // and is canonical — that one is NOT touched.
-        // Flip to true to restore once the source rate is verified or replaced.
-        $show_listing_price = false;
+        // LISTING CARD PRICE DISPLAY — re-enabled 2026-05-10. Now sourced from
+        // room['from_price'] (added to the API in same commit): the cheapest
+        // available night in the next 365 days. Replaces the old static
+        // todays_rate/base_price source which was misleading. Detail page
+        // pricing (gas-booking-card) still goes through calculate-price and
+        // is canonical for date-specific quotes.
+        $show_listing_price = true;
         $columns_attr = $atts['columns'] ?? 'auto';
         if ($columns_attr === 'auto') {
             $grid_columns = min(count($rooms), 4);
@@ -5519,6 +5518,16 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             font-size: 14px;
             color: #dc3545;
             font-weight: 600;
+        }
+        /* "From" prefix on listing-card prices — small, muted, sits above the amount */
+        .gas-price-from-label {
+            font-size: 11px !important;
+            font-weight: 500 !important;
+            color: #94a3b8 !important;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            margin-bottom: -2px;
         }
         .gas-not-available {
             color: #dc2626;
@@ -6004,6 +6013,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             }
 
                             $price = floatval($room['price'] ?? 0);
+                            // from_price = cheapest available night in next 365 days (server-computed).
+                            // Fallback to $price for older API responses without the field.
+                            $from_price = isset($room['from_price']) && $room['from_price'] !== null
+                                ? floatval($room['from_price'])
+                                : $price;
                             $max_guests = intval($room['max_guests'] ?? $room['max_adults'] ?? 2);
                             $bedrooms = intval($room['num_bedrooms'] ?? $room['bedroom_count'] ?? 0);
                             $bathrooms = floatval($room['num_bathrooms'] ?? $room['bathroom_count'] ?? 0);
@@ -6014,7 +6028,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $room_location = $room['city'] ?? $room['district'] ?? '';
                             $room_property_name = $room['property_name'] ?? '';
                         ?>
-                        <div class="gas-room-row<?php echo $has_dates ? ' checking' : ''; ?>" 
+                        <div class="gas-room-row<?php echo $has_dates ? ' checking' : ''; ?>"
                              data-room-id="<?php echo esc_attr($room['id']); ?>"
                              data-property-id="<?php echo esc_attr($room['property_id'] ?? ''); ?>"
                              data-payment-account-id="<?php echo esc_attr($room['payment_account_id'] ?? ''); ?>"
@@ -6076,8 +6090,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <div class="gas-room-row-price">
                                         <?php if ($has_dates) : ?>
                                             <span class="gas-checking">⏳ <?php echo esc_html($checking_text); ?></span>
-                                        <?php elseif ($show_listing_price && $is_homepage && $price > 0) : ?>
-                                            <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($price, 0)); ?></span>
+                                        <?php elseif ($show_listing_price && $from_price > 0) : ?>
+                                            <span class="gas-price-from-label">From</span>
+                                            <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($from_price, 0)); ?></span>
                                             <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
                                         <?php elseif (!$is_homepage) : ?>
                                             <span><?php echo esc_html($t_booking['select_dates'] ?? 'Select dates'); ?></span>
@@ -6130,8 +6145,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 </div>
                                 <div class="gas-room-footer">
                                     <div class="gas-room-price">
-                                        <?php if ($show_listing_price && $price > 0) : ?>
-                                            <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($price, 0)); ?></span>
+                                        <?php
+                                        $carousel_from = isset($room['from_price']) && $room['from_price'] !== null
+                                            ? floatval($room['from_price'])
+                                            : floatval($room['price'] ?? 0);
+                                        ?>
+                                        <?php if ($show_listing_price && $carousel_from > 0) : ?>
+                                            <span class="gas-price-from-label">From</span>
+                                            <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($carousel_from, 0)); ?></span>
                                             <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
                                         <?php endif; ?>
                                     </div>
@@ -6169,6 +6190,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             }
 
                             $price = floatval($room['price'] ?? 0);
+                            // from_price = cheapest available night in next 365 days (server-computed).
+                            $from_price = isset($room['from_price']) && $room['from_price'] !== null
+                                ? floatval($room['from_price'])
+                                : $price;
                             $max_guests = intval($room['max_guests'] ?? $room['max_adults'] ?? 2);
                             $bedrooms = intval($room['num_bedrooms'] ?? $room['bedroom_count'] ?? 0);
                             $bathrooms = floatval($room['num_bathrooms'] ?? $room['bathroom_count'] ?? 0);
@@ -6231,8 +6256,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <div class="gas-room-price">
                                         <?php if ($has_dates) : ?>
                                             <span class="gas-checking">⏳ <?php echo esc_html($checking_text); ?></span>
-                                        <?php elseif ($show_listing_price && $is_homepage && $price > 0) : ?>
-                                            <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($price, 0)); ?></span>
+                                        <?php elseif ($show_listing_price && $from_price > 0) : ?>
+                                            <span class="gas-price-from-label">From</span>
+                                            <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($from_price, 0)); ?></span>
                                             <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
                                         <?php elseif (!$is_homepage) : ?>
                                             <span><?php echo esc_html($t_booking['select_dates'] ?? 'Select dates'); ?></span>
