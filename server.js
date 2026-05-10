@@ -491,13 +491,28 @@ const CALRY_INTEGRATION_IDS = {
   'zeevou': '0b414fc5-7bf5-4438-a6d9-3d655fa2189f'
 };
 
-// Send email via Mailgun API
-async function sendEmail({ to, subject, html, from = EMAIL_FROM, replyTo }) {
+// Send email via Mailgun API.
+//
+// `context` is optional and turns this into the guest_communications log
+// hook. Pass it whenever the email is guest-facing — internal/operator
+// emails (developer@gas.travel monitoring copies, password resets to
+// staff) should leave it undefined.
+//
+//   context.accountId        scope for guest lookup (required if no guestId)
+//   context.guestId          skip lookup, attach to this guest directly
+//   context.bookingId        link to a specific booking
+//   context.eventType        e.g. 'booking_confirmation', 'magic_link', 'balance_reminder'
+//   context.autoCreateGuest  if true and no guest match, insert minimal guest row
+//   context.metadata         freeform JSON, merged into guest_communications.metadata
+//
+// Logging failures are caught and logged — they NEVER fail the email send.
+async function sendEmail({ to, subject, html, from = EMAIL_FROM, replyTo, context }) {
   if (!MAILGUN_API_KEY) {
     console.log('⚠️ Email not sent - MAILGUN_API_KEY not configured');
     return { success: false, error: 'Email not configured' };
   }
 
+  let result;
   try {
     const formData = new URLSearchParams();
     formData.append('from', from);
@@ -505,27 +520,87 @@ async function sendEmail({ to, subject, html, from = EMAIL_FROM, replyTo }) {
     formData.append('subject', subject);
     formData.append('html', html);
     if (replyTo) formData.append('h:Reply-To', replyTo);
-    
+
     const response = await axios.post(
       `https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`,
       formData.toString(),
       {
-        auth: {
-          username: 'api',
-          password: MAILGUN_API_KEY
-        },
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        auth: { username: 'api', password: MAILGUN_API_KEY },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       }
     );
-    
+
     console.log('✅ Email sent to:', to);
-    return { success: true, id: response.data?.id };
+    result = { success: true, id: response.data?.id };
   } catch (error) {
     console.error('❌ Email error:', error.response?.data || error.message);
-    return { success: false, error: error.message };
+    result = { success: false, error: error.message };
   }
+
+  if (context) {
+    logGuestCommunication({
+      to: Array.isArray(to) ? to[0] : to,
+      subject,
+      html,
+      result,
+      context
+    }).catch(err => console.error('guest_communications log skipped:', err.message));
+  }
+
+  return result;
+}
+
+// Resolve a guest record + insert a guest_communications row. Tolerant —
+// silently skips if it can't resolve a guest and autoCreateGuest is false.
+async function logGuestCommunication({ to, subject, html, result, context }) {
+  if (!to) return;
+  let guestId = context.guestId || null;
+
+  if (!guestId && context.accountId) {
+    const lookup = await pool.query(
+      'SELECT id FROM guests WHERE account_id = $1 AND lower(email) = lower($2) LIMIT 1',
+      [context.accountId, to]
+    );
+    if (lookup.rows[0]) {
+      guestId = lookup.rows[0].id;
+    } else if (context.autoCreateGuest) {
+      const ins = await pool.query(
+        `INSERT INTO guests (account_id, email, recognised_at, last_seen_at)
+         VALUES ($1, lower($2), NOW(), NOW())
+         ON CONFLICT (account_id, email) DO UPDATE SET last_seen_at = NOW()
+         RETURNING id`,
+        [context.accountId, to]
+      );
+      guestId = ins.rows[0]?.id || null;
+    }
+  }
+
+  if (!guestId) return; // nothing to attach to — silent skip
+
+  await pool.query(
+    `INSERT INTO guest_communications
+       (guest_id, booking_id, channel, direction, event_type, subject, body,
+        status, sent_at, provider_message_id, metadata)
+     VALUES ($1, $2, 'email', 'outbound', $3, $4, $5,
+             $6, $7, $8, $9)`,
+    [
+      guestId,
+      context.bookingId || null,
+      context.eventType || null,
+      subject || null,
+      html || null,
+      result.success ? 'sent' : 'failed',
+      result.success ? new Date() : null,
+      result.id || null,
+      JSON.stringify({
+        ...(context.metadata || {}),
+        ...(result.success ? {} : { error: result.error })
+      })
+    ]
+  );
+
+  // Bump last_seen_at — every outbound comms is a touch point.
+  await pool.query('UPDATE guests SET last_seen_at = NOW() WHERE id = $1', [guestId]);
 }
 
 // Get email branding for an account — colours, logo, name, from address
@@ -21928,7 +22003,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         try {
             // Get property info for email
             const propertyResult = await pool.query(`
-                SELECT p.id, p.name, p.email, a.email as account_email
+                SELECT p.id, p.name, p.email, p.account_id, a.email as account_email
                 FROM properties p
                 LEFT JOIN accounts a ON p.account_id = a.id
                 WHERE p.id = $1
@@ -21976,11 +22051,19 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 totals
             );
             
-            // Send to guest
+            // Send to guest — also logs into guest_communications + auto-creates
+            // the guest record if not already recognised.
             await sendEmail({
                 to: guest_email,
                 subject: `Group Booking Confirmed - ${property?.name || 'Your Reservation'} (Ref: ${groupBookingId})`,
-                html: emailHtml
+                html: emailHtml,
+                context: {
+                    accountId: property?.account_id,
+                    bookingId: createdBookings[0]?.id,
+                    eventType: 'booking_confirmation',
+                    autoCreateGuest: true,
+                    metadata: { groupBookingId, bookingCount: createdBookings.length }
+                }
             });
             
             // Also send to property owner if different email
