@@ -48,6 +48,23 @@
       <div id="claims-list"></div>
     </div>
 
+    <!-- Dispute modal — replaces the prompt() so guests can upload evidence -->
+    <div id="dispute-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:9999; align-items:center; justify-content:center; padding:20px;">
+      <div style="background:white; border-radius:12px; max-width:500px; width:100%; padding:24px; max-height:90vh; overflow-y:auto;">
+        <h3 style="margin:0 0 8px;">Dispute the claim</h3>
+        <p style="color:var(--muted); font-size:0.9rem; margin-top:0;">Tell the host why you disagree. You can attach photos or a PDF as evidence — they'll be visible to the host when they review.</p>
+        <label style="display:block; font-size:0.85rem; color:var(--muted); margin-bottom:4px; margin-top:12px;">Why you disagree</label>
+        <textarea id="dispute-reason" rows="4" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; font-family:inherit;"></textarea>
+        <label style="display:block; font-size:0.85rem; color:var(--muted); margin-bottom:4px; margin-top:12px;">Evidence (optional — JPEG, PNG, HEIC, or PDF, 10MB max each)</label>
+        <input type="file" id="dispute-files" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf">
+        <div id="dispute-upload-status" style="margin-top:6px; font-size:0.85rem; color:var(--muted);"></div>
+        <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">
+          <button onclick="closeDisputeModal()" style="background:#e2e8f0; color:#0f172a; border:none; padding:10px 18px; border-radius:6px; cursor:pointer;">Cancel</button>
+          <button id="dispute-submit-btn" onclick="submitDispute()" class="btn" style="background:#dc2626;">Submit dispute</button>
+        </div>
+      </div>
+    </div>
+
     <div class="card" id="booking-card" style="display:none;">
       <h2 id="booking-property"></h2>
       <div class="field"><span class="label">Reference</span><span class="val" id="b-ref"></span></div>
@@ -212,26 +229,84 @@
     }
   }
 
+  let _disputeClaimId = null;
+
   async function respondClaim(claimId, action) {
-    let response_text = null;
-    if (action === 'dispute') {
-      response_text = prompt('Tell the host why you disagree:');
-      if (!response_text) return;
-    } else {
+    if (action === 'accept') {
       if (!confirm('Accept this claim? The host will be able to capture this amount from your security hold.')) return;
+      try {
+        const r = await fetch('/api/public/your-stay/' + encodeURIComponent(TOKEN) + '/claims/' + claimId + '/respond', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'accept' })
+        });
+        const data = await r.json();
+        if (!r.ok || !data.success) throw new Error(data.error || 'Save failed');
+        toast('Accepted');
+        loadClaims();
+      } catch (e) {
+        toast('Could not respond: ' + (e.message || ''));
+      }
+      return;
     }
+    // dispute → open the rich modal so the guest can attach evidence
+    _disputeClaimId = claimId;
+    $('dispute-reason').value = '';
+    $('dispute-files').value = '';
+    $('dispute-upload-status').textContent = '';
+    $('dispute-modal').style.display = 'flex';
+  }
+
+  function closeDisputeModal() {
+    $('dispute-modal').style.display = 'none';
+    _disputeClaimId = null;
+  }
+
+  async function uploadDisputeEvidence() {
+    const input = $('dispute-files');
+    const status = $('dispute-upload-status');
+    if (!input.files.length) return [];
+    const ids = [];
+    status.textContent = 'Uploading…';
+    for (const file of input.files) {
+      if (file.size > 10 * 1024 * 1024) { status.textContent = 'A file is over 10 MB — pick smaller'; throw new Error('file too big'); }
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('document_type', 'dispute_evidence');
+      const r = await fetch('/api/public/your-stay/' + encodeURIComponent(TOKEN) + '/documents', { method: 'POST', body: fd });
+      const data = await r.json();
+      if (!r.ok || !data.success) { status.textContent = 'Upload failed: ' + (data.error || ''); throw new Error(data.error || 'upload failed'); }
+      ids.push(data.document.id);
+    }
+    status.textContent = `${ids.length} file(s) uploaded ✓`;
+    return ids;
+  }
+
+  async function submitDispute() {
+    const btn = $('dispute-submit-btn');
+    const claimId = _disputeClaimId;
+    const response_text = $('dispute-reason').value.trim();
+    if (!response_text) { toast('Please describe why you disagree'); return; }
+    btn.disabled = true; btn.textContent = 'Submitting…';
     try {
+      let evidence_doc_ids = [];
+      if ($('dispute-files').files.length) {
+        evidence_doc_ids = await uploadDisputeEvidence();
+      }
       const r = await fetch('/api/public/your-stay/' + encodeURIComponent(TOKEN) + '/claims/' + claimId + '/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, response_text })
+        body: JSON.stringify({ action: 'dispute', response_text, evidence_doc_ids })
       });
       const data = await r.json();
       if (!r.ok || !data.success) throw new Error(data.error || 'Save failed');
-      toast('Response recorded');
+      toast('Dispute submitted');
+      closeDisputeModal();
       loadClaims();
     } catch (e) {
-      toast('Could not respond: ' + (e.message || ''));
+      toast('Could not submit: ' + (e.message || ''));
+    } finally {
+      btn.disabled = false; btn.textContent = 'Submit dispute';
     }
   }
 

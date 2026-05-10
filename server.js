@@ -1716,6 +1716,10 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS parent_transaction_id INT REFERENCES payment_transactions(id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_payment_tx_parent ON payment_transactions(parent_transaction_id) WHERE parent_transaction_id IS NOT NULL`);
 
+      // Guest counter-evidence column on the claims table — added when v1
+      // counter-evidence shipped. Idempotent re-declaration.
+      await pool.query(`ALTER TABLE booking_deposit_claims ADD COLUMN IF NOT EXISTS guest_evidence_doc_ids INT[] DEFAULT '{}'`);
+
       // Claim lifecycle. evidence_doc_ids points at Phase 1 guest_documents rows.
       await pool.query(`
         CREATE TABLE IF NOT EXISTS booking_deposit_claims (
@@ -22841,6 +22845,10 @@ app.post('/api/public/your-stay/:token/claims/:claimId/respond', async (req, res
 
     const action = req.body.action;
     const responseText = (req.body.response_text || '').slice(0, 2000) || null;
+    const evidenceDocIds = Array.isArray(req.body.evidence_doc_ids)
+      ? req.body.evidence_doc_ids.map(Number).filter(Boolean)
+      : [];
+
     if (!['accept', 'dispute'].includes(action)) {
       return res.status(400).json({ success: false, error: 'action must be accept | dispute' });
     }
@@ -22848,12 +22856,25 @@ app.post('/api/public/your-stay/:token/claims/:claimId/respond', async (req, res
       return res.status(400).json({ success: false, error: 'Disputes require a response_text explaining why' });
     }
 
+    // Verify any evidence docs belong to this guest (security: don't let
+    // a token authenticate writes against another guest's documents).
+    if (evidenceDocIds.length) {
+      const ownership = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM guest_documents WHERE id = ANY($1) AND guest_id = $2`,
+        [evidenceDocIds, r.guest.id]
+      );
+      if (ownership.rows[0].cnt !== evidenceDocIds.length) {
+        return res.status(403).json({ success: false, error: 'Some evidence documents are not owned by this guest' });
+      }
+    }
+
     const newStatus = action === 'accept' ? 'accepted' : 'disputed';
     await pool.query(
       `UPDATE booking_deposit_claims
-         SET status = $2, guest_response = $3, guest_responded_at = NOW(), updated_at = NOW()
+         SET status = $2, guest_response = $3, guest_responded_at = NOW(),
+             guest_evidence_doc_ids = $4, updated_at = NOW()
        WHERE id = $1`,
-      [claimId, newStatus, responseText]
+      [claimId, newStatus, responseText, evidenceDocIds]
     );
 
     res.json({ success: true, status: newStatus });
