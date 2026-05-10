@@ -852,6 +852,7 @@ if ($cta_enabled) :
 <?php
 // --- Image Row Sections (1-4) ---
 // Each can hold 1-3 images with optional title and button
+$ir_css_emitted = false; // tracks whether the responsive @media block has been written this page
 for ($ir = 1; $ir <= 4; $ir++) {
     $ir_prefix = 'image_row_' . $ir . '_';
     $ir_enabled = $api[$ir_prefix . 'enabled'] ?? false;
@@ -883,7 +884,12 @@ for ($ir = 1; $ir <= 4; $ir++) {
 
     $ir_cols = count($ir_items);
     ob_start();
-    if ($ir === 1) : // Output responsive CSS once ?>
+    // Output responsive CSS once — was previously gated on $ir === 1 which
+    // skipped emission entirely when image row 1 was disabled or empty,
+    // leaving rows 2/3/4 stuck at multi-column on mobile (Vo Rental had
+    // row 1 off and rows 2+ on). The $ir_css_emitted flag (declared
+    // before the loop) lands the CSS on whichever row renders first.
+    if (!$ir_css_emitted) : $ir_css_emitted = true; ?>
     <style>
     @media (max-width: 768px) {
         .developer-image-row-grid { grid-template-columns: 1fr !important; }
