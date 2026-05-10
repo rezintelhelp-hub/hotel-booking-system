@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.56
+ * Version: 3.7.57
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.56');
+define('GAS_BOOKING_VERSION', '3.7.57');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4958,22 +4958,32 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         }
         
         // Collect filterable amenities from rooms for the filter dropdown.
-        // Only amenities flagged is_filter_eligible on master_amenities are
-        // surfaced here — curated list of things guests actually search for.
-        // Niceties like "Toilet Roll Holder" stay on the room detail card
-        // but don't pollute the filter dropdown.
+        // Two-layer curation:
+        //   1. master_amenities.is_filter_eligible — platform-wide whitelist
+        //      (set by GAS master_admin; no toilet rolls etc.)
+        //   2. accounts.filter_amenity_codes — per-account selection from
+        //      that whitelist. Empty = show all eligible. Non-empty =
+        //      show only the codes this client picked.
+        // Older API responses without these fields fall back to "show all".
+        $client_selected_codes = isset($data['filter_amenity_codes']) && is_array($data['filter_amenity_codes'])
+            ? array_flip($data['filter_amenity_codes'])
+            : null;
         $all_amenities = array();
         foreach ($rooms as $room) {
             if (!empty($room['amenities']) && is_array($room['amenities'])) {
                 foreach ($room['amenities'] as $amenity) {
-                    // Skip if not flagged for filtering. The flag is added
-                    // by the GAS API since v3.7.56+; older API responses
-                    // without the flag fall back to legacy behaviour (show all).
+                    $code = $amenity['code'] ?? '';
+                    if (!$code) continue;
+                    // Master-level filter: skip non-eligible amenities.
                     if (array_key_exists('is_filter_eligible', $amenity) && !$amenity['is_filter_eligible']) {
                         continue;
                     }
-                    $code = $amenity['code'] ?? '';
-                    if ($code && !isset($all_amenities[$code])) {
+                    // Account-level filter: if the client has a selection,
+                    // only include codes they picked. Empty = no restriction.
+                    if ($client_selected_codes !== null && !empty($client_selected_codes) && !isset($client_selected_codes[$code])) {
+                        continue;
+                    }
+                    if (!isset($all_amenities[$code])) {
                         $amenity_name = $this->extract_display_text($amenity['name'] ?? $code);
                         $all_amenities[$code] = array(
                             'code' => $code,

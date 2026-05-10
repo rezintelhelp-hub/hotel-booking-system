@@ -6090,10 +6090,14 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         if (codes.length > 0) {
           // Ensure beds24_code column exists on master_amenities
           await pool.query('ALTER TABLE master_amenities ADD COLUMN IF NOT EXISTS beds24_code VARCHAR(100)').catch(() => {});
-          // Filter-eligibility flag — controls which amenities appear in the
-          // booking-app filter dropdown. Defaults to false; common ones are
-          // seeded via scripts/seed-filter-eligible-amenities.js.
+          // Filter-eligibility flag — master_amenities.is_filter_eligible is
+          // the platform-wide whitelist of amenities allowed in the filter
+          // dropdown (set by master_admin). accounts.filter_amenity_codes
+          // is each client's per-site selection from that whitelist (empty
+          // array = show all eligible). Both default off/empty; common
+          // amenities are seeded via scripts/seed-filter-eligible-amenities.js.
           await pool.query('ALTER TABLE master_amenities ADD COLUMN IF NOT EXISTS is_filter_eligible BOOLEAN DEFAULT false').catch(() => {});
+          await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS filter_amenity_codes TEXT[] DEFAULT '{}'`).catch(() => {});
           
           // Ensure bookable_unit_amenities table exists
           await pool.query(`
@@ -50595,6 +50599,66 @@ app.get('/api/admin/amenities', async (req, res) => {
   }
 });
 
+// Per-account filter-amenity selection.
+//   GET → list of selected codes + which codes are available to pick from
+//   PUT → replace the selection wholesale (body: { codes: [...] })
+//
+// Available codes = master_amenities where is_filter_eligible = true.
+// Empty selection = show all available codes (sensible default).
+app.get('/api/admin/accounts/:id/filter-amenities', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const accountId = parseInt(req.params.id);
+    const isMaster = decoded.role === 'master_admin';
+    if (!isMaster && accountId !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+    const acc = await pool.query('SELECT filter_amenity_codes FROM accounts WHERE id = $1', [accountId]);
+    if (!acc.rows[0]) return res.status(404).json({ success: false, error: 'Account not found' });
+    const eligible = await pool.query(
+      `SELECT amenity_code, amenity_name, category, icon, display_order
+         FROM master_amenities
+        WHERE is_active = true AND is_filter_eligible = true
+        ORDER BY category, display_order, amenity_code`
+    );
+    res.json({
+      success: true,
+      selected_codes: acc.rows[0].filter_amenity_codes || [],
+      available: eligible.rows
+    });
+  } catch (err) {
+    console.error('filter-amenities get error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/admin/accounts/:id/filter-amenities', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const accountId = parseInt(req.params.id);
+    const isMaster = decoded.role === 'master_admin';
+    if (!isMaster && accountId !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+    const codes = Array.isArray(req.body.codes) ? req.body.codes.map(String).slice(0, 200) : [];
+    // Reject codes that aren't on the eligible whitelist — prevents clients
+    // bypassing the master curation by submitting arbitrary amenity codes.
+    const valid = await pool.query(
+      `SELECT amenity_code FROM master_amenities WHERE is_active = true AND is_filter_eligible = true AND amenity_code = ANY($1)`,
+      [codes]
+    );
+    const validSet = new Set(valid.rows.map(r => r.amenity_code));
+    const filtered = codes.filter(c => validSet.has(c));
+    await pool.query('UPDATE accounts SET filter_amenity_codes = $2, updated_at = NOW() WHERE id = $1', [accountId, filtered]);
+    res.json({ success: true, selected_codes: filtered, rejected: codes.filter(c => !validSet.has(c)) });
+  } catch (err) {
+    console.error('filter-amenities put error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Toggle whether an amenity is eligible for the booking-app filter dropdown.
 // Master admin only — this is a platform-wide curation decision.
 app.patch('/api/admin/amenities/:id/filter-eligible', async (req, res) => {
@@ -73774,10 +73838,21 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       JOIN properties p ON bu.property_id = p.id
       WHERE p.account_id = $1
     `, [clientId]);
-    
+
+    // Per-account filter-amenity selection. Plugin uses this to narrow the
+    // filter dropdown. Empty = show all is_filter_eligible amenities; non-empty
+    // = show only those codes. Two-layer curation: master sets eligible list,
+    // client picks from it.
+    let filterAmenityCodes = [];
+    if (!skipAccountFilter) {
+      const acctRow = await pool.query('SELECT filter_amenity_codes FROM accounts WHERE id = $1', [clientId]).catch(() => ({ rows: [] }));
+      filterAmenityCodes = acctRow.rows[0]?.filter_amenity_codes || [];
+    }
+
     res.json({
       success: true,
       rooms: rooms,
+      filter_amenity_codes: filterAmenityCodes,
       meta: {
         total: totalCount,
         returned: rooms.length,
