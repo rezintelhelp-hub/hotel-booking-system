@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Your Stay</title>
+<style>
+  :root { --accent:#3b82f6; --bg:#f8fafc; --card:#fff; --border:#e5e7eb; --text:#0f172a; --muted:#64748b; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; margin:0; background:var(--bg); color:var(--text); line-height:1.5; }
+  .wrap { max-width:720px; margin:0 auto; padding:32px 20px 60px; }
+  .header { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:24px; }
+  .header h1 { margin:0; font-size:1.5rem; }
+  .header .account { color:var(--muted); font-size:0.9rem; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:16px; }
+  .card h2 { margin:0 0 12px; font-size:1.1rem; }
+  .field { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); }
+  .field:last-child { border-bottom:none; }
+  .field .label { color:var(--muted); }
+  .field .val { font-weight:500; text-align:right; }
+  label { display:block; font-size:0.85rem; color:var(--muted); margin-bottom:4px; margin-top:12px; }
+  input, select { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:1rem; font-family:inherit; }
+  .btn { background:var(--accent); color:white; border:none; padding:12px 24px; border-radius:8px; font-size:1rem; font-weight:500; cursor:pointer; }
+  .btn:hover { filter:brightness(0.95); }
+  .btn:disabled { opacity:0.5; cursor:not-allowed; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:520px) { .grid2 { grid-template-columns:1fr; } }
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#0f172a; color:#fff; padding:12px 20px; border-radius:8px; opacity:0; transition:opacity 0.2s; pointer-events:none; }
+  .toast.show { opacity:1; }
+  .err { background:#fee2e2; border:1px solid #fecaca; color:#991b1b; padding:12px 16px; border-radius:8px; }
+  .loading { text-align:center; padding:60px 20px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="loading" class="loading">Loading your stay…</div>
+  <div id="error" class="err" style="display:none;"></div>
+  <div id="content" style="display:none;">
+    <div class="header">
+      <h1 id="greeting">Your stay</h1>
+      <div class="account" id="account-name"></div>
+    </div>
+
+    <div class="card" id="booking-card" style="display:none;">
+      <h2 id="booking-property"></h2>
+      <div class="field"><span class="label">Reference</span><span class="val" id="b-ref"></span></div>
+      <div class="field"><span class="label">Room</span><span class="val" id="b-room"></span></div>
+      <div class="field"><span class="label">Arrival</span><span class="val" id="b-arrival"></span></div>
+      <div class="field"><span class="label">Departure</span><span class="val" id="b-departure"></span></div>
+      <div class="field"><span class="label">Guests</span><span class="val" id="b-guests"></span></div>
+      <div class="field"><span class="label">Status</span><span class="val" id="b-status"></span></div>
+      <div class="field"><span class="label">Total</span><span class="val" id="b-total"></span></div>
+      <div class="field" id="b-balance-row" style="display:none;"><span class="label">Balance due</span><span class="val" id="b-balance"></span></div>
+    </div>
+
+    <div class="card">
+      <h2>Your details</h2>
+      <p style="color:var(--muted); margin:0 0 4px; font-size:0.9rem;">These travel with you to every stay you book through us.</p>
+      <div class="grid2">
+        <div><label>First name</label><input id="f-first" type="text"></div>
+        <div><label>Last name</label><input id="f-last" type="text"></div>
+      </div>
+      <label>Email</label>
+      <input id="f-email" type="email" disabled style="background:#f1f5f9; color:var(--muted);">
+      <label>Phone</label>
+      <input id="f-phone" type="tel">
+      <label>Address</label>
+      <input id="f-address" type="text">
+      <div class="grid2">
+        <div><label>City</label><input id="f-city" type="text"></div>
+        <div><label>Postcode</label><input id="f-postcode" type="text"></div>
+      </div>
+      <label>Country (2-letter code)</label>
+      <input id="f-country" type="text" maxlength="2" style="text-transform:uppercase;">
+      <div style="margin-top:20px; text-align:right;">
+        <button class="btn" id="save-btn" onclick="saveDetails()">Save</button>
+      </div>
+    </div>
+
+    <p style="color:var(--muted); font-size:0.8rem; text-align:center; margin-top:32px;">
+      This is your private link. It expires after 90 days.
+    </p>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<script>
+  const TOKEN = window.location.hash.replace(/^#/, '');
+  const $ = id => document.getElementById(id);
+
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2400); }
+  function fmtDate(s) { return s ? new Date(s).toLocaleDateString(undefined, { weekday:'short', day:'numeric', month:'short', year:'numeric' }) : '—'; }
+  function fmtMoney(n, c) { return (Number(n||0)).toFixed(2) + (c ? ' ' + c : ''); }
+  function showError(msg) { $('loading').style.display='none'; $('error').style.display='block'; $('error').textContent = msg; }
+
+  async function load() {
+    if (!TOKEN) return showError('No access token. Use the link from your email.');
+    try {
+      const r = await fetch('/api/public/your-stay/' + encodeURIComponent(TOKEN));
+      const data = await r.json();
+      if (!r.ok || !data.success) return showError(data.error || 'Could not load your stay.');
+
+      const g = data.guest;
+      $('greeting').textContent = `Hi ${g.first_name || 'there'}`;
+      $('account-name').textContent = g.account_name || '';
+
+      // Form
+      $('f-first').value = g.first_name || '';
+      $('f-last').value = g.last_name || '';
+      $('f-email').value = g.email || '';
+      $('f-phone').value = g.phone || '';
+      $('f-address').value = g.address || '';
+      $('f-city').value = g.city || '';
+      $('f-postcode').value = g.postcode || '';
+      $('f-country').value = g.country || '';
+
+      // Booking
+      if (data.booking) {
+        const b = data.booking;
+        $('booking-card').style.display = '';
+        $('booking-property').textContent = b.property_name || 'Your booking';
+        $('b-ref').textContent = b.group_booking_id || ('#' + b.id);
+        $('b-room').textContent = b.room_name || '—';
+        $('b-arrival').textContent = fmtDate(b.arrival_date);
+        $('b-departure').textContent = fmtDate(b.departure_date);
+        const g_count = (b.num_adults || 0) + (b.num_children || 0);
+        $('b-guests').textContent = `${b.num_adults || 0} adult${b.num_adults===1?'':'s'}` + ((b.num_children||0) > 0 ? `, ${b.num_children} child${b.num_children===1?'':'ren'}` : '');
+        $('b-status').textContent = (b.status || '').replace(/_/g,' ');
+        $('b-total').textContent = fmtMoney(b.grand_total, b.currency);
+        if (Number(b.balance_amount || 0) > 0) {
+          $('b-balance-row').style.display = '';
+          $('b-balance').textContent = fmtMoney(b.balance_amount, b.currency);
+        }
+      }
+
+      $('loading').style.display = 'none';
+      $('content').style.display = '';
+    } catch (e) {
+      showError(e.message || 'Could not load your stay.');
+    }
+  }
+
+  async function saveDetails() {
+    const btn = $('save-btn'); btn.disabled = true; btn.textContent = 'Saving…';
+    const body = {
+      first_name: $('f-first').value.trim() || null,
+      last_name: $('f-last').value.trim() || null,
+      phone: $('f-phone').value.trim() || null,
+      address: $('f-address').value.trim() || null,
+      city: $('f-city').value.trim() || null,
+      postcode: $('f-postcode').value.trim() || null,
+      country: ($('f-country').value || '').trim().toUpperCase().slice(0, 2) || null
+    };
+    try {
+      const r = await fetch('/api/public/your-stay/' + encodeURIComponent(TOKEN) + '/details', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await r.json();
+      if (!r.ok || !data.success) throw new Error(data.error || 'Save failed');
+      toast('Saved');
+    } catch (e) {
+      toast('Could not save: ' + (e.message || ''));
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

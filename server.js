@@ -69,6 +69,7 @@ const { v4: uuidv4 } = require('uuid');
 const archiver = require('archiver');
 const sanitizeHtml = require('sanitize-html');
 const { formatChannelDescription } = require('./lib/description-formatter');
+const { signGuestToken, verifyGuestToken, peekGuestToken, PURPOSES: GUEST_TOKEN_PURPOSES } = require('./lib/guest-tokens');
 
 // Shared HTML sanitiser for room descriptions.
 // Matches the client-side DOMPurify allowlist from Step 1.
@@ -21392,6 +21393,178 @@ app.post('/api/public/payment-failed', async (req, res) => {
         console.error('Error handling payment failure:', error);
         res.json({ success: false, error: error.message });
     }
+});
+
+// =====================================================
+// Phase 1 Guest Entity — "Your Stay" magic-link portal
+//
+// Stateless guest portal — no login. The guest receives an email with a
+// signed token, the page POSTs back with the token, and the server verifies.
+// Token revocation = rotate the guest's magic_link_secret.
+//
+//   GET   /api/public/your-stay/:token         resolve to guest + booking summary
+//   PATCH /api/public/your-stay/:token/details self-service profile update
+//   POST  /api/admin/bookings/:id/send-portal-link   email the guest a link
+// =====================================================
+
+async function resolveYourStayToken(token) {
+  const peek = peekGuestToken(token);
+  if (!peek.ok) return { ok: false, status: 401, error: 'Invalid link' };
+  if (peek.purpose !== GUEST_TOKEN_PURPOSES.YOUR_STAY) {
+    return { ok: false, status: 403, error: 'Wrong link type' };
+  }
+  const g = await pool.query(
+    `SELECT g.*, a.name AS account_name FROM guests g
+     LEFT JOIN accounts a ON a.id = g.account_id WHERE g.id = $1`,
+    [peek.guestId]
+  );
+  if (!g.rows[0]) return { ok: false, status: 404, error: 'Guest not found' };
+  const verified = verifyGuestToken(token, g.rows[0].magic_link_secret);
+  if (!verified.ok) {
+    return { ok: false, status: 401, error: verified.reason === 'expired' ? 'Link expired' : 'Invalid link' };
+  }
+  return { ok: true, guest: g.rows[0], bookingId: verified.bookingId };
+}
+
+app.get('/api/public/your-stay/:token', async (req, res) => {
+  try {
+    const r = await resolveYourStayToken(req.params.token);
+    if (!r.ok) return res.status(r.status).json({ success: false, error: r.error });
+    const g = r.guest;
+
+    // Don't expose the secret or unsubscribe token to the portal.
+    delete g.magic_link_secret;
+    delete g.unsubscribe_token;
+
+    let booking = null;
+    if (r.bookingId) {
+      const bk = await pool.query(
+        `SELECT b.id, b.group_booking_id, b.arrival_date, b.departure_date,
+                b.num_adults, b.num_children, b.status, b.payment_status,
+                b.grand_total, b.deposit_amount, b.balance_amount, b.currency,
+                b.special_requests, b.guest_first_name, b.guest_last_name,
+                b.property_id, p.name AS property_name, p.timezone,
+                bu.name AS room_name
+           FROM bookings b
+           LEFT JOIN properties p ON p.id = b.property_id
+           LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
+           WHERE b.id = $1 AND b.guest_id = $2`,
+        [r.bookingId, g.id]
+      );
+      booking = bk.rows[0] || null;
+    }
+
+    // Bump last_seen_at — guest opened the portal.
+    pool.query('UPDATE guests SET last_seen_at = NOW() WHERE id = $1', [g.id]).catch(() => {});
+
+    res.json({
+      success: true,
+      guest: {
+        id: g.id,
+        first_name: g.first_name,
+        last_name: g.last_name,
+        email: g.email,
+        phone: g.phone,
+        country: g.country,
+        city: g.city,
+        postcode: g.postcode,
+        address: g.address,
+        date_of_birth: g.date_of_birth,
+        language: g.language,
+        stripe_identity_verified: g.stripe_identity_verified,
+        account_name: g.account_name
+      },
+      booking
+    });
+  } catch (err) {
+    console.error('your-stay resolve error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch('/api/public/your-stay/:token/details', async (req, res) => {
+  try {
+    const r = await resolveYourStayToken(req.params.token);
+    if (!r.ok) return res.status(r.status).json({ success: false, error: r.error });
+
+    // Whitelist of self-service fields. NOT email, NOT account_id (identity).
+    const allowed = ['first_name', 'last_name', 'phone', 'address', 'city',
+                     'postcode', 'country', 'date_of_birth', 'language'];
+    const sets = [];
+    const params = [r.guest.id];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        params.push(req.body[key] || null);
+        sets.push(`${key} = $${params.length}`);
+      }
+    }
+    if (!sets.length) return res.json({ success: true, updated: false });
+
+    sets.push('updated_at = NOW()', 'last_seen_at = NOW()');
+    await pool.query(`UPDATE guests SET ${sets.join(', ')} WHERE id = $1`, params);
+    res.json({ success: true, updated: true });
+  } catch (err) {
+    console.error('your-stay update error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/bookings/:id/send-portal-link', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    const bookingId = parseInt(req.params.id);
+
+    const bk = await pool.query(
+      `SELECT b.id, b.guest_id, b.guest_email, b.guest_first_name, b.arrival_date,
+              p.name AS property_name, p.account_id
+         FROM bookings b LEFT JOIN properties p ON p.id = b.property_id
+         WHERE b.id = $1`,
+      [bookingId]
+    );
+    if (!bk.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    const booking = bk.rows[0];
+    if (!isMaster && booking.account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+    if (!booking.guest_id) return res.status(400).json({ success: false, error: 'Booking is not linked to a guest yet' });
+    if (!booking.guest_email) return res.status(400).json({ success: false, error: 'No email on booking' });
+
+    const guestRow = await pool.query('SELECT magic_link_secret FROM guests WHERE id = $1', [booking.guest_id]);
+    if (!guestRow.rows[0]) return res.status(404).json({ success: false, error: 'Guest not found' });
+
+    const token = signGuestToken({
+      guestId: booking.guest_id,
+      bookingId: booking.id,
+      purpose: GUEST_TOKEN_PURPOSES.YOUR_STAY,
+      secret: guestRow.rows[0].magic_link_secret
+    });
+    const portalUrl = `${req.protocol}://${req.get('host')}/your-stay.html#${token}`;
+
+    const result = await sendEmail({
+      to: booking.guest_email,
+      subject: `Your stay at ${booking.property_name || 'our property'}`,
+      html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
+        <h2>Hi ${booking.guest_first_name || 'there'},</h2>
+        <p>Here's your private link to the booking portal — review your details, update your contact info, and (when needed) upload ID.</p>
+        <p><a href="${portalUrl}" style="display:inline-block;background:#3b82f6;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:500;">Open your stay</a></p>
+        <p style="color:#666;font-size:13px;">This link is private to you. It expires in 90 days. If you didn't expect this email, it's safe to ignore.</p>
+      </body></html>`,
+      context: {
+        guestId: booking.guest_id,
+        bookingId: booking.id,
+        eventType: 'your_stay_link',
+        accountId: booking.account_id
+      }
+    });
+
+    if (!result.success) return res.status(502).json({ success: false, error: result.error });
+    res.json({ success: true, sent_to: booking.guest_email });
+  } catch (err) {
+    console.error('send-portal-link error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // =====================================================
