@@ -22309,6 +22309,471 @@ app.post('/api/webhooks/stripe-deposit', express.raw({ type: 'application/json' 
 });
 
 // =====================================================
+// Phase 2 Booking Payment Ops — claim / dispute flow
+//
+// A "claim" is the formal capture-with-cause record. Hosts can capture
+// the hold directly via /deposit/capture, but for chargeback defence and
+// consumer-law compliance the *claim flow* is the recommended path:
+//
+//   1. Host files claim with amount + reason + evidence
+//   2. Guest emailed; gets accept/dispute buttons in the portal
+//   3. Auto-accept window passes OR guest accepts → host can capture
+//   4. Capture is linked back to the claim via capture_tx_id
+//   5. Disputes go to admin_review for master/account resolution
+//
+// Endpoints:
+//   POST   /api/admin/bookings/:id/claims           file a claim
+//   GET    /api/admin/bookings/:id/claims           list (with auto-accept sweep)
+//   PATCH  /api/admin/claims/:id                    update draft / submit
+//   POST   /api/admin/claims/:id/capture            capture once accepted
+//   POST   /api/admin/claims/:id/resolve            admin path after dispute
+//   GET    /api/admin/claims/disputed               disputed-claims queue
+//   GET    /api/public/your-stay/:token/claims      guest sees claims
+//   POST   /api/public/your-stay/:token/claims/:claimId/respond
+// =====================================================
+
+// Lazy auto-accept sweep — flips any 'filed' claims past their window to
+// 'auto_accepted'. Runs at the start of any list endpoint (host or guest).
+// This avoids needing a real cron daemon: if nobody looks, claims sit
+// 'filed' but no money moves; if anyone lists, the timer fires.
+async function sweepAutoAcceptClaims(bookingId) {
+  const sql = bookingId
+    ? `UPDATE booking_deposit_claims
+         SET status = 'auto_accepted', updated_at = NOW()
+       WHERE status = 'filed'
+         AND auto_accept_at IS NOT NULL
+         AND auto_accept_at < NOW()
+         AND booking_id = $1`
+    : `UPDATE booking_deposit_claims
+         SET status = 'auto_accepted', updated_at = NOW()
+       WHERE status = 'filed'
+         AND auto_accept_at IS NOT NULL
+         AND auto_accept_at < NOW()`;
+  await pool.query(sql, bookingId ? [bookingId] : []).catch(e => console.error('claim sweep:', e.message));
+}
+
+// Resolve effective deposit_policy for a booking — property override
+// then account default, with a hardcoded fallback for the rare case both
+// JSONBs are NULL (shouldn't happen post-migration but defensive).
+async function getEffectiveDepositPolicy(booking) {
+  let policy = null;
+  if (booking.property_id) {
+    const r = await pool.query('SELECT deposit_policy FROM properties WHERE id = $1', [booking.property_id]);
+    policy = r.rows[0]?.deposit_policy || null;
+  }
+  if (!policy && booking.property_account_id) {
+    const r = await pool.query('SELECT deposit_policy FROM accounts WHERE id = $1', [booking.property_account_id]);
+    policy = r.rows[0]?.deposit_policy || null;
+  }
+  return policy || {
+    hold_mode: 'on_demand',
+    auto_accept_hours: 48,
+    evidence_required: true,
+    allowed_reason_categories: ['damage', 'cleaning', 'missing_item', 'extra_guest', 'other'],
+    max_per_claim: null
+  };
+}
+
+app.post('/api/admin/bookings/:id/claims', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.id);
+    const ctx = await loadBookingForAdmin(req, bookingId);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+    const { booking, decoded } = ctx;
+
+    const policy = await getEffectiveDepositPolicy(booking);
+    const amount = Number(req.body.amount || 0);
+    const reasonCategory = (req.body.reason_category || '').slice(0, 40);
+    const reasonText = (req.body.reason_text || '').slice(0, 2000);
+    const evidenceDocIds = Array.isArray(req.body.evidence_doc_ids) ? req.body.evidence_doc_ids.map(Number).filter(Boolean) : [];
+    const submit = !!req.body.submit;
+
+    if (!(amount > 0)) return res.status(400).json({ success: false, error: 'amount must be > 0' });
+    if (policy.allowed_reason_categories?.length && !policy.allowed_reason_categories.includes(reasonCategory)) {
+      return res.status(400).json({ success: false, error: `reason_category must be one of: ${policy.allowed_reason_categories.join(', ')}` });
+    }
+    if (policy.max_per_claim && amount > Number(policy.max_per_claim)) {
+      return res.status(400).json({ success: false, error: `Amount exceeds max_per_claim (${policy.max_per_claim})` });
+    }
+    if (submit && policy.evidence_required && !evidenceDocIds.length) {
+      return res.status(400).json({ success: false, error: 'Evidence is required to submit a claim. Save as draft and add evidence first.' });
+    }
+
+    const status = submit ? 'filed' : 'draft';
+    const filedAt = submit ? new Date() : null;
+    const autoAcceptAt = submit && policy.auto_accept_hours
+      ? new Date(Date.now() + Number(policy.auto_accept_hours) * 60 * 60 * 1000)
+      : null;
+    const currency = booking.deposit_hold_currency || booking.currency || booking.property_currency || 'GBP';
+
+    const ins = await pool.query(
+      `INSERT INTO booking_deposit_claims
+         (booking_id, filed_by_user_id, amount, currency, reason_category,
+          reason_text, evidence_doc_ids, status, filed_at, auto_accept_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [bookingId, decoded.id || decoded.accountId, amount, currency,
+       reasonCategory || null, reasonText || null, evidenceDocIds, status,
+       filedAt, autoAcceptAt]
+    );
+    const claim = ins.rows[0];
+
+    // If filing immediately and there's a guest email, notify with magic link.
+    if (submit && booking.guest_email && booking.guest_id) {
+      const guestRow = await pool.query('SELECT magic_link_secret FROM guests WHERE id = $1', [booking.guest_id]);
+      if (guestRow.rows[0]) {
+        const token = signGuestToken({
+          guestId: booking.guest_id, bookingId,
+          purpose: GUEST_TOKEN_PURPOSES.YOUR_STAY,
+          secret: guestRow.rows[0].magic_link_secret
+        });
+        const portalUrl = `${req.protocol}://${req.get('host')}/your-stay.html#${token}`;
+        const deadline = autoAcceptAt ? new Date(autoAcceptAt).toLocaleString() : '';
+        sendEmail({
+          to: booking.guest_email,
+          subject: `${booking.property_name || 'Your booking'}: a claim has been filed`,
+          html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
+            <h2>Hi ${booking.guest_first_name || 'there'},</h2>
+            <p>The host at ${booking.property_name || 'the property'} has filed a claim of <strong>${amount.toFixed(2)} ${currency}</strong> against your security hold.</p>
+            ${reasonCategory ? `<p><strong>Reason:</strong> ${reasonCategory.replace(/_/g, ' ')}</p>` : ''}
+            ${reasonText ? `<p>${reasonText.replace(/</g, '&lt;')}</p>` : ''}
+            <p>Please review the claim. You can <strong>accept</strong> or <strong>dispute</strong> it via your private portal:</p>
+            <p><a href="${portalUrl}" style="display:inline-block;background:#3b82f6;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:500;">Review claim</a></p>
+            ${deadline ? `<p style="color:#b45309;font-size:13px;"><strong>If we don't hear from you by ${deadline}</strong>, the claim will be auto-accepted.</p>` : ''}
+          </body></html>`,
+          context: {
+            guestId: booking.guest_id, bookingId,
+            accountId: booking.property_account_id,
+            eventType: 'deposit_claim_filed',
+            metadata: { claim_id: claim.id, amount_cents: Math.round(amount * 100), reason_category: reasonCategory }
+          }
+        }).catch(e => console.error('claim email skipped:', e.message));
+      }
+    }
+
+    res.json({ success: true, claim });
+  } catch (err) {
+    console.error('claim file error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/bookings/:id/claims', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.id);
+    const ctx = await loadBookingForAdmin(req, bookingId);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+    await sweepAutoAcceptClaims(bookingId);
+    const r = await pool.query(
+      `SELECT * FROM booking_deposit_claims WHERE booking_id = $1 ORDER BY created_at DESC`,
+      [bookingId]
+    );
+    res.json({ success: true, claims: r.rows });
+  } catch (err) {
+    console.error('claims list error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch('/api/admin/claims/:id', async (req, res) => {
+  try {
+    const claimId = parseInt(req.params.id);
+    const claim = (await pool.query('SELECT * FROM booking_deposit_claims WHERE id = $1', [claimId])).rows[0];
+    if (!claim) return res.status(404).json({ success: false, error: 'Claim not found' });
+    const ctx = await loadBookingForAdmin(req, claim.booking_id);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+    if (claim.status !== 'draft' && !req.body.submit) {
+      return res.status(400).json({ success: false, error: 'Only draft claims are editable' });
+    }
+
+    const sets = [];
+    const params = [claimId];
+    for (const k of ['amount', 'reason_category', 'reason_text', 'evidence_doc_ids']) {
+      if (req.body[k] !== undefined) {
+        params.push(req.body[k]);
+        sets.push(`${k} = $${params.length}`);
+      }
+    }
+
+    if (req.body.submit && claim.status === 'draft') {
+      const policy = await getEffectiveDepositPolicy(ctx.booking);
+      const amt = req.body.amount !== undefined ? Number(req.body.amount) : Number(claim.amount);
+      const evidence = req.body.evidence_doc_ids !== undefined
+        ? (Array.isArray(req.body.evidence_doc_ids) ? req.body.evidence_doc_ids : [])
+        : (claim.evidence_doc_ids || []);
+      if (policy.evidence_required && !evidence.length) {
+        return res.status(400).json({ success: false, error: 'Evidence is required to submit a claim' });
+      }
+      if (!(amt > 0)) return res.status(400).json({ success: false, error: 'amount must be > 0' });
+
+      params.push('filed');
+      sets.push(`status = $${params.length}`);
+      params.push(new Date());
+      sets.push(`filed_at = $${params.length}`);
+      const autoAcceptAt = policy.auto_accept_hours
+        ? new Date(Date.now() + Number(policy.auto_accept_hours) * 60 * 60 * 1000)
+        : null;
+      params.push(autoAcceptAt);
+      sets.push(`auto_accept_at = $${params.length}`);
+    }
+    if (!sets.length) return res.json({ success: true, updated: false });
+    sets.push('updated_at = NOW()');
+    const upd = await pool.query(`UPDATE booking_deposit_claims SET ${sets.join(', ')} WHERE id = $1 RETURNING *`, params);
+    res.json({ success: true, claim: upd.rows[0] });
+  } catch (err) {
+    console.error('claim update error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/claims/:id/capture', async (req, res) => {
+  try {
+    const claimId = parseInt(req.params.id);
+    const claim = (await pool.query('SELECT * FROM booking_deposit_claims WHERE id = $1', [claimId])).rows[0];
+    if (!claim) return res.status(404).json({ success: false, error: 'Claim not found' });
+    if (!['accepted', 'auto_accepted', 'resolved'].includes(claim.status)) {
+      return res.status(400).json({ success: false, error: `Claim must be accepted before capture. Current status: ${claim.status}` });
+    }
+
+    const ctx = await loadBookingForAdmin(req, claim.booking_id);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+    const { booking } = ctx;
+
+    if (booking.deposit_hold_status !== 'authorised') {
+      return res.status(400).json({ success: false, error: 'No active hold on this booking — cannot capture claim' });
+    }
+
+    const captureAmount = Number(claim.resolved_amount || claim.amount);
+    const result = await depositGateway.capture(booking, {
+      stripe, amountToCapture: captureAmount,
+      idempotencyKey: `claim-capture-${claimId}`
+    });
+    if (!result.ok) return res.status(400).json({ success: false, error: result.error });
+
+    await pool.query(
+      `UPDATE bookings SET deposit_hold_status = 'captured', updated_at = NOW() WHERE id = $1`,
+      [claim.booking_id]
+    );
+
+    const parent = await pool.query(
+      `SELECT id FROM payment_transactions WHERE booking_id = $1 AND transaction_type = 'auth' AND gateway_transaction_id = $2 ORDER BY created_at DESC LIMIT 1`,
+      [claim.booking_id, booking.deposit_hold_pi_id]
+    );
+    const txIns = await pool.query(
+      `INSERT INTO payment_transactions
+         (booking_id, account_id, guest_id, transaction_type, amount, currency,
+          payment_gateway, gateway_transaction_id, status, description,
+          parent_transaction_id, initiated_at, completed_at, created_at)
+       VALUES ($1, $2, $3, 'capture', $4, $5, 'stripe', $6, 'completed', $7, $8,
+               NOW(), NOW(), NOW())
+       RETURNING id`,
+      [claim.booking_id, booking.property_account_id, booking.guest_id || null,
+       result.capturedAmount, result.currency, booking.deposit_hold_pi_id,
+       `Claim #${claimId}: ${claim.reason_category || ''} ${claim.reason_text ? '— ' + claim.reason_text.slice(0, 80) : ''}`.trim(),
+       parent.rows[0]?.id || null]
+    );
+
+    await pool.query(
+      `UPDATE booking_deposit_claims SET status = 'captured', capture_tx_id = $2, updated_at = NOW() WHERE id = $1`,
+      [claimId, txIns.rows[0].id]
+    );
+
+    if (booking.guest_email) {
+      sendEmail({
+        to: booking.guest_email,
+        subject: `${booking.property_name || 'Your booking'}: ${result.capturedAmount.toFixed(2)} ${result.currency} captured`,
+        html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
+          <h2>Hi ${booking.guest_first_name || 'there'},</h2>
+          <p>The previously-filed claim has been processed. <strong>${result.capturedAmount.toFixed(2)} ${result.currency}</strong> has been captured from the security hold on your card.</p>
+          ${claim.reason_text ? `<p><em>Reason recorded:</em> ${claim.reason_text.replace(/</g, '&lt;')}</p>` : ''}
+          <p style="color:#666;font-size:13px;">If you believe this was made in error, reply to this email.</p>
+        </body></html>`,
+        context: {
+          guestId: booking.guest_id || null, bookingId: claim.booking_id,
+          accountId: booking.property_account_id,
+          eventType: 'deposit_claim_captured',
+          metadata: { claim_id: claimId, amount_cents: Math.round(result.capturedAmount * 100) }
+        }
+      }).catch(e => console.error('capture email skipped:', e.message));
+    }
+
+    res.json({ success: true, captured_amount: result.capturedAmount, currency: result.currency, transaction_id: txIns.rows[0].id });
+  } catch (err) {
+    console.error('claim capture error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/claims/:id/resolve', async (req, res) => {
+  try {
+    const claimId = parseInt(req.params.id);
+    const claim = (await pool.query('SELECT * FROM booking_deposit_claims WHERE id = $1', [claimId])).rows[0];
+    if (!claim) return res.status(404).json({ success: false, error: 'Claim not found' });
+    if (!['disputed', 'admin_review'].includes(claim.status)) {
+      return res.status(400).json({ success: false, error: `Only disputed claims can be resolved. Current: ${claim.status}` });
+    }
+
+    const ctx = await loadBookingForAdmin(req, claim.booking_id);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+
+    const outcome = req.body.outcome;
+    const amount = req.body.amount !== undefined ? Number(req.body.amount) : Number(claim.amount);
+    const notes = (req.body.notes || '').slice(0, 1000) || null;
+    if (!['accept_full', 'accept_partial', 'reject'].includes(outcome)) {
+      return res.status(400).json({ success: false, error: 'outcome must be accept_full | accept_partial | reject' });
+    }
+    if (outcome === 'accept_partial' && !(amount > 0 && amount <= Number(claim.amount))) {
+      return res.status(400).json({ success: false, error: 'For accept_partial, amount must be > 0 and ≤ original claim amount' });
+    }
+
+    const newStatus = outcome === 'reject' ? 'waived' : 'resolved';
+    const finalAmount = outcome === 'reject' ? 0 : (outcome === 'accept_partial' ? amount : Number(claim.amount));
+    await pool.query(
+      `UPDATE booking_deposit_claims
+         SET status = $2, resolved_outcome = $3, resolved_amount = $4,
+             resolved_notes = $5, resolved_by_user_id = $6, resolved_at = NOW(),
+             updated_at = NOW()
+       WHERE id = $1`,
+      [claimId, newStatus, outcome, finalAmount, notes, ctx.decoded.id || ctx.decoded.accountId]
+    );
+
+    res.json({ success: true, status: newStatus, resolved_amount: finalAmount });
+  } catch (err) {
+    console.error('claim resolve error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/claims/disputed', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    await sweepAutoAcceptClaims();
+
+    const filter = isMaster
+      ? `WHERE c.status IN ('disputed', 'admin_review')`
+      : `WHERE c.status IN ('disputed', 'admin_review') AND p.account_id = $1`;
+    const params = isMaster ? [] : [decoded.accountId || decoded.id];
+    const r = await pool.query(
+      `SELECT c.*, b.guest_first_name, b.guest_last_name, b.guest_email,
+              b.arrival_date, b.departure_date,
+              p.name AS property_name, p.account_id, a.name AS account_name
+         FROM booking_deposit_claims c
+         JOIN bookings b ON b.id = c.booking_id
+         LEFT JOIN properties p ON p.id = b.property_id
+         LEFT JOIN accounts a ON a.id = p.account_id
+         ${filter}
+         ORDER BY c.filed_at DESC NULLS LAST, c.created_at DESC`,
+      params
+    );
+    res.json({ success: true, claims: r.rows });
+  } catch (err) {
+    console.error('disputed claims error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Host-side evidence upload — admin counterpart to the guest-portal upload.
+// Files land in the same R2 prefix and create a guest_documents row tagged
+// document_type='claim_evidence' so the claim's evidence_doc_ids array can
+// reference them. Reuses the multer + R2 plumbing from Phase 1.
+app.post('/api/admin/bookings/:id/upload-evidence', upload.single('file'), async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.id);
+    const ctx = await loadBookingForAdmin(req, bookingId);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+    if (!ID_DOC_MIME_ALLOWED.includes(req.file.mimetype)) {
+      return res.status(400).json({ success: false, error: `Unsupported file type: ${req.file.mimetype}` });
+    }
+    const guestId = ctx.booking.guest_id;
+    if (!guestId) return res.status(400).json({ success: false, error: 'Booking has no linked guest_id — cannot store evidence' });
+
+    const ext = path.extname(req.file.originalname || '').toLowerCase();
+    const safeBase = path.basename(req.file.originalname || 'evidence', ext).replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 60);
+    const key = `guest-documents/${guestId}/${uuidv4()}-${safeBase}${ext || ''}`;
+
+    await r2Client.send(new PutObjectCommand({
+      Bucket: R2_BUCKET, Key: key,
+      Body: req.file.buffer, ContentType: req.file.mimetype,
+      ContentDisposition: `inline; filename="${safeBase}${ext}"`
+    }));
+
+    const ins = await pool.query(
+      `INSERT INTO guest_documents
+         (guest_id, booking_id, document_type, file_url, file_size_bytes, mime_type,
+          status, verification_method)
+       VALUES ($1, $2, 'claim_evidence', $3, $4, $5, 'approved', 'manual')
+       RETURNING id, document_type, mime_type, file_size_bytes, created_at`,
+      [guestId, bookingId, key, req.file.size, req.file.mimetype]
+    );
+    res.json({ success: true, document: ins.rows[0] });
+  } catch (err) {
+    console.error('upload-evidence error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Guest portal — see claims against your booking
+app.get('/api/public/your-stay/:token/claims', async (req, res) => {
+  try {
+    const r = await resolveYourStayToken(req.params.token);
+    if (!r.ok) return res.status(r.status).json({ success: false, error: r.error });
+    if (!r.bookingId) return res.json({ success: true, claims: [] });
+    await sweepAutoAcceptClaims(r.bookingId);
+    const claims = await pool.query(
+      `SELECT id, amount, currency, reason_category, reason_text,
+              evidence_doc_ids, status, filed_at, auto_accept_at,
+              guest_responded_at, guest_response, resolved_outcome,
+              resolved_amount, created_at
+         FROM booking_deposit_claims
+        WHERE booking_id = $1 AND status NOT IN ('draft', 'waived')
+        ORDER BY filed_at DESC NULLS LAST, created_at DESC`,
+      [r.bookingId]
+    );
+    res.json({ success: true, claims: claims.rows });
+  } catch (err) {
+    console.error('your-stay claims error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/public/your-stay/:token/claims/:claimId/respond', async (req, res) => {
+  try {
+    const r = await resolveYourStayToken(req.params.token);
+    if (!r.ok) return res.status(r.status).json({ success: false, error: r.error });
+    const claimId = parseInt(req.params.claimId);
+    const claim = (await pool.query('SELECT * FROM booking_deposit_claims WHERE id = $1', [claimId])).rows[0];
+    if (!claim) return res.status(404).json({ success: false, error: 'Claim not found' });
+    if (claim.booking_id !== r.bookingId) return res.status(403).json({ success: false, error: 'Forbidden' });
+    if (claim.status !== 'filed') return res.status(400).json({ success: false, error: `Claim cannot be responded to (current: ${claim.status})` });
+
+    const action = req.body.action;
+    const responseText = (req.body.response_text || '').slice(0, 2000) || null;
+    if (!['accept', 'dispute'].includes(action)) {
+      return res.status(400).json({ success: false, error: 'action must be accept | dispute' });
+    }
+    if (action === 'dispute' && !responseText) {
+      return res.status(400).json({ success: false, error: 'Disputes require a response_text explaining why' });
+    }
+
+    const newStatus = action === 'accept' ? 'accepted' : 'disputed';
+    await pool.query(
+      `UPDATE booking_deposit_claims
+         SET status = $2, guest_response = $3, guest_responded_at = NOW(), updated_at = NOW()
+       WHERE id = $1`,
+      [claimId, newStatus, responseText]
+    );
+
+    res.json({ success: true, status: newStatus });
+  } catch (err) {
+    console.error('your-stay claim respond error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================
 // Phase 1 Guest Entity — ID document upload
 //
 // Upload from the guest portal (token-authenticated).

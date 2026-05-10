@@ -42,6 +42,12 @@
       <div class="account" id="account-name"></div>
     </div>
 
+    <div id="claims-card" class="card" style="display:none; border-color:#fecaca; background:#fef2f2;">
+      <h2 style="color:#991b1b;">Claim review needed</h2>
+      <p style="color:#7f1d1d; margin-top:0;">The host has filed a claim against your security hold. Please review and respond.</p>
+      <div id="claims-list"></div>
+    </div>
+
     <div class="card" id="booking-card" style="display:none;">
       <h2 id="booking-property"></h2>
       <div class="field"><span class="label">Reference</span><span class="val" id="b-ref"></span></div>
@@ -160,8 +166,72 @@
 
       // Load any docs already uploaded.
       loadDocs();
+      // Load any claims against this booking.
+      loadClaims();
     } catch (e) {
       showError(e.message || 'Could not load your stay.');
+    }
+  }
+
+  async function loadClaims() {
+    const card = $('claims-card');
+    const target = $('claims-list');
+    if (!card || !target) return;
+    try {
+      const r = await fetch('/api/public/your-stay/' + encodeURIComponent(TOKEN) + '/claims');
+      const data = await r.json();
+      if (!r.ok || !data.success || !data.claims.length) { card.style.display = 'none'; return; }
+      card.style.display = '';
+      target.innerHTML = data.claims.map(c => {
+        const statusColor = c.status === 'filed' ? '#b45309'
+          : c.status === 'accepted' || c.status === 'auto_accepted' ? '#15803d'
+          : c.status === 'disputed' ? '#991b1b'
+          : c.status === 'captured' ? '#0f766e'
+          : '#475569';
+        const deadline = c.auto_accept_at ? new Date(c.auto_accept_at).toLocaleString() : '';
+        const buttons = c.status === 'filed' ? `
+          <div style="margin-top:10px;">
+            <button class="btn" style="background:#16a34a;" onclick="respondClaim(${c.id}, 'accept')">Accept</button>
+            <button class="btn" style="background:#dc2626; margin-left:8px;" onclick="respondClaim(${c.id}, 'dispute')">Dispute</button>
+          </div>` : '';
+        const respondedNote = c.guest_responded_at ? `<p style="color:${statusColor}; font-size:0.85rem; margin-top:8px;">You responded ${new Date(c.guest_responded_at).toLocaleString()}: ${c.status}</p>` : '';
+        return `<div style="padding:14px; background:white; border-radius:8px; margin-bottom:10px; border-left:4px solid ${statusColor};">
+          <div style="display:flex; justify-content:space-between;">
+            <strong>${Number(c.amount).toFixed(2)} ${c.currency || ''}</strong>
+            <span style="color:${statusColor}; font-size:0.85rem;">${c.status.replace(/_/g, ' ')}</span>
+          </div>
+          ${c.reason_category ? `<div style="color:#475569; font-size:0.9rem; margin-top:4px;">${c.reason_category.replace(/_/g, ' ')}</div>` : ''}
+          ${c.reason_text ? `<p style="margin-top:6px;">${(c.reason_text || '').replace(/</g,'&lt;')}</p>` : ''}
+          ${c.status === 'filed' && deadline ? `<p style="color:#b45309; font-size:0.85rem;">If we don't hear from you by <strong>${deadline}</strong>, the claim will be auto-accepted.</p>` : ''}
+          ${buttons}
+          ${respondedNote}
+        </div>`;
+      }).join('');
+    } catch (e) {
+      card.style.display = 'none';
+    }
+  }
+
+  async function respondClaim(claimId, action) {
+    let response_text = null;
+    if (action === 'dispute') {
+      response_text = prompt('Tell the host why you disagree:');
+      if (!response_text) return;
+    } else {
+      if (!confirm('Accept this claim? The host will be able to capture this amount from your security hold.')) return;
+    }
+    try {
+      const r = await fetch('/api/public/your-stay/' + encodeURIComponent(TOKEN) + '/claims/' + claimId + '/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, response_text })
+      });
+      const data = await r.json();
+      if (!r.ok || !data.success) throw new Error(data.error || 'Save failed');
+      toast('Response recorded');
+      loadClaims();
+    } catch (e) {
+      toast('Could not respond: ' + (e.message || ''));
     }
   }
 
