@@ -21754,6 +21754,153 @@ app.delete('/api/admin/guest-documents/:id', async (req, res) => {
 });
 
 // =====================================================
+// Phase 1 Guest Entity — Stripe Identity verification
+//
+// Admin-triggered: creates a VerificationSession on Stripe and emails the
+// guest the hosted URL. Stripe webhook flips guests.stripe_identity_verified
+// when verification completes.
+//
+// Configure the webhook in Stripe Dashboard:
+//   endpoint: https://admin.gas.travel/api/webhooks/stripe-identity
+//   events:   identity.verification_session.verified
+//             identity.verification_session.requires_input
+//             identity.verification_session.processing
+//             identity.verification_session.canceled
+//   secret:   set STRIPE_IDENTITY_WEBHOOK_SECRET env var
+// =====================================================
+
+app.post('/api/admin/guests/:id/request-id-verification', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    const guestId = parseInt(req.params.id);
+
+    const g = await pool.query(
+      'SELECT id, account_id, email, first_name, last_name, stripe_identity_verified FROM guests WHERE id = $1',
+      [guestId]
+    );
+    if (!g.rows[0]) return res.status(404).json({ success: false, error: 'Guest not found' });
+    const guest = g.rows[0];
+    if (!isMaster && guest.account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+    if (guest.stripe_identity_verified) {
+      return res.status(400).json({ success: false, error: 'Guest already verified' });
+    }
+    if (!guest.email) return res.status(400).json({ success: false, error: 'No email on guest record' });
+
+    const session = await stripe.identity.verificationSessions.create({
+      type: 'document',
+      provided_details: { email: guest.email },
+      metadata: {
+        guest_id: String(guest.id),
+        account_id: String(guest.account_id || ''),
+        booking_id: req.body.booking_id ? String(req.body.booking_id) : ''
+      },
+      return_url: `${req.protocol}://${req.get('host')}/your-stay.html?verified=1`
+    });
+
+    // Pre-create a guest_documents row with verification_method = 'stripe_identity'.
+    // Webhook will flip status to approved + populate verified_at.
+    await pool.query(
+      `INSERT INTO guest_documents (guest_id, booking_id, document_type, status,
+                                    verification_method, stripe_verification_id)
+       VALUES ($1, $2, 'stripe_identity', 'pending', 'stripe_identity', $3)`,
+      [guest.id, req.body.booking_id || null, session.id]
+    );
+
+    // Email the guest the hosted verification URL.
+    const result = await sendEmail({
+      to: guest.email,
+      subject: 'ID verification requested',
+      html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
+        <h2>Hi ${guest.first_name || 'there'},</h2>
+        <p>To complete your booking we need to verify your ID. This takes about a minute and uses your phone's camera.</p>
+        <p><a href="${session.url}" style="display:inline-block;background:#3b82f6;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:500;">Verify your ID</a></p>
+        <p style="color:#666;font-size:13px;">This link is private to you. The verification is handled by Stripe and we never see your raw ID — only that it was verified.</p>
+      </body></html>`,
+      context: {
+        guestId: guest.id,
+        bookingId: req.body.booking_id || null,
+        eventType: 'stripe_identity_request',
+        accountId: guest.account_id
+      }
+    });
+
+    if (!result.success) return res.status(502).json({ success: false, error: result.error });
+    res.json({ success: true, verification_session_id: session.id, sent_to: guest.email });
+  } catch (err) {
+    console.error('request-id-verification error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Stripe Identity webhook — separate endpoint with its own webhook secret.
+// Body parser MUST be express.raw because Stripe verifies the raw bytes.
+app.post('/api/webhooks/stripe-identity', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const webhookSecret = process.env.STRIPE_IDENTITY_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.error('STRIPE_IDENTITY_WEBHOOK_SECRET not set — refusing event');
+    return res.status(500).send('Webhook secret not configured');
+  }
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+  } catch (err) {
+    console.error('Stripe Identity webhook signature failure:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    const session = event.data.object;
+    const guestId = parseInt(session.metadata?.guest_id || '0') || null;
+    if (!guestId) {
+      // Not one of ours — return 200 so Stripe doesn't retry.
+      return res.json({ received: true, note: 'no guest_id in metadata' });
+    }
+
+    if (event.type === 'identity.verification_session.verified') {
+      await pool.query(
+        `UPDATE guests SET stripe_identity_verified = true, updated_at = NOW() WHERE id = $1`,
+        [guestId]
+      );
+      await pool.query(
+        `UPDATE guest_documents
+            SET status = 'approved', verified_at = NOW(), updated_at = NOW()
+          WHERE stripe_verification_id = $1`,
+        [session.id]
+      );
+      console.log(`✅ Stripe Identity verified for guest ${guestId} (session ${session.id})`);
+    } else if (event.type === 'identity.verification_session.requires_input') {
+      await pool.query(
+        `UPDATE guest_documents
+            SET status = 'rejected',
+                rejection_reason = $2,
+                updated_at = NOW()
+          WHERE stripe_verification_id = $1`,
+        [session.id, session.last_error?.reason || 'Verification needs another attempt']
+      );
+      console.log(`⚠️  Stripe Identity needs input for guest ${guestId} (session ${session.id})`);
+    } else if (event.type === 'identity.verification_session.canceled') {
+      await pool.query(
+        `UPDATE guest_documents SET status = 'rejected', rejection_reason = 'Canceled', updated_at = NOW()
+          WHERE stripe_verification_id = $1`,
+        [session.id]
+      );
+    }
+    // 'processing' is the inflight state — no DB change needed.
+
+    res.json({ received: true });
+  } catch (err) {
+    console.error('Stripe Identity webhook handler error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================================================
 // GROUP BOOKING ENDPOINT
 // Creates multiple bookings linked by a group_booking_id
 // =====================================================
