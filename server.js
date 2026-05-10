@@ -1681,10 +1681,11 @@ async function runMigrations() {
     try {
       // Booking-level hold tracking. deposit_hold_gateway is forward-compatible
       // ('stripe' is the only Phase 2 value; 'enigma'|'authnet' reserved).
-      // Also defensive-add refund_amount: declared in another migration block
-      // at server.js ~line 24012 but not actually present on prod — see
-      // Phase 2 Commit 1 audit finding. Re-declaring here is idempotent.
+      // Also defensive-add refund_amount + stripe_customer_id: both declared
+      // elsewhere in startup migrations but missing on prod — see Phase 2
+      // Commit 1 + 4 audit findings. Re-declaring here is idempotent.
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10,2) DEFAULT 0`);
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255)`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_gateway VARCHAR(20) DEFAULT 'stripe'`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_pi_id VARCHAR(255)`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_hold_setup_id VARCHAR(255)`);
@@ -21677,18 +21678,55 @@ async function loadBookingForAdmin(req, bookingId) {
 
   const r = await pool.query(`
     SELECT b.*, p.account_id AS property_account_id, p.name AS property_name,
-           p.currency AS property_currency, a.stripe_account_id, a.email AS account_email
+           p.currency AS property_currency, a.stripe_account_id, a.email AS account_email,
+           g.stripe_customer_id AS guest_stripe_customer_id
     FROM bookings b
     LEFT JOIN properties p ON p.id = b.property_id
     LEFT JOIN accounts a ON p.account_id = a.id
+    LEFT JOIN guests g ON g.id = b.guest_id
     WHERE b.id = $1
   `, [bookingId]);
   if (!r.rows[0]) return { ok: false, status: 404, error: 'Booking not found' };
   const booking = r.rows[0];
+  // Fallback chain: bookings.stripe_customer_id (primary), then
+  // guests.stripe_customer_id (Phase 1 schema). Lets legacy bookings work
+  // even if the booking-level column was never populated. A Stripe-API
+  // lookup (paymentMethods.retrieve) is the third fallback — see
+  // ensureStripeCustomerOnBooking() — but that's lazy/per-call to avoid
+  // adding network latency to every booking-load path.
+  if (!booking.stripe_customer_id && booking.guest_stripe_customer_id) {
+    booking.stripe_customer_id = booking.guest_stripe_customer_id;
+  }
   if (!isMaster && booking.property_account_id !== (decoded.accountId || decoded.id)) {
     return { ok: false, status: 403, error: 'Forbidden' };
   }
   return { ok: true, booking, decoded, isMaster };
+}
+
+// Last-resort lookup: pull the customer ID from Stripe via the saved PM,
+// cache it back on the booking + guest row. Idempotent — short-circuits if
+// already set. Returns the resolved customer id or null.
+async function ensureStripeCustomerOnBooking(booking) {
+  if (booking.stripe_customer_id) return booking.stripe_customer_id;
+  if (!booking.stripe_payment_method_id) return null;
+  try {
+    const opts = booking.stripe_account_id ? { stripeAccount: booking.stripe_account_id } : undefined;
+    const pm = await stripe.paymentMethods.retrieve(booking.stripe_payment_method_id, opts);
+    const customerId = typeof pm.customer === 'string' ? pm.customer : pm.customer?.id;
+    if (!customerId) return null;
+    booking.stripe_customer_id = customerId;
+    // Cache back so we don't pay this network hop on every charge.
+    pool.query('UPDATE bookings SET stripe_customer_id = $2 WHERE id = $1 AND stripe_customer_id IS NULL',
+      [booking.id, customerId]).catch(() => {});
+    if (booking.guest_id) {
+      pool.query('UPDATE guests SET stripe_customer_id = $2 WHERE id = $1 AND stripe_customer_id IS NULL',
+        [booking.guest_id, customerId]).catch(() => {});
+    }
+    return customerId;
+  } catch (e) {
+    console.error('ensureStripeCustomerOnBooking error:', e.message);
+    return null;
+  }
 }
 
 app.post('/api/admin/bookings/:id/refund', async (req, res) => {
@@ -21818,8 +21856,9 @@ app.post('/api/admin/bookings/:id/add-charge', async (req, res) => {
         error: 'No saved payment method on this booking. Phase 2 v1 requires a saved card; payment-link fallback ships in a later commit.'
       });
     }
+    await ensureStripeCustomerOnBooking(booking);
     if (!booking.stripe_customer_id) {
-      return res.status(400).json({ success: false, error: 'No saved customer on this booking' });
+      return res.status(400).json({ success: false, error: 'No saved customer on this booking — Stripe PM lookup failed' });
     }
 
     const currency = (booking.currency || booking.property_currency || 'GBP').toLowerCase();
@@ -21996,6 +22035,11 @@ app.post('/api/admin/bookings/:id/deposit/block', async (req, res) => {
     const amount = Number(req.body.amount || 0);
     const currency = (req.body.currency || booking.currency || booking.property_currency || 'GBP').toLowerCase();
     if (!(amount > 0)) return res.status(400).json({ success: false, error: 'amount must be > 0' });
+
+    // Fallback-resolve the customer ID before calling the gateway —
+    // the gateway module errors cleanly if it's missing, but resolving here
+    // gives a friendlier error path.
+    await ensureStripeCustomerOnBooking(booking);
 
     const returnUrl = `${req.protocol}://${req.get('host')}/your-stay.html?deposit=verified`;
     const idempotencyKey = `deposit-block-${bookingId}-${Date.now()}`;
