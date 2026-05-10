@@ -1326,7 +1326,27 @@ async function runMigrations() {
         )
       `);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_channel_mappings_channel ON gas_sync_channel_mappings(channel_id)`);
-      console.log('✅ gas_sync_channels + gas_sync_channel_mappings ensured');
+      // gas_channex_oauth_pending — short-lived rows correlating an in-flight
+      // OAuth flow (Airbnb) with the connection that initiated it. We
+      // generate a UUID `token`, pass it to Channex, get it back on the
+      // callback, look it up here to find which connection owns the flow.
+      // Cleaned up after 1 hour OR on completion.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS gas_channex_oauth_pending (
+          id SERIAL PRIMARY KEY,
+          token VARCHAR(64) UNIQUE NOT NULL,
+          connection_id INTEGER NOT NULL REFERENCES gas_sync_connections(id) ON DELETE CASCADE,
+          provider VARCHAR(20) DEFAULT 'airbnb',
+          status VARCHAR(20) DEFAULT 'pending',
+          channex_channel_id VARCHAR(255),
+          created_at TIMESTAMP DEFAULT NOW(),
+          completed_at TIMESTAMP,
+          error_message TEXT,
+          expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '1 hour')
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_oauth_pending_token ON gas_channex_oauth_pending(token)`);
+      console.log('✅ gas_sync_channels + gas_sync_channel_mappings + gas_channex_oauth_pending ensured');
     } catch (chanErr) {
       console.log('ℹ️  Channel tables:', chanErr.message);
     }
@@ -9039,6 +9059,237 @@ app.post('/api/admin/channex/channel/:id/activate', async (req, res) => {
     }
     res.json(r);
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================
+// AIRBNB OAUTH FLOW (Path A — pull-first onboarding)
+//
+// Flow:
+//   1. POST /api/admin/channex/:connId/airbnb/connect — server generates a
+//      UUID token, inserts a pending row, calls adapter.getAirbnbConnectionLink,
+//      returns the Airbnb OAuth URL. Frontend redirects user to that URL.
+//   2. User approves in Airbnb. Airbnb redirects to Channex. Channex creates
+//      the channel, then redirects to OUR callback at /api/admin/channex/
+//      airbnb/callback?success=true&channel_id=X&token=Y
+//   3. Callback looks up token in gas_channex_oauth_pending → connection_id.
+//      Persists channel_id in gas_sync_channels. Marks pending row complete.
+//      Redirects user's browser back to GAS Admin Channex page with a hash
+//      hint so the wizard can pick up where it left off.
+//   4. UI fetches the host's Airbnb listings via getAirbnbListings. User picks
+//      a listing → POST /api/admin/channex/airbnb/import → server pulls
+//      listing_details + creates property + bookable_units + room_images +
+//      descriptions in GAS DB.
+// =====================================================
+
+// POST /api/admin/channex/:connId/airbnb/connect
+app.post('/api/admin/channex/:connId/airbnb/connect', async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.connId);
+    const { gas_property_ids } = req.body;
+    const { SyncManager } = require('./gas-sync/adapters');
+    const adapter = await new SyncManager(pool).getAdapterForConnection(connectionId);
+    const connRow = await pool.query(`SELECT external_account_id FROM gas_sync_connections WHERE id = $1`, [connectionId]);
+    const groupId = connRow.rows[0]?.external_account_id;
+    if (!groupId) return res.status(400).json({ success: false, error: 'connection has no Channex group_id' });
+
+    const token = require('crypto').randomBytes(24).toString('hex');
+    await pool.query(
+      `INSERT INTO gas_channex_oauth_pending (token, connection_id, provider, status) VALUES ($1, $2, 'airbnb', 'pending')`,
+      [token, connectionId]
+    );
+
+    // Resolve Channex property IDs from GAS property IDs (if provided)
+    let channexPropertyIds = [];
+    if (Array.isArray(gas_property_ids) && gas_property_ids.length) {
+      const r = await pool.query(
+        `SELECT external_id FROM gas_sync_properties WHERE connection_id = $1 AND gas_property_id = ANY($2::int[])`,
+        [connectionId, gas_property_ids]
+      );
+      channexPropertyIds = r.rows.map(row => row.external_id);
+    }
+
+    const linkRes = await adapter.getAirbnbConnectionLink({
+      groupId,
+      properties: channexPropertyIds,
+      redirectUri: `${req.protocol === 'http' ? 'https' : req.protocol}://${req.headers.host || 'admin.gas.travel'}/api/admin/channex/airbnb/callback`,
+      token,
+      title: 'Airbnb Channel'
+    });
+    if (!linkRes.success) {
+      return res.status(422).json({ success: false, error: linkRes.error, details: linkRes.details });
+    }
+    res.json({ success: true, url: linkRes.data?.attributes?.url, token });
+  } catch (err) {
+    console.error('[airbnb/connect]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/admin/channex/airbnb/callback
+// Receives Channex's redirect after the host approves Airbnb OAuth.
+// Persists the new channel_id, then HTML-redirects the user back to GAS Admin.
+app.get('/api/admin/channex/airbnb/callback', async (req, res) => {
+  try {
+    const { success, channel_id, token, error: errParam } = req.query;
+    if (!token) return res.status(400).send('Missing token');
+    const pendingRow = await pool.query(
+      `SELECT id, connection_id FROM gas_channex_oauth_pending WHERE token = $1 AND status = 'pending'`,
+      [token]
+    );
+    if (pendingRow.rows.length === 0) {
+      return res.status(404).send('OAuth token not found or already consumed');
+    }
+    const pending = pendingRow.rows[0];
+
+    if (success !== 'true' || !channel_id) {
+      await pool.query(
+        `UPDATE gas_channex_oauth_pending SET status = 'failed', error_message = $1, completed_at = NOW() WHERE id = $2`,
+        [errParam || 'OAuth not completed', pending.id]
+      );
+      return res.redirect('/gas-admin.html#channex-airbnb-failed');
+    }
+
+    // Persist channel — pull metadata from Channex
+    try {
+      const { SyncManager } = require('./gas-sync/adapters');
+      const adapter = await new SyncManager(pool).getAdapterForConnection(pending.connection_id);
+      const ch = await adapter.getChannel(channel_id);
+      const title = ch.data?.attributes?.title || 'Airbnb';
+      await pool.query(`
+        INSERT INTO gas_sync_channels (connection_id, channex_channel_id, channel_code, title, is_active, settings)
+        VALUES ($1, $2, 'AirBNB', $3, false, $4)
+        ON CONFLICT (connection_id, channex_channel_id) DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()
+      `, [pending.connection_id, channel_id, title, JSON.stringify(ch.data?.attributes?.settings || {})]);
+    } catch (persistErr) {
+      console.error('[airbnb/callback persist]', persistErr);
+    }
+
+    await pool.query(
+      `UPDATE gas_channex_oauth_pending SET status = 'completed', channex_channel_id = $1, completed_at = NOW() WHERE id = $2`,
+      [channel_id, pending.id]
+    );
+
+    res.redirect(`/gas-admin.html#channex-airbnb-connected=${channel_id}&conn=${pending.connection_id}`);
+  } catch (err) {
+    console.error('[airbnb/callback]', err);
+    res.status(500).send(`OAuth callback error: ${err.message}`);
+  }
+});
+
+// GET /api/admin/channex/channel/:id/airbnb/listings — list host's Airbnb listings
+app.get('/api/admin/channex/channel/:id/airbnb/listings', async (req, res) => {
+  try {
+    const channelDbId = parseInt(req.params.id);
+    const row = await pool.query(`SELECT * FROM gas_sync_channels WHERE id = $1`, [channelDbId]);
+    if (row.rows.length === 0) return res.status(404).json({ success: false, error: 'channel not found' });
+    const { SyncManager } = require('./gas-sync/adapters');
+    const adapter = await new SyncManager(pool).getAdapterForConnection(row.rows[0].connection_id);
+    const r = await adapter.getAirbnbListings(row.rows[0].channex_channel_id);
+    if (!r.success) return res.status(422).json({ success: false, error: r.error });
+    res.json({ success: true, listings: r.data?.listing_id_dictionary?.values || [] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/channex/channel/:id/airbnb/import
+// Body: { listing_id, account_id }. Fetches listing_details, auto-creates
+// GAS property + bookable_unit + room_images + descriptions.
+app.post('/api/admin/channex/channel/:id/airbnb/import', async (req, res) => {
+  try {
+    const channelDbId = parseInt(req.params.id);
+    const { listing_id, account_id } = req.body;
+    if (!listing_id || !account_id) {
+      return res.status(400).json({ success: false, error: 'listing_id + account_id required' });
+    }
+    const row = await pool.query(`SELECT * FROM gas_sync_channels WHERE id = $1`, [channelDbId]);
+    if (row.rows.length === 0) return res.status(404).json({ success: false, error: 'channel not found' });
+    const { SyncManager } = require('./gas-sync/adapters');
+    const adapter = await new SyncManager(pool).getAdapterForConnection(row.rows[0].connection_id);
+    const detail = await adapter.getAirbnbListingDetails(row.rows[0].channex_channel_id, listing_id);
+    if (!detail.success) return res.status(422).json({ success: false, error: detail.error });
+
+    const L = detail.data?.listing || {};
+    const desc = L.descriptions || {};
+    const pricing = L.pricing_settings || {};
+
+    // Create GAS property
+    const propIns = await pool.query(`
+      INSERT INTO properties (account_id, name, address, city, country, zip_code, currency, latitude, longitude, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+      RETURNING id
+    `, [
+      account_id,
+      desc.name || L.listing_nickname || 'Imported from Airbnb',
+      L.street || '',
+      L.city || '',
+      L.country_code || '',
+      L.zipcode || '',
+      pricing.listing_currency || L.listing_currency || 'EUR',
+      L.lat || null,
+      L.lng || null
+    ]);
+    const propertyId = propIns.rows[0].id;
+
+    // Create one bookable_unit (Airbnb listings are typically single-unit)
+    const unitIns = await pool.query(`
+      INSERT INTO bookable_units (property_id, name, max_guests, max_adults, max_children, base_price,
+        short_description, full_description, num_bedrooms, num_bathrooms, created_at, updated_at)
+      VALUES ($1, $2, $3, $3, 0, $4, $5, $6, $7, $8, NOW(), NOW())
+      RETURNING id
+    `, [
+      propertyId,
+      desc.name || 'Imported',
+      L.person_capacity || 2,
+      pricing.default_daily_price || null,
+      JSON.stringify({ en: desc.summary || '' }),
+      JSON.stringify({ en: [desc.space, desc.access, desc.neighborhood_overview, desc.transit, desc.notes].filter(Boolean).join('\n\n') }),
+      L.bedrooms || 1,
+      Math.ceil(L.bathrooms || 1)
+    ]);
+    const bookableUnitId = unitIns.rows[0].id;
+
+    // Insert room_images from Airbnb's images[]
+    const images = L.images || [];
+    let imgCount = 0;
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      const url = img.large_url || img.extra_large_url || img.extra_medium_url || img.thumbnail_url;
+      if (!url) continue;
+      try {
+        await pool.query(`
+          INSERT INTO room_images (room_id, image_url, thumbnail_url, caption, display_order, is_primary, is_active, source, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, true, 'airbnb_import', NOW())
+        `, [bookableUnitId, url, img.thumbnail_url || url, img.caption || '', i, i === 0]);
+        imgCount++;
+      } catch (imgErr) { console.warn('[airbnb import] image insert failed:', imgErr.message); }
+    }
+
+    // Persist mapping link
+    await pool.query(`
+      INSERT INTO gas_sync_channel_mappings (channel_id, ota_listing_id, gas_bookable_unit_id, settings)
+      VALUES ($1, $2, $3, $4)
+    `, [channelDbId, String(listing_id), bookableUnitId, JSON.stringify({ source: 'airbnb_import', imported_at: new Date().toISOString() })]);
+
+    res.json({
+      success: true,
+      property_id: propertyId,
+      bookable_unit_id: bookableUnitId,
+      images_imported: imgCount,
+      summary: {
+        name: desc.name,
+        address: `${L.street || ''}, ${L.city || ''} ${L.country_code || ''}`.trim(),
+        bedrooms: L.bedrooms,
+        bathrooms: L.bathrooms,
+        capacity: L.person_capacity,
+        rate: pricing.default_daily_price,
+        currency: pricing.listing_currency
+      }
+    });
+  } catch (err) {
+    console.error('[airbnb/import]', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
