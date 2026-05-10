@@ -9100,7 +9100,10 @@ app.post('/api/admin/channex/:connId/airbnb/connect', async (req, res) => {
       [token, connectionId]
     );
 
-    // Resolve Channex property IDs from GAS property IDs (if provided)
+    // Resolve Channex property IDs. If gas_property_ids provided, filter to
+    // those; otherwise auto-pick ALL Channex properties on this connection
+    // (Channex requires at least 1). For most cases the connection has one
+    // property and that's the implicit target.
     let channexPropertyIds = [];
     if (Array.isArray(gas_property_ids) && gas_property_ids.length) {
       const r = await pool.query(
@@ -9108,6 +9111,15 @@ app.post('/api/admin/channex/:connId/airbnb/connect', async (req, res) => {
         [connectionId, gas_property_ids]
       );
       channexPropertyIds = r.rows.map(row => row.external_id);
+    } else {
+      const r = await pool.query(
+        `SELECT external_id FROM gas_sync_properties WHERE connection_id = $1 ORDER BY id LIMIT 50`,
+        [connectionId]
+      );
+      channexPropertyIds = r.rows.map(row => row.external_id);
+    }
+    if (channexPropertyIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'No Channex properties on this connection — provision at least one before connecting Airbnb.' });
     }
 
     const linkRes = await adapter.getAirbnbConnectionLink({
