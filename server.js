@@ -9227,13 +9227,23 @@ app.post('/api/admin/channex/channel/:id/airbnb/import', async (req, res) => {
     const desc = L.descriptions || {};
     const pricing = L.pricing_settings || {};
 
+    // user_id is NOT NULL on properties. Inherit from an existing property
+    // in the same account; fall back to 1 (master/system user — the account
+    // owner of 562 of GAS's properties).
+    const userIdRow = await pool.query(
+      `SELECT user_id FROM properties WHERE account_id = $1 AND user_id IS NOT NULL ORDER BY id LIMIT 1`,
+      [account_id]
+    );
+    const propertyUserId = userIdRow.rows[0]?.user_id || 1;
+
     // Create GAS property
     const propIns = await pool.query(`
-      INSERT INTO properties (account_id, name, address, city, country, zip_code, currency, latitude, longitude, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+      INSERT INTO properties (account_id, user_id, name, address, city, country, zip_code, currency, latitude, longitude, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
       RETURNING id
     `, [
       account_id,
+      propertyUserId,
       desc.name || L.listing_nickname || 'Imported from Airbnb',
       L.street || '',
       L.city || '',
