@@ -1754,6 +1754,20 @@ async function runMigrations() {
       console.log('ℹ️  Phase 2 schema:', depositErr.message);
     }
 
+    // Companion-booking schema. 'exclusive_hire' = own page, hidden from listing.
+    // 'companion' = upsell-driven satellite booking that mirrors a real room
+    // (e.g. Bike Storage on Hebden) so CM integrations like Beds24-Lockstate fire.
+    try {
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS unit_role VARCHAR(20) DEFAULT 'room'`);
+      await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS companion_bookable_unit_id INT REFERENCES bookable_units(id)`);
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS parent_booking_id INT REFERENCES bookings(id) ON DELETE SET NULL`);
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_role VARCHAR(20) DEFAULT 'primary'`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_bookings_parent ON bookings(parent_booking_id) WHERE parent_booking_id IS NOT NULL`);
+      console.log('✅ Companion-booking schema ensured (bookable_units.unit_role, upsells.companion_bookable_unit_id, bookings.parent_booking_id, bookings.booking_role)');
+    } catch (companionErr) {
+      console.log('ℹ️  Companion-booking schema:', companionErr.message);
+    }
+
     // Add occupancy pricing columns to bookable_units
     try {
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS pricing_mode VARCHAR(20) DEFAULT 'per_room'`);
@@ -50465,7 +50479,7 @@ app.put('/api/admin/units/:id', async (req, res) => {
     const { id } = req.params;
     console.log('PUT /api/admin/units/' + id, 'body:', JSON.stringify(req.body));
     
-    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description, repuso_widget_id, book_via_master_key } = req.body;
+    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description, repuso_widget_id, book_via_master_key, unit_role } = req.body;
 
     // Ensure repuso_widget_id column exists
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS repuso_widget_id VARCHAR(255)').catch(() => {});
@@ -50475,6 +50489,11 @@ app.put('/api/admin/units/:id', async (req, res) => {
     // the field (so non-master save paths can't clobber it).
     if (book_via_master_key !== undefined) {
       await pool.query('UPDATE bookable_units SET book_via_master_key = $1 WHERE id = $2', [!!book_via_master_key, id]);
+    }
+
+    // Master-admin-only: listing behaviour. Only applied when explicitly sent.
+    if (unit_role !== undefined && ['room', 'exclusive_hire', 'companion'].includes(unit_role)) {
+      await pool.query('UPDATE bookable_units SET unit_role = $1 WHERE id = $2', [unit_role, id]);
     }
 
     // Update basic fields only - no JSONB casting to avoid errors
@@ -73805,8 +73824,12 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       countQuery += ` AND bu.id = ANY($${countParamIndex}::int[])`;
       countParams.push(parsedRoomIds);
       countParamIndex++;
+    } else {
+      // Hide non-standard units (exclusive_hire dedicated pages, companion upsells)
+      // from default listings. Pages targeting them by ID bypass this filter.
+      countQuery += ` AND (bu.unit_role = 'room' OR bu.unit_role IS NULL)`;
     }
-    
+
     const countResult = await pool.query(countQuery, countParams);
     const totalCount = parseInt(countResult.rows[0]?.total || 0);
     
@@ -73879,8 +73902,10 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       query += ` AND bu.id = ANY($${paramIndex}::int[])`;
       params.push(parsedRoomIds);
       paramIndex++;
+    } else {
+      query += ` AND (bu.unit_role = 'room' OR bu.unit_role IS NULL)`;
     }
-    
+
     // Order
     if (random === 'true') {
       query += ' ORDER BY RANDOM()';
