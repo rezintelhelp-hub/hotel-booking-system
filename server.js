@@ -49066,6 +49066,33 @@ app.get('/api/admin/upsells/by-room', async (req, res) => {
   }
 });
 
+// List bookable_units with unit_role='companion' for an account.
+// Used by the upsell admin to populate the "Creates a companion CM booking on..."
+// dropdown. Scoped strictly by account_id — companion units bleed across the
+// admin UI without it.
+app.get('/api/admin/companion-units', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    if (!accountId) return res.json({ success: false, error: 'account_id required' });
+    const result = await pool.query(`
+      SELECT bu.id,
+             bu.name,
+             COALESCE(bu.display_name, bu.name) as display_name,
+             p.id as property_id,
+             COALESCE(p.display_name, p.name) as property_name
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.account_id = $1
+        AND bu.unit_role = 'companion'
+      ORDER BY p.name, bu.name
+    `, [accountId]);
+    res.json({ success: true, units: result.rows });
+  } catch (error) {
+    console.error('companion-units error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/admin/upsells', async (req, res) => {
   try {
     // Ensure multilingual columns exist
@@ -49073,9 +49100,11 @@ app.post('/api/admin/upsells', async (req, res) => {
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS property_ids INTEGER[]').catch(() => {});
 
-    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, account_id, total_tax_exempt } = req.body;
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, account_id, total_tax_exempt, companion_bookable_unit_id } = req.body;
     // property_ids: null|undefined|[] all mean "applies to all properties" — empty array is not "scoped to nothing"
     // CSV asymmetry: upsells.room_ids is TEXT (legacy CSV); upsells.property_ids is INTEGER[]
+    // companion_bookable_unit_id: nullable FK to bookable_units. When set, selecting
+    // this upsell creates a companion CM booking on that unit (must be unit_role='companion').
 
     // Handle name/description being sent as objects from frontend
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (name_ml || (rawName ? { en: rawName } : null));
@@ -49099,10 +49128,10 @@ app.post('/api/admin/upsells', async (req, res) => {
     const subsequentNightPrice = (req.body.subsequent_night_price === '' || req.body.subsequent_night_price == null) ? null : parseFloat(req.body.subsequent_night_price);
 
     const result = await pool.query(`
-      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, min_nights, max_nights, first_night_price, subsequent_night_price, user_id, total_tax_exempt)
-      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, min_nights, max_nights, first_night_price, subsequent_night_price, user_id, total_tax_exempt, companion_bookable_unit_id)
+      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active !== false, mandatory || false, is_external || false, vendor_id || null, category || null, req.body.min_nights || null, req.body.max_nights || null, firstNightPrice, subsequentNightPrice, account_id || null, total_tax_exempt || false]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active !== false, mandatory || false, is_external || false, vendor_id || null, category || null, req.body.min_nights || null, req.body.max_nights || null, firstNightPrice, subsequentNightPrice, account_id || null, total_tax_exempt || false, companion_bookable_unit_id || null]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -49117,9 +49146,11 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS property_ids INTEGER[]').catch(() => {});
 
-    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, total_tax_exempt } = req.body;
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, total_tax_exempt, companion_bookable_unit_id } = req.body;
     // property_ids: null|undefined|[] all mean "applies to all properties" — empty array is not "scoped to nothing"
     // CSV asymmetry: upsells.room_ids is TEXT (legacy CSV); upsells.property_ids is INTEGER[]
+    // companion_bookable_unit_id: same semantics as on POST. PUT sends an explicit
+    // value (incl. null to clear), so we write whatever was sent.
 
     // Handle name/description being sent as objects from frontend
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (name_ml || (rawName ? { en: rawName } : null));
@@ -49162,10 +49193,11 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
         first_night_price = $19,
         subsequent_night_price = $20,
         total_tax_exempt = COALESCE($22, total_tax_exempt),
+        companion_bookable_unit_id = $23,
         updated_at = NOW()
       WHERE id = $21
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active, mandatory || false, is_external, vendor_id, category || null, req.body.min_nights || null, req.body.max_nights || null, firstNightPrice, subsequentNightPrice, req.params.id, total_tax_exempt]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active, mandatory || false, is_external, vendor_id, category || null, req.body.min_nights || null, req.body.max_nights || null, firstNightPrice, subsequentNightPrice, req.params.id, total_tax_exempt, companion_bookable_unit_id !== undefined ? companion_bookable_unit_id : null]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
