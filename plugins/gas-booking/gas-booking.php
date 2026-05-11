@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.64
+ * Version: 3.7.65
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.64');
+define('GAS_BOOKING_VERSION', '3.7.65');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5154,6 +5154,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             position: relative !important;
             z-index: 10 !important;
         }
+        <?php if (!$is_embedded) : ?>
         /* Only add top margin on dedicated rooms page, not embedded sections */
         .gas-rooms-page-wrapper > .gas-date-filter:first-child {
             margin-top: 60px !important;
@@ -5162,6 +5163,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-rooms-page-wrapper > .gas-rooms-wrapper:first-child {
             margin-top: 80px !important;
         }
+        <?php else : ?>
+        /* Embedded: no top spacing — the parent column controls placement */
+        .gas-rooms-page-wrapper > .gas-rooms-wrapper:first-child,
+        .gas-rooms-page-wrapper > .gas-date-filter:first-child {
+            margin-top: 0 !important;
+        }
+        <?php endif; ?>
         .developer-section .gas-rooms-page-wrapper > .gas-rooms-wrapper:first-child,
         .developer-featured .gas-rooms-page-wrapper > .gas-rooms-wrapper:first-child {
             margin-top: 0 !important;
