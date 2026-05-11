@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.60
+ * Version: 3.7.61
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.60');
+define('GAS_BOOKING_VERSION', '3.7.61');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4265,64 +4265,68 @@ class GAS_Booking {
     }
 
     private function get_max_guests_setting() {
-        // First check local WordPress option
-        $local_setting = get_option('gas_max_guests_dropdown', '');
-        if (!empty($local_setting) && intval($local_setting) > 4) {
-            return $local_setting;
-        }
-        
-        // Try to get from GAS API
+        // The search/booking guest dropdown needs to cover the LARGEST
+        // bookable room on the site — anything less means guests of big
+        // groups can't even reach the rooms that fit them. So we take the
+        // MAX of three sources: auto-detected from rooms (the floor),
+        // Hero "search-max-guests" setting (Web Builder override), and the
+        // local WP option (admin override).
+        //
+        // Previous logic returned the first non-empty source in priority
+        // order — a stale Hero value of 4 was hiding rooms with 14 guests.
+
         $client_id = get_option('gas_client_id');
         $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
         $license_key = get_option('gas_license_key', '');
-        
-        if ($client_id) {
-            // Use transient to cache the result for 5 minutes
-            $cache_key = 'gas_max_guests_' . $client_id;
-            $cached = get_transient($cache_key);
-            if ($cached !== false) {
-                return $cached;
+
+        // Local WP option (admin can force a value via plugin settings)
+        $local_max = intval(get_option('gas_max_guests_dropdown', 0));
+
+        if (!$client_id) {
+            return $local_max > 0 ? $local_max : 10;
+        }
+
+        $cache_key = 'gas_max_guests_' . $client_id;
+        $cached = get_transient($cache_key);
+        if ($cached !== false) {
+            return $cached;
+        }
+
+        // Hero setting from site-config (Web Builder)
+        $hero_max = 0;
+        $response = wp_remote_get($this->get_site_config_url(), array('timeout' => 5, 'sslverify' => false));
+        if (!is_wp_error($response)) {
+            $data = json_decode(wp_remote_retrieve_body($response), true);
+            $hero = $data['config']['website']['hero'] ?? array();
+            if (!empty($hero['search-max-guests'])) {
+                $hero_max = intval($hero['search-max-guests']);
             }
-            
-            // First try site-config for manual override (with site_url for multi-site accounts)
-            $response = wp_remote_get($this->get_site_config_url(), array('timeout' => 5, 'sslverify' => false));
-            if (!is_wp_error($response)) {
-                $data = json_decode(wp_remote_retrieve_body($response), true);
-                $hero = $data['config']['website']['hero'] ?? array();
-                if (!empty($hero['search-max-guests'])) {
-                    $max_guests = intval($hero['search-max-guests']);
-                    set_transient($cache_key, $max_guests, 300);
-                    return $max_guests;
-                }
-            }
-            
-            // Auto-detect from rooms - get the maximum guests from all properties
-            $rooms_response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/rooms", array(
-                'timeout' => 10,
-                'sslverify' => false,
-                'headers' => array('X-License-Key' => $license_key)
-            ));
-            if (!is_wp_error($rooms_response)) {
-                $rooms_data = json_decode(wp_remote_retrieve_body($rooms_response), true);
-                $rooms = $rooms_data['rooms'] ?? $rooms_data['data'] ?? $rooms_data;
-                if (is_array($rooms) && !empty($rooms)) {
-                    $max_from_rooms = 2;
-                    foreach ($rooms as $room) {
-                        $room_max = intval($room['max_guests'] ?? $room['max_adults'] ?? 2);
-                        if ($room_max > $max_from_rooms) {
-                            $max_from_rooms = $room_max;
-                        }
-                    }
-                    if ($max_from_rooms > 2) {
-                        set_transient($cache_key, $max_from_rooms, 300);
-                        return $max_from_rooms;
-                    }
+        }
+
+        // Auto-detect: largest max_guests across all rooms on the site
+        $auto_max = 0;
+        $rooms_response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/rooms", array(
+            'timeout' => 10,
+            'sslverify' => false,
+            'headers' => array('X-License-Key' => $license_key)
+        ));
+        if (!is_wp_error($rooms_response)) {
+            $rooms_data = json_decode(wp_remote_retrieve_body($rooms_response), true);
+            $rooms = $rooms_data['rooms'] ?? $rooms_data['data'] ?? $rooms_data;
+            if (is_array($rooms) && !empty($rooms)) {
+                foreach ($rooms as $room) {
+                    $room_max = intval($room['max_guests'] ?? $room['max_adults'] ?? 2);
+                    if ($room_max > $auto_max) $auto_max = $room_max;
                 }
             }
         }
-        
-        // Default fallback
-        return '10';
+
+        // Take the max of all sources; floor of 2; default 10 if we got nothing
+        $result = max($auto_max, $hero_max, $local_max);
+        if ($result < 2) $result = 10;
+
+        set_transient($cache_key, $result, 300);
+        return $result;
     }
     
     private function detect_page_type() {
