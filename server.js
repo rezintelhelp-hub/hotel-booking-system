@@ -50872,9 +50872,20 @@ app.get('/api/admin/debug', async (req, res) => {
 // Get all bookable units with property details
 app.get('/api/admin/units', async (req, res) => {
   try {
-    const accountId = req.query.account_id;
+    let accountId = req.query.account_id;
     const propertyId = req.query.property_id;
+    const deployedSiteId = req.query.deployed_site_id;
     let result;
+
+    // Pro Builder doesn't have account_id in JS scope — only blog_id /
+    // deployed_site_id. Resolve account_id from deployed_sites when callers
+    // pass deployed_site_id so they don't need to make a separate lookup.
+    if (!accountId && deployedSiteId) {
+      try {
+        const r = await pool.query('SELECT account_id FROM deployed_sites WHERE id = $1', [deployedSiteId]);
+        accountId = r.rows[0]?.account_id || null;
+      } catch (_) { /* fall through to error */ }
+    }
     
     if (propertyId) {
       // Filter by specific property
