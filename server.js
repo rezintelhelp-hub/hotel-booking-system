@@ -49141,10 +49141,12 @@ app.get('/api/admin/companion-units', async (req, res) => {
   try {
     const accountId = req.query.account_id;
     if (!accountId) return res.json({ success: false, error: 'account_id required' });
+    // bookable_units.display_name is JSONB (multilingual); pull English for
+    // the dropdown label. properties.display_name is plain VARCHAR.
     const result = await pool.query(`
       SELECT bu.id,
              bu.name,
-             COALESCE(bu.display_name, bu.name) as display_name,
+             COALESCE(NULLIF(bu.display_name->>'en', ''), bu.name) as display_name,
              p.id as property_id,
              COALESCE(p.display_name, p.name) as property_name
       FROM bookable_units bu
