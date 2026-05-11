@@ -30592,17 +30592,28 @@ app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
       wpPushResult = await pushSettingsToWordPress(site.site_url, section, settings);
     }
 
-    // Clear API settings transient cache so changes appear immediately
+    // Clear API settings transient caches so changes appear immediately.
+    // Developer themes (developer-light/dark) use gas_api_settings_{blog_id}.
+    // The burger theme uses gas_booking_pro_settings_{blog_id} (Pro Builder).
+    // Both must be flushed on every settings save — missing the second one was
+    // why Pro Builder Settings appeared to have no effect for up to 5 minutes
+    // (the burger plugin's transient TTL).
     if (site.blog_id && site.site_url) {
-      try {
-        await fetch('https://sites.gas.travel/gas-api.php', {
-          method: 'POST',
-          headers: { 'X-API-Key': 'gas-deploy-2024-secure-key', 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'flush_transient', site_url: site.site_url, transient_key: 'gas_api_settings_' + site.blog_id })
-        });
-        console.log(`Cache busted for blog ${site.blog_id}`);
-      } catch (e) {
-        console.log(`Cache bust failed for blog ${site.blog_id}: ${e.message}`);
+      const flushKeys = [
+        'gas_api_settings_' + site.blog_id,
+        'gas_booking_pro_settings_' + site.blog_id
+      ];
+      for (const tk of flushKeys) {
+        try {
+          await fetch('https://sites.gas.travel/gas-api.php', {
+            method: 'POST',
+            headers: { 'X-API-Key': 'gas-deploy-2024-secure-key', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'flush_transient', site_url: site.site_url, transient_key: tk })
+          });
+          console.log(`Flushed ${tk} for blog ${site.blog_id}`);
+        } catch (e) {
+          console.log(`Cache bust failed for ${tk}: ${e.message}`);
+        }
       }
 
       // Sync pages & menu order to WordPress when a page section is saved
@@ -62474,17 +62485,25 @@ app.put('/api/partner/websites/:websiteId/content/:section', async (req, res) =>
       wpPushResult = await pushSettingsToWordPress(site.site_url, section, mergedSettings);
     }
 
-    // Flush transient cache so changes appear immediately
+    // Flush both transient caches (developer themes + burger Pro Builder) so
+    // changes appear immediately. Missing the burger key was hiding Pro Builder
+    // Settings updates behind a 5-min cache.
     if (site.blog_id && site.site_url) {
-      try {
-        await fetch('https://sites.gas.travel/gas-api.php', {
-          method: 'POST',
-          headers: { 'X-API-Key': 'gas-deploy-2024-secure-key', 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'flush_transient', site_url: site.site_url, transient_key: 'gas_api_settings_' + site.blog_id })
-        });
-        console.log(`[Partner Content] Cache busted for blog ${site.blog_id}`);
-      } catch (e) {
-        console.log(`[Partner Content] Cache bust failed: ${e.message}`);
+      const flushKeys = [
+        'gas_api_settings_' + site.blog_id,
+        'gas_booking_pro_settings_' + site.blog_id
+      ];
+      for (const tk of flushKeys) {
+        try {
+          await fetch('https://sites.gas.travel/gas-api.php', {
+            method: 'POST',
+            headers: { 'X-API-Key': 'gas-deploy-2024-secure-key', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'flush_transient', site_url: site.site_url, transient_key: tk })
+          });
+          console.log(`[Partner Content] Flushed ${tk} for blog ${site.blog_id}`);
+        } catch (e) {
+          console.log(`[Partner Content] Cache bust failed for ${tk}: ${e.message}`);
+        }
       }
     }
 
