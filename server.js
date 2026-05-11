@@ -50932,11 +50932,30 @@ app.get('/api/admin/units/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query('SELECT * FROM bookable_units WHERE id = $1', [id]);
-    
+
     if (result.rows.length > 0) {
       const unit = result.rows[0];
-      console.log(`GET /api/admin/units/${id} - full_description type:`, typeof unit.full_description, 
+      console.log(`GET /api/admin/units/${id} - full_description type:`, typeof unit.full_description,
         'value preview:', unit.full_description ? JSON.stringify(unit.full_description).substring(0, 200) : 'NULL');
+
+      // Surface whether this unit has a Beds24 connection (legacy column or
+      // GasSync mapping). The admin UI gates Beds24-only controls — e.g. the
+      // Rezintel master-key V1 toggle — on this.
+      let hasBeds24 = !!unit.beds24_room_id;
+      if (!hasBeds24) {
+        try {
+          const gs = await pool.query(`
+            SELECT 1 FROM gas_sync_room_types gsrt
+            JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+            JOIN gas_sync_connections gsc ON gsp.connection_id = gsc.id
+            WHERE gsrt.gas_room_id = $1 AND gsc.adapter_code = 'beds24'
+            LIMIT 1
+          `, [id]);
+          hasBeds24 = gs.rows.length > 0;
+        } catch (_) { /* GasSync tables may not exist in dev; default false */ }
+      }
+      unit.has_beds24_connection = hasBeds24;
+
       res.json({ success: true, data: unit });
     } else {
       res.json({ success: false, error: 'Unit not found' });
