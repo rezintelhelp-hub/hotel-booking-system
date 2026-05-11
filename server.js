@@ -23273,6 +23273,280 @@ app.post('/api/webhooks/stripe-identity', express.raw({ type: 'application/json'
 });
 
 // =====================================================
+// COMPANION BOOKING HELPER
+// Creates a child booking on a companion unit (unit_role='companion')
+// driven by an upsell selection on a parent booking. Mirrors the parent's
+// dates and guest details, INSERTs a bookings row tagged with
+// parent_booking_id + booking_role='companion', then pushes to whichever
+// CM the companion unit lives on (Beds24 / Smoobu / Hostaway) so downstream
+// integrations like Beds24-Lockstate fire their lock code.
+//
+// Scoped intentionally narrow: companion add-ons (Bike Storage, locker,
+// parking slot) are small. We log CM failures to booking_cm_failures for
+// backoffice retry but skip the per-failure email blast that the main
+// /create-group-booking flow does — tiny add-ons shouldn't page owners.
+//
+// Must be called inside an active pg transaction (same `client` as the
+// parent INSERT) so a CM-side failure on the parent rolls the companion
+// back too.
+// =====================================================
+async function createCompanionBooking(client, {
+    parentBooking,        // bookings row: id, account_id, property_id, group_booking_id, currency, guest_* fields, arrival_date, departure_date, source_site_url, guest_id
+    companionUnit,        // bookable_units row: id, property_id, account_id (optional), beds24_room_id, smoobu_id, hostaway_listing_id, name
+    guestsCount = 1,      // adults on the companion (e.g. 1 bike rider)
+    childrenCount = 0,
+    price = 0,            // amount charged for this companion (usually folded into the upsell line; pass 0 if free)
+    upsellLabel = 'Companion'
+}) {
+    if (!parentBooking || !companionUnit) {
+        throw new Error('createCompanionBooking: parentBooking and companionUnit are required');
+    }
+    if (companionUnit.unit_role && companionUnit.unit_role !== 'companion') {
+        throw new Error(`createCompanionBooking: unit ${companionUnit.id} has unit_role='${companionUnit.unit_role}', expected 'companion'`);
+    }
+
+    const checkin = (parentBooking.arrival_date instanceof Date)
+        ? parentBooking.arrival_date.toISOString().split('T')[0]
+        : String(parentBooking.arrival_date).slice(0, 10);
+    const checkout = (parentBooking.departure_date instanceof Date)
+        ? parentBooking.departure_date.toISOString().split('T')[0]
+        : String(parentBooking.departure_date).slice(0, 10);
+
+    // 1) INSERT child bookings row in the same transaction
+    const companionInsert = await client.query(`
+        INSERT INTO bookings (
+            property_id, property_owner_id, bookable_unit_id,
+            arrival_date, departure_date,
+            num_adults, num_children,
+            guest_first_name, guest_last_name, guest_email, guest_phone,
+            guest_address, guest_city, guest_postcode, guest_country,
+            special_requests,
+            accommodation_price, subtotal, grand_total,
+            status, booking_source, currency, group_booking_id, source_site_url,
+            guest_id, parent_booking_id, booking_role
+        )
+        VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, $16,
+                'confirmed', 'direct', $17, $18, $19, $20, $21, 'companion')
+        RETURNING *
+    `, [
+        companionUnit.property_id,
+        companionUnit.id,
+        checkin,
+        checkout,
+        guestsCount,
+        childrenCount,
+        parentBooking.guest_first_name,
+        parentBooking.guest_last_name,
+        parentBooking.guest_email,
+        parentBooking.guest_phone || '',
+        parentBooking.guest_address || null,
+        parentBooking.guest_city || null,
+        parentBooking.guest_postcode || null,
+        parentBooking.guest_country || null,
+        `Companion add-on: ${upsellLabel} (parent booking GAS-${parentBooking.id})`,
+        price,
+        parentBooking.currency,
+        parentBooking.group_booking_id,
+        parentBooking.source_site_url || null,
+        parentBooking.guest_id,
+        parentBooking.id
+    ]);
+    const companionBooking = companionInsert.rows[0];
+
+    // 2) Block availability on the companion unit
+    const startParts = checkin.split('-');
+    const endParts = checkout.split('-');
+    let cur = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+    const checkOutDate = new Date(endParts[0], endParts[1] - 1, endParts[2]);
+    while (cur < checkOutDate) {
+        const dateStr = cur.toISOString().split('T')[0];
+        try {
+            await client.query(`
+                INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+                VALUES ($1, $2, false, true, 'booking')
+                ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true, source = 'booking'
+            `, [companionUnit.id, dateStr]);
+        } catch (blockErr) {
+            console.error(`[Companion] Error blocking ${dateStr} for unit ${companionUnit.id}:`, blockErr.message);
+        }
+        cur.setDate(cur.getDate() + 1);
+    }
+
+    // 3) Resolve account_id (used by Smoobu key lookup + failure logging)
+    let accountId = companionUnit.account_id || parentBooking.account_id || null;
+    if (!accountId) {
+        try {
+            const acc = await client.query('SELECT account_id FROM properties WHERE id = $1', [companionUnit.property_id]);
+            accountId = acc.rows[0]?.account_id || null;
+        } catch (_) { /* non-fatal */ }
+    }
+
+    const cmResult = { adapter: null, externalId: null, error: null };
+
+    // 4) Push to whichever CM the companion unit is wired to.
+    // Resolution order: Beds24 (incl. GasSync fallback) → Smoobu → Hostaway.
+    // A companion unit only lives on ONE CM in practice — first hit wins.
+
+    // ---- Beds24 ----
+    let beds24RoomId = companionUnit.beds24_room_id;
+    if (!beds24RoomId) {
+        try {
+            const gs = await client.query(`
+                SELECT gsrt.external_id FROM gas_sync_room_types gsrt
+                JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+                JOIN gas_sync_connections gsc ON gsp.connection_id = gsc.id
+                WHERE gsrt.gas_room_id = $1 AND gsc.adapter_code = 'beds24'
+                LIMIT 1
+            `, [companionUnit.id]);
+            beds24RoomId = gs.rows[0]?.external_id || null;
+        } catch (gsErr) {
+            console.log(`[Companion Beds24] GasSync lookup failed for unit ${companionUnit.id}:`, gsErr.message);
+        }
+    }
+
+    if (beds24RoomId) {
+        try {
+            const accessToken = await getBeds24AccessTokenForProperty(pool, companionUnit.property_id, companionUnit.id);
+            const beds24Payload = [{
+                roomId: beds24RoomId,
+                status: 'confirmed',
+                arrival: checkin,
+                departure: checkout,
+                numAdult: guestsCount,
+                numChild: childrenCount,
+                firstName: parentBooking.guest_first_name,
+                lastName: parentBooking.guest_last_name,
+                email: parentBooking.guest_email,
+                mobile: parentBooking.guest_phone || '',
+                phone: parentBooking.guest_phone || '',
+                address: parentBooking.guest_address || '',
+                city: parentBooking.guest_city || '',
+                postcode: parentBooking.guest_postcode || '',
+                country: parentBooking.guest_country || '',
+                referer: `GAS Companion - GAS-${companionBooking.id}`,
+                refererEditable: `GAS Companion - GAS-${companionBooking.id}`,
+                reference: `GAS-${companionBooking.id}`,
+                notes: `Companion to GAS-${parentBooking.id} | ${upsellLabel}`,
+                price,
+                allowWebhooks: true,
+                invoiceItems: [{ description: upsellLabel, status: '', qty: 1, amount: Math.round((price || 0) * 100) / 100, vatRate: 0 }]
+            }];
+            const resp = await axios.post('https://beds24.com/api/v2/bookings', beds24Payload, {
+                headers: getBeds24BookingHeaders(null, accessToken)
+            });
+            if (resp.data && resp.data[0]?.success) {
+                const beds24Id = resp.data[0]?.new?.id;
+                if (beds24Id) {
+                    await client.query('UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2', [beds24Id, companionBooking.id]);
+                    cmResult.adapter = 'beds24';
+                    cmResult.externalId = beds24Id;
+                    return { booking: companionBooking, cm: cmResult };
+                }
+            }
+            cmResult.error = 'Beds24 returned no booking id';
+        } catch (e) {
+            cmResult.error = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+            console.error('[Companion Beds24] push failed:', cmResult.error);
+        }
+    }
+
+    // ---- Smoobu ----
+    if (!cmResult.adapter && companionUnit.smoobu_id) {
+        try {
+            const smoobuKey = await client.query(
+                "SELECT setting_value FROM client_settings WHERE client_id = $1 AND setting_key = 'smoobu_api_key'",
+                [accountId]
+            );
+            const smoobuApiKey = smoobuKey.rows[0]?.setting_value;
+            if (smoobuApiKey) {
+                const resp = await axios.post('https://login.smoobu.com/api/reservations', {
+                    arrivalDate: checkin,
+                    departureDate: checkout,
+                    apartmentId: parseInt(companionUnit.smoobu_id),
+                    channelId: 13,
+                    firstName: parentBooking.guest_first_name,
+                    lastName: parentBooking.guest_last_name,
+                    email: parentBooking.guest_email,
+                    phone: parentBooking.guest_phone || '',
+                    adults: guestsCount,
+                    children: childrenCount,
+                    price,
+                    notice: `Companion to GAS-${parentBooking.id} | ${upsellLabel}`
+                }, { headers: { 'Api-Key': smoobuApiKey, 'Content-Type': 'application/json' } });
+                if (resp.data?.id) {
+                    await client.query('UPDATE bookings SET smoobu_booking_id = $1 WHERE id = $2', [resp.data.id, companionBooking.id]);
+                    cmResult.adapter = 'smoobu';
+                    cmResult.externalId = resp.data.id;
+                    return { booking: companionBooking, cm: cmResult };
+                }
+            }
+        } catch (e) {
+            cmResult.error = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+            console.error('[Companion Smoobu] push failed:', cmResult.error);
+        }
+    }
+
+    // ---- Hostaway ----
+    if (!cmResult.adapter && companionUnit.hostaway_listing_id) {
+        try {
+            const stored = await getStoredHostawayToken(pool);
+            if (stored?.accessToken) {
+                const resp = await axios.post('https://api.hostaway.com/v1/reservations', {
+                    listingMapId: companionUnit.hostaway_listing_id,
+                    channelId: 2000,
+                    source: 'GAS Direct Booking',
+                    arrivalDate: checkin,
+                    departureDate: checkout,
+                    guestFirstName: parentBooking.guest_first_name,
+                    guestLastName: parentBooking.guest_last_name,
+                    guestEmail: parentBooking.guest_email,
+                    guestPhone: parentBooking.guest_phone || '',
+                    numberOfGuests: guestsCount,
+                    adults: guestsCount,
+                    children: childrenCount,
+                    totalPrice: price,
+                    status: 'new',
+                    comment: `Companion to GAS-${parentBooking.id} | ${upsellLabel}`
+                }, { headers: { Authorization: `Bearer ${stored.accessToken}`, 'Content-Type': 'application/json' } });
+                if (resp.data?.result?.id) {
+                    const hostawayId = resp.data.result.id;
+                    await client.query(
+                        "UPDATE bookings SET hostaway_reservation_id = $1, cm_sync_status = 'synced' WHERE id = $2",
+                        [hostawayId, companionBooking.id]
+                    );
+                    cmResult.adapter = 'hostaway';
+                    cmResult.externalId = hostawayId;
+                    return { booking: companionBooking, cm: cmResult };
+                }
+            }
+        } catch (e) {
+            cmResult.error = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+            console.error('[Companion Hostaway] push failed:', cmResult.error);
+        }
+    }
+
+    // 5) No CM hit OR push failed → log for backoffice retry (no email blast)
+    if (!cmResult.adapter) {
+        try {
+            await client.query(`
+                INSERT INTO booking_cm_failures (booking_id, account_id, adapter_code, error_message, error_detail, created_at)
+                VALUES ($1, $2, 'companion', $3, $4, NOW())
+            `, [
+                companionBooking.id,
+                accountId,
+                cmResult.error || 'No CM mapping found on companion unit',
+                JSON.stringify({ unit_id: companionUnit.id, parent_booking_id: parentBooking.id })
+            ]);
+            await client.query("UPDATE bookings SET cm_sync_status = 'failed' WHERE id = $1", [companionBooking.id]);
+        } catch (logErr) {
+            console.error('[Companion] Failed to log CM failure:', logErr.message);
+        }
+    }
+
+    return { booking: companionBooking, cm: cmResult };
+}
+
+// =====================================================
 // GROUP BOOKING ENDPOINT
 // Creates multiple bookings linked by a group_booking_id
 // =====================================================
