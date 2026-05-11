@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.63
+ * Version: 3.7.64
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.63');
+define('GAS_BOOKING_VERSION', '3.7.64');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5078,10 +5078,28 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $room_url_base = ($button_destination === 'booknow')
             ? get_option('gas_search_results_url', '/book-now/')
             : get_option('gas_room_url_base', '/room/');
-        
+
+        // Embedded mode: when the shortcode user passed explicit room_ids (e.g.
+        // [gas_rooms room_ids="1258"] on a dedicated single-room page or inside a
+        // 2-column section), DON'T break out to viewport width. The viewport
+        // breakout is only sensible on the canonical /book-now/ listing.
+        $is_embedded = !empty($atts['room_ids']);
+
         ob_start();
         ?>
         <style>
+        <?php if ($is_embedded) : ?>
+        /* Embedded mode (room_ids set) — fit within parent container, no viewport breakout */
+        .gas-rooms-page-wrapper,
+        .gas-rooms-page-wrapper * {
+            box-sizing: border-box !important;
+        }
+        .gas-rooms-page-wrapper {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 0 !important;
+        }
+        <?php else : ?>
         /* Force full width - override theme */
         .gas-rooms-page-wrapper,
         .gas-rooms-page-wrapper * {
@@ -5094,6 +5112,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             padding: 20px 40px !important;
             padding-top: 20px !important;
         }
+        <?php endif; ?>
         .gas-rooms-wrapper {
             display: flex !important;
             gap: 24px !important;
