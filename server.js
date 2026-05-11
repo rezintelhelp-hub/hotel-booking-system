@@ -69182,11 +69182,12 @@ app.get('/api/public/rooms/:roomId/occupancy-settings', async (req, res) => {
     const { roomId } = req.params;
     
     const result = await pool.query(`
-      SELECT 
+      SELECT
         bu.id,
         bu.name,
         bu.max_guests,
         bu.max_adults,
+        bu.max_children,
         bu.pricing_mode,
         bu.base_occupancy,
         bu.extra_adult_type,
@@ -69210,14 +69211,23 @@ app.get('/api/public/rooms/:roomId/occupancy-settings', async (req, res) => {
     const room = result.rows[0];
     const currencySymbol = getCurrencySymbol(room.currency);
     
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: {
         ...room,
         currency_symbol: currencySymbol,
-        // Calculate max adults and children for dropdowns
+        // Max adults: fall back to max_guests if explicitly NULL.
         max_adults: room.max_adults || room.max_guests || 4,
-        max_children: room.children_allowed !== false ? Math.max(0, (room.max_guests || 4) - 1) : 0
+        // Max children: respect the actual DB value (set via GAS Controls).
+        // Was previously OVERRIDDEN to (max_guests - 1) regardless of what
+        // the host had configured, which is why rooms with max_children=0
+        // still showed a children selector on the booking page.
+        // If children_allowed is explicitly false → 0 (occupancy-pricing toggle wins)
+        // Else use room.max_children if set
+        // Else fall back to (max_guests - 1) for legacy rooms with no explicit value
+        max_children: room.children_allowed === false
+          ? 0
+          : (room.max_children != null ? room.max_children : Math.max(0, (room.max_guests || 4) - 1))
       }
     });
   } catch (error) {

@@ -1452,12 +1452,18 @@ jQuery(document).ready(function($) {
             $adultsSelect.append('<option value="' + i + '"' + (i == initialAdults ? ' selected' : '') + '>' + i + ' ' + (i > 1 ? adultPlural : adultSingular) + '</option>');
         }
         
-        // Children dropdown - max children = maxGuests - adults
+        // Children dropdown — capped by BOTH the room's max_children setting
+        // (GAS Controls) AND remaining capacity (maxGuests - adults).
+        // Previously only used maxGuests - adults, so a room with
+        // max_children=0 still showed a children selector — confusing for
+        // adults-only rooms. Now max_children is the hard ceiling.
         var $childrenSelect = $('.gas-children');
         var $childrenField = $('.gas-children-field');
-        
-        if (childrenAllowed) {
-            var maxChildrenNow = Math.max(0, maxGuests - initialAdults);
+        var maxChildrenSetting = parseInt(occSettings.max_children) || 0;
+
+        if (childrenAllowed && maxChildrenSetting > 0) {
+            var remainingCapacity = Math.max(0, maxGuests - initialAdults);
+            var maxChildrenNow = Math.min(maxChildrenSetting, remainingCapacity);
             if (maxChildrenNow > 0) {
                 $childrenField.removeClass('hidden').show();
                 $childrenSelect.empty();
@@ -1471,6 +1477,7 @@ jQuery(document).ready(function($) {
                 $childrenField.addClass('hidden').hide();
             }
         } else {
+            // Either children_allowed is false OR max_children is 0 — hide selector
             $childrenField.addClass('hidden').hide();
         }
         
