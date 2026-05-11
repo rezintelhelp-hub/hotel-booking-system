@@ -2450,9 +2450,18 @@ jQuery(document).ready(function($) {
     function showSimplePricing(nights, accommodationTotal, upsellsTotal, voucherDiscount, grandTotal, currency, occupancyAdjustment, occupancyLabel) {
         var nightWord = nights > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night');
 
+        // accommodationTotal from server already INCLUDES the occupancy
+        // adjustment (e.g. £205 base + £15 extra-guest = £220). For the
+        // breakdown display we strip it back out so the user sees:
+        //   Accommodation £205
+        //   Extra guest    +£15
+        //   Total          £220
+        // — the math visibly adds up instead of looking like a missing total.
+        var baseAccommodation = accommodationTotal - (occupancyAdjustment || 0);
+
         $('.gas-nights-text').text(t('booking', 'accommodation', 'Accommodation') + ' (' + nights + ' ' + nightWord + ')');
-        $('.gas-nights-price').text(formatPrice(accommodationTotal, currency));
-        
+        $('.gas-nights-price').text(formatPrice(baseAccommodation, currency));
+
         // Show occupancy adjustment row if applicable
         if (occupancyAdjustment && occupancyAdjustment !== 0) {
             $('.gas-occupancy-row').show();
