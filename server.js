@@ -24272,6 +24272,73 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             }
         }
 
+        // ── Companion bookings: upsells linked to a unit_role='companion' unit
+        //    create a satellite booking on that unit so downstream CM-driven
+        //    integrations (e.g. Beds24-Lockstate fires the lock code) work.
+        //    Anchored to the first parent booking — upsells are a group-level
+        //    concept (one selectedUpsells array per submitGroup), and the
+        //    first room is the canonical anchor when multi-room groups exist.
+        //    Wrapped in a SAVEPOINT so a companion-side blow-up doesn't kill
+        //    the parent transaction. ──
+        if (Array.isArray(req.body.upsells) && req.body.upsells.length > 0 && createdBookings.length > 0) {
+            try {
+                await client.query('SAVEPOINT companion_bookings');
+                const parentForCompanion = createdBookings[0];
+                const upsellIds = req.body.upsells
+                    .map(u => parseInt(u && u.id))
+                    .filter(Number.isFinite);
+                if (upsellIds.length > 0) {
+                    const linked = await client.query(`
+                        SELECT u.id as upsell_id,
+                               COALESCE(u.name_ml->>'en', u.name) as label,
+                               bu.id, bu.property_id, bu.name, bu.unit_role,
+                               bu.beds24_room_id, bu.smoobu_id, bu.hostaway_listing_id,
+                               p.account_id
+                        FROM upsells u
+                        JOIN bookable_units bu ON u.companion_bookable_unit_id = bu.id
+                        JOIN properties p ON bu.property_id = p.id
+                        WHERE u.id = ANY($1::int[])
+                          AND u.companion_bookable_unit_id IS NOT NULL
+                          AND bu.unit_role = 'companion'
+                    `, [upsellIds]);
+
+                    for (const row of linked.rows) {
+                        const matchingUpsell = req.body.upsells.find(u => parseInt(u && u.id) === row.upsell_id);
+                        const upsellPrice = matchingUpsell ? (parseFloat(matchingUpsell.price) || 0) : 0;
+                        try {
+                            const result = await createCompanionBooking(client, {
+                                parentBooking: parentForCompanion,
+                                companionUnit: {
+                                    id: row.id,
+                                    property_id: row.property_id,
+                                    account_id: row.account_id,
+                                    beds24_room_id: row.beds24_room_id,
+                                    smoobu_id: row.smoobu_id,
+                                    hostaway_listing_id: row.hostaway_listing_id,
+                                    unit_role: row.unit_role,
+                                    name: row.name
+                                },
+                                guestsCount: 1,
+                                childrenCount: 0,
+                                price: upsellPrice,
+                                upsellLabel: row.label || 'Companion add-on'
+                            });
+                            console.log(`[Companion] Created GAS-${result.booking.id} for upsell ${row.upsell_id} on unit ${row.id} (adapter=${result.cm.adapter || 'none'})`);
+                        } catch (compErr) {
+                            // Don't abort the whole batch — log and continue. The
+                            // booking_cm_failures row written inside the helper (when
+                            // applicable) preserves backoffice retry context.
+                            console.error(`[Companion] upsell ${row.upsell_id} → unit ${row.id} failed:`, compErr.message);
+                        }
+                    }
+                }
+                await client.query('RELEASE SAVEPOINT companion_bookings');
+            } catch (compOuterErr) {
+                await client.query('ROLLBACK TO SAVEPOINT companion_bookings');
+                console.error('[Companion] outer block failed (parent bookings preserved):', compOuterErr.message);
+            }
+        }
+
         console.log(`DEBUG: About to COMMIT transaction with ${createdBookings.length} bookings`);
         console.log(`DEBUG: Booking IDs to commit: ${createdBookings.map(b => b.id).join(', ')}`);
 
