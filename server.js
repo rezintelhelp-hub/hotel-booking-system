@@ -23359,9 +23359,15 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             const roomPrice = parseFloat(room.totalPrice) || 0;
             const roomGuests = room.guests || 1;
             
-            // Get room and property info
+            // Get room and property info (incl. occupancy pricing config so
+            // we can itemize extras into separate Beds24 invoiceItems below).
             const roomInfo = await client.query(`
-                SELECT bu.id, bu.name, bu.property_id, p.id as prop_id, COALESCE(p.currency, a.default_currency) as currency
+                SELECT bu.id, bu.name, bu.property_id, p.id as prop_id,
+                       COALESCE(p.currency, a.default_currency) as currency,
+                       bu.pricing_mode, bu.base_occupancy,
+                       bu.extra_adult_charge, bu.extra_adult_type,
+                       bu.child_charge, bu.child_charge_type,
+                       bu.single_discount_value, bu.single_discount_type
                 FROM bookable_units bu
                 JOIN properties p ON bu.property_id = p.id
                 LEFT JOIN accounts a ON p.account_id = a.id
@@ -23560,13 +23566,66 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                             ? `Booked via GAS | Card Guarantee on file | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length}) | Ref: GAS-${booking.id}`
                             : `Booked via GAS | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length}) | Ref: GAS-${booking.id}`,
                         price: roomPrice,
-                        invoiceItems: [{
-                            description: 'Accommodation',
-                            status: '',
-                            qty: 1,
-                            amount: roomPrice,
-                            vatRate: 0
-                        }]
+                        invoiceItems: (() => {
+                            // Itemise extras as separate Beds24 invoice lines when
+                            // pricing_mode='per_occupancy' and the totals are
+                            // attributable to fixed-amount extra-adult / child
+                            // charges. Percent-type extras are folded into the
+                            // accommodation line (we'd need per-night base prices
+                            // to split them cleanly).
+                            const nights = Math.max(1, Math.ceil((new Date(checkout) - new Date(checkin)) / 86400000));
+                            const numAdults = roomGuests;
+                            const numChildren = parseInt(room.children) || 0;
+                            const baseOccupancy = parseInt(roomData.base_occupancy) || 2;
+                            const extraAdultCharge = parseFloat(roomData.extra_adult_charge) || 0;
+                            const extraAdultType = roomData.extra_adult_type || 'fixed';
+                            const childCharge = parseFloat(roomData.child_charge) || 0;
+                            const childChargeType = roomData.child_charge_type || 'free';
+
+                            let extraAdults = 0;
+                            let extraChildren = 0;
+                            let extraAdultsTotal = 0;
+                            let extraChildrenTotal = 0;
+                            if (roomData.pricing_mode === 'per_occupancy') {
+                                extraAdults = Math.max(0, numAdults - baseOccupancy);
+                                const space = Math.max(0, baseOccupancy - numAdults);
+                                extraChildren = Math.max(0, numChildren - space);
+                                if (extraAdults > 0 && extraAdultType === 'fixed' && extraAdultCharge > 0) {
+                                    extraAdultsTotal = extraAdults * extraAdultCharge * nights;
+                                }
+                                if (extraChildren > 0 && childChargeType === 'fixed' && childCharge > 0) {
+                                    extraChildrenTotal = extraChildren * childCharge * nights;
+                                }
+                            }
+
+                            const baseAccommodation = Math.max(0, roomPrice - extraAdultsTotal - extraChildrenTotal);
+                            const items = [{
+                                description: 'Accommodation',
+                                status: '',
+                                qty: 1,
+                                amount: Math.round(baseAccommodation * 100) / 100,
+                                vatRate: 0
+                            }];
+                            if (extraAdultsTotal > 0) {
+                                items.push({
+                                    description: `Extra adult charge (${extraAdults} adult${extraAdults > 1 ? 's' : ''} × ${nights} night${nights > 1 ? 's' : ''})`,
+                                    status: '',
+                                    qty: 1,
+                                    amount: Math.round(extraAdultsTotal * 100) / 100,
+                                    vatRate: 0
+                                });
+                            }
+                            if (extraChildrenTotal > 0) {
+                                items.push({
+                                    description: `Child charge (${extraChildren} × ${nights} night${nights > 1 ? 's' : ''})`,
+                                    status: '',
+                                    qty: 1,
+                                    amount: Math.round(extraChildrenTotal * 100) / 100,
+                                    vatRate: 0
+                                });
+                            }
+                            return items;
+                        })()
                     }];
                     
                     beds24Booking.forEach(b => b.allowWebhooks = true);
@@ -69526,13 +69585,19 @@ app.post('/api/public/calculate-price', async (req, res) => {
             nightOccupancyAdjustment = extraAdultCharge * extraAdults;
           }
         }
-        
-        // Child charges
-        if (numChildren > 0 && childChargeType !== 'free' && childCharge > 0) {
+
+        // Child charges — extras-only: children that fit within the base
+        // occupancy (after adults take their share) are free. Babies stay
+        // free if the room has spare base headroom for them. Per Steve's
+        // model: base_occupancy = total guests at standard rate; adults
+        // fill base first, remaining slots are free child seats.
+        const spaceForChildrenInBase = Math.max(0, baseOccupancy - numAdults);
+        const extraChildren = Math.max(0, numChildren - spaceForChildrenInBase);
+        if (extraChildren > 0 && childChargeType !== 'free' && childCharge > 0) {
           if (childChargeType === 'percent') {
-            nightOccupancyAdjustment += nightPrice * (childCharge / 100) * numChildren;
+            nightOccupancyAdjustment += nightPrice * (childCharge / 100) * extraChildren;
           } else {
-            nightOccupancyAdjustment += childCharge * numChildren;
+            nightOccupancyAdjustment += childCharge * extraChildren;
           }
         }
       }
@@ -69582,17 +69647,24 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
     }
 
-    // Build occupancy label for display
+    // Build occupancy label for display — matches the new extras-only model
+    // (children that fit within base are free; only extras get charged).
     let occupancyLabel = '';
     if (occupancyAdjustmentTotal !== 0) {
       if (occupancyAdjustmentTotal < 0) {
         occupancyLabel = 'Single occupancy discount';
-      } else if (numAdults > baseOccupancy) {
-        occupancyLabel = `Extra guest charge (${numAdults - baseOccupancy} extra adult${numAdults - baseOccupancy > 1 ? 's' : ''})`;
-      }
-      if (numChildren > 0 && childChargeType !== 'free') {
-        if (occupancyLabel) occupancyLabel += ' + ';
-        occupancyLabel += `${numChildren} child${numChildren > 1 ? 'ren' : ''}`;
+      } else {
+        const parts = [];
+        if (numAdults > baseOccupancy) {
+          const ea = numAdults - baseOccupancy;
+          parts.push(`${ea} extra adult${ea > 1 ? 's' : ''}`);
+        }
+        const space = Math.max(0, baseOccupancy - numAdults);
+        const ec = Math.max(0, numChildren - space);
+        if (ec > 0 && childChargeType !== 'free') {
+          parts.push(`${ec} extra child${ec > 1 ? 'ren' : ''}`);
+        }
+        if (parts.length) occupancyLabel = `Extra guest charge (${parts.join(' + ')})`;
       }
     }
     
