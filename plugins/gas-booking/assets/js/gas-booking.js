@@ -4667,8 +4667,13 @@ jQuery(document).ready(function($) {
             var upsellGroup = getCurrentGroup();
             if (!hasMultiplePaymentGroups && clientId && upsellGroup.items[0] && upsellGroup.items[0].roomId) {
                 $('.gas-upsells-loading').show();
+                // Pass dates so the server can gate companion-linked upsells
+                // (e.g. Bike Storage) on the companion unit's availability.
+                var upsellCi = upsellGroup.checkin || document.querySelector('.gas-checkin')?.value || '';
+                var upsellCo = upsellGroup.checkout || document.querySelector('.gas-checkout')?.value || '';
+                var upsellDateParams = (upsellCi && upsellCo) ? ('&check_in=' + upsellCi + '&check_out=' + upsellCo) : '';
                 $.ajax({
-                    url: apiUrl + '/api/public/client/' + clientId + '/upsells?unit_id=' + upsellGroup.items[0].roomId + '&lang=' + currentLanguage,
+                    url: apiUrl + '/api/public/client/' + clientId + '/upsells?unit_id=' + upsellGroup.items[0].roomId + '&lang=' + currentLanguage + upsellDateParams,
                     method: 'GET',
                     success: function(response) {
                         $('.gas-upsells-loading').hide();

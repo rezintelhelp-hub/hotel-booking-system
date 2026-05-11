@@ -50357,7 +50357,95 @@ app.post('/api/bookings/:id/cancel', async (req, res) => {
         console.error('Hostaway cancel error:', err);
       }
     }
-    
+
+    // ── Cascade: cancel any companion children. Companion bookings live on
+    // their own bookable_units and have their own CM IDs, so each one needs
+    // the same status/availability/CM-cancel treatment as the parent. We
+    // do this BEFORE COMMIT so the whole cascade is atomic. Errors on a
+    // single child are logged but don't abort — owner can retry manually
+    // via the failed booking row. ──
+    let cascadedChildren = [];
+    try {
+      const childrenResult = await client.query(`
+        SELECT b.id, b.bookable_unit_id, b.arrival_date, b.departure_date,
+               b.beds24_booking_id, b.hostaway_reservation_id, b.smoobu_booking_id
+        FROM bookings b
+        WHERE b.parent_booking_id = $1
+          AND COALESCE(b.status, '') != 'cancelled'
+      `, [id]);
+      cascadedChildren = childrenResult.rows;
+
+      for (const child of cascadedChildren) {
+        try {
+          await client.query(`UPDATE bookings SET status = 'cancelled', updated_at = NOW() WHERE id = $1`, [child.id]);
+
+          await client.query(`
+            DELETE FROM room_availability
+            WHERE room_id = $1 AND date >= $2 AND date < $3 AND source = 'booking'
+          `, [child.bookable_unit_id, child.arrival_date, child.departure_date]);
+
+          if (child.beds24_booking_id) {
+            try {
+              const accessToken = await getBeds24AccessToken(pool);
+              if (accessToken) {
+                await axios.post('https://beds24.com/api/v2/bookings', [{
+                  id: parseInt(child.beds24_booking_id),
+                  status: 'cancelled',
+                  allowWebhooks: true
+                }], { headers: getBeds24BookingHeaders(null, accessToken) });
+                console.log(`[Cascade] Beds24 cancel sent for companion ${child.id} (beds24 id ${child.beds24_booking_id})`);
+              }
+            } catch (e) {
+              console.error(`[Cascade] Beds24 cancel failed for companion ${child.id}:`, e.response?.data || e.message);
+            }
+          }
+
+          if (child.hostaway_reservation_id) {
+            try {
+              const hostawayToken = process.env.HOSTAWAY_API_KEY;
+              if (hostawayToken) {
+                await fetch(`https://api.hostaway.com/v1/reservations/${child.hostaway_reservation_id}`, {
+                  method: 'PUT',
+                  headers: { 'Authorization': `Bearer ${hostawayToken}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ status: 'cancelled' })
+                });
+                console.log(`[Cascade] Hostaway cancel sent for companion ${child.id}`);
+              }
+            } catch (e) {
+              console.error(`[Cascade] Hostaway cancel failed for companion ${child.id}:`, e.message);
+            }
+          }
+
+          if (child.smoobu_booking_id) {
+            try {
+              const smoobuKeyRes = await client.query(`
+                SELECT cs.setting_value
+                FROM bookings b
+                JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+                JOIN properties p ON bu.property_id = p.id
+                JOIN client_settings cs ON cs.client_id = p.account_id
+                WHERE b.id = $1 AND cs.setting_key = 'smoobu_api_key'
+                LIMIT 1
+              `, [child.id]);
+              const smoobuApiKey = smoobuKeyRes.rows[0]?.setting_value;
+              if (smoobuApiKey) {
+                await axios.delete(`https://login.smoobu.com/api/reservations/${child.smoobu_booking_id}`, {
+                  headers: { 'Api-Key': smoobuApiKey }
+                });
+                console.log(`[Cascade] Smoobu cancel sent for companion ${child.id}`);
+              }
+            } catch (e) {
+              console.error(`[Cascade] Smoobu cancel failed for companion ${child.id}:`, e.response?.data || e.message);
+            }
+          }
+        } catch (childErr) {
+          console.error(`[Cascade] Failed cancelling companion ${child.id}:`, childErr.message);
+        }
+      }
+    } catch (cascadeErr) {
+      console.error('[Cascade] Companion lookup failed (parent cancel preserved):', cascadeErr.message);
+    }
+
     await client.query('COMMIT');
     
     // ========== SEND PARTNER CANCELLATION WEBHOOK ==========
@@ -50369,6 +50457,17 @@ app.post('/api/bookings/:id/cancel', async (req, res) => {
     } catch (webhookError) {
       console.error(`[Webhook] Error sending cancellation webhook for booking ${id}:`, webhookError.message);
       // Don't fail the cancellation if webhook fails
+    }
+    // Fire per-child cancellation webhooks too — partners track these as
+    // first-class bookings (they got booking.created for each one in
+    // Commit 4's submit path), so they need the matching cancelled event.
+    for (const child of cascadedChildren) {
+      try {
+        const w = await sendPartnerBookingWebhook(child.id, 'booking.cancelled');
+        if (w.sent) console.log(`[Webhook] Sent booking.cancelled for companion ${child.id}`);
+      } catch (e) {
+        console.error(`[Webhook] Companion ${child.id} cancelled webhook failed:`, e.message);
+      }
     }
     // ========== END PARTNER WEBHOOK ==========
     
@@ -74821,8 +74920,8 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
 app.get('/api/public/client/:clientId/upsells', async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { unit_id, property_id } = req.query;
-    
+    const { unit_id, property_id, check_in, check_out } = req.query;
+
     // Get property_id from unit if not provided
     let propId = property_id;
     if (unit_id && !propId) {
@@ -74860,6 +74959,7 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
         u.min_notice_hours,
         u.included_nights_per_unit,
         u.linked_shop_product_id,
+        u.companion_bookable_unit_id,
         COALESCE(u.mandatory, false) as mandatory,
         COALESCE(u.total_tax_exempt, false) as total_tax_exempt,
         p.name as property_name
@@ -74900,9 +75000,41 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
       if (u.description_ml) { u.description = u.description_ml[lang] || u.description_ml.en || u.description || ''; }
     });
 
+    // Companion-unit availability gate. When check_in/check_out are supplied,
+    // drop any upsell whose companion_bookable_unit_id has a blocked night in
+    // the range. Without dates we can't gate, so the upsell falls through —
+    // submit-time CM push will fail noisily and the failure logger picks it
+    // up. With dates we hide it cleanly so guests can't pick something we'd
+    // refuse to fulfil.
+    let filteredUpsells = upsells.rows;
+    if (check_in && check_out) {
+      const companionUnitIds = filteredUpsells
+        .map(u => u.companion_bookable_unit_id)
+        .filter(Boolean);
+      if (companionUnitIds.length > 0) {
+        try {
+          const blocked = await pool.query(`
+            SELECT DISTINCT room_id
+            FROM room_availability
+            WHERE room_id = ANY($1::int[])
+              AND date >= $2 AND date < $3
+              AND (COALESCE(is_blocked, false) = true OR COALESCE(is_available, true) = false)
+          `, [companionUnitIds, check_in, check_out]);
+          const blockedSet = new Set(blocked.rows.map(r => r.room_id));
+          if (blockedSet.size > 0) {
+            filteredUpsells = filteredUpsells.filter(u =>
+              !u.companion_bookable_unit_id || !blockedSet.has(u.companion_bookable_unit_id)
+            );
+          }
+        } catch (gateErr) {
+          console.error('[Upsells] companion availability gate failed (showing all):', gateErr.message);
+        }
+      }
+    }
+
     // Group by category
     const grouped = {};
-    upsells.rows.forEach(upsell => {
+    filteredUpsells.forEach(upsell => {
       const cat = upsell.category || 'Other';
       if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(upsell);
@@ -74910,10 +75042,10 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
 
     res.json({
       success: true,
-      upsells: upsells.rows,
+      upsells: filteredUpsells,
       upsells_by_category: grouped,
       meta: {
-        total: upsells.rows.length,
+        total: filteredUpsells.length,
         categories: Object.keys(grouped)
       }
     });
