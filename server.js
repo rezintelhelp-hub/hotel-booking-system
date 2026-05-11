@@ -74283,16 +74283,22 @@ app.get('/api/public/translations', (req, res) => {
 app.get('/api/public/client/:clientId/rooms', async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { property_id, room_ids, limit, offset, random, lang } = req.query;
+    const { property_id, room_ids, limit, offset, random, lang, include_hidden } = req.query;
     const amenityLang = lang || 'en';
-    
+
+    // unit_role gate: standard rooms ('room' or NULL) are the default. Hidden
+    // roles (exclusive_hire, companion) are excluded UNLESS include_hidden=1
+    // is explicitly passed — that flag is for dedicated pages that load one
+    // by ID (e.g. [gas_rooms room_ids="1258" include_hidden="1"]).
+    const includeHidden = include_hidden === '1' || include_hidden === 'true';
+
     // Pagination defaults
     const pageLimit = limit ? parseInt(limit) : null;  // null = no limit (all rooms)
     const pageOffset = offset ? parseInt(offset) : 0;
-    
+
     // Get today's date for rate calendar lookup
     const today = new Date().toISOString().split('T')[0];
-    
+
     // First get total count
     // When room_ids are specified, skip account_id filter (agent sites pass cross-account IDs)
     const parsedRoomIds = room_ids ? room_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)) : [];
@@ -74317,9 +74323,12 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       countQuery += ` AND bu.id = ANY($${countParamIndex}::int[])`;
       countParams.push(parsedRoomIds);
       countParamIndex++;
-    } else {
-      // Hide non-standard units (exclusive_hire dedicated pages, companion upsells)
-      // from default listings. Pages targeting them by ID bypass this filter.
+    }
+    if (!includeHidden) {
+      // Hide non-standard units (exclusive_hire dedicated pages, companion
+      // upsells) from default listings. Applies even when room_ids is passed
+      // because auto-deployed sites set gas_room_ids to the full account
+      // inventory; dedicated pages opt-in via include_hidden=1.
       countQuery += ` AND (bu.unit_role = 'room' OR bu.unit_role IS NULL)`;
     }
 
@@ -74395,7 +74404,8 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       query += ` AND bu.id = ANY($${paramIndex}::int[])`;
       params.push(parsedRoomIds);
       paramIndex++;
-    } else {
+    }
+    if (!includeHidden) {
       query += ` AND (bu.unit_role = 'room' OR bu.unit_role IS NULL)`;
     }
 

@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.62
+ * Version: 3.7.63
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.62');
+define('GAS_BOOKING_VERSION', '3.7.63');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4801,10 +4801,16 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $book_btn_bg = $atts['book_btn_bg'] ?? '';
         $book_btn_text = $atts['book_btn_text'] ?? '';
 
-        // Get room IDs - from shortcode attribute, license, or from deployed site config
+        // Get room IDs - from shortcode attribute, license, or from deployed site config.
+        // Track whether the IDs are USER-SPECIFIED (explicit shortcode attribute) — that's
+        // the dedicated-page case where hidden roles (exclusive_hire, companion) must be
+        // visible. The auto-populated fallback paths (license / gas_room_ids) list the
+        // full account inventory and must NOT bypass the hidden-role filter.
         $room_ids = array();
+        $room_ids_user_specified = false;
         if (!empty($atts['room_ids'])) {
             $room_ids = array_map('intval', explode(',', $atts['room_ids']));
+            $room_ids_user_specified = true;
         } else {
             // Check for license room IDs first
             $license_room_ids = get_option('gas_license_room_ids', '');
@@ -4865,6 +4871,12 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             // Pass room_ids to API so cross-account rooms work
             if (!empty($room_ids)) {
                 $endpoint .= "&room_ids=" . implode(',', $room_ids);
+            }
+            // Only opt the listing into hidden-role units (exclusive_hire, companion)
+            // when the shortcode was explicitly given room_ids — i.e. a dedicated
+            // page intentionally targeting one. Auto-deployed listings stay filtered.
+            if ($room_ids_user_specified) {
+                $endpoint .= "&include_hidden=1";
             }
         }
         
