@@ -70322,9 +70322,18 @@ app.post('/api/public/calculate-price', async (req, res) => {
           };
         }
       } else if (offer.replaces_standard) {
-        // Replaces Standard: discount calculated from CM price, result IS the display price
+        // Replaces Standard: result IS the display price (no separate discount line).
+        // Three modes — price_per_night flat rate, percentage off CM price, fixed
+        // amount off CM price. The price_per_night path was previously only
+        // honoured on non-standard tiers; now also honoured for replaces_standard
+        // so tiered guest-band pricing (e.g. £1200 up to 20 guests, £2400 for 21–40)
+        // applies correctly.
         const baseForDiscount = cmTotal || accommodationTotal;
-        if (offer.discount_type === 'percentage') {
+        if (offer.price_per_night) {
+          // Flat rate, e.g. Exclusive Hire tiered offers
+          useFixedPricePerNight = parseFloat(offer.price_per_night);
+          accommodationTotal = useFixedPricePerNight * nights;
+        } else if (offer.discount_type === 'percentage') {
           const offerTotal = baseForDiscount * (1 - offer.discount_value / 100);
           accommodationTotal = offerTotal;
         } else {
@@ -70334,6 +70343,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
         discount = 0;
         offerApplied = {
           name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value,
+          price_per_night: offer.price_per_night || null,
           replaces_standard: true, hide_discount_badge: true
         };
       } else {
