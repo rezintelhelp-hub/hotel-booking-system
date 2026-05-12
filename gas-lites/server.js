@@ -2064,8 +2064,16 @@ app.get('/api/offers/:propertyId', async (req, res) => {
       accId = propRes.rows[0]?.account_id;
     }
     
+    // NB: flat-rate tier offers (price_per_night > 0) are intentionally EXCLUDED.
+    // Those represent guest-band base prices (e.g. "1-20 guests: £1200/night",
+    // "21-40 guests: £2400/night") — they're not promotions to advertise.
+    // /api/pricing applies them server-side based on the guest count; surfacing
+    // them here would duplicate that logic and confuse guests ("pick a rate"
+    // when the dropdown already determines it). Only genuine discount or
+    // markup offers show in this list.
     let query = `
       SELECT o.id, o.name, o.description, o.discount_type, o.discount_value,
+             o.price_per_night, o.min_guests, o.max_guests,
              o.valid_from, o.valid_until, o.min_nights, o.max_nights,
              o.min_advance_days, o.max_advance_days,
              o.allowed_checkin_days, o.allowed_checkout_days,
@@ -2079,6 +2087,7 @@ app.get('/api/offers/:propertyId', async (req, res) => {
         AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
         AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
         AND ($3::integer IS NULL OR o.room_id IS NULL OR o.room_id = $3)
+        AND (o.price_per_night IS NULL OR o.price_per_night = 0)
       ORDER BY o.priority DESC, o.discount_value DESC
     `;
     
