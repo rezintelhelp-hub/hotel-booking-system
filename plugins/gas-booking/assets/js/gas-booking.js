@@ -5516,10 +5516,24 @@ jQuery(document).ready(function($) {
                         checkoutData.pricing = response;
                         checkoutData.gasBreakdown = response;
                         updateCheckoutPricing();
+                        // Sync the offer badge with the server-applied offer rather than
+                        // the offerId carried from the room page. For tiered guest-band
+                        // offers, the room page may have stamped tier 1's ID into the URL
+                        // but the server (with current guest count) correctly applied
+                        // tier 2 — display must reflect what the server actually used.
+                        if (response.offer_applied && response.offer_applied.name) {
+                            var serverOfferName = response.offer_applied.name;
+                            if (typeof serverOfferName === 'object') {
+                                serverOfferName = serverOfferName.en || Object.values(serverOfferName)[0];
+                            }
+                            if (serverOfferName) {
+                                $('.gas-rate-badge').addClass('offer').text('🎉 ' + serverOfferName);
+                            }
+                        }
                     }
                 }
             });
-            
+
             // Load upsells
             if (checkoutData.clientId) {
                 $.ajax({
