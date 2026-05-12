@@ -44925,16 +44925,32 @@ async function importBeds24BookingsForConnection(connectionId, options = {}) {
     return { imported: 0, updated: 0, skipped: 0, payments: 0, errors: ['No GAS rooms mapped for this connection'] };
   }
 
-  // Fetch bookings — Beds24 v2 returns all matching in one response (no offset/limit pagination
-  // in the public API). For huge accounts this could be heavy; if needed we'll chunk by month.
-  const params = { includeInvoiceItems: 'true' };
-  if (from) params.arrivalFrom = from;
-  if (to) params.arrivalTo = to;
-  const beds24Resp = await axios.get('https://beds24.com/api/v2/bookings', {
-    headers: getBeds24BookingHeaders(null, accessToken),
-    params
-  });
-  const bookings = Array.isArray(beds24Resp.data) ? beds24Resp.data : (beds24Resp.data?.data || beds24Resp.data?.bookings || []);
+  // Fetch bookings with pagination — Beds24 v2 returns 100/page and signals
+  // `pages.nextPageExists` + `pages.nextPageLink`. Loop until done.
+  const baseParams = { includeInvoiceItems: 'true' };
+  if (from) baseParams.arrivalFrom = from;
+  if (to) baseParams.arrivalTo = to;
+  const allBookings = [];
+  let nextUrl = 'https://beds24.com/api/v2/bookings';
+  let nextParams = baseParams;
+  let pagesFetched = 0;
+  const MAX_PAGES = 200;  // hard safety ceiling — 100/page × 200 = 20k bookings
+  while (nextUrl && pagesFetched < MAX_PAGES) {
+    const resp = await axios.get(nextUrl, {
+      headers: getBeds24BookingHeaders(null, accessToken),
+      params: nextParams
+    });
+    const pageData = Array.isArray(resp.data) ? resp.data : (resp.data?.data || resp.data?.bookings || []);
+    allBookings.push(...pageData);
+    pagesFetched++;
+    if (resp.data?.pages?.nextPageExists && resp.data?.pages?.nextPageLink) {
+      nextUrl = resp.data.pages.nextPageLink;
+      nextParams = {}; // nextPageLink already has params baked in
+    } else {
+      nextUrl = null;
+    }
+  }
+  const bookings = allBookings;
 
   let imported = 0, updated = 0, skipped = 0, payments = 0;
   const errors = [];
@@ -45076,7 +45092,7 @@ async function importBeds24BookingsForConnection(connectionId, options = {}) {
     }
   }
 
-  return { imported, updated, skipped, payments, errors, total_in_response: bookings.length };
+  return { imported, updated, skipped, payments, errors, total_in_response: bookings.length, pages_fetched: pagesFetched };
 }
 
 // Helper to get Beds24 connection info including account_id
