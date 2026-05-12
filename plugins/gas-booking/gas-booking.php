@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.65
+ * Version: 3.7.66
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.65');
+define('GAS_BOOKING_VERSION', '3.7.66');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8126,28 +8126,41 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         var html = '';
                         response.offers.forEach(function(offer) {
                             html += '<div class="gas-offer-card">';
-                            html += '<span class="gas-offer-card-badge">Special Offer</span>';
+                            // Choose badge label: flat-rate tier offers say "Group Rate",
+                            // discount offers say "Special Offer".
+                            var isFlatRate = offer.price_per_night && parseFloat(offer.price_per_night) > 0;
+                            var badge = isFlatRate ? 'Group Rate' : 'Special Offer';
+                            html += '<span class="gas-offer-card-badge">' + badge + '</span>';
                             html += '<div class="gas-offer-card-name">' + offer.name + '</div>';
                             if (offer.description) {
                                 html += '<div class="gas-offer-card-description">' + offer.description + '</div>';
                             }
-                            
-                            // Discount display
-                            if (offer.discount_type === 'percentage') {
+
+                            // Headline: flat per-night rate, percentage off, or fixed off
+                            if (isFlatRate) {
+                                html += '<div class="gas-offer-card-discount">' + currency + parseFloat(offer.price_per_night).toLocaleString() + ' <span style="font-size:0.6em; font-weight:500; color:#64748b;">/ night</span></div>';
+                            } else if (offer.discount_type === 'percentage' && parseFloat(offer.discount_value) > 0) {
                                 html += '<div class="gas-offer-card-discount">Save ' + offer.discount_value + '%</div>';
-                            } else {
+                            } else if (parseFloat(offer.discount_value) > 0) {
                                 html += '<div class="gas-offer-card-discount">Save ' + currency + offer.discount_value + '</div>';
                             }
-                            
+
                             // Conditions
                             html += '<div class="gas-offer-card-conditions">';
                             html += '<strong>Conditions:</strong><ul>';
+                            // Guest band (formatted as "1-20 guests" / "21+ guests" / "up to 20 guests")
+                            if (offer.min_guests && offer.max_guests) {
+                                html += '<li>For ' + offer.min_guests + '–' + offer.max_guests + ' guests</li>';
+                            } else if (offer.min_guests) {
+                                html += '<li>For ' + offer.min_guests + '+ guests</li>';
+                            } else if (offer.max_guests) {
+                                html += '<li>For up to ' + offer.max_guests + ' guests</li>';
+                            }
                             if (offer.min_nights) html += '<li>Minimum ' + offer.min_nights + ' nights</li>';
                             if (offer.max_nights) html += '<li>Maximum ' + offer.max_nights + ' nights</li>';
-                            if (offer.min_guests) html += '<li>Minimum ' + offer.min_guests + ' guests</li>';
                             if (offer.valid_from) html += '<li>Valid from ' + offer.valid_from + '</li>';
                             if (offer.valid_until) html += '<li>Valid until ' + offer.valid_until + '</li>';
-                            if (!offer.min_nights) if (!offer.max_nights) if (!offer.min_guests) if (!offer.valid_from) if (!offer.valid_until) {
+                            if (!offer.min_nights && !offer.max_nights && !offer.min_guests && !offer.max_guests && !offer.valid_from && !offer.valid_until) {
                                 html += '<li>Available for all bookings</li>';
                             }
                             html += '</ul></div>';
