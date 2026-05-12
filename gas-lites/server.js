@@ -1414,9 +1414,59 @@ app.get('/api/pricing/:roomId', async (req, res) => {
       return res.json({ success: false, error: `Minimum stay is ${minStay} nights`, minStay, nights: numNights });
     }
 
-    // Calculate totals from calendar pricing only
-    const nightlyTotal = nights.reduce((sum, n) => sum + parseFloat(n.price), 0);
+    // Calculate totals from calendar pricing only (baseline before offers)
+    let nightlyTotal = nights.reduce((sum, n) => sum + parseFloat(n.price), 0);
     const cmTotal = nights.reduce((sum, n) => sum + (parseFloat(n.cm_price) || parseFloat(n.price)), 0);
+
+    const totalGuests = parseInt(adults || 1) + parseInt(children || 0);
+    let offerApplied = null;
+    let offerNightlyRates = null;
+
+    // Offer-aware overlay — same matching logic as the main /api/public/calculate-price.
+    // If a replaces_standard offer matches the guest-band + date-band + room scope, it
+    // takes precedence over the per-night calendar price. Covers the Hebden Exclusive
+    // Hire case where 1-20 guests = £1,200/night and 21-40 guests = £2,400/night.
+    try {
+      const offerRes = await pool.query(`
+        SELECT id, name, discount_type, discount_value, price_per_night, replaces_standard,
+               min_guests, max_guests, min_nights, max_nights, priority
+        FROM offers
+        WHERE active = true
+          AND (room_id = $1 OR $1 = ANY(COALESCE(room_ids, ARRAY[]::int[]))
+               OR (room_id IS NULL AND (room_ids IS NULL OR cardinality(room_ids) = 0)))
+          AND (valid_from IS NULL OR valid_from <= $2)
+          AND (valid_until IS NULL OR valid_until >= $3)
+          AND (min_nights IS NULL OR min_nights <= $4)
+          AND (max_nights IS NULL OR max_nights >= $4)
+          AND (min_guests IS NULL OR min_guests <= $5)
+          AND (max_guests IS NULL OR max_guests >= $5)
+        ORDER BY priority DESC NULLS LAST, discount_value DESC NULLS LAST
+        LIMIT 1
+      `, [roomId, checkin, checkout, numNights, totalGuests]);
+
+      if (offerRes.rows[0]) {
+        const offer = offerRes.rows[0];
+        if (offer.price_per_night && parseFloat(offer.price_per_night) > 0) {
+          // Flat-rate offer — overrides per-night calendar price entirely
+          const flat = parseFloat(offer.price_per_night);
+          nightlyTotal = flat * numNights;
+          offerNightlyRates = nights.map(n => ({ date: n.date, price: flat }));
+          offerApplied = { id: offer.id, name: offer.name, price_per_night: flat, kind: 'flat_rate' };
+        } else if (offer.replaces_standard) {
+          // Percentage or fixed-amount that replaces the standard headline
+          if (offer.discount_type === 'percentage') {
+            nightlyTotal = nightlyTotal * (1 - parseFloat(offer.discount_value || 0) / 100);
+          } else {
+            nightlyTotal = Math.max(0, nightlyTotal - parseFloat(offer.discount_value || 0));
+          }
+          offerApplied = { id: offer.id, name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value, kind: 'replaces_standard' };
+        }
+        // Non-replaces_standard discount offers are handled at the discount/voucher
+        // layer above; not relevant for Lite's single-room booking flow.
+      }
+    } catch (offerErr) {
+      console.log('[Pricing] Offer lookup skipped:', offerErr.message);
+    }
 
     // Check if a cleaning upsell exists for this property — if so, suppress the Beds24 cleaning_fee
     const cleaningUpsellCheck = await pool.query(
@@ -1424,23 +1474,23 @@ app.get('/api/pricing/:roomId', async (req, res) => {
       [roomId]
     );
     const cleaningFee = cleaningUpsellCheck.rows.length > 0 ? 0 : (parseFloat(room.cleaning_fee) || 0);
-    const totalGuests = parseInt(adults || 1) + parseInt(children || 0);
     const extraGuestFee = 0;
 
-    console.log('[Pricing] Room', roomId, '- nights:', numNights, ', nightlyTotal:', nightlyTotal);
+    console.log('[Pricing] Room', roomId, '- nights:', numNights, ', nightlyTotal:', nightlyTotal, '- offer:', offerApplied?.name || 'none');
 
     res.json({
       success: true,
       pricing: {
         nights: numNights,
         minStay: minStay,
-        nightlyRates: nights.map(n => ({ date: n.date, price: parseFloat(n.price) })),
+        nightlyRates: offerNightlyRates || nights.map(n => ({ date: n.date, price: parseFloat(n.price) })),
         nightlyTotal,
         cmTotal,
         cleaningFee,
         extraGuestFee,
         subtotal: nightlyTotal + cleaningFee + extraGuestFee,
-        avgPerNight: nightlyTotal / numNights
+        avgPerNight: nightlyTotal / numNights,
+        offerApplied
       }
     });
   } catch (error) {
