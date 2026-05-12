@@ -7145,6 +7145,31 @@ app.get('/api/gas-sync/connections/:id/price-linking-status', async (req, res) =
   }
 });
 
+// Import historical Beds24 bookings into GAS for a given connection.
+// Body: { from?: 'YYYY-MM-DD', to?: 'YYYY-MM-DD' }
+// Defaults to last 12 months → next 12 months arrivals.
+app.post('/api/gas-sync/connections/:id/import-bookings', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const fromBody = req.body?.from;
+    const toBody = req.body?.to;
+
+    // Default range — 12 months back to 12 months forward by arrival date.
+    const today = new Date();
+    const defaultFrom = new Date(today); defaultFrom.setMonth(defaultFrom.getMonth() - 12);
+    const defaultTo = new Date(today); defaultTo.setMonth(defaultTo.getMonth() + 12);
+    const from = fromBody || defaultFrom.toISOString().split('T')[0];
+    const to = toBody || defaultTo.toISOString().split('T')[0];
+
+    console.log(`[Beds24 Import] connection=${id} from=${from} to=${to}`);
+    const result = await importBeds24BookingsForConnection(parseInt(id), { from, to });
+    res.json({ success: true, from, to, ...result });
+  } catch (error) {
+    console.error('[Beds24 Import] error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Fix beds24_room_id for existing rooms (one-time migration)
 app.post('/api/gas-sync/connections/:id/fix-room-ids', async (req, res) => {
   try {
@@ -44844,6 +44869,211 @@ async function getBeds24AccessTokenForProperty(pool, propertyId, roomId) {
     // Fallback to global token
     return await getBeds24AccessToken(pool);
   }
+}
+
+// =====================================================
+// Beds24 booking importer
+// Pulls bookings (+invoiceItems for payment receipts) for a given
+// gas_sync_connections row and UPSERTs them into the bookings table.
+// Beds24 is the canonical data shape — Channex/Hostaway importers
+// when added later will translate INTO this shape so the downstream
+// views (calendar, cashflow dashboard) never care which CM the data
+// came from.
+// =====================================================
+async function importBeds24BookingsForConnection(connectionId, options = {}) {
+  const { from = null, to = null } = options;
+
+  const connRes = await pool.query(
+    `SELECT id, account_id, adapter_code, refresh_token, credentials FROM gas_sync_connections WHERE id = $1`,
+    [connectionId]
+  );
+  if (connRes.rows.length === 0) throw new Error('Connection not found');
+  const conn = connRes.rows[0];
+  if (conn.adapter_code !== 'beds24') throw new Error('Connection is not a Beds24 adapter');
+
+  const credentials = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : (conn.credentials || {});
+  const refreshToken = conn.refresh_token || credentials?.refreshToken;
+  if (!refreshToken) throw new Error('Connection has no refreshToken — re-authorise Beds24');
+
+  // Exchange refresh token for access token
+  const tokenResp = await axios.get('https://beds24.com/api/v2/authentication/token', {
+    headers: { refreshToken }
+  });
+  const accessToken = tokenResp.data?.token;
+  if (!accessToken) throw new Error('Beds24 did not return an access token');
+
+  // Map Beds24 roomId → GAS bookable_unit_id for every property under this connection
+  const unitsRes = await pool.query(`
+    SELECT bu.id, bu.beds24_room_id, bu.property_id
+    FROM bookable_units bu
+    JOIN gas_sync_room_types gsrt ON gsrt.gas_room_id = bu.id
+    JOIN gas_sync_properties gsp ON gsp.id = gsrt.sync_property_id
+    WHERE gsp.connection_id = $1
+       OR bu.beds24_room_id IN (
+         SELECT external_id::integer FROM gas_sync_room_types gsrt2
+         JOIN gas_sync_properties gsp2 ON gsp2.id = gsrt2.sync_property_id
+         WHERE gsp2.connection_id = $1
+       )
+  `, [connectionId]);
+  const roomMap = new Map();
+  unitsRes.rows.forEach(u => { if (u.beds24_room_id) roomMap.set(parseInt(u.beds24_room_id), u); });
+
+  if (roomMap.size === 0) {
+    return { imported: 0, updated: 0, skipped: 0, payments: 0, errors: ['No GAS rooms mapped for this connection'] };
+  }
+
+  // Fetch bookings — Beds24 v2 returns all matching in one response (no offset/limit pagination
+  // in the public API). For huge accounts this could be heavy; if needed we'll chunk by month.
+  const params = { includeInvoiceItems: 'true' };
+  if (from) params.arrivalFrom = from;
+  if (to) params.arrivalTo = to;
+  const beds24Resp = await axios.get('https://beds24.com/api/v2/bookings', {
+    headers: getBeds24BookingHeaders(null, accessToken),
+    params
+  });
+  const bookings = Array.isArray(beds24Resp.data) ? beds24Resp.data : (beds24Resp.data?.data || beds24Resp.data?.bookings || []);
+
+  let imported = 0, updated = 0, skipped = 0, payments = 0;
+  const errors = [];
+
+  for (const b of bookings) {
+    try {
+      const beds24RoomId = b.roomId || b.unitId;
+      const unit = roomMap.get(parseInt(beds24RoomId));
+      if (!unit) { skipped++; continue; }
+
+      const arrival = b.arrival || b.firstNight || b.arrivalDate;
+      const departure = b.departure || b.lastNight || b.departureDate;
+      if (!arrival || !departure) { skipped++; continue; }
+
+      // Map status — Beds24 status values: 1=new, 2=confirmed, 3=request, 0/cancelled=cancelled, black=block
+      const rawStatus = String(b.status || '').toLowerCase();
+      const isCancelled = rawStatus === 'cancelled' || rawStatus === '0' || b.status === 0 || rawStatus === 'black';
+      const gasStatus = isCancelled ? 'cancelled' : 'confirmed';
+
+      // grand_total — Beds24 puts the booking total on `price`. invoiceItems contain
+      // line items (charges + payments), but we trust `price` as the headline.
+      const grandTotal = parseFloat(b.price || 0);
+
+      const result = await pool.query(`
+        INSERT INTO bookings (
+          beds24_booking_id, property_id, bookable_unit_id,
+          arrival_date, departure_date,
+          num_adults, num_children, num_infants,
+          guest_first_name, guest_last_name, guest_email, guest_phone, guest_mobile,
+          guest_address, guest_city, guest_state, guest_postcode, guest_country, guest_country_code,
+          guest_company,
+          status, booking_source, channel, api_source, referer,
+          currency, grand_total, total_amount,
+          notes, comments, special_requests, reference,
+          booking_time, modified_time, cancelled_time,
+          created_at, updated_at
+        ) VALUES (
+          $1, $2, $3,
+          $4, $5,
+          $6, $7, $8,
+          $9, $10, $11, $12, $13,
+          $14, $15, $16, $17, $18, $19,
+          $20,
+          $21, $22, $23, $24, $25,
+          $26, $27, $27,
+          $28, $29, $30, $31,
+          $32, $33, $34,
+          NOW(), NOW()
+        )
+        ON CONFLICT (beds24_booking_id) DO UPDATE SET
+          arrival_date = EXCLUDED.arrival_date,
+          departure_date = EXCLUDED.departure_date,
+          num_adults = EXCLUDED.num_adults,
+          num_children = EXCLUDED.num_children,
+          guest_first_name = EXCLUDED.guest_first_name,
+          guest_last_name = EXCLUDED.guest_last_name,
+          guest_email = EXCLUDED.guest_email,
+          guest_phone = EXCLUDED.guest_phone,
+          status = EXCLUDED.status,
+          grand_total = EXCLUDED.grand_total,
+          total_amount = EXCLUDED.total_amount,
+          referer = EXCLUDED.referer,
+          channel = EXCLUDED.channel,
+          notes = EXCLUDED.notes,
+          modified_time = EXCLUDED.modified_time,
+          cancelled_time = EXCLUDED.cancelled_time,
+          updated_at = NOW()
+        RETURNING id, (xmax = 0) AS inserted
+      `, [
+        parseInt(b.id),                                                            // 1 beds24_booking_id
+        unit.property_id,                                                          // 2 property_id
+        unit.id,                                                                   // 3 bookable_unit_id
+        arrival,                                                                   // 4 arrival_date
+        departure,                                                                 // 5 departure_date
+        parseInt(b.numAdult || b.adults || 0),                                     // 6 num_adults
+        parseInt(b.numChild || b.children || 0),                                   // 7 num_children
+        parseInt(b.numInfant || b.infants || 0),                                   // 8 num_infants
+        b.firstName || '',                                                         // 9 guest_first_name
+        b.lastName || '',                                                          // 10 guest_last_name
+        b.email || null,                                                           // 11 guest_email
+        b.phone || null,                                                           // 12 guest_phone
+        b.mobile || null,                                                          // 13 guest_mobile
+        b.address || null,                                                         // 14 guest_address
+        b.city || null,                                                            // 15 guest_city
+        b.state || null,                                                           // 16 guest_state
+        b.postcode || null,                                                        // 17 guest_postcode
+        b.country || null,                                                         // 18 guest_country
+        b.country2 || null,                                                        // 19 guest_country_code
+        b.company || null,                                                         // 20 guest_company
+        gasStatus,                                                                 // 21 status
+        b.channel || b.referer || 'beds24',                                        // 22 booking_source
+        b.channel || null,                                                         // 23 channel
+        'beds24',                                                                  // 24 api_source
+        b.referer || null,                                                         // 25 referer
+        b.currency || 'GBP',                                                       // 26 currency
+        grandTotal,                                                                // 27 grand_total + total_amount
+        b.notes || null,                                                           // 28 notes
+        b.comments || null,                                                        // 29 comments
+        b.specialRequests || b.requestRemarks || null,                             // 30 special_requests
+        b.reference || null,                                                       // 31 reference
+        b.bookingTime ? new Date(b.bookingTime) : null,                            // 32 booking_time
+        b.modifiedTime ? new Date(b.modifiedTime) : null,                          // 33 modified_time
+        isCancelled && b.cancelTime ? new Date(b.cancelTime) : null                // 34 cancelled_time
+      ]);
+
+      const wasInserted = result.rows[0].inserted;
+      const gasBookingId = result.rows[0].id;
+      if (wasInserted) imported++; else updated++;
+
+      // Payment receipts — Beds24 invoiceItems include type='charge' (line items) and
+      // type='payment' (actual cash receipts). Only the payments interest us for cashflow;
+      // charges are already implicit in grand_total.
+      if (Array.isArray(b.invoiceItems)) {
+        for (const item of b.invoiceItems) {
+          const itemType = String(item.type || '').toLowerCase();
+          if (itemType !== 'payment') continue;
+          const amount = parseFloat(item.amount || 0);
+          if (!amount) continue;
+          const paidAt = item.invoiceDate ? new Date(item.invoiceDate) : (item.date ? new Date(item.date) : new Date());
+          // Idempotent insert keyed on (booking_id, gateway_transaction_id) so re-runs don't dup
+          const txId = `beds24_b${b.id}_i${item.id || item.lineId || (item.invoiceDate || '') + '_' + amount}`;
+          try {
+            await pool.query(`
+              INSERT INTO payment_transactions (
+                booking_id, amount, currency, status, type,
+                payment_gateway, gateway_transaction_id, description, created_at
+              ) VALUES ($1, $2, $3, 'succeeded', 'payment', 'beds24_import', $4, $5, $6)
+              ON CONFLICT DO NOTHING
+            `, [gasBookingId, amount, b.currency || 'GBP', txId, item.description || 'Beds24 payment receipt', paidAt]);
+            payments++;
+          } catch (txErr) {
+            // payment_transactions schema can vary across deployments — log + carry on
+            console.warn('[Beds24 Import] payment_transactions insert skipped:', txErr.message);
+          }
+        }
+      }
+    } catch (bookingErr) {
+      errors.push({ id: b.id, error: bookingErr.message });
+    }
+  }
+
+  return { imported, updated, skipped, payments, errors, total_in_response: bookings.length };
 }
 
 // Helper to get Beds24 connection info including account_id
