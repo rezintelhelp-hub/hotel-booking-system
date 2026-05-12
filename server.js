@@ -44902,18 +44902,21 @@ async function importBeds24BookingsForConnection(connectionId, options = {}) {
   const accessToken = tokenResp.data?.token;
   if (!accessToken) throw new Error('Beds24 did not return an access token');
 
-  // Map Beds24 roomId → GAS bookable_unit_id for every property under this connection
+  // Map Beds24 roomId → GAS bookable_unit_id for every property under this connection.
+  // Two paths to find the mapping:
+  //  1) gas_sync_room_types row exists with gas_room_id pointing at bu.id
+  //  2) bu.beds24_room_id matches a gsrt.external_id under this connection (legacy)
   const unitsRes = await pool.query(`
-    SELECT bu.id, bu.beds24_room_id, bu.property_id
+    SELECT DISTINCT bu.id, bu.beds24_room_id, bu.property_id
     FROM bookable_units bu
-    JOIN gas_sync_room_types gsrt ON gsrt.gas_room_id = bu.id
-    JOIN gas_sync_properties gsp ON gsp.id = gsrt.sync_property_id
-    WHERE gsp.connection_id = $1
-       OR bu.beds24_room_id IN (
-         SELECT external_id::integer FROM gas_sync_room_types gsrt2
-         JOIN gas_sync_properties gsp2 ON gsp2.id = gsrt2.sync_property_id
-         WHERE gsp2.connection_id = $1
-       )
+    LEFT JOIN gas_sync_room_types gsrt ON gsrt.gas_room_id = bu.id
+    LEFT JOIN gas_sync_properties gsp ON gsp.id = gsrt.sync_property_id
+    WHERE (gsp.connection_id = $1)
+       OR (bu.beds24_room_id IS NOT NULL AND bu.beds24_room_id::text IN (
+            SELECT gsrt2.external_id FROM gas_sync_room_types gsrt2
+            JOIN gas_sync_properties gsp2 ON gsp2.id = gsrt2.sync_property_id
+            WHERE gsp2.connection_id = $1
+          ))
   `, [connectionId]);
   const roomMap = new Map();
   unitsRes.rows.forEach(u => { if (u.beds24_room_id) roomMap.set(parseInt(u.beds24_room_id), u); });
