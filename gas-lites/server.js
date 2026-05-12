@@ -3693,8 +3693,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               <div class="date-field"><label>${t('check_out', lang)}</label><input type="text" id="checkout" placeholder="${t('select_dates', lang)}" readonly onclick="openAvailabilityTab()"></div>
             </div>
             <div class="guest-fields">
-              <div class="guest-field"><label>${t('guests', lang)}</label><select id="adults">${Array.from({length: Math.min(parseInt(lite.max_guests) || 8, 20)}, (_, i) => i + 1).map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
-              <div class="guest-field"><label>${lang === 'en' ? 'Children' : t('guests', lang)} <span class="child-age-hint">(${lang === 'en' ? 'under 12' : '<12'})</span></label><select id="children">${Array.from({length: Math.min((parseInt(lite.max_guests) || 8) + 1, 11)}, (_, i) => i).map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
+              <div class="guest-field"><label>${t('guests', lang)}</label><select id="adults">${Array.from({length: parseInt(lite.max_guests) || 8}, (_, i) => i + 1).map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
+              <div class="guest-field"><label>${lang === 'en' ? 'Children' : t('guests', lang)} <span class="child-age-hint">(${lang === 'en' ? 'under 12' : '<12'})</span></label><select id="children">${Array.from({length: (parseInt(lite.max_guests) || 8) + 1}, (_, i) => i).map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
             </div>
             
             <!-- Min stay / availability message -->
