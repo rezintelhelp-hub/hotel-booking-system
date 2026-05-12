@@ -44960,26 +44960,26 @@ async function importBeds24BookingsForConnection(connectionId, options = {}) {
 
       const result = await pool.query(`
         INSERT INTO bookings (
-          beds24_booking_id, property_id, bookable_unit_id,
+          beds24_booking_id, property_id, property_owner_id, bookable_unit_id,
           arrival_date, departure_date,
           num_adults, num_children, num_infants,
           guest_first_name, guest_last_name, guest_email, guest_phone, guest_mobile,
           guest_address, guest_city, guest_state, guest_postcode, guest_country, guest_country_code,
           guest_company,
           status, booking_source, channel, api_source, referer,
-          currency, grand_total, total_amount,
+          currency, accommodation_price, subtotal, grand_total, total_amount,
           notes, comments, special_requests, reference,
           booking_time, modified_time, cancelled_time,
           created_at, updated_at
         ) VALUES (
-          $1, $2, $3,
+          $1, $2, 1, $3,
           $4, $5,
           $6, $7, $8,
           $9, $10, $11, $12, $13,
           $14, $15, $16, $17, $18, $19,
           $20,
           $21, $22, $23, $24, $25,
-          $26, $27, $27,
+          $26, $27, $27, $27, $27,
           $28, $29, $30, $31,
           $32, $33, $34,
           NOW(), NOW()
@@ -45012,9 +45012,9 @@ async function importBeds24BookingsForConnection(connectionId, options = {}) {
         parseInt(b.numAdult || b.adults || 0),                                     // 6 num_adults
         parseInt(b.numChild || b.children || 0),                                   // 7 num_children
         parseInt(b.numInfant || b.infants || 0),                                   // 8 num_infants
-        b.firstName || '',                                                         // 9 guest_first_name
-        b.lastName || '',                                                          // 10 guest_last_name
-        b.email || null,                                                           // 11 guest_email
+        b.firstName || '(Beds24)',                                                 // 9 guest_first_name (NOT NULL)
+        b.lastName || 'Guest',                                                     // 10 guest_last_name (NOT NULL)
+        b.email || `beds24-${b.id}@noemail.local`,                                 // 11 guest_email (NOT NULL — synthesised when Beds24 didn't capture one)
         b.phone || null,                                                           // 12 guest_phone
         b.mobile || null,                                                          // 13 guest_mobile
         b.address || null,                                                         // 14 guest_address
