@@ -4303,8 +4303,18 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       try {
         const res = await fetch('/api/offers/' + propertyId + '?checkin=' + checkin + '&checkout=' + checkout + '&roomId=' + roomId + '&accountId=' + accountId);
         const data = await res.json();
-        
-        availableOffers = data.offers || [];
+
+        // Filter out flat-rate tier offers from the rate-options list. An offer
+        // with price_per_night set is a group-band price (e.g. "1-20 guests:
+        // £1,200/night", "21-40 guests: £2,400/night") — it's the price for a
+        // given guest count, not a promotion to advertise. The pricing API still
+        // applies these correctly based on the dropdown selection; we just don't
+        // want them cluttering the offer list. Only show offers that represent
+        // an actual discount or markup that guests can opt into.
+        availableOffers = (data.offers || []).filter(o => {
+          const ppn = parseFloat(o.price_per_night) || 0;
+          return ppn <= 0; // hide all flat-rate tier offers from this UI
+        });
 
         const section = document.getElementById('rateOptionsSection');
         const list = document.getElementById('rateOptionsList');
