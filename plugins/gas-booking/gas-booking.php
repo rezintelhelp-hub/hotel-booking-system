@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.66
+ * Version: 3.7.67
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.66');
+define('GAS_BOOKING_VERSION', '3.7.67');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -6747,13 +6747,36 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             background: <?php echo esc_attr($button_color); ?> !important;
             filter: brightness(0.9);
         }
+        .gas-tab-btn {
+            <?php if ($book_btn_text) : ?>color: <?php echo esc_attr($book_btn_text); ?> !important;<?php endif; ?>
+            background: <?php echo esc_attr($button_color); ?> !important;
+            opacity: 0.55;
+            <?php if ($book_btn_radius !== '') : ?>border-radius: <?php echo intval($book_btn_radius); ?>px !important;<?php endif; ?>
+        }
+        .gas-tab-btn:hover {
+            background: <?php echo esc_attr($button_color); ?> !important;
+            <?php if ($book_btn_text) : ?>color: <?php echo esc_attr($book_btn_text); ?> !important;<?php endif; ?>
+            opacity: 0.8;
+        }
         .gas-tab-btn.active {
             background: <?php echo esc_attr($button_color); ?> !important;
-            color: white !important;
+            color: <?php echo esc_attr($book_btn_text ?: '#ffffff'); ?> !important;
+            opacity: 1;
         }
-        <?php if ($book_btn_radius !== '') : ?>
-        .gas-tab-btn { border-radius: <?php echo intval($book_btn_radius); ?>px !important; }
-        <?php endif; ?>
+        /* Add-to-Cart matches the primary button styling — same bg + text colour
+           as Book Now, so it visually pairs with the main CTA rather than the
+           outline-only default. */
+        .gas-add-to-cart-btn {
+            background: <?php echo esc_attr($button_color); ?> !important;
+            color: <?php echo esc_attr($book_btn_text ?: '#ffffff'); ?> !important;
+            border: 2px solid <?php echo esc_attr($button_color); ?> !important;
+            <?php if ($book_btn_radius !== '') : ?>border-radius: <?php echo intval($book_btn_radius); ?>px !important;<?php endif; ?>
+        }
+        .gas-add-to-cart-btn:hover:not(:disabled) {
+            background: <?php echo esc_attr($button_color); ?> !important;
+            color: <?php echo esc_attr($book_btn_text ?: '#ffffff'); ?> !important;
+            filter: brightness(0.9);
+        }
         .gas-submit-btn {
             background: <?php echo esc_attr($button_color); ?> !important;
             <?php if ($book_btn_text) : ?>color: <?php echo esc_attr($book_btn_text); ?> !important;<?php endif; ?>
