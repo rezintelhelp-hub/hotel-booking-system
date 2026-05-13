@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.72
+ * Version: 3.7.73
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.72');
+define('GAS_BOOKING_VERSION', '3.7.73');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -9318,6 +9318,16 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
 
                 <div class="gas-portal-current-booking" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem;"></div>
 
+                <div class="gas-portal-extras" style="margin-bottom:1rem;">
+                    <div class="gas-portal-my-extras" style="margin-bottom:1rem;"></div>
+                    <details style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;">
+                        <summary style="cursor:pointer;padding:1rem;font-weight:600;font-size:0.95rem;">Add to your stay</summary>
+                        <div class="gas-portal-catalogue" style="padding:0 1rem 1rem;">
+                            <p style="color:#64748b;font-size:0.9rem;margin-top:0;">Loading…</p>
+                        </div>
+                    </details>
+                </div>
+
                 <details class="gas-portal-profile" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:1rem;">
                     <summary style="cursor:pointer;padding:1rem;font-weight:600;font-size:0.95rem;">Your profile</summary>
                     <div style="padding:0 1rem 1rem;">
@@ -9492,6 +9502,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         return;
                     }
                     gasPortalRenderDashboard(root, data);
+                    gasPortalLoadExtras(root);
                 }).catch(function(err){
                     root.querySelector('.gas-portal-current-booking').innerHTML = '<p style="color:#c00">Failed to load: ' + err.message + '</p>';
                 });
@@ -9550,6 +9561,84 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         + '</div>';
                 }
             }
+
+            function gasPortalLoadExtras(root) {
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                fetch(apiUrl + '/api/public/portal/extras', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    var cat = root.querySelector('.gas-portal-catalogue');
+                    if (!data.success) { cat.innerHTML = '<p style="color:#c00">' + (data.error || 'Failed to load') + '</p>'; return; }
+                    var items = [].concat(data.upsells || [], data.shop_products || []);
+                    if (items.length === 0) { cat.innerHTML = '<p style="color:#64748b;font-size:0.9rem;">No add-ons available right now.</p>'; return; }
+                    cat.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.75rem;">'
+                        + items.map(function(it){
+                            var img = it.image_thumbnail_url || it.image_url || '';
+                            var imgHtml = img ? '<img src="' + img + '" alt="" style="width:100%;height:120px;object-fit:cover;border-radius:8px 8px 0 0;">' : '';
+                            return '<div class="gas-portal-card" data-source-type="' + it.source_type + '" data-source-id="' + it.id + '" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;">'
+                                + imgHtml
+                                + '<div style="padding:0.75rem;flex:1;display:flex;flex-direction:column;">'
+                                + '<strong style="font-size:0.95rem;margin-bottom:0.25rem;">' + (it.name || '').replace(/</g,'&lt;') + '</strong>'
+                                + (it.category ? '<span style="font-size:0.75rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">' + it.category + '</span>' : '')
+                                + (it.description ? '<p style="font-size:0.85rem;color:#475569;margin:0 0 0.75rem;flex:1;">' + (it.description.length > 100 ? it.description.slice(0,100) + '…' : it.description) + '</p>' : '<div style="flex:1"></div>')
+                                + '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">'
+                                + '<strong>' + fmtMoney(it.price, it.currency) + '</strong>'
+                                + '<button type="button" onclick="gasPortalAddExtra(this)" style="padding:0.4rem 0.8rem;border:0;border-radius:6px;background:#0f172a;color:#fff;cursor:pointer;font-size:0.85rem;">Add</button>'
+                                + '</div></div></div>';
+                        }).join('')
+                        + '</div>';
+                });
+                gasPortalLoadMyExtras(root);
+            }
+
+            function gasPortalLoadMyExtras(root) {
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                fetch(apiUrl + '/api/public/portal/my-extras', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    var slot = root.querySelector('.gas-portal-my-extras');
+                    if (!data.success || (data.extras || []).length === 0) { slot.innerHTML = ''; return; }
+                    slot.innerHTML = '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:1rem;">'
+                        + '<strong style="font-size:0.95rem;color:#166534;">Your extras</strong>'
+                        + '<div style="margin-top:0.5rem;">'
+                        + data.extras.map(function(e){
+                            return '<div style="display:flex;justify-content:space-between;font-size:0.9rem;padding:0.4rem 0;border-bottom:1px solid #dcfce7;">'
+                                + '<span>' + (e.qty > 1 ? e.qty + ' × ' : '') + e.name + '<span style="color:#64748b;font-size:0.8rem;"> (reserved)</span></span>'
+                                + '<strong>' + fmtMoney(e.unit_price * e.qty, e.currency) + '</strong>'
+                                + '</div>';
+                        }).join('')
+                        + '</div></div>';
+                });
+            }
+
+            window.gasPortalAddExtra = function(btn) {
+                var card = btn.closest('.gas-portal-card');
+                var root = $root(btn);
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                btn.disabled = true; btn.textContent = '…';
+                fetch(apiUrl + '/api/public/portal/add-extra', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: token,
+                        source_type: card.dataset.sourceType,
+                        source_id: parseInt(card.dataset.sourceId),
+                        qty: 1
+                    })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) { btn.disabled = false; btn.textContent = 'Add'; alert(data.error || 'Could not add.'); return; }
+                    btn.textContent = '✓ Added';
+                    setTimeout(function(){ btn.disabled = false; btn.textContent = 'Add'; }, 1500);
+                    gasPortalLoadMyExtras(root);
+                });
+            };
 
             window.gasPortalSaveProfile = function(ev, form) {
                 ev.preventDefault();
