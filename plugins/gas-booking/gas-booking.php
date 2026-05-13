@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.71
+ * Version: 3.7.72
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.71');
+define('GAS_BOOKING_VERSION', '3.7.72');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -9260,6 +9260,22 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 </div>
                 <button type="submit" style="width:100%;padding:0.85rem;border:0;border-radius:8px;background:#0f172a;color:#fff;font-weight:600;font-size:1rem;cursor:pointer;">Continue</button>
                 <p class="gas-portal-error" style="display:none;color:#dc2626;margin:0.75rem 0 0;font-size:0.9rem;"></p>
+                <p style="margin:1.25rem 0 0;text-align:center;font-size:0.85rem;color:#64748b;">
+                    Stayed with us before?
+                    <a href="#" onclick="event.preventDefault(); gasPortalShowEmailEntry(this);" style="color:#0f172a;text-decoration:underline;">Sign in with email</a>
+                </p>
+            </form>
+
+            <!-- Step 1b: Returning guest entry (email) -->
+            <form class="gas-portal-step gas-portal-email-entry" style="display:none;" onsubmit="return gasPortalEmailSignin(event, this);">
+                <h3 style="margin:0 0 0.5rem;font-size:1.1rem;">Welcome back</h3>
+                <p style="margin:0 0 1rem;color:#64748b;font-size:0.9rem;">Enter the personal email you used last time. We'll bring up your current booking and history.</p>
+                <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" style="width:100%;padding:0.7rem;border:1px solid #d1d5db;border-radius:8px;font-size:1rem;margin-bottom:1rem;">
+                <button type="submit" style="width:100%;padding:0.85rem;border:0;border-radius:8px;background:#0f172a;color:#fff;font-weight:600;cursor:pointer;">Sign in</button>
+                <p class="gas-portal-error" style="display:none;color:#dc2626;margin:0.75rem 0 0;font-size:0.9rem;"></p>
+                <p style="margin:1rem 0 0;text-align:center;font-size:0.85rem;color:#64748b;">
+                    <a href="#" onclick="event.preventDefault(); gasPortalShowLookup(this);" style="color:#0f172a;text-decoration:underline;">← Sign in with booking reference instead</a>
+                </p>
             </form>
 
             <!-- Step 2a: phone last-3 challenge -->
@@ -9290,11 +9306,46 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 <p class="gas-portal-error" style="display:none;color:#dc2626;margin:0.75rem 0 0;font-size:0.9rem;"></p>
             </form>
 
-            <!-- Phase 1 placeholder dashboard. Phase 3 replaces with full view. -->
+            <!-- Phase 2 Dashboard: current booking + profile + history -->
             <div class="gas-portal-step gas-portal-dashboard" style="display:none;">
-                <h3 style="margin:0 0 0.5rem;font-size:1.2rem;">You're signed in</h3>
-                <p style="color:#64748b;">Booking <strong class="gas-portal-booking-id"></strong> verified. Dashboard, add-on shop, and history coming next.</p>
-                <button type="button" onclick="gasPortalSignOut()" style="margin-top:1rem;padding:0.5rem 1rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;">Sign out</button>
+                <div style="display:flex;justify-content:space-between;align-items:start;gap:1rem;margin-bottom:1rem;">
+                    <div>
+                        <h3 style="margin:0;font-size:1.3rem;" class="gas-portal-greeting">Your stay</h3>
+                        <p style="margin:0.25rem 0 0;color:#64748b;font-size:0.85rem;" class="gas-portal-property-name"></p>
+                    </div>
+                    <button type="button" onclick="gasPortalSignOut()" style="padding:0.4rem 0.8rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:0.85rem;">Sign out</button>
+                </div>
+
+                <div class="gas-portal-current-booking" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem;"></div>
+
+                <details class="gas-portal-profile" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:1rem;">
+                    <summary style="cursor:pointer;padding:1rem;font-weight:600;font-size:0.95rem;">Your profile</summary>
+                    <div style="padding:0 1rem 1rem;">
+                        <form onsubmit="return gasPortalSaveProfile(event, this);">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+                                <div>
+                                    <label style="font-size:0.85rem;font-weight:500;display:block;margin-bottom:0.25rem;">First name</label>
+                                    <input type="text" name="first_name" class="gas-portal-pf-first" style="width:100%;padding:0.5rem;border:1px solid #d1d5db;border-radius:6px;">
+                                </div>
+                                <div>
+                                    <label style="font-size:0.85rem;font-weight:500;display:block;margin-bottom:0.25rem;">Last name</label>
+                                    <input type="text" name="last_name" class="gas-portal-pf-last" style="width:100%;padding:0.5rem;border:1px solid #d1d5db;border-radius:6px;">
+                                </div>
+                            </div>
+                            <div style="margin-bottom:0.75rem;">
+                                <label style="font-size:0.85rem;font-weight:500;display:block;margin-bottom:0.25rem;">Mobile</label>
+                                <input type="tel" name="phone" class="gas-portal-pf-phone" style="width:100%;padding:0.5rem;border:1px solid #d1d5db;border-radius:6px;">
+                            </div>
+                            <div style="margin-bottom:0.75rem;font-size:0.85rem;color:#64748b;">
+                                Personal email: <strong class="gas-portal-pf-email"></strong>
+                            </div>
+                            <button type="submit" style="padding:0.6rem 1.2rem;border:0;border-radius:8px;background:#0f172a;color:#fff;font-weight:600;cursor:pointer;font-size:0.9rem;">Save profile</button>
+                            <span class="gas-portal-profile-saved" style="display:none;margin-left:0.75rem;color:#16a34a;font-size:0.85rem;">✓ Saved</span>
+                        </form>
+                    </div>
+                </details>
+
+                <div class="gas-portal-history" style="margin-bottom:1rem;"></div>
             </div>
         </div>
         <script>
@@ -9362,8 +9413,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     if (data.needs_personal_email) {
                         showStep(root, '.gas-portal-personal-email');
                     } else {
-                        root.querySelector('.gas-portal-booking-id').textContent = 'GAS-' + data.booking_id;
-                        showStep(root, '.gas-portal-dashboard');
+                        gasPortalLoadDashboard(root);
                     }
                 }).catch(function(err){ setError(form, 'Network error: ' + err.message); });
                 return false;
@@ -9381,9 +9431,147 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     body: JSON.stringify({ token: token, personal_email: form.personal_email.value.trim() })
                 }).then(function(r){ return r.json(); }).then(function(data){
                     if (!data.success) { setError(form, data.error || 'Could not save.'); return; }
-                    root.querySelector('.gas-portal-booking-id').textContent = 'GAS-' + STATE.bookingId;
-                    showStep(root, '.gas-portal-dashboard');
+                    gasPortalLoadDashboard(root);
                 }).catch(function(err){ setError(form, 'Network error: ' + err.message); });
+                return false;
+            };
+
+            window.gasPortalShowEmailEntry = function(el) {
+                var root = el.closest('.gas-portal');
+                showStep(root, '.gas-portal-email-entry');
+            };
+            window.gasPortalShowLookup = function(el) {
+                var root = el.closest('.gas-portal');
+                showStep(root, '.gas-portal-lookup');
+            };
+
+            window.gasPortalEmailSignin = function(ev, form) {
+                ev.preventDefault();
+                setError(form, '');
+                var root = $root(form);
+                var apiUrl = root.dataset.apiUrl;
+                fetch(apiUrl + '/api/public/portal/email-signin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: form.email.value.trim() })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) { setError(form, data.error || 'Sign-in failed.'); return; }
+                    try { sessionStorage.setItem('gas_portal_token', data.token); } catch(e){}
+                    STATE.bookingId = data.booking_id;
+                    gasPortalLoadDashboard(root);
+                }).catch(function(err){ setError(form, 'Network error: ' + err.message); });
+                return false;
+            };
+
+            function fmtDate(s) {
+                if (!s) return '—';
+                try { return new Date(s).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); }
+                catch(e){ return String(s).slice(0,10); }
+            }
+            function fmtMoney(amt, cur) {
+                if (amt == null) return '';
+                var n = Number(amt);
+                if (!isFinite(n)) return '';
+                try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur || 'GBP' }).format(n); }
+                catch(e) { return (cur || '') + ' ' + n.toFixed(2); }
+            }
+
+            function gasPortalLoadDashboard(root) {
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                if (!token) { showStep(root, '.gas-portal-lookup'); return; }
+                showStep(root, '.gas-portal-dashboard');
+                fetch(apiUrl + '/api/public/portal/me', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) {
+                        try { sessionStorage.removeItem('gas_portal_token'); } catch(e){}
+                        showStep(root, '.gas-portal-lookup');
+                        return;
+                    }
+                    gasPortalRenderDashboard(root, data);
+                }).catch(function(err){
+                    root.querySelector('.gas-portal-current-booking').innerHTML = '<p style="color:#c00">Failed to load: ' + err.message + '</p>';
+                });
+            }
+
+            function gasPortalRenderDashboard(root, data) {
+                var b = data.booking || {};
+                var g = data.guest || {};
+                var name = (g.first_name || b.guest_first_name || '') + ' ' + (g.last_name || b.guest_last_name || '');
+                root.querySelector('.gas-portal-greeting').textContent = name.trim() ? ('Hello ' + name.trim().split(' ')[0]) : 'Your stay';
+                root.querySelector('.gas-portal-property-name').textContent = b.property_name + (b.room_name ? ' · ' + b.room_name : '');
+
+                var nights = '';
+                if (b.arrival_date && b.departure_date) {
+                    nights = Math.max(0, Math.round((new Date(b.departure_date) - new Date(b.arrival_date)) / 86400000));
+                }
+                var statusBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.75rem;background:'
+                    + (b.status === 'confirmed' ? '#dcfce7;color:#166534' : '#fef3c7;color:#92400e') + ';">' + (b.status || '—') + '</span>';
+                var balance = parseFloat(b.balance_due || 0);
+                var balanceLine = balance > 0
+                    ? '<div style="margin-top:0.75rem;padding:0.6rem;background:#fef3c7;border-radius:8px;font-size:0.9rem;color:#92400e;"><strong>' + fmtMoney(balance, b.currency) + '</strong> due at check-in</div>'
+                    : (parseFloat(b.deposit_paid || 0) > 0 ? '<div style="margin-top:0.75rem;padding:0.6rem;background:#dcfce7;border-radius:8px;font-size:0.9rem;color:#166534;">✓ Fully paid</div>' : '');
+
+                root.querySelector('.gas-portal-current-booking').innerHTML =
+                    '<div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">'
+                    + '<div><strong style="font-size:1.05rem;">' + fmtDate(b.arrival_date) + ' → ' + fmtDate(b.departure_date) + '</strong><br>'
+                    + '<span style="font-size:0.85rem;color:#64748b;">' + nights + ' night' + (nights === 1 ? '' : 's') + ' · '
+                    + (b.num_adults || 1) + ' adult' + ((b.num_adults || 1) === 1 ? '' : 's')
+                    + (b.num_children ? ' · ' + b.num_children + ' child' + (b.num_children === 1 ? '' : 'ren') : '')
+                    + '</span></div>'
+                    + '<div style="text-align:right;"><strong style="font-size:1.05rem;">' + fmtMoney(b.grand_total, b.currency) + '</strong><br>' + statusBadge + '</div>'
+                    + '</div>'
+                    + '<div style="margin-top:0.5rem;font-size:0.85rem;color:#64748b;">Ref: GAS-' + b.id + (b.channel ? ' · via ' + b.channel : '') + '</div>'
+                    + balanceLine;
+
+                // Profile form values
+                root.querySelector('.gas-portal-pf-first').value = g.first_name || b.guest_first_name || '';
+                root.querySelector('.gas-portal-pf-last').value = g.last_name || b.guest_last_name || '';
+                root.querySelector('.gas-portal-pf-phone').value = g.phone || b.guest_phone || b.guest_mobile || '';
+                root.querySelector('.gas-portal-pf-email').textContent = g.personal_email || (data.proxy_email ? '(not set — your booking uses an OTA address)' : (g.email || b.guest_email || '—'));
+
+                // History
+                var hist = root.querySelector('.gas-portal-history');
+                var others = data.other_bookings || [];
+                if (others.length === 0) {
+                    hist.innerHTML = '';
+                } else {
+                    hist.innerHTML = '<h4 style="margin:0 0 0.5rem;font-size:0.95rem;">Past & upcoming stays</h4>'
+                        + '<div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">'
+                        + others.map(function(o){
+                            return '<div style="padding:0.75rem 1rem;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;gap:1rem;font-size:0.9rem;">'
+                                + '<div>' + fmtDate(o.arrival_date) + ' → ' + fmtDate(o.departure_date) + '<br><span style="font-size:0.8rem;color:#64748b;">' + (o.property_name || '') + (o.room_name ? ' · ' + o.room_name : '') + '</span></div>'
+                                + '<div style="text-align:right;">' + fmtMoney(o.grand_total, o.currency) + '<br><span style="font-size:0.75rem;color:#64748b;">' + (o.status || '') + '</span></div>'
+                                + '</div>';
+                        }).join('')
+                        + '</div>';
+                }
+            }
+
+            window.gasPortalSaveProfile = function(ev, form) {
+                ev.preventDefault();
+                var root = $root(form);
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                fetch(apiUrl + '/api/public/portal/profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: token,
+                        first_name: form.first_name.value.trim(),
+                        last_name: form.last_name.value.trim(),
+                        phone: form.phone.value.trim()
+                    })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (data.success) {
+                        var saved = root.querySelector('.gas-portal-profile-saved');
+                        saved.style.display = '';
+                        setTimeout(function(){ saved.style.display = 'none'; }, 2000);
+                    }
+                });
                 return false;
             };
 
@@ -9391,6 +9579,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 try { sessionStorage.removeItem('gas_portal_token'); } catch(e){}
                 location.reload();
             };
+
+            // Auto-restore session on page load: if we have a token, go straight
+            // to dashboard. Removes the "have to sign in every refresh" annoyance.
+            (function autoRestore(){
+                var root = document.querySelector('.gas-portal');
+                if (!root) return;
+                if (sessionStorage.getItem('gas_portal_token')) gasPortalLoadDashboard(root);
+            })();
         })();
         </script>
         <?php
