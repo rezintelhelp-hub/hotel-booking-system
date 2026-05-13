@@ -1,0 +1,551 @@
+# GAS — The TREE Strategy
+
+*The architectural, commercial and product strategy for Global Accommodation Systems, expressed through the TREE metaphor.*
+
+*Maintained by Steve Driver. Last updated May 2026.*
+
+---
+
+## Why "TREE"
+
+Most SaaS describes itself as a *platform*, *stack*, or *engine*. Those metaphors are cold, mechanical, and they map poorly to the actual hospitality business they serve. A hotel — especially an independent, owner-operated one — is a living, place-based, seasonal enterprise. The tree metaphor captures that, and it also captures the real architecture of GAS.
+
+| Part of the tree | What it is in GAS |
+|---|---|
+| **Roots** | Google, Apple, Bing, Meta — the directories, analytics, search, business profiles. Nutrients in (traffic, data) and nutrients out (NAP, photos, schema, signals). Hidden but everything depends on them. |
+| **Soil** | The wider internet — the medium everything grows in. Channel managers, OTAs, social platforms, payment networks. |
+| **Trunk** | The website itself — the canonical surface, the structural identity. The PMS-as-website. |
+| **Branches** | The functional surfaces — room pages, booking widget, blog, attractions, contact, calendar. |
+| **Leaves** | Content — descriptions, photos, posts, alt text, multilingual copy. Renewed seasonally. |
+| **Flowers** | Marketing surfaces — campaigns, ads, social posts, email. Bright, attention-grabbing, seasonal. |
+| **Fruit** | Bookings — the harvest. Revenue outcome. |
+| **Sunlight** | Guest attention. SEO and ads channel it onto the tree. |
+| **Pruning** | Site Audit Pro — cutting deadwood, broken links, weak meta, stale content, missing alt text. |
+| **Pollination** | Cross-site references, partner networks, agency referrals — connections between trees. |
+| **Seeds** | New sites being spun up — Airbnb-to-website, agency referrals, organic growth. |
+| **A grove** | An agency's portfolio — Elevate Schweiz, a destination consortium, a multi-property owner. |
+| **A forest** | The whole GAS network at scale. |
+| **GAS itself** | The substrate. Earth, water, the mycelial layer connecting the roots. Not a *system* — the soil that *systems* grow in. |
+
+The metaphor is structural, not decorative. Each part of it maps to a real architectural decision and an actual product surface. The metaphor is used in marketing copy and brand storytelling. It is **not** used in UI labels — keep functional names (Site Audit, Inbox, Bookings) so support docs work.
+
+---
+
+## Three architectural truths under the tree
+
+### 1. The website IS the PMS
+
+Traditional PMS architecture:
+
+> Database → admin UI → "booking engine widget" bolted on → marketing site built separately → channel manager pulls/pushes to the database → analytics tools scrape the website.
+
+Five systems glued together. The website is downstream of the data. That's Mews, Cloudbeds, Opera, Protel, Little Hotelier.
+
+GAS architecture:
+
+> The website *is* the data. Rooms, rates, content, bookings, calendar, payments, comms — all live where they're displayed. Admin is an overlay on the same surface. The booking engine isn't embedded *in* the site; the site *is* the booking engine.
+
+This isn't a feature decision — it's the foundational architectural difference. Every other competitive advantage downstream of it follows from it.
+
+### 2. Systems (plural), not System (singular)
+
+- **System (singular)** = one platform; hotels are tenants on it. That's Mews, Cloudbeds, Hostaway. "Welcome to our system, you're on it now."
+- **Systems (plural)** = each property runs its own system. GAS is the substrate, not the system. Each `deployed_site` is its own PMS, its own website, its own brand, its own admin. They share infrastructure, but the *system* belongs to the client.
+
+That's why the company is **Global Accommodation Systems**, plural. It's not naming convention — it's the product thesis.
+
+Practical implications:
+- Custom domains by default (`hotelbalduin.de`, `hebdenbridgehostel.custom.gas.travel`) — each hotel's URL, not `gas.travel/yourhotel`
+- Account-scoped data (`account_id` is sovereign, not a tenant key)
+- WordPress multisite — each blog is genuinely its own install, just sharing infrastructure
+- Three product tiers + custom bespoke — each client's *system* can be totally different
+- Plugin-Only product — even literally separable; "your system" can run inside your own WP install with GAS as just the booking brain
+- The lock-in objection dies — buyers can theoretically leave with their own system intact
+
+### 3. Built for guests, not for back office
+
+Mews's customer is the operator. The operator's customer is the guest. Mews built a product for their customer and forgot about their customer's customer.
+
+GAS UI = guest-facing surface that the owner edits. There is no parallel reality. What the owner sees in the editor is what the guest sees on the site, with a thin operations overlay for back-office tasks.
+
+**Brand line:** *"Mews is for hotels with staff. GAS is for hotels with owners."*
+
+---
+
+## The competitive wedge
+
+### What Mews and similar systems get wrong
+
+Mews picks up at the front desk and drops off at checkout. Everything **before** the booking (discovery, content, conversion) — which is where independent hotels actually bleed revenue — and everything **after** the stay (reviews, retention, loyalty) — which is where they fail to compound — is "use the marketplace".
+
+| Stage | Mews | GAS |
+|---|---|---|
+| **Discovery** (SEO, ads, content) | "Not our problem — use the marketplace" | Built in |
+| **Decision** (photos, descriptions, reviews) | "Use a CMS / use Revinate" | The website IS the decision surface |
+| **Booking** | Basic widget, treated as checkbox | Core surface, opinionated, mobile-first |
+| **Pre-stay comms** | "Use a third party" | Inbox + email |
+| **Check-in** | Heavy focus — their strength | Lite |
+| **In-stay** | POS, in-room services, billing | Out of scope (deliberate) |
+| **Review request** | "Use TrustYou" | Built in via Revyoos/Repuso partners |
+| **Return / loyalty** | "Use a CRM" | Built in (Guest 360) |
+
+Mews charges per room per month. Their economics reward more rooms under management. Their economics do not reward a guest actually booking. GAS economics (subscription + payment fees + booking-driven add-ons) reward conversion. That alignment shapes every product decision over years.
+
+### The segment Mews ignores
+
+Mews is built for 30-300 room properties with staff. The PMS is the heart.
+
+GAS is built for 3-30 room properties, owner-operated, no IT person, owner has 30 minutes a week for marketing. The website + bookings is the heart, PMS-light is fine.
+
+Mews onboarding is 6-12 weeks with a consultant. GAS onboarding is 5 minutes from an Airbnb URL. That contrast alone defines the wedge.
+
+**Don't compete with Mews on their turf.** Compete on the segment they can't profitably serve. AI lets one person + a system do what previously took a team — that's the unfair advantage in this segment.
+
+---
+
+## The "no gaps" principle
+
+If you leave gaps, things fail.
+
+For the GAS target segment (owner-operator, 3-30 rooms, no IT person), coverage has to be **complete**. Every gap is the same as Mews's 6-week onboarding gap: the moment the user hits a wall and has to open Mailchimp / SEMrush / a spreadsheet / "ask Steve for help" — the promise breaks and they drift back to the tool soup they were trying to escape.
+
+The rule isn't "do everything Mews does". The rule is **no gaps in the owner-operator workflow**.
+
+"No gaps" doesn't mean GAS builds every gap itself. It means every gap is *covered*. Three patterns:
+
+| Pattern | When | Examples |
+|---|---|---|
+| **Build it** | GAS has the data nobody else does | PMS, website, bookings, CRM, calendar, audit |
+| **Partner with margin** | Someone else owns the integration, GAS gets reseller cut | Domains (OpenSRS), email (Workspace), payments (Stripe Connect) |
+| **Partner without margin** | Commodity integration depth matters more than economics | Channex (CM distribution), Revyoos/Repuso (review aggregation) |
+
+The "no gaps" principle is also a revenue principle. Every workflow that pushes the user to a third-party tool is a margin leak. Every gap closed = one more recurring margin line.
+
+---
+
+## The "Click Click Website" flow
+
+The category-creating capability. Paste an Airbnb URL, get a working booking-capable website in under 5 minutes. Nobody else does this — Lodgify is closest at hours-to-days, Hostaway/Hostfully require sales calls, Mews is 6-12 weeks.
+
+### How it works (built today)
+
+Channex is one of Airbnb's certified Connectivity Partners. GAS uses Channex's official OAuth flow — not scraping.
+
+1. **Click 1 — Connect Airbnb** — `POST /api/admin/channex/:connId/airbnb/connect`. Generates OAuth token, calls Channex's `getAirbnbConnectionLink`, returns Airbnb OAuth URL. User authorises in Airbnb → Channex creates channel → callback to GAS persists channel ID.
+2. **Pick listing** — `GET /api/admin/channex/channel/:id/airbnb/listings`.
+3. **Import listing** — `POST /api/admin/channex/channel/:id/airbnb/import`. Pulls full `listing_details` from Channex (Airbnb's official data). Creates `properties`, `bookable_units`, `room_images`, `gas_sync_channel_mappings`. Strips Airbnb's `aki_policy` compression on image URLs → full-res photos. Account-scoped via connection (not client-supplied) for safety.
+4. **Click 2 — Create Website** (Web Builder). Auto-populates all settings from imported data via standard defaults. Spins up multisite blog. Site live on `{slug}.sites.gas.travel`.
+
+### Standard defaults that auto-populate (no user input needed)
+
+| Setting | Source |
+|---|---|
+| Site title | `property.name` |
+| Hero image | `room_images` where `is_primary = true` |
+| Hero title | `property.name + ', ' + property.city` |
+| Hero subtitle | First sentence of `bookable_unit.short_description` |
+| Hero CTA | "Book now" → wired to booking widget |
+| About text | `bookable_unit.full_description` |
+| About image | Second non-primary `room_images` row |
+| Rooms grid | Auto from `bookable_units` |
+| Contact map | `property.latitude`, `property.longitude` |
+| Contact address | `property.address`, `city`, `country` |
+| Currency | `property.currency` (from Airbnb `pricing.listing_currency`) |
+| Default language | English; auto-translate later |
+| Meta title | `{property.name} | {city}` truncated to 60 chars |
+| Meta description | First 155 chars of `short_description` |
+| OG image | Same as hero image |
+| Time zone | Derived from lat/lng |
+| Check-in / out | 15:00 / 11:00 industry default |
+| Theme | `gas-theme-developer-light` |
+| Subdomain | `slugify(property.name) + '.sites.gas.travel'` |
+
+User chooses **zero** settings to publish a working site. Settings are the *reward* of having a live site, not the *gate* to it. Reverses standard SaaS-onboarding.
+
+### Day 2 steps (not required for first publish)
+
+- Custom domain (via registrar reseller API — partner play, see Revenue Stack)
+- Stripe Connect (already built — OAuth, no API keys)
+- Additional languages (auto-translate via existing AI)
+- Brand colour customisation
+- Repuso/Revyoos widget code for reviews
+
+### Why this is defensible
+
+Anyone catching up has to build: Channex-level OAuth, multisite infrastructure, theme system, booking widget, content auto-derivation, smart defaults, image-URL high-res unpacking. Plus get through Airbnb's certified-partner program. Lodgify could in theory close the gap but their pricing model rewards slow funnels. Hostaway/Hostfully are moving upmarket. By the time anyone wakes up, GAS owns the brand line.
+
+**The product line:** *"Connect your Airbnb. Click Create. Your website is live."*
+
+---
+
+## Multi-CM unified-demand-side
+
+SiteMinder / Channex unify the SUPPLY side — one CM connection → many OTAs.
+GAS unifies the DEMAND side — one website → many CMs underneath.
+
+Combined, GAS clients have full distribution flexibility in both directions. Nobody else offers both ends.
+
+### What multi-CM-on-one-site unlocks
+
+Three new product categories with no clean home today:
+
+1. **Multi-property owners with mixed CMs** — hotel on Beds24, cottage on Hostaway; doesn't want to migrate either. Today they have two websites. With GAS, one site.
+2. **Property management companies (PMCs)** — managing properties for different owners, each owner has their own CM contract. PMC needs a single branded site. Today they can't.
+3. **Destination / consortium sites** — "Places to stay in Hebden Bridge", "Boutique hostels of the Cotswolds". Multiple independent operators, different CMs, pooled marketing under one site. Direct bookings, no OTA cut. **Potential product line: "GAS Destinations".**
+
+### CM-coverage strategy
+
+Every CM not supported = a customer who can't use the unified-site feature. CM-adapter breadth becomes a real competitive parameter.
+
+| Tier | Provider | Role |
+|---|---|---|
+| **Entry (Tier 0)** | GAS CM (Channex-backed) | For hosts with no CM yet — the "click click website" entry |
+| **Pro (Tier 1)** | Beds24, Hostaway, Hostfully | Direct integrations for operators with existing pro CM |
+| **Pro Compatible (Tier 1.5)** | Smoobu, Lodgify (Calry-routed) | Smaller mid-tier CMs |
+| **Scale / Long Tail (Tier 2)** | Channex multi-aggregation | Long-tail OTAs and CMs via Channex's certified ecosystem |
+
+Same GAS surface, swap the CM underneath. The user doesn't see the difference.
+
+### Marketing the CM strategy
+
+Don't advertise GAS-the-CM as a Beds24/Hostaway competitor. Frame it as "for hosts who don't have a channel manager yet". Tells partners they're not being attacked. Tells Airbnb-only hosts they have an on-ramp.
+
+**Brand line:** *"Bring your channel manager. Or none. Or several. Build one site that works with all of them."*
+
+---
+
+## Revenue stack — the Shopify model
+
+Subscription is the wedge. The ecosystem is the business. Shopify makes ~3-4× more from non-subscription revenue (payments, apps, shipping, capital, hardware) than from subscription. GAS has the same shape available.
+
+| Stream | Mechanism | Status |
+|---|---|---|
+| **Subscriptions** | Standard / Pro / Bespoke tiers + Plugin-Only | Built |
+| **Payments (Stripe Connect)** | Currently Standard OAuth; switch to Express → `application_fee_amount` ~0.5-1% per booking | OAuth built, fee uplift planned |
+| **Domains** | OpenSRS / Namecheap reseller — ~$3-7/yr per .com margin, plus renewals forever | Planned |
+| **Email hosting** | Google Workspace / Microsoft 365 reseller — ~$5-6 wholesale, $10-15 retail | Planned |
+| **OTA distribution** | Channex passthrough, potentially margin | Built (passthrough) |
+| **AI features** | Pro tier upsell + per-use credits | Partial |
+| **Site Audit Pro / Inbox / Ads Reporting** | Add-on subscriptions | Spec'd / planned |
+| **White-label / agency tier** | Highest-margin per seat | Planned |
+| **Marketplace later** | Third-party app revenue share | Long-term |
+
+Every stream recurs. Every stream compounds with site count.
+
+### The compounding case
+
+At 1,000 sites:
+- ~$6,000/yr domain margin
+- ~$18,000/yr Workspace margin (30% conversion @ $5/mo margin)
+- ~Variable payments margin at ~1% of booking volume
+- ~Subscription baseline
+- Add-on subscriptions per pro user
+
+Plus stickiness: moving away from GAS now means migrating the domain AND the email AND the booking history AND the CMS — high switching cost.
+
+---
+
+## Adjacent ecosystem propagation
+
+GAS is the canonical business identity surface. The hotel's identity (NAP, photos, descriptions, hours, social handles) is set once in GAS, propagated outward.
+
+```
+              ┌─ Google Workspace (email)
+              ├─ Google Business Profile (Maps + Search)
+              ├─ Google Hotel Ads / Free Booking Links
+              ├─ Google Search Console
+              ├─ Google Analytics 4
+              ├─ Google Tag Manager
+              │
+GAS ─ NAP ────┼─ Apple Business Connect (Maps)
+  + photos    ├─ Apple Wallet (booking passes)
+  + hours     │
+  + desc      ├─ Bing Places
+              ├─ Bing Webmaster Tools
+              │
+              ├─ Meta Business (FB/IG)
+              ├─ TripAdvisor
+              ├─ Booking.com (via Channex)
+              ├─ Airbnb (via Channex)
+              ├─ Vrbo (via Channex)
+              ...
+```
+
+### Already wired
+
+- Google Search Console (OAuth) — `/api/admin/seo/keywords|pages|summary|opportunities`
+- Google Analytics 4 (OAuth) — `/api/admin/seo/ga4-stats`
+- Google PageSpeed Insights — `/api/admin/seo/pagespeed`
+- Stripe Connect Standard (OAuth)
+- Channex (Airbnb + Booking.com via certified partner)
+- Facebook Pixel ID (storage, not yet firing events)
+
+### Gaps to close
+
+- **Google Business Profile push** — huge value, low effort, uses existing data
+- **Google Hotel Ads / Free Booking Links** — high revenue impact, larger build
+- **Apple Business Connect** — first-mover edge, under-served by every competitor
+- **Bing Places / Webmaster** — cheap follow-on after Google
+- **Meta Business sync** — FB/IG presence, event firing on Pixel
+- **TripAdvisor** — biggest hotel review platform, partner via Revyoos/Repuso
+
+Yext / Moz Local / BrightLocal charge $500-2000/yr for listing management. GAS delivers it as a side-effect of already having all the data — bundle into Pro or sell as agency add-on.
+
+---
+
+## Phased product roadmap
+
+Each phase shippable independently, each phase compounds with previous.
+
+| Phase | Product | Sells as | Notes |
+|---|---|---|---|
+| 0 | CM Calendar reporting | Pro tier feature | In flight (needed for Hebden) |
+| 1 | **Site Audit Pro** — crawler, broken images/links, alt coverage, meta/OG/JSON-LD presence | Pro tier or £19/mo add-on | Pruning the tree |
+| 2 | **Attribution** — UTM capture in checkout, booking source, fire GA4 conversion events with revenue | Free part of Pro | The killer feature — only GAS knows source × booking × revenue |
+| 3 | **Guest CRM (Guest 360)** | Foundation feature | Connective tissue for several others |
+| 4 | **Email marketing** — newsletter, re-engagement, abandoned booking recovery | £19/mo add-on | Runs on Guest CRM |
+| 5 | **Social media** — AI-generated posts from GAS events, photo library reuse, direct booking CTAs | £19/mo add-on | Flowers |
+| 6 | **Repeat guest / loyalty engine** | Built into Pro | Compounding revenue from existing customers |
+| 7 | **Review management depth** — Repuso/Revyoos partner, AI responses, sentiment trending | Bundled into Pro | Reputation |
+| 8 | **Revenue management / dynamic pricing** — AI-driven pricing recommendations | £39/mo add-on or Pro+ tier | Biggest AI moat |
+| 9 | **SEO Insights** — Mike Futia-style gap_finder logic in JS, weekly content briefs | Part of Site Audit Pro | Roots data → leaves prescription |
+| 10 | **Ads Reporting** — Google Ads + Meta Ads read-only API, ROAS, cost-per-booking | £39/mo add-on | Reporting only — never compete with Google Ads Editor |
+| 11 | **Client Reports** — weekly auto-PDF (audit + analytics + ads + bookings) | Part of Pro / agency upsell | Helps agencies justify their fee to property owners |
+| 12 | **Agency mode** — submaster admin sees N client dashboards, white-label, agency billing | "GAS for Agencies" £99-199/mo | Tend your grove |
+| 13 | **Check-in / check-out flow** — digital pre-arrival, ID upload, door codes, Wallet pass | Pro add-on | Matters above 5 rooms |
+| 14 | **Housekeeping** — room status, cleaner schedule, supplies | Pro add-on | B&Bs / hostels need this |
+| 15 | **Tax / accounting integration** — Xero, QuickBooks, invoices | Built into Pro | Dull, critical |
+| 16 | **Group bookings / events** — wedding packages, function rooms, multi-room reservations | Pro add-on | Boutique hotels / venues |
+| 17 | **GAS Destinations** — consortium/destination product variant | Separate tier | Tourism boards, town consortiums |
+| 18 | **Marketplace / API** — third-party developers extend GAS | Revenue share | Long-term, Mews-style |
+
+Phases 0-3 are the immediate focus. The rest sequence as time allows, never in horizontal slices — always vertical (one customer end-to-end) before broadening.
+
+---
+
+## CRM as the spine
+
+Guest CRM (Guest 360) deserves separate emphasis because it's the connective tissue under half the roadmap.
+
+| Feature | Needs Guest CRM |
+|---|---|
+| Repeat guest / loyalty engine | Yes |
+| Email marketing | Yes (segments built on CRM) |
+| Review management | Yes (reviews tie back to guests) |
+| Social media testimonials | Yes |
+| Unified Inbox threads | Yes (messages attach to guests) |
+| Attribution / analytics | Yes (LTV per source) |
+
+Without it, each of those features rebuilds its own partial guest view and they don't reconcile. With it, every feature gets richer for free.
+
+### Guest 360 view
+
+```
+[Jane Smith]                    Lifetime value: £2,840
+[email] [phone] [GDPR consent]   First seen: Jun 2023
+                                Stays: 3 (last: Mar 2026)
+TAGS: [Returning] [Family]      Source: Direct (was Booking.com)
+
+Bookings (3)        ─── all rooms, dates, revenue, status
+Messages (14)        ─── from Inbox, all channels
+Reviews (2)          ─── 5-star, 4-star
+Marketing sent (5)   ─── opens, clicks, conversions
+Notes               ─── "Allergic to nuts. Daughter's birthday Oct."
+```
+
+Data already exists in fragments: `guests`, `bookings`, planned Inbox, Beds24-sourced reviews, affiliate referrals. Missing: unified surface + `guest_notes` + `guest_tags` tables.
+
+### AI on top of CRM
+
+Where Mews can't keep up:
+- "Find guests who stayed in October and haven't been back — draft personalised emails in their language"
+- "Which guests are at risk of churning?"
+- "Suggest a thank-you message for Jane Smith's third stay, mention her daughter"
+- "Which acquisition source has the best LTV?"
+
+CRM isn't just a feature — it's the substrate AI runs on for retention/marketing tasks.
+
+---
+
+## Partner strategy
+
+### Reviews — partner without margin
+
+**Repuso** (Spain/EU strong) and **Revyoos** (broader hotel-focused) both aggregate from 100+ OTAs with schema.org markup for SEO rich snippets. Adapter pattern: `reviews-adapter` interface with multiple implementations, mirroring the CM adapter pattern.
+
+Current state: Repuso account creation via their API, widget embed code manual paste (works in production today). Push partner for API improvement; the workaround is fine until then. Reviews are optional add-on, not critical path — doesn't break 5-minute demo.
+
+### Channel managers — partner without margin
+
+Channex is foundational. Certified Airbnb Connectivity Partner. Provides the official API access GAS could never get directly. Without margin (their pricing is at-cost partnership) but GAS captures the value via everything built on top.
+
+Direct CM integrations (Beds24, Hostaway, Hostfully) — direct APIs. Calry-routed for Smoobu/Lodgify.
+
+### Domains — partner with margin
+
+**OpenSRS (Tucows)** or **Namecheap Reseller** for wholesale domain registration. ~$3-7/year margin per .com, recurring forever on renewals. Avoid GoDaddy (poor reseller margins) and Cloudflare Registrar (at-cost, no margin).
+
+123-Reg (Newfold Digital) — not the right partner for embedding. Fine for personal/internal use.
+
+### Email — partner with margin
+
+**Google Workspace Reseller** or **Microsoft 365 CSP** for mailboxes. ~$5-6/user/mo wholesale, $10-15 retail. Plus forwarding-only option via the domain registrar for cheap-tier customers.
+
+Three-tier email product:
+1. **Forwarding** — free or £5-10/yr, MX record on the domain
+2. **Real mailbox** — Workspace or 365 under the hood, £10-15/mo retail
+3. **Integrated Inbox** — emails threaded into GAS Unified Inbox alongside WhatsApp/FB/booking threads
+
+Tier 3 is the differentiator nobody else has.
+
+### Payments — partner with margin (Stripe Connect)
+
+Already built (OAuth Standard). Migration to Express unlocks `application_fee_amount` on every charge — automatic platform fee. ~0.5-1% per booking is industry-standard for SaaS that hosts payments.
+
+---
+
+## What GAS deliberately does NOT do
+
+| Not us | Why | What instead |
+|---|---|---|
+| **POS / restaurant / bar** | Toast / Square own this | Integrate, don't compete |
+| **Smart locks / IoT hardware** | Hardware is a different business | Integrate via Igloohome / Nuki / etc. |
+| **Insurance products** | Regulated, slow to build | Referral commission only |
+| **Front desk hardware** (key cards, room phones) | Not the segment | Out of scope |
+| **30-300 room enterprise PMS** | Mews's turf | Define explicit ceiling: "we serve 3-30 rooms" |
+| **Google Ads campaign management** | Compete with Google Ads Editor and lose | Read-only reporting only |
+| **Become an email service provider** | Deliverability hell, support burden | Resell Workspace / 365 |
+
+Knowing what you don't do is as important as knowing what you do. Keeps the brand sharp.
+
+---
+
+## Risks and dependencies
+
+### 1. Bus factor
+
+One person + Claude is the team. Works at 50 sites; doesn't at 500. Will be asked by any agency / tourism board / enterprise prospect. Not "hire today" but plan for documented code paths, an explicit succession story, and a first-hire profile (customer-facing technical + docs).
+
+### 2. Acquisition channel
+
+Word-of-mouth and referrals get you 0→50 customers. Not 0→500. Needs a deliberate channel — SEO content on gas.travel, YouTube of the 5-minute demo, Channex co-marketing, agency partnerships. Without one, the tree has soil but no sunlight.
+
+### 3. Onboarding past the wow
+
+5-minute import gets them a site. Then what? Most SaaS dies between week 2 and week 6. Need an activation funnel: site live → first OTA → first booking → first message in Inbox → first month of analytics → renewal. Each step needs a nudge.
+
+### 4. Pricing matrix complexity
+
+Tiers + add-ons + reseller margins + transactional fees can become baroque. Successful SaaS keeps it to 3-4 tiers + 1-2 add-ons max. Consolidate before adding more.
+
+### 5. Channex / Airbnb concentration
+
+Two providers underpin huge swathes of the stack. If Channex changes pricing, gets acquired, deprecates an adapter — problem. If Airbnb decides "no, certified partners can't export listings to competing direct-booking sites" — bigger problem. Contingency: route via direct CM integrations + iCal fallback for any property.
+
+### 6. Data portability as a trust signal
+
+"Your systems, not our system" promises that leaving is possible. Need to build export — CSV of bookings, properties, guests, content. Most SaaS hasn't; absence is increasingly a buying objection. Building it ahead of time is a small project that doubles as a trust signal and a positioning lever.
+
+### 7. Support model at scale
+
+Steve handles support today. AI Chat helps. KB helps. At what scale do you tier (community → email → priority phone)? At what scale do you SLA (99.9% uptime, X-hour response)? Both are revenue levers and procurement requirements.
+
+### 8. The gas.travel site itself
+
+It's the conversion funnel for everything. Needs hard look — product story crisp, 5-minute demo video visible, pricing page, signup flow, trust signals.
+
+### 9. Mews can copy the 5-minute thing within a quarter
+
+If GAS gets visibility. The moat isn't the feature; it's brand + speed of iteration + bundled depth + the architectural inversion underneath it. Lead with all four, not just the feature.
+
+### 10. The AI moat is under-articulated
+
+Currently: AI Chat, AI translation, AI blog generation — all table-stakes. The real moat: AI revenue management, AI review responses, AI guest pre-stay automation, AI competitor monitoring, AI marketing spend optimisation, AI anomaly detection, AI photo enhancement, AI auto-fill of empty Web Builder fields. 500-engineer companies can't move at this pace. Deserves a dedicated track in the roadmap.
+
+---
+
+## Brand language
+
+| Use | Line |
+|---|---|
+| **Architectural thesis** | "Your website is your PMS." |
+| **Audience positioning** | "Mews is for hotels with staff. GAS is for hotels with owners." |
+| **Plurality** | "GAS gives every accommodation provider, anywhere, their own system." |
+| **CM flexibility** | "Bring your channel manager. Or none. Or several. Build one site that works with all of them." |
+| **Click Click Website** | "Connect your Airbnb. Click Create. Your website is live." |
+| **Agency mode** | "Tend your grove." |
+| **Destination sites** | "A forest of independent places to stay." |
+| **Site Audit Pro** | "Healthy trees bear more fruit." |
+| **Guest-centric** | "Built for guests, not for back office." |
+
+Use the tree language in marketing copy, brand storytelling, and architectural explanations. Don't embed it in functional UI labels — Booking tab is "Bookings", not "Fruit".
+
+---
+
+## Honest read of where GAS sits today
+
+**Strong:**
+- Architectural foundation (website = PMS, systems plural, guest-first)
+- Channex Airbnb integration done with real polish (image high-res unpacking, account-scoped safety, OAuth resumption)
+- Stripe Connect wired (no API keys, OAuth)
+- GSC + GA4 + PageSpeed wired
+- Pro Site Builder Phase 1 & 2 done
+- Multilingual + multi-currency + multi-region
+- Custom domain auto-provisioning on VPS (Nginx + SSL)
+- WordPress multisite proven (separate themes, separate domains)
+- AI Chat + KB live
+- gas-template-push plugin proven (Hebden Bridge)
+
+**Build phase:**
+- CM Calendar reporting (Hebden need)
+- Pro Site Builder Phase 3-5
+- Web Builder audit fixes (meta title/desc rendering — prerequisite to several features)
+- Unified Inbox spec → build
+- Hostvana E2E
+- Beds24 unit-level work
+
+**Architectural gaps to close:**
+- Meta title/desc rendering in developer themes
+- FAQ rendering
+- Footer layout toggle
+- Web Builder fields → theme parity (full audit done, fixes pending)
+
+**Functional gaps to fill (in roadmap order):**
+- Site Audit Pro
+- Attribution
+- Guest CRM
+- Email marketing
+- Social media
+- Repeat guest / loyalty
+- Review depth
+- Revenue management / dynamic pricing
+- Domain registrar integration
+- Email reseller integration
+- Google Business Profile push
+- Apple Business Connect
+- Bing Places
+- Meta Business sync
+
+**Structural gaps:**
+- Acquisition channel strategy
+- Bus-factor planning
+- Onboarding activation funnel
+- Pricing matrix consolidation
+- Data portability export
+- Support model and SLA
+
+---
+
+## How to use this document
+
+This document is the strategic frame. When making architectural or feature decisions, every question should pass through three filters in order:
+
+1. **Does it fit the architecture?** Website-is-PMS, systems-plural, guest-first. If a feature requires a separate admin-only data store that doesn't ever render on the website, that's a smell.
+2. **Does it close a gap or open one?** Features that close gaps in the owner-operator workflow are priorities. Features that fragment the workflow get parked.
+3. **Where does it sit on the tree?** Root (data feed)? Trunk (website)? Leaf (content)? Flower (marketing)? Fruit (booking)? Pruning (audit)? Knowing the answer tells you where it goes in the codebase and the product.
+
+Vertical slices over horizontal. One customer end-to-end before broadening. Hebden as proof, then second client onboards into a proven stack, not a half-finished one.
+
+---
+
+*"GAS isn't a software company that takes subscription fees. GAS is the operating system for independent hotels, and it captures margin on every infrastructure layer the hotel needs. Subscription is the wedge; the ecosystem is the business."*
