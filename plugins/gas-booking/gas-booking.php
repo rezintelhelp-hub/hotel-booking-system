@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.70
+ * Version: 3.7.71
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.70');
+define('GAS_BOOKING_VERSION', '3.7.71');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -9242,7 +9242,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
      * email) or accept the ref+surname combo (real email).
      */
     public function portal_shortcode($atts) {
-        $api_url = $this->get_api_url();
+        $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
         ob_start(); ?>
         <div class="gas-portal" data-api-url="<?php echo esc_attr($api_url); ?>" style="max-width:520px;margin:2rem auto;padding:2rem;background:#fff;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.08);font-family:inherit;">
             <h2 style="margin:0 0 0.5rem;font-size:1.6rem;">Guest Portal</h2>
