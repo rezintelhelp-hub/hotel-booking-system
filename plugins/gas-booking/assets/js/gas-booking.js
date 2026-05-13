@@ -5200,6 +5200,9 @@ jQuery(document).ready(function($) {
                 case 'flexible': return 'Full refund up to 24 hours before check-in';
                 case 'moderate': return 'Full refund up to 5 days before arrival';
                 case 'strict': return '50% refund up to 7 days before arrival';
+                case 'refund_90_14': return '90% refund up to 14 days before arrival';
+                case 'refund_90_30': return '90% refund up to 30 days before arrival';
+                case 'refund_90_60': return '90% refund up to 60 days before arrival';
                 case 'refund_60': return '100% refund up to 60 days before arrival';
                 case 'refund_30': return '100% refund up to 30 days before arrival';
                 case 'refund_14': return '100% refund up to 14 days before arrival';
