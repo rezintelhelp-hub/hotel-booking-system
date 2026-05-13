@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.69
+ * Version: 3.7.70
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.69');
+define('GAS_BOOKING_VERSION', '3.7.70');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -202,6 +202,7 @@ class GAS_Booking {
         add_shortcode('gas_attractions', array($this, 'attractions_shortcode'));
         add_shortcode('gas_attractions_categories', array($this, 'attractions_categories_shortcode'));
         add_shortcode('gas_footer', array($this, 'footer_shortcode'));
+        add_shortcode('gas_portal', array($this, 'portal_shortcode'));
         
         // AJAX handlers
         add_action('wp_ajax_gas_get_availability', array($this, 'ajax_get_availability'));
@@ -9228,6 +9229,168 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 .catch(function() {
                     document.getElementById('gas-attractions-list').innerHTML = '<p style="color: #ef4444; text-align: center; padding: 40px;">Error loading attractions.</p>';
                 });
+        })();
+        </script>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * Guest Portal — Phase 1 auth gate.
+     * Renders a two-step sign-in form: booking ref + last name → server
+     * decides whether to challenge with last-3 mobile digits (OTA proxy
+     * email) or accept the ref+surname combo (real email).
+     */
+    public function portal_shortcode($atts) {
+        $api_url = $this->get_api_url();
+        ob_start(); ?>
+        <div class="gas-portal" data-api-url="<?php echo esc_attr($api_url); ?>" style="max-width:520px;margin:2rem auto;padding:2rem;background:#fff;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.08);font-family:inherit;">
+            <h2 style="margin:0 0 0.5rem;font-size:1.6rem;">Guest Portal</h2>
+            <p style="margin:0 0 1.5rem;color:#64748b;font-size:0.95rem;">Sign in with your booking to manage your stay and shop add-ons.</p>
+
+            <!-- Step 1: Lookup -->
+            <form class="gas-portal-step gas-portal-lookup" onsubmit="return gasPortalLookup(event, this);">
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.4rem;font-size:0.9rem;">Booking reference</label>
+                    <input type="text" name="booking_ref" required placeholder="e.g. GAS-1361 or 81833862" autocomplete="off" style="width:100%;padding:0.7rem;border:1px solid #d1d5db;border-radius:8px;font-size:1rem;">
+                </div>
+                <div style="margin-bottom:1.5rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.4rem;font-size:0.9rem;">Last name on booking</label>
+                    <input type="text" name="last_name" required autocomplete="family-name" style="width:100%;padding:0.7rem;border:1px solid #d1d5db;border-radius:8px;font-size:1rem;">
+                </div>
+                <button type="submit" style="width:100%;padding:0.85rem;border:0;border-radius:8px;background:#0f172a;color:#fff;font-weight:600;font-size:1rem;cursor:pointer;">Continue</button>
+                <p class="gas-portal-error" style="display:none;color:#dc2626;margin:0.75rem 0 0;font-size:0.9rem;"></p>
+            </form>
+
+            <!-- Step 2a: phone last-3 challenge -->
+            <form class="gas-portal-step gas-portal-phone-challenge" style="display:none;" onsubmit="return gasPortalChallenge(event, this);">
+                <h3 style="margin:0 0 0.5rem;font-size:1.1rem;">Verify it's you</h3>
+                <p style="margin:0 0 1rem;color:#64748b;font-size:0.9rem;">Enter the last <strong>3 digits</strong> of the mobile on your booking <span class="gas-portal-phone-hint" style="color:#0f172a;font-weight:600;"></span></p>
+                <input type="tel" name="response" required pattern="[0-9]{3}" maxlength="3" inputmode="numeric" placeholder="123" autocomplete="one-time-code" style="width:120px;padding:0.7rem;border:1px solid #d1d5db;border-radius:8px;font-size:1.5rem;letter-spacing:0.3em;text-align:center;font-weight:600;">
+                <button type="submit" style="margin-left:0.75rem;padding:0.7rem 1.25rem;border:0;border-radius:8px;background:#0f172a;color:#fff;font-weight:600;cursor:pointer;">Sign in</button>
+                <p class="gas-portal-error" style="display:none;color:#dc2626;margin:0.75rem 0 0;font-size:0.9rem;"></p>
+            </form>
+
+            <!-- Step 2b: email-magic-link (Phase 1 v1 just signs in immediately;
+                 Phase 2 will add real magic-link email). -->
+            <form class="gas-portal-step gas-portal-email-challenge" style="display:none;" onsubmit="return gasPortalChallenge(event, this);">
+                <h3 style="margin:0 0 0.5rem;font-size:1.1rem;">Sign in</h3>
+                <p style="margin:0 0 1rem;color:#64748b;font-size:0.9rem;">We'll use the email on your booking: <strong class="gas-portal-email-hint"></strong></p>
+                <input type="hidden" name="response" value="ok">
+                <button type="submit" style="width:100%;padding:0.85rem;border:0;border-radius:8px;background:#0f172a;color:#fff;font-weight:600;font-size:1rem;cursor:pointer;">Continue</button>
+                <p class="gas-portal-error" style="display:none;color:#dc2626;margin:0.75rem 0 0;font-size:0.9rem;"></p>
+            </form>
+
+            <!-- Step 3: canonicalise personal email (only shown if guest came in via proxy) -->
+            <form class="gas-portal-step gas-portal-personal-email" style="display:none;" onsubmit="return gasPortalSavePersonalEmail(event, this);">
+                <h3 style="margin:0 0 0.5rem;font-size:1.1rem;">Confirm your email</h3>
+                <p style="margin:0 0 1rem;color:#64748b;font-size:0.9rem;">Your booking came in via an OTA proxy address. Please enter your own email so we can send receipts and future offers.</p>
+                <input type="email" name="personal_email" required autocomplete="email" placeholder="you@example.com" style="width:100%;padding:0.7rem;border:1px solid #d1d5db;border-radius:8px;font-size:1rem;margin-bottom:1rem;">
+                <button type="submit" style="width:100%;padding:0.85rem;border:0;border-radius:8px;background:#0f172a;color:#fff;font-weight:600;cursor:pointer;">Save and continue</button>
+                <p class="gas-portal-error" style="display:none;color:#dc2626;margin:0.75rem 0 0;font-size:0.9rem;"></p>
+            </form>
+
+            <!-- Phase 1 placeholder dashboard. Phase 3 replaces with full view. -->
+            <div class="gas-portal-step gas-portal-dashboard" style="display:none;">
+                <h3 style="margin:0 0 0.5rem;font-size:1.2rem;">You're signed in</h3>
+                <p style="color:#64748b;">Booking <strong class="gas-portal-booking-id"></strong> verified. Dashboard, add-on shop, and history coming next.</p>
+                <button type="button" onclick="gasPortalSignOut()" style="margin-top:1rem;padding:0.5rem 1rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;">Sign out</button>
+            </div>
+        </div>
+        <script>
+        (function(){
+            if (window.gasPortalLookup) return; // already wired (multiple shortcode instances)
+            var STATE = { bookingRef: '', lastName: '', authMethod: '', bookingId: null };
+
+            function $root(el) { return el.closest('.gas-portal'); }
+            function showStep(root, sel) {
+                root.querySelectorAll('.gas-portal-step').forEach(function(s){ s.style.display = 'none'; });
+                root.querySelector(sel).style.display = '';
+            }
+            function setError(form, msg) {
+                var p = form.querySelector('.gas-portal-error');
+                if (!p) return;
+                p.textContent = msg || '';
+                p.style.display = msg ? '' : 'none';
+            }
+
+            window.gasPortalLookup = function(ev, form) {
+                ev.preventDefault();
+                setError(form, '');
+                var root = $root(form);
+                var apiUrl = root.dataset.apiUrl;
+                STATE.bookingRef = form.booking_ref.value.trim();
+                STATE.lastName = form.last_name.value.trim();
+                fetch(apiUrl + '/api/public/portal/lookup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ booking_ref: STATE.bookingRef, last_name: STATE.lastName })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) { setError(form, data.error || 'Lookup failed.'); return; }
+                    STATE.authMethod = data.auth_method;
+                    STATE.bookingId = data.booking_id;
+                    if (data.auth_method === 'phone_last3') {
+                        root.querySelector('.gas-portal-phone-hint').textContent = data.phone_hint || '';
+                        showStep(root, '.gas-portal-phone-challenge');
+                    } else if (data.auth_method === 'email_magic_link') {
+                        root.querySelector('.gas-portal-email-hint').textContent = data.email_hint || '';
+                        showStep(root, '.gas-portal-email-challenge');
+                    } else {
+                        setError(form, data.message || 'We could not auto-verify this booking. Please contact your host.');
+                    }
+                }).catch(function(err){ setError(form, 'Network error: ' + err.message); });
+                return false;
+            };
+
+            window.gasPortalChallenge = function(ev, form) {
+                ev.preventDefault();
+                setError(form, '');
+                var root = $root(form);
+                var apiUrl = root.dataset.apiUrl;
+                fetch(apiUrl + '/api/public/portal/challenge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        booking_ref: STATE.bookingRef,
+                        last_name: STATE.lastName,
+                        auth_method: STATE.authMethod,
+                        response: form.response.value
+                    })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) { setError(form, data.error || 'Verification failed.'); return; }
+                    try { sessionStorage.setItem('gas_portal_token', data.token); } catch(e){}
+                    if (data.needs_personal_email) {
+                        showStep(root, '.gas-portal-personal-email');
+                    } else {
+                        root.querySelector('.gas-portal-booking-id').textContent = 'GAS-' + data.booking_id;
+                        showStep(root, '.gas-portal-dashboard');
+                    }
+                }).catch(function(err){ setError(form, 'Network error: ' + err.message); });
+                return false;
+            };
+
+            window.gasPortalSavePersonalEmail = function(ev, form) {
+                ev.preventDefault();
+                setError(form, '');
+                var root = $root(form);
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                fetch(apiUrl + '/api/public/portal/set-personal-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token, personal_email: form.personal_email.value.trim() })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) { setError(form, data.error || 'Could not save.'); return; }
+                    root.querySelector('.gas-portal-booking-id').textContent = 'GAS-' + STATE.bookingId;
+                    showStep(root, '.gas-portal-dashboard');
+                }).catch(function(err){ setError(form, 'Network error: ' + err.message); });
+                return false;
+            };
+
+            window.gasPortalSignOut = function() {
+                try { sessionStorage.removeItem('gas_portal_token'); } catch(e){}
+                location.reload();
+            };
         })();
         </script>
         <?php
