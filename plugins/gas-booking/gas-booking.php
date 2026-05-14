@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.77
+ * Version: 3.7.78
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.77');
+define('GAS_BOOKING_VERSION', '3.7.78');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3988,6 +3988,32 @@ class GAS_Booking {
     }
 
     /**
+     * Fetch the seo block from /api/public/client/.../site-config, cached for 5 min.
+     * Returns an associative array (possibly empty). Used by inject_analytics() so
+     * every site auto-injects the GA4 measurement ID created during the deploy flow,
+     * without per-site WP configuration.
+     */
+    public function get_site_config_seo() {
+        $cache_key = 'gas_booking_seo_' . get_current_blog_id();
+        $cached = get_transient($cache_key);
+        if (is_array($cached)) return $cached;
+
+        $client_id = get_option('gas_client_id', '');
+        if (empty($client_id)) return array();
+
+        $resp = wp_remote_get($this->get_site_config_url(), array('timeout' => 5, 'sslverify' => false));
+        if (is_wp_error($resp) || wp_remote_retrieve_response_code($resp) !== 200) {
+            // Cache empty result briefly so a flaky Railway doesn't hammer wp_remote_get on every page.
+            set_transient($cache_key, array(), 60);
+            return array();
+        }
+        $body = json_decode(wp_remote_retrieve_body($resp), true);
+        $seo = is_array($body) && isset($body['config']['seo']) ? $body['config']['seo'] : array();
+        set_transient($cache_key, $seo, 5 * MINUTE_IN_SECONDS);
+        return $seo;
+    }
+
+    /**
      * Get the effective button color - from API for GAS theme, or from WordPress option
      * This is used throughout the plugin for consistent button styling
      */
@@ -4442,8 +4468,31 @@ class GAS_Booking {
      * Inject Analytics Scripts (GA4, GTM, Facebook Pixel)
      */
     private function inject_analytics() {
+        // Resolution order for each tracking ID:
+        //   1. seo.google_analytics_id / seo.google_tag_manager_id / seo.facebook_pixel_id
+        //      from the Railway site-config response (the Web Builder → SEO Settings card).
+        //   2. seo.ga4_measurement_id — the auto-created GA4 property from the deploy flow
+        //      (deployed_sites.ga4_measurement_id). Only applies to GA4, no auto-create for
+        //      GTM or FB Pixel.
+        //   3. get_option('gas_google_analytics_id') etc. — legacy per-WP-site config so
+        //      sites that were configured the old way (before site-config exposed these)
+        //      keep working.
+        $seo = $this->get_site_config_seo();
+
+        $ga_id = '';
+        if (!empty($seo['google_analytics_id']))      $ga_id = $seo['google_analytics_id'];
+        elseif (!empty($seo['ga4_measurement_id']))   $ga_id = $seo['ga4_measurement_id'];
+        else                                          $ga_id = get_option('gas_google_analytics_id', '');
+
+        $gtm_id = !empty($seo['google_tag_manager_id'])
+            ? $seo['google_tag_manager_id']
+            : get_option('gas_google_tag_manager_id', '');
+
+        $fb_pixel = !empty($seo['facebook_pixel_id'])
+            ? $seo['facebook_pixel_id']
+            : get_option('gas_facebook_pixel_id', '');
+
         // Google Analytics 4
-        $ga_id = get_option('gas_google_analytics_id', '');
         if (!empty($ga_id)) {
             echo "<!-- Google Analytics -->\n";
             echo '<script async src="https://www.googletagmanager.com/gtag/js?id=' . esc_attr($ga_id) . '"></script>' . "\n";
@@ -4454,9 +4503,8 @@ gtag("js", new Date());
 gtag("config", "' . esc_js($ga_id) . '");
 </script>' . "\n";
         }
-        
+
         // Google Tag Manager
-        $gtm_id = get_option('gas_google_tag_manager_id', '');
         if (!empty($gtm_id)) {
             echo "<!-- Google Tag Manager -->\n";
             echo '<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
@@ -4465,9 +4513,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 "https://www.googletagmanager.com/gtm.js?id="+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,"script","dataLayer","' . esc_js($gtm_id) . '");</script>' . "\n";
         }
-        
+
         // Facebook Pixel
-        $fb_pixel = get_option('gas_facebook_pixel_id', '');
         if (!empty($fb_pixel)) {
             echo "<!-- Facebook Pixel -->\n";
             echo '<script>
