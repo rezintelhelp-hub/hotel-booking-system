@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.76
+ * Version: 3.7.77
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.76');
+define('GAS_BOOKING_VERSION', '3.7.77');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -6748,21 +6748,24 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             background: <?php echo esc_attr($button_color); ?> !important;
             filter: brightness(0.9);
         }
+        /* Inactive tabs: button colour bg + full-white text, dimmed via
+           brightness filter rather than opacity. Opacity faded the text
+           too, making white read as grey. */
         .gas-tab-btn {
-            <?php if ($book_btn_text) : ?>color: <?php echo esc_attr($book_btn_text); ?> !important;<?php endif; ?>
+            color: <?php echo esc_attr($book_btn_text ?: '#ffffff'); ?> !important;
             background: <?php echo esc_attr($button_color); ?> !important;
-            opacity: 0.55;
+            filter: brightness(0.78);
             <?php if ($book_btn_radius !== '') : ?>border-radius: <?php echo intval($book_btn_radius); ?>px !important;<?php endif; ?>
         }
         .gas-tab-btn:hover {
             background: <?php echo esc_attr($button_color); ?> !important;
-            <?php if ($book_btn_text) : ?>color: <?php echo esc_attr($book_btn_text); ?> !important;<?php endif; ?>
-            opacity: 0.8;
+            color: <?php echo esc_attr($book_btn_text ?: '#ffffff'); ?> !important;
+            filter: brightness(0.9);
         }
         .gas-tab-btn.active {
             background: <?php echo esc_attr($button_color); ?> !important;
             color: <?php echo esc_attr($book_btn_text ?: '#ffffff'); ?> !important;
-            opacity: 1;
+            filter: none;
         }
         /* Add-to-Cart matches the primary button styling — same bg + text colour
            as Book Now, so it visually pairs with the main CTA rather than the
