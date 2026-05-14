@@ -6834,6 +6834,45 @@ jQuery(document).ready(function($) {
         // Show booking confirmation — shared by both payment flows
         function showBookingConfirmation(response, $btn) {
             localStorage.removeItem('gas_hostvana_bookingId');
+
+            // Fire conversion events to whichever analytics platforms the site
+            // has loaded. The gtag/fbq scripts are injected by gas-booking.php's
+            // inject_analytics() when the site has a GA4 measurement ID and/or
+            // FB Pixel ID resolved from site-config. Both checks are no-ops when
+            // analytics isn't configured, so this is safe to run unconditionally.
+            try {
+                var txnId = String(response.booking?.id || response.booking_id || '');
+                var value = parseFloat(checkoutData.grandTotal || 0);
+                var currency = (checkoutData.currency || 'USD').toUpperCase();
+                var roomName = extractText(checkoutData.room?.display_name) || checkoutData.room?.name || 'Room';
+                var roomId = String(checkoutData.room?.id || checkoutData.room?.unit_id || '');
+
+                if (typeof gtag === 'function' && txnId && value > 0) {
+                    gtag('event', 'purchase', {
+                        transaction_id: txnId,
+                        value: value,
+                        currency: currency,
+                        items: [{
+                            item_id: roomId,
+                            item_name: roomName,
+                            quantity: 1,
+                            price: value
+                        }]
+                    });
+                }
+                if (typeof fbq === 'function' && value > 0) {
+                    fbq('track', 'Purchase', {
+                        value: value,
+                        currency: currency,
+                        content_ids: roomId ? [roomId] : undefined,
+                        content_type: 'product'
+                    });
+                }
+            } catch (e) {
+                // Analytics must never break the confirmation flow.
+                console.warn('Conversion event failed:', e);
+            }
+
             $('.gas-checkout-main > *').hide();
             $('.gas-checkout-confirmation').show();
             $('.gas-conf-rooms-list').empty().hide();
