@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.73
+ * Version: 3.7.74
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.73');
+define('GAS_BOOKING_VERSION', '3.7.74');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -9318,6 +9318,18 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
 
                 <div class="gas-portal-current-booking" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem;"></div>
 
+                <details class="gas-portal-travellers" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:1rem;">
+                    <summary style="cursor:pointer;padding:1rem;font-weight:600;font-size:0.95rem;display:flex;justify-content:space-between;align-items:center;">
+                        <span>Your travel group <span class="gas-portal-travellers-count" style="color:#64748b;font-weight:normal;"></span></span>
+                        <span class="gas-portal-travellers-status" style="font-size:0.85rem;font-weight:normal;"></span>
+                    </summary>
+                    <div style="padding:0 1rem 1rem;">
+                        <p style="color:#64748b;font-size:0.85rem;margin-top:0;">Please enter passport details for everyone staying. Required for check-in at many properties.</p>
+                        <div class="gas-portal-travellers-list"></div>
+                        <button type="button" onclick="gasPortalAddTraveller(this)" style="margin-top:0.5rem;padding:0.5rem 1rem;border:1px dashed #cbd5e1;border-radius:8px;background:#fff;color:#64748b;cursor:pointer;font-size:0.85rem;">+ Add a traveller</button>
+                    </div>
+                </details>
+
                 <div class="gas-portal-extras" style="margin-bottom:1rem;">
                     <div class="gas-portal-my-extras" style="margin-bottom:1rem;"></div>
                     <details style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;">
@@ -9502,6 +9514,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         return;
                     }
                     gasPortalRenderDashboard(root, data);
+                    gasPortalLoadTravellers(root);
                     gasPortalLoadExtras(root);
                 }).catch(function(err){
                     root.querySelector('.gas-portal-current-booking').innerHTML = '<p style="color:#c00">Failed to load: ' + err.message + '</p>';
@@ -9561,6 +9574,150 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         + '</div>';
                 }
             }
+
+            function travellerComplete(t) {
+                return !!(t.first_name && t.last_name && t.date_of_birth && t.nationality && t.passport_number);
+            }
+            function gasPortalLoadTravellers(root) {
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                fetch(apiUrl + '/api/public/portal/travellers', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) return;
+                    var b = data.booking || {};
+                    var expected = (b.num_adults || 1) + (b.num_children || 0);
+                    var existing = data.travellers || [];
+                    var complete = existing.filter(travellerComplete).length;
+                    var lead = { first_name: b.guest_first_name, last_name: b.guest_last_name, email: b.guest_email, phone: b.guest_phone || b.guest_mobile, role: 'lead' };
+                    var slots = [lead].concat(existing);
+                    // Pad with empty slots up to expected headcount
+                    while (slots.length < expected) slots.push({ _empty: true, position: slots.length + 1 });
+
+                    root.querySelector('.gas-portal-travellers-count').textContent = ' · ' + complete + '/' + expected + ' complete';
+                    root.querySelector('.gas-portal-travellers-status').innerHTML = complete === expected
+                        ? '<span style="color:#16a34a;">✓ All set</span>'
+                        : '<span style="color:#ca8a04;">' + (expected - complete) + ' to do</span>';
+
+                    var html = '';
+                    slots.forEach(function(t, idx){
+                        var isLead = idx === 0;
+                        var hdrName = (t.first_name || '') + ' ' + (t.last_name || '');
+                        if (!hdrName.trim()) hdrName = isLead ? 'Lead guest' : 'Traveller ' + (idx + 1);
+                        var ok = isLead ? !!(t.first_name && t.last_name) : travellerComplete(t);
+                        var statusDot = ok ? '<span style="color:#16a34a;">●</span>' : '<span style="color:#ca8a04;">●</span>';
+                        var id = t.id || '';
+                        var tid = isLead ? 'lead' : 'tr' + (idx + 1);
+                        html += '<details class="gas-portal-traveller" data-traveller-id="' + id + '" data-position="' + (idx + 1) + '" style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.5rem;">'
+                            + '<summary style="padding:0.6rem 0.8rem;cursor:pointer;font-size:0.9rem;display:flex;justify-content:space-between;">'
+                                + '<span>' + statusDot + ' ' + hdrName + (isLead ? ' <span style="font-size:0.75rem;color:#64748b;">(you)</span>' : '') + '</span>'
+                                + (isLead ? '' : '<span style="font-size:0.8rem;color:#64748b;">click to edit</span>')
+                            + '</summary>'
+                            + '<form onsubmit="return gasPortalSaveTraveller(event, this);" style="padding:0 0.8rem 0.8rem;">'
+                                + '<div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">'
+                                + '  <div><label style="font-size:0.75rem;display:block;margin-bottom:0.2rem;">Title</label><select name="title" style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;">'
+                                +     ['','Mr','Ms','Mrs','Miss','Dr','Prof'].map(function(v){return '<option value="'+v+'"'+(t.title===v?' selected':'')+'>'+(v||'—')+'</option>';}).join('')
+                                + '  </select></div>'
+                                + '  <div><label style="font-size:0.75rem;display:block;margin-bottom:0.2rem;">First name</label><input type="text" name="first_name" value="' + (t.first_name || '').replace(/"/g,'&quot;') + '" style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;"></div>'
+                                + '  <div><label style="font-size:0.75rem;display:block;margin-bottom:0.2rem;">Last name</label><input type="text" name="last_name" value="' + (t.last_name || '').replace(/"/g,'&quot;') + '" style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;"></div>'
+                                + '</div>'
+                                + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">'
+                                + '  <div><label style="font-size:0.75rem;display:block;margin-bottom:0.2rem;">Date of birth</label><input type="date" name="date_of_birth" value="' + (t.date_of_birth ? String(t.date_of_birth).slice(0,10) : '') + '" style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;"></div>'
+                                + '  <div><label style="font-size:0.75rem;display:block;margin-bottom:0.2rem;">Nationality</label><input type="text" name="nationality" maxlength="40" value="' + (t.nationality || '').replace(/"/g,'&quot;') + '" placeholder="e.g. Australian" style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;"></div>'
+                                + '</div>'
+                                + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">'
+                                + '  <div><label style="font-size:0.75rem;display:block;margin-bottom:0.2rem;">Passport number</label><input type="text" name="passport_number" value="' + (t.passport_number || '').replace(/"/g,'&quot;') + '" style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;"></div>'
+                                + '  <div><label style="font-size:0.75rem;display:block;margin-bottom:0.2rem;">Passport expiry</label><input type="date" name="passport_expiry" value="' + (t.passport_expiry ? String(t.passport_expiry).slice(0,10) : '') + '" style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;"></div>'
+                                + '</div>'
+                                + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">'
+                                + '  <div><label style="font-size:0.75rem;display:block;margin-bottom:0.2rem;">Email <span style="color:#94a3b8;">(optional)</span></label><input type="email" name="email" value="' + (t.email || '').replace(/"/g,'&quot;') + '" style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;"></div>'
+                                + '  <div><label style="font-size:0.75rem;display:block;margin-bottom:0.2rem;">Phone <span style="color:#94a3b8;">(optional)</span></label><input type="tel" name="phone" value="' + (t.phone || '').replace(/"/g,'&quot;') + '" style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;"></div>'
+                                + '</div>'
+                                + '<div style="margin-bottom:0.5rem;"><label style="font-size:0.75rem;display:block;margin-bottom:0.2rem;">Special requirements <span style="color:#94a3b8;">(optional — accessibility, dietary etc.)</span></label><textarea name="special_requirements" rows="2" style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;">' + (t.special_requirements || '') + '</textarea></div>'
+                                + '<input type="hidden" name="position" value="' + (idx + 1) + '">'
+                                + '<input type="hidden" name="guest_type" value="' + (isLead ? 'lead' : 'adult') + '">'
+                                + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+                                + (isLead ? '<span style="font-size:0.75rem;color:#64748b;">Lead profile — also editable in Your profile section.</span>'
+                                          : (id ? '<button type="button" onclick="gasPortalDeleteTraveller(' + id + ', this)" style="background:none;border:0;color:#dc2626;cursor:pointer;font-size:0.85rem;">Remove</button>'
+                                                : '<span style="font-size:0.75rem;color:#64748b;">New traveller — not yet saved.</span>'))
+                                + '<button type="submit" style="padding:0.45rem 1rem;border:0;border-radius:6px;background:#0f172a;color:#fff;cursor:pointer;font-size:0.85rem;">Save</button>'
+                                + '</div>'
+                                + '<span class="gas-portal-traveller-saved" style="display:none;color:#16a34a;font-size:0.8rem;margin-left:0.5rem;">✓ Saved</span>'
+                            + '</form>'
+                        + '</details>';
+                    });
+                    root.querySelector('.gas-portal-travellers-list').innerHTML = html;
+                });
+            }
+
+            window.gasPortalSaveTraveller = function(ev, form) {
+                ev.preventDefault();
+                var root = $root(form);
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                var box = form.closest('.gas-portal-traveller');
+                var tid = box.dataset.travellerId;
+                // The lead-guest form posts to the profile endpoint, not travellers.
+                if (!tid && form.guest_type.value === 'lead') {
+                    return gasPortalSaveProfile(ev, form);
+                }
+                var payload = {
+                    token: token,
+                    traveller_id: tid || null,
+                    guest_type: form.guest_type.value,
+                    title: form.title.value,
+                    first_name: form.first_name.value.trim(),
+                    last_name: form.last_name.value.trim(),
+                    date_of_birth: form.date_of_birth.value || null,
+                    nationality: form.nationality.value.trim(),
+                    passport_number: form.passport_number.value.trim(),
+                    passport_expiry: form.passport_expiry.value || null,
+                    email: form.email.value.trim(),
+                    phone: form.phone.value.trim(),
+                    special_requirements: form.special_requirements.value.trim(),
+                    position: parseInt(form.position.value) || null
+                };
+                fetch(apiUrl + '/api/public/portal/travellers/save', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) { alert(data.error || 'Could not save'); return; }
+                    var saved = form.querySelector('.gas-portal-traveller-saved');
+                    if (saved) { saved.style.display = ''; setTimeout(function(){ saved.style.display = 'none'; }, 1500); }
+                    // Reload to refresh status dots + counts
+                    gasPortalLoadTravellers(root);
+                });
+                return false;
+            };
+
+            window.gasPortalDeleteTraveller = function(travellerId, btn) {
+                if (!confirm('Remove this traveller from the booking?')) return;
+                var root = $root(btn);
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                fetch(apiUrl + '/api/public/portal/travellers/delete', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token, traveller_id: travellerId })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) { alert(data.error || 'Could not delete'); return; }
+                    gasPortalLoadTravellers(root);
+                });
+            };
+
+            window.gasPortalAddTraveller = function(btn) {
+                // Find last position used, save a blank-but-valid row
+                var root = $root(btn);
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                var existing = root.querySelectorAll('.gas-portal-traveller').length;
+                fetch(apiUrl + '/api/public/portal/travellers/save', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token, traveller_id: null, guest_type: 'adult', position: existing + 1 })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (data.success) gasPortalLoadTravellers(root);
+                });
+            };
 
             function gasPortalLoadExtras(root) {
                 var apiUrl = root.dataset.apiUrl;
