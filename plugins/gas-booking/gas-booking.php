@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.75
+ * Version: 3.7.76
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.75');
+define('GAS_BOOKING_VERSION', '3.7.76');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -9667,6 +9667,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 + '  <div><label style="font-size:0.75rem;display:block;margin-bottom:0.2rem;">Phone <span style="color:#94a3b8;">(optional)</span></label><input type="tel" name="phone" value="' + (t.phone || '').replace(/"/g,'&quot;') + '" style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;"></div>'
                                 + '</div>'
                                 + '<div style="margin-bottom:0.5rem;"><label style="font-size:0.75rem;display:block;margin-bottom:0.2rem;">Special requirements <span style="color:#94a3b8;">(optional — accessibility, dietary etc.)</span></label><textarea name="special_requirements" rows="2" style="width:100%;padding:0.45rem;border:1px solid #d1d5db;border-radius:6px;">' + (t.special_requirements || '') + '</textarea></div>'
+                                + (id ? (
+                                    '<div style="margin-bottom:0.5rem;padding:0.5rem 0.6rem;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;">'
+                                    + '<label style="font-size:0.75rem;display:block;margin-bottom:0.3rem;color:#374151;"><strong>Passport / ID image</strong> ' + (t.has_id_document ? '<span style="color:#16a34a;">✓ uploaded ' + (t.id_document_uploaded_at ? new Date(t.id_document_uploaded_at).toLocaleDateString() : '') + '</span>' : '<span style="color:#94a3b8;">(not uploaded)</span>') + '</label>'
+                                    + '<input type="file" accept="image/jpeg,image/png,image/webp,image/heic,application/pdf" onchange="gasPortalUploadId(' + id + ', this)" style="font-size:0.8rem;">'
+                                    + '<div class="gas-portal-id-upload-status" style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;"></div>'
+                                    + '</div>'
+                                  ) : '<div style="margin-bottom:0.5rem;font-size:0.75rem;color:#94a3b8;">Save details first — then you can upload a passport photo.</div>')
                                 + '<input type="hidden" name="position" value="' + (idx + 1) + '">'
                                 + '<input type="hidden" name="guest_type" value="' + (isLead ? 'lead' : 'adult') + '">'
                                 + '<div style="display:flex;justify-content:space-between;align-items:center;">'
@@ -9734,6 +9741,31 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 }).then(function(r){ return r.json(); }).then(function(data){
                     if (!data.success) { alert(data.error || 'Could not delete'); return; }
                     gasPortalLoadTravellers(root);
+                });
+            };
+
+            window.gasPortalUploadId = function(travellerId, fileInput) {
+                var file = fileInput.files && fileInput.files[0];
+                if (!file) return;
+                var status = fileInput.parentElement.querySelector('.gas-portal-id-upload-status');
+                if (file.size > 8 * 1024 * 1024) { status.innerHTML = '<span style="color:#dc2626;">File too large (max 8 MB).</span>'; return; }
+                var root = $root(fileInput);
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                status.innerHTML = '<span style="color:#64748b;">Uploading…</span>';
+                var fd = new FormData();
+                fd.append('file', file);
+                fd.append('token', token);
+                fetch(apiUrl + '/api/public/portal/travellers/' + travellerId + '/upload-id', {
+                    method: 'POST',
+                    body: fd
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) { status.innerHTML = '<span style="color:#dc2626;">' + (data.error || 'Upload failed') + '</span>'; return; }
+                    status.innerHTML = '<span style="color:#16a34a;">✓ Uploaded</span>';
+                    // Reload travellers to refresh the "✓ uploaded" badge in the header
+                    setTimeout(function(){ gasPortalLoadTravellers(root); }, 600);
+                }).catch(function(err){
+                    status.innerHTML = '<span style="color:#dc2626;">Network error: ' + err.message + '</span>';
                 });
             };
 
