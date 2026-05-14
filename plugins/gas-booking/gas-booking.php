@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.74
+ * Version: 3.7.75
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.74');
+define('GAS_BOOKING_VERSION', '3.7.75');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -9318,6 +9318,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
 
                 <div class="gas-portal-current-booking" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem;"></div>
 
+                <details class="gas-portal-arrival" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:1rem;display:none;">
+                    <summary style="cursor:pointer;padding:1rem;font-weight:600;font-size:0.95rem;">Pre-arrival information</summary>
+                    <div class="gas-portal-arrival-body" style="padding:0 1rem 1rem;font-size:0.9rem;color:#374151;line-height:1.5;"></div>
+                </details>
+
                 <details class="gas-portal-travellers" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:1rem;">
                     <summary style="cursor:pointer;padding:1rem;font-weight:600;font-size:0.95rem;display:flex;justify-content:space-between;align-items:center;">
                         <span>Your travel group <span class="gas-portal-travellers-count" style="color:#64748b;font-weight:normal;"></span></span>
@@ -9550,6 +9555,33 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     + '</div>'
                     + '<div style="margin-top:0.5rem;font-size:0.85rem;color:#64748b;">Ref: GAS-' + b.id + (b.channel ? ' · via ' + b.channel : '') + '</div>'
                     + balanceLine;
+
+                // Pre-arrival info card — only render if at least one field is set
+                var arrivalParts = [];
+                if (b.check_in_from || b.check_in_until || b.check_in_time) {
+                    var ci = '';
+                    if (b.check_in_time) ci = b.check_in_time;
+                    else if (b.check_in_from && b.check_in_until) ci = b.check_in_from + ' – ' + b.check_in_until;
+                    else if (b.check_in_from) ci = 'from ' + b.check_in_from;
+                    if (ci) arrivalParts.push('<div><strong>Check-in:</strong> ' + ci + '</div>');
+                }
+                if (b.check_in_instructions) arrivalParts.push('<div style="margin-top:0.5rem;"><strong>How to check in:</strong><br>' + String(b.check_in_instructions).replace(/\n/g,'<br>') + '</div>');
+                if (b.directions) arrivalParts.push('<div style="margin-top:0.5rem;"><strong>Directions:</strong><br>' + String(b.directions).replace(/\n/g,'<br>') + '</div>');
+                if (b.wifi_network || b.wifi_password) {
+                    var wifi = '';
+                    if (b.wifi_network) wifi += '<strong>Network:</strong> ' + b.wifi_network;
+                    if (b.wifi_password) wifi += (wifi ? '<br>' : '') + '<strong>Password:</strong> ' + b.wifi_password;
+                    arrivalParts.push('<div style="margin-top:0.5rem;"><strong>WiFi:</strong><br>' + wifi + '</div>');
+                }
+                if (b.area_info) arrivalParts.push('<div style="margin-top:0.5rem;"><strong>Local area:</strong><br>' + String(b.area_info).replace(/\n/g,'<br>') + '</div>');
+
+                var arrivalEl = root.querySelector('.gas-portal-arrival');
+                if (arrivalParts.length > 0) {
+                    root.querySelector('.gas-portal-arrival-body').innerHTML = arrivalParts.join('');
+                    arrivalEl.style.display = '';
+                } else {
+                    arrivalEl.style.display = 'none';
+                }
 
                 // Profile form values
                 root.querySelector('.gas-portal-pf-first').value = g.first_name || b.guest_first_name || '';
