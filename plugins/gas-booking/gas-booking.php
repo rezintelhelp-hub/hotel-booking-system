@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.78
+ * Version: 3.7.79
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.78');
+define('GAS_BOOKING_VERSION', '3.7.79');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4479,10 +4479,23 @@ class GAS_Booking {
         //      keep working.
         $seo = $this->get_site_config_seo();
 
-        $ga_id = '';
-        if (!empty($seo['google_analytics_id']))      $ga_id = $seo['google_analytics_id'];
-        elseif (!empty($seo['ga4_measurement_id']))   $ga_id = $seo['ga4_measurement_id'];
-        else                                          $ga_id = get_option('gas_google_analytics_id', '');
+        // Collect ALL GA4 measurement IDs and send to each. This solves
+        // the dashboard-empty problem when a client has set a manual
+        // google_analytics_id (their own GA4) different from the
+        // ga4_measurement_id auto-created by GAS during deploy. By emitting
+        // a gtag('config') for each, both properties receive page-view +
+        // purchase events: the client keeps their existing analytics
+        // intact, AND the GAS-managed property collects data the SEO
+        // Analytics dashboard can read (service account has access to it).
+        $ga_ids = array();
+        if (!empty($seo['ga4_measurement_id'])) $ga_ids[] = $seo['ga4_measurement_id'];
+        if (!empty($seo['google_analytics_id']) && $seo['google_analytics_id'] !== ($seo['ga4_measurement_id'] ?? null)) {
+            $ga_ids[] = $seo['google_analytics_id'];
+        }
+        if (empty($ga_ids)) {
+            $legacy = get_option('gas_google_analytics_id', '');
+            if (!empty($legacy)) $ga_ids[] = $legacy;
+        }
 
         $gtm_id = !empty($seo['google_tag_manager_id'])
             ? $seo['google_tag_manager_id']
@@ -4492,16 +4505,16 @@ class GAS_Booking {
             ? $seo['facebook_pixel_id']
             : get_option('gas_facebook_pixel_id', '');
 
-        // Google Analytics 4
-        if (!empty($ga_id)) {
-            echo "<!-- Google Analytics -->\n";
-            echo '<script async src="https://www.googletagmanager.com/gtag/js?id=' . esc_attr($ga_id) . '"></script>' . "\n";
-            echo '<script>
-window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag("js", new Date());
-gtag("config", "' . esc_js($ga_id) . '");
-</script>' . "\n";
+        // Google Analytics 4 — dual-emit when both auto-created + manual
+        // override are present.
+        if (!empty($ga_ids)) {
+            echo "<!-- Google Analytics (" . count($ga_ids) . " property" . (count($ga_ids) > 1 ? 'ies' : '') . ") -->\n";
+            echo '<script async src="https://www.googletagmanager.com/gtag/js?id=' . esc_attr($ga_ids[0]) . '"></script>' . "\n";
+            echo "<script>\nwindow.dataLayer = window.dataLayer || [];\nfunction gtag(){dataLayer.push(arguments);}\ngtag(\"js\", new Date());\n";
+            foreach ($ga_ids as $gid) {
+                echo 'gtag("config", "' . esc_js($gid) . '");' . "\n";
+            }
+            echo "</script>\n";
         }
 
         // Google Tag Manager
