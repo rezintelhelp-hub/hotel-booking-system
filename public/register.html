@@ -1134,6 +1134,12 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
 
             if (result.success) {
                 accountData = result;
+                // Persist token immediately so a refresh / direct ?step=2 URL
+                // can recover the session. Without this, leaving the page after
+                // step 1 strands the user with no auth at step 2.
+                if (result.token) {
+                    try { localStorage.setItem('gas_token', result.token); } catch (_) {}
+                }
                 goToStep(2);
             } else {
                 btn.disabled = false;
@@ -2334,7 +2340,16 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
         var startStep = parseInt(params.get('step'));
         var accountId = params.get('account_id');
         if (startStep === 2 && accountId) {
-            accountData = { account: { id: parseInt(accountId) } };
+            // Recover the session token saved at step 1 (or any prior login)
+            // so the Quick Connect / Invite Code fetches can authenticate.
+            // Without this, ?step=2&account_id=X had no token → endpoints
+            // returning 401 "Authentication required".
+            var savedToken = null;
+            try { savedToken = localStorage.getItem('gas_token'); } catch (_) {}
+            accountData = {
+                account: { id: parseInt(accountId) },
+                token: savedToken || null
+            };
             goToStep(2);
         } else {
             showStepMessages(1);
