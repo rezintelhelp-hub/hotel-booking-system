@@ -1516,11 +1516,17 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
 
         try {
             const gasAccountId = accountData?.account?.id;
+            const sessionToken = accountData?.token;
 
-            // Fetch all marketplace properties
+            // Fetch all marketplace properties — send session token from
+            // create-account so the endpoint accepts the request (it now
+            // permits account-owner auth in addition to master admin).
             const resp = await fetch(`/api/accounts/${gasAccountId}/beds24v2/connect`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(sessionToken ? { 'Authorization': 'Bearer ' + sessionToken } : {})
+                }
             });
             const data = await resp.json();
 
@@ -1593,7 +1599,10 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             try {
                 const linkResp = await fetch(`/api/accounts/${gasAccountId}/beds24v2/link`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(accountData?.token ? { 'Authorization': 'Bearer ' + accountData.token } : {})
+                    },
                     body: JSON.stringify({
                         propId: cb.value,
                         ownerId: cb.dataset.owner,
