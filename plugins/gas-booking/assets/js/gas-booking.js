@@ -3047,7 +3047,13 @@ jQuery(document).ready(function($) {
                         
                         if (response.success && response.available) {
                             $room.removeClass('unavailable checking').addClass('available');
-                            var totalPrice = response.accommodation_total || 0;
+                            // Use grand_total (post-offer, post-tax) so the listing card
+                            // reflects the actual price guests will pay. accommodation_total
+                            // is the pre-offer subtotal and would mislead — e.g. £320 raw
+                            // vs £224 with a 30% Last-Min offer applied.
+                            var totalPrice = response.grand_total != null
+                                ? response.grand_total
+                                : (response.accommodation_total || 0);
                             var roomCurrency = resolveCurrency(response.currency);
                             var pricingTier = gasBooking.pricingTier || 'standard';
 
