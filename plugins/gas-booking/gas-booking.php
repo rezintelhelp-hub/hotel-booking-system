@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.81
+ * Version: 3.7.82
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.81');
+define('GAS_BOOKING_VERSION', '3.7.82');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -6250,7 +6250,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                         <?php if ($has_dates) : ?>
                                             <span class="gas-checking">⏳ <?php echo esc_html($checking_text); ?></span>
                                         <?php elseif ($show_listing_price && $from_price > 0) : ?>
-                                            <span class="gas-price-from-label">From</span>
+                                            <span class="gas-price-from-label">Accommodation from</span>
                                             <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($from_price, 0)); ?></span>
                                             <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
                                         <?php elseif (!$is_homepage) : ?>
@@ -6310,7 +6310,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                             : floatval($room['price'] ?? 0);
                                         ?>
                                         <?php if ($show_listing_price && $carousel_from > 0) : ?>
-                                            <span class="gas-price-from-label">From</span>
+                                            <span class="gas-price-from-label">Accommodation from</span>
                                             <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($carousel_from, 0)); ?></span>
                                             <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
                                         <?php endif; ?>
@@ -6417,7 +6417,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                         <?php if ($has_dates) : ?>
                                             <span class="gas-checking">⏳ <?php echo esc_html($checking_text); ?></span>
                                         <?php elseif ($show_listing_price && $from_price > 0) : ?>
-                                            <span class="gas-price-from-label">From</span>
+                                            <span class="gas-price-from-label">Accommodation from</span>
                                             <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($from_price, 0)); ?></span>
                                             <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
                                         <?php elseif (!$is_homepage) : ?>
