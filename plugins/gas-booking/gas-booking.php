@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.82
+ * Version: 3.7.83
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.82');
+define('GAS_BOOKING_VERSION', '3.7.83');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4330,9 +4330,19 @@ class GAS_Booking {
             }
         }
 
-        // Auto-detect: largest max_guests across all rooms on the site
+        // Auto-detect: largest max_guests across the rooms actually deployed on
+        // the site. Pass gas_room_ids so off-website rooms (e.g. units the
+        // owner only cleans for) don't inflate the dropdown.
         $auto_max = 0;
-        $rooms_response = wp_remote_get("{$api_url}/api/public/client/{$client_id}/rooms", array(
+        $deployed_room_ids = get_option('gas_room_ids', '');
+        $rooms_endpoint = "{$api_url}/api/public/client/{$client_id}/rooms";
+        if (!empty($deployed_room_ids)) {
+            $decoded = is_array($deployed_room_ids) ? $deployed_room_ids : json_decode($deployed_room_ids, true);
+            if (is_array($decoded) && !empty($decoded)) {
+                $rooms_endpoint .= '?room_ids=' . implode(',', array_map('intval', $decoded));
+            }
+        }
+        $rooms_response = wp_remote_get($rooms_endpoint, array(
             'timeout' => 10,
             'sslverify' => false,
             'headers' => array('X-License-Key' => $license_key)
