@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.80
+ * Version: 3.7.81
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.80');
+define('GAS_BOOKING_VERSION', '3.7.81');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5076,6 +5076,47 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         uasort($all_amenities, function($a, $b) {
             return strcmp($a['name'], $b['name']);
         });
+
+        // Marketing tags — same two-layer curation as amenities, but driven
+        // by the marketing-tags catalog (returned alongside the rooms) and the
+        // account's marketing_filter_codes selection.
+        $marketing_catalog_by_code = array();
+        if (!empty($data['marketing_tags_catalog']) && is_array($data['marketing_tags_catalog'])) {
+            foreach ($data['marketing_tags_catalog'] as $t) {
+                if (!empty($t['code'])) {
+                    $marketing_catalog_by_code[$t['code']] = $t;
+                }
+            }
+        }
+        $client_selected_marketing = isset($data['marketing_filter_codes']) && is_array($data['marketing_filter_codes'])
+            ? array_flip($data['marketing_filter_codes'])
+            : null;
+        $all_marketing = array();
+        foreach ($rooms as $room) {
+            $tags = $room['marketing_tags'] ?? array();
+            if (!is_array($tags)) continue;
+            foreach ($tags as $tag) {
+                if (empty($tag)) continue;
+                // Only surface tags that are in the canonical catalog (catalog
+                // empty = the API is older and didn't return one, so allow all).
+                if (!empty($marketing_catalog_by_code) && !isset($marketing_catalog_by_code[$tag])) continue;
+                // Account-level filter for marketing tags.
+                if ($client_selected_marketing !== null && !empty($client_selected_marketing) && !isset($client_selected_marketing[$tag])) {
+                    continue;
+                }
+                if (!isset($all_marketing[$tag])) {
+                    $catalogEntry = $marketing_catalog_by_code[$tag] ?? array();
+                    $all_marketing[$tag] = array(
+                        'code' => $tag,
+                        'name' => $catalogEntry['label'] ?? $tag,
+                        'category' => $catalogEntry['category'] ?? 'tag',
+                    );
+                }
+            }
+        }
+        uasort($all_marketing, function($a, $b) {
+            return strcmp($a['name'], $b['name']);
+        });
         
         // Collect all unique locations (cities/districts) from rooms for the location filter
         $all_locations = array();
@@ -6049,20 +6090,33 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 </select>
             </div>
             <?php endif; ?>
-            <?php if ($show_amenity_filter && !empty($all_amenities)) : ?>
+            <?php if ($show_amenity_filter && (!empty($all_amenities) || !empty($all_marketing))) : ?>
             <div class="gas-filter-field gas-amenity-filter">
-                <label><?php echo esc_html($t_filters['amenities'] ?? 'Amenities'); ?></label>
+                <label><?php echo esc_html($t_filters['amenities'] ?? 'Filter'); ?></label>
                 <div class="gas-amenity-trigger" onclick="gasToggleAmenityDropdown(this)">
-                    <span class="gas-amenity-label"><?php echo esc_html($t_filters['select_amenities'] ?? 'All Amenities'); ?></span>
+                    <span class="gas-amenity-label"><?php echo esc_html($t_filters['select_amenities'] ?? 'All filters'); ?></span>
                 </div>
                 <div class="gas-amenity-dropdown">
-                    <?php foreach ($all_amenities as $code => $amenity) : ?>
-                    <label class="gas-amenity-option">
-                        <input type="checkbox" value="<?php echo esc_attr($code); ?>" onchange="gasFilterByAmenities()">
-                        <span><?php echo esc_html($amenity['icon']); ?></span>
-                        <span><?php echo esc_html($amenity['name']); ?></span>
-                    </label>
-                    <?php endforeach; ?>
+                    <?php if (!empty($all_amenities)) : ?>
+                        <div class="gas-amenity-group-heading" style="padding:6px 8px; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; color:#64748b; background:#f8fafc;"><?php echo esc_html($t_filters['amenities'] ?? 'Amenities'); ?></div>
+                        <?php foreach ($all_amenities as $code => $amenity) : ?>
+                        <label class="gas-amenity-option">
+                            <input type="checkbox" value="<?php echo esc_attr($code); ?>" onchange="gasFilterByAmenities()">
+                            <span><?php echo esc_html($amenity['icon']); ?></span>
+                            <span><?php echo esc_html($amenity['name']); ?></span>
+                        </label>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    <?php if (!empty($all_marketing)) : ?>
+                        <div class="gas-amenity-group-heading" style="padding:6px 8px; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; color:#64748b; background:#f8fafc; margin-top:4px;"><?php echo esc_html($t_filters['tags'] ?? 'Tags'); ?></div>
+                        <?php foreach ($all_marketing as $code => $tag) : ?>
+                        <label class="gas-amenity-option">
+                            <input type="checkbox" value="<?php echo esc_attr($code); ?>" data-tag-kind="marketing" onchange="gasFilterByAmenities()">
+                            <span>🏷️</span>
+                            <span><?php echo esc_html($tag['name']); ?></span>
+                        </label>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
             <?php endif; ?>
@@ -6140,7 +6194,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                              data-state="<?php echo esc_attr($room['state'] ?? ''); ?>"
                              data-country="<?php echo esc_attr($room['country'] ?? ''); ?>"
                              data-property-name="<?php echo esc_attr($room_property_name); ?>"
-                             data-amenities="<?php echo esc_attr(json_encode(array_column($room_amenities, 'code'))); ?>"><?php if (!empty($image_url)) : ?>
+                             data-amenities="<?php echo esc_attr(json_encode(array_column($room_amenities, 'code'))); ?>"
+                             data-marketing-tags="<?php echo esc_attr(json_encode(is_array($room['marketing_tags'] ?? null) ? $room['marketing_tags'] : array())); ?>"><?php if (!empty($image_url)) : ?>
                             <div class="gas-room-row-image" style="background-image: url('<?php echo esc_url($image_url); ?>');"></div>
                             <?php else : ?>
                             <div class="gas-room-row-image gas-room-row-image-placeholder">🏠</div>
@@ -6335,6 +6390,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                              data-country="<?php echo esc_attr($room['country'] ?? ''); ?>"
                              data-property-name="<?php echo esc_attr($room_property_name); ?>"
                              data-amenities="<?php echo esc_attr(json_encode(array_column($room_amenities, 'code'))); ?>"
+                             data-marketing-tags="<?php echo esc_attr(json_encode(is_array($room['marketing_tags'] ?? null) ? $room['marketing_tags'] : array())); ?>"
                              <?php echo $is_hidden ? 'style="display:none;"' : ''; ?>><?php if (!empty($image_url)) : ?>
                             <div class="gas-room-image" <?php echo $room_index <= 6 ? 'style="background: url(\'' . esc_url($image_url) . '\') center/cover;"' : 'data-bg="' . esc_url($image_url) . '" style="background: #f0f0f0;"'; ?>></div>
                             <?php else : ?>
@@ -6497,14 +6553,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         function gasFilterByAmenities() {
             var checkboxes = document.querySelectorAll('.gas-amenity-dropdown input[type="checkbox"]:checked');
             var selectedAmenities = Array.from(checkboxes).map(function(cb) { return cb.value; });
-            
+
             var trigger = document.querySelector('.gas-amenity-trigger');
             if (trigger) {
                 var label = trigger.querySelector('.gas-amenity-label');
-                label.textContent = selectedAmenities.length === 0 ? 'All Amenities' : selectedAmenities.length + ' selected';
+                label.textContent = selectedAmenities.length === 0 ? 'All filters' : selectedAmenities.length + ' selected';
             }
-            
-            // Apply combined location + amenity filter
+
+            // Apply combined location + amenity + marketing-tag filter
             gasApplyFilters();
         }
         
@@ -6543,13 +6599,18 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 var cardState = card.dataset.state || '';
                 var cardCountry = card.dataset.country || '';
                 var cardAmenities = [];
+                var cardMarketingTags = [];
                 try { cardAmenities = JSON.parse(card.dataset.amenities || '[]'); } catch(e) {}
+                try { cardMarketingTags = JSON.parse(card.dataset.marketingTags || '[]'); } catch(e) {}
+                // Union of CM-synced amenities + manually-set marketing tags — the
+                // filter dropdown mixes both, so matching is against the combined set.
+                var cardAllTags = cardAmenities.concat(cardMarketingTags);
 
                 var matchesLocation = selectedLocation === '' || cardLocation === selectedLocation;
                 var matchesProperty = selectedProperty === '' || cardPropertyName === selectedProperty;
                 var matchesState = selectedState === '' || cardState.toLowerCase() === selectedState.toLowerCase();
                 var matchesCountry = selectedCountry === '' || cardCountry.toLowerCase() === selectedCountry.toLowerCase();
-                var matchesAmenities = selectedAmenities.length === 0 || selectedAmenities.every(function(a) { return cardAmenities.includes(a); });
+                var matchesAmenities = selectedAmenities.length === 0 || selectedAmenities.every(function(a) { return cardAllTags.includes(a); });
 
                 if (matchesLocation && matchesProperty && matchesState && matchesCountry && matchesAmenities) {
                     card.style.display = '';
