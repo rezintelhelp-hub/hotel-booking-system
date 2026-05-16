@@ -162,10 +162,15 @@ class DeliverooAdapter {
   }
 
   // ===== SCENARIO 1: FETCH BRAND ID =====
-  // GET /menu/v1/brands — returns brands the credential has access to.
-  // (Endpoint path subject to confirmation from Deliveroo docs — adjust on first run.)
-  async getBrands() {
-    return this.request('GET', '/menu/v1/brands');
+  // GET /site/v1/restaurant_locations/{site_id} — returns the brand_id for
+  // a specific site. brand_id is then used as a path param on Menu API calls.
+  async getSiteBrand(siteId) {
+    return this.request('GET', `/site/v1/restaurant_locations/${siteId}`);
+  }
+
+  // Kept as alias — old code may still reference getBrands.
+  async getBrands(siteId = '101') {
+    return this.getSiteBrand(siteId);
   }
 
   // ===== MENU API v1 (Scenarios 2–8) =====
