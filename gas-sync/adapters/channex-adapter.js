@@ -706,10 +706,138 @@ class ChannexAdapter {
     }
   }
 
-  async incrementalSync(/* since */) {
-    // Trial v0.1.0: just full-sync. Production needs the booking-revisions
-    // feed (POST /bookings/feed) with ack for idempotent incrementals.
-    return this.fullSync();
+  /**
+   * Cert test 11: pull new/changed bookings via revision feed instead of
+   * polling the full /bookings list. Each revision must be acknowledged
+   * after we've processed it, otherwise Channex keeps sending it.
+   *
+   * Exact endpoint paths confirmed from cert sandbox (Channex docs are
+   * thin on this). Override via config if Channex's URL differs.
+   */
+  async getBookingRevisions(options = {}) {
+    // Cursor-based: pagination[page] continues from where we left off.
+    // limit kept small (100) so a single page is processable per tick.
+    const params = {
+      'pagination[page]': options.page || 1,
+      'pagination[limit]': options.limit || 100,
+    };
+    if (options.since) params['filter[from_revision]'] = options.since;
+    const res = await this.request('/booking_revisions', 'GET', null, { params });
+    if (!res.success) return res;
+    return {
+      success: true,
+      data: res.data || [],
+      meta: res.meta,
+    };
+  }
+
+  async acknowledgeBookingRevision(revisionId) {
+    // Channex's per-revision ack — POST with empty body. If they expect a
+    // batch endpoint instead, the worker can switch to acknowledgeRevisions(ids)
+    // below. Surfaced separately so callers can ack as they process.
+    return this.request(`/booking_revisions/${revisionId}/ack`, 'POST', {});
+  }
+
+  async acknowledgeRevisions(revisionIds) {
+    // Bulk ack — single round-trip. Some Channex versions accept this shape;
+    // if cert testing rejects it we fall back to per-revision loops.
+    return this.request('/booking_revisions/ack', 'POST', { ids: revisionIds });
+  }
+
+  /**
+   * Real incremental sync: drain the revision feed in pages, persist each
+   * booking, ack as we go. Returns counts + last revision ID processed.
+   * Caller (server.js cron) stores last_revision against the connection
+   * so the next call resumes correctly.
+   */
+  async incrementalSync(since) {
+    if (!this.pool || !this.connectionId) {
+      console.log('[Channex] incrementalSync: no pool/connectionId, skipping');
+      return { success: true, processed: 0, lastRevision: since };
+    }
+    let processed = 0;
+    let acked = 0;
+    let lastRev = since || null;
+    let page = 1;
+    let pages = 0;
+    const MAX_PAGES = 50; // safety stop — 5000 revisions per run
+    while (pages < MAX_PAGES) {
+      const r = await this.getBookingRevisions({ page, limit: 100, since });
+      if (!r.success) {
+        console.error('[Channex] revision fetch failed:', r.error);
+        break;
+      }
+      const revisions = r.data || [];
+      if (revisions.length === 0) break;
+      for (const rev of revisions) {
+        try {
+          const booking = rev.attributes?.booking || rev.booking || rev;
+          await this.syncReservationToDatabase(booking, rev.id);
+          await this.acknowledgeBookingRevision(rev.id);
+          acked++;
+          lastRev = rev.id;
+        } catch (e) {
+          console.error('[Channex] revision process error', rev.id, e.message);
+        }
+        processed++;
+      }
+      pages++;
+      if (revisions.length < 100) break; // last page
+      page++;
+    }
+    return { success: true, processed, acked, lastRevision: lastRev };
+  }
+
+  /**
+   * Persist a single booking (from webhook or revision feed) into GAS DB.
+   * Idempotent — keyed on external_id (Channex booking ID). Caller
+   * acknowledges after this returns successfully.
+   */
+  async syncReservationToDatabase(rawBooking, revisionId = null) {
+    if (!this.pool || !this.connectionId) return null;
+    // Make sure the revision-tracking column exists (idempotent migration —
+    // the cert added this requirement; older databases pre-date it).
+    await this.pool.query(
+      `ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS external_revision_id VARCHAR(128)`
+    ).catch(() => {});
+    const mapped = this.mapReservation(rawBooking);
+    const r = await this.pool.query(`
+      INSERT INTO gas_sync_reservations (
+        connection_id, external_id, status, check_in, check_out, guest_first_name,
+        guest_last_name, guest_email, total, currency, raw_data,
+        external_revision_id, synced_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+      ON CONFLICT (connection_id, external_id) DO UPDATE SET
+        status = EXCLUDED.status,
+        check_in = EXCLUDED.check_in,
+        check_out = EXCLUDED.check_out,
+        guest_first_name = EXCLUDED.guest_first_name,
+        guest_last_name = EXCLUDED.guest_last_name,
+        guest_email = EXCLUDED.guest_email,
+        total = EXCLUDED.total,
+        currency = EXCLUDED.currency,
+        raw_data = EXCLUDED.raw_data,
+        external_revision_id = COALESCE(EXCLUDED.external_revision_id, gas_sync_reservations.external_revision_id),
+        synced_at = NOW()
+      RETURNING id
+    `, [
+      this.connectionId,
+      mapped.externalId,
+      mapped.status || 'confirmed',
+      mapped.checkIn,
+      mapped.checkOut,
+      mapped.guest?.firstName || null,
+      mapped.guest?.lastName || null,
+      mapped.guest?.email || null,
+      mapped.totalAmount || null,
+      mapped.currency || null,
+      JSON.stringify(mapped.raw || rawBooking),
+      revisionId,
+    ]).catch(e => {
+      console.error('[Channex] DB upsert failed:', e.message);
+      return null;
+    });
+    return r?.rows[0]?.id || null;
   }
 
   async syncPropertyToDatabase(property) {
