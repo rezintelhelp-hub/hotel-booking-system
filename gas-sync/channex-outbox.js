@@ -115,6 +115,16 @@ async function drain(pool) {
     return { drained: 0, batches: 0 };
   }
 
+  // Reaper: reset rows stuck in 'processing' for more than 2 minutes.
+  // Happens if the worker process died mid-tick (e.g. Railway redeploy)
+  // or a transient DB hiccup orphaned the row.
+  await pool.query(`
+    UPDATE gas_channex_outbox
+       SET status = 'pending'
+     WHERE status = 'processing'
+       AND created_at < NOW() - INTERVAL '2 minutes'
+  `).catch(() => {});
+
   // Grab ready rows, lock for update so two workers don't race
   const claim = await pool.query(`
     UPDATE gas_channex_outbox
