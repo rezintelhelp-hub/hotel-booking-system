@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.83
+ * Version: 3.7.84
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.83');
+define('GAS_BOOKING_VERSION', '3.7.84');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -542,6 +542,21 @@ class GAS_Booking {
             $cp_menu_title = $cp_section['menu-title-en'] ?? $cp_title;
             $cp_visibility = $cp['visibility'] ?? 'menu';
             $cp_parent = $cp['parent'] ?? '';
+            $cp_external_url = !empty($cp['external_url']) ? trim($cp['external_url']) : '';
+
+            // EXTERNAL-URL pages: don't create a WP page — add a custom-link
+            // menu item directly to the external URL with target=_blank.
+            // Used for ResNexus and other off-site booking flows.
+            if ($cp_is_enabled && $cp_external_url && $cp_visibility !== 'hidden') {
+                $this->sync_external_menu_link($menu_id, $cp_slug, $cp_menu_title, $cp_external_url);
+                continue;
+            }
+            // External URL set but disabled or hidden — remove any existing
+            // external menu item so it disappears from the nav.
+            if ($cp_external_url) {
+                $this->remove_external_menu_link($menu_id, $cp_slug);
+                if (!$cp_is_enabled) continue;
+            }
 
             // Determine parent slug and direct parent menu item ID for sub-menu items
             $cp_parent_slug = null;
@@ -694,6 +709,53 @@ class GAS_Booking {
         return $menu_id;
     }
     
+    /**
+     * Add or update a custom-link menu item that routes to an external URL.
+     * Used for pages flagged with external_url in GAS Admin (ResNexus etc.).
+     * No WP page is created — guests clicking the menu item open the URL in
+     * a new tab. Idempotent: same slug → same menu item updated in place.
+     */
+    private function sync_external_menu_link($menu_id, $slug, $title, $external_url) {
+        if (!$menu_id || !$external_url) return;
+        $needle = 'gas-external:' . $slug;
+        $existing_id = 0;
+        $items = wp_get_nav_menu_items($menu_id) ?: array();
+        foreach ($items as $it) {
+            // Stored marker in the menu-item description so we can find this row
+            // again on subsequent syncs without relying on URL match.
+            if (!empty($it->description) && strpos($it->description, $needle) !== false) {
+                $existing_id = $it->ID;
+                break;
+            }
+        }
+        $args = array(
+            'menu-item-title'       => $title,
+            'menu-item-url'         => $external_url,
+            'menu-item-type'        => 'custom',
+            'menu-item-status'      => 'publish',
+            'menu-item-target'      => '_blank',
+            'menu-item-description' => $needle,
+        );
+        wp_update_nav_menu_item($menu_id, $existing_id, $args);
+    }
+
+    /**
+     * Remove the external-link menu item for a given slug (if it exists).
+     * Called when external_url is cleared, page is disabled, or visibility
+     * is flipped to 'hidden'.
+     */
+    private function remove_external_menu_link($menu_id, $slug) {
+        if (!$menu_id) return;
+        $needle = 'gas-external:' . $slug;
+        $items = wp_get_nav_menu_items($menu_id) ?: array();
+        foreach ($items as $it) {
+            if (!empty($it->description) && strpos($it->description, $needle) !== false) {
+                wp_delete_post($it->ID, true);
+                break;
+            }
+        }
+    }
+
     /**
      * Sync a single page - create/update and manage menu
      */
