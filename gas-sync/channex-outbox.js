@@ -174,7 +174,10 @@ async function drain(pool) {
       }
 
       if (resp.success) {
-        const taskId = resp.data?.id || resp.raw?.data?.id || null;
+        // Channex returns { data: [{ id, type: 'task' }, ...] } for ARI
+        // endpoints — the task id is the cert form proof.
+        const taskId = Array.isArray(resp.data) ? (resp.data[0]?.id || null)
+                       : (resp.data?.id || resp.raw?.data?.[0]?.id || resp.raw?.data?.id || null);
         await pool.query(`
           UPDATE gas_channex_outbox
              SET status = 'succeeded',
