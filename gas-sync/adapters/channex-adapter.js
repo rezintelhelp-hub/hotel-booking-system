@@ -107,34 +107,68 @@ class ChannexAdapter {
   // HTTP HELPERS
   // =====================================================
 
+  // Request helper with exponential backoff on 429 / 5xx. Cert test 12
+  // requires we respect Channex's 20 ARI/min limit + back off cleanly.
+  // Max 4 attempts (initial + 3 retries) waiting up to ~14s total before
+  // giving up — keeps the outbox worker from getting wedged.
   async request(endpoint, method = 'GET', data = null, options = {}) {
-    await this.rateLimiter.throttle();
-
     if (!this.apiKey) {
       return { success: false, error: 'No API key configured', code: 'NO_AUTH' };
     }
-
-    try {
-      const config = {
-        method,
-        url: `${this.baseUrl}${endpoint}`,
-        headers: {
-          'user-api-key': this.apiKey,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...options.headers
-        },
-        timeout: options.timeout || 30000
-      };
-      if (data) config.data = data;
-      if (options.params) config.params = options.params;
-
-      const response = await axios(config);
-      // Channex returns { data, meta } for list endpoints, { data } for
-      // single-resource endpoints. Both pass through unchanged.
-      return { success: true, data: response.data?.data, meta: response.data?.meta || null, raw: response.data };
-    } catch (err) {
-      return this.handleError(err, endpoint);
+    const maxAttempts = options.maxAttempts ?? 4;
+    let attempt = 0;
+    while (true) {
+      await this.rateLimiter.throttle();
+      try {
+        const config = {
+          method,
+          url: `${this.baseUrl}${endpoint}`,
+          headers: {
+            'user-api-key': this.apiKey,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...options.headers
+          },
+          timeout: options.timeout || 30000,
+          validateStatus: () => true,
+        };
+        if (data) config.data = data;
+        if (options.params) config.params = options.params;
+        const response = await axios(config);
+        const status = response.status;
+        if (status >= 200 && status < 300) {
+          return { success: true, status, data: response.data?.data, meta: response.data?.meta || null, raw: response.data };
+        }
+        // Retry on 429 / 5xx; honour Retry-After header when present.
+        if ((status === 429 || status >= 500) && attempt + 1 < maxAttempts) {
+          const retryAfter = parseInt(response.headers['retry-after'], 10);
+          const wait = Number.isFinite(retryAfter)
+            ? retryAfter * 1000
+            : Math.min(15_000, 1000 * Math.pow(2, attempt));
+          console.warn(`[Channex] ${status} on ${method} ${endpoint}, retry in ${wait}ms (attempt ${attempt + 1}/${maxAttempts})`);
+          await new Promise(r => setTimeout(r, wait));
+          attempt++;
+          continue;
+        }
+        // Final error mapping consistent with handleError
+        const body = response.data;
+        const code = body?.errors?.code || 'UNKNOWN';
+        const title = body?.errors?.title || ('HTTP ' + status);
+        const details = body?.errors?.details;
+        if (status === 401) return { success: false, status, error: 'Authentication failed', code: 'AUTH_FAILED' };
+        if (status === 429) return { success: false, status, error: 'Rate limit exceeded', code: 'RATE_LIMIT' };
+        if (status === 422) return { success: false, status, error: title, code: 'VALIDATION', details };
+        return { success: false, status, error: title, code: status || code, details };
+      } catch (err) {
+        if (attempt + 1 < maxAttempts) {
+          const wait = Math.min(15_000, 1000 * Math.pow(2, attempt));
+          console.warn(`[Channex] network error ${err.message} on ${endpoint}, retry in ${wait}ms`);
+          await new Promise(r => setTimeout(r, wait));
+          attempt++;
+          continue;
+        }
+        return this.handleError(err, endpoint);
+      }
     }
   }
 
