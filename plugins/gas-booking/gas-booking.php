@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.84
+ * Version: 3.7.85
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.84');
+define('GAS_BOOKING_VERSION', '3.7.85');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -547,7 +547,12 @@ class GAS_Booking {
             // EXTERNAL-URL pages: don't create a WP page — add a custom-link
             // menu item directly to the external URL with target=_blank.
             // Used for ResNexus and other off-site booking flows.
+            //
+            // CRUCIAL: if this page used to be internal (had a WP page +
+            // page-link menu item), we must remove that menu entry first —
+            // otherwise the user sees TWO menu items for the same slug.
             if ($cp_is_enabled && $cp_external_url && $cp_visibility !== 'hidden') {
+                $this->remove_internal_menu_item_for_slug($menu_id, $cp_slug);
                 $this->sync_external_menu_link($menu_id, $cp_slug, $cp_menu_title, $cp_external_url);
                 continue;
             }
@@ -752,6 +757,24 @@ class GAS_Booking {
             if (!empty($it->description) && strpos($it->description, $needle) !== false) {
                 wp_delete_post($it->ID, true);
                 break;
+            }
+        }
+    }
+
+    /**
+     * Remove the internal-page menu item that points to a WP page with the
+     * given slug. Used when transitioning a custom page from internal
+     * content → external URL — without this the menu shows duplicates.
+     * Leaves the underlying WP page intact (only removes from menu).
+     */
+    private function remove_internal_menu_item_for_slug($menu_id, $slug) {
+        if (!$menu_id || !$slug) return;
+        $page = get_page_by_path($slug);
+        if (!$page) return;
+        $items = wp_get_nav_menu_items($menu_id) ?: array();
+        foreach ($items as $it) {
+            if ($it->object === 'page' && (int) $it->object_id === (int) $page->ID) {
+                wp_delete_post($it->ID, true);
             }
         }
     }
