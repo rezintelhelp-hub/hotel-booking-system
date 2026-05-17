@@ -214,11 +214,100 @@ function stopChannexOutboxWorker() {
   if (_workerHandle) { clearInterval(_workerHandle); _workerHandle = null; }
 }
 
+/**
+ * Resolve a GAS room ID to its Channex IDs (property, room_type, rate_plan).
+ * Returns null if the room isn't mapped to a Channex connection or sync is
+ * disabled — caller should silently skip enqueueing.
+ *
+ * rate_plan_id is the FIRST rate plan associated with this room; rate-plan
+ * specificity comes later when we wire the cert rate-plan setup. For
+ * availability-only updates this can be null.
+ */
+async function getChannexMapping(pool, gasRoomId) {
+  try {
+    const r = await pool.query(`
+      SELECT
+        gsc.id AS connection_id,
+        gsc.account_id,
+        gsp.external_id AS channex_property_id,
+        gsrt.external_id AS channex_room_type_id
+      FROM gas_sync_room_types gsrt
+      JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+      JOIN gas_sync_connections gsc ON gsp.connection_id = gsc.id
+      WHERE gsrt.gas_room_id = $1
+        AND gsc.adapter_code = 'channex'
+        AND gsc.sync_enabled = true
+      LIMIT 1
+    `, [gasRoomId]);
+    return r.rows[0] || null;
+  } catch (_) {
+    return null; // tables may not exist in dev — silent
+  }
+}
+
+/**
+ * Convenience: enqueue an availability change. No-op if the room isn't
+ * mapped to a Channex-enabled connection.
+ */
+async function enqueueAvailabilityForRoom(pool, gasRoomId, date, count) {
+  const m = await getChannexMapping(pool, gasRoomId);
+  if (!m) return false;
+  await enqueue(pool, {
+    account_id: m.account_id,
+    connection_id: m.connection_id,
+    channex_property_id: m.channex_property_id,
+    channex_room_type_id: m.channex_room_type_id,
+    change_type: 'availability',
+    payload: { date, count },
+  });
+  return true;
+}
+
+/**
+ * Convenience: enqueue a rate/restriction change. caller picks change_type
+ * 'rate' (price change) or 'restriction' (min-stay, stop-sell, CTA, CTD).
+ * No-op if the room isn't mapped or no rate plan resolves.
+ *
+ * payload fields: { date, rate?, minStayArrival?, minStayThrough?,
+ *                   closedToArrival?, closedToDeparture?, stopSell? }
+ */
+async function enqueueRestrictionForRoom(pool, gasRoomId, payload, changeType = 'rate') {
+  const m = await getChannexMapping(pool, gasRoomId);
+  if (!m) return false;
+  // Rate plan resolution: pick the first rate plan for this room type from
+  // gas_sync_rate_plans if it exists; otherwise pass null and let Channex
+  // apply to the room-type default. Schema may not exist yet in dev.
+  let ratePlanId = null;
+  try {
+    const rp = await pool.query(`
+      SELECT external_id FROM gas_sync_rate_plans
+       WHERE sync_room_type_id = (
+         SELECT id FROM gas_sync_room_types WHERE gas_room_id = $1 AND connection_id = $2 LIMIT 1
+       )
+       ORDER BY id LIMIT 1
+    `, [gasRoomId, m.connection_id]);
+    ratePlanId = rp.rows[0]?.external_id || null;
+  } catch (_) { /* table may not exist yet */ }
+  await enqueue(pool, {
+    account_id: m.account_id,
+    connection_id: m.connection_id,
+    channex_property_id: m.channex_property_id,
+    channex_room_type_id: m.channex_room_type_id,
+    channex_rate_plan_id: ratePlanId,
+    change_type: changeType,
+    payload,
+  });
+  return true;
+}
+
 module.exports = {
   ensureSchema,
   enqueue,
   drain,
   startChannexOutboxWorker,
   stopChannexOutboxWorker,
+  getChannexMapping,
+  enqueueAvailabilityForRoom,
+  enqueueRestrictionForRoom,
   CHANGE_TYPES,
 };
