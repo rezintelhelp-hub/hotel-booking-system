@@ -48,6 +48,26 @@ async function ensureSchema(pool) {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_channex_outbox_status_next ON gas_channex_outbox (status, next_try_at) WHERE status = 'pending'`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_channex_outbox_account ON gas_channex_outbox (account_id, change_type)`);
+
+  // Rate plan mapping table — links a Channex rate_plan_id to a GAS
+  // synced room type. Used by enqueueRestrictionForRoom to resolve which
+  // rate plan to push prices/restrictions against.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS gas_sync_rate_plans (
+      id SERIAL PRIMARY KEY,
+      connection_id INTEGER REFERENCES gas_sync_connections(id) ON DELETE CASCADE,
+      sync_room_type_id INTEGER REFERENCES gas_sync_room_types(id) ON DELETE CASCADE,
+      external_id VARCHAR(128) NOT NULL,
+      name VARCHAR(255),
+      currency VARCHAR(10),
+      raw_data JSONB,
+      synced_at TIMESTAMPTZ DEFAULT NOW(),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(connection_id, external_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_grp_room_type ON gas_sync_rate_plans(sync_room_type_id)`);
   console.log('[channex-outbox] schema ensured');
 }
 
