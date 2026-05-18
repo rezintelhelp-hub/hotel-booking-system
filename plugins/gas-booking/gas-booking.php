@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.85
+ * Version: 3.7.86
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -5822,11 +5822,12 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-view-btn {
             background: <?php echo !empty($book_btn_bg) ? esc_attr($book_btn_bg) : esc_attr($this->get_effective_button_color()); ?>;
             color: <?php echo !empty($book_btn_text) ? esc_attr($book_btn_text) : 'white'; ?> !important;
-            padding: 10px 20px;
+            padding: 8px 18px;
             border-radius: var(--gas-btn-radius, <?php echo intval($btn_radius); ?>px);
             text-decoration: none;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 13px;
+            white-space: nowrap;
             transition: background 0.2s;
         }
         .gas-view-btn:hover {
@@ -6098,11 +6099,12 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-row-view-btn {
             background: <?php echo esc_attr($this->get_effective_button_color()); ?>;
             color: white !important;
-            padding: 12px 24px;
+            padding: 10px 20px;
             border-radius: 8px;
             text-decoration: none;
             font-weight: 600;
-            font-size: 15px;
+            font-size: 14px;
+            white-space: nowrap;
             transition: all 0.2s;
         }
         .gas-row-view-btn:hover {
