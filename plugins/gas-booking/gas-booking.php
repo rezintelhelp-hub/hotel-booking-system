@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.86
+ * Version: 3.7.87
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -4863,6 +4863,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         'page_rooms_btn_radius' => $r['btn-radius'] ?? null,
                         'rooms_show_map' => ($boolFlag('show-map') === false) ? 'false' : 'true',
                         'rooms_show_filters' => $boolFlag('show-filters'),
+                        'rooms_show_listing_price' => $boolFlag('show-listing-price'),
                         'rooms_show_date_filters' => $boolFlag('show-date-filters'),
                         'rooms_show_guest_filter' => $boolFlag('show-guest-filter'),
                         'rooms_show_amenity_filter' => $boolFlag('show-amenity-filter'),
@@ -5261,7 +5262,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         // todays_rate/base_price source which was misleading. Detail page
         // pricing (gas-booking-card) still goes through calculate-price and
         // is canonical for date-specific quotes.
+        // Show prices on listing cards. Reads Web Builder → Rooms → "Show prices on
+        // room listing cards". Default true (backwards compat for existing sites).
+        // When false, the "Accommodation from $X / per night" block is suppressed but
+        // the View & Book button still renders so guests can open the room page.
         $show_listing_price = true;
+        if (!empty($api_settings) && array_key_exists('rooms_show_listing_price', $api_settings)) {
+            $show_listing_price = (bool) $api_settings['rooms_show_listing_price'];
+        }
         $columns_attr = $atts['columns'] ?? 'auto';
         if ($columns_attr === 'auto') {
             $grid_columns = min(count($rooms), 4);
