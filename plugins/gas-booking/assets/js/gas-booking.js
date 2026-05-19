@@ -375,6 +375,7 @@ jQuery(document).ready(function($) {
             reviews: 'Reviews',
             bedrooms: 'Bedrooms',
             bedroom: 'Bedroom',
+            studio: 'Studio',
             bathrooms: 'Bathrooms',
             bathroom: 'Bathroom',
             guests_label: 'Guests',
@@ -1376,10 +1377,16 @@ jQuery(document).ready(function($) {
         if (room.max_guests) {
             metaHtml += '<div class="gas-meta-item"><span class="gas-meta-icon">' + icons.users + '</span><span>' + t('property', 'guests_label', 'Guests') + ': ' + room.max_guests + '</span></div>';
         }
-        var bedrooms = room.num_bedrooms || room.bedroom_count;
-        if (bedrooms) {
-            var bedroomLabel = parseInt(bedrooms) > 1 ? t('property', 'bedrooms', 'Bedrooms') : t('property', 'bedroom', 'Bedroom');
-            metaHtml += '<div class="gas-meta-item"><span class="gas-meta-icon">' + icons.bed + '</span><span>' + bedroomLabel + ': ' + parseInt(bedrooms) + '</span></div>';
+        var bedroomsRaw = (room.num_bedrooms !== undefined && room.num_bedrooms !== null) ? room.num_bedrooms : room.bedroom_count;
+        if (bedroomsRaw !== undefined && bedroomsRaw !== null) {
+            var bedroomCount = parseInt(bedroomsRaw);
+            if (bedroomCount === 0) {
+                // Explicit Studio marker — operator set num_bedrooms = 0.
+                metaHtml += '<div class="gas-meta-item"><span class="gas-meta-icon">' + icons.bed + '</span><span>' + t('property', 'studio', 'Studio') + '</span></div>';
+            } else if (bedroomCount > 0) {
+                var bedroomLabel = bedroomCount > 1 ? t('property', 'bedrooms', 'Bedrooms') : t('property', 'bedroom', 'Bedroom');
+                metaHtml += '<div class="gas-meta-item"><span class="gas-meta-icon">' + icons.bed + '</span><span>' + bedroomLabel + ': ' + bedroomCount + '</span></div>';
+            }
         }
         var bathrooms = room.num_bathrooms || room.bathroom_count;
         if (bathrooms) {
