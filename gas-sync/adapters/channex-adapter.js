@@ -31,6 +31,20 @@ const STAGING_BASE = 'https://staging.channex.io/api/v1';
 const PRODUCTION_BASE = 'https://app.channex.io/api/v1';
 
 // =====================================================
+// CERT FIXTURES — from Channex self-cert form page 2
+// (Test Property: GAS — Twin Room + Double Room, USD, BAR 100, B&B 120)
+// =====================================================
+const CHANNEX_CERT_FIXTURES = {
+  PROPERTY:   'd3397365-a134-48c4-a7c9-de9f497466a8',
+  TWIN_ROOM:  '2108e611-4698-46c2-88f6-a2d72039b39b',
+  TWIN_BAR:   '1d43121a-8ca1-49f7-801e-b40a1fd7c0e9',
+  TWIN_BB:    'a50a7ffe-65f3-4b8d-a9d7-6fc2f091bf88',
+  DOUBLE_ROOM:'443ce23a-2899-4b8f-862c-31d6a9836c8d',
+  DOUBLE_BAR: 'c2471d7b-f417-4382-83ac-86d1f1db5682',
+  DOUBLE_BB:  '23968f57-3d14-43cd-acca-1a7e4ed8d4b9',
+};
+
+// =====================================================
 // RATE LIMITER (mirrors the pattern used by Hostaway/Beds24)
 // Channex publishes per-property ARI limits (10 availability + 10
 // restrictions/price = 20/min/property). At the account level we self-
@@ -562,6 +576,82 @@ class ChannexAdapter {
       })
     };
     return this.request('/restrictions', 'POST', body);
+  }
+
+  // =====================================================
+  // CERTIFICATION TEST RUNNERS
+  // Each method below executes one Channex cert scenario against the
+  // hard-coded test property/rooms/rate-plans (set on form page 2).
+  // Returns the task ID(s) Channex hands back, ready to paste into the
+  // self-cert Google Form. Bypasses the outbox so cert traffic doesn't
+  // mingle with real client ARI in gas_channex_outbox.
+  // =====================================================
+
+  /**
+   * Test #1 — Full Sync.
+   * Two API calls total:
+   *   1. /availability — every room × 500 days in ONE call.
+   *   2. /restrictions — every rate plan × 500 days in ONE call
+   *      (rate + min stay + closed flags + stop sell).
+   * Returns { availabilityTaskId, restrictionsTaskId }.
+   */
+  async runCertFullSync(fixtures = CHANNEX_CERT_FIXTURES) {
+    const days = 500;
+    const start = new Date(); start.setUTCHours(0, 0, 0, 0);
+    const dateFor = (offset) => {
+      const d = new Date(start.getTime() + offset * 86400000);
+      return d.toISOString().slice(0, 10);
+    };
+
+    // ---- 1. Availability: all rooms × 500 days, ONE call ----
+    const availValues = [];
+    for (const roomTypeId of [fixtures.TWIN_ROOM, fixtures.DOUBLE_ROOM]) {
+      for (let d = 0; d < days; d++) {
+        availValues.push({
+          property_id: fixtures.PROPERTY,
+          room_type_id: roomTypeId,
+          date: dateFor(d),
+          availability: 1
+        });
+      }
+    }
+    const availResp = await this.request('/availability', 'POST', { values: availValues });
+    const availTaskId = availResp?.data?.[0]?.id || availResp?.raw?.data?.[0]?.id || null;
+
+    // ---- 2. Restrictions: all rate plans × 500 days, ONE call ----
+    // Default rates from cert form: BAR 100, B&B 120. Encoded as integer cents.
+    const rateByPlan = {
+      [fixtures.TWIN_BAR]:   100 * 100,
+      [fixtures.TWIN_BB]:    120 * 100,
+      [fixtures.DOUBLE_BAR]: 100 * 100,
+      [fixtures.DOUBLE_BB]:  120 * 100,
+    };
+    const restrValues = [];
+    for (const ratePlanId of Object.keys(rateByPlan)) {
+      for (let d = 0; d < days; d++) {
+        restrValues.push({
+          property_id: fixtures.PROPERTY,
+          rate_plan_id: ratePlanId,
+          date: dateFor(d),
+          rate: rateByPlan[ratePlanId],
+          min_stay_arrival: 1,
+          min_stay_through: 1,
+          closed_to_arrival: false,
+          closed_to_departure: false,
+          stop_sell: false
+        });
+      }
+    }
+    const restrResp = await this.request('/restrictions', 'POST', { values: restrValues });
+    const restrTaskId = restrResp?.data?.[0]?.id || restrResp?.raw?.data?.[0]?.id || null;
+
+    return {
+      success: !!(availTaskId && restrTaskId),
+      availabilityTaskId: availTaskId,
+      restrictionsTaskId: restrTaskId,
+      counts: { availability: availValues.length, restrictions: restrValues.length },
+      raw: { availability: availResp, restrictions: restrResp }
+    };
   }
 
   // =====================================================
@@ -1167,5 +1257,6 @@ class ChannexAdapter {
 
 module.exports = {
   ChannexAdapter,
-  RateLimiter
+  RateLimiter,
+  CHANNEX_CERT_FIXTURES
 };
