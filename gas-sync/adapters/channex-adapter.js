@@ -532,18 +532,34 @@ class ChannexAdapter {
    * Caller MUST provide propertyId per item.
    */
   async updateRestrictions(items) {
+    // Rate format: Channex expects the integer "lowest fraction" — cents for
+    // USD/EUR/GBP. Callers pass decimal major-units (e.g. 333.00); we encode
+    // here. Cert rejection 2026-05-19 #2 was a direct hit on this.
+    const encodeRate = (v) => {
+      if (v === null || v === undefined || v === '') return undefined;
+      const n = typeof v === 'number' ? v : parseFloat(String(v));
+      if (Number.isNaN(n)) return undefined;
+      return Math.round(n * 100);
+    };
+
     const body = {
-      values: items.map(i => ({
-        property_id: i.propertyId,
-        rate_plan_id: i.ratePlanId,
-        date: i.date,
-        ...(i.rate !== undefined && { rate: i.rate }),
-        ...(i.minStayArrival !== undefined && { min_stay_arrival: i.minStayArrival }),
-        ...(i.minStayThrough !== undefined && { min_stay_through: i.minStayThrough }),
-        ...(i.closedToArrival !== undefined && { closed_to_arrival: i.closedToArrival }),
-        ...(i.closedToDeparture !== undefined && { closed_to_departure: i.closedToDeparture }),
-        ...(i.stopSell !== undefined && { stop_sell: i.stopSell })
-      }))
+      values: items.map(i => {
+        const out = {
+          property_id: i.propertyId,
+          rate_plan_id: i.ratePlanId,
+          date: i.date,
+        };
+        if (i.rate !== undefined) {
+          const enc = encodeRate(i.rate);
+          if (enc !== undefined) out.rate = enc;
+        }
+        if (i.minStayArrival !== undefined) out.min_stay_arrival = i.minStayArrival;
+        if (i.minStayThrough !== undefined) out.min_stay_through = i.minStayThrough;
+        if (i.closedToArrival !== undefined) out.closed_to_arrival = i.closedToArrival;
+        if (i.closedToDeparture !== undefined) out.closed_to_departure = i.closedToDeparture;
+        if (i.stopSell !== undefined) out.stop_sell = i.stopSell;
+        return out;
+      })
     };
     return this.request('/restrictions', 'POST', body);
   }
