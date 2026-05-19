@@ -675,6 +675,46 @@ class ChannexAdapter {
     };
   }
 
+  // Helper: expand an inclusive YYYY-MM-DD…YYYY-MM-DD range into a list.
+  _expandDateRange(fromDate, toDate) {
+    const out = [];
+    const start = new Date(fromDate + 'T00:00:00Z');
+    const end = new Date(toDate + 'T00:00:00Z');
+    for (let d = start; d <= end; d = new Date(d.getTime() + 86400000)) {
+      out.push(d.toISOString().slice(0, 10));
+    }
+    return out;
+  }
+
+  /**
+   * Test #4 — Multiple Date Update for Multiple Rates.
+   * Channex spec, batched into ONE /restrictions call (37 values total):
+   *   Twin BAR     01–10 Nov 2026   $241    (10 dates)
+   *   Double BAR   10–16 Nov 2026   $312.66 ( 7 dates)
+   *   Double B&B   01–20 Nov 2026   $111    (20 dates)
+   */
+  async runCertMultipleDateMultipleRates(fixtures = CHANNEX_CERT_FIXTURES) {
+    const ranges = [
+      { ratePlanId: fixtures.TWIN_BAR,   from: '2026-11-01', to: '2026-11-10', rate: 241 },
+      { ratePlanId: fixtures.DOUBLE_BAR, from: '2026-11-10', to: '2026-11-16', rate: 312.66 },
+      { ratePlanId: fixtures.DOUBLE_BB,  from: '2026-11-01', to: '2026-11-20', rate: 111 },
+    ];
+    const items = [];
+    for (const r of ranges) {
+      for (const date of this._expandDateRange(r.from, r.to)) {
+        items.push({ propertyId: fixtures.PROPERTY, ratePlanId: r.ratePlanId, date, rate: r.rate });
+      }
+    }
+    const resp = await this.updateRestrictions(items);
+    const taskId = resp?.data?.[0]?.id || resp?.raw?.data?.[0]?.id || null;
+    return {
+      success: !!taskId,
+      taskId,
+      counts: { restrictions: items.length },
+      raw: { restrictions: resp }
+    };
+  }
+
   /**
    * Test #3 — Single Date Update for Multiple Rates.
    * Channex spec, batched into ONE /restrictions call:
