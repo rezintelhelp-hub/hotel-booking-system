@@ -375,7 +375,8 @@ jQuery(document).ready(function($) {
             reviews: 'Reviews',
             bedrooms: 'Bedrooms',
             bedroom: 'Bedroom',
-            studio: 'Studio',
+            beds: 'Beds',
+            bed: 'Bed',
             bathrooms: 'Bathrooms',
             bathroom: 'Bathroom',
             guests_label: 'Guests',
@@ -1377,15 +1378,22 @@ jQuery(document).ready(function($) {
         if (room.max_guests) {
             metaHtml += '<div class="gas-meta-item"><span class="gas-meta-icon">' + icons.users + '</span><span>' + t('property', 'guests_label', 'Guests') + ': ' + room.max_guests + '</span></div>';
         }
+        // Bedrooms row — hidden entirely when count is 0 (Studio); a separate
+        // beds row below conveys sleeping capacity.
         var bedroomsRaw = (room.num_bedrooms !== undefined && room.num_bedrooms !== null) ? room.num_bedrooms : room.bedroom_count;
-        if (bedroomsRaw !== undefined && bedroomsRaw !== null) {
-            var bedroomCount = parseInt(bedroomsRaw);
-            if (bedroomCount === 0) {
-                // Explicit Studio marker — operator set num_bedrooms = 0.
-                metaHtml += '<div class="gas-meta-item"><span class="gas-meta-icon">' + icons.bed + '</span><span>' + t('property', 'studio', 'Studio') + '</span></div>';
-            } else if (bedroomCount > 0) {
-                var bedroomLabel = bedroomCount > 1 ? t('property', 'bedrooms', 'Bedrooms') : t('property', 'bedroom', 'Bedroom');
-                metaHtml += '<div class="gas-meta-item"><span class="gas-meta-icon">' + icons.bed + '</span><span>' + bedroomLabel + ': ' + bedroomCount + '</span></div>';
+        var bedroomCount = (bedroomsRaw !== undefined && bedroomsRaw !== null) ? parseInt(bedroomsRaw) : null;
+        if (bedroomCount !== null && bedroomCount > 0) {
+            var bedroomLabel = bedroomCount > 1 ? t('property', 'bedrooms', 'Bedrooms') : t('property', 'bedroom', 'Bedroom');
+            metaHtml += '<div class="gas-meta-item"><span class="gas-meta-icon">' + icons.bed + '</span><span>' + bedroomLabel + ': ' + bedroomCount + '</span></div>';
+        }
+        // Beds row — always shown when we have a count. For studios this is
+        // the only sleeping-related indicator (no bedroom row).
+        var bedsRaw = (room.num_beds !== undefined && room.num_beds !== null) ? room.num_beds : room.beds;
+        if (bedsRaw !== undefined && bedsRaw !== null) {
+            var bedsCount = parseInt(bedsRaw);
+            if (bedsCount > 0) {
+                var bedsLabel = bedsCount > 1 ? t('property', 'beds', 'Beds') : t('property', 'bed', 'Bed');
+                metaHtml += '<div class="gas-meta-item"><span class="gas-meta-icon">' + icons.bed + '</span><span>' + bedsLabel + ': ' + bedsCount + '</span></div>';
             }
         }
         var bathrooms = room.num_bathrooms || room.bathroom_count;
