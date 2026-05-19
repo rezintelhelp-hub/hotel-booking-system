@@ -654,6 +654,49 @@ class ChannexAdapter {
     };
   }
 
+  /**
+   * Test #2 — Single Date Update for Single Rate.
+   * Channex spec: Twin Room BAR, 22 Nov 2026, $333.
+   * One /restrictions call, one value, one task ID.
+   */
+  async runCertSingleDateSingleRate(fixtures = CHANNEX_CERT_FIXTURES) {
+    const resp = await this.updateRestrictions([{
+      propertyId: fixtures.PROPERTY,
+      ratePlanId: fixtures.TWIN_BAR,
+      date: '2026-11-22',
+      rate: 333,
+    }]);
+    const taskId = resp?.data?.[0]?.id || resp?.raw?.data?.[0]?.id || null;
+    return {
+      success: !!taskId,
+      taskId,
+      counts: { restrictions: 1 },
+      raw: { restrictions: resp }
+    };
+  }
+
+  /**
+   * Test #3 — Single Date Update for Multiple Rates.
+   * Channex spec, batched into ONE /restrictions call:
+   *   Twin BAR    21 Nov 2026   $333
+   *   Double BAR  25 Nov 2026   $444
+   *   Double B&B  29 Nov 2026   $456.23
+   */
+  async runCertSingleDateMultipleRates(fixtures = CHANNEX_CERT_FIXTURES) {
+    const resp = await this.updateRestrictions([
+      { propertyId: fixtures.PROPERTY, ratePlanId: fixtures.TWIN_BAR,   date: '2026-11-21', rate: 333 },
+      { propertyId: fixtures.PROPERTY, ratePlanId: fixtures.DOUBLE_BAR, date: '2026-11-25', rate: 444 },
+      { propertyId: fixtures.PROPERTY, ratePlanId: fixtures.DOUBLE_BB,  date: '2026-11-29', rate: 456.23 },
+    ]);
+    const taskId = resp?.data?.[0]?.id || resp?.raw?.data?.[0]?.id || null;
+    return {
+      success: !!taskId,
+      taskId,
+      counts: { restrictions: 3 },
+      raw: { restrictions: resp }
+    };
+  }
+
   // =====================================================
   // BOOKINGS / RESERVATIONS
   // =====================================================
