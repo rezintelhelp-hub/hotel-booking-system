@@ -569,6 +569,7 @@ class ChannexAdapter {
         }
         if (i.minStayArrival !== undefined) out.min_stay_arrival = i.minStayArrival;
         if (i.minStayThrough !== undefined) out.min_stay_through = i.minStayThrough;
+        if (i.maxStay !== undefined) out.max_stay = i.maxStay;
         if (i.closedToArrival !== undefined) out.closed_to_arrival = i.closedToArrival;
         if (i.closedToDeparture !== undefined) out.closed_to_departure = i.closedToDeparture;
         if (i.stopSell !== undefined) out.stop_sell = i.stopSell;
@@ -673,6 +674,108 @@ class ChannexAdapter {
       counts: { restrictions: 1 },
       raw: { restrictions: resp }
     };
+  }
+
+  /**
+   * Test #5 — Min Stay Update (single date per rate plan, ONE call).
+   * Channex spec sets min_stay (both arrival and through to be safe).
+   */
+  async runCertMinStayUpdate(fixtures = CHANNEX_CERT_FIXTURES) {
+    const resp = await this.updateRestrictions([
+      { propertyId: fixtures.PROPERTY, ratePlanId: fixtures.TWIN_BAR,   date: '2026-11-23', minStayArrival: 3, minStayThrough: 3 },
+      { propertyId: fixtures.PROPERTY, ratePlanId: fixtures.DOUBLE_BAR, date: '2026-11-25', minStayArrival: 2, minStayThrough: 2 },
+      { propertyId: fixtures.PROPERTY, ratePlanId: fixtures.DOUBLE_BB,  date: '2026-11-15', minStayArrival: 5, minStayThrough: 5 },
+    ]);
+    const taskId = resp?.data?.[0]?.id || resp?.raw?.data?.[0]?.id || null;
+    return { success: !!taskId, taskId, counts: { restrictions: 3 }, raw: { restrictions: resp } };
+  }
+
+  /**
+   * Test #6 — Stop Sell Update (single date per rate plan, ONE call).
+   */
+  async runCertStopSellUpdate(fixtures = CHANNEX_CERT_FIXTURES) {
+    const resp = await this.updateRestrictions([
+      { propertyId: fixtures.PROPERTY, ratePlanId: fixtures.TWIN_BAR,   date: '2026-11-14', stopSell: true },
+      { propertyId: fixtures.PROPERTY, ratePlanId: fixtures.DOUBLE_BAR, date: '2026-11-16', stopSell: true },
+      { propertyId: fixtures.PROPERTY, ratePlanId: fixtures.DOUBLE_BB,  date: '2026-11-20', stopSell: true },
+    ]);
+    const taskId = resp?.data?.[0]?.id || resp?.raw?.data?.[0]?.id || null;
+    return { success: !!taskId, taskId, counts: { restrictions: 3 }, raw: { restrictions: resp } };
+  }
+
+  /**
+   * Test #7 — Multiple Restrictions Update (date ranges with mixed
+   * CTA/CTD/min_stay/max_stay across all rate plans, batched into ONE call).
+   *   Twin BAR  01–10 Nov  CTA=true  CTD=false max=4 min=1
+   *   Twin B&B  12–16 Nov  CTA=false CTD=true            min=6
+   *   Double BAR 10–16 Nov CTA=true                       min=2
+   *   Double B&B 01–20 Nov                                min=10
+   */
+  async runCertMultipleRestrictions(fixtures = CHANNEX_CERT_FIXTURES) {
+    const items = [];
+    const add = (ratePlanId, from, to, fields) => {
+      for (const date of this._expandDateRange(from, to)) {
+        items.push({ propertyId: fixtures.PROPERTY, ratePlanId, date, ...fields });
+      }
+    };
+    add(fixtures.TWIN_BAR,   '2026-11-01', '2026-11-10', { closedToArrival: true,  closedToDeparture: false, maxStay: 4, minStayArrival: 1, minStayThrough: 1 });
+    add(fixtures.TWIN_BB,    '2026-11-12', '2026-11-16', { closedToArrival: false, closedToDeparture: true,             minStayArrival: 6, minStayThrough: 6 });
+    add(fixtures.DOUBLE_BAR, '2026-11-10', '2026-11-16', { closedToArrival: true,                                       minStayArrival: 2, minStayThrough: 2 });
+    add(fixtures.DOUBLE_BB,  '2026-11-01', '2026-11-20', {                                                              minStayArrival: 10, minStayThrough: 10 });
+    const resp = await this.updateRestrictions(items);
+    const taskId = resp?.data?.[0]?.id || resp?.raw?.data?.[0]?.id || null;
+    return { success: !!taskId, taskId, counts: { restrictions: items.length }, raw: { restrictions: resp } };
+  }
+
+  /**
+   * Test #8 — Half-year Update (5 months of rate + min_stay batched ONE call).
+   *   Twin BAR    01 Dec 2026 – 01 May 2027  rate=$432, CTA/CTD=false, min=2
+   *   Double BAR  01 Dec 2026 – 01 May 2027  rate=$342, min=3
+   */
+  async runCertHalfYearUpdate(fixtures = CHANNEX_CERT_FIXTURES) {
+    const items = [];
+    const add = (ratePlanId, fields) => {
+      for (const date of this._expandDateRange('2026-12-01', '2027-05-01')) {
+        items.push({ propertyId: fixtures.PROPERTY, ratePlanId, date, ...fields });
+      }
+    };
+    add(fixtures.TWIN_BAR,   { rate: 432, closedToArrival: false, closedToDeparture: false, minStayArrival: 2, minStayThrough: 2 });
+    add(fixtures.DOUBLE_BAR, { rate: 342, minStayArrival: 3, minStayThrough: 3 });
+    const resp = await this.updateRestrictions(items);
+    const taskId = resp?.data?.[0]?.id || resp?.raw?.data?.[0]?.id || null;
+    return { success: !!taskId, taskId, counts: { restrictions: items.length }, raw: { restrictions: resp } };
+  }
+
+  /**
+   * Test #9 — Single Date Availability (2 rooms, 2 dates, ONE call).
+   *   Twin Room   21 Nov 2026  availability 7
+   *   Double Room 25 Nov 2026  availability 0
+   */
+  async runCertSingleDateAvailability(fixtures = CHANNEX_CERT_FIXTURES) {
+    const resp = await this.updateAvailabilityBatch([
+      { propertyId: fixtures.PROPERTY, roomTypeId: fixtures.TWIN_ROOM,   date: '2026-11-21', count: 7 },
+      { propertyId: fixtures.PROPERTY, roomTypeId: fixtures.DOUBLE_ROOM, date: '2026-11-25', count: 0 },
+    ]);
+    const taskId = resp?.data?.[0]?.id || resp?.raw?.data?.[0]?.id || null;
+    return { success: !!taskId, taskId, counts: { availability: 2 }, raw: { availability: resp } };
+  }
+
+  /**
+   * Test #10 — Multiple Date Availability (2 date ranges, ONE call).
+   *   Twin Room   10–16 Nov 2026  availability 3
+   *   Double Room 17–24 Nov 2026  availability 4
+   */
+  async runCertMultipleDateAvailability(fixtures = CHANNEX_CERT_FIXTURES) {
+    const items = [];
+    for (const date of this._expandDateRange('2026-11-10', '2026-11-16')) {
+      items.push({ propertyId: fixtures.PROPERTY, roomTypeId: fixtures.TWIN_ROOM, date, count: 3 });
+    }
+    for (const date of this._expandDateRange('2026-11-17', '2026-11-24')) {
+      items.push({ propertyId: fixtures.PROPERTY, roomTypeId: fixtures.DOUBLE_ROOM, date, count: 4 });
+    }
+    const resp = await this.updateAvailabilityBatch(items);
+    const taskId = resp?.data?.[0]?.id || resp?.raw?.data?.[0]?.id || null;
+    return { success: !!taskId, taskId, counts: { availability: items.length }, raw: { availability: resp } };
   }
 
   // Helper: expand an inclusive YYYY-MM-DD…YYYY-MM-DD range into a list.
