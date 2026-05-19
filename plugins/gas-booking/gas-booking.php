@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.87
+ * Version: 3.7.89
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.85');
+define('GAS_BOOKING_VERSION', '3.7.89');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5717,7 +5717,18 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             font-weight: 500;
         }
         .gas-room-image {
-            aspect-ratio: 16/9;
+            <?php
+            // Aspect ratio scales with column count so a single full-width card
+            // doesn't look like a stretched letterbox.
+            $image_aspect = '16 / 9';
+            switch ($grid_columns) {
+                case 1: $image_aspect = '5 / 4'; break;
+                case 2: $image_aspect = '4 / 3'; break;
+                case 3: $image_aspect = '3 / 2'; break;
+                case 4: $image_aspect = '5 / 3'; break;
+            }
+            ?>
+            aspect-ratio: <?php echo esc_attr($image_aspect); ?>;
             background: linear-gradient(135deg, <?php echo esc_attr($this->get_effective_button_color()); ?> 0%, #764ba2 100%);
             display: flex;
             align-items: center;

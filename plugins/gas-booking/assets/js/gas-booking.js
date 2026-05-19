@@ -1497,8 +1497,18 @@ jQuery(document).ready(function($) {
         $roomWidget.data('currency', currency);
         $roomWidget.data('occupancy-settings', occSettings);
         
-        // Load initial calendar
-        loadAvailabilityCalendar(room.id || $roomWidget.data('unit-id'), new Date());
+        // Load initial calendar — open at the selected arrival month if the
+        // guest came in from search with a ?checkin=YYYY-MM-DD param, so
+        // they see availability for the dates they care about, not today.
+        var calStart = new Date();
+        try {
+            var urlCheckin = new URLSearchParams(window.location.search).get('checkin');
+            if (urlCheckin && /^\d{4}-\d{2}-\d{2}$/.test(urlCheckin)) {
+                calStart = new Date(urlCheckin + 'T00:00:00');
+            }
+        } catch (e) {}
+        calendarMonth = new Date(calStart.getFullYear(), calStart.getMonth(), 1);
+        loadAvailabilityCalendar(room.id || $roomWidget.data('unit-id'), calendarMonth);
         
         // Show map if coordinates available
         var mapTitle = room.property_name || extractText(room.display_name) || room.name;
