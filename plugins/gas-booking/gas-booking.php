@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.95
+ * Version: 3.7.96
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.95');
+define('GAS_BOOKING_VERSION', '3.7.96');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3693,18 +3693,19 @@ class GAS_Booking {
             }
         }
 
-        // Room description list formatting (Cotswolds 2026-05-21):
-        // 1. Every <ul>/<ol> uses the SAME left indent so all lists in the
-        //    description align cleanly with each other.
+        // Short description (.gas-description-short) list formatting,
+        // Cotswolds 2026-05-21:
+        // 1. All <ul>/<ol> inside short-description share the same indent.
         // 2. ONLY the LAST <ul> has its bullet dots removed — operators
         //    often append a "feature summary" tail-list (Hoburne / Dog
-        //    Friendly / Sleeps 4 etc.) which reads better without bullets.
-        //    All earlier prose lists keep their bullets.
-        $custom_css .= "/* Room description: consistent indent on all lists */\n";
-        $custom_css .= ".gas-room-description ul, .gas-room-description ol, .gas-property-description ul, .gas-property-description ol, .gas-rooms-grid .description ul, .gas-rooms-grid .description ol, .gas-room-detail ul, .gas-room-detail ol, [class*='room-description'] ul, [class*='room-description'] ol, .gas-room-card .description ul, .gas-room-card .description ol { padding-left: 1.5em !important; margin: 0 0 1em !important; }\n";
-        $custom_css .= "/* Room description: strip bullets ONLY on the final <ul> */\n";
-        $custom_css .= ".gas-room-description ul:last-of-type, .gas-property-description ul:last-of-type, .gas-rooms-grid .description ul:last-of-type, .gas-room-detail ul:last-of-type, [class*='room-description'] ul:last-of-type, .gas-room-card .description ul:last-of-type { list-style: none !important; }\n";
-        $custom_css .= ".gas-room-description ul:last-of-type li, .gas-property-description ul:last-of-type li, .gas-rooms-grid .description ul:last-of-type li, .gas-room-detail ul:last-of-type li, [class*='room-description'] ul:last-of-type li, .gas-room-card .description ul:last-of-type li { list-style: none !important; }\n";
+        //    Friendly / Sleeps 4 etc.) which reads cleaner without bullets.
+        //    The full description (.gas-description-full) is untouched per
+        //    Steve's explicit instruction.
+        $custom_css .= "/* Short description: consistent list indent */\n";
+        $custom_css .= ".gas-description-short ul, .gas-description-short ol { padding-left: 1.5em !important; margin: 0 0 1em !important; }\n";
+        $custom_css .= "/* Short description: strip bullets ONLY on the final <ul> */\n";
+        $custom_css .= ".gas-description-short ul:last-of-type { list-style: none !important; }\n";
+        $custom_css .= ".gas-description-short ul:last-of-type li { list-style: none !important; }\n";
 
         if (!empty($custom_css)) {
             echo "\n<style id=\"gas-custom-css\">\n" . $custom_css . "</style>\n";
