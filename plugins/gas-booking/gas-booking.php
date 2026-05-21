@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.96
+ * Version: 3.7.97
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.96');
+define('GAS_BOOKING_VERSION', '3.7.97');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3693,19 +3693,17 @@ class GAS_Booking {
             }
         }
 
-        // Short description (.gas-description-short) list formatting,
-        // Cotswolds 2026-05-21:
-        // 1. All <ul>/<ol> inside short-description share the same indent.
-        // 2. ONLY the LAST <ul> has its bullet dots removed — operators
-        //    often append a "feature summary" tail-list (Hoburne / Dog
-        //    Friendly / Sleeps 4 etc.) which reads cleaner without bullets.
-        //    The full description (.gas-description-full) is untouched per
-        //    Steve's explicit instruction.
-        $custom_css .= "/* Short description: consistent list indent */\n";
-        $custom_css .= ".gas-description-short ul, .gas-description-short ol { padding-left: 1.5em !important; margin: 0 0 1em !important; }\n";
-        $custom_css .= "/* Short description: strip bullets ONLY on the final <ul> */\n";
-        $custom_css .= ".gas-description-short ul:last-of-type { list-style: none !important; }\n";
-        $custom_css .= ".gas-description-short ul:last-of-type li { list-style: none !important; }\n";
+        // Description list formatting (Cotswolds 2026-05-21):
+        // The trailing "feature summary" list (Hoburne / Dog Friendly /
+        // Sleeps 4 etc.) lives in the FULL description, not the short.
+        // Strip bullets ONLY on its last <ul>. All earlier prose lists
+        // (in both short + full) keep their normal bullets. Consistent
+        // 1.5em left indent across all description lists.
+        $custom_css .= "/* Descriptions: consistent list indent */\n";
+        $custom_css .= ".gas-description-short ul, .gas-description-short ol, .gas-description-full ul, .gas-description-full ol { padding-left: 1.5em !important; margin: 0 0 1em !important; }\n";
+        $custom_css .= "/* Full description: strip bullets ONLY on the final <ul> (the feature summary tail-list) */\n";
+        $custom_css .= ".gas-description-full ul:last-of-type { list-style: none !important; }\n";
+        $custom_css .= ".gas-description-full ul:last-of-type li { list-style: none !important; }\n";
 
         if (!empty($custom_css)) {
             echo "\n<style id=\"gas-custom-css\">\n" . $custom_css . "</style>\n";
