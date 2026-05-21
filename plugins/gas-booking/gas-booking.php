@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.98
+ * Version: 3.7.99
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.98');
+define('GAS_BOOKING_VERSION', '3.7.99');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3693,12 +3693,9 @@ class GAS_Booking {
             }
         }
 
-        // Description list indent (Cotswolds 2026-05-21):
-        // Keep all bullets, just ensure both short + full description lists
-        // share the same left indent so they visually align.
-        $custom_css .= "/* Descriptions: consistent list indent across short + full */\n";
-        $custom_css .= ".gas-description-short ul, .gas-description-short ol, .gas-description-full ul, .gas-description-full ol { padding-left: 1.5em !important; margin: 0 0 1em !important; list-style-position: outside !important; }\n";
-        $custom_css .= ".gas-description-short li, .gas-description-full li { margin-left: 0 !important; }\n";
+        // (List-formatting CSS removed 2026-05-21 — operators fix list
+        // structure at the Beds24 content-editor source rather than via
+        // CSS overrides. CSS layer was making the mess worse.)
 
         if (!empty($custom_css)) {
             echo "\n<style id=\"gas-custom-css\">\n" . $custom_css . "</style>\n";
