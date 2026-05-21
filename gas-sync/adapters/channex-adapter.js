@@ -896,6 +896,83 @@ class ChannexAdapter {
     };
   }
 
+  /**
+   * POST /api/v1/bookings/booking — create a booking record in Channex from
+   * an external PMS (i.e. GAS direct bookings). One-way push: GAS stays
+   * system of record, Channex becomes a read-mirror so the operator sees
+   * direct + OTA bookings in the same dashboard / reports.
+   *
+   * payload shape:
+   *   propertyId            — Channex property UUID
+   *   otaReservationCode    — our booking reference (e.g. "GAS-77467"). Channex uses this for idempotency on retry.
+   *   arrivalDate           — 'YYYY-MM-DD'
+   *   departureDate         — 'YYYY-MM-DD'
+   *   currency              — 'EUR' etc
+   *   amount                — string e.g. '79.00' (Channex stores as string, currency-agnostic)
+   *   rooms[]               — at least one entry, see below
+   *   customer              — { name, surname, mail, phone, address?, city?, country? }
+   *   status                — 'new' (default) or 'modified'
+   *   notes                 — optional free text
+   *
+   * Each rooms[] entry:
+   *   roomTypeId            — Channex room_type UUID
+   *   ratePlanId            — Channex rate_plan UUID
+   *   checkinDate, checkoutDate
+   *   occupancy             — { adults, children, infants }
+   *   days                  — object keyed by date string -> per-night rate string e.g. {'2026-08-03': '26.34'}
+   *   guests                — [{ name, surname }]
+   */
+  async createBooking(payload) {
+    const room = (payload.rooms || []).map(r => ({
+      room_type_id: r.roomTypeId,
+      rate_plan_id: r.ratePlanId,
+      checkin_date: r.checkinDate,
+      checkout_date: r.checkoutDate,
+      occupancy: {
+        adults: r.occupancy?.adults || 1,
+        children: r.occupancy?.children || 0,
+        infants: r.occupancy?.infants || 0
+      },
+      days: r.days || {},
+      guests: r.guests || [],
+      amount: r.amount
+    }));
+    const body = {
+      booking: {
+        property_id: payload.propertyId,
+        ota_reservation_code: payload.otaReservationCode,
+        ota_name: payload.otaName || 'GAS Direct',
+        arrival_date: payload.arrivalDate,
+        departure_date: payload.departureDate,
+        arrival_hour: payload.arrivalHour || '14:00',
+        currency: payload.currency,
+        amount: String(payload.amount),
+        rooms: room,
+        customer: payload.customer || {},
+        status: payload.status || 'new',
+        notes: payload.notes || ''
+      }
+    };
+    return this.request('/bookings/booking', 'POST', body);
+  }
+
+  /**
+   * Cancel a booking previously pushed to Channex. Per Channex docs, cancel
+   * is a POST to the same /bookings/booking endpoint with status='cancelled'
+   * and the original ota_reservation_code so Channex can find the booking.
+   */
+  async cancelBooking(payload) {
+    const body = {
+      booking: {
+        property_id: payload.propertyId,
+        ota_reservation_code: payload.otaReservationCode,
+        status: 'cancelled',
+        notes: payload.notes || 'Cancelled in GAS'
+      }
+    };
+    return this.request('/bookings/booking', 'POST', body);
+  }
+
   // =====================================================
   // WEBHOOKS
   // =====================================================

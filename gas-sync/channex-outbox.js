@@ -24,7 +24,7 @@ const BATCH_LIMIT      = 100;          // max rows per batch
 const MAX_ATTEMPTS     = 6;            // give up after this many tries
 const BACKOFF_BASE_MS  = 30_000;       // first retry waits 30s, doubles
 
-const CHANGE_TYPES = ['availability', 'rate', 'restriction'];
+const CHANGE_TYPES = ['availability', 'rate', 'restriction', 'booking_create', 'booking_cancel'];
 
 async function ensureSchema(pool) {
   await pool.query(`
@@ -167,6 +167,45 @@ async function drain(pool) {
           count: r.payload?.count,
         }));
         resp = await adapter.updateAvailabilityBatch(items);
+      } else if (change_type === 'booking_create' || change_type === 'booking_cancel') {
+        // Bookings are processed per-row (one Channex API call per booking).
+        // The batching grouping still applies, but each row is its own
+        // independent API call — we don't want a Channex failure on booking
+        // X to mark booking Y's row as failed. Process serially and update
+        // each row individually.
+        for (const r of batch) {
+          try {
+            const apiResp = (change_type === 'booking_create')
+              ? await adapter.createBooking(r.payload || {})
+              : await adapter.cancelBooking(r.payload || {});
+            if (apiResp.success) {
+              const channexBookingId = apiResp.data?.id
+                || apiResp.data?.attributes?.id
+                || apiResp.raw?.data?.id
+                || null;
+              await pool.query(`
+                UPDATE gas_channex_outbox
+                   SET status='succeeded', channex_task_id=$2, processed_at=NOW(), last_error=NULL
+                 WHERE id=$1
+              `, [r.id, channexBookingId]);
+              // For booking_create — backfill bookings.channex_booking_id so
+              // future updates and the cancel-push reference the same ID.
+              if (change_type === 'booking_create' && channexBookingId && r.payload?.gasBookingId) {
+                await pool.query(
+                  `UPDATE bookings SET channex_booking_id=$1 WHERE id=$2 AND channex_booking_id IS NULL`,
+                  [channexBookingId, r.payload.gasBookingId]
+                ).catch(() => {});
+              }
+              drained++;
+              console.log(`[channex-outbox] ${change_type} ok for gas-booking=${r.payload?.gasBookingId} channex=${channexBookingId}`);
+            } else {
+              await markBatchFailure(pool, [r], apiResp.error || 'unknown', apiResp.code);
+            }
+          } catch (err) {
+            await markBatchFailure(pool, [r], err.message, 'EXCEPTION');
+          }
+        }
+        continue; // skip the batch-level success path below
       } else {
         // 'rate' and 'restriction' both go via /restrictions with rate/restriction fields
         const items = batch.map(r => ({
@@ -333,6 +372,144 @@ async function enqueueRestrictionForRoom(pool, gasRoomId, payload, changeType = 
   return true;
 }
 
+/**
+ * Push a GAS booking into Channex as a full booking record (one-way
+ * mirror — GAS stays system of record). Builds the Channex /bookings
+ * payload from the booking row + room + rate plan + per-night price
+ * breakdown, then enqueues an outbox row with change_type='booking_create'
+ * or 'booking_cancel'. The worker picks it up and calls Channex.
+ *
+ * No-op if the booking's room isn't mapped to a channex connection or
+ * if no currency-matching rate plan exists.
+ */
+async function enqueueBookingPush(pool, gasBookingId, action) {
+  // action: 'booking_create' | 'booking_cancel'
+  // Cast date columns to text so pg returns them verbatim — otherwise pg
+  // turns a DATE into midnight-local which JS then serialises to UTC as the
+  // previous day, shifting every Channex date by 1. (Bit by this 2026-05-21.)
+  const b = await pool.query(`
+    SELECT b.id, b.bookable_unit_id,
+           b.arrival_date::text AS arrival_date,
+           b.departure_date::text AS departure_date,
+           b.guest_first_name, b.guest_last_name, b.guest_email, b.guest_phone,
+           b.guest_address, b.guest_city, b.guest_country, b.guest_postcode,
+           b.num_adults, b.num_children, b.num_infants, b.grand_total,
+           b.currency, b.status, b.channex_booking_id,
+           b.property_id
+    FROM bookings b WHERE b.id = $1
+  `, [gasBookingId]);
+  if (!b.rows[0]) return false;
+  const bk = b.rows[0];
+
+  const m = await getChannexMapping(pool, bk.bookable_unit_id);
+  if (!m) return false;
+
+  // Find a rate plan that matches the booking currency on the same room.
+  // Per-currency rate plans were introduced in the price-fix commit so
+  // this gracefully ignores wrong-currency plans (e.g. orphan GBP plans).
+  const rp = await pool.query(`
+    SELECT external_id, currency
+      FROM gas_sync_rate_plans
+     WHERE sync_room_type_id = (
+       SELECT id FROM gas_sync_room_types WHERE gas_room_id = $1 AND connection_id = $2 LIMIT 1
+     )
+       AND UPPER(currency) = UPPER($3)
+     ORDER BY id LIMIT 1
+  `, [bk.bookable_unit_id, m.connection_id, bk.currency || 'EUR']);
+  if (!rp.rows[0]) {
+    console.warn(`[channex-outbox] enqueueBookingPush: no ${bk.currency} rate plan for booking ${gasBookingId}`);
+    return false;
+  }
+
+  // arrival_date / departure_date come back as 'YYYY-MM-DD' strings now.
+  const arrival = bk.arrival_date;
+  const departure = bk.departure_date;
+
+  if (action === 'booking_cancel') {
+    await enqueue(pool, {
+      account_id: m.account_id,
+      connection_id: m.connection_id,
+      channex_property_id: m.channex_property_id,
+      channex_room_type_id: m.channex_room_type_id,
+      channex_rate_plan_id: rp.rows[0].external_id,
+      change_type: 'booking_cancel',
+      payload: {
+        gasBookingId,
+        propertyId: m.channex_property_id,
+        otaReservationCode: `GAS-${gasBookingId}`,
+        notes: 'Cancelled via GAS Admin'
+      },
+    });
+    return true;
+  }
+
+  // booking_create — pull per-night prices from room_availability so the
+  // Channex `days` map matches the real nightly rate. If a date has no
+  // priced row we fall back to even-split of grand_total over nights.
+  const nights = Math.max(1, Math.round((new Date(departure) - new Date(arrival)) / 86400000));
+  const dates = [];
+  for (let i = 0; i < nights; i++) {
+    dates.push(new Date(new Date(arrival).getTime() + i * 86400000).toISOString().slice(0, 10));
+  }
+  const priceRows = await pool.query(
+    `SELECT date::text AS date, standard_price
+       FROM room_availability
+      WHERE room_id = $1 AND date = ANY($2::date[]) AND standard_price IS NOT NULL`,
+    [bk.bookable_unit_id, dates]
+  );
+  const priceByDate = new Map(priceRows.rows.map(r => [r.date, parseFloat(r.standard_price)]));
+  const fallbackPerNight = (parseFloat(bk.grand_total || 0) / nights);
+  const days = {};
+  for (const d of dates) {
+    const price = priceByDate.get(d);
+    days[d] = (price !== undefined && price > 0 ? price : fallbackPerNight).toFixed(2);
+  }
+
+  await enqueue(pool, {
+    account_id: m.account_id,
+    connection_id: m.connection_id,
+    channex_property_id: m.channex_property_id,
+    channex_room_type_id: m.channex_room_type_id,
+    channex_rate_plan_id: rp.rows[0].external_id,
+    change_type: 'booking_create',
+    payload: {
+      gasBookingId,
+      propertyId: m.channex_property_id,
+      otaReservationCode: `GAS-${gasBookingId}`,
+      otaName: 'GAS Direct',
+      arrivalDate: arrival,
+      departureDate: departure,
+      currency: bk.currency || 'EUR',
+      amount: String(bk.grand_total || 0),
+      rooms: [{
+        roomTypeId: m.channex_room_type_id,
+        ratePlanId: rp.rows[0].external_id,
+        checkinDate: arrival,
+        checkoutDate: departure,
+        occupancy: {
+          adults: bk.num_adults || 1,
+          children: bk.num_children || 0,
+          infants: bk.num_infants || 0
+        },
+        days,
+        guests: [{ name: bk.guest_first_name || '', surname: bk.guest_last_name || '' }],
+        amount: String(bk.grand_total || 0)
+      }],
+      customer: {
+        name: bk.guest_first_name || '',
+        surname: bk.guest_last_name || '',
+        mail: bk.guest_email || '',
+        phone: bk.guest_phone || '',
+        address: bk.guest_address || '',
+        city: bk.guest_city || '',
+        country: bk.guest_country || ''
+      },
+      status: 'new'
+    },
+  });
+  return true;
+}
+
 module.exports = {
   ensureSchema,
   enqueue,
@@ -342,5 +519,6 @@ module.exports = {
   getChannexMapping,
   enqueueAvailabilityForRoom,
   enqueueRestrictionForRoom,
+  enqueueBookingPush,
   CHANGE_TYPES,
 };
