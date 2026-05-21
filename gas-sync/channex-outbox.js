@@ -198,6 +198,44 @@ async function drain(pool) {
               }
               drained++;
               console.log(`[channex-outbox] ${change_type} ok for gas-booking=${r.payload?.gasBookingId} channex=${channexBookingId}`);
+
+              // Re-push canonical availability AFTER Channex's auto-adjust.
+              // Channex auto-decrements on booking-create (PMS-pushed records)
+              // and auto-increments on booking-cancel. If we already pushed
+              // our own availability before this row, Channex's auto change
+              // stacks on top → we get -1 (after create-from-0) or qty+1
+              // (after cancel-from-1). Force-override here ensures our value
+              // is the last write.
+              try {
+                const dates = Object.keys(r.payload?.rooms?.[0]?.days || {});
+                if (dates.length) {
+                  // Resolve the room's local quantity for the cancel branch
+                  // (qty=1 for single-unit rooms, >1 for shared-room types).
+                  let qty = 1;
+                  if (change_type === 'booking_cancel') {
+                    const qr = await pool.query(`
+                      SELECT COALESCE(bu.quantity, 1) AS qty
+                        FROM gas_sync_room_types gsrt
+                        LEFT JOIN bookable_units bu ON bu.id = gsrt.gas_room_id
+                       WHERE gsrt.external_id = $1
+                         AND gsrt.connection_id = $2
+                       LIMIT 1`,
+                      [r.channex_room_type_id, r.connection_id]);
+                    if (qr.rows[0]) qty = parseInt(qr.rows[0].qty, 10) || 1;
+                  }
+                  const targetCount = (change_type === 'booking_create') ? 0 : qty;
+                  const values = dates.map(d => ({
+                    property_id: r.channex_property_id,
+                    room_type_id: r.channex_room_type_id,
+                    date: d,
+                    availability: targetCount
+                  }));
+                  const ov = await adapter.request('/availability', 'POST', { values });
+                  console.log(`[channex-outbox] post-${change_type} availability override: ${values.length} dates -> ${targetCount}, ok=${ov.success}`);
+                }
+              } catch (overrideErr) {
+                console.error(`[channex-outbox] post-${change_type} availability override failed:`, overrideErr.message);
+              }
             } else {
               await markBatchFailure(pool, [r], apiResp.error || 'unknown', apiResp.code);
             }
