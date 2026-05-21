@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.93
+ * Version: 3.7.94
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.93');
+define('GAS_BOOKING_VERSION', '3.7.94');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3693,14 +3693,12 @@ class GAS_Booking {
             }
         }
 
-        // Room description bullet-list cleanup. Beds24 sends amenity-style
-        // summaries as <ul><li> blocks which then render with disc bullets
-        // on their own lines. Operators want them flowing inline with the
-        // surrounding prose, separated by ' · '. (Cotswolds 2026-05-21.)
-        $custom_css .= "/* Room description: flow imported <li> as inline prose with bullet separators */\n";
-        $custom_css .= ".gas-room-description ul, .gas-room-description ol, .gas-property-description ul, .gas-property-description ol, .gas-rooms-grid .description ul, .gas-rooms-grid .description ol, .gas-room-detail ul, .gas-room-detail ol, [class*='room-description'] ul, [class*='room-description'] ol, .gas-room-card .description ul, .gas-room-card .description ol { list-style: none !important; padding: 0 !important; margin: 0 !important; display: inline !important; }\n";
-        $custom_css .= ".gas-room-description li, .gas-property-description li, .gas-rooms-grid .description li, .gas-room-detail li, [class*='room-description'] li, .gas-room-card .description li { display: inline !important; padding: 0 !important; margin: 0 !important; list-style: none !important; }\n";
-        $custom_css .= ".gas-room-description li:not(:last-child)::after, .gas-property-description li:not(:last-child)::after, .gas-rooms-grid .description li:not(:last-child)::after, .gas-room-detail li:not(:last-child)::after, [class*='room-description'] li:not(:last-child)::after, .gas-room-card .description li:not(:last-child)::after { content: ' · '; color: #94a3b8; margin: 0 6px; }\n";
+        // Room description: imported <ul><li> blocks render each item on
+        // its own line, no bullet dot, left-aligned with the surrounding
+        // prose. No separators between items. (Cotswolds 2026-05-21.)
+        $custom_css .= "/* Room description: kill bullets, stack items as plain lines */\n";
+        $custom_css .= ".gas-room-description ul, .gas-room-description ol, .gas-property-description ul, .gas-property-description ol, .gas-rooms-grid .description ul, .gas-rooms-grid .description ol, .gas-room-detail ul, .gas-room-detail ol, [class*='room-description'] ul, [class*='room-description'] ol, .gas-room-card .description ul, .gas-room-card .description ol { list-style: none !important; padding: 0 !important; margin: 0 0 1em !important; }\n";
+        $custom_css .= ".gas-room-description li, .gas-property-description li, .gas-rooms-grid .description li, .gas-room-detail li, [class*='room-description'] li, .gas-room-card .description li { display: block !important; padding: 0 !important; margin: 0 !important; list-style: none !important; text-indent: 0 !important; }\n";
 
         if (!empty($custom_css)) {
             echo "\n<style id=\"gas-custom-css\">\n" . $custom_css . "</style>\n";
