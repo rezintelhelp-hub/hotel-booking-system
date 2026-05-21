@@ -425,27 +425,9 @@ async function enqueueBookingPush(pool, gasBookingId, action) {
   const arrival = bk.arrival_date;
   const departure = bk.departure_date;
 
-  if (action === 'booking_cancel') {
-    await enqueue(pool, {
-      account_id: m.account_id,
-      connection_id: m.connection_id,
-      channex_property_id: m.channex_property_id,
-      channex_room_type_id: m.channex_room_type_id,
-      channex_rate_plan_id: rp.rows[0].external_id,
-      change_type: 'booking_cancel',
-      payload: {
-        gasBookingId,
-        propertyId: m.channex_property_id,
-        otaReservationCode: `GAS-${gasBookingId}`,
-        notes: 'Cancelled via GAS Admin'
-      },
-    });
-    return true;
-  }
-
-  // booking_create — pull per-night prices from room_availability so the
-  // Channex `days` map matches the real nightly rate. If a date has no
-  // priced row we fall back to even-split of grand_total over nights.
+  // Build the per-night price map up front — both create and cancel push
+  // the full booking payload (Channex's PUT /bookings/:id revalidates
+  // every required field even when only status changes).
   const nights = Math.max(1, Math.round((new Date(departure) - new Date(arrival)) / 86400000));
   const dates = [];
   for (let i = 0; i < nights; i++) {
@@ -465,6 +447,68 @@ async function enqueueBookingPush(pool, gasBookingId, action) {
     days[d] = (price !== undefined && price > 0 ? price : fallbackPerNight).toFixed(2);
   }
 
+  // Shared payload skeleton — used by both create and cancel.
+  const sharedPayload = {
+    gasBookingId,
+    propertyId: m.channex_property_id,
+    otaReservationCode: `GAS-${gasBookingId}`,
+    // Channex restricts ota_name to a fixed allowlist; 'BookingButton' is
+    // their semantic match for direct/website bookings (their own booking
+    // engine label). Empirically validated 2026-05-21 on staging.
+    otaName: 'BookingButton',
+    arrivalDate: arrival,
+    departureDate: departure,
+    currency: bk.currency || 'EUR',
+    amount: String(bk.grand_total || 0),
+    rooms: [{
+      roomTypeId: m.channex_room_type_id,
+      ratePlanId: rp.rows[0].external_id,
+      checkinDate: arrival,
+      checkoutDate: departure,
+      occupancy: {
+        adults: bk.num_adults || 1,
+        children: bk.num_children || 0,
+        infants: bk.num_infants || 0
+      },
+      days,
+      guests: [{ name: bk.guest_first_name || '', surname: bk.guest_last_name || '' }],
+      amount: String(bk.grand_total || 0)
+    }],
+    customer: {
+      name: bk.guest_first_name || '',
+      surname: bk.guest_last_name || '',
+      mail: bk.guest_email || '',
+      phone: bk.guest_phone || '',
+      address: bk.guest_address || '',
+      city: bk.guest_city || '',
+      country: bk.guest_country || ''
+    }
+  };
+
+  if (action === 'booking_cancel') {
+    if (!bk.channex_booking_id) {
+      // The booking was never pushed to Channex (create may have failed,
+      // or the booking predates the mirror feature). Nothing to cancel.
+      console.log(`[channex-outbox] enqueueBookingPush cancel: booking ${gasBookingId} has no channex_booking_id, skipping`);
+      return false;
+    }
+    await enqueue(pool, {
+      account_id: m.account_id,
+      connection_id: m.connection_id,
+      channex_property_id: m.channex_property_id,
+      channex_room_type_id: m.channex_room_type_id,
+      channex_rate_plan_id: rp.rows[0].external_id,
+      change_type: 'booking_cancel',
+      payload: {
+        ...sharedPayload,
+        channexBookingId: bk.channex_booking_id,
+        notes: 'Cancelled via GAS Admin'
+      },
+    });
+    return true;
+  }
+
+  // booking_create — same payload as cancel, just with status='new'.
   await enqueue(pool, {
     account_id: m.account_id,
     connection_id: m.connection_id,
@@ -472,43 +516,7 @@ async function enqueueBookingPush(pool, gasBookingId, action) {
     channex_room_type_id: m.channex_room_type_id,
     channex_rate_plan_id: rp.rows[0].external_id,
     change_type: 'booking_create',
-    payload: {
-      gasBookingId,
-      propertyId: m.channex_property_id,
-      otaReservationCode: `GAS-${gasBookingId}`,
-      // Channex restricts ota_name to a fixed allowlist; 'BookingButton' is
-      // their semantic match for direct/website bookings (their own booking
-      // engine label). Empirically validated 2026-05-21 on staging.
-      otaName: 'BookingButton',
-      arrivalDate: arrival,
-      departureDate: departure,
-      currency: bk.currency || 'EUR',
-      amount: String(bk.grand_total || 0),
-      rooms: [{
-        roomTypeId: m.channex_room_type_id,
-        ratePlanId: rp.rows[0].external_id,
-        checkinDate: arrival,
-        checkoutDate: departure,
-        occupancy: {
-          adults: bk.num_adults || 1,
-          children: bk.num_children || 0,
-          infants: bk.num_infants || 0
-        },
-        days,
-        guests: [{ name: bk.guest_first_name || '', surname: bk.guest_last_name || '' }],
-        amount: String(bk.grand_total || 0)
-      }],
-      customer: {
-        name: bk.guest_first_name || '',
-        surname: bk.guest_last_name || '',
-        mail: bk.guest_email || '',
-        phone: bk.guest_phone || '',
-        address: bk.guest_address || '',
-        city: bk.guest_city || '',
-        country: bk.guest_country || ''
-      },
-      status: 'new'
-    },
+    payload: { ...sharedPayload, status: 'new' },
   });
   return true;
 }

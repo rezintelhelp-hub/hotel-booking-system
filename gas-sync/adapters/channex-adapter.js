@@ -960,21 +960,51 @@ class ChannexAdapter {
   }
 
   /**
-   * Cancel a booking previously pushed to Channex. Send a fresh POST with
-   * status='cancelled' and the original ota_reservation_code so Channex
-   * can find the booking.
+   * Cancel a booking previously pushed to Channex.
+   *
+   * Channex's cancel pattern: PUT /bookings/:id with the FULL booking
+   * payload + status='cancelled'. Partial payloads (just the code +
+   * status) return 422 because Channex re-validates all required
+   * fields on every PUT. The caller must therefore include the same
+   * rooms / customer / amount block they originally sent.
+   *
+   * Requires `channexBookingId` (the Channex-side UUID returned by
+   * createBooking, cached on bookings.channex_booking_id).
    */
   async cancelBooking(payload) {
+    if (!payload.channexBookingId) {
+      return { success: false, error: 'channexBookingId missing — cannot cancel without Channex-side ID', code: 'NO_CHANNEX_ID' };
+    }
+    const room = (payload.rooms || []).map(r => ({
+      room_type_id: r.roomTypeId,
+      rate_plan_id: r.ratePlanId,
+      checkin_date: r.checkinDate,
+      checkout_date: r.checkoutDate,
+      occupancy: {
+        adults: r.occupancy?.adults || 1,
+        children: r.occupancy?.children || 0,
+        infants: r.occupancy?.infants || 0
+      },
+      days: r.days || {},
+      guests: r.guests || [],
+      amount: r.amount
+    }));
     const body = {
       booking: {
         property_id: payload.propertyId,
         ota_reservation_code: payload.otaReservationCode,
         ota_name: payload.otaName || 'BookingButton',
+        arrival_date: payload.arrivalDate,
+        departure_date: payload.departureDate,
+        currency: payload.currency,
+        amount: String(payload.amount),
+        rooms: room,
+        customer: payload.customer || {},
         status: 'cancelled',
         notes: payload.notes || 'Cancelled in GAS'
       }
     };
-    return this.request('/bookings', 'POST', body);
+    return this.request(`/bookings/${payload.channexBookingId}`, 'PUT', body);
   }
 
   // =====================================================
