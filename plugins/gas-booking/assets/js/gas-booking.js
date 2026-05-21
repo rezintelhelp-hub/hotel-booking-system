@@ -14,28 +14,26 @@
  */
 jQuery(document).ready(function($) {
     
-    // Get current language from URL parameter, cookie, or default to 'en'
+    // Get current language from URL parameter, cookie, or default to 'en'.
+    // Browser navigator.language auto-detection was REMOVED 2026-05-21 — it
+    // was making English-only properties (e.g. Atlantis Realty) show Japanese
+    // dates whenever a visitor's browser locale was Japanese. Multilingual
+    // properties opt in via ?lang= links or a language picker that sets the
+    // gas_lang cookie.
     function getCurrentLanguage() {
-        // Check URL parameter first
+        // Check URL parameter first — explicit opt-in.
         var urlParams = new URLSearchParams(window.location.search);
         var langParam = urlParams.get('lang');
         if (langParam && /^[a-z]{2}$/.test(langParam)) {
             return langParam;
         }
-        
-        // Check cookie
+
+        // Check cookie — set by a previous ?lang= or by a language-picker UI.
         var cookieMatch = document.cookie.match(/gas_lang=([a-z]{2})/);
         if (cookieMatch) {
             return cookieMatch[1];
         }
-        
-        // Check browser language
-        var browserLang = (navigator.language || navigator.userLanguage || 'en').substring(0, 2).toLowerCase();
-        var supported = ['en', 'fr', 'es', 'de', 'nl', 'it', 'pt', 'ru', 'zh', 'ja'];
-        if (supported.indexOf(browserLang) !== -1) {
-            return browserLang;
-        }
-        
+
         return 'en';
     }
     

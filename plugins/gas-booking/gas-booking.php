@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.91
+ * Version: 3.7.92
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.91');
+define('GAS_BOOKING_VERSION', '3.7.92');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -1216,35 +1216,25 @@ class GAS_Booking {
      * Priority: 1) URL parameter (?lang=xx) 2) Cookie 3) Browser Accept-Language 4) Default (en)
      */
     private function get_current_language() {
-        // Check URL parameter first
+        // Check URL parameter first — explicit opt-in, sets cookie so subsequent
+        // navigations stay on the chosen language.
         if (isset($_GET['lang']) && preg_match('/^[a-z]{2}$/', $_GET['lang'])) {
             $lang = sanitize_text_field($_GET['lang']);
-            // Set cookie for subsequent requests (silently fail if headers sent)
             @setcookie('gas_lang', $lang, time() + (86400 * 30), '/');
             return $lang;
         }
-        
-        // Check cookie
+
+        // Check cookie — set either by previous ?lang= or by a language-picker UI.
         if (isset($_COOKIE['gas_lang']) && preg_match('/^[a-z]{2}$/', $_COOKIE['gas_lang'])) {
             return sanitize_text_field($_COOKIE['gas_lang']);
         }
-        
-        // Check WordPress locale
-        $wp_lang = substr(get_locale(), 0, 2);
-        if ($wp_lang && $wp_lang !== 'en' && in_array($wp_lang, array('en', 'fr', 'es', 'de', 'nl', 'it', 'pt', 'ru', 'zh', 'ja'))) {
-            return $wp_lang;
-        }
 
-        // Check browser language
-        if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
-            $browser_lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2);
-            $supported = array('en', 'fr', 'es', 'de', 'nl', 'it', 'pt', 'ru', 'zh', 'ja');
-            if (in_array($browser_lang, $supported)) {
-                return $browser_lang;
-            }
-        }
-        
-        // Default to English
+        // Default to English. WordPress locale + browser Accept-Language used to
+        // auto-detect Japanese / Russian / etc., but that fired on English-only
+        // properties — Atlantis Realty visitors with a Japanese browser would
+        // get Japanese dates despite the account not having Japanese enabled.
+        // Multilingual properties opt in via ?lang= links or a language picker
+        // that sets the gas_lang cookie. (Issue 2026-05-21.)
         return 'en';
     }
     
