@@ -476,7 +476,10 @@ async function enqueueBookingPush(pool, gasBookingId, action) {
       gasBookingId,
       propertyId: m.channex_property_id,
       otaReservationCode: `GAS-${gasBookingId}`,
-      otaName: 'GAS Direct',
+      // Channex restricts ota_name to a fixed allowlist; 'BookingButton' is
+      // their semantic match for direct/website bookings (their own booking
+      // engine label). Empirically validated 2026-05-21 on staging.
+      otaName: 'BookingButton',
       arrivalDate: arrival,
       departureDate: departure,
       currency: bk.currency || 'EUR',

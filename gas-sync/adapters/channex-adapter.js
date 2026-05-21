@@ -937,11 +937,14 @@ class ChannexAdapter {
       guests: r.guests || [],
       amount: r.amount
     }));
+    // Channex's validator rejects ota_name values it reserves internally
+    // ("Direct", "Manual", "PMS", "Other"). Use a property of free-form
+    // labels like "GAS" instead. Validated empirically 2026-05-21.
     const body = {
       booking: {
         property_id: payload.propertyId,
         ota_reservation_code: payload.otaReservationCode,
-        ota_name: payload.otaName || 'GAS Direct',
+        ota_name: payload.otaName || 'BookingButton',
         arrival_date: payload.arrivalDate,
         departure_date: payload.departureDate,
         arrival_hour: payload.arrivalHour || '14:00',
@@ -953,24 +956,25 @@ class ChannexAdapter {
         notes: payload.notes || ''
       }
     };
-    return this.request('/bookings/booking', 'POST', body);
+    return this.request('/bookings', 'POST', body);
   }
 
   /**
-   * Cancel a booking previously pushed to Channex. Per Channex docs, cancel
-   * is a POST to the same /bookings/booking endpoint with status='cancelled'
-   * and the original ota_reservation_code so Channex can find the booking.
+   * Cancel a booking previously pushed to Channex. Send a fresh POST with
+   * status='cancelled' and the original ota_reservation_code so Channex
+   * can find the booking.
    */
   async cancelBooking(payload) {
     const body = {
       booking: {
         property_id: payload.propertyId,
         ota_reservation_code: payload.otaReservationCode,
+        ota_name: payload.otaName || 'BookingButton',
         status: 'cancelled',
         notes: payload.notes || 'Cancelled in GAS'
       }
     };
-    return this.request('/bookings/booking', 'POST', body);
+    return this.request('/bookings', 'POST', body);
   }
 
   // =====================================================
