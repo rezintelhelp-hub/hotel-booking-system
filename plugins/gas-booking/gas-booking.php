@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.00
+ * Version: 3.8.01
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.00');
+define('GAS_BOOKING_VERSION', '3.8.01');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5125,30 +5125,32 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         }
         
         // Collect filterable amenities from rooms for the filter dropdown.
-        // Two-layer curation:
-        //   1. master_amenities.is_filter_eligible — platform-wide whitelist
-        //      (set by GAS master_admin; no toilet rolls etc.)
-        //   2. accounts.filter_amenity_codes — per-account selection from
-        //      that whitelist. Empty = show all eligible. Non-empty =
-        //      show only the codes this client picked.
-        // Older API responses without these fields fall back to "show all".
+        // Per-account selection (accounts.filter_amenity_codes) is authoritative
+        // when set: the owner ticked it, so show it. is_filter_eligible is only
+        // used as the default whitelist when the owner hasn't made an explicit
+        // selection. Cotswolds 2026-05-22: PETS_NOT_ALLOWED was being dropped
+        // because master flags it false, overriding the owner's explicit pick.
         $client_selected_codes = isset($data['filter_amenity_codes']) && is_array($data['filter_amenity_codes'])
             ? array_flip($data['filter_amenity_codes'])
             : null;
+        $owner_has_selection = ($client_selected_codes !== null && !empty($client_selected_codes));
         $all_amenities = array();
         foreach ($rooms as $room) {
             if (!empty($room['amenities']) && is_array($room['amenities'])) {
                 foreach ($room['amenities'] as $amenity) {
                     $code = $amenity['code'] ?? '';
                     if (!$code) continue;
-                    // Master-level filter: skip non-eligible amenities.
-                    if (array_key_exists('is_filter_eligible', $amenity) && !$amenity['is_filter_eligible']) {
-                        continue;
-                    }
-                    // Account-level filter: if the client has a selection,
-                    // only include codes they picked. Empty = no restriction.
-                    if ($client_selected_codes !== null && !empty($client_selected_codes) && !isset($client_selected_codes[$code])) {
-                        continue;
+                    if ($owner_has_selection) {
+                        // Explicit list: show only codes the owner picked.
+                        // is_filter_eligible is ignored — owner's choice wins.
+                        if (!isset($client_selected_codes[$code])) {
+                            continue;
+                        }
+                    } else {
+                        // No explicit owner list: fall back to platform whitelist.
+                        if (array_key_exists('is_filter_eligible', $amenity) && !$amenity['is_filter_eligible']) {
+                            continue;
+                        }
                     }
                     if (!isset($all_amenities[$code])) {
                         $amenity_name = $this->extract_display_text($amenity['name'] ?? $code);
