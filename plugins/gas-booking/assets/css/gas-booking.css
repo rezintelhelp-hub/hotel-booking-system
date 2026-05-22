@@ -1315,6 +1315,18 @@
     box-shadow: var(--gas-shadow);
     overflow: hidden;
     transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+/* Pin the price/button row to the bottom of every card so buttons across
+   a row line up no matter how many lines of title/description sit above. */
+.gas-room-card .gas-room-details {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+.gas-room-card .gas-room-footer {
+    margin-top: auto;
 }
 
 .gas-room-card:hover {
