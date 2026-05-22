@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.7.99
+ * Version: 3.8.00
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.7.99');
+define('GAS_BOOKING_VERSION', '3.8.00');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -6325,7 +6325,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 </div>
                                 
                                 <div class="gas-room-row-meta">
+                                    <?php if ($max_guests > 0) : ?>
                                     <span>👥 <?php echo $max_guests; ?> <?php echo $max_guests > 1 ? $guests_word : $guest_word; ?></span>
+                                    <?php endif; ?>
                                     <?php if ($bedrooms > 0) : ?>
                                     <span>🛏️ <?php echo $bedrooms; ?> <?php echo $bedrooms > 1 ? $bedrooms_word : $bedroom_word; ?></span>
                                     <?php endif; ?>
@@ -6333,8 +6335,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <span>🚿 <?php echo $bathrooms_display; ?> <?php echo $bathrooms > 1 ? $bathrooms_word : $bathroom_word; ?></span>
                                     <?php endif; ?>
                                 </div>
-                                
-                                <?php if (!empty($room_amenities)) : 
+
+                                <?php if (!empty($room_amenities)) :
                                     $max_amenities = intval(get_option('gas_amenities_display_count', 6));
                                 ?>
                                 <div class="gas-room-row-amenities">
@@ -6410,7 +6412,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 <div class="gas-room-property">📍 <?php echo esc_html($loc_line); ?></div>
                                 <?php endif; ?>
                                 <div class="gas-room-meta">
+                                    <?php if ($max_guests > 0) : ?>
                                     <span>👥 <?php echo $max_guests; ?> <?php echo $max_guests > 1 ? esc_html($guests_word) : esc_html($guest_word); ?></span>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="gas-room-footer">
                                     <div class="gas-room-price">
@@ -6513,7 +6517,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 <?php endif; ?>
                                 
                                 <div class="gas-room-meta">
+                                    <?php if ($max_guests > 0) : ?>
                                     <span>👥 <?php echo $max_guests; ?> <?php echo $max_guests > 1 ? $guests_word : $guest_word; ?></span>
+                                    <?php endif; ?>
                                     <?php if ($bedrooms > 0) : ?>
                                     <span>🛏️ <?php echo $bedrooms; ?> <?php echo $bedrooms > 1 ? $bedrooms_word : $bedroom_word; ?></span>
                                     <?php endif; ?>
