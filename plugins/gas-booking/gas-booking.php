@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.02
+ * Version: 3.8.03
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.02');
+define('GAS_BOOKING_VERSION', '3.8.03');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -286,6 +286,15 @@ class GAS_Booking {
             'callback' => array($this, 'rest_sync_license'),
             'permission_callback' => '__return_true',
         ));
+
+        // Delete a custom page (WP page + menu item) by slug.
+        // Called from GAS Admin when a custom page is removed — completes the
+        // atomic delete that started server-side (page_sections, settings rows).
+        register_rest_route('gas-booking/v1', '/delete-page', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_delete_page'),
+            'permission_callback' => '__return_true',
+        ));
     }
     
     /**
@@ -314,6 +323,48 @@ class GAS_Booking {
     public function rest_sync_pages($request) {
         $this->do_page_sync_from_api();
         return new WP_REST_Response(array('success' => true, 'message' => 'Pages synced from GAS Admin'), 200);
+    }
+
+    /**
+     * REST endpoint: delete a custom page (WP page + menu item) by slug.
+     * Called by GAS Admin's deleteCustomPage flow. Best-effort — returns
+     * the IDs deleted so the caller can confirm cleanup.
+     */
+    public function rest_delete_page($request) {
+        $slug = sanitize_title($request->get_param('slug') ?: '');
+        if (empty($slug)) {
+            return new WP_REST_Response(array('success' => false, 'error' => 'slug required'), 400);
+        }
+        $deleted_post_ids = array();
+        $deleted_menu_item_ids = array();
+
+        // Delete every matching page (slug + slug-N variants WP creates on collision).
+        $pages = get_posts(array(
+            'post_type' => 'page', 'post_status' => 'any', 'numberposts' => 50, 'name' => $slug
+        ));
+        foreach ($pages as $p) {
+            // Remove the menu item that points at this page
+            $menus = wp_get_nav_menus();
+            foreach ($menus as $menu) {
+                $items = wp_get_nav_menu_items($menu->term_id);
+                if (!$items) continue;
+                foreach ($items as $item) {
+                    if ((int) $item->object_id === (int) $p->ID) {
+                        wp_delete_post($item->ID, true);
+                        $deleted_menu_item_ids[] = $item->ID;
+                    }
+                }
+            }
+            wp_delete_post($p->ID, true);
+            $deleted_post_ids[] = $p->ID;
+        }
+
+        return new WP_REST_Response(array(
+            'success' => true,
+            'slug' => $slug,
+            'deleted_post_ids' => $deleted_post_ids,
+            'deleted_menu_item_ids' => $deleted_menu_item_ids,
+        ), 200);
     }
     
     /**
