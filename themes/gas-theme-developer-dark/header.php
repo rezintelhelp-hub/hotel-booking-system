@@ -181,9 +181,13 @@ $custom_pages = $api_settings['custom_pages'] ?? array();
 $custom_page_settings = $api_settings['custom_page_settings'] ?? array();
 foreach ($custom_pages as $cp) {
     $cp_slug = $cp['slug'] ?? '';
-    $cp_visibility = $cp['visibility'] ?? 'menu';
-    if ($cp_visibility === 'hidden') continue;
+    // Per-page settings override the registry (latest user toggle wins).
     $cp_settings = $custom_page_settings[$cp_slug] ?? array();
+    $cp_enabled_raw = $cp_settings['enabled'] ?? true;
+    $cp_is_enabled = ($cp_enabled_raw === true || $cp_enabled_raw === 'true' || $cp_enabled_raw === '1' || $cp_enabled_raw === 'on');
+    if (!$cp_is_enabled) continue;
+    $cp_visibility = $cp_settings['visibility'] ?? $cp['visibility'] ?? 'menu';
+    if ($cp_visibility === 'hidden') continue;
     $cp_order = $cp_settings['menu-order'] ?? $cp['menu_order'] ?? 10;
     $cp_parent = $cp_settings['parent'] ?? $cp['parent'] ?? '';
     $cp_title = '';

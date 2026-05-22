@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.01
+ * Version: 3.8.02
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.01');
+define('GAS_BOOKING_VERSION', '3.8.02');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -540,8 +540,13 @@ class GAS_Booking {
             $cp_enabled = $cp_section['enabled'] ?? true;
             $cp_is_enabled = ($cp_enabled === true || $cp_enabled === 'true' || $cp_enabled === '1' || $cp_enabled === 'on');
             $cp_menu_title = $cp_section['menu-title-en'] ?? $cp_title;
-            $cp_visibility = $cp['visibility'] ?? 'menu';
-            $cp_parent = $cp['parent'] ?? '';
+            // Per-page settings win over the registry — the registry is set at
+            // create time, the per-page setting reflects later user toggles.
+            // Walnut Canyon's free-guide-landing-page was disabled in admin
+            // (page-custom-X.visibility=hidden) but the registry still said
+            // 'menu' so it stayed in the nav. (2026-05-22.)
+            $cp_visibility = $cp_section['visibility'] ?? $cp['visibility'] ?? 'menu';
+            $cp_parent = $cp_section['parent'] ?? $cp['parent'] ?? '';
             $cp_external_url = !empty($cp['external_url']) ? trim($cp['external_url']) : '';
 
             // EXTERNAL-URL pages: don't create a WP page — add a custom-link

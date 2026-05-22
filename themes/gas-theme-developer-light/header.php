@@ -188,10 +188,18 @@ $custom_pages = $api_settings['custom_pages'] ?? array();
 $custom_page_settings = $api_settings['custom_page_settings'] ?? array();
 foreach ($custom_pages as $cp) {
     $cp_slug = $cp['slug'] ?? '';
-    $cp_visibility = $cp['visibility'] ?? 'menu';
+    // Per-page settings (page-custom-{slug}) override the registry — the
+    // registry is set at create time, the per-page settings reflect later
+    // user toggles. Walnut Canyon's free-guide-landing-page was disabled
+    // (visibility=hidden + enabled=false) but the registry still said
+    // visibility=menu, so the menu item kept showing. (2026-05-22.)
+    $cp_settings = $custom_page_settings[$cp_slug] ?? array();
+    $cp_enabled_raw = $cp_settings['enabled'] ?? true;
+    $cp_is_enabled = ($cp_enabled_raw === true || $cp_enabled_raw === 'true' || $cp_enabled_raw === '1' || $cp_enabled_raw === 'on');
+    if (!$cp_is_enabled) continue;
+    $cp_visibility = $cp_settings['visibility'] ?? $cp['visibility'] ?? 'menu';
     if ($cp_visibility === 'hidden') continue;
     // Read menu-order from per-page settings (page-custom-{slug} section)
-    $cp_settings = $custom_page_settings[$cp_slug] ?? array();
     $cp_order = $cp_settings['menu-order'] ?? $cp['menu_order'] ?? 10;
     $cp_parent = $cp_settings['parent'] ?? $cp['parent'] ?? '';
     $cp_title = '';
