@@ -87,6 +87,8 @@ class GAS_Blog {
             'lato' => "'Lato', sans-serif",
             'sourcesans' => "'Source Sans Pro', sans-serif",
             'nunito' => "'Nunito', sans-serif",
+            'dancing-script' => "'Dancing Script', cursive",
+            'dancingscript' => "'Dancing Script', cursive",
         );
         
         $client_id = get_option('gas_blog_client_id') ?: get_option('gas_client_id', '');

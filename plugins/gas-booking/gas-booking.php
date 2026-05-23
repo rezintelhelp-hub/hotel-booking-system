@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.04
+ * Version: 3.8.05
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.04');
+define('GAS_BOOKING_VERSION', '3.8.05');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3814,8 +3814,10 @@ class GAS_Booking {
             'lato' => "'Lato', sans-serif",
             'sourcesans' => "'Source Sans Pro', sans-serif",
             'nunito' => "'Nunito', sans-serif",
+            'dancing-script' => "'Dancing Script', cursive",
+            'dancingscript'  => "'Dancing Script', cursive",
         );
-        
+
         $heading_font = 'inter';
         $body_font = 'inter';
         
@@ -3931,6 +3933,8 @@ class GAS_Booking {
             'lato' => 'Lato:wght@400;700',
             'sourcesans' => 'Source+Sans+Pro:wght@400;600;700',
             'nunito' => 'Nunito:wght@400;500;600;700',
+            'dancing-script' => 'Dancing+Script:wght@400;500;600;700',
+            'dancingscript'  => 'Dancing+Script:wght@400;500;600;700',
         );
         
         $font_families = array();
