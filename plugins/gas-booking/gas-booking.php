@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.05
+ * Version: 3.8.06
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.05');
+define('GAS_BOOKING_VERSION', '3.8.06');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -9012,16 +9012,47 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $content = get_option('gas_gallery_content', '<p>Browse photos of our beautiful property.</p>');
         $button_color = $this->get_effective_button_color();
 
-        // Pull the 12 gallery image URLs + style settings from the Web Builder API.
-        // Empty slots are skipped — owners with 6 uploads see a 6-image gallery.
+        // Pull gallery from the Web Builder API. Prefer the new tagged array;
+        // fall back to the legacy 12 numbered slots so existing sites keep working.
         $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
         $gallery_images = array();
-        for ($i = 1; $i <= 12; $i++) {
-            $url = $api['page_gallery_image_' . $i] ?? '';
-            if (!empty($url)) {
-                $gallery_images[] = $url;
+        $raw_json = $api['page_gallery_images_json'] ?? '';
+        if (is_string($raw_json) && $raw_json !== '' && $raw_json !== '[]') {
+            $decoded = json_decode($raw_json, true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $item) {
+                    $u = is_array($item) ? ($item['url'] ?? '') : '';
+                    if (!$u) continue;
+                    $tags = (is_array($item) && isset($item['tags']) && is_array($item['tags'])) ? $item['tags'] : array();
+                    $tags = array_values(array_filter(array_map(function($t){
+                        return preg_replace('/[^a-z0-9\-]/', '', strtolower((string)$t));
+                    }, $tags)));
+                    $gallery_images[] = array('url' => $u, 'tags' => $tags, 'alt' => is_array($item) ? ($item['alt'] ?? '') : '');
+                }
             }
         }
+        if (empty($gallery_images)) {
+            for ($i = 1; $i <= 12; $i++) {
+                $url = $api['page_gallery_image_' . $i] ?? '';
+                if (!empty($url)) {
+                    $gallery_images[] = array('url' => $url, 'tags' => array('main'), 'alt' => '');
+                }
+            }
+        }
+        // Build distinct tag list for filter chips
+        $all_tags = array();
+        foreach ($gallery_images as $g) { foreach ($g['tags'] as $t) { $all_tags[$t] = true; } }
+        $all_tags = array_keys($all_tags);
+        // Sort: 'main' first, rest alphabetical
+        usort($all_tags, function($a, $b) {
+            if ($a === 'main') return -1;
+            if ($b === 'main') return 1;
+            return strcmp($a, $b);
+        });
+        $tag_label = function($slug) {
+            $parts = explode('-', $slug);
+            return implode(' ', array_map('ucfirst', $parts));
+        };
         $columns = intval($api['page_gallery_columns'] ?? 4);
         if ($columns < 2 || $columns > 5) { $columns = 4; }
         $style = $api['page_gallery_style'] ?? 'grid';
@@ -9165,6 +9196,26 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
 
                 .gas-page-gallery-empty { color: #64748b; grid-column: 1 / -1; text-align: center; padding: 40px; }
 
+                /* Filter chips */
+                .gas-page-gallery-filters {
+                    display: flex; flex-wrap: wrap; gap: 8px;
+                    margin: 0 0 24px 0;
+                }
+                .gas-page-gallery-chip {
+                    background: #f1f5f9; color: #475569;
+                    border: 1px solid #e2e8f0; border-radius: 999px;
+                    padding: 6px 16px; font-size: 0.85rem; cursor: pointer;
+                    font-family: inherit;
+                    transition: background 0.15s, color 0.15s, border-color 0.15s;
+                }
+                .gas-page-gallery-chip:hover { background: #e2e8f0; }
+                .gas-page-gallery-chip.is-active {
+                    background: <?php echo esc_attr($button_color); ?>;
+                    color: #ffffff; border-color: <?php echo esc_attr($button_color); ?>;
+                }
+                .gas-page-gallery-item.is-hidden,
+                .gas-page-gallery-item-hero.is-hidden { display: none !important; }
+
                 /* Lightbox overlay */
                 .gas-gallery-lightbox-overlay {
                     position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: none;
@@ -9177,31 +9228,39 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             <div class="gas-page-inner">
                 <h1 class="gas-page-title"><?php echo esc_html($title); ?></h1>
                 <div class="gas-page-content"><?php echo wp_kses_post($content); ?></div>
+                <?php if (count($all_tags) > 1) : ?>
+                    <div class="gas-page-gallery-filters" role="tablist" aria-label="Gallery filters">
+                        <button type="button" class="gas-page-gallery-chip is-active" data-filter="all">All</button>
+                        <?php foreach ($all_tags as $t) : ?>
+                            <button type="button" class="gas-page-gallery-chip" data-filter="<?php echo esc_attr($t); ?>"><?php echo esc_html($tag_label($t)); ?></button>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
                 <?php if (empty($gallery_images)) : ?>
                     <div class="gas-page-gallery-grid"><p class="gas-page-gallery-empty">No gallery images yet — upload via the Web Builder Gallery section.</p></div>
                 <?php elseif ($style === 'masonry') : ?>
                     <div class="gas-page-gallery-masonry">
-                        <?php foreach ($gallery_images as $idx => $url) : ?>
-                            <div class="gas-page-gallery-item"><img src="<?php echo esc_url($url); ?>" alt="<?php echo esc_attr($title . ' image ' . ($idx + 1)); ?>" loading="lazy"></div>
+                        <?php foreach ($gallery_images as $idx => $g) : ?>
+                            <div class="gas-page-gallery-item" data-tags="<?php echo esc_attr(implode(' ', $g['tags'])); ?>"><img src="<?php echo esc_url($g['url']); ?>" alt="<?php echo esc_attr($g['alt'] ?: ($title . ' image ' . ($idx + 1))); ?>" loading="lazy"></div>
                         <?php endforeach; ?>
                     </div>
                 <?php elseif ($style === 'slider') : ?>
                     <div class="gas-page-gallery-slider">
-                        <?php foreach ($gallery_images as $idx => $url) : ?>
-                            <div class="gas-page-gallery-item"><img src="<?php echo esc_url($url); ?>" alt="<?php echo esc_attr($title . ' image ' . ($idx + 1)); ?>" loading="lazy"></div>
+                        <?php foreach ($gallery_images as $idx => $g) : ?>
+                            <div class="gas-page-gallery-item" data-tags="<?php echo esc_attr(implode(' ', $g['tags'])); ?>"><img src="<?php echo esc_url($g['url']); ?>" alt="<?php echo esc_attr($g['alt'] ?: ($title . ' image ' . ($idx + 1))); ?>" loading="lazy"></div>
                         <?php endforeach; ?>
                     </div>
                 <?php elseif ($style === 'featured') : ?>
                     <div class="gas-page-gallery-featured">
-                        <?php foreach ($gallery_images as $idx => $url) : ?>
+                        <?php foreach ($gallery_images as $idx => $g) : ?>
                             <?php $cls = $idx === 0 ? 'gas-page-gallery-item-hero' : 'gas-page-gallery-item'; ?>
-                            <div class="<?php echo $cls; ?>"><img src="<?php echo esc_url($url); ?>" alt="<?php echo esc_attr($title . ' image ' . ($idx + 1)); ?>" loading="lazy"></div>
+                            <div class="<?php echo $cls; ?>" data-tags="<?php echo esc_attr(implode(' ', $g['tags'])); ?>"><img src="<?php echo esc_url($g['url']); ?>" alt="<?php echo esc_attr($g['alt'] ?: ($title . ' image ' . ($idx + 1))); ?>" loading="lazy"></div>
                         <?php endforeach; ?>
                     </div>
                 <?php else : /* grid */ ?>
                     <div class="gas-page-gallery-grid">
-                        <?php foreach ($gallery_images as $idx => $url) : ?>
-                            <div class="gas-page-gallery-item"><img src="<?php echo esc_url($url); ?>" alt="<?php echo esc_attr($title . ' image ' . ($idx + 1)); ?>" loading="lazy"></div>
+                        <?php foreach ($gallery_images as $idx => $g) : ?>
+                            <div class="gas-page-gallery-item" data-tags="<?php echo esc_attr(implode(' ', $g['tags'])); ?>"><img src="<?php echo esc_url($g['url']); ?>" alt="<?php echo esc_attr($g['alt'] ?: ($title . ' image ' . ($idx + 1))); ?>" loading="lazy"></div>
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
@@ -9229,6 +9288,25 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             })();
             </script>
             <?php endif; ?>
+            <script>
+            (function(){
+                var chips = document.querySelectorAll('.gas-gallery-page .gas-page-gallery-chip');
+                if (!chips.length) return;
+                var items = document.querySelectorAll('.gas-gallery-page .gas-page-gallery-item, .gas-gallery-page .gas-page-gallery-item-hero');
+                chips.forEach(function(chip){
+                    chip.addEventListener('click', function(){
+                        chips.forEach(function(c){ c.classList.remove('is-active'); });
+                        chip.classList.add('is-active');
+                        var filter = chip.getAttribute('data-filter');
+                        items.forEach(function(it){
+                            if (filter === 'all') { it.classList.remove('is-hidden'); return; }
+                            var tags = (it.getAttribute('data-tags') || '').split(/\s+/);
+                            it.classList.toggle('is-hidden', tags.indexOf(filter) === -1);
+                        });
+                    });
+                });
+            })();
+            </script>
         </div>
         <?php
         return ob_get_clean();
