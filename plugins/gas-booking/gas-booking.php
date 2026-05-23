@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.06
+ * Version: 3.8.07
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.06');
+define('GAS_BOOKING_VERSION', '3.8.07');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -9065,7 +9065,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         ?>
         <div class="gas-page gas-gallery-page" data-gallery-lightbox="<?php echo $lightbox ? '1' : '0'; ?>" style="background: <?php echo esc_attr($bg); ?>;" translate="no">
             <style>
-                .gas-gallery-page { padding: 40px 0; }
+                .gas-gallery-page { padding: 100px 0 60px; }
                 .gas-gallery-page .gas-page-inner { max-width: 1200px; margin: 0 auto; padding: 0 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-gallery-page .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-gallery-page .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; margin-bottom: 32px; }
