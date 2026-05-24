@@ -3,7 +3,7 @@
  * Plugin Name: GAS Reviews
  * Plugin URI: https://gas.travel
  * Description: Display guest reviews from Repuso/The Reviews Place or GAS internal reviews with Review schema markup. Colors controlled via GAS Admin.
- * Version: 1.2.1
+ * Version: 1.2.2
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -259,6 +259,16 @@ class GAS_Reviews {
                 .gas-review-date { font-size:0.8rem; color:<?php echo $text2; ?>; }
                 .gas-review-stars { font-size:1.1rem; letter-spacing:1px; margin-bottom:10px; color:<?php echo $star_color; ?>; }
                 .gas-review-text { font-size:0.9rem; line-height:1.7; color:<?php echo $text; ?>; }
+                /* Slider cards have a fixed height — clamp the review text so it never
+                   gets cut mid-line at the bottom edge. Last visible line ends in '…'. */
+                .gas-review-slider-card .gas-review-text {
+                    flex: 1 1 0;
+                    overflow: hidden;
+                    display: -webkit-box;
+                    -webkit-box-orient: vertical;
+                    -webkit-line-clamp: 5;
+                    line-clamp: 5;
+                }
                 .gas-review-source { display:inline-block; font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; padding:3px 8px; border-radius:4px; background:<?php echo $accent; ?>10; color:<?php echo $accent; ?>; margin-top:10px; }
                 .gas-reviews-loading { padding:60px 20px; color:<?php echo $text2; ?>; }
                 @media (max-width:768px) { .gas-reviews-grid { grid-template-columns:1fr; } .gas-reviews-slider > div { flex:0 0 100%; min-width:100%; } .gas-reviews-slider-wrap { padding:0 40px; } }
