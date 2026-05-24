@@ -4,4 +4,4 @@
 # (nginx vhost + Let's Encrypt cert + WP multisite mapping on the VPS).
 # Railway's default Node image doesn't include OpenSSH, so we install it here.
 [phases.setup]
-nixPkgs = ["openssh"]
+aptPkgs = ["openssh-client"]
