@@ -6311,7 +6311,9 @@ jQuery(document).ready(function($) {
         // deposit rule, no taxes — the auto-load path never updated the display).
         window._gasRecalcCheckoutDeposit = function() {
             if (!checkoutData.stripeEnabled) return;
-            $card.trigger('_gasRecalcDeposit');
+            // $card isn't in this scope (it was a local var in click handlers
+            // further down). Select the card payment option directly.
+            $('.gas-payment-card-option').trigger('_gasRecalcDeposit');
         };
 
         // Payment option selection. Also listens for synthetic _gasRecalcDeposit
