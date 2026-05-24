@@ -3895,12 +3895,18 @@ jQuery(document).ready(function($) {
                                 $('.gas-grand-total').text(formatPrice(grandTotal, group.currency));
                                 console.log('GAS: Taxes applied for group', gIndex, 'total:', grandTotal);
                             }
-
-                            // Recalculate deposit if rule already loaded
-                            recalcGroupDeposit(group);
                         } else {
                             console.log('GAS: No taxes for group', gIndex);
+                            // Tax-free properties still need a final deposit recalc here —
+                            // the initial recalc after stripe-info ran before group.subtotal
+                            // was set. Without this, Hotel Balduin showed Deposit Amount €0
+                            // on checkout despite a 100% deposit rule.
+                            group.taxTotal = group.taxTotal || 0;
                         }
+                        // Recalculate deposit AFTER prices are known, regardless of
+                        // whether the property has taxes. Moved out of the taxes
+                        // branch so tax-free properties don't get stuck at €0.
+                        recalcGroupDeposit(group);
                     },
                     error: function(xhr, status, error) {
                         console.log('GAS: Tax fetch error for group', gIndex, error);
