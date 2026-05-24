@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.07
+ * Version: 3.8.08
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.07');
+define('GAS_BOOKING_VERSION', '3.8.08');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -643,13 +643,18 @@ class GAS_Booking {
                 ? intval($cp_menu_order_raw) * 10
                 : 100;
 
+            // Classic Editor body content (English only — multilingual handled at theme level).
+            // Was missing before: pages were created with empty post_content, so any content
+            // typed in the Classic Editor never rendered on the site.
+            $cp_body = $cp_section['content-en'] ?? '';
+
             error_log("GAS Booking: Syncing custom page '{$cp_slug}' - enabled: " . ($cp_is_enabled ? 'yes' : 'no') . ", visibility: {$cp_visibility}, parent: " . ($cp_parent_slug ?: ($cp_parent_menu_item_id ? "menu_item:{$cp_parent_menu_item_id}" : 'none')));
 
             if ($cp_visibility === 'hidden') {
                 // Create page but skip menu
-                $this->sync_single_page($cp_slug, $cp_menu_title, '', $cp_is_enabled, $menu_id, $cp_menu_order, null, '', true);
+                $this->sync_single_page($cp_slug, $cp_menu_title, $cp_body, $cp_is_enabled, $menu_id, $cp_menu_order, null, '', true);
             } else {
-                $this->sync_single_page($cp_slug, $cp_menu_title, '', $cp_is_enabled, $menu_id, $cp_menu_order, $cp_parent_slug, '', false, $cp_is_submenu, $cp_parent_menu_item_id);
+                $this->sync_single_page($cp_slug, $cp_menu_title, $cp_body, $cp_is_enabled, $menu_id, $cp_menu_order, $cp_parent_slug, '', false, $cp_is_submenu, $cp_parent_menu_item_id);
             }
         }
     }
@@ -885,12 +890,18 @@ class GAS_Booking {
                     error_log("GAS Booking: Created page '{$title}' with ID {$page_id}" . ($template ? " (template: {$template})" : ''));
                 }
             } else {
-                // Ensure page is published
+                // Ensure page is published; also push fresh content from admin if it changed.
+                // Without this, custom-page Classic Editor edits never reached the WP page
+                // because sync_single_page was only writing post_content on initial create.
+                $update = array('ID' => $existing_page->ID);
                 if ($existing_page->post_status !== 'publish') {
-                    wp_update_post(array(
-                        'ID' => $existing_page->ID,
-                        'post_status' => 'publish'
-                    ));
+                    $update['post_status'] = 'publish';
+                }
+                if ($shortcode !== '' && $existing_page->post_content !== $shortcode) {
+                    $update['post_content'] = $shortcode;
+                }
+                if (count($update) > 1) {
+                    wp_update_post($update);
                 }
                 // Ensure template is assigned if not already set
                 if (!empty($template)) {
@@ -9065,7 +9076,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         ?>
         <div class="gas-page gas-gallery-page" data-gallery-lightbox="<?php echo $lightbox ? '1' : '0'; ?>" style="background: <?php echo esc_attr($bg); ?>;" translate="no">
             <style>
-                .gas-gallery-page { padding: 100px 0 60px; }
+                .gas-gallery-page { padding: 70px 0 60px; }
                 .gas-gallery-page .gas-page-inner { max-width: 1200px; margin: 0 auto; padding: 0 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-gallery-page .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-gallery-page .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; margin-bottom: 32px; }
