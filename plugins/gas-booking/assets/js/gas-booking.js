@@ -6303,13 +6303,14 @@ jQuery(document).ready(function($) {
             return t('payment', 'balance_due', 'Balance due at check-in');
         }
 
-        // Helper: trigger the deposit recalc on the currently-selected card option.
-        // Called from updateCheckoutPricing when pricing data lands after card was
-        // already selected (auto-select path), so the deposit row reflects the
-        // freshly-calculated total instead of the static £0.00.
+        // Helper: trigger the deposit recalc on the card option.
+        // Called from updateCheckoutPricing when pricing data lands. Removed the
+        // 'selected' gate: when Stripe is the only/auto-selected option the class
+        // isn't added until the user actually clicks, so the recalc was never
+        // firing and the deposit row stayed at €0 (e.g. Hotel Balduin, 100%
+        // deposit rule, no taxes — the auto-load path never updated the display).
         window._gasRecalcCheckoutDeposit = function() {
             if (!checkoutData.stripeEnabled) return;
-            if (!$card.hasClass('selected')) return;
             $card.trigger('_gasRecalcDeposit');
         };
 
