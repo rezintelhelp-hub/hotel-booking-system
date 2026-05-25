@@ -3,7 +3,7 @@
  * Plugin Name: GAS Blog
  * Plugin URI: https://gas.travel
  * Description: Display blog posts from GAS with Article schema markup for SEO. Colors controlled via GAS Admin.
- * Version: 2.10.3
+ * Version: 2.10.4
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -135,24 +135,32 @@ class GAS_Blog {
     private function get_page_title_subtitle() {
         $lang = $this->get_current_language();
         $client_id = get_option('gas_blog_client_id') ?: get_option('gas_client_id', '');
-        if (!$client_id) return array('title' => '', 'subtitle' => '');
+        if (!$client_id) return array('title' => '', 'subtitle' => '', 'header_overlay' => false);
         $cache_key = 'gas_blog_page_ts_' . $client_id;
         $page_data = get_transient($cache_key);
         if ($page_data === false) {
             $url = trailingslashit($this->get_api_url()) . 'api/public/client/' . $client_id . '/site-config?site_url=' . urlencode(home_url('/'));
             $response = wp_remote_get($url, array('timeout' => 10));
+            $page_data = array('page' => array(), 'header_overlay' => false);
             if (!is_wp_error($response)) {
                 $body = json_decode(wp_remote_retrieve_body($response), true);
                 $ws = $body['config']['website'] ?? array();
-                $page_data = $ws['page-blog'] ?? array();
-            } else {
-                $page_data = array();
+                $page_data['page'] = $ws['page-blog'] ?? array();
+                // Header is position:fixed (overlays content) when the global
+                // header.transparent flag is on — content needs ~120px top padding
+                // to not be hidden behind it. When false, header is sticky/in-flow
+                // and content can sit close to the top.
+                $hdr = $ws['header'] ?? array();
+                $page_data['header_overlay'] = !empty($hdr['transparent']);
             }
             set_transient($cache_key, $page_data, HOUR_IN_SECONDS);
         }
-        $title = $page_data['title-' . $lang] ?? $page_data['title-en'] ?? '';
-        $subtitle = $page_data['subtitle-' . $lang] ?? $page_data['subtitle-en'] ?? '';
-        return array('title' => $title, 'subtitle' => $subtitle);
+        // Backwards-compat: older cache entries were the page array directly.
+        if (!isset($page_data['page'])) $page_data = array('page' => $page_data, 'header_overlay' => false);
+        $page = $page_data['page'];
+        $title = $page['title-' . $lang] ?? $page['title-en'] ?? '';
+        $subtitle = $page['subtitle-' . $lang] ?? $page['subtitle-en'] ?? '';
+        return array('title' => $title, 'subtitle' => $subtitle, 'header_overlay' => !empty($page_data['header_overlay']));
     }
     public function add_admin_menu() { add_options_page('GAS Blog', 'GAS Blog', 'manage_options', 'gas-blog', array($this, 'settings_page')); }
     public function register_settings() { foreach(array('api_url','client_id','property_name','page_url','back_url','posts_per_page') as $s) register_setting('gas_blog_settings','gas_blog_'.$s); }
@@ -273,12 +281,16 @@ class GAS_Blog {
         $api_url = esc_url(trailingslashit($this->get_api_url()));
         $client_id = esc_attr(get_option('gas_blog_client_id') ?: get_option('gas_client_id', ''));
         $property_id = esc_attr(get_option('gas_property_id', ''));
-        echo '<style>html,body{background:' . $c['bg'] . '}body .site,body #page,body .site-content,body .wp-site-blocks,body main{background:' . $c['bg'] . '}.gas-bp{max-width:1200px;margin:0 auto;padding:40px 20px 40px;background:' . $c['bg'] . ';min-height:60vh;' . $bf . '}body:has(.developer-header-transparent) .gas-bp{padding-top:120px}.gas-bt{font-size:2.5rem;margin:0 0 10px;color:' . $c['text'] . ';' . $hf . '}.gas-bs{color:' . $c['text_secondary'] . ';margin:0 0 30px}.gas-bg{display:grid;gap:30px;grid-template-columns:repeat(3,1fr)}.gas-bc{background:' . $c['card_bg'] . ';border-radius:' . $cr . ';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s}.gas-bc:hover{transform:translateY(-4px);box-shadow:0 8px 25px rgba(0,0,0,0.12)}.gas-bc a{text-decoration:none;color:inherit;display:block}.gas-bi{width:100%;height:200px;object-fit:cover}.gas-bo{padding:20px}.gas-bn{margin:0 0 10px;font-size:1.2rem;color:' . $c['text'] . ';' . $hf . '}.gas-bd{color:' . $c['text_secondary'] . ';font-size:.95rem;margin:0}.gas-bb{background:' . $c['category_bg'] . ';color:' . $c['category_text'] . ';padding:2px 10px;border-radius:' . $br . ';font-size:.8rem}.gas-bm{display:flex;gap:10px;font-size:.8rem;color:' . $c['text_secondary'] . ';margin-bottom:10px}.gas-bf{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;align-items:center}.gas-bl{padding:8px 16px;border-radius:' . $br . ';text-decoration:none;cursor:pointer}.gas-bl.active{background:' . $c['accent'] . ';color:#fff}.gas-bl:not(.active){background:' . $c['category_bg'] . ';color:' . $c['category_text'] . '}';
+        $ps = $this->get_page_title_subtitle();
+        // Header is position:fixed (overlay) when global transparent is on — even
+        // though /blog/ doesn't get the developer-header-transparent class, the
+        // header still sits over content. Push title down to clear it.
+        $pad_top = !empty($ps['header_overlay']) ? '140px' : '40px';
+        echo '<style>html,body{background:' . $c['bg'] . '}body .site,body #page,body .site-content,body .wp-site-blocks,body main{background:' . $c['bg'] . '}.gas-bp{max-width:1200px;margin:0 auto;padding:' . $pad_top . ' 20px 40px;background:' . $c['bg'] . ';min-height:60vh;' . $bf . '}.gas-bt{font-size:2.5rem;margin:0 0 10px;color:' . $c['text'] . ';' . $hf . '}.gas-bs{color:' . $c['text_secondary'] . ';margin:0 0 30px}.gas-bg{display:grid;gap:30px;grid-template-columns:repeat(3,1fr)}.gas-bc{background:' . $c['card_bg'] . ';border-radius:' . $cr . ';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all .2s}.gas-bc:hover{transform:translateY(-4px);box-shadow:0 8px 25px rgba(0,0,0,0.12)}.gas-bc a{text-decoration:none;color:inherit;display:block}.gas-bi{width:100%;height:200px;object-fit:cover}.gas-bo{padding:20px}.gas-bn{margin:0 0 10px;font-size:1.2rem;color:' . $c['text'] . ';' . $hf . '}.gas-bd{color:' . $c['text_secondary'] . ';font-size:.95rem;margin:0}.gas-bb{background:' . $c['category_bg'] . ';color:' . $c['category_text'] . ';padding:2px 10px;border-radius:' . $br . ';font-size:.8rem}.gas-bm{display:flex;gap:10px;font-size:.8rem;color:' . $c['text_secondary'] . ';margin-bottom:10px}.gas-bf{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;align-items:center}.gas-bl{padding:8px 16px;border-radius:' . $br . ';text-decoration:none;cursor:pointer}.gas-bl.active{background:' . $c['accent'] . ';color:#fff}.gas-bl:not(.active){background:' . $c['category_bg'] . ';color:' . $c['category_text'] . '}';
         echo '.gas-search{display:flex;margin-bottom:20px}.gas-search input{flex:1;max-width:320px;padding:10px 16px;border:1px solid #d1d5db;border-radius:' . $br . ';font-size:.95rem;outline:none;' . $bf . '}.gas-search input:focus{border-color:' . $c['accent'] . ';box-shadow:0 0 0 2px ' . $c['accent'] . '33}';
         echo '.gas-vm-wrap{text-align:center;margin-top:40px}.gas-vm-btn{display:inline-block;padding:12px 32px;background:' . $c['accent'] . ';color:#fff;border:none;border-radius:' . $br . ';font-size:1rem;cursor:pointer;transition:opacity .2s;' . $bf . '}.gas-vm-btn:hover{opacity:.85}.gas-vm-btn:disabled{opacity:.5;cursor:not-allowed}';
         echo '.gas-spinner{display:inline-block;width:18px;height:18px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:gas-spin .6s linear infinite;vertical-align:middle;margin-left:8px}@keyframes gas-spin{to{transform:rotate(360deg)}}';
         echo '@media(max-width:900px){.gas-bg{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.gas-bg{grid-template-columns:1fr}}</style>';
-        $ps = $this->get_page_title_subtitle();
         $page_title = $ps['title'] ?: 'Blog';
         $page_sub = $ps['subtitle'] ?: 'Latest news from ' . esc_html($prop);
         echo '<div class="gas-bp"><h1 class="gas-bt">' . esc_html($page_title) . '</h1><p class="gas-bs">' . esc_html($page_sub) . '</p>';
