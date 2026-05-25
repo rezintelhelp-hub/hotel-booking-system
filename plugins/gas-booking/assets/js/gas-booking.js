@@ -6511,11 +6511,16 @@ jQuery(document).ready(function($) {
                             $('.gas-voucher-label').text('Gift certificate: ' + code);
                         } else {
                             $('.gas-voucher-result').html('<span class="gas-voucher-success">✓ ' + response.voucher.name + ' applied!</span>');
-                            var subtotal = checkoutData.grandTotal;
+                            // Discount the BASE accommodation only (nightly rate × nights),
+                            // not the tax-inclusive grand total. Tax then recalculates on
+                            // the discounted base inside updateCheckoutPricing() below.
+                            var accomBase = parseFloat(checkoutData.pricing && checkoutData.pricing.accommodation_total) || 0;
                             if (response.voucher.discount_type === 'percentage') {
-                                discount = subtotal * (response.voucher.discount_value / 100);
+                                discount = accomBase * (response.voucher.discount_value / 100);
                             } else {
                                 discount = parseFloat(response.voucher.discount_value);
+                                // Cap fixed-amount discounts at the accommodation base.
+                                if (discount > accomBase) discount = accomBase;
                             }
                             $('.gas-voucher-label').text('Promo: ' + code);
                         }
@@ -6524,8 +6529,14 @@ jQuery(document).ready(function($) {
                         $('.gas-voucher-discount').text('-' + formatPrice(discount, checkoutData.currency));
 
                         checkoutData.voucherDiscount = discount;
-                        checkoutData.grandTotal = checkoutData.grandTotal - discount;
-                        $('.gas-grand-total').text(formatPrice(checkoutData.grandTotal, checkoutData.currency));
+                        // Re-run the full pricing calc so taxes drop with the discounted base
+                        // and the grand total reflects the new (lower) tax line.
+                        if (typeof updateCheckoutPricing === 'function') {
+                            updateCheckoutPricing();
+                        } else {
+                            checkoutData.grandTotal = checkoutData.grandTotal - discount;
+                            $('.gas-grand-total').text(formatPrice(checkoutData.grandTotal, checkoutData.currency));
+                        }
                     } else {
                         $('.gas-voucher-result').html('<span class="gas-voucher-error">' + (response.error || 'Invalid voucher code') + '</span>');
                     }
