@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.10
+ * Version: 3.8.11
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -179,6 +179,14 @@ class GAS_Booking {
         
         // SEO injection via wp_head
         add_action('wp_head', array($this, 'inject_seo_meta'), 1);
+
+        // SEO — serve unified sitemap + IndexNow key + robots.txt pointer.
+        // Disable WP core sitemap (it only knows about WP-native posts/pages; our
+        // blog + attractions + room URLs come from GAS API at render time, so
+        // wp-sitemap.xml is always missing the important content).
+        add_filter('wp_sitemaps_enabled', '__return_false');
+        add_action('parse_request', array($this, 'serve_seo_endpoints'), 0);
+        add_filter('robots_txt', array($this, 'filter_robots_txt'), 10, 2);
         
         // Shortcodes
         add_shortcode('gas_search', array($this, 'search_shortcode'));
@@ -4239,6 +4247,72 @@ class GAS_Booking {
         }
         set_transient('gas_booking_shop_palette', $defaults, 5 * MINUTE_IN_SECONDS);
         return $defaults;
+    }
+
+    /**
+     * Serve /sitemap.xml and the IndexNow /<key>.txt at site root.
+     * Hooked to parse_request before WP rewrites — we sniff REQUEST_URI directly
+     * so this works even when no rewrite rule maps to the path.
+     */
+    public function serve_seo_endpoints() {
+        $uri = isset($_SERVER['REQUEST_URI']) ? parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) : '';
+        if (!$uri) return;
+        $path = trim($uri, '/');
+
+        // /sitemap.xml — proxy unified sitemap from GAS API, cache 1h
+        if ($path === 'sitemap.xml' || $path === 'wp-sitemap.xml') {
+            $cached = get_transient('gas_sitemap_xml');
+            if ($cached === false) {
+                $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
+                $host = parse_url(home_url('/'), PHP_URL_HOST);
+                $resp = wp_remote_get(rtrim($api_url, '/') . '/api/public/sitemap.xml?host=' . urlencode($host), array('timeout' => 15, 'sslverify' => false));
+                if (!is_wp_error($resp) && wp_remote_retrieve_response_code($resp) === 200) {
+                    $cached = wp_remote_retrieve_body($resp);
+                    set_transient('gas_sitemap_xml', $cached, HOUR_IN_SECONDS);
+                }
+            }
+            if ($cached) {
+                header('Content-Type: application/xml; charset=UTF-8');
+                header('X-Robots-Tag: noindex, follow');
+                echo $cached;
+                exit;
+            }
+        }
+
+        // /<32-hex>.txt — IndexNow key verification file. We fetch the stored
+        // key from GAS and only serve a 200 if the path matches.
+        if (preg_match('#^([a-f0-9]{32})\.txt$#i', $path, $m)) {
+            $req_key = strtolower($m[1]);
+            $cached = get_transient('gas_indexnow_key');
+            if ($cached === false) {
+                $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
+                $host = parse_url(home_url('/'), PHP_URL_HOST);
+                $resp = wp_remote_get(rtrim($api_url, '/') . '/api/public/indexnow-key?host=' . urlencode($host), array('timeout' => 10, 'sslverify' => false));
+                if (!is_wp_error($resp) && wp_remote_retrieve_response_code($resp) === 200) {
+                    $cached = trim(wp_remote_retrieve_body($resp));
+                    set_transient('gas_indexnow_key', $cached, DAY_IN_SECONDS);
+                }
+            }
+            if ($cached && strtolower($cached) === $req_key) {
+                header('Content-Type: text/plain');
+                echo $cached;
+                exit;
+            }
+        }
+    }
+
+    /**
+     * Add Sitemap directive to robots.txt pointing at our unified sitemap.
+     * WP core already outputs a Sitemap line for wp-sitemap.xml but that's
+     * disabled; append ours instead.
+     */
+    public function filter_robots_txt($output, $public) {
+        if (!$public) return $output;
+        $sitemap = home_url('/sitemap.xml');
+        // Strip any existing Sitemap: line WP may have inserted (defensive)
+        $output = preg_replace('/^Sitemap:.*$/mi', '', $output);
+        $output = rtrim($output) . "\n\nSitemap: " . $sitemap . "\n";
+        return $output;
     }
 
     /**
