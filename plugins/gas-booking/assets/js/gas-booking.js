@@ -1277,7 +1277,12 @@ jQuery(document).ready(function($) {
                                     terms.events.policy === 'request' ? (tTerms.events_on_request || 'Events on request') : (tTerms.events_allowed || 'Events allowed');
                     generalHtml += '<li><strong>' + (tTerms.events || 'Events') + ':</strong> ' + eventsText + '</li>';
                     generalHtml += '</ul>';
-                    
+
+                    // Append Beds24 free-text generalPolicy if present
+                    if (terms.general_terms_text && String(terms.general_terms_text).trim()) {
+                        generalHtml += '<div class="gas-terms-text">' + String(terms.general_terms_text).replace(/\n/g, '<br>') + '</div>';
+                    }
+
                     $('.gas-general-terms').html(generalHtml);
                     
                     // Build House Rules content
@@ -1335,6 +1340,12 @@ jQuery(document).ready(function($) {
                     }
                     
                     rulesHtml += '</ul>';
+
+                    // Append Beds24 free-text houseRules if present
+                    if (terms.house_rules_text && String(terms.house_rules_text).trim()) {
+                        rulesHtml += '<div class="gas-terms-text">' + String(terms.house_rules_text).replace(/\n/g, '<br>') + '</div>';
+                    }
+
                     $('.gas-house-rules').html(rulesHtml);
                     
                     // Cancellation policy
