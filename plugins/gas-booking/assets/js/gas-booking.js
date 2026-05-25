@@ -1614,12 +1614,32 @@ jQuery(document).ready(function($) {
         $roomWidget.data('images', images);
     }
     
+    // Amenity category labels per language. Categories come from master_amenities.category
+    // as raw snake_case codes (e.g. 'bathrooms', 'room_features'). Without this map
+    // the property page renders the raw English code as the section heading even on
+    // Japanese sites — Nozawa flagged this 2026-05-25.
+    var AMENITY_CATEGORY_LABELS = {
+        en: { bathrooms:'Bathrooms', beds:'Beds', bedroom_and_laundry:'Bedroom and Laundry', entertainment:'Entertainment', essentials:'Essentials', family:'Family', kitchen:'Kitchen', laundry:'Laundry', location:'Location', meals:'Meals', other:'Other', outdoor:'Outdoor', parking:'Parking', policies:'Policies', room_features:'Room Features', safety:'Safety', services:'Services', transport:'Transport', wellness:'Wellness', work:'Work', accessibility:'Accessibility', activities:'Activities', general:'General' },
+        ja: { bathrooms:'バスルーム', beds:'寝具', bedroom_and_laundry:'ベッドルームとランドリー', entertainment:'エンターテインメント', essentials:'アメニティ', family:'お子様用アメニティ', kitchen:'キッチン', laundry:'ランドリー', location:'ロケーション', meals:'お食事', other:'その他', outdoor:'屋外', parking:'駐車場', policies:'ポリシー', room_features:'お部屋の設備', safety:'安全面', services:'サービス', transport:'交通', wellness:'リラクゼーション', work:'ワーク', accessibility:'バリアフリー', activities:'アクティビティ', general:'一般' },
+        fr: { bathrooms:'Salles de bain', beds:'Lits', entertainment:'Divertissement', essentials:'Essentiels', family:'Famille', kitchen:'Cuisine', laundry:'Buanderie', location:'Emplacement', other:'Autres', outdoor:'Extérieur', parking:'Parking', room_features:'Caractéristiques', safety:'Sécurité', wellness:'Bien-être' },
+        es: { bathrooms:'Baños', beds:'Camas', entertainment:'Entretenimiento', essentials:'Esenciales', family:'Familia', kitchen:'Cocina', laundry:'Lavandería', location:'Ubicación', other:'Otros', outdoor:'Exterior', parking:'Aparcamiento', room_features:'Características', safety:'Seguridad', wellness:'Bienestar' },
+        de: { bathrooms:'Badezimmer', beds:'Betten', entertainment:'Unterhaltung', essentials:'Grundausstattung', family:'Familie', kitchen:'Küche', laundry:'Wäsche', location:'Lage', other:'Sonstiges', outdoor:'Außenbereich', parking:'Parken', room_features:'Zimmerausstattung', safety:'Sicherheit', wellness:'Wellness' },
+        nl: { bathrooms:'Badkamers', beds:'Bedden', entertainment:'Entertainment', essentials:'Essentials', family:'Familie', kitchen:'Keuken', laundry:'Wasruimte', location:'Locatie', other:'Overige', outdoor:'Buiten', parking:'Parkeren', room_features:'Kamerkenmerken', safety:'Veiligheid', wellness:'Wellness' }
+    };
+    function _amenityCategoryLabel(cat) {
+        var lang = (window.gasBookingLang || window.currentLanguage || 'en').slice(0,2);
+        var key = String(cat || 'general').toLowerCase().replace(/[\s-]+/g,'_');
+        var langMap = AMENITY_CATEGORY_LABELS[lang] || AMENITY_CATEGORY_LABELS.en;
+        // Fall back: lang label → en label → raw key prettified
+        return langMap[key] || AMENITY_CATEGORY_LABELS.en[key] || key.replace(/_/g,' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
+    }
+
     function renderAmenities(amenities) {
         if (!amenities || amenities.length === 0) {
             $('.gas-tab-btn[data-tab="features"]').hide();
             return;
         }
-        
+
         // Group by category
         var categories = {};
         amenities.forEach(function(amenity) {
@@ -1633,11 +1653,11 @@ jQuery(document).ready(function($) {
                 quantity: amenity.quantity || 1
             });
         });
-        
+
         var html = '';
         for (var cat in categories) {
             html += '<div class="gas-amenities-category">';
-            html += '<h4 class="gas-amenities-category-title">' + cat + '</h4>';
+            html += '<h4 class="gas-amenities-category-title">' + _amenityCategoryLabel(cat) + '</h4>';
             html += '<div class="gas-amenities-list">';
             categories[cat].forEach(function(item) {
                 var displayName = parseDescription(item.name) || item.name;
