@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.15');
+define('GAS_BOOKING_VERSION', '3.8.16');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4414,6 +4414,14 @@ class GAS_Booking {
                 border-radius: 8px;
                 margin: 0.5rem 0;
             }
+            /* Inline images within paragraphs (not in column grids) get a
+               sensible cap so a single hero shot in body copy doesn't
+               render at 2000px. */
+            .gas-spark-body > p img,
+            .gas-spark-body > div:not(.column_row) > img {
+                max-width: min(720px, 100%);
+                margin: 1.5rem auto;
+            }
             /* Setseed column-layout classes — rendered HTML uses these
                class names but the CSS they relied on lives on the old
                server. Bring them back so multi-image grids look like
@@ -4421,8 +4429,8 @@ class GAS_Booking {
             .gas-spark-body .column_row {
                 display: grid;
                 grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-                gap: 1rem;
-                margin: 1.5rem 0;
+                gap: 1.2rem;
+                margin: 2rem 0;
                 align-items: start;
             }
             .gas-spark-body .column {
@@ -4431,28 +4439,50 @@ class GAS_Booking {
             .gas-spark-body .column.twoCol { grid-column: span 2; }
             .gas-spark-body .column.threeCol { grid-column: span 3; }
             .gas-spark-body .cleariftwo { display: none; }  /* Setseed clearfix — useless in grid */
+            /* Lock images in column grids to a uniform 16:9 landscape
+               aspect ratio with object-fit:cover. Portrait source images
+               crop cleanly to landscape — Steve's call for consistent
+               horizontal layout across Sparks (matches the blog/
+               attractions/room-card pattern used elsewhere in GAS). */
+            .gas-spark-body .column .bpe_image img,
+            .gas-spark-body .column_row img {
+                width: 100%;
+                aspect-ratio: 16 / 9;
+                object-fit: cover;
+                object-position: center;
+                border-radius: 10px;
+                margin: 0;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            }
+            /* Hero block — also enforce landscape. The page-top hero (image
+               above the title) already uses 60vh height; this catches any
+               in-body wide image meant as a hero. */
+            .gas-spark-body > .bpe_image:first-child img,
+            .gas-spark-body > div:first-child > .bpe_image img {
+                aspect-ratio: 16 / 9;
+                object-fit: cover;
+                width: 100%;
+                max-width: min(960px, 100%);
+                margin: 0 auto 1.5rem auto;
+            }
             /* bpe_image wrapper — Setseed image card */
             .gas-spark-body .bpe_image {
                 margin: 0;
             }
-            .gas-spark-body .bpe_image.Caption img { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
             .gas-spark-body .bpe_image.Centered { text-align: center; }
-            .gas-spark-body .bpe_image img[title] {
-                position: relative;
-            }
             /* Use the img title attribute as a caption when present */
             .gas-spark-body .bpe_image.Caption {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
             }
-            .gas-spark-body .bpe_image.Caption img + figcaption,
             .gas-spark-body .bpe_image.Caption::after {
                 content: attr(title);
                 font-size: 0.85rem;
                 color: #64748b;
                 margin-top: 0.5rem;
                 text-align: center;
+                font-weight: 500;
             }
         </style>
         <head>
