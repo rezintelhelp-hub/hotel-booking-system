@@ -68,6 +68,14 @@ const MYSQL_HOST = args['mysql-host'] || '139.162.234.112';
 const MYSQL_PORT = parseInt(args['mysql-port'] || '3306', 10);
 const MYSQL_USER = args['mysql-user'] || 'setseed_master';
 const MYSQL_PASS = args['mysql-pass'] || process.env.SETSEED_MYSQL_PASS || 'hrDpymeXhGjcBgvT8GTZ';
+// Canonical public URL of the original site — used to absolute-ize relative
+// image URLs (Setseed stores /images/foo.jpg, but on GAS that 404s).
+// Required arg — pass --setseed-url https://lehmannhouse.com
+const SETSEED_URL = args['setseed-url'];
+if (!SETSEED_URL) {
+  console.error('Missing --setseed-url. Pass the canonical public domain of the source site, e.g. --setseed-url https://lehmannhouse.com');
+  process.exit(1);
+}
 
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
@@ -81,14 +89,52 @@ function slugify(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 180);
 }
 
-function extractFirstImage(html) {
+function absolutizeImageUrl(url, setseedUrl) {
+  if (!url) return null;
+  // Already absolute? Return as-is.
+  if (/^https?:\/\//i.test(url)) return url;
+  // Setseed-style relative paths start with /images/ — prepend the public hostname.
+  // We also drop the query-string resize hints (?width=...&height=...) since they
+  // were Setseed-specific image scaler params and break on other servers.
+  const clean = url.split('?')[0];
+  return setseedUrl.replace(/\/$/, '') + clean;
+}
+
+function extractFirstImage(html, setseedUrl) {
   if (!html) return null;
   const m = String(html).match(/<img[^>]+src=["']([^"']+)["']/i);
-  return m ? m[1] : null;
+  return m ? absolutizeImageUrl(m[1], setseedUrl) : null;
+}
+
+function sanitizeSetseedContent(html, setseedUrl) {
+  if (!html) return '';
+  let out = String(html);
+  // 1. Strip Setseed widget dividers — they output "Content Bar N" text noise
+  //    e.g. <div class="bpe_split_divider Content_Bar_1_Banner">Content Bar 1 Banner</div>
+  out = out.replace(/<div[^>]*class=["'][^"']*bpe_split_divider[^"']*["'][^>]*>.*?<\/div>/gis, '');
+  // 2. Strip Setseed's per-element editing IDs (data-element-id="el_..."), they
+  //    clutter the DOM and serve no purpose outside Setseed's editor.
+  out = out.replace(/\s*data-element-id=["'][^"']*["']/gi, '');
+  // 3. Strip Setseed's other internal data-* attributes
+  out = out.replace(/\s*data-(version|widget-id|bpe-[a-z0-9-]+)=["'][^"']*["']/gi, '');
+  // 4. Absolute-ize all image src URLs and drop ?width=...&height=...&shrink=... query strings
+  out = out.replace(/<img([^>]+)src=["']([^"']+)["']/gi, (m, before, src) => {
+    return `<img${before}src="${absolutizeImageUrl(src, setseedUrl)}"`;
+  });
+  // 5. Same for any <a href="/something"> or <a href="/images/...">
+  out = out.replace(/<a([^>]+)href=["'](\/[^"']*)["']/gi, (m, before, href) => {
+    return `<a${before}href="${absolutizeImageUrl(href, setseedUrl)}"`;
+  });
+  // 6. Fix self-closing img tags that show /  /> from the source
+  out = out.replace(/<img([^>]*?)\s*\/\s*\/>/gi, '<img$1/>');
+  // 7. Collapse Setseed's stray `bpe_*` class names (visually they reference an
+  //    internal CSS that doesn't exist on GAS sites).
+  out = out.replace(/\s+class=["']([^"']*?)bpe_(image|cta|button|text)[^"']*?["']/gi, ' class="$1"');
+  return out;
 }
 
 function htmlToPlain(html, len = 160) {
-  return String(html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, len);
+  return String(html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim().slice(0, len);
 }
 
 (async () => {
@@ -127,9 +173,10 @@ function htmlToPlain(html, len = 160) {
     }
 
     const externalId = `setseed:${row.id}`;
-    const heroImage = extractFirstImage(row.content);
-    const subtitle = htmlToPlain(row.summary || row.content, 480);
-    const metaDesc = htmlToPlain(row.summary || row.content, 160);
+    const sanitizedBody = sanitizeSetseedContent(row.content, SETSEED_URL);
+    const heroImage = extractFirstImage(row.content, SETSEED_URL);
+    const subtitle = htmlToPlain(row.summary || sanitizedBody, 480);
+    const metaDesc = htmlToPlain(row.summary || sanitizedBody, 160);
 
     if (DRY_RUN) {
       console.log(`  [DRY] #${row.id} → Spark slug="${slug}" title="${row.title.slice(0, 60)}" hero=${heroImage ? '✓' : '✗'}`);
@@ -144,7 +191,7 @@ function htmlToPlain(html, len = 160) {
         await pg.query(`
           UPDATE sparks SET title=$2, subtitle=$3, body=$4, hero_image_url=$5, meta_description=$6, updated_at=NOW()
           WHERE id=$1
-        `, [existing.rows[0].id, row.title, subtitle, row.content, heroImage, metaDesc]);
+        `, [existing.rows[0].id, row.title, subtitle, sanitizedBody, heroImage, metaDesc]);
         console.log(`  [UPDATE] #${row.id} → spark ${existing.rows[0].id} "${row.title.slice(0, 60)}"`);
         summary.spark_updated++;
       } else {
@@ -156,7 +203,7 @@ function htmlToPlain(html, len = 160) {
             title=EXCLUDED.title, subtitle=EXCLUDED.subtitle, body=EXCLUDED.body,
             hero_image_url=EXCLUDED.hero_image_url, source_external_id=EXCLUDED.source_external_id, updated_at=NOW()
           RETURNING id
-        `, [ACCOUNT_ID, slug, row.title, subtitle, row.content, heroImage, row.title.slice(0, 60), metaDesc, externalId]);
+        `, [ACCOUNT_ID, slug, row.title, subtitle, sanitizedBody, heroImage, row.title.slice(0, 60), metaDesc, externalId]);
         console.log(`  [CREATE] #${row.id} → spark ${r.rows[0].id} "${row.title.slice(0, 60)}"`);
         summary.spark_created++;
       }
