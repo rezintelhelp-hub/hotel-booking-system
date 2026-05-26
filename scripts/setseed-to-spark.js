@@ -133,6 +133,54 @@ function sanitizeSetseedContent(html, setseedUrl) {
   return out;
 }
 
+// Scrape the rendered HTML of a Setseed page from its live URL. This is the
+// source of truth — the DB `content` column holds editor wireframes with
+// widget placeholders ("Equal Columns Quarters", "first column", etc.) and
+// references to images stored in separate tables. The live URL gives us the
+// fully-rendered HTML with real <img> tags and resolved layouts.
+async function fetchLiveContent(setseedUrl, slug) {
+  const base = setseedUrl.replace(/\/$/, '');
+  const url = `${base}/${slug}/`;
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(15000), redirect: 'follow' });
+    if (!resp.ok) return null;
+    const html = await resp.text();
+    // Extract the <main id="main">...</main> block (Setseed theme convention)
+    const mainMatch = html.match(/<main[^>]*id=["']main["'][^>]*>([\s\S]*?)<\/main>/i);
+    if (!mainMatch) return null;
+    let body = mainMatch[1];
+    // Strip surrounding chrome: <style> blocks, the outer container/section
+    // wrappers, hero/header includes — keep just the content payload.
+    body = body
+      // 1. Remove inline <style> tags (they reference theme CSS not on GAS)
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      // 2. Remove the leading <div class="container content..."> ... opening — keep its contents
+      .replace(/<div[^>]*class=["'][^"']*container content[^"']*["'][^>]*>/i, '')
+      // 3. Remove <section class="row"> wrappers
+      .replace(/<section[^>]*class=["'][^"']*row[^"']*["'][^>]*>/gi, '')
+      .replace(/<\/section>/gi, '')
+      // 4. Remove content-block wrapper div and its inner wrapping <div>
+      .replace(/<div[^>]*class=["'][^"']*content-block[^"']*["'][^>]*>\s*<div[^>]*>/i, '')
+      // 5. Defensive: strip leftover Setseed editor markup
+      .replace(/<a[^>]*class=["'][^"']*componentDelete[^"']*["'][^>]*>[\s\S]*?<\/a>/gi, '')
+      .replace(/<div[^>]*class=["'][^"']*(?:componentZonesTitle|customZoneTitle)[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '')
+      // 6. Tidy multiple consecutive whitespace
+      .replace(/\n\s*\n\s*\n/g, '\n\n')
+      .trim();
+    // Trim trailing closing tags from the outer wrappers we stripped above
+    body = body.replace(/(<\/div>\s*){2,4}\s*$/i, '');
+    // Absolute-ize all image src URLs and drop Setseed scaler query strings
+    body = body.replace(/<img([^>]+?)src=["']([^"']+)["']/gi, (m, before, src) => {
+      return `<img${before}src="${absolutizeImageUrl(src, setseedUrl)}"`;
+    });
+    // Strip srcset (mostly relative URLs that 404 on GAS — easier to drop than rewrite all)
+    body = body.replace(/\s+srcset=["'][^"']*["']/gi, '');
+    return body;
+  } catch (e) {
+    return null;
+  }
+}
+
 function htmlToPlain(html, len = 160) {
   return String(html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim().slice(0, len);
 }
@@ -173,10 +221,15 @@ function htmlToPlain(html, len = 160) {
     }
 
     const externalId = `setseed:${row.id}`;
-    const sanitizedBody = sanitizeSetseedContent(row.content, SETSEED_URL);
-    const heroImage = extractFirstImage(row.content, SETSEED_URL);
+    // Prefer scraping the live URL (gives clean rendered HTML with real
+    // images). Fall back to DB content with sanitisation if the live URL
+    // 404s (page may have been pulled from public nav).
+    const liveBody = await fetchLiveContent(SETSEED_URL, slug);
+    const sanitizedBody = liveBody || sanitizeSetseedContent(row.content, SETSEED_URL);
+    const heroImage = extractFirstImage(sanitizedBody, SETSEED_URL);
     const subtitle = htmlToPlain(row.summary || sanitizedBody, 480);
     const metaDesc = htmlToPlain(row.summary || sanitizedBody, 160);
+    if (!liveBody && row.content) console.log(`    (live URL not reachable, fell back to DB content)`);
 
     if (DRY_RUN) {
       console.log(`  [DRY] #${row.id} → Spark slug="${slug}" title="${row.title.slice(0, 60)}" hero=${heroImage ? '✓' : '✗'}`);
