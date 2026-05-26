@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.13');
+define('GAS_BOOKING_VERSION', '3.8.14');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -179,6 +179,11 @@ class GAS_Booking {
         
         // SEO injection via wp_head
         add_action('wp_head', array($this, 'inject_seo_meta'), 1);
+
+        // ⚡ GAS Spark — catch root-level Spark slugs on 404 and render them.
+        // Fires only after WP has determined the URL doesn't match a real
+        // post/page, so we never collide with the Web Builder pages.
+        add_action('template_redirect', array($this, 'gas_spark_render_or_redirect'), 1);
 
         // SEO — serve unified sitemap + IndexNow key + robots.txt pointer.
         // Disable WP core sitemap (it only knows about WP-native posts/pages; our
@@ -4319,6 +4324,117 @@ class GAS_Booking {
      * Inject SEO Meta Tags, Schema, and Analytics
      * This runs early in wp_head to ensure meta tags are near the top
      */
+    /**
+     * ⚡ GAS Spark renderer — catches root-level slugs that WP doesn't recognise
+     * and either redirects (301) or renders a Spark landing page.
+     */
+    public function gas_spark_render_or_redirect() {
+        if (!is_404()) return;
+        $path = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
+        if ($path === '' || strpos($path, '/') !== false) return;  // root-level only
+        if (preg_match('/\.(php|html|xml|txt|json|jpg|png|gif|css|js)$/i', $path)) return;
+
+        $host = $_SERVER['HTTP_HOST'];
+        $api = 'https://admin.gas.travel/api/public/sparks/by-slug/' . rawurlencode($path) . '?host=' . rawurlencode($host);
+        $resp = wp_remote_get($api, array('timeout' => 5));
+        if (is_wp_error($resp)) return;
+        $body = wp_remote_retrieve_body($resp);
+        $data = json_decode($body, true);
+        if (empty($data['success'])) return;
+
+        // 301 to canonical slug if matched via redirect_from_urls
+        if (!empty($data['redirect_to'])) {
+            wp_redirect(home_url('/' . $data['redirect_to'] . '/'), 301);
+            exit;
+        }
+
+        // Render the Spark
+        status_header(200);
+        $this->gas_spark_render_page($data['spark'], $data['cta'] ?? null);
+        exit;
+    }
+
+    private function gas_spark_render_page($spark, $cta) {
+        $title = $spark['title'] ?? '';
+        $subtitle = $spark['subtitle'] ?? '';
+        $body = $spark['body'] ?? '';
+        $hero_image = $spark['hero_image_url'] ?? '';
+        $hero_video = $spark['hero_video_url'] ?? '';
+        $layout = $spark['layout'] ?? 'hero_text_button';
+        $meta_title = $spark['meta_title'] ?: $title;
+        $meta_desc = $spark['meta_description'] ?: $subtitle;
+
+        // Resolve CTA button
+        $cta_html = '';
+        if ($cta && !empty($cta['type'])) {
+            $btn_text = $spark['cta_text'] ?: array(
+                'offer' => 'Book this offer',
+                'shop_product' => 'Buy now',
+                'room' => 'Check availability',
+                'external_url' => 'Learn more',
+                'form_embed' => ''
+            )[$cta['type']];
+            $btn_url = '';
+            if ($cta['type'] === 'offer') $btn_url = $cta['book_url'] ?? '';
+            elseif ($cta['type'] === 'shop_product') $btn_url = $cta['buy_url'] ?? '';
+            elseif ($cta['type'] === 'room') $btn_url = $cta['book_url'] ?? '';
+            elseif ($cta['type'] === 'external_url') $btn_url = $cta['url'] ?? '';
+
+            if ($cta['type'] === 'form_embed' && !empty($cta['html'])) {
+                $cta_html = '<div class="gas-spark-form" style="margin: 2rem auto; max-width: 600px;">' . $cta['html'] . '</div>';
+            } elseif ($btn_url && $btn_text) {
+                $cta_html = '<a href="' . esc_url($btn_url) . '" class="gas-spark-cta" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); color: white; padding: 1rem 2.5rem; border-radius: 8px; font-weight: 700; font-size: 1.1rem; text-decoration: none; box-shadow: 0 4px 14px rgba(220,38,38,0.3); margin-top: 1.5rem;">' . esc_html($btn_text) . '</a>';
+            }
+        }
+
+        // Hero (image OR video)
+        $hero_html = '';
+        if ($hero_video) {
+            $hero_html = '<div class="gas-spark-hero" style="position: relative; background: #000;"><video src="' . esc_url($hero_video) . '" autoplay muted loop playsinline style="width:100%; height: 60vh; object-fit: cover; display: block;"></video><div style="position:absolute; inset:0; background:rgba(0,0,0,0.3);"></div></div>';
+        } elseif ($hero_image) {
+            $hero_html = '<div class="gas-spark-hero" style="background: url(' . esc_url($hero_image) . ') center/cover; height: 60vh; min-height: 400px; position: relative;"><div style="position:absolute; inset:0; background:linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.5));"></div></div>';
+        }
+
+        get_header();
+        ?>
+        <style>
+            .gas-spark-page { font-family: -apple-system, system-ui, sans-serif; }
+            .gas-spark-title { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 800; color: #1e293b; margin: 0 0 1rem 0; line-height: 1.1; }
+            .gas-spark-subtitle { font-size: clamp(1.05rem, 2vw, 1.35rem); color: #475569; margin: 0 0 2rem 0; line-height: 1.5; }
+            .gas-spark-body { font-size: 1.05rem; line-height: 1.7; color: #334155; }
+            .gas-spark-body h2 { font-size: 1.6rem; margin-top: 2rem; color: #1e293b; }
+            .gas-spark-body h3 { font-size: 1.25rem; margin-top: 1.5rem; color: #334155; }
+            .gas-spark-body p { margin: 1rem 0; }
+        </style>
+        <head>
+            <title><?php echo esc_html($meta_title); ?></title>
+            <meta name="description" content="<?php echo esc_attr($meta_desc); ?>">
+        </head>
+        <article class="gas-spark-page">
+            <?php echo $hero_html; ?>
+            <div style="max-width: 800px; margin: 0 auto; padding: 3rem 1.5rem;">
+                <?php if ($layout === 'side_by_side' && $hero_image): ?>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: center;">
+                        <img src="<?php echo esc_url($hero_image); ?>" alt="" style="width: 100%; border-radius: 12px;">
+                        <div>
+                            <h1 class="gas-spark-title"><?php echo esc_html($title); ?></h1>
+                            <?php if ($subtitle): ?><p class="gas-spark-subtitle"><?php echo esc_html($subtitle); ?></p><?php endif; ?>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <h1 class="gas-spark-title"><?php echo esc_html($title); ?></h1>
+                    <?php if ($subtitle): ?><p class="gas-spark-subtitle"><?php echo esc_html($subtitle); ?></p><?php endif; ?>
+                <?php endif; ?>
+                <div class="gas-spark-body"><?php echo wp_kses_post($body); ?></div>
+                <?php if ($layout !== 'hero_text' && $cta_html): ?>
+                    <div style="text-align: center; margin-top: 2.5rem;"><?php echo $cta_html; ?></div>
+                <?php endif; ?>
+            </div>
+        </article>
+        <?php
+        get_footer();
+    }
+
     public function inject_seo_meta() {
         // Check if SEO is enabled
         if (!get_option('gas_seo_enabled', '1')) {
