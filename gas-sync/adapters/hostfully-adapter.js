@@ -980,10 +980,10 @@ class HostfullyAdapter {
   // =====================================================
   
   async registerWebhook(eventType, callbackUrl) {
-    // objectUid scopes the webhook — for booking/block/availability events it
-    // must be the agency UID (so we catch ALL properties in the agency).
-    // Previously passed apiKey here which is invalid.
+    // Hostfully wants agencyUid as a top-level field in addition to objectUid
+    // (the docs say "objectUid = agencyUid" but their validator requires both).
     const payload = {
+      agencyUid: this.agencyUid,
       objectUid: this.agencyUid,
       eventType: eventType,
       webhookType: 'POST_JSON',
