@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.16');
+define('GAS_BOOKING_VERSION', '3.8.17');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4484,6 +4484,22 @@ class GAS_Booking {
                 text-align: center;
                 font-weight: 500;
             }
+            /* Manually-curated image gallery rendered below body */
+            .gas-spark-gallery {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 1.2rem;
+                margin: 2.5rem 0;
+            }
+            .gas-spark-gallery-item img {
+                width: 100%;
+                aspect-ratio: 16 / 9;
+                object-fit: cover;
+                object-position: center;
+                border-radius: 10px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                display: block;
+            }
         </style>
         <head>
             <title><?php echo esc_html($meta_title); ?></title>
@@ -4505,6 +4521,19 @@ class GAS_Booking {
                     <?php if ($subtitle): ?><p class="gas-spark-subtitle"><?php echo esc_html($subtitle); ?></p><?php endif; ?>
                 <?php endif; ?>
                 <div class="gas-spark-body"><?php echo wp_kses_post($body); ?></div>
+                <?php
+                $gallery = isset($spark['gallery_images']) ? $spark['gallery_images'] : array();
+                if (is_string($gallery)) { $decoded = json_decode($gallery, true); $gallery = is_array($decoded) ? $decoded : array(); }
+                if (!empty($gallery) && is_array($gallery)):
+                ?>
+                    <div class="gas-spark-gallery">
+                        <?php foreach ($gallery as $img_url): ?>
+                            <div class="gas-spark-gallery-item">
+                                <img src="<?php echo esc_url($img_url); ?>" alt="" loading="lazy">
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
                 <?php if ($layout !== 'hero_text' && $cta_html): ?>
                     <div style="text-align: center; margin-top: 2.5rem;"><?php echo $cta_html; ?></div>
                 <?php endif; ?>
