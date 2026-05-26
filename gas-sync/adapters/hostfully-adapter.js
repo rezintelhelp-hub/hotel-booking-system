@@ -980,37 +980,44 @@ class HostfullyAdapter {
   // =====================================================
   
   async registerWebhook(eventType, callbackUrl) {
+    // objectUid scopes the webhook — for booking/block/availability events it
+    // must be the agency UID (so we catch ALL properties in the agency).
+    // Previously passed apiKey here which is invalid.
     const payload = {
-      objectUid: this.apiKey,
+      objectUid: this.agencyUid,
       eventType: eventType,
-      webHookType: 'POST_JSON',
+      webhookType: 'POST_JSON',
       callbackUrl: callbackUrl
     };
-    
+
     return await this.request('/webhooks', 'POST', payload);
   }
-  
+
   /**
-   * Register standard GAS webhooks
+   * Register standard GAS webhooks — Hostfully's modern V3 event names.
+   * Old names (NEW_LEAD, UPDATED_LEAD, CANCELLED_LEAD) are deprecated;
+   * the V3 set is NEW_BOOKING / BOOKING_UPDATED / BOOKING_CANCELLED plus
+   * NEW_BLOCKED_DATES and PROPERTY_AVAILABILITY_UPDATED for the calendar.
    */
   async registerGasWebhooks(baseUrl) {
     const events = [
-      'UPDATED_PROPERTY',
-      'NEW_LEAD',
-      'UPDATED_LEAD',
-      'CANCELLED_LEAD',
-      'UPDATED_PRICING'
+      'NEW_BOOKING',
+      'BOOKING_UPDATED',
+      'BOOKING_CANCELLED',
+      'NEW_BLOCKED_DATES',
+      'PROPERTY_AVAILABILITY_UPDATED',
+      'NEW_HOLD',
+      'UNIT_CHANGED'
     ];
-    
+
     const results = [];
     for (const event of events) {
-      const result = await this.registerWebhook(
-        event, 
-        `${baseUrl}/api/hostfully/webhook/${event.toLowerCase()}`
-      );
-      results.push({ event, ...result });
+      // URL keeps EVENT_NAME case — our handler is /api/hostfully/webhook/:eventType
+      // and matches whatever path Hostfully posts to.
+      const result = await this.registerWebhook(event, `${baseUrl}/api/hostfully/webhook/${event}`);
+      results.push({ event, success: result.success, error: result.error, uid: result.data?.uid });
     }
-    
+
     return { success: true, data: results };
   }
   
