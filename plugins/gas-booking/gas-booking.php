@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.14');
+define('GAS_BOOKING_VERSION', '3.8.15');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4405,6 +4405,55 @@ class GAS_Booking {
             .gas-spark-body h2 { font-size: 1.6rem; margin-top: 2rem; color: #1e293b; }
             .gas-spark-body h3 { font-size: 1.25rem; margin-top: 1.5rem; color: #334155; }
             .gas-spark-body p { margin: 1rem 0; }
+            /* Sensible defaults for raw imported images — never let one
+               escape its container or render at native dimensions. */
+            .gas-spark-body img {
+                max-width: 100%;
+                height: auto;
+                display: block;
+                border-radius: 8px;
+                margin: 0.5rem 0;
+            }
+            /* Setseed column-layout classes — rendered HTML uses these
+               class names but the CSS they relied on lives on the old
+               server. Bring them back so multi-image grids look like
+               grids instead of a stack. */
+            .gas-spark-body .column_row {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 1rem;
+                margin: 1.5rem 0;
+                align-items: start;
+            }
+            .gas-spark-body .column {
+                min-width: 0;  /* prevent overflow on long content */
+            }
+            .gas-spark-body .column.twoCol { grid-column: span 2; }
+            .gas-spark-body .column.threeCol { grid-column: span 3; }
+            .gas-spark-body .cleariftwo { display: none; }  /* Setseed clearfix — useless in grid */
+            /* bpe_image wrapper — Setseed image card */
+            .gas-spark-body .bpe_image {
+                margin: 0;
+            }
+            .gas-spark-body .bpe_image.Caption img { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+            .gas-spark-body .bpe_image.Centered { text-align: center; }
+            .gas-spark-body .bpe_image img[title] {
+                position: relative;
+            }
+            /* Use the img title attribute as a caption when present */
+            .gas-spark-body .bpe_image.Caption {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            .gas-spark-body .bpe_image.Caption img + figcaption,
+            .gas-spark-body .bpe_image.Caption::after {
+                content: attr(title);
+                font-size: 0.85rem;
+                color: #64748b;
+                margin-top: 0.5rem;
+                text-align: center;
+            }
         </style>
         <head>
             <title><?php echo esc_html($meta_title); ?></title>
