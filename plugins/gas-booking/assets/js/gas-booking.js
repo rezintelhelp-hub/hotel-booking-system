@@ -3101,12 +3101,13 @@ jQuery(document).ready(function($) {
                         
                         if (response.success && response.available) {
                             $room.removeClass('unavailable checking').addClass('available');
-                            // Use grand_total (post-offer, post-tax) so the listing card
-                            // reflects the actual price guests will pay. accommodation_total
-                            // is the pre-offer subtotal and would mislead — e.g. £320 raw
-                            // vs £224 with a 30% Last-Min offer applied.
-                            var totalPrice = response.grand_total != null
-                                ? response.grand_total
+                            // Show subtotal on the listing card: post-offer / post-voucher
+                            // but PRE-TAX. Offers still reduce the displayed price (e.g. a
+                            // 30% Last-Min offer drops £320 → £224), but a Canadian property's
+                            // 13% HST + Municipal Accommodation Tax stop adding ~$80 to every
+                            // card. Taxes get revealed in the booking detail / checkout view.
+                            var totalPrice = response.subtotal != null
+                                ? response.subtotal
                                 : (response.accommodation_total || 0);
                             var roomCurrency = resolveCurrency(response.currency);
                             var pricingTier = gasBooking.pricingTier || 'standard';
