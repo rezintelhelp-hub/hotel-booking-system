@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.18');
+define('GAS_BOOKING_VERSION', '3.8.19');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4409,6 +4409,7 @@ class GAS_Booking {
                escape its container or render at native dimensions. */
             .gas-spark-body img {
                 max-width: 100%;
+                width: auto;          /* respect native size — never upscale */
                 height: auto;
                 display: block;
                 border-radius: 8px;
@@ -4465,9 +4466,20 @@ class GAS_Booking {
                 max-width: min(960px, 100%);
                 margin: 0 auto 1.5rem auto;
             }
-            /* bpe_image wrapper — Setseed image card */
+            /* bpe_image wrapper — Setseed image card. The img inside is
+               usually a small inline portrait/illustration that Setseed
+               originally rendered at ~200px via its own CSS (which we
+               don't import). Cap at 320px so a native 1200px source
+               doesn't blow up the page. Column-grid and hero rules above
+               override this when relevant (higher specificity). */
             .gas-spark-body .bpe_image {
                 margin: 0;
+            }
+            .gas-spark-body .bpe_image img {
+                max-width: min(320px, 100%);
+                width: auto;          /* never upscale past native */
+                height: auto;
+                margin: 1.5rem auto;
             }
             .gas-spark-body .bpe_image.Centered { text-align: center; }
             /* Use the img title attribute as a caption when present */
