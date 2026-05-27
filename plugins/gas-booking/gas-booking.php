@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.19');
+define('GAS_BOOKING_VERSION', '3.8.20');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4539,9 +4539,16 @@ class GAS_Booking {
                 if (!empty($gallery) && is_array($gallery)):
                 ?>
                     <div class="gas-spark-gallery">
-                        <?php foreach ($gallery as $img_url): ?>
+                        <?php foreach ($gallery as $img_item):
+                            // gallery_images supports two shapes — older entries
+                            // are bare URL strings, the Setseed migration writes
+                            // {url, alt} objects. Handle both safely.
+                            $img_url = is_array($img_item) ? ($img_item['url'] ?? '') : (string) $img_item;
+                            $img_alt = is_array($img_item) ? ($img_item['alt'] ?? '') : '';
+                            if (!$img_url) continue;
+                        ?>
                             <div class="gas-spark-gallery-item">
-                                <img src="<?php echo esc_url($img_url); ?>" alt="" loading="lazy">
+                                <img src="<?php echo esc_url($img_url); ?>" alt="<?php echo esc_attr($img_alt); ?>" loading="lazy">
                             </div>
                         <?php endforeach; ?>
                     </div>
