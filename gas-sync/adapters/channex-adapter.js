@@ -98,10 +98,18 @@ class ChannexAdapter {
     // extended (this PR) to pass credentials.groupId through.
     this.groupId = config.groupId || null;
 
-    // Environment — default staging for the trial; flip via config when
-    // Channex production access is granted.
+    // Environment resolution priority:
+    //   1. explicit config.baseUrl (used by tests / one-off scripts)
+    //   2. explicit config.environment === 'production'
+    //   3. env CHANNEX_BASE_URL (full URL override)
+    //   4. env CHANNEX_ENV === 'production'
+    //   5. default staging
+    // This means rolling out production is a Railway env var change —
+    // no code edits to the 7+ call sites that just do `new ChannexAdapter({ apiKey })`.
     this.baseUrl = config.baseUrl
-      || (config.environment === 'production' ? PRODUCTION_BASE : STAGING_BASE);
+      || (config.environment === 'production' ? PRODUCTION_BASE : null)
+      || process.env.CHANNEX_BASE_URL
+      || (process.env.CHANNEX_ENV === 'production' ? PRODUCTION_BASE : STAGING_BASE);
 
     this.rateLimiter = new RateLimiter(config.rpm || 60);
 
