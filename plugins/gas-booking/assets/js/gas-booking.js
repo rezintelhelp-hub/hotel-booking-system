@@ -3116,7 +3116,10 @@ jQuery(document).ready(function($) {
                             $room.data('price', totalPrice);
 
                             // Check if room has offers (only show badge for standard tier)
-                            var priceHtml = formatPriceShort(totalPrice, roomCurrency) + ' <span>total</span>';
+                            // Card shows the subtotal (post-offer, pre-tax). No suffix label —
+                            // "total" was misleading after we switched from grand_total. The
+                            // full breakdown appears on the room detail / checkout.
+                            var priceHtml = formatPriceShort(totalPrice, roomCurrency);
                             if ($room.hasClass('has-offers') && pricingTier === 'standard') {
                                 priceHtml += '<div class="gas-offers-badge">🏷️ Offers available*</div>';
                             }
