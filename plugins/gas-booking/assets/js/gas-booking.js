@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.8.25
+ * Version: 3.8.26
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -2971,13 +2971,22 @@ jQuery(document).ready(function($) {
         }
     });
     
-    // Add another room link click - go back to browse other rooms
+    // Back link click — return to the previous page the guest was on
+    // (typically the specific room page they were looking at). Falls back to
+    // the configured Book Now / search results URL when there's no usable
+    // history (e.g. guest landed on checkout from an external link).
     $(document).on('click', '.gas-add-another-link', function(e) {
         e.preventDefault();
-        // Go to Book Now / rooms listing page with cart dates
+        var sameOriginReferrer = false;
+        try {
+            sameOriginReferrer = document.referrer && (new URL(document.referrer)).host === window.location.host;
+        } catch (_) { /* malformed referrer */ }
+        if (sameOriginReferrer && window.history.length > 1) {
+            window.history.back();
+            return;
+        }
+        // Fallback: send them to Book Now / search results with the cart dates.
         var bookNowUrl = (typeof gasBooking !== 'undefined' && gasBooking.searchResultsUrl) ? gasBooking.searchResultsUrl : '/book-now/';
-        
-        // Add dates from cart to URL if available
         if (window.GASCart && window.GASCart.items.length > 0) {
             var cartDates = window.GASCart.items[0];
             if (cartDates.checkin && cartDates.checkout) {
@@ -2987,7 +2996,6 @@ jQuery(document).ready(function($) {
                 }
             }
         }
-        
         window.location.href = bookNowUrl;
     });
     
