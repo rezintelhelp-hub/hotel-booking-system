@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.27');
+define('GAS_BOOKING_VERSION', '3.8.28');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7420,7 +7420,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-room-card { border-radius: var(--gas-radius-lg) !important; }
         </style>
         <div class="gas-room-widget" data-unit-id="<?php echo esc_attr($unit_id); ?>" data-checkin="<?php echo esc_attr($checkin); ?>" data-checkout="<?php echo esc_attr($checkout); ?>" data-guests="<?php echo esc_attr($guests); ?>" data-show-map="<?php echo $show_map ? 'true' : 'false'; ?>">
-            <a href="#" class="gas-room-back-link" style="display: inline-flex; align-items: center; gap: 6px; color: #64748b; text-decoration: none; font-size: 0.9rem; margin-bottom: 1rem; padding: 6px 10px; border-radius: 6px; transition: background 0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">← <?php echo esc_html($t_common['back'] ?? 'Back'); ?></a>
+            <a href="#" class="gas-room-back-link" style="display: inline-flex; align-items: center; gap: 8px; color: #1e293b; text-decoration: none; font-size: 0.95rem; font-weight: 600; margin-bottom: 1.25rem; padding: 8px 16px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; transition: all 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.04);" onmouseover="this.style.background='#f1f5f9'; this.style.borderColor='#94a3b8';" onmouseout="this.style.background='#ffffff'; this.style.borderColor='#cbd5e1';">← <?php echo esc_html($t_common['back'] ?? 'Back'); ?></a>
             <div class="gas-room-loading">
                 <div class="gas-spinner"></div>
                 <p style="margin-top: 16px;">Loading room details...</p>
