@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.7.24
+ * Version: 3.8.24
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -2361,10 +2361,18 @@ jQuery(document).ready(function($) {
                     
                     var allOffers = response.all_offers || [];
                     var cmTotal = response.cm_total || accommodationTotal;
+                    // Operator-customised Standard Rate labels (property-level).
+                    // Plugin renders these on the Standard Rate card; falls
+                    // back to "Standard Rate" + "✓ Free cancellation" when unset.
+                    var stdRateLabels = {
+                        name: response.standard_rate_name || null,
+                        description: response.standard_rate_description || null,
+                        features: Array.isArray(response.standard_rate_features) ? response.standard_rate_features : null
+                    };
                     if (allOffers.length > 0 && !hideDiscountBadge) {
-                        renderRateOptions(nights, accommodationTotal, allOffers, currency, cmTotal);
+                        renderRateOptions(nights, accommodationTotal, allOffers, currency, cmTotal, stdRateLabels);
                     } else if (activeOffer && !hideDiscountBadge) {
-                        renderRateOptions(nights, accommodationTotal, [activeOffer], currency, cmTotal);
+                        renderRateOptions(nights, accommodationTotal, [activeOffer], currency, cmTotal, stdRateLabels);
                     } else {
                         // No offer OR non-standard tier - hide rate options, show simple breakdown
                         $('.gas-rate-options').hide();
@@ -2421,7 +2429,9 @@ jQuery(document).ready(function($) {
     }
     
     // Render rate options (Standard vs Offer)
-    function renderRateOptions(nights, standardTotal, offers, currency, cmTotal) {
+    // stdRateLabels (optional): { name, description, features[] } — operator
+    // overrides for the Standard Rate card. Falls back to defaults when unset.
+    function renderRateOptions(nights, standardTotal, offers, currency, cmTotal, stdRateLabels) {
         var perNightStandard = Math.round(standardTotal / nights);
 
         // Ensure offers is an array
@@ -2429,6 +2439,13 @@ jQuery(document).ready(function($) {
 
         // Check if any offer replaces standard rate
         var anyReplacesStandard = offers.some(function(o) { return o.replaces_standard; });
+
+        // Resolve Standard Rate labels — operator values win, defaults otherwise.
+        var stdName = (stdRateLabels && stdRateLabels.name) || 'Standard Rate';
+        var stdDesc = (stdRateLabels && stdRateLabels.description) || '';
+        var stdFeatures = (stdRateLabels && Array.isArray(stdRateLabels.features) && stdRateLabels.features.length)
+            ? stdRateLabels.features
+            : ['✓ Free cancellation'];
 
         var html = '<div class="gas-rate-options">';
         html += '<div class="gas-rate-options-title">' + t('booking', 'choose_rate', 'Choose your rate') + ':</div>';
@@ -2438,8 +2455,15 @@ jQuery(document).ready(function($) {
             html += '<div class="gas-rate-option selected" data-rate="standard" data-offer-id="">';
             html += '<div class="gas-rate-radio"><div class="gas-rate-radio-inner"></div></div>';
             html += '<div class="gas-rate-details">';
-            html += '<div class="gas-rate-name">Standard Rate</div>';
-            html += '<div class="gas-rate-features"><span class="gas-rate-feature">✓ Free cancellation</span></div>';
+            html += '<div class="gas-rate-name">' + escapeHtml(stdName) + '</div>';
+            html += '<div class="gas-rate-features">';
+            stdFeatures.forEach(function(f) {
+                html += '<span class="gas-rate-feature">' + escapeHtml(f) + '</span>';
+            });
+            html += '</div>';
+            if (stdDesc) {
+                html += '<div class="gas-rate-features" style="margin-top:0.25rem;"><span class="gas-rate-feature" style="color:#64748b;font-size:0.8rem;">' + escapeHtml(stdDesc) + '</span></div>';
+            }
             html += '</div>';
             html += '<div class="gas-rate-price">';
             html += '<div class="gas-rate-total">' + formatPrice(standardTotal, currency) + '</div>';
