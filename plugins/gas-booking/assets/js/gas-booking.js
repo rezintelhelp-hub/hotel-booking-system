@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.8.26
+ * Version: 3.8.27
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -2971,6 +2971,34 @@ jQuery(document).ready(function($) {
         }
     });
     
+    // Back link on the single-room page — returns guests to the search
+    // results page they came from (typically Book Now with their dates).
+    // Uses browser history when the referrer is same-origin; falls back to
+    // the configured Book Now URL with cart/URL dates appended so guests
+    // don't lose their search context.
+    $(document).on('click', '.gas-room-back-link', function(e) {
+        e.preventDefault();
+        var sameOriginReferrer = false;
+        try {
+            sameOriginReferrer = document.referrer && (new URL(document.referrer)).host === window.location.host;
+        } catch (_) { /* malformed referrer */ }
+        if (sameOriginReferrer && window.history.length > 1) {
+            window.history.back();
+            return;
+        }
+        var bookNowUrl = (typeof gasBooking !== 'undefined' && gasBooking.searchResultsUrl) ? gasBooking.searchResultsUrl : '/book-now/';
+        // Reuse dates from the room widget's data-* attributes if present
+        var $w = $('.gas-room-widget').first();
+        var checkin = $w.attr('data-checkin');
+        var checkout = $w.attr('data-checkout');
+        var guests = $w.attr('data-guests');
+        if (checkin && checkout) {
+            bookNowUrl += '?checkin=' + encodeURIComponent(checkin) + '&checkout=' + encodeURIComponent(checkout);
+            if (guests) bookNowUrl += '&guests=' + encodeURIComponent(guests);
+        }
+        window.location.href = bookNowUrl;
+    });
+
     // Back link click — return to the previous page the guest was on
     // (typically the specific room page they were looking at). Falls back to
     // the configured Book Now / search results URL when there's no usable
