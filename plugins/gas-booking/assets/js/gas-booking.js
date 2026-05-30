@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.8.23
+ * Version: 3.7.24
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -2430,25 +2430,6 @@ jQuery(document).ready(function($) {
         // Check if any offer replaces standard rate
         var anyReplacesStandard = offers.some(function(o) { return o.replaces_standard; });
 
-        // When a replaces_standard offer is in play, ITS price becomes the effective
-        // standard for every other offer in the set — non-override discounts then
-        // compute against this new base instead of the original standardTotal.
-        // Preferred override base is offer.price_per_night × nights; falls back to
-        // cmTotal (legacy CM-rate semantics) and finally to standardTotal.
-        var effectiveStandardTotal = standardTotal;
-        var perNightEffective = perNightStandard;
-        if (anyReplacesStandard) {
-            var overrideOffer = offers.find(function(o) { return o.replaces_standard; });
-            if (overrideOffer) {
-                if (overrideOffer.price_per_night) {
-                    effectiveStandardTotal = parseFloat(overrideOffer.price_per_night) * nights;
-                } else if (cmTotal) {
-                    effectiveStandardTotal = cmTotal;
-                }
-                perNightEffective = nights ? Math.round(effectiveStandardTotal / nights) : 0;
-            }
-        }
-
         var html = '<div class="gas-rate-options">';
         html += '<div class="gas-rate-options-title">' + t('booking', 'choose_rate', 'Choose your rate') + ':</div>';
 
@@ -2471,35 +2452,15 @@ jQuery(document).ready(function($) {
         var firstOffer = true;
         offers.forEach(function(offer, idx) {
             var discountAmount = 0;
-            // Base for THIS offer's math = the effective standard (which equals the
-            // override price if a replaces_standard offer is in the set, otherwise
-            // the original standardTotal). One source of truth, no per-offer divergence.
-            var baseTotal = effectiveStandardTotal;
-            var offerTotal;
-            if (offer.replaces_standard) {
-                // Override card: price_per_night sets a flat total; discount fields
-                // stack on top if present (rare but supported for completeness).
-                if (offer.price_per_night) {
-                    offerTotal = parseFloat(offer.price_per_night) * nights;
-                    discountAmount = standardTotal - offerTotal;
-                } else if (offer.discount_type === 'percentage') {
-                    discountAmount = baseTotal * (parseFloat(offer.discount_value) / 100);
-                    offerTotal = baseTotal - discountAmount;
-                } else {
-                    discountAmount = parseFloat(offer.discount_value) || 0;
-                    offerTotal = baseTotal - discountAmount;
-                }
+            var baseTotal = (offer.replaces_standard && cmTotal) ? cmTotal : standardTotal;
+            if (offer.discount_type === 'percentage') {
+                discountAmount = baseTotal * (parseFloat(offer.discount_value) / 100);
             } else {
-                if (offer.discount_type === 'percentage') {
-                    discountAmount = baseTotal * (parseFloat(offer.discount_value) / 100);
-                } else {
-                    discountAmount = parseFloat(offer.discount_value) || 0;
-                }
-                offerTotal = baseTotal - discountAmount;
+                discountAmount = parseFloat(offer.discount_value) || 0;
             }
+            var offerTotal = baseTotal - discountAmount;
             var perNightOffer = Math.round(offerTotal / nights);
-            var savingsBase = baseTotal > 0 ? baseTotal : standardTotal;
-            var savingsPercent = Math.round((discountAmount / savingsBase) * 100);
+            var savingsPercent = Math.round((discountAmount / standardTotal) * 100);
             var showBadge = !offer.replaces_standard && !offer.hide_discount_badge && savingsPercent > 0;
 
             // If standard is hidden, auto-select first offer
@@ -2519,10 +2480,7 @@ jQuery(document).ready(function($) {
             html += '<div class="gas-rate-price">';
             html += '<div class="gas-rate-total">' + formatPrice(offerTotal, currency) + '</div>';
             if (showBadge) {
-                // Strike-through compares against the *effective* standard so a 10% off
-                // shown against an override base reads "£150 → £135", not the misleading
-                // "£200 → £135".
-                html += '<div class="gas-rate-per-night"><s>' + formatPriceShort(perNightEffective, currency) + '</s> ' + formatPriceShort(perNightOffer, currency) + '/night</div>';
+                html += '<div class="gas-rate-per-night"><s>' + formatPriceShort(perNightStandard, currency) + '</s> ' + formatPriceShort(perNightOffer, currency) + '/night</div>';
             } else {
                 html += '<div class="gas-rate-per-night">' + formatPriceShort(perNightOffer, currency) + '/night</div>';
             }
