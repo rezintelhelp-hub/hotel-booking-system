@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.8.24
+ * Version: 3.8.25
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -2440,12 +2440,17 @@ jQuery(document).ready(function($) {
         // Check if any offer replaces standard rate
         var anyReplacesStandard = offers.some(function(o) { return o.replaces_standard; });
 
-        // Resolve Standard Rate labels — operator values win, defaults otherwise.
+        // Resolve Standard Rate labels — operator values win.
+        // Name falls back to "Standard Rate" (generic, safe). Features have
+        // NO default — the previous hardcoded "✓ Free cancellation" was
+        // misleading for any operator who doesn't actually offer free
+        // cancellation, so we now render nothing unless the operator sets
+        // features explicitly in admin.
         var stdName = (stdRateLabels && stdRateLabels.name) || 'Standard Rate';
         var stdDesc = (stdRateLabels && stdRateLabels.description) || '';
         var stdFeatures = (stdRateLabels && Array.isArray(stdRateLabels.features) && stdRateLabels.features.length)
             ? stdRateLabels.features
-            : ['✓ Free cancellation'];
+            : [];
 
         var html = '<div class="gas-rate-options">';
         html += '<div class="gas-rate-options-title">' + t('booking', 'choose_rate', 'Choose your rate') + ':</div>';
@@ -2456,11 +2461,13 @@ jQuery(document).ready(function($) {
             html += '<div class="gas-rate-radio"><div class="gas-rate-radio-inner"></div></div>';
             html += '<div class="gas-rate-details">';
             html += '<div class="gas-rate-name">' + escapeHtml(stdName) + '</div>';
-            html += '<div class="gas-rate-features">';
-            stdFeatures.forEach(function(f) {
-                html += '<span class="gas-rate-feature">' + escapeHtml(f) + '</span>';
-            });
-            html += '</div>';
+            if (stdFeatures.length) {
+                html += '<div class="gas-rate-features">';
+                stdFeatures.forEach(function(f) {
+                    html += '<span class="gas-rate-feature">' + escapeHtml(f) + '</span>';
+                });
+                html += '</div>';
+            }
             if (stdDesc) {
                 html += '<div class="gas-rate-features" style="margin-top:0.25rem;"><span class="gas-rate-feature" style="color:#64748b;font-size:0.8rem;">' + escapeHtml(stdDesc) + '</span></div>';
             }
