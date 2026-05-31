@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.8.31
+ * Version: 3.8.32
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -3173,11 +3173,42 @@ jQuery(document).ready(function($) {
                             // 30% Last-Min offer drops £320 → £224), but a Canadian property's
                             // 13% HST + Municipal Accommodation Tax stop adding ~$80 to every
                             // card. Taxes get revealed in the booking detail / checkout view.
-                            var totalPrice = response.subtotal != null
+                            var standardTotal = response.subtotal != null
                                 ? response.subtotal
                                 : (response.accommodation_total || 0);
-                            var roomCurrency = resolveCurrency(response.currency);
+
+                            // Pick the lowest "from" price across every eligible
+                            // offer in all_offers (excluding agent-tier rates).
+                            // Before the 2026-05-31 offer-default removal, the
+                            // server returned the priority-best-offer baked into
+                            // accommodation_total — so the card got it for free.
+                            // Now the server returns the standard rate (correct,
+                            // by design) and we compute the marketing "from" here.
+                            var lowestPrice = standardTotal;
                             var pricingTier = gasBooking.pricingTier || 'standard';
+                            var nights = parseInt(response.nights, 10) || 1;
+                            var accommodationTotal = parseFloat(response.accommodation_total) || standardTotal;
+                            var cmTotal = parseFloat(response.cm_total) || accommodationTotal;
+                            if (Array.isArray(response.all_offers)) {
+                                response.all_offers.forEach(function(offer) {
+                                    // Skip agent/corporate tiers unless that's what we asked for.
+                                    if (offer.pricing_tier && offer.pricing_tier !== 'standard' && offer.pricing_tier !== pricingTier) return;
+                                    var baseTotal = offer.replaces_standard ? cmTotal : accommodationTotal;
+                                    var offerTotal;
+                                    if (offer.price_per_night) {
+                                        offerTotal = parseFloat(offer.price_per_night) * nights;
+                                    } else if (offer.discount_type === 'percentage') {
+                                        offerTotal = baseTotal * (1 - parseFloat(offer.discount_value) / 100);
+                                    } else {
+                                        offerTotal = baseTotal - (parseFloat(offer.discount_value) || 0);
+                                    }
+                                    if (isFinite(offerTotal) && offerTotal < lowestPrice) {
+                                        lowestPrice = offerTotal;
+                                    }
+                                });
+                            }
+                            var totalPrice = lowestPrice;
+                            var roomCurrency = resolveCurrency(response.currency);
 
                             // Update data-price for sort to work
                             $room.data('price', totalPrice);
