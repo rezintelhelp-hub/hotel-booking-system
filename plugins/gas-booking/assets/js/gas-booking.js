@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.8.30
+ * Version: 3.8.31
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -6405,9 +6405,16 @@ jQuery(document).ready(function($) {
                     return t('payment', 'balance_final_days', 'Final payment {days} days before arrival').replace('{days}', futureTiers[0]);
                 }
             }
-            if (rule.auto_charge_balance && rule.auto_charge_days_before) {
-                var d = parseInt(rule.auto_charge_days_before, 10);
-                if (d > 0) return t('payment', 'balance_auto_days', 'Balance — auto-charged {days} days before arrival').replace('{days}', d);
+            if (rule.auto_charge_balance) {
+                // Prefer balance_due_days (the field the UI saves and the
+                // cron actually uses). auto_charge_days_before is a legacy
+                // column that defaulted to 14 and rarely tracks the UI value
+                // — using it directly meant the label said "14 days" even
+                // when the operator had configured "30 days" on the rule.
+                var d = parseInt(rule.balance_due_days, 10);
+                if (isNaN(d)) d = parseInt(rule.auto_charge_days_before, 10);
+                if (!isNaN(d) && d > 0) return t('payment', 'balance_auto_days', 'Balance — auto-charged {days} days before arrival').replace('{days}', d);
+                if (d === 0) return t('payment', 'balance_auto_on_arrival', 'Balance — auto-charged on arrival');
             }
             if (rule.balance_due_type === 'days_before' && rule.balance_due_days) {
                 var d2 = parseInt(rule.balance_due_days, 10);
