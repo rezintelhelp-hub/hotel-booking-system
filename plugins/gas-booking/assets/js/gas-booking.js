@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.8.29
+ * Version: 3.8.30
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -5658,12 +5658,18 @@ jQuery(document).ready(function($) {
                         }
                         checkoutData.pricing = response;
                         checkoutData.gasBreakdown = response;
+                        // calculate-price returns the deposit_rule matching the
+                        // chosen offer's refund_policy (non_refundable → 100%
+                        // rule, refundable → default rule). This always beats
+                        // the property-default rule served by stripe-info.
+                        if (response.deposit_rule) {
+                            checkoutData.depositRule = response.deposit_rule;
+                        }
                         updateCheckoutPricing();
-                        // Sync the offer badge with the server-applied offer rather than
-                        // the offerId carried from the room page. For tiered guest-band
-                        // offers, the room page may have stamped tier 1's ID into the URL
-                        // but the server (with current guest count) correctly applied
-                        // tier 2 — display must reflect what the server actually used.
+                        // Sync the rate badge with what the server actually applied.
+                        // When the guest picked Standard (no offer_id), offer_applied
+                        // is null — explicitly reset the badge to the Standard label
+                        // rather than leaving stale text from a previous render.
                         if (response.offer_applied && response.offer_applied.name) {
                             var serverOfferName = response.offer_applied.name;
                             if (typeof serverOfferName === 'object') {
@@ -5672,6 +5678,8 @@ jQuery(document).ready(function($) {
                             if (serverOfferName) {
                                 $('.gas-rate-badge').addClass('offer').text('🎉 ' + serverOfferName);
                             }
+                        } else {
+                            $('.gas-rate-badge').removeClass('offer').text('Standard Rate');
                         }
                     }
                 }
