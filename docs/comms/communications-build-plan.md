@@ -11,13 +11,17 @@ Supersedes the original `docs/GAS-Unified-Inbox-Spec.md` for the messaging-subst
 GAS already has ~70% of the unified-communications substrate built. The remaining work — when sequenced correctly — is **~3-4 weeks** of focused work to ship a fully functional product with:
 
 - **Unified inbox** for email, WhatsApp, Slack, Facebook Messenger, OTA messages via channel managers
+- **Slack as the "Connect" spine** — the daily client-↔-GAS support loop runs through Slack (Steve already uses it that way; this formalises it as the support channel for every client)
 - **Custom email domain per client** (system emails sent from `noreply@clientdomain.com` via Mailgun)
-- **Multi-tenant WhatsApp Business** via Meta Embedded Signup (Meta Tech Provider authorisation confirmed)
+- **Multi-tenant WhatsApp Business** via Meta Embedded Signup — **Meta Tech Provider authorisation CONFIRMED** (unlocks self-onboarding for every client)
+- **Social media outbound composer** — Turbine (FB Pages already wired; IG / LinkedIn / TikTok queued) folded into the same Inbox/Compose surface so outbound posts live next to inbound conversations
 - **AI triage** powered by Claude (priority, draft replies, day summary)
 - **PWA mobile shell** for operators to manage messages on the phone
 - **Personal-account integration** for Steve (his own Gmail / iCloud / Slack inboxes alongside client/guest channels)
 
-The strategic positioning: GAS becomes the unification layer that no competitor offers. Mews and Cloudbeds have inboxes but they're locked to their own bookings. Lodgify and most others have weak native messaging. GAS sits ABOVE the channel managers and surfaces everything in one screen.
+The strategic positioning: GAS becomes the unification layer that no competitor offers. Mews and Cloudbeds have inboxes but they're locked to their own bookings. Lodgify and most others have weak native messaging. Nobody combines inbound conversations + outbound social posting + per-client branded email in one operator surface. GAS sits ABOVE the channel managers and surfaces everything in one screen.
+
+This maps to the **Connect + Connect + Connect + Grow** positioning: Connect (Slack support spine) + Connect (guest threads via OTA/WhatsApp/email) + Connect (branded outbound social + email) → Grow.
 
 The dual-use angle is critical: every channel built for clients also serves Steve directly. Dogfooding solves Steve's own communication overload AND makes the product better.
 
@@ -115,6 +119,27 @@ Booking webhooks prove the plumbing pattern. Each CM's message webhook is a para
 - Pattern is right (Gmail sync exists for any account_id)
 - Schema needs either `inbox_channels.owner_user_id` OR a designated "platform" account_id for Steve's personal channels
 
+### 2.10 Social media outbound (GAS Turbine) — 🟡 PARTIAL
+
+GAS Turbine is the outbound counterpart to the inbound channels. It already exists as a separate surface — this plan folds it into the unified Inbox/Compose so operators see "what came in" and "what we said publicly" in one place.
+
+| Component | Location | Notes |
+|---|---|---|
+| `turbine_connections` table | server.js:36524 | Per-account social account tokens (FB Pages tokens currently) |
+| `turbine_campaigns` table | server.js:36615 | Campaign rows with `channels JSONB DEFAULT '{"email": false, "facebook": false, "instagram": false}'` |
+| Facebook Pages OAuth | server.js:103282-103415 | Start + callback wired, tokens persisted |
+| `POST /api/turbines/post/facebook` | server.js:103415 | Publishes to a connected FB Page |
+| Email campaign send | server.js:102813 | Mailgun-based broadcast to contacts |
+| Instagram | schema only | `channels.instagram` field exists in campaigns; OAuth + publish not wired |
+| LinkedIn | ❌ | No OAuth, no posting endpoint, not in schema |
+| TikTok | ❌ | No OAuth, no posting endpoint, not in schema |
+| Composer UI in Inbox | ❌ | Turbine campaigns currently live in a separate nav section, not next to inbox threads |
+
+**What "fold into comms" means:**
+- Outbound social posts become rows in `inbox_messages` with `channel='facebook_post' | 'instagram_post' | …` and `direction='outbound'`, so they appear in the same surface as conversations
+- Engagement back (comments, DMs to a post) attaches as inbound replies under the same thread
+- Composer in Inbox can post to one or many social channels at once, reusing existing Turbine plumbing
+
 ---
 
 ## 3. Goals & success metrics
@@ -122,6 +147,8 @@ Booking webhooks prove the plumbing pattern. Each CM's message webhook is a para
 ### 3.1 Functional goals
 
 - **One inbox surface** for every operator — guest threads from every OTA, direct email, WhatsApp, Slack, Facebook
+- **Slack as the Connect spine** — every paying client gets a shared Slack channel with GAS; that's the daily support, ops, and incident loop. Already Steve's preferred channel; this productises it so it's the same for every client and so messages from those channels surface in the GAS Inbox too
+- **One outbound social composer** — post to FB/IG (and later LinkedIn/TikTok) from the same surface that handles inbound, engagement attaches back as threads
 - **One review surface** — reviews from every connected OTA in one dashboard (deferred to v2.1)
 - **Operator-branded outbound** — emails from `noreply@theirdomain.com`, WhatsApp from their own WABA
 - **AI-assisted triage** — priority sort, suggested replies, day summary
@@ -236,22 +263,31 @@ Client adds custom domain via Settings UI
 - If verification fails, the UI surfaces the specific record that's missing
 - Until verified, system emails fall back to `noreply@mg.gas.travel` (no breakage)
 
-### Phase 1 — Slack General Adapter (~2 days)
+### Phase 1 — Slack as the Connect spine (~2 days)
 
-**Why next:** Steve uses Slack daily; immediate personal value; cheapest of the messaging-channel adapters (clean API, no auth gymnastics)
+**Why next:** This is the most strategic phase, not just the cheapest. Slack is the channel through which every paying client should be able to reach GAS daily — questions, support, incidents, "can you check X for site Y", quick wins. Steve already runs his ops loop this way; this productises it. Every other channel in this plan serves *guest* communication; Slack serves *client* communication. They are equally important pillars.
+
+**Strategic framing:**
+- Each paid account gets a shared Slack channel between their team and GAS support
+- All messages in those channels surface in GAS Inbox (under the relevant account) so Steve and any future support staff have a single queue
+- Outbound replies can come from GAS Inbox OR from Slack directly — both write back to `inbox_messages` so the thread stays whole
+- Existing KB-from-thread flow keeps working (a Slack reply tagged "KB" still becomes an article)
+- This is the differentiator GAS clients won't get from Mews/Cloudbeds — direct line to the platform builder via the platform itself
 
 **Deliverables:**
 - Slack app installable per workspace via OAuth (`/api/oauth/slack/start` and `/callback`)
 - Extend `/api/slack/events` POST to handle **all** message events, not just KB-thread replies
-- For each event: write to `inbox_messages` with `channel='slack'`, `from_handle=slack_user_id`, `from_name=display_name`, `thread_id=slack_channel_id+thread_ts`
+- For each event: write to `inbox_messages` with `channel='slack'`, `from_handle=slack_user_id`, `from_name=display_name`, `thread_id=slack_channel_id+thread_ts`, `account_id` resolved from workspace_id mapping
 - Reply endpoint: `POST /api/inbox/reply/slack { message_id, body }` → uses Slack `chat.postMessage` API to post in thread
 - Token storage: new table `slack_workspaces` keyed by account_id + workspace_id
 - Preserve the existing KB-from-thread behaviour as a SEPARATE event handler (don't break it)
+- Onboarding flow: when a new paid account is provisioned, prompt for "Connect your Slack workspace" → one-click OAuth → shared support channel auto-created
 
 **Acceptance criteria:**
-- Steve installs the GAS Slack app on his personal workspace
-- All messages in monitored channels appear in his GAS Inbox
+- Steve installs the GAS Slack app on his personal workspace AND on a pilot client workspace
+- All messages in monitored channels appear in his GAS Inbox under the right account
 - He can reply from GAS Inbox and the reply lands as a Slack thread reply
+- A client message in their Slack channel reaches Steve's GAS Inbox within 5 seconds
 - Existing KB-from-thread flow still works
 
 ### Phase 2 — Facebook Messenger Handler (~2-3 days)
@@ -274,6 +310,15 @@ Client adds custom domain via Settings UI
 
 **Why now:** Meta Tech Provider auth is wasted until clients can self-onboard; this is the strategic differentiator vs other multi-tenant PMS platforms
 
+**What Meta Tech Provider approval has now unlocked (action checklist):**
+- ✅ Embedded Signup popup via Facebook JS SDK (`feature_type='whatsapp_business_app_onboarding'`)
+- ✅ `onbehalfof_business_id` parameter on Graph API calls — required for billing/audit attribution to the client's business, not GAS
+- ✅ System-user access tokens (long-lived, do not expire) instead of fragile user tokens
+- ✅ Programmatic webhook subscription per WABA (no manual setup in Meta Business Manager per client)
+- ✅ Phone number registration via API (clients verify their number in the popup, we don't manually provision)
+- ✅ Display name updates without re-approval (within Meta's brand guidelines)
+- ⚠️ Still subject to Meta's per-WABA conversation pricing — track and pass through
+
 **Deliverables:**
 - Frontend: "Connect WhatsApp Business" button in account Settings → Facebook JS SDK Embedded Signup popup
 - Configure Embedded Signup with `feature_type='whatsapp_business_app_onboarding'` and pre-fill account name + currency
@@ -289,6 +334,35 @@ Client adds custom domain via Settings UI
 - Outbound: client sends a test message from GAS Inbox → guest receives WhatsApp from client's number
 - Inbound: guest replies → message appears in GAS Inbox under correct account
 - Per memory: don't expose Embedded Signup details to public copy yet (work it through with one pilot client first — Cotswolds is the obvious candidate)
+
+### Phase 3.5 — Social Media Outbound Composer (~4-5 days)
+
+**Why now:** Closes the comms loop. Phases 0-3 covered inbound + branded reply outbound. This phase folds **outbound broadcast** (social posting) into the same surface. Turbine FB posting already works; this surfaces it inside the unified Inbox/Compose UI and extends to Instagram (which is mostly wiring since IG Business runs through the same FB Graph). Can run in parallel with Phase 4 or Phase 5.
+
+**Strategic framing:**
+- Outbound social posts are written to `inbox_messages` with `direction='outbound'` and `channel='facebook_post' | 'instagram_post' | 'linkedin_post' | 'tiktok_post'`
+- Each post becomes a thread root; comments / DMs to that post attach as inbound replies under the same thread
+- Operators see "what we said publicly" alongside "what guests said privately" — both in one timeline per account
+- Composer can target multiple channels in one click ("post to FB + IG")
+- Existing Turbine Campaigns surface stays for email broadcast + scheduled multi-post campaigns; this is the **ad-hoc composer** path
+
+**Deliverables:**
+- New Compose button in Inbox UI ("New post") opens a social composer modal
+- Composer: text, image upload, channel multi-select (FB / IG, more added later), schedule or post-now
+- Backend: `POST /api/inbox/compose/social { account_id, channels, body, image_url, scheduled_at }`
+  - For each selected channel, call the existing/new publisher (`/api/turbines/post/facebook` already exists; add `/post/instagram` via FB Graph IG Business)
+  - Write outbound row to `inbox_messages` per channel
+- Instagram OAuth: piggyback existing FB Page OAuth (IG Business is linked to FB Page), add `instagram_basic` + `instagram_content_publish` scopes
+- LinkedIn: deferred to Phase 3.5b (own OAuth, Marketing API auth flow)
+- TikTok: deferred to Phase 3.5c (TikTok for Business API auth flow)
+- Inbound engagement webhooks: subscribe FB Page + IG to feed comment events; attach to the thread for the matching `outbound channel_message_id`
+
+**Acceptance criteria:**
+- Operator clicks New Post in Inbox, types message, picks FB + IG, clicks Post
+- Both posts go live within 30 seconds
+- Both posts appear as outbound threads in Inbox
+- A guest comments on the FB post → comment appears as inbound reply under that thread
+- Operator replies to the comment from Inbox → reply lands on FB
 
 ### Phase 4 — Personal accounts for Steve (~3 days)
 
@@ -618,17 +692,22 @@ These deserve their own scoped docs and are NOT addressed here:
 | Phase | Days | Cumulative |
 |---|---|---|
 | 0 — Custom Email Domain UI | 3 | 3 |
-| 1 — Slack General Adapter | 2 | 5 |
+| 1 — Slack as the Connect spine | 2 | 5 |
 | 2 — Facebook Messenger Handler | 2-3 | 8 |
 | 3 — WhatsApp Embedded Signup | 4 | 12 |
-| 4 — Personal accounts for Steve | 3 | 15 |
-| 5 — CM Message Ingestion (Channex) | 3 | 18 |
-| 6 — AI Triage Layer | 4 | 22 |
-| 7 — PWA Mobile Shell | 5-7 | 27-29 |
-| **Subtotal — full unified inbox v2.0** | **22-29 days** | **~4-6 weeks of focused work** |
+| 3.5 — Social Media Outbound Composer (FB + IG) | 4-5 | 16-17 |
+| 4 — Personal accounts for Steve | 3 | 19-20 |
+| 5 — CM Message Ingestion (Channex) | 3 | 22-23 |
+| 6 — AI Triage Layer | 4 | 26-27 |
+| 7 — PWA Mobile Shell | 5-7 | 31-34 |
+| **Subtotal — full unified comms v2.0** | **26-34 days** | **~5-7 weeks of focused work** |
+| 3.5b — LinkedIn publishing | 2-3 | + |
+| 3.5c — TikTok publishing | 3-4 | + |
 | 8+ — Additional CMs and channels | 2-3 per channel | as needed |
 
-A shippable v1 (Phases 0-3) is **12 days** — custom domain + Slack + Messenger + multi-tenant WhatsApp. That alone is a major product release and would justify a marketing announcement.
+A shippable **v1 (Phases 0-3)** is **12 days** — custom domain + Slack Connect + Messenger + multi-tenant WhatsApp. A shippable **v1.5 (Phases 0-3.5)** is **16-17 days** — adds the social outbound composer so clients can post + reply from one surface. Either is a major product release and would justify a marketing announcement.
+
+Phase 3.5 can run in parallel with Phase 4 or Phase 5 if a second pair of hands is available; it has no hard dependency on Phases 4-5.
 
 ---
 
