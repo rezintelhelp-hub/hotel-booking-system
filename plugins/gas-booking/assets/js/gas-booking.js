@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.8.28
+ * Version: 3.8.29
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -5644,6 +5644,9 @@ jQuery(document).ready(function($) {
                     guests: checkoutData.guests,
                     adults: checkoutData.adults,
                     children: checkoutData.children,
+                    // Carry the rate the guest chose on the rooms page so the
+                    // server applies THAT offer, not the highest-priority one.
+                    offer_id: checkoutData.offerId || undefined,
                     event_slug: checkoutEventSlug || undefined,
                     lang: currentLanguage
                 }),
