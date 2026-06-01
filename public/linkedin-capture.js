@@ -1,18 +1,18 @@
-/* GAS LinkedIn DM Capture — bookmarklet payload.
+/* GAS LinkedIn DM Capture — bookmarklet payload, v2.
  *
  * Loaded into linkedin.com by a tiny bookmarklet that sets
  *   window.__GAS_CAPTURE_KEY = '<the user's personal capture key>'
  * before injecting this script.
  *
- * Scrapes the visible LinkedIn DM thread + participant profile, POSTs to
- * https://admin.gas.travel/api/inbox/linkedin/capture-dm, shows a toast
- * with the result. Re-runnable: server-side dedupe means clicking the
- * bookmarklet again on the same thread only inserts the new messages.
- *
- * LinkedIn rearranges DOM class names periodically — selectors below are
- * lenient with fallbacks. If they drift, this file gets updated once
- * server-side and every operator's bookmarklet picks up the change next
- * click (cache-busted by ?t= timestamp in the loader).
+ * v2 (2026-06-01 PM): rewritten to be class-name-agnostic. LinkedIn rotates
+ * their CSS module hashes regularly and the v1 selectors stopped matching.
+ * v2 anchors on stable HTML primitives:
+ *   - <time datetime="..."> elements mark every message timestamp
+ *   - <a href="/in/USERNAME/"> identify the other participant
+ *   - aria-label patterns like "Open the options list in your conversation
+ *     with X and Y" name both participants
+ * The scraper walks up from time elements to find each message's body +
+ * sender, then POSTs to GAS. Far more resilient to LinkedIn redesigns.
  */
 (function () {
     'use strict';
@@ -22,89 +22,156 @@
     function toast(msg, color) {
         try {
             var box = document.createElement('div');
-            box.style.cssText = 'position:fixed; top:20px; right:20px; z-index:999999; padding:12px 16px; border-radius:8px; font:14px system-ui; color:#fff; background:' + (color || '#0a66c2') + '; box-shadow:0 4px 16px rgba(0,0,0,.3); max-width:360px;';
+            box.style.cssText = 'position:fixed; top:20px; right:20px; z-index:999999; padding:12px 16px; border-radius:8px; font:14px system-ui; color:#fff; background:' + (color || '#0a66c2') + '; box-shadow:0 4px 16px rgba(0,0,0,.3); max-width:380px; line-height:1.5;';
             box.textContent = msg;
             document.body.appendChild(box);
-            setTimeout(function () { box.remove(); }, 5000);
-        } catch (_) { /* fallback to alert */ alert(msg); }
+            setTimeout(function () { box.remove(); }, 6000);
+        } catch (_) { alert(msg); }
     }
 
-    if (!key) { toast('GAS capture key missing — re-install the bookmarklet from GAS Inbox.', '#dc2626'); return; }
+    if (!key) { toast('GAS capture key missing — reinstall the bookmarklet from GAS Inbox.', '#dc2626'); return; }
 
-    // Try to identify the open conversation panel — multiple layouts exist
-    // (full Messaging page, overlay widget, mobile). Pick the most specific
-    // visible thread container.
-    var thread = document.querySelector('.msg-thread, .msg-conversations-container__conversations-list + .msg-thread, [data-attr="msg-thread"]');
-    if (!thread) {
-        // Fallback: any visible element with a message list inside
-        var lists = document.querySelectorAll('.msg-s-message-list, .msg-s-event-list');
-        if (lists.length) thread = lists[lists.length - 1].closest('section, div');
+    // ── Identify the operator's own name + profile so we can mark which
+    // messages are outbound. Look in the global nav avatar / menu button.
+    var meName = '', meHref = '';
+    var meAvatarBtn = document.querySelector('button[aria-label*="View profile"], a[href*="/in/"][aria-label*="Me"], img[alt="Steve Driver"]');
+    var allProfileLinks = Array.from(document.querySelectorAll('a[href*="/in/"]'));
+    // The operator's own avatar link usually contains "Me" or is in the nav.
+    var meLink = document.querySelector('header a[href*="/in/"], nav a[href*="/in/"]') ||
+                 document.querySelector('.global-nav__me a[href*="/in/"]');
+    if (meLink) {
+        meHref = (meLink.getAttribute('href') || '').split('?')[0];
+        if (meHref.startsWith('/')) meHref = 'https://www.linkedin.com' + meHref;
+        meName = (meLink.getAttribute('aria-label') || meLink.textContent || '').replace(/^Me /, '').trim();
     }
-    if (!thread) { toast('Couldn\'t find a LinkedIn conversation on this page. Open a DM thread first.', '#dc2626'); return; }
 
-    // Conversation URN — LinkedIn embeds it as a data-attr on the thread
-    // root in most layouts. Fall back to URL hash if needed.
-    var conversationUrn = thread.getAttribute('data-urn')
-        || thread.getAttribute('data-msg-conversation-urn')
-        || (location.pathname.match(/\/thread\/([\w\-]+)/) || [])[1]
-        || ('linkedin-conv-' + Date.now());
-
-    // Other person — from the conversation header.
-    var headerName = '', headerHandle = '', headerHeadline = '';
-    var headerNode = thread.querySelector('.msg-thread__topbar-name, .msg-overlay-conversation-bubble-header, h2');
-    if (headerNode) headerName = (headerNode.textContent || '').trim();
-    var profileLink = thread.querySelector('a[href*="/in/"]');
-    if (profileLink) {
-        var href = profileLink.getAttribute('href') || '';
-        if (href.startsWith('/')) href = 'https://www.linkedin.com' + href.split('?')[0];
-        else if (href.includes('linkedin.com/in/')) href = href.split('?')[0];
-        headerHandle = href;
+    // ── Find the OPEN conversation. Strategy: look for the message compose
+    // area (only present when a conversation is open), then walk up + over
+    // to find the message list. Compose area markers across layouts:
+    //   - [aria-label*="Press Enter to Send"]
+    //   - .msg-form, [data-test-id="messaging-form"]
+    //   - any contenteditable inside an element whose label says "message"
+    var composeArea = document.querySelector('[aria-label*="Press Enter to Send"], .msg-form, [data-test-id="messaging-form"]') ||
+                      document.querySelector('div[contenteditable="true"][aria-label*="essage"]');
+    if (!composeArea) {
+        toast('No open conversation on this page. Open a DM thread (click someone in the left list) and try again.', '#dc2626');
+        return;
     }
-    var headlineNode = thread.querySelector('.msg-thread__topbar-subtitle, .msg-overlay-conversation-bubble-header__sub-title');
-    if (headlineNode) headerHeadline = (headlineNode.textContent || '').trim();
 
-    // Scrape messages — events show on .msg-s-message-list__event with
-    // group nodes around blocks from the same sender.
+    // The message list is a sibling/ancestor of compose. Walk up until we
+    // find an element that ALSO contains <time> elements (messages have
+    // timestamps); that's the conversation container.
+    var container = composeArea;
+    while (container && container !== document.body) {
+        if (container.querySelectorAll('time[datetime]').length > 0) break;
+        container = container.parentElement;
+    }
+    if (!container || container === document.body) {
+        // Fall back to whole document — risky on long conversation lists
+        // but usually fine because LinkedIn only renders the open thread.
+        container = document.body;
+    }
+
+    // ── Identify the other participant from the conversation header. Most
+    // layouts put their name in a heading near the top of the container.
+    // Falls back to the most-frequent profile-link target if no heading.
+    var otherName = '', otherHref = '', otherHeadline = '';
+    var heading = container.querySelector('h2, [class*="topbar"] h1, [class*="thread"] h1');
+    if (heading) otherName = (heading.textContent || '').trim();
+
+    // Profile link inside container (excluding our own).
+    var containerProfileLinks = Array.from(container.querySelectorAll('a[href*="/in/"]'));
+    var profileCounts = {};
+    containerProfileLinks.forEach(function (a) {
+        var h = (a.getAttribute('href') || '').split('?')[0];
+        if (h.startsWith('/')) h = 'https://www.linkedin.com' + h;
+        if (h && h !== meHref) profileCounts[h] = (profileCounts[h] || 0) + 1;
+    });
+    var topProfile = Object.keys(profileCounts).sort(function (a, b) { return profileCounts[b] - profileCounts[a]; })[0];
+    if (topProfile) otherHref = topProfile;
+
+    // ── Walk time elements and pair each with its message body + sender.
+    var times = Array.from(container.querySelectorAll('time[datetime]'));
+    if (times.length === 0) {
+        // No time elements found — try generic article roles
+        times = Array.from(container.querySelectorAll('time'));
+    }
+    if (times.length === 0) {
+        toast('Could find the conversation but no message timestamps — LinkedIn layout may have changed again. Tell Steve.', '#dc2626');
+        return;
+    }
+
     var messages = [];
-    var events = thread.querySelectorAll('.msg-s-message-list__event, .msg-s-event-listitem');
-    var lastSenderName = null;
-    var lastSenderIsMe = false;
+    var seenBodies = new Set();
+    times.forEach(function (timeEl) {
+        // Walk up to find the message bubble container. The bubble usually
+        // contains both the time element AND a body element with text.
+        var msgRoot = timeEl;
+        for (var i = 0; i < 6; i++) {
+            msgRoot = msgRoot.parentElement;
+            if (!msgRoot) return;
+            // A good message root has appreciable text content beyond the
+            // timestamp itself.
+            var fullText = (msgRoot.innerText || '').trim();
+            if (fullText.length > timeEl.textContent.trim().length + 5) break;
+        }
+        if (!msgRoot) return;
 
-    events.forEach(function (ev) {
-        // Sender block — appears on the FIRST message of a group.
-        var senderNode = ev.querySelector('.msg-s-message-group__name, .msg-s-message-group__profile-link');
-        if (senderNode) {
-            lastSenderName = (senderNode.textContent || '').trim();
-            // LinkedIn marks the operator's own messages with their own
-            // profile link; an "outgoing" class is sometimes present.
-            lastSenderIsMe = ev.querySelector('.msg-s-message-group--out, .msg-s-message-group--sent-by-me') !== null;
+        // Body = text content minus the timestamp text. Find a specific
+        // body child if possible (LinkedIn often has a .msg-s-event...body)
+        var bodyEl = msgRoot.querySelector('[class*="body"], [class*="message"]:not(time):not(button)') || msgRoot;
+        var bodyText = (bodyEl.innerText || bodyEl.textContent || '').trim();
+        // Strip the timestamp text if it leaked in
+        var tsText = (timeEl.textContent || '').trim();
+        if (bodyText.endsWith(tsText)) bodyText = bodyText.slice(0, -tsText.length).trim();
+        if (bodyText.startsWith(tsText)) bodyText = bodyText.slice(tsText.length).trim();
+        if (!bodyText || bodyText.length < 1) return;
+        // Trim leading "View X's profile" / "X" decorations
+        bodyText = bodyText.replace(/^View [^']+'s profile\s*/i, '').replace(/^[A-Z][\w\s\.\-]+ \d{1,2}:\d{2} (?:AM|PM)\s*/i, '').trim();
+        if (!bodyText) return;
+        if (seenBodies.has(bodyText)) return;
+        seenBodies.add(bodyText);
+
+        // Sender — look for the nearest preceding profile link.
+        var senderName = '', senderHref = '';
+        var senderProfileLink = msgRoot.querySelector('a[href*="/in/"]');
+        if (!senderProfileLink) {
+            // Try walking up
+            var probe = msgRoot;
+            for (var j = 0; j < 4 && probe; j++) {
+                senderProfileLink = probe.querySelector ? probe.querySelector('a[href*="/in/"]') : null;
+                if (senderProfileLink) break;
+                probe = probe.previousElementSibling || probe.parentElement;
+            }
+        }
+        if (senderProfileLink) {
+            var sh = (senderProfileLink.getAttribute('href') || '').split('?')[0];
+            if (sh.startsWith('/')) sh = 'https://www.linkedin.com' + sh;
+            senderHref = sh;
+            senderName = (senderProfileLink.getAttribute('aria-label') || senderProfileLink.textContent || '').replace(/^View /, '').replace(/'s profile.*$/, '').trim();
         }
 
-        // Each body in the group.
-        var bodies = ev.querySelectorAll('.msg-s-event-listitem__body, .msg-s-message-list__event .msg-s-event-listitem__message-bubble');
-        var timeNode = ev.querySelector('time, .msg-s-message-group__timestamp, .msg-s-message-group__meta');
-        var sentAt = null;
-        if (timeNode) {
-            sentAt = timeNode.getAttribute('datetime') || timeNode.getAttribute('data-event-time') || timeNode.textContent.trim();
-        }
-        bodies.forEach(function (b) {
-            var text = (b.innerText || b.textContent || '').trim();
-            if (!text) return;
-            var msgId = b.getAttribute('data-event-urn') || b.id || null;
-            messages.push({
-                id: msgId,
-                sender_is_me: lastSenderIsMe,
-                sender_name: lastSenderName || (lastSenderIsMe ? 'me' : headerName),
-                body: text,
-                sent_at: sentAt
-            });
+        var isMe = !!(senderHref && meHref && senderHref === meHref);
+        if (!senderName) senderName = isMe ? (meName || 'me') : (otherName || 'other');
+
+        messages.push({
+            id: timeEl.id || null,
+            sender_is_me: isMe,
+            sender_name: senderName,
+            body: bodyText,
+            sent_at: timeEl.getAttribute('datetime') || timeEl.textContent.trim()
         });
     });
 
     if (messages.length === 0) {
-        toast('Couldn\'t parse any messages — LinkedIn may have changed the layout. Tell Steve.', '#dc2626');
+        toast('Found timestamps but couldn\'t extract any message bodies — LinkedIn layout drifted. Tell Steve.', '#dc2626');
         return;
     }
+
+    // ── Conversation URN — try data attrs first, fall back to URL path.
+    var conversationUrn = container.getAttribute('data-urn') ||
+                          (location.pathname.match(/thread\/([^\/]+)/) || [])[1] ||
+                          ('linkedin-conv-' + (otherHref || '').replace(/[^a-z0-9]/gi, '').slice(-20));
 
     toast('Sending ' + messages.length + ' messages to GAS…');
 
@@ -115,7 +182,7 @@
         headers: { 'Content-Type': 'application/json', 'X-Capture-Key': key },
         body: JSON.stringify({
             conversation_urn: conversationUrn,
-            other_person: { name: headerName, profile_url: headerHandle, headline: headerHeadline },
+            other_person: { name: otherName, profile_url: otherHref, headline: otherHeadline },
             messages: messages
         })
     }).then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
