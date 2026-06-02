@@ -2974,43 +2974,15 @@ function developer_parse_faqs($raw) {
 }
 
 /**
- * Render an FAQ accordion + JSON-LD FAQPage schema.
- * No-op if disabled or empty so it's safe to drop into any template.
+ * Emit ONLY the JSON-LD FAQPage schema — no visible accordion on the page.
+ * FAQs are an SEO signal for Google rich snippets, not a visible section.
+ * No-op if disabled or empty.
  */
 function developer_render_faqs($enabled, $raw_faqs, $heading = 'Frequently Asked Questions', $section_key = 'page') {
     if (!$enabled || $enabled === 'false') return;
     $faqs = developer_parse_faqs($raw_faqs);
     if (empty($faqs)) return;
 
-    $section_key = preg_replace('/[^a-z0-9\-]/', '', strtolower($section_key));
-    $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
-    $primary = $api['primary_color'] ?? '#2563eb';
-    $bg = $api['featured_bg'] ?? '#ffffff';
-    ?>
-    <section class="developer-faqs developer-faqs-<?php echo esc_attr($section_key); ?>" style="padding: 60px 0; background: <?php echo esc_attr($bg); ?>;">
-        <div class="developer-container" style="max-width: 820px; margin: 0 auto;">
-            <h2 style="text-align: center; font-size: 32px; margin-bottom: 32px;"><?php echo esc_html($heading); ?></h2>
-            <div class="developer-faq-list">
-                <?php foreach ($faqs as $i => $faq) : ?>
-                    <details class="developer-faq-item" style="border: 1px solid rgba(127,127,127,.25); border-radius: 8px; margin-bottom: 12px; padding: 0; overflow: hidden;">
-                        <summary style="padding: 18px 22px; cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; align-items: center;">
-                            <span><?php echo esc_html($faq['question']); ?></span>
-                            <span class="developer-faq-icon" style="color: <?php echo esc_attr($primary); ?>; font-size: 22px; line-height: 1; transition: transform .2s;">+</span>
-                        </summary>
-                        <div style="padding: 0 22px 20px; line-height: 1.7; opacity: .85;">
-                            <?php echo wp_kses_post(wpautop($faq['answer'])); ?>
-                        </div>
-                    </details>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <style>
-            .developer-faqs summary::-webkit-details-marker { display: none; }
-            .developer-faqs details[open] .developer-faq-icon { transform: rotate(45deg); }
-            .developer-faqs summary:hover { background: rgba(127,127,127,.08); }
-        </style>
-    </section>
-    <?php
     $schema = array(
         '@context' => 'https://schema.org',
         '@type' => 'FAQPage',

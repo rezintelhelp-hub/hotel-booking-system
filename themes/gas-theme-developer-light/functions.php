@@ -3209,44 +3209,16 @@ function developer_parse_faqs($raw) {
 }
 
 /**
- * Render an FAQ accordion + JSON-LD FAQPage schema.
- * No-op if disabled or empty so it's safe to drop into any template.
- * $section_key is used only for stable DOM ids (e.g. 'home-hero', 'about', 'contact').
+ * Emit ONLY the JSON-LD FAQPage schema — no visible accordion on the page.
+ * FAQs are an SEO signal for Google rich snippets, not a visible section.
+ * No-op if disabled or empty.
+ * $section_key kept in the signature for backwards-compatibility but no longer used.
  */
 function developer_render_faqs($enabled, $raw_faqs, $heading = 'Frequently Asked Questions', $section_key = 'page') {
     if (!$enabled || $enabled === 'false') return;
     $faqs = developer_parse_faqs($raw_faqs);
     if (empty($faqs)) return;
 
-    $section_key = preg_replace('/[^a-z0-9\-]/', '', strtolower($section_key));
-    $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
-    $primary = $api['primary_color'] ?? '#2563eb';
-    ?>
-    <section class="developer-faqs developer-faqs-<?php echo esc_attr($section_key); ?>" style="padding: 60px 0; background: #ffffff;">
-        <div class="developer-container" style="max-width: 820px; margin: 0 auto;">
-            <h2 style="text-align: center; font-size: 32px; margin-bottom: 32px; color: #1e293b;"><?php echo esc_html($heading); ?></h2>
-            <div class="developer-faq-list">
-                <?php foreach ($faqs as $i => $faq) : $id = 'faq-' . esc_attr($section_key) . '-' . $i; ?>
-                    <details class="developer-faq-item" style="border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 12px; padding: 0; overflow: hidden; background: #f8fafc;">
-                        <summary style="padding: 18px 22px; cursor: pointer; font-weight: 600; color: #1e293b; list-style: none; display: flex; justify-content: space-between; align-items: center;">
-                            <span><?php echo esc_html($faq['question']); ?></span>
-                            <span class="developer-faq-icon" style="color: <?php echo esc_attr($primary); ?>; font-size: 22px; line-height: 1; transition: transform .2s;">+</span>
-                        </summary>
-                        <div style="padding: 0 22px 20px; color: #475569; line-height: 1.7;">
-                            <?php echo wp_kses_post(wpautop($faq['answer'])); ?>
-                        </div>
-                    </details>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <style>
-            .developer-faqs summary::-webkit-details-marker { display: none; }
-            .developer-faqs details[open] .developer-faq-icon { transform: rotate(45deg); }
-            .developer-faqs summary:hover { background: #f1f5f9; }
-        </style>
-    </section>
-    <?php
-    // JSON-LD FAQPage schema (single emission per page is fine; Google merges).
     $schema = array(
         '@context' => 'https://schema.org',
         '@type' => 'FAQPage',
