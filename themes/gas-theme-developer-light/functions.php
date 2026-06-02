@@ -2417,6 +2417,7 @@ function developer_get_api_settings() {
     $website_hero = $website['hero'] ?? array();
     $website_about = $website['about'] ?? array();
     $website_intro = $website['intro'] ?? array();
+    $website_wrap = $website['wrap'] ?? array();
     $website_cta = $website['cta'] ?? array();
     $website_featured = $website['featured'] ?? array();
     $website_usp = $website['usp'] ?? array();
@@ -2875,7 +2876,30 @@ function developer_get_api_settings() {
         'intro_title_size' => $website_intro['title-size'] ?? null,
         'intro_text_size' => $website_intro['text-size'] ?? null,
         'intro_max_width' => $website_intro['max-width'] ?? null,
-        
+
+        // Wrap Section — magazine-style block: body text wraps around a floated
+        // image or YouTube/Vimeo video. Optional callout card overlay (e.g. lead-
+        // magnet "free guide" CTA). Added to the editor 2026-05-18 (c041ec44);
+        // theme render added 2026-06-02. Position defaults to 4 (between Intro=3
+        // and Featured=5). Hidden when enabled=false or text-{lang} is empty.
+        'wrap_enabled' => $website_wrap['enabled'] ?? false,
+        'wrap_title' => developer_get_ml_value($website_wrap, 'title', $lang),
+        'wrap_text' => developer_get_ml_value($website_wrap, 'text', $lang),
+        'wrap_bg' => $website_wrap['bg'] ?? '#ffffff',
+        'wrap_text_color' => $website_wrap['text-color'] ?? '#1e293b',
+        'wrap_media_type' => $website_wrap['media-type'] ?? 'image',
+        'wrap_media_url' => $website_wrap['media-url'] ?? '',
+        'wrap_media_image_url' => $website_wrap['media-image-url'] ?? '',
+        'wrap_media_position' => $website_wrap['media-position'] ?? 'right',
+        'wrap_media_width' => $website_wrap['media-width'] ?? '40',
+        'wrap_card_enabled' => $website_wrap['card-enabled'] ?? false,
+        'wrap_card_title' => developer_get_ml_value($website_wrap, 'card_title', $lang),
+        'wrap_card_text' => developer_get_ml_value($website_wrap, 'card_text', $lang),
+        'wrap_card_image_url' => $website_wrap['card-image-url'] ?? '',
+        'wrap_card_button_text' => developer_get_ml_value($website_wrap, 'card_button_text', $lang),
+        'wrap_card_button_link' => $website_wrap['card-button-link'] ?? '',
+        'section_order_wrap' => $website_wrap['position'] ?? null,
+
         // Reviews Section - MULTILINGUAL
         'reviews_enabled' => $website_reviews['enabled'] ?? false,
         'reviews_use_app' => $website_reviews['use-app'] ?? '',

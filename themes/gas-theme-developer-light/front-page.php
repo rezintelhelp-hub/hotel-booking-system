@@ -176,6 +176,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
 // Even numbers (2,4,6,8,10,12,14) available for Image Row sections
 $section_positions = array(
     'intro'    => intval($api['section_order_intro'] ?? 3),
+    'wrap'     => intval($api['section_order_wrap'] ?? 4),
     'featured' => intval($api['section_order_featured'] ?? 5),
     'usp'      => intval($api['section_order_usp'] ?? 7),
     'about'    => intval($api['section_order_about'] ?? 9),
@@ -315,6 +316,89 @@ $homepage_sections = array(); // position => html
 </section>
 <?php endif; ?>
 <?php $homepage_sections[$section_positions['intro']] = ob_get_clean(); ?>
+
+<?php
+// Wrap Section — magazine-style: body text wraps around a floated image or
+// embedded YouTube/Vimeo video. Optional callout card. Only renders when
+// enabled and there's body text in the active language.
+$wrap_enabled = $api['wrap_enabled'] ?? false;
+$wrap_text = $api['wrap_text'] ?? '';
+ob_start();
+if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
+    $wrap_title = $api['wrap_title'] ?? '';
+    $wrap_bg = $api['wrap_bg'] ?? '#ffffff';
+    $wrap_text_color = $api['wrap_text_color'] ?? '#1e293b';
+    $wrap_media_type = $api['wrap_media_type'] ?? 'image';
+    $wrap_media_position = ($api['wrap_media_position'] ?? 'right') === 'left' ? 'left' : 'right';
+    $wrap_media_width = max(20, min(60, intval($api['wrap_media_width'] ?? 40)));
+    $wrap_media_image = $api['wrap_media_image_url'] ?? '';
+    $wrap_media_url = $api['wrap_media_url'] ?? '';
+    $wrap_card_enabled = $api['wrap_card_enabled'] ?? false;
+
+    // Parse YouTube / Vimeo video URL into an embed URL.
+    $embed_url = '';
+    if ($wrap_media_type === 'video' && $wrap_media_url) {
+        if (preg_match('~(?:youtu\.be/|youtube\.com/(?:watch\?v=|embed/|v/|shorts/))([A-Za-z0-9_-]{11})~', $wrap_media_url, $m)) {
+            $embed_url = 'https://www.youtube.com/embed/' . $m[1];
+        } elseif (preg_match('~vimeo\.com/(?:video/)?(\d+)~', $wrap_media_url, $m)) {
+            $embed_url = 'https://player.vimeo.com/video/' . $m[1];
+        }
+    }
+?>
+<section class="developer-section developer-wrap" style="background: <?php echo esc_attr($wrap_bg); ?>; color: <?php echo esc_attr($wrap_text_color); ?>;">
+    <div class="developer-container">
+        <div class="developer-wrap-content" style="overflow: hidden;">
+            <?php if (($wrap_media_type === 'video' && $embed_url) || ($wrap_media_type === 'image' && $wrap_media_image)) : ?>
+                <div class="developer-wrap-media" style="float: <?php echo esc_attr($wrap_media_position); ?>; width: <?php echo $wrap_media_width; ?>%; margin: 0 <?php echo $wrap_media_position === 'right' ? '0 1.5rem 1.5rem' : '1.5rem 1.5rem 0'; ?>; max-width: 100%;">
+                    <?php if ($wrap_media_type === 'video' && $embed_url) : ?>
+                        <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px;">
+                            <iframe src="<?php echo esc_url($embed_url); ?>" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                        </div>
+                    <?php elseif ($wrap_media_type === 'image' && $wrap_media_image) : ?>
+                        <img src="<?php echo esc_url($wrap_media_image); ?>" alt="<?php echo esc_attr($wrap_title); ?>" style="width: 100%; height: auto; border-radius: 12px; display: block;">
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+            <?php if ($wrap_title) : ?>
+                <h2 style="margin: 0 0 1rem; color: <?php echo esc_attr($wrap_text_color); ?>;"><?php echo esc_html($wrap_title); ?></h2>
+            <?php endif; ?>
+            <div class="developer-wrap-text" style="font-size: 1.05rem; line-height: 1.8;">
+                <?php echo wp_kses_post($wrap_text); ?>
+            </div>
+            <?php if ($wrap_card_enabled) :
+                $card_title = $api['wrap_card_title'] ?? '';
+                $card_text = $api['wrap_card_text'] ?? '';
+                $card_image = $api['wrap_card_image_url'] ?? '';
+                $card_btn_text = $api['wrap_card_button_text'] ?? '';
+                $card_btn_link = $api['wrap_card_button_link'] ?? '';
+                if ($card_title || $card_text || $card_image) : ?>
+                <div class="developer-wrap-card" style="clear: both; margin-top: 2rem; padding: 1.5rem; background: rgba(0,0,0,0.04); border-radius: 12px; display: grid; grid-template-columns: <?php echo $card_image ? '180px 1fr' : '1fr'; ?>; gap: 1.5rem; align-items: center;">
+                    <?php if ($card_image) : ?>
+                        <img src="<?php echo esc_url($card_image); ?>" alt="<?php echo esc_attr($card_title); ?>" style="width: 100%; height: auto; border-radius: 8px;">
+                    <?php endif; ?>
+                    <div>
+                        <?php if ($card_title) : ?><h3 style="margin: 0 0 0.5rem; font-size: 1.25rem;"><?php echo esc_html($card_title); ?></h3><?php endif; ?>
+                        <?php if ($card_text) : ?><p style="margin: 0 0 1rem; opacity: 0.9;"><?php echo esc_html($card_text); ?></p><?php endif; ?>
+                        <?php if ($card_btn_text && $card_btn_link) : ?>
+                            <a href="<?php echo esc_url(home_url($card_btn_link)); ?>" class="developer-btn" style="display: inline-block;"><?php echo esc_html($card_btn_text); ?></a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif;
+            endif; ?>
+            <div style="clear: both;"></div>
+        </div>
+    </div>
+    <style>
+        @media (max-width: 768px) {
+            .developer-wrap-media { float: none !important; width: 100% !important; margin: 0 0 1.5rem !important; }
+            .developer-wrap-card { grid-template-columns: 1fr !important; }
+        }
+    </style>
+</section>
+<?php endif;
+$homepage_sections[$section_positions['wrap']] = ob_get_clean();
+?>
 
 <?php ob_start(); ?>
 <?php if ($featured_enabled) : ?>
