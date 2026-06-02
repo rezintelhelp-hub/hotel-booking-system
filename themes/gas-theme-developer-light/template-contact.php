@@ -425,4 +425,15 @@ function handleGasContactForm(e) {
 }
 </script>
 
+<?php
+if (function_exists('developer_render_faqs')) {
+    developer_render_faqs(
+        $api['page_contact_faq_enabled'] ?? false,
+        $api['page_contact_faqs'] ?? '[]',
+        __('Frequently Asked Questions', 'developer'),
+        'contact'
+    );
+}
+?>
+
 <?php get_footer(); ?>

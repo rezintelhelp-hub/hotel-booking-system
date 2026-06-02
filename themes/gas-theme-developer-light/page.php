@@ -59,6 +59,25 @@ $lg_radius   = $api['lg_radius'] ?? 16;
 // --- GAS Page Sections: check for custom sections before default rendering ---
 require_once get_template_directory() . '/gas-page-sections.php';
 if (gas_render_page_sections($page_slug, $primary_color)) {
+    // Render FAQs for this slug if any are configured on the matching section.
+    // Web Builder stores custom-page FAQs under section "page-custom-{slug}";
+    // standard pages use section "page-{slug}" (e.g. page-about, page-contact).
+    if (function_exists('developer_render_faqs')) {
+        $client_id = get_option('gas_client_id', '');
+        $site_cfg = $client_id ? get_transient('gas_site_config_' . $client_id) : null;
+        $sections = is_array($site_cfg) && isset($site_cfg['website']) ? $site_cfg['website'] : array();
+        foreach (array('page-custom-' . $page_slug, 'page-' . $page_slug) as $candidate) {
+            if (!empty($sections[$candidate]) && !empty($sections[$candidate]['faq-enabled'])) {
+                developer_render_faqs(
+                    $sections[$candidate]['faq-enabled'],
+                    $sections[$candidate]['faqs'] ?? '[]',
+                    __('Frequently Asked Questions', 'developer'),
+                    $page_slug
+                );
+                break;
+            }
+        }
+    }
     get_footer();
     return;
 }

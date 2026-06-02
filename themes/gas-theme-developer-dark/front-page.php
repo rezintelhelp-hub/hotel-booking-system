@@ -789,4 +789,15 @@ if ($cta_enabled) :
 </section>
 <?php endif; ?>
 
+<?php
+if (function_exists('developer_render_faqs')) {
+    developer_render_faqs(
+        $api['hero_faq_enabled'] ?? false,
+        $api['hero_faqs'] ?? '[]',
+        __('Frequently Asked Questions', 'developer'),
+        'home'
+    );
+}
+?>
+
 <?php get_footer(); ?>

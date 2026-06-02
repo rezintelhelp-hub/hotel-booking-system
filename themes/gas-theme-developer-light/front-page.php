@@ -151,7 +151,9 @@ $about_feature_4 = $api['about_feature_4'] ?? get_theme_mod('developer_about_fea
 $about_feature_5 = $api['about_feature_5'] ?? get_theme_mod('developer_about_feature_5', 'Entertainment Areas');
 $about_feature_6 = $api['about_feature_6'] ?? get_theme_mod('developer_about_feature_6', 'Private Parking');
 
-// About FAQ
+// FAQs (homepage uses the hero-section FAQs because the Web Builder groups them under Hero)
+$home_faq_enabled = $api['hero_faq_enabled'] ?? false;
+$home_faqs_raw = $api['hero_faqs'] ?? '[]';
 
 // Calculate overlay opacity (convert percentage to decimal)
 $overlay_opacity = $hero_opacity / 100;
@@ -989,6 +991,11 @@ if ($badge_enabled && $badge_enabled !== 'false' && $badge_enabled !== '0') {
 ksort($homepage_sections);
 foreach ($homepage_sections as $html) {
     echo $html;
+}
+
+// Homepage FAQs render below all sections, above footer.
+if (function_exists('developer_render_faqs')) {
+    developer_render_faqs($home_faq_enabled, $home_faqs_raw, __('Frequently Asked Questions', 'developer'), 'home');
 }
 ?>
 

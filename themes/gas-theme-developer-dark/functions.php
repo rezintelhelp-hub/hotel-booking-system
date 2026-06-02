@@ -2561,6 +2561,20 @@ function developer_get_api_settings() {
         'page_contact_meta_title' => $website_page_contact['meta-title'] ?? '',
         'page_contact_meta_description' => $website_page_contact['meta-description'] ?? '',
 
+        // FAQs — stored as JSON strings in section.faqs, toggled via section.faq-enabled.
+        // The render helper json_decodes these. Sections that surface FAQs in this theme:
+        // hero (homepage), page-about, page-contact, page-terms, page-privacy.
+        'hero_faq_enabled' => $website_hero['faq-enabled'] ?? false,
+        'hero_faqs' => $website_hero['faqs'] ?? '[]',
+        'page_about_faq_enabled' => $website_page_about['faq-enabled'] ?? false,
+        'page_about_faqs' => $website_page_about['faqs'] ?? '[]',
+        'page_contact_faq_enabled' => $website_page_contact['faq-enabled'] ?? false,
+        'page_contact_faqs' => $website_page_contact['faqs'] ?? '[]',
+        'page_terms_faq_enabled' => $website_page_terms['faq-enabled'] ?? false,
+        'page_terms_faqs' => $website_page_terms['faqs'] ?? '[]',
+        'page_privacy_faq_enabled' => $website_page_privacy['faq-enabled'] ?? false,
+        'page_privacy_faqs' => $website_page_privacy['faqs'] ?? '[]',
+
         // Gallery Page - MULTILINGUAL
         'page_gallery_menu_title' => developer_get_ml_value($website_page_gallery, 'menu_title', $lang) ?: 'Gallery',
         'page_gallery_enabled' => $website_page_gallery['enabled'] ?? false,
@@ -2933,8 +2947,86 @@ function developer_get_api_settings() {
     
     // Cache for 5 minutes — cleared by GAS API on Web Builder save
     set_transient($cache_key, $result, 5 * MINUTE_IN_SECONDS);
-    
+
     return $result;
+}
+
+/**
+ * Parse FAQ JSON into a clean array of {question, answer}.
+ * Web Builder stores faqs as a JSON-encoded string inside each section's settings.
+ */
+function developer_parse_faqs($raw) {
+    if (empty($raw)) return array();
+    if (is_string($raw)) {
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) return array();
+        $raw = $decoded;
+    }
+    if (!is_array($raw)) return array();
+    $out = array();
+    foreach ($raw as $f) {
+        if (!is_array($f)) continue;
+        $q = trim($f['question'] ?? '');
+        $a = trim($f['answer'] ?? '');
+        if ($q !== '' && $a !== '') $out[] = array('question' => $q, 'answer' => $a);
+    }
+    return $out;
+}
+
+/**
+ * Render an FAQ accordion + JSON-LD FAQPage schema.
+ * No-op if disabled or empty so it's safe to drop into any template.
+ */
+function developer_render_faqs($enabled, $raw_faqs, $heading = 'Frequently Asked Questions', $section_key = 'page') {
+    if (!$enabled || $enabled === 'false') return;
+    $faqs = developer_parse_faqs($raw_faqs);
+    if (empty($faqs)) return;
+
+    $section_key = preg_replace('/[^a-z0-9\-]/', '', strtolower($section_key));
+    $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+    $primary = $api['primary_color'] ?? '#2563eb';
+    $bg = $api['featured_bg'] ?? '#ffffff';
+    ?>
+    <section class="developer-faqs developer-faqs-<?php echo esc_attr($section_key); ?>" style="padding: 60px 0; background: <?php echo esc_attr($bg); ?>;">
+        <div class="developer-container" style="max-width: 820px; margin: 0 auto;">
+            <h2 style="text-align: center; font-size: 32px; margin-bottom: 32px;"><?php echo esc_html($heading); ?></h2>
+            <div class="developer-faq-list">
+                <?php foreach ($faqs as $i => $faq) : ?>
+                    <details class="developer-faq-item" style="border: 1px solid rgba(127,127,127,.25); border-radius: 8px; margin-bottom: 12px; padding: 0; overflow: hidden;">
+                        <summary style="padding: 18px 22px; cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; align-items: center;">
+                            <span><?php echo esc_html($faq['question']); ?></span>
+                            <span class="developer-faq-icon" style="color: <?php echo esc_attr($primary); ?>; font-size: 22px; line-height: 1; transition: transform .2s;">+</span>
+                        </summary>
+                        <div style="padding: 0 22px 20px; line-height: 1.7; opacity: .85;">
+                            <?php echo wp_kses_post(wpautop($faq['answer'])); ?>
+                        </div>
+                    </details>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <style>
+            .developer-faqs summary::-webkit-details-marker { display: none; }
+            .developer-faqs details[open] .developer-faq-icon { transform: rotate(45deg); }
+            .developer-faqs summary:hover { background: rgba(127,127,127,.08); }
+        </style>
+    </section>
+    <?php
+    $schema = array(
+        '@context' => 'https://schema.org',
+        '@type' => 'FAQPage',
+        'mainEntity' => array(),
+    );
+    foreach ($faqs as $faq) {
+        $schema['mainEntity'][] = array(
+            '@type' => 'Question',
+            'name' => $faq['question'],
+            'acceptedAnswer' => array(
+                '@type' => 'Answer',
+                'text' => $faq['answer'],
+            ),
+        );
+    }
+    echo "\n<script type=\"application/ld+json\">" . wp_json_encode($schema, JSON_UNESCAPED_SLASHES) . "</script>\n";
 }
 
 /**

@@ -27,6 +27,16 @@ get_header();
 require_once get_template_directory() . '/gas-page-sections.php';
 $primary_color_ps = function_exists('developer_get_api_settings') ? (developer_get_api_settings()['primary_color'] ?? '#2563eb') : '#2563eb';
 if (gas_render_page_sections('about', $primary_color_ps)) {
+    // Custom Pro Builder sections rendered — still emit FAQs before footer if enabled.
+    if (function_exists('developer_render_faqs')) {
+        $faq_api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+        developer_render_faqs(
+            $faq_api['page_about_faq_enabled'] ?? false,
+            $faq_api['page_about_faqs'] ?? '[]',
+            __('Frequently Asked Questions', 'developer'),
+            'about'
+        );
+    }
     get_footer();
     return;
 }
@@ -183,5 +193,16 @@ if (empty($page_content)) {
     }
 }
 </style>
+
+<?php
+if (function_exists('developer_render_faqs')) {
+    developer_render_faqs(
+        $api['page_about_faq_enabled'] ?? false,
+        $api['page_about_faqs'] ?? '[]',
+        __('Frequently Asked Questions', 'developer'),
+        'about'
+    );
+}
+?>
 
 <?php get_footer(); ?>
