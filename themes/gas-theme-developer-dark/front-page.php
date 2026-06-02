@@ -319,14 +319,39 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
 <section class="developer-section developer-wrap" style="background: <?php echo esc_attr($wrap_bg); ?>; color: <?php echo esc_attr($wrap_text_color); ?>;">
     <div class="developer-container">
         <div class="developer-wrap-content" style="overflow: hidden;">
-            <?php if (($wrap_media_type === 'video' && $embed_url) || ($wrap_media_type === 'image' && $wrap_media_image)) : ?>
-                <div class="developer-wrap-media" style="float: <?php echo esc_attr($wrap_media_position); ?>; width: <?php echo $wrap_media_width; ?>%; margin: 0 <?php echo $wrap_media_position === 'right' ? '0 1.5rem 1.5rem' : '1.5rem 1.5rem 0'; ?>; max-width: 100%;">
-                    <?php if ($wrap_media_type === 'video' && $embed_url) : ?>
-                        <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px;">
-                            <iframe src="<?php echo esc_url($embed_url); ?>" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            <?php
+            $has_media = ($wrap_media_type === 'video' && $embed_url) || ($wrap_media_type === 'image' && $wrap_media_image);
+            $card_title = $api['wrap_card_title'] ?? '';
+            $card_text = $api['wrap_card_text'] ?? '';
+            $card_image = $api['wrap_card_image_url'] ?? '';
+            $card_btn_text = $api['wrap_card_button_text'] ?? '';
+            $card_btn_link = $api['wrap_card_button_link'] ?? '';
+            $has_card = $wrap_card_enabled && ($card_title || $card_text || $card_image);
+            ?>
+            <?php if ($has_media || $has_card) : ?>
+                <div class="developer-wrap-media-col" style="float: <?php echo esc_attr($wrap_media_position); ?>; width: <?php echo $wrap_media_width; ?>%; margin: 0 <?php echo $wrap_media_position === 'right' ? '0 1.5rem 1.5rem' : '1.5rem 1.5rem 0'; ?>; max-width: 100%;">
+                    <?php if ($has_media) : ?>
+                        <div class="developer-wrap-media">
+                            <?php if ($wrap_media_type === 'video' && $embed_url) : ?>
+                                <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px;">
+                                    <iframe src="<?php echo esc_url($embed_url); ?>" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                </div>
+                            <?php elseif ($wrap_media_type === 'image' && $wrap_media_image) : ?>
+                                <img src="<?php echo esc_url($wrap_media_image); ?>" alt="<?php echo esc_attr($wrap_title); ?>" style="width: 100%; height: auto; border-radius: 12px; display: block;">
+                            <?php endif; ?>
                         </div>
-                    <?php elseif ($wrap_media_type === 'image' && $wrap_media_image) : ?>
-                        <img src="<?php echo esc_url($wrap_media_image); ?>" alt="<?php echo esc_attr($wrap_title); ?>" style="width: 100%; height: auto; border-radius: 12px; display: block;">
+                    <?php endif; ?>
+                    <?php if ($has_card) : ?>
+                        <div class="developer-wrap-card" style="<?php echo $has_media ? 'margin-top: 1rem; ' : ''; ?>padding: 1.25rem; background: rgba(255,255,255,0.05); border-radius: 12px;">
+                            <?php if ($card_image) : ?>
+                                <img src="<?php echo esc_url($card_image); ?>" alt="<?php echo esc_attr($card_title); ?>" style="width: 100%; height: auto; border-radius: 8px; margin-bottom: 1rem; display: block;">
+                            <?php endif; ?>
+                            <?php if ($card_title) : ?><h3 style="margin: 0 0 0.5rem; font-size: 1.15rem;"><?php echo esc_html($card_title); ?></h3><?php endif; ?>
+                            <?php if ($card_text) : ?><p style="margin: 0 0 1rem; opacity: 0.9; font-size: 0.95rem;"><?php echo esc_html($card_text); ?></p><?php endif; ?>
+                            <?php if ($card_btn_text && $card_btn_link) : ?>
+                                <a href="<?php echo esc_url(home_url($card_btn_link)); ?>" class="developer-btn" style="display: inline-block;"><?php echo esc_html($card_btn_text); ?></a>
+                            <?php endif; ?>
+                        </div>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
@@ -336,34 +361,12 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
             <div class="developer-wrap-text" style="font-size: 1.05rem; line-height: 1.8;">
                 <?php echo wp_kses_post($wrap_text); ?>
             </div>
-            <?php if ($wrap_card_enabled) :
-                $card_title = $api['wrap_card_title'] ?? '';
-                $card_text = $api['wrap_card_text'] ?? '';
-                $card_image = $api['wrap_card_image_url'] ?? '';
-                $card_btn_text = $api['wrap_card_button_text'] ?? '';
-                $card_btn_link = $api['wrap_card_button_link'] ?? '';
-                if ($card_title || $card_text || $card_image) : ?>
-                <div class="developer-wrap-card" style="clear: both; margin-top: 2rem; padding: 1.5rem; background: rgba(255,255,255,0.05); border-radius: 12px; display: grid; grid-template-columns: <?php echo $card_image ? '180px 1fr' : '1fr'; ?>; gap: 1.5rem; align-items: center;">
-                    <?php if ($card_image) : ?>
-                        <img src="<?php echo esc_url($card_image); ?>" alt="<?php echo esc_attr($card_title); ?>" style="width: 100%; height: auto; border-radius: 8px;">
-                    <?php endif; ?>
-                    <div>
-                        <?php if ($card_title) : ?><h3 style="margin: 0 0 0.5rem; font-size: 1.25rem;"><?php echo esc_html($card_title); ?></h3><?php endif; ?>
-                        <?php if ($card_text) : ?><p style="margin: 0 0 1rem; opacity: 0.9;"><?php echo esc_html($card_text); ?></p><?php endif; ?>
-                        <?php if ($card_btn_text && $card_btn_link) : ?>
-                            <a href="<?php echo esc_url(home_url($card_btn_link)); ?>" class="developer-btn" style="display: inline-block;"><?php echo esc_html($card_btn_text); ?></a>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <?php endif;
-            endif; ?>
             <div style="clear: both;"></div>
         </div>
     </div>
     <style>
         @media (max-width: 768px) {
-            .developer-wrap-media { float: none !important; width: 100% !important; margin: 0 0 1.5rem !important; }
-            .developer-wrap-card { grid-template-columns: 1fr !important; }
+            .developer-wrap-media-col { float: none !important; width: 100% !important; margin: 0 0 1.5rem !important; }
         }
     </style>
 </section>
