@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.8.32
+ * Version: 3.8.33
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -567,8 +567,16 @@ jQuery(document).ready(function($) {
         };
         var symbol = symbols[currencyCode] || (currencyCode && currencyCode.length <= 4 ? currencyCode + ' ' : '') || '';
         var num = parseFloat(amount) || 0;
-        // Format with 2 decimal places
-        return symbol + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        // Zero-decimal currencies (per Stripe) — yen has no fractional
+        // unit so showing "¥9810.00" is wrong + has caused Mountain
+        // Holidays' Stripe to charge 100x the actual amount. Format
+        // without decimals for these.
+        var ZERO_DEC = ['JPY','KRW','VND','CLP','XPF','XOF','XAF','BIF','DJF','GNF','KMF','MGA','PYG','RWF','UGX','VUV'];
+        var code = (currencyCode || '').toUpperCase();
+        var formatted = ZERO_DEC.indexOf(code) >= 0
+            ? Math.round(num).toString()
+            : num.toFixed(2);
+        return symbol + formatted.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     }
     
     // HTML escape function for security
