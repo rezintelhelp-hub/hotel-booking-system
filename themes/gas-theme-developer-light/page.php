@@ -166,6 +166,65 @@ $page_bg = $api[$page_settings_key . '_bg'] ?? '#ffffff';
 $page_title_color = $api[$page_settings_key . '_title_color'] ?? '#1e293b';
 $page_text_color = $api[$page_settings_key . '_text_color'] ?? '#475569';
 
+// Custom-page multilingual override. For pages where $special_page == '' (any
+// page-custom-{slug} created in Web Builder), the chain above resolves to
+// $api['page__title'] (never set) → get_the_title() (WP post_title, English
+// only). Pull the GAS multilingual settings for this slug instead so French/
+// Spanish/Dutch visitors see translations, and the body content the user
+// typed in the Pro Builder renders below.
+$cp_settings = array();
+$cp_content_body = '';
+if (empty($special_page)) {
+    $cp_client_id = get_option('gas_client_id', '');
+    $cp_site_cfg = $cp_client_id ? get_transient('gas_site_config_' . $cp_client_id) : null;
+    $cp_lang = function_exists('developer_get_current_language') ? developer_get_current_language() : 'en';
+    // Slug-normalization fallback: WP collapses multi-dash sequences to single
+    // dashes in post_name, but GAS Web Builder may have stored the section with
+    // double dashes (e.g. when the user's title contained ' - '). Try both.
+    $cp_section_keys = array(
+        'page-custom-' . $page_slug,
+        'page-custom-' . str_replace('-', '--', $page_slug),
+    );
+    // Also scan all page-custom-* keys and match by collapsed slug if neither hit.
+    if (is_array($cp_site_cfg) && isset($cp_site_cfg['website'])) {
+        $all_sections = array_keys($cp_site_cfg['website']);
+        foreach ($all_sections as $sk) {
+            if (strpos($sk, 'page-custom-') !== 0) continue;
+            $sk_slug = substr($sk, 12);
+            if (preg_replace('/-+/', '-', $sk_slug) === $page_slug) {
+                $cp_section_keys[] = $sk;
+            }
+        }
+    }
+    $cp_section_key = null;
+    if (is_array($cp_site_cfg) && isset($cp_site_cfg['website'])) {
+        foreach ($cp_section_keys as $candidate) {
+            if (isset($cp_site_cfg['website'][$candidate])) {
+                $cp_section_key = $candidate;
+                break;
+            }
+        }
+    }
+    if ($cp_section_key !== null) {
+        $cp_settings = $cp_site_cfg['website'][$cp_section_key];
+        $ml = function ($field) use ($cp_settings, $cp_lang) {
+            return $cp_settings[$field . '-' . $cp_lang]
+                ?? $cp_settings[$field . '-en']
+                ?? $cp_settings[$field]
+                ?? '';
+        };
+        if ($ml('title') !== '')    $page_title    = $ml('title');
+        if ($ml('subtitle') !== '') $page_subtitle = $ml('subtitle');
+        if (!empty($cp_settings['hero-image-url'])) $page_hero_image = $cp_settings['hero-image-url'];
+        if (!empty($cp_settings['header-bg']))      $page_header_bg   = $cp_settings['header-bg'];
+        if (!empty($cp_settings['header-text']))    $page_header_text = $cp_settings['header-text'];
+        if (!empty($cp_settings['bg']))             $page_bg          = $cp_settings['bg'];
+        if (!empty($cp_settings['title-color']))    $page_title_color = $cp_settings['title-color'];
+        if (!empty($cp_settings['text-color']))     $page_text_color  = $cp_settings['text-color'];
+        $cp_content_body = $ml('content');
+    }
+}
+
 // Fallback hero images from homepage about section if not set
 if (empty($page_hero_image) && $special_page === 'about') {
     $page_hero_image = $api['about_image'] ?? get_theme_mod('developer_about_image', '');
@@ -358,7 +417,16 @@ if (!empty($special_page) && isset($api[$hero_key])) {
                     <?php if (shortcode_exists('gas_properties')) echo do_shortcode('[gas_properties]'); ?>
 
                 <?php else : ?>
-                    <div style="font-size: 1.05rem; line-height: 1.8; color: <?php echo esc_attr($page_text_color); ?>;"><?php the_content(); ?></div>
+                    <div style="font-size: 1.05rem; line-height: 1.8; color: <?php echo esc_attr($page_text_color); ?>;">
+                        <?php
+                        // Prefer GAS multilingual content for custom pages, fall back to WP post_content.
+                        if (!empty($cp_content_body)) {
+                            echo wp_kses_post(wpautop($cp_content_body));
+                        } else {
+                            the_content();
+                        }
+                        ?>
+                    </div>
                 <?php endif; ?>
                 
             </div>
