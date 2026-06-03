@@ -272,7 +272,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-gallery" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
                     <div style="max-width: 1200px; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
-                        <div class="gas-ps-gallery-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+                        <div class="gas-ps-gallery-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; justify-content: center;">
                             <?php foreach ($images as $img) :
                                 $src = is_array($img) ? ($img['url'] ?? $img['src'] ?? '') : $img;
                                 $alt = is_array($img) ? ($img['alt'] ?? '') : '';
