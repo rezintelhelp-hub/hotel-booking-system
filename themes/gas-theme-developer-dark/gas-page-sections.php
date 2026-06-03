@@ -86,10 +86,12 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     $has_hero_section = in_array('hero', array_column($sections, 'type'));
 
     if (!$hero_enabled_ps) {
-        // Hero disabled — no spacer, content starts right after header
-        // Remove hero sections from the list so they don't render below
+        // Hero disabled — drop hero sections, but STILL emit the fixed-header
+        // spacer or content tucks under the sticky menu. Regression from
+        // commit 14a08221 — every client page with hero-off had its top cut.
         $sections = array_filter($sections, function($s) { return ($s['type'] ?? '') !== 'hero'; });
         $sections = array_values($sections);
+        echo '<div style="padding-top: 120px;"></div>';
     } elseif (!$has_hero_section) {
     ?>
     <section class="gas-ps-hero" style="position: relative; min-height: 250px; height: 35vh; display: flex; align-items: center; justify-content: center; background: #1e293b; overflow: hidden;">

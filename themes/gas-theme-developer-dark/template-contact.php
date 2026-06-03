@@ -224,7 +224,7 @@ $lg_radius   = $api['lg_radius'] ?? 16;
 </section>
 <?php endif; ?>
 
-<div class="gas-contact-page" style="padding-top: <?php echo $hero_enabled ? '40px' : '20px'; ?>;">
+<div class="gas-contact-page" style="padding-top: <?php echo $hero_enabled ? '40px' : '120px'; ?>;">
     <div class="gas-contact-container">
 
         <div class="gas-contact-grid">

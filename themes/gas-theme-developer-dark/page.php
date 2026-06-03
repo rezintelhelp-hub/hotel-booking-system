@@ -274,7 +274,7 @@ if ($special_page === 'about') {
 <?php endif; ?>
 
 <!-- Page Content -->
-<div class="developer-page-content" style="background-color: <?php echo esc_attr($page_bg); ?>; padding: <?php echo $hero_enabled ? '60px' : '90px'; ?> 0 60px 0;">
+<div class="developer-page-content" style="background-color: <?php echo esc_attr($page_bg); ?>; padding: <?php echo $hero_enabled ? '60px' : '120px'; ?> 0 60px 0;">
     <div class="developer-container">
         <?php while (have_posts()) : the_post(); ?>
             <div class="developer-page-body" style="max-width: <?php echo esc_attr($max_width); ?>; margin: 0 auto; padding: 0 24px;">
