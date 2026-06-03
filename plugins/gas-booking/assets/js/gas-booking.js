@@ -2078,12 +2078,21 @@ jQuery(document).ready(function($) {
     function parseDescription(desc) {
         if (!desc) return '';
         if (typeof desc === 'object') {
-            // Try current language first, then English, then any available
             return desc[currentLanguage] || desc.en || desc[Object.keys(desc)[0]] || '';
         }
+        // Some legacy rows in bookable_units.full_description were JSON.stringify'd
+        // twice on write, so JSON.parse(desc) returns a STRING that still needs
+        // parsing. Without the second parse, the old code did Object.keys on a
+        // string and returned its first character — rendering "More Info" as "{".
         try {
             var parsed = JSON.parse(desc);
-            return parsed[currentLanguage] || parsed.en || parsed[Object.keys(parsed)[0]] || desc;
+            if (typeof parsed === 'string') {
+                try { parsed = JSON.parse(parsed); } catch(_) { return parsed; }
+            }
+            if (parsed && typeof parsed === 'object') {
+                return parsed[currentLanguage] || parsed.en || parsed[Object.keys(parsed)[0]] || desc;
+            }
+            return parsed || desc;
         } catch(e) {
             return desc;
         }
