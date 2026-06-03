@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.35
+ * Version: 3.8.36
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.35');
+define('GAS_BOOKING_VERSION', '3.8.36');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -216,6 +216,7 @@ class GAS_Booking {
         add_shortcode('gas_attractions_categories', array($this, 'attractions_categories_shortcode'));
         add_shortcode('gas_footer', array($this, 'footer_shortcode'));
         add_shortcode('gas_portal', array($this, 'portal_shortcode'));
+        add_shortcode('gas_bike_storage', array($this, 'bike_storage_shortcode'));
         
         // AJAX handlers
         add_action('wp_ajax_gas_get_availability', array($this, 'ajax_get_availability'));
@@ -10610,6 +10611,25 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         </script>
         <?php
         return ob_get_clean();
+    }
+
+    /**
+     * [gas_bike_storage property_id="523"]
+     *
+     * Renders an empty container that the plugin's gas-booking.js hydrates
+     * into the bike storage booking widget on page load. Date picker,
+     * availability check, guest form, Stripe Checkout — all happens inside
+     * the JS once it spots the data-property-id attribute.
+     */
+    public function bike_storage_shortcode($atts) {
+        $a = shortcode_atts(array(
+            'property_id' => '',
+        ), $atts);
+        $pid = intval($a['property_id']);
+        if (!$pid) {
+            return '<p style="color:#b91c1c;font-size:0.9rem;">Bike Storage block: pick a property in Pro Builder so the widget knows which cabinets to show.</p>';
+        }
+        return '<div class="gas-bike-storage" data-property-id="' . esc_attr($pid) . '"></div>';
     }
 
     public function footer_shortcode($atts) {
