@@ -7718,4 +7718,206 @@ jQuery(document).ready(function($) {
     });
     // ========== END COUNTRY SEARCH ==========
 
+    // ========== BIKE STORAGE WIDGET ==========
+    // Pro Builder block "Bike Storage Booking" renders
+    //   <div class="gas-bike-storage" data-property-id="523"></div>
+    // We replace each one with a self-contained booking flow:
+    //   step 1 — pick arrival + departure dates, click Check availability
+    //   step 2 — see summary + fill guest details, click Book and pay
+    //   step 3 — redirect to Stripe Checkout
+    //   step 4 — Stripe returns ?paid=1, show confirmation
+    //
+    // Same pattern as gas-search-widget but trimmed to the rental case
+    // (no room picker, no guest counter — one cabinet allocated server-side).
+    (function initBikeStorageWidgets() {
+        var $widgets = $('.gas-bike-storage[data-property-id]');
+        if (!$widgets.length) return;
+
+        // Inject scoped styles once. Kept inline so it ships with the plugin
+        // and doesn't depend on the theme's CSS. Picks up the burger theme
+        // accent colour via CSS variable when present.
+        if (!document.getElementById('gas-bike-storage-styles')) {
+            var css = [
+                '.gas-bike-storage-widget{font-family:inherit;max-width:560px;margin:1rem 0;padding:1.25rem;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}',
+                '.gas-bs-tagline{color:#64748b;font-size:0.9rem;margin-bottom:1rem}',
+                '.gas-bs-date-row{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem}',
+                '.gas-bs-date-row label{display:flex;flex-direction:column;font-size:0.85rem;color:#475569;gap:0.25rem}',
+                '.gas-bs-date-row input{padding:0.6rem 0.75rem;border:1px solid #cbd5e1;border-radius:8px;font-size:1rem;background:#fff}',
+                '.gas-bs-check-btn,.gas-bs-book-btn{display:block;width:100%;padding:0.75rem 1rem;border:none;border-radius:8px;background:var(--button_color,#F97224);color:#fff;font-size:1rem;font-weight:600;cursor:pointer;transition:opacity 0.15s}',
+                '.gas-bs-check-btn:hover,.gas-bs-book-btn:hover{opacity:0.92}',
+                '.gas-bs-check-btn:disabled,.gas-bs-book-btn:disabled{opacity:0.5;cursor:wait}',
+                '.gas-bs-back-btn{background:none;border:none;color:#64748b;font-size:0.85rem;cursor:pointer;margin-top:0.75rem;padding:0.25rem 0;text-decoration:underline}',
+                '.gas-bs-message,.gas-bs-form-error{margin-top:0.75rem;font-size:0.9rem;min-height:1.25rem}',
+                '.gas-bs-summary{padding:0.85rem 1rem;background:#f8fafc;border-radius:8px;margin-bottom:1rem}',
+                '.gas-bs-form-row{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem}',
+                '.gas-bs-guest-form input{width:100%;padding:0.6rem 0.75rem;border:1px solid #cbd5e1;border-radius:8px;font-size:0.95rem;margin-bottom:0.5rem;box-sizing:border-box}',
+                '.gas-bs-step-success{text-align:center;padding:1rem 0}',
+                '.gas-bs-step-success h3{color:#10b981;margin:0 0 0.5rem}',
+                '@media(max-width:520px){.gas-bs-date-row,.gas-bs-form-row{grid-template-columns:1fr}}'
+            ].join('');
+            var styleEl = document.createElement('style');
+            styleEl.id = 'gas-bike-storage-styles';
+            styleEl.textContent = css;
+            document.head.appendChild(styleEl);
+        }
+
+        $widgets.each(function() {
+            var $container = $(this);
+            // Avoid double-init if the page re-runs document.ready (rare,
+            // but cheap insurance for SPA-style Pro Builder previews).
+            if ($container.data('gasBsInited')) return;
+            $container.data('gasBsInited', true);
+
+            var propertyId = $container.data('property-id');
+            var apiUrl = (typeof gasBooking !== 'undefined' && gasBooking.apiUrl) ? gasBooking.apiUrl : 'https://admin.gas.travel';
+
+            $container.html(
+                '<div class="gas-bike-storage-widget">' +
+                '  <div class="gas-bs-step gas-bs-step-dates">' +
+                '    <div class="gas-bs-tagline">£10 per cabinet per day · Secure · Individual code lock · CCTV-monitored</div>' +
+                '    <div class="gas-bs-date-row">' +
+                '      <label>Arrival<input type="text" class="gas-bs-checkin" placeholder="Pick a date" readonly></label>' +
+                '      <label>Departure<input type="text" class="gas-bs-checkout" placeholder="Pick a date" readonly></label>' +
+                '    </div>' +
+                '    <button type="button" class="gas-bs-check-btn">Check availability</button>' +
+                '    <div class="gas-bs-message"></div>' +
+                '  </div>' +
+                '  <div class="gas-bs-step gas-bs-step-confirm" style="display:none">' +
+                '    <div class="gas-bs-summary"></div>' +
+                '    <form class="gas-bs-guest-form">' +
+                '      <div class="gas-bs-form-row">' +
+                '        <input name="first_name" placeholder="First name *" required>' +
+                '        <input name="last_name" placeholder="Last name *" required>' +
+                '      </div>' +
+                '      <input name="email" type="email" placeholder="Email *" required>' +
+                '      <input name="phone" type="tel" placeholder="Phone (optional)">' +
+                '      <button type="submit" class="gas-bs-book-btn">Book and pay</button>' +
+                '      <div class="gas-bs-form-error"></div>' +
+                '    </form>' +
+                '    <button type="button" class="gas-bs-back-btn">← Change dates</button>' +
+                '  </div>' +
+                '  <div class="gas-bs-step gas-bs-step-success" style="display:none">' +
+                '    <h3>✓ Booking confirmed</h3>' +
+                '    <p>Check your email — your individual access code is on the way.</p>' +
+                '  </div>' +
+                '</div>'
+            );
+
+            // Date pickers. Reuse flatpickr that the plugin already loads.
+            var $checkin = $container.find('.gas-bs-checkin');
+            var $checkout = $container.find('.gas-bs-checkout');
+            if (typeof flatpickr !== 'undefined') {
+                flatpickr($checkin[0], {
+                    dateFormat: 'Y-m-d', minDate: 'today', disableMobile: true,
+                    onChange: function(dates) {
+                        if (dates.length && $checkout[0]._flatpickr) {
+                            var next = new Date(dates[0]); next.setDate(next.getDate() + 1);
+                            $checkout[0]._flatpickr.set('minDate', next);
+                            setTimeout(function() { $checkout[0]._flatpickr.open(); }, 100);
+                        }
+                    }
+                });
+                flatpickr($checkout[0], { dateFormat: 'Y-m-d', minDate: 'today', disableMobile: true });
+            }
+
+            // Stripe success / cancel return handling. The session_id arrives
+            // in the URL; we don't need to read it — the server webhook is
+            // the source of truth for "booking is paid". This is just the UX.
+            var qparams = new URLSearchParams(window.location.search);
+            if (qparams.get('paid') === '1') {
+                $container.find('.gas-bs-step').hide();
+                $container.find('.gas-bs-step-success').show();
+            } else if (qparams.get('cancelled') === '1') {
+                $container.find('.gas-bs-message').html('<div style="color:#b91c1c">Payment cancelled — pick your dates again any time.</div>');
+            }
+
+            var lastQuote = null;
+
+            $container.on('click', '.gas-bs-check-btn', function() {
+                var checkin = $checkin.val();
+                var checkout = $checkout.val();
+                var $msg = $container.find('.gas-bs-message');
+                if (!checkin || !checkout) {
+                    $msg.html('<div style="color:#b91c1c">Pick both dates first.</div>');
+                    return;
+                }
+                $msg.html('<div style="color:#64748b">Checking availability…</div>');
+                $.ajax({
+                    url: apiUrl + '/api/public/bike-storage/availability',
+                    data: { property_id: propertyId, check_in: checkin, check_out: checkout },
+                    dataType: 'json',
+                    success: function(r) {
+                        if (!r.success) { $msg.html('<div style="color:#b91c1c">' + (r.error || 'Could not check') + '</div>'); return; }
+                        if (r.available_count === 0) {
+                            $msg.html('<div style="color:#b91c1c">All ' + r.total_units + ' cabinets are booked for those dates. Try different dates.</div>');
+                            return;
+                        }
+                        lastQuote = r;
+                        $msg.html('');
+                        $container.find('.gas-bs-step-dates').hide();
+                        $container.find('.gas-bs-step-confirm').show();
+                        var symbol = (r.currency === 'GBP') ? '£' : (r.currency === 'EUR' ? '€' : (r.currency === 'USD' ? '$' : r.currency + ' '));
+                        $container.find('.gas-bs-summary').html(
+                            '<div style="font-size:1rem;line-height:1.5">' +
+                            '<strong>' + r.nights + ' day' + (r.nights === 1 ? '' : 's') + '</strong> · ' +
+                            '<strong>' + symbol + r.total_price + '</strong> total<br>' +
+                            '<span style="color:#64748b;font-size:0.85rem">' +
+                            r.available_count + ' of ' + r.total_units + ' cabinets free · ' +
+                            'Pickup ' + r.pickup_time + ', return ' + r.return_time +
+                            '</span></div>'
+                        );
+                        $container.find('.gas-bs-book-btn').text('Book and pay ' + symbol + r.total_price);
+                    },
+                    error: function() { $msg.html('<div style="color:#b91c1c">Network error — please try again.</div>'); }
+                });
+            });
+
+            $container.on('click', '.gas-bs-back-btn', function() {
+                $container.find('.gas-bs-step-confirm').hide();
+                $container.find('.gas-bs-step-dates').show();
+                lastQuote = null;
+            });
+
+            $container.on('submit', '.gas-bs-guest-form', function(e) {
+                e.preventDefault();
+                if (!lastQuote) return;
+                var $form = $(this);
+                var $err = $container.find('.gas-bs-form-error');
+                var $btn = $container.find('.gas-bs-book-btn');
+                var origLabel = $btn.text();
+                $err.html('');
+                $btn.prop('disabled', true).text('Creating booking…');
+                $.ajax({
+                    url: apiUrl + '/api/public/bike-storage/checkout',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        property_id: propertyId,
+                        check_in: lastQuote.check_in || $checkin.val(),
+                        check_out: lastQuote.check_out || $checkout.val(),
+                        guest_first_name: $form.find('[name=first_name]').val().trim(),
+                        guest_last_name: $form.find('[name=last_name]').val().trim(),
+                        guest_email: $form.find('[name=email]').val().trim(),
+                        guest_phone: $form.find('[name=phone]').val().trim(),
+                        source_site_url: window.location.origin + window.location.pathname
+                    }),
+                    success: function(r) {
+                        if (!r.success || !r.checkout_url) {
+                            $err.html('<div style="color:#b91c1c">' + (r.error || 'Could not create booking') + '</div>');
+                            $btn.prop('disabled', false).text(origLabel);
+                            return;
+                        }
+                        window.location.href = r.checkout_url;
+                    },
+                    error: function(x) {
+                        var msg = (x.responseJSON && x.responseJSON.error) ? x.responseJSON.error : 'Network error';
+                        $err.html('<div style="color:#b91c1c">' + msg + '</div>');
+                        $btn.prop('disabled', false).text(origLabel);
+                    }
+                });
+            });
+        });
+    })();
+    // ========== END BIKE STORAGE WIDGET ==========
+
 });
