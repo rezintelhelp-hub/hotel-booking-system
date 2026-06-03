@@ -181,11 +181,17 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
 
             case 'gallery':
                 $images = $section['images'] ?? array();
-                if (!empty($images)) : ?>
+                if (!empty($images)) :
+                    // Match videos / featured-rooms: exactly count(images)
+                    // columns, capped at 3. Mobile media query collapses to
+                    // 2 then 1.
+                    $gal_count = count($images);
+                    $gal_cols = $gal_count >= 3 ? 3 : max(1, $gal_count);
+                ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-gallery" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
                     <div style="max-width: <?php echo esc_attr($max_w); ?>; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
-                        <div class="gas-ps-gallery-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; justify-content: center;">
+                        <div class="gas-ps-gallery-grid" style="display: grid; grid-template-columns: repeat(<?php echo $gal_cols; ?>, 1fr); gap: 16px;">
                             <?php foreach ($images as $img) :
                                 $src = is_array($img) ? ($img['url'] ?? $img['src'] ?? '') : $img;
                                 $alt = is_array($img) ? ($img['alt'] ?? '') : '';
