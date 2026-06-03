@@ -113,6 +113,11 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
         $body = gas_ps_field($section, 'body', $lang);
         $id_attr = !empty($section['id']) ? ' id="' . esc_attr($section['id']) . '"' : '';
         $bg_col = !empty($section['background_color']) ? $section['background_color'] : '';
+        // Per-section content width — must be computed for EVERY section type
+        // (gallery / videos / cards / text), not just inside case 'text'.
+        // Stale value would leak between iterations if scoped per-case.
+        $content_width = $section['content_width'] ?? 'normal';
+        $max_w = $content_width === 'wide' ? '1100px' : ($content_width === 'full' ? '100%' : '800px');
 
         switch ($type) {
 
@@ -178,7 +183,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 $images = $section['images'] ?? array();
                 if (!empty($images)) : ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-gallery" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
-                    <div style="max-width: 1200px; margin: 0 auto;">
+                    <div style="max-width: <?php echo esc_attr($max_w); ?>; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                         <div class="gas-ps-gallery-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; justify-content: center;">
                             <?php foreach ($images as $img) :
@@ -196,7 +201,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 $cards = $section['cards'] ?? array();
                 if (!empty($cards)) : ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-cards" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
-                    <div style="max-width: 1200px; margin: 0 auto;">
+                    <div style="max-width: <?php echo esc_attr($max_w); ?>; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                         <div class="gas-ps-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px;">
                             <?php foreach ($cards as $card) : ?>

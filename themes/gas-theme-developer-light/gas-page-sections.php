@@ -105,6 +105,11 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
         $body = gas_ps_field($section, 'body', $lang);
         $id_attr = !empty($section['id']) ? ' id="' . esc_attr($section['id']) . '"' : '';
         $bg_col = !empty($section['background_color']) ? $section['background_color'] : '';
+        // Per-section content width — must be computed for EVERY section type
+        // (gallery / videos / cards / text), not just inside case 'text'.
+        // Stale value would leak between iterations if scoped per-case.
+        $content_width = $section['content_width'] ?? 'normal';
+        $max_w = $content_width === 'wide' ? '1100px' : ($content_width === 'full' ? '100%' : '800px');
 
         switch ($type) {
 
@@ -232,7 +237,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                     $vid_cols = $vid_count >= 3 ? 3 : $vid_count;
                 ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-videos" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
-                    <div style="max-width: 1200px; margin: 0 auto;">
+                    <div style="max-width: <?php echo esc_attr($max_w); ?>; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                         <div style="display: grid; grid-template-columns: repeat(<?php echo $vid_cols; ?>, 1fr); gap: 24px;">
                             <?php foreach ($videos as $vid) :
@@ -270,7 +275,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 $images = $section['images'] ?? array();
                 if (!empty($images)) : ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-gallery" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
-                    <div style="max-width: 1200px; margin: 0 auto;">
+                    <div style="max-width: <?php echo esc_attr($max_w); ?>; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                         <div class="gas-ps-gallery-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; justify-content: center;">
                             <?php foreach ($images as $img) :
@@ -288,7 +293,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 $cards = $section['items'] ?? $section['cards'] ?? array();
                 if (!empty($cards)) : ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-cards" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
-                    <div style="max-width: 1200px; margin: 0 auto;">
+                    <div style="max-width: <?php echo esc_attr($max_w); ?>; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 8px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                         <?php $cards_subtitle = gas_ps_field($section, 'subheading', $lang) ?: gas_ps_field($section, 'subtitle', $lang); if ($cards_subtitle) : ?>
                             <p style="color: #64748b; text-align: center; margin: 0 0 24px; font-size: 1rem; line-height: 1.6; max-width: 700px; margin-left: auto; margin-right: auto;"><?php echo esc_html($cards_subtitle); ?></p>
