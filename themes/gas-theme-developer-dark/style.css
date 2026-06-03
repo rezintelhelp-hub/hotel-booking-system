@@ -2003,3 +2003,25 @@ body:has(.gas-rooms-page-wrapper) .developer-page-content {
         right: auto;
     }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * GLOBAL HEADER CLEARANCE — plugin top-level page wrappers
+ * See gas-theme-developer-light/style.css for the full rationale.
+ * One-line summary: every plugin shortcode that owns the page (blog,
+ * attractions, reviews, properties, terms/privacy/impressum/about) shipped
+ * with padding-top:40px assuming the theme handled the menu clearance.
+ * The theme stopped doing that in April. This rule re-applies the 120px
+ * universally without touching any plugin code.
+ * ──────────────────────────────────────────────────────────────────── */
+.site-main > .gas-bp,
+.site-main > .gas-ap,
+.site-main > .gas-page,
+.site-main > .gas-reviews-wrap,
+.site-main > .gas-properties-wrap,
+main > .gas-bp,
+main > .gas-ap,
+main > .gas-page,
+main > .gas-reviews-wrap,
+main > .gas-properties-wrap {
+    padding-top: 120px !important;
+}

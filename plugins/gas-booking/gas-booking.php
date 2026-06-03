@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.36
+ * Version: 3.8.37
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.36');
+define('GAS_BOOKING_VERSION', '3.8.37');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -9025,7 +9025,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         ?>
         <div class="gas-page gas-about-page" translate="no">
             <style>
-                .gas-page { max-width: 800px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
+                .gas-page { max-width: 800px; margin: 0 auto; padding: 120px 20px 40px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; }
                 .gas-page-content h2, .gas-page-content h3 { color: #1e293b; margin-top: 32px; margin-bottom: 16px; }
@@ -9069,7 +9069,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         ?>
         <div class="gas-page gas-contact-page" translate="no">
             <style>
-                .gas-page { max-width: 900px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
+                .gas-page { max-width: 900px; margin: 0 auto; padding: 120px 20px 40px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; margin-bottom: 32px; }
                 .gas-contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
@@ -9130,7 +9130,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         ?>
         <div class="gas-page gas-terms-page" translate="no">
             <style>
-                .gas-page { max-width: 800px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
+                .gas-page { max-width: 800px; margin: 0 auto; padding: 120px 20px 40px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-page-content { font-size: 1rem; line-height: 1.8; color: #475569; }
                 .gas-page-content h2, .gas-page-content h3 { color: #1e293b; margin-top: 32px; margin-bottom: 16px; }
@@ -9153,7 +9153,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         ?>
         <div class="gas-page gas-privacy-page" translate="no">
             <style>
-                .gas-page { max-width: 800px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
+                .gas-page { max-width: 800px; margin: 0 auto; padding: 120px 20px 40px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-page-content { font-size: 1rem; line-height: 1.8; color: #475569; }
                 .gas-page-content h2, .gas-page-content h3 { color: #1e293b; margin-top: 32px; margin-bottom: 16px; }
@@ -9183,7 +9183,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 ?>
                 <div class="gas-page gas-impressum-page" translate="no">
                     <style>
-                        .gas-page { max-width: 800px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
+                        .gas-page { max-width: 800px; margin: 0 auto; padding: 120px 20px 40px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                         .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 32px; font-family: var(--gas-heading-font, inherit); }
                         .gas-page-content { font-size: 1rem; line-height: 1.8; color: #475569; }
                         .gas-page-content h2 { font-size: 1.5rem; color: #1e293b; margin: 2rem 0 1rem; font-weight: 700; }
@@ -9230,7 +9230,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         ?>
         <div class="gas-page gas-impressum-page" translate="no">
             <style>
-                .gas-page { max-width: 800px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
+                .gas-page { max-width: 800px; margin: 0 auto; padding: 120px 20px 40px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 32px; font-family: var(--gas-heading-font, inherit); }
                 .gas-impressum-section { margin-bottom: 28px; }
                 .gas-impressum-section h3 { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 8px; }
@@ -9651,7 +9651,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         ?>
         <div class="gas-page gas-dining-page" translate="no">
             <style>
-                .gas-page { max-width: 900px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
+                .gas-page { max-width: 900px; margin: 0 auto; padding: 120px 20px 40px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; }
                 .gas-page-content h2, .gas-page-content h3 { color: #1e293b; margin-top: 32px; margin-bottom: 16px; }
@@ -9682,7 +9682,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         ?>
         <div class="gas-page gas-properties-page" translate="no">
             <style>
-                .gas-page { max-width: 1200px; margin: 0 auto; padding: 40px 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
+                .gas-page { max-width: 1200px; margin: 0 auto; padding: 120px 20px 40px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; margin-bottom: 32px; }
                 .gas-properties-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 24px; }

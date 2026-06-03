@@ -2009,3 +2009,33 @@ body:has(.gas-rooms-page-wrapper) .developer-page-content {
         right: auto;
     }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * GLOBAL HEADER CLEARANCE — plugin top-level page wrappers
+ *
+ * The sticky menu header is ~80–100px tall. Plugin shortcodes that own
+ * the whole page (gas_blog, gas_attractions, gas_reviews, gas_properties,
+ * gas_terms/privacy/impressum/about) used to assume the theme provided
+ * the clearance and shipped with padding-top:40px. After April 2026 the
+ * theme stopped doing it. Every list/static page on every site tucked
+ * content under the menu.
+ *
+ * Until each plugin can be properly refactored to read a shared
+ * --gas-header-clearance custom property, this one CSS rule force-pads
+ * any direct-of-main plugin wrapper to 120px. Heroes are NOT in the
+ * selector list, so pages with a hero on top get their natural layout.
+ * The book-now / rooms-page-wrapper override above keeps its 20px because
+ * .gas-rooms-page-wrapper isn't in the list either.
+ * ──────────────────────────────────────────────────────────────────── */
+.site-main > .gas-bp,
+.site-main > .gas-ap,
+.site-main > .gas-page,
+.site-main > .gas-reviews-wrap,
+.site-main > .gas-properties-wrap,
+main > .gas-bp,
+main > .gas-ap,
+main > .gas-page,
+main > .gas-reviews-wrap,
+main > .gas-properties-wrap {
+    padding-top: 120px !important;
+}
