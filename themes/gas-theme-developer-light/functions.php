@@ -3589,54 +3589,70 @@ function developer_developer_custom_css() {
         $trans_decimal = intval($trans_opacity) / 100;
         $trans_mid = $trans_decimal * 0.43; // ~60% point
         echo '
-        /* Transparent header with gradient for readability */
+        /* Transparent header with gradient for readability.
+           Each rule targets THREE hero contexts:
+             .home  →  the homepage
+             body:has(.developer-page-hero)  →  Web-Builder special-page heroes
+             body:has(.gas-ps-hero-section)  →  Pro-Builder hero sections
+           All three put the menu over a dark hero image, so the white-text
+           treatment is identical. Pro Builder hero pages (like villa-lounge
+           /regions/) were previously falling through to broken base styles. */
         .home .developer-header,
         .developer-page-hero ~ .developer-header,
-        body:has(.developer-page-hero) .developer-header {
+        body:has(.developer-page-hero) .developer-header,
+        body:has(.gas-ps-hero-section) .developer-header {
             background: linear-gradient(to bottom, rgba(0,0,0,' . $trans_decimal . ') 0%, rgba(0,0,0,' . round($trans_mid, 2) . ') 60%, transparent 100%);
             backdrop-filter: none;' . ($header_border ? '' : '
             border-bottom: none;') . '
         }
-        
+
         .home .developer-header .developer-logo,
         .home .developer-header .developer-nav a,
         body:has(.developer-page-hero) .developer-header .developer-logo,
-        body:has(.developer-page-hero) .developer-header .developer-nav a {
+        body:has(.developer-page-hero) .developer-header .developer-nav a,
+        body:has(.gas-ps-hero-section) .developer-header .developer-logo,
+        body:has(.gas-ps-hero-section) .developer-header .developer-nav a {
             color: white;
             text-shadow: 0 1px 3px rgba(0,0,0,0.4);
         }
-        
+
         .home .developer-header .developer-menu-toggle span,
-        body:has(.developer-page-hero) .developer-header .developer-menu-toggle span {
+        body:has(.developer-page-hero) .developer-header .developer-menu-toggle span,
+        body:has(.gas-ps-hero-section) .developer-header .developer-menu-toggle span {
             background-color: white;
             box-shadow: 0 1px 2px rgba(0,0,0,0.2);
         }
-        
+
         .home .developer-header .developer-nav-cta,
-        body:has(.developer-page-hero) .developer-header .developer-nav-cta {
+        body:has(.developer-page-hero) .developer-header .developer-nav-cta,
+        body:has(.gas-ps-hero-section) .developer-header .developer-nav-cta {
             text-shadow: none;
         }
 
         .home .developer-header.scrolled,
-        body:has(.developer-page-hero) .developer-header.scrolled {
+        body:has(.developer-page-hero) .developer-header.scrolled,
+        body:has(.gas-ps-hero-section) .developer-header.scrolled {
             background: ' . esc_attr($header_bg) . ';
             box-shadow: 0 2px 20px rgba(0,0,0,0.08);
         }
-        
+
         .home .developer-header.scrolled .developer-logo,
-        body:has(.developer-page-hero) .developer-header.scrolled .developer-logo {
+        body:has(.developer-page-hero) .developer-header.scrolled .developer-logo,
+        body:has(.gas-ps-hero-section) .developer-header.scrolled .developer-logo {
             color: ' . esc_attr($header_solid_logo) . ';
             text-shadow: none;
         }
-        
+
         .home .developer-header.scrolled .developer-nav a,
-        body:has(.developer-page-hero) .developer-header.scrolled .developer-nav a {
+        body:has(.developer-page-hero) .developer-header.scrolled .developer-nav a,
+        body:has(.gas-ps-hero-section) .developer-header.scrolled .developer-nav a {
             color: ' . esc_attr($header_solid_text) . ';
             text-shadow: none;
         }
-        
+
         .home .developer-header.scrolled .developer-menu-toggle span,
-        body:has(.developer-page-hero) .developer-header.scrolled .developer-menu-toggle span {
+        body:has(.developer-page-hero) .developer-header.scrolled .developer-menu-toggle span,
+        body:has(.gas-ps-hero-section) .developer-header.scrolled .developer-menu-toggle span {
             background-color: ' . esc_attr($header_solid_text) . ';
             box-shadow: none;
         }
@@ -3646,19 +3662,23 @@ function developer_developer_custom_css() {
             display: none;
         }
         .home .developer-header .developer-logo-default.has-light-variant,
-        body:has(.developer-page-hero) .developer-header .developer-logo-default.has-light-variant {
+        body:has(.developer-page-hero) .developer-header .developer-logo-default.has-light-variant,
+        body:has(.gas-ps-hero-section) .developer-header .developer-logo-default.has-light-variant {
             display: none;
         }
         .home .developer-header .developer-logo-light,
-        body:has(.developer-page-hero) .developer-header .developer-logo-light {
+        body:has(.developer-page-hero) .developer-header .developer-logo-light,
+        body:has(.gas-ps-hero-section) .developer-header .developer-logo-light {
             display: inline-block;
         }
         .home .developer-header.scrolled .developer-logo-default.has-light-variant,
-        body:has(.developer-page-hero) .developer-header.scrolled .developer-logo-default.has-light-variant {
+        body:has(.developer-page-hero) .developer-header.scrolled .developer-logo-default.has-light-variant,
+        body:has(.gas-ps-hero-section) .developer-header.scrolled .developer-logo-default.has-light-variant {
             display: inline-block;
         }
         .home .developer-header.scrolled .developer-logo-light,
-        body:has(.developer-page-hero) .developer-header.scrolled .developer-logo-light {
+        body:has(.developer-page-hero) .developer-header.scrolled .developer-logo-light,
+        body:has(.gas-ps-hero-section) .developer-header.scrolled .developer-logo-light {
             display: none;
         }
 
