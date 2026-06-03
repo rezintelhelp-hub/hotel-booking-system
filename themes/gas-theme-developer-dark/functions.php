@@ -3089,6 +3089,18 @@ function developer_developer_custom_css() {
             $header_solid_logo = $bg_luminance > 0.5 ? '#0f172a' : '#ffffff';
         }
     }
+
+    // No-hero pages need a SOLID background — zero-alpha fallback to white.
+    // See gas-theme-developer-light/functions.php for full rationale.
+    $header_no_hero_bg   = $header_bg;
+    $header_no_hero_logo = $header_solid_logo;
+    $header_no_hero_text = $header_solid_text;
+    $bg_clean = ltrim($header_bg, '#');
+    if (strlen($bg_clean) === 8 && strtolower(substr($bg_clean, -2)) === '00') {
+        $header_no_hero_bg   = '#ffffff';
+        $header_no_hero_logo = '#0f172a';
+        $header_no_hero_text = '#1e293b';
+    }
     
     // Section backgrounds
     $featured_bg = get_theme_mod('developer_featured_bg', '#ffffff');
@@ -3401,6 +3413,37 @@ function developer_developer_custom_css() {
         .home .developer-header.scrolled .developer-logo-light,
         body:has(.developer-page-hero) .developer-header.scrolled .developer-logo-light {
             display: none;
+        }
+
+        /* No-hero pages (book-now, regions, custom pages without a hero block):
+           force the same SOLID styles the header uses when scrolled so the
+           operator base colours (often white logo + dark nav, chosen for
+           over-hero use) do not clash with plain page backgrounds. Same fix
+           lives in gas-theme-developer-light/functions.php. */
+        body:not(.home):not(:has(.developer-page-hero)):not(:has(.gas-ps-hero-section)) .developer-header {
+            background: ' . esc_attr($header_no_hero_bg) . ';
+            box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+        }
+        body:not(.home):not(:has(.developer-page-hero)):not(:has(.gas-ps-hero-section)) .developer-header .developer-logo {
+            color: ' . esc_attr($header_no_hero_logo) . ';
+            text-shadow: none;
+        }
+        body:not(.home):not(:has(.developer-page-hero)):not(:has(.gas-ps-hero-section)) .developer-header .developer-nav a {
+            color: ' . esc_attr($header_no_hero_text) . ';
+            text-shadow: none;
+        }
+        body:not(.home):not(:has(.developer-page-hero)):not(:has(.gas-ps-hero-section)) .developer-header .developer-menu-toggle span {
+            background-color: ' . esc_attr($header_no_hero_text) . ';
+            box-shadow: none;
+        }
+        body:not(.home):not(:has(.developer-page-hero)):not(:has(.gas-ps-hero-section)) .developer-header .developer-lang-current {
+            color: ' . esc_attr($header_no_hero_text) . ';
+        }
+        body:not(.home):not(:has(.developer-page-hero)):not(:has(.gas-ps-hero-section)) .developer-header .developer-logo-light {
+            display: none;
+        }
+        body:not(.home):not(:has(.developer-page-hero)):not(:has(.gas-ps-hero-section)) .developer-header .developer-logo-default.has-light-variant {
+            display: inline-block;
         }';
     }
     
