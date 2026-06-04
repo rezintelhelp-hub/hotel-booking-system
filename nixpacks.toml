@@ -3,5 +3,27 @@
 # server.js shells out to `ssh` and `scp` for custom-domain auto-provisioning
 # (nginx vhost + Let's Encrypt cert + WP multisite mapping on the VPS).
 # Railway's default Node image doesn't include OpenSSH, so we install it here.
+#
+# Chromium system libraries needed by @sparticuz/chromium (used by the invoice
+# PDF endpoint GET /api/bookings/:id/invoice.pdf). Without these the binary
+# fails to launch with "libnspr4.so: cannot open shared object file". List
+# matches Debian/Ubuntu's puppeteer install-deps recommendation.
 [phases.setup]
-aptPkgs = ["openssh-client"]
+aptPkgs = [
+    "openssh-client",
+    "libnss3",
+    "libnspr4",
+    "libatk1.0-0",
+    "libatk-bridge2.0-0",
+    "libcups2",
+    "libdrm2",
+    "libxkbcommon0",
+    "libxcomposite1",
+    "libxdamage1",
+    "libxfixes3",
+    "libxrandr2",
+    "libgbm1",
+    "libpango-1.0-0",
+    "libcairo2",
+    "libasound2"
+]
