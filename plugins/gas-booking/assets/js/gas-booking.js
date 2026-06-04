@@ -6801,8 +6801,16 @@ jQuery(document).ready(function($) {
 
             var $form = $('#gas-guest-form');
 
-            // Ensure deposit amount is calculated
-            if (!checkoutData.depositAmount && checkoutData.grandTotal) {
+            // Always recompute deposit from the live grandTotal at submit
+            // time. The previous "if (!checkoutData.depositAmount)" short-
+            // circuit meant any earlier computation (e.g. card option
+            // selected before mandatory upsells were auto-added in
+            // renderCheckoutUpsells) locked the deposit at the stale value
+            // and Stripe charged it. Cotswolds GAS-179271 / Beds24
+            // 87822641 (2026-06-04) collected £554 instead of £653
+            // because of that. Server-side enforcement in
+            // /api/public/calculate-price now backstops this too.
+            if (checkoutData.grandTotal) {
                 var total = checkoutData.grandTotal;
                 var depositAmount = total;
                 var balanceAmount = 0;
@@ -6836,7 +6844,7 @@ jQuery(document).ready(function($) {
 
                 checkoutData.depositAmount = depositAmount;
                 checkoutData.balanceAmount = balanceAmount;
-                console.log('Calculated deposit:', depositAmount, 'balance:', balanceAmount);
+                console.log('Recalculated deposit at submit:', depositAmount, 'balance:', balanceAmount, '(grandTotal:', total + ')');
             }
 
             // If deposit is 0 (deferred payment), create SetupIntent to save card for later charge
