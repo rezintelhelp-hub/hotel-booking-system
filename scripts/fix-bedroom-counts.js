@@ -98,7 +98,7 @@ const APPLY = process.argv.includes('--apply');
         AND name NOT ILIKE '%lounge%'
       GROUP BY room_id
     ) sub
-    WHERE bu.id = sub.room_id
+    WHERE bu.id = sub.room_id AND sub.count > 0
   `);
 
   // Sync single-unit properties
@@ -114,6 +114,7 @@ const APPLY = process.argv.includes('--apply');
     ) sub
     WHERE bu.property_id = sub.property_id
       AND bu.status IN ('active','available')
+      AND sub.count > 0
   `);
 
   console.log(`Updated ${directSync.rowCount} room-linked units and ${singleSync.rowCount} property-level units.\n`);
