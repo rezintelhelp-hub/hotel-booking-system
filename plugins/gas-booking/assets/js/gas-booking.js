@@ -6503,11 +6503,19 @@ jQuery(document).ready(function($) {
                     $('.gas-card-guarantee-note').remove();
                 }
 
-                // Calculate deposit amount
+                // Calculate deposit amount.
+                // Voucher is a payment instrument, not a rate discount — it
+                // reduces what the guest still owes, not the deposit. Compute
+                // deposit on the PRE-voucher base; voucher comes off the
+                // balance. If deposit > guest's actual total (e.g. 100%
+                // non-refundable + voucher), cap so we never charge more
+                // than the post-voucher total.
                 var total = checkoutData.grandTotal || 0;
+                var voucherDiscount = parseFloat(checkoutData.voucherDiscount) || 0;
+                var depositBase = total + voucherDiscount;
                 var depositAmount = total;
                 var balanceAmount = 0;
-                
+
                 if (checkoutData.depositRule) {
                     var rule = checkoutData.depositRule;
                     if (rule.schedule_mode === 'schedule' && rule.payment_schedule && Array.isArray(rule.payment_schedule)) {
@@ -6521,18 +6529,16 @@ jQuery(document).ready(function($) {
                             var hasPassed = !isAtBooking && daysUntil <= tier.days_before;
                             if (isAtBooking || hasPassed) chargeNowPct += parseFloat(tier.percentage) || 0;
                         });
-                        depositAmount = total * (chargeNowPct / 100);
-                        balanceAmount = total - depositAmount;
+                        depositAmount = depositBase * (chargeNowPct / 100);
                     } else if (rule.deposit_type === 'percentage') {
-                        depositAmount = total * (rule.deposit_percentage / 100);
-                        balanceAmount = total - depositAmount;
+                        depositAmount = depositBase * (rule.deposit_percentage / 100);
                     } else if (rule.deposit_type === 'fixed') {
-                        depositAmount = parseFloat(rule.deposit_fixed_amount) || total;
-                        balanceAmount = total - depositAmount;
+                        depositAmount = parseFloat(rule.deposit_fixed_amount) || depositBase;
                     } else if (rule.deposit_type === 'first_night') {
-                        depositAmount = checkoutData.pricing?.base_rate || total;
-                        balanceAmount = total - depositAmount;
+                        depositAmount = checkoutData.pricing?.base_rate || depositBase;
                     }
+                    if (depositAmount > total) depositAmount = total;
+                    balanceAmount = total - depositAmount;
                 }
 
                 checkoutData.depositAmount = depositAmount;
