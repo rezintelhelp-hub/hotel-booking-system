@@ -7177,6 +7177,23 @@ jQuery(document).ready(function($) {
             if (evtConf && parseFloat(evtConf.amount) > 0) {
                 extrasParts.push('<div class="gas-conf-extra-box"><span class="extra-name">🎟 ' + escapeHtml(evtConf.name || 'Event ticket') + '</span><span class="extra-price">' + formatPrice(parseFloat(evtConf.amount), currency) + '</span></div>');
             }
+            // Offer + voucher discounts so the guest sees why Total < Accommodation
+            // + Extras. Mirrors the breakdown the email and admin booking view
+            // both show. Without these the receipt looked like the discounts
+            // had been silently dropped (Tracey, Cotswolds 2026-06-06).
+            var bdConf = checkoutData.gasBreakdown || {};
+            var offerDisc = parseFloat(bdConf.offer_discount) || 0;
+            var voucherDisc = parseFloat(checkoutData.voucherDiscount) || 0;
+            if (offerDisc > 0) {
+                var offerName = (bdConf.offer_applied && bdConf.offer_applied.name) ? bdConf.offer_applied.name : '';
+                var offerLabel = offerName ? ('Offer: ' + offerName) : 'Offer Discount';
+                extrasParts.push('<div class="gas-conf-extra-box gas-conf-discount-line"><span class="extra-name" style="color:#16a34a;">' + escapeHtml(offerLabel) + '</span><span class="extra-price" style="color:#16a34a;">-' + formatPrice(offerDisc, currency) + '</span></div>');
+            }
+            if (voucherDisc > 0) {
+                var voucherCode = checkoutData.voucherCode || (checkoutData.voucher && checkoutData.voucher.code) || '';
+                var voucherLabel = voucherCode ? ('Voucher: ' + voucherCode) : 'Voucher Discount';
+                extrasParts.push('<div class="gas-conf-extra-box gas-conf-discount-line"><span class="extra-name" style="color:#16a34a;">' + escapeHtml(voucherLabel) + '</span><span class="extra-price" style="color:#16a34a;">-' + formatPrice(voucherDisc, currency) + '</span></div>');
+            }
             if (extrasParts.length > 0) {
                 $('.gas-conf-extras-list').html('<div class="gas-conf-extras-title">Extras</div>' + extrasParts.join('')).show();
             }
@@ -7347,6 +7364,20 @@ jQuery(document).ready(function($) {
                         var evtConf2 = checkoutData.pricing && checkoutData.pricing.event_ticket;
                         if (evtConf2 && parseFloat(evtConf2.amount) > 0) {
                             extrasParts2.push('<div class="gas-conf-extra-box"><span class="extra-name">🎟 ' + escapeHtml(evtConf2.name || 'Event ticket') + '</span><span class="extra-price">' + formatPrice(parseFloat(evtConf2.amount), currency) + '</span></div>');
+                        }
+                        // Offer + voucher discounts — mirrors the receipt + email.
+                        var bdConf2 = checkoutData.gasBreakdown || {};
+                        var offerDisc2 = parseFloat(bdConf2.offer_discount) || 0;
+                        var voucherDisc2 = parseFloat(checkoutData.voucherDiscount) || 0;
+                        if (offerDisc2 > 0) {
+                            var offerName2 = (bdConf2.offer_applied && bdConf2.offer_applied.name) ? bdConf2.offer_applied.name : '';
+                            var offerLabel2 = offerName2 ? ('Offer: ' + offerName2) : 'Offer Discount';
+                            extrasParts2.push('<div class="gas-conf-extra-box gas-conf-discount-line"><span class="extra-name" style="color:#16a34a;">' + escapeHtml(offerLabel2) + '</span><span class="extra-price" style="color:#16a34a;">-' + formatPrice(offerDisc2, currency) + '</span></div>');
+                        }
+                        if (voucherDisc2 > 0) {
+                            var voucherCode2 = checkoutData.voucherCode || (checkoutData.voucher && checkoutData.voucher.code) || '';
+                            var voucherLabel2 = voucherCode2 ? ('Voucher: ' + voucherCode2) : 'Voucher Discount';
+                            extrasParts2.push('<div class="gas-conf-extra-box gas-conf-discount-line"><span class="extra-name" style="color:#16a34a;">' + escapeHtml(voucherLabel2) + '</span><span class="extra-price" style="color:#16a34a;">-' + formatPrice(voucherDisc2, currency) + '</span></div>');
                         }
                         if (extrasParts2.length > 0) {
                             $('.gas-conf-extras-list').html('<div class="gas-conf-extras-title">Extras</div>' + extrasParts2.join('')).show();
