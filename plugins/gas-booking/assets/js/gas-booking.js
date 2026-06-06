@@ -6972,10 +6972,38 @@ jQuery(document).ready(function($) {
                     (checkoutData.selectedUpsells || []).forEach(function(u) {
                         var total = calculateUpsellItemTotal(u);
                         upsellsTotal += total;
-                        upsellsBreakdown.push({ name: u.name, quantity: u.quantity || 1, total: total });
+                        // Include id + unit_price so the server can persist a
+                        // proper booking_extras row (source_id, unit_price)
+                        // and Beds24 receives the per-unit amount instead of
+                        // multiplying the line total by qty.
+                        upsellsBreakdown.push({
+                            id: u.id,
+                            name: u.name,
+                            quantity: u.quantity || 1,
+                            unit_price: parseFloat(u.price) || 0,
+                            total: total
+                        });
                     });
                     bd.upsells_breakdown = upsellsBreakdown;
                     bd.upsells_total = upsellsTotal;
+                    // Voucher discount + voucher metadata. Without these the
+                    // server's Beds24 invoiceItems push (server.js:80693)
+                    // never emits a negative voucher line, so Beds24 shows
+                    // a total that's higher than what the guest was charged
+                    // (Cotswolds 2026-06-06: TWINS 15% £81 not landing on
+                    // the invoice). voucher_discount is the £ amount the
+                    // checkout already deducted; voucher_applied carries
+                    // the code + name for the line description.
+                    bd.voucher_discount = parseFloat(checkoutData.voucherDiscount) || 0;
+                    if (checkoutData.voucher) {
+                        bd.voucher_applied = {
+                            code: checkoutData.voucherCode || (checkoutData.voucher && checkoutData.voucher.code) || '',
+                            name: (checkoutData.voucher && checkoutData.voucher.name) || '',
+                            voucher_type: (checkoutData.voucher && checkoutData.voucher.voucher_type) || 'discount',
+                            discount_type: (checkoutData.voucher && checkoutData.voucher.discount_type) || 'percentage',
+                            discount_value: (checkoutData.voucher && checkoutData.voucher.discount_value) || 0
+                        };
+                    }
                     return bd;
                 })()
             };
@@ -7222,10 +7250,38 @@ jQuery(document).ready(function($) {
                     (checkoutData.selectedUpsells || []).forEach(function(u) {
                         var total = calculateUpsellItemTotal(u);
                         upsellsTotal += total;
-                        upsellsBreakdown.push({ name: u.name, quantity: u.quantity || 1, total: total });
+                        // Include id + unit_price so the server can persist a
+                        // proper booking_extras row (source_id, unit_price)
+                        // and Beds24 receives the per-unit amount instead of
+                        // multiplying the line total by qty.
+                        upsellsBreakdown.push({
+                            id: u.id,
+                            name: u.name,
+                            quantity: u.quantity || 1,
+                            unit_price: parseFloat(u.price) || 0,
+                            total: total
+                        });
                     });
                     bd.upsells_breakdown = upsellsBreakdown;
                     bd.upsells_total = upsellsTotal;
+                    // Voucher discount + voucher metadata. Without these the
+                    // server's Beds24 invoiceItems push (server.js:80693)
+                    // never emits a negative voucher line, so Beds24 shows
+                    // a total that's higher than what the guest was charged
+                    // (Cotswolds 2026-06-06: TWINS 15% £81 not landing on
+                    // the invoice). voucher_discount is the £ amount the
+                    // checkout already deducted; voucher_applied carries
+                    // the code + name for the line description.
+                    bd.voucher_discount = parseFloat(checkoutData.voucherDiscount) || 0;
+                    if (checkoutData.voucher) {
+                        bd.voucher_applied = {
+                            code: checkoutData.voucherCode || (checkoutData.voucher && checkoutData.voucher.code) || '',
+                            name: (checkoutData.voucher && checkoutData.voucher.name) || '',
+                            voucher_type: (checkoutData.voucher && checkoutData.voucher.voucher_type) || 'discount',
+                            discount_type: (checkoutData.voucher && checkoutData.voucher.discount_type) || 'percentage',
+                            discount_value: (checkoutData.voucher && checkoutData.voucher.discount_value) || 0
+                        };
+                    }
                     return bd;
                 })(),
                 damage_deposit: checkoutData.damageDeposit || null,
