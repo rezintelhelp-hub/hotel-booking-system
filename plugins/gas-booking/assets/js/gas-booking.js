@@ -2695,10 +2695,17 @@ jQuery(document).ready(function($) {
                 if (response.success && response.offers && response.offers.length > 0) {
                     // Show generic banner (specific offer shown in rate options)
                     $('.gas-offers-banner').show();
-                    
+
                     // Store offers for rate selection
                     $roomWidget.data('available-offers', response.offers);
-                    $roomWidget.data('active-offer', response.offers[0]);
+                    // Do NOT auto-select the first offer. Standard rate is the
+                    // page-load default (rate card has .selected class). The
+                    // user explicitly picks an offer by clicking its card.
+                    // Cotswolds 2026-06-08: auto-selecting offers[0] meant
+                    // bookings inherited "Non Cancellable" silently when the
+                    // user thought they had Standard. URL carried offer_id,
+                    // checkout applied it, refund_policy wrong.
+                    $roomWidget.data('active-offer', null);
                 } else {
                     $('.gas-offers-banner').hide();
                     $roomWidget.data('available-offers', []);
