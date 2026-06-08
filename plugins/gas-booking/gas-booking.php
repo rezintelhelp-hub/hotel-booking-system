@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.44
+ * Version: 3.8.45
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.44');
+define('GAS_BOOKING_VERSION', '3.8.45');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -6903,6 +6903,20 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             <?php endif; ?>
                             <div class="gas-room-details">
                                 <h3><?php echo esc_html($card_display_name); ?></h3>
+                                <?php
+                                    // Operator-typed reference code: show "Ref: {code}"
+                                    // under the title when the per-unit or per-property
+                                    // toggle is on. Per-unit wins over per-property.
+                                    $room_show_ref  = !empty($room['show_reference']);
+                                    $room_ref_code  = isset($room['reference_code']) ? trim((string)$room['reference_code']) : '';
+                                    $prop_show_ref  = !empty($room['property_show_reference']);
+                                    $prop_ref_code  = isset($room['property_reference_code']) ? trim((string)$room['property_reference_code']) : '';
+                                    $eff_ref = ($room_show_ref && $room_ref_code !== '') ? $room_ref_code
+                                             : (($prop_show_ref && $prop_ref_code !== '') ? $prop_ref_code : '');
+                                    if ($eff_ref !== '') :
+                                ?>
+                                <div class="gas-room-reference" style="font-size:0.8rem;color:#94a3b8;margin-top:-0.15rem;margin-bottom:0.4rem;">Ref: <?php echo esc_html($eff_ref); ?></div>
+                                <?php endif; ?>
                                 <?php if (!empty($card_location_line)) : ?>
                                 <div class="gas-room-property">📍 <?php echo esc_html($card_location_line); ?></div>
                                 <?php endif; ?>
