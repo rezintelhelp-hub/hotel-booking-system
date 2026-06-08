@@ -1382,9 +1382,19 @@ jQuery(document).ready(function($) {
         var currency = resolveCurrency(room.currency);
         occSettings = occSettings || {};
         
-        // Set title and location - prefer display_name over internal name
+        // Set title and location - prefer display_name over internal name.
+        // When the operator has set show_internal_name_in_brackets on the
+        // room AND the display name differs from the internal name, render
+        // the internal name as a small grey subtitle so operators can find
+        // the right unit when a guest emails. Off by default. EasyStays
+        // 2026-06-08: "L Aïna Port Ambonne (Aïna PA 316)" pattern.
         var roomTitle = extractText(room.display_name) || room.name;
         $('.gas-room-title').text(roomTitle);
+        var $titleEl = $('.gas-room-title');
+        $titleEl.next('.gas-room-internal-ref').remove();
+        if (room.show_internal_name_in_brackets && room.name && room.name !== roomTitle) {
+            $titleEl.after('<div class="gas-room-internal-ref" style="font-size:0.85rem;color:#94a3b8;margin-top:-0.15rem;margin-bottom:0.5rem;">(' + String(room.name).replace(/[<>&"]/g, function(ch){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[ch];}) + ')</div>');
+        }
         var locCity = (room.city || '').trim();
         var locState = (room.state || '').trim();
         var locLine = locCity && locState ? locCity + ', ' + locState : (locCity || locState || '');
