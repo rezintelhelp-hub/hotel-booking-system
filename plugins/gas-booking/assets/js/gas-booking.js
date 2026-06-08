@@ -1385,6 +1385,20 @@ jQuery(document).ready(function($) {
         // Set title and location - prefer display_name over internal name
         var roomTitle = extractText(room.display_name) || room.name;
         $('.gas-room-title').text(roomTitle);
+        // Operator-typed reference code, rendered as small "Ref: {code}"
+        // under the title when show_reference is true. Per-unit reference
+        // wins over property-level. Off by default. EasyLandlord 2026-06-08:
+        // operators put their Beds24 room id (459155 etc.) here so they can
+        // find the right unit when guests reference it in support emails.
+        var $titleEl = $('.gas-room-title');
+        $titleEl.next('.gas-room-reference').remove();
+        var refCode = (room.show_reference && room.reference_code)
+            ? room.reference_code
+            : ((room.property_show_reference && room.property_reference_code) ? room.property_reference_code : null);
+        if (refCode) {
+            var escRef = String(refCode).replace(/[<>&"]/g, function(ch){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[ch];});
+            $titleEl.after('<div class="gas-room-reference" style="font-size:0.8rem;color:#94a3b8;margin-top:-0.15rem;margin-bottom:0.5rem;letter-spacing:0.02em;">Ref: ' + escRef + '</div>');
+        }
         var locCity = (room.city || '').trim();
         var locState = (room.state || '').trim();
         var locLine = locCity && locState ? locCity + ', ' + locState : (locCity || locState || '');
