@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.45
+ * Version: 3.8.46
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.45');
+define('GAS_BOOKING_VERSION', '3.8.46');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5603,6 +5603,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $all_locations = array();
         $all_properties = array();
         $property_display_names = array();
+        $property_references = array(); // per-property reference code shown in dropdown
         foreach ($rooms as $room) {
             // Location = geographic area (city or district)
             $city = $room['city'] ?? '';
@@ -5618,10 +5619,25 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 $display = trim($this->extract_display_text($room['display_name'] ?? ''));
                 if (empty($display)) $display = $room['name'] ?? $prop_name;
                 $property_display_names[$prop_name] = $display;
+                // Capture reference code if operator opted in for this room
+                // OR for its property. Per-unit wins over per-property. Multi-
+                // unit properties use whichever room is encountered first —
+                // operators with multi-unit properties should set the
+                // reference at the property level for consistency.
+                $room_ref = !empty($room['show_reference']) && !empty($room['reference_code']) ? $room['reference_code'] : '';
+                $prop_ref = !empty($room['property_show_reference']) && !empty($room['property_reference_code']) ? $room['property_reference_code'] : '';
+                $property_references[$prop_name] = $room_ref !== '' ? $room_ref : $prop_ref;
             }
         }
         sort($all_locations);
-        sort($all_properties);
+        // Sort by the visible display name (case-insensitive), not by the
+        // underlying property_name — operators see SEO-friendly names but
+        // sort was previously on the internal field, so the dropdown looked
+        // unordered. EasyLandlord 2026-06-08: "C..." display names appearing
+        // mid-list because their property names were "Floriana...", "Sliema...".
+        usort($all_properties, function($a, $b) use ($property_display_names) {
+            return strcasecmp($property_display_names[$a] ?? $a, $property_display_names[$b] ?? $b);
+        });
         
         // Determine layout based on room count
         // On the homepage (featured section), always use grid layout
@@ -6557,12 +6573,17 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             </div>
             <?php endif; ?>
             <?php if ($show_property_filter && count($all_properties) > 1) : ?>
-            <div class="gas-filter-field">
+            <div class="gas-filter-field gas-filter-field-property" style="flex: 2; min-width: 260px;">
                 <label><?php echo esc_html($t_filters['property'] ?? 'Accommodation'); ?></label>
-                <select class="gas-filter-property" onchange="gasApplyFilters()">
+                <select class="gas-filter-property" onchange="gasApplyFilters()" style="width: 100%; min-width: 260px;">
                     <option value=""><?php echo esc_html($t_filters['all_properties'] ?? 'All Accommodation'); ?></option>
-                    <?php foreach ($all_properties as $prop_name) : ?>
-                    <option value="<?php echo esc_attr($prop_name); ?>"><?php echo esc_html($property_display_names[$prop_name] ?? $prop_name); ?></option>
+                    <?php foreach ($all_properties as $prop_name) :
+                        $opt_label = $property_display_names[$prop_name] ?? $prop_name;
+                        if (!empty($property_references[$prop_name])) {
+                            $opt_label .= '  (Ref: ' . $property_references[$prop_name] . ')';
+                        }
+                    ?>
+                    <option value="<?php echo esc_attr($prop_name); ?>"><?php echo esc_html($opt_label); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
