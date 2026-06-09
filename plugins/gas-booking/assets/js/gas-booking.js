@@ -2628,13 +2628,17 @@ jQuery(document).ready(function($) {
             $('.gas-occupancy-row').hide();
         }
         
-        // Listing-card breakdown does NOT show extras — they're added at
-        // the checkout step (step 2) where the guest can actually pick
-        // them. Showing "+ $X" here while leaving Total unchanged read
-        // as a bug to the guest: "why is the +$134 not in my total?".
-        // Hide unconditionally so the breakdown only contains figures
-        // that ARE in the total.
-        $('.gas-upsells-row').hide();
+        // Show MANDATORY upsells (e.g. Cleaning Fee) in the room-widget
+        // breakdown AND include them in the displayed Total so the figure
+        // matches what the listing card / Book Now button show, and what
+        // the guest will actually pay. Optional extras are still picked
+        // at checkout step 2 — only mandatory ones land here.
+        if (upsellsTotal > 0) {
+            $('.gas-upsells-row').show();
+            $('.gas-upsells-total').text('+' + formatPrice(upsellsTotal, currency));
+        } else {
+            $('.gas-upsells-row').hide();
+        }
         
         $('.gas-offer-row').hide();
         
@@ -2645,11 +2649,15 @@ jQuery(document).ready(function($) {
             $('.gas-voucher-row').hide();
         }
         
-        // Use accommodationTotal only for widget display - extras/tax added at checkout
-        var widgetTotal = accommodationTotal - voucherDiscount;
+        // Widget total INCLUDES mandatory upsells (e.g. Cleaning Fee) so
+        // the figure matches the listing-card / Book Now headline that
+        // the guest just clicked through from. Optional extras still get
+        // added at checkout step 2. Tax is added at checkout (varies by
+        // jurisdiction; we don't pre-calculate it here).
+        var widgetTotal = accommodationTotal + upsellsTotal - voucherDiscount;
         $('.gas-total-price').text(formatPrice(widgetTotal, currency));
         $('.gas-price-breakdown').show();
-        
+
         $roomWidget.data('total-price', widgetTotal);
         $roomWidget.data('standard-total', widgetTotal); // Also set standard-total for button
     }
