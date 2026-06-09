@@ -3261,9 +3261,12 @@ jQuery(document).ready(function($) {
                             // 30% Last-Min offer drops £320 → £224), but a Canadian property's
                             // 13% HST + Municipal Accommodation Tax stop adding ~$80 to every
                             // card. Taxes get revealed in the booking detail / checkout view.
-                            var standardTotal = response.subtotal != null
-                                ? response.subtotal
-                                : (response.accommodation_total || 0);
+                            // Listing-card headline = ACCOMMODATION ONLY (matches
+                            // the room widget header + the pricing grid).
+                            // response.subtotal includes mandatory upsells
+                            // (Cleaning Fee etc.) which would put the card
+                            // at e.g. $411 while the widget says $277.
+                            var standardTotal = response.accommodation_total || 0;
 
                             // Pick the lowest "from" price across every eligible
                             // offer in all_offers (excluding agent-tier rates).
