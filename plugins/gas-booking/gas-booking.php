@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.60
+ * Version: 3.8.61
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.60');
+define('GAS_BOOKING_VERSION', '3.8.61');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5794,10 +5794,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-date-filter .gas-filter-field:last-of-type {
             max-width: 140px !important;
         }
-        /* Stack the whole bar to a column on anything narrower than ~1000px so the
-           check-in / check-out / guests fields can't physically overlap when the
-           theme constrains the parent container width (Atlantis 2026-06-09). */
-        @media (max-width: 1000px) {
+        /* Stack the whole bar to a column at <= 1200px so the inputs never
+           physically overlap when the theme container is constrained
+           (Atlantis 2026-06-09). 7 fields × 140px + property field 260px +
+           gaps ≈ 1170px minimum, so we collapse just above that. */
+        @media (max-width: 1200px) {
             .gas-date-filter {
                 flex-direction: column !important;
                 align-items: stretch !important;
@@ -5809,6 +5810,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 min-width: 0 !important;
                 max-width: 100% !important;
                 width: 100% !important;
+            }
+            .gas-date-filter .gas-filter-btn {
+                width: 100% !important;
+                margin-top: 4px !important;
             }
         }
         .gas-date-filter label {

@@ -2357,10 +2357,10 @@ jQuery(document).ready(function($) {
                         occupancyLabel = response.occupancy_label || 'Guest adjustment';
                     }
                     
-                    // Header price = accommodation + mandatory upsells so it
-                    // matches the breakdown's Total Price below and the
-                    // listing-card / Book Now headline guests just clicked.
-                    $('.gas-price-amount').text(formatPriceShort(accommodationTotal + upsellsTotal, currency));
+                    // Header = pure accommodation (matches the Pricing Grid
+                    // standard rate × nights). Cleaning fee + extras are
+                    // shown as separate line items in the breakdown.
+                    $('.gas-price-amount').text(formatPriceShort(accommodationTotal, currency));
                     $('.gas-price-period').text(nights + ' ' + (nights > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night')));
                     
                     // Show occupancy adjustment note if applicable
@@ -2630,17 +2630,11 @@ jQuery(document).ready(function($) {
             $('.gas-occupancy-row').hide();
         }
         
-        // Show MANDATORY upsells (e.g. Cleaning Fee) in the room-widget
-        // breakdown AND include them in the displayed Total so the figure
-        // matches what the listing card / Book Now button show, and what
-        // the guest will actually pay. Optional extras are still picked
-        // at checkout step 2 — only mandatory ones land here.
-        if (upsellsTotal > 0) {
-            $('.gas-upsells-row').show();
-            $('.gas-upsells-total').text('+' + formatPrice(upsellsTotal, currency));
-        } else {
-            $('.gas-upsells-row').hide();
-        }
+        // Don't show extras on the room widget. Pricing grid is the
+        // source of truth for what the headline price represents —
+        // accommodation only. Cleaning Fee + optional extras are added
+        // as separate line items at checkout step 2.
+        $('.gas-upsells-row').hide();
         
         $('.gas-offer-row').hide();
         
@@ -2651,12 +2645,10 @@ jQuery(document).ready(function($) {
             $('.gas-voucher-row').hide();
         }
         
-        // Widget total INCLUDES mandatory upsells (e.g. Cleaning Fee) so
-        // the figure matches the listing-card / Book Now headline that
-        // the guest just clicked through from. Optional extras still get
-        // added at checkout step 2. Tax is added at checkout (varies by
-        // jurisdiction; we don't pre-calculate it here).
-        var widgetTotal = accommodationTotal + upsellsTotal - voucherDiscount;
+        // Widget total = accommodation only (matches the pricing grid).
+        // Cleaning fee + optional extras + tax are added at checkout
+        // step 2 where the guest sees the full breakdown.
+        var widgetTotal = accommodationTotal - voucherDiscount;
         $('.gas-total-price').text(formatPrice(widgetTotal, currency));
         $('.gas-price-breakdown').show();
 
