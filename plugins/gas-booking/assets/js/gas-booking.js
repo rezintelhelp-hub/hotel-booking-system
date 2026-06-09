@@ -2512,6 +2512,8 @@ jQuery(document).ready(function($) {
 
         // Each offer as a selectable rate
         var firstOffer = true;
+        var autoSelectedOfferTotal = null;
+        var autoSelectedOfferIdx = null;
         offers.forEach(function(offer, idx) {
             var discountAmount = 0;
             var baseTotal = (offer.replaces_standard && cmTotal) ? cmTotal : standardTotal;
@@ -2533,7 +2535,11 @@ jQuery(document).ready(function($) {
 
             // If standard is hidden, auto-select first offer
             var isSelected = anyReplacesStandard && firstOffer;
-            if (isSelected) firstOffer = false;
+            if (isSelected) {
+                firstOffer = false;
+                autoSelectedOfferTotal = offerTotal;
+                autoSelectedOfferIdx = idx;
+            }
 
             html += '<div class="gas-rate-option' + (isSelected ? ' selected' : '') + '" data-rate="offer-' + idx + '" data-offer-id="' + (offer.id || '') + '" data-offer-name="' + (offer.name || '').replace(/"/g, '&quot;') + '" data-offer-discount-type="' + (offer.discount_type || '') + '" data-offer-discount-value="' + (offer.discount_value || '') + '" data-offer-total="' + offerTotal + '" data-offer-is-cm-import="' + (offer.source === 'cm-import') + '">';
             html += '<div class="gas-rate-radio"><div class="gas-rate-radio-inner"></div></div>';
@@ -2573,9 +2579,21 @@ jQuery(document).ready(function($) {
 
         // Store totals for later — default to standard
         $roomWidget.data('standard-total', standardTotal);
-        $roomWidget.data('offer-total', standardTotal); // Will update when offer selected
-        $roomWidget.data('selected-rate', 'standard'); // Default to standard rate
         $roomWidget.data('all-offers', offers);
+
+        // When a CM offer auto-replaces the standard rate card, the first
+        // offer is rendered with the .selected class — keep the data
+        // attributes + header price in sync so the user sees the same
+        // figure that the visibly-selected card shows.
+        if (autoSelectedOfferTotal != null) {
+            $roomWidget.data('offer-total', autoSelectedOfferTotal);
+            $roomWidget.data('selected-rate', 'offer-' + autoSelectedOfferIdx);
+            $roomWidget.data('total-price', autoSelectedOfferTotal);
+            $('.gas-total-price').text(formatPrice(autoSelectedOfferTotal, currency));
+        } else {
+            $roomWidget.data('offer-total', standardTotal); // Will update when offer selected
+            $roomWidget.data('selected-rate', 'standard'); // Default to standard rate
+        }
 
         // Hide old price breakdown when showing rate options
         $('.gas-price-breakdown').hide();
