@@ -2357,8 +2357,10 @@ jQuery(document).ready(function($) {
                         occupancyLabel = response.occupancy_label || 'Guest adjustment';
                     }
                     
-                    // Update the top price display — show total, not misleading per-night average
-                    $('.gas-price-amount').text(formatPriceShort(accommodationTotal, currency));
+                    // Header price = accommodation + mandatory upsells so it
+                    // matches the breakdown's Total Price below and the
+                    // listing-card / Book Now headline guests just clicked.
+                    $('.gas-price-amount').text(formatPriceShort(accommodationTotal + upsellsTotal, currency));
                     $('.gas-price-period').text(nights + ' ' + (nights > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night')));
                     
                     // Show occupancy adjustment note if applicable

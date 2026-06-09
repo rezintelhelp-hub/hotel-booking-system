@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.59
+ * Version: 3.8.60
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.59');
+define('GAS_BOOKING_VERSION', '3.8.60');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5786,12 +5786,30 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             display: none !important;
         }
         .gas-date-filter .gas-filter-field {
-            flex: 0 1 auto !important;
-            min-width: 120px !important;
-            max-width: 180px !important;
+            flex: 1 1 140px !important;
+            min-width: 140px !important;
+            max-width: 200px !important;
+            box-sizing: border-box !important;
         }
         .gas-date-filter .gas-filter-field:last-of-type {
-            max-width: 120px !important;
+            max-width: 140px !important;
+        }
+        /* Stack the whole bar to a column on anything narrower than ~1000px so the
+           check-in / check-out / guests fields can't physically overlap when the
+           theme constrains the parent container width (Atlantis 2026-06-09). */
+        @media (max-width: 1000px) {
+            .gas-date-filter {
+                flex-direction: column !important;
+                align-items: stretch !important;
+            }
+            .gas-date-filter .gas-filter-field,
+            .gas-date-filter .gas-filter-field:last-of-type,
+            .gas-date-filter .gas-filter-field-property {
+                flex: 1 1 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
+            }
         }
         .gas-date-filter label {
             display: block !important;
