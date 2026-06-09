@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.53
+ * Version: 3.8.58
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.53');
+define('GAS_BOOKING_VERSION', '3.8.58');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8581,13 +8581,22 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-upsell-date-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
         .gas-upsell-date-row label { font-size: 12px; color: #64748b; margin: 0; }
         .gas-upsell-date-row select { padding: 4px 8px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; }
-        .gas-upsell-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; min-width: 90px; }
-        .gas-upsell-price { font-weight: 700; font-size: 15px; color: <?php echo esc_attr($button_color); ?>; white-space: nowrap; }
-        .gas-upsell-price small { font-weight: 400; font-size: 11px; color: #94a3b8; }
-        .gas-upsell-stepper { display: flex; align-items: center; gap: 6px; }
-        .gas-upsell-qty-minus { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #cbd5e1; background: #fff; font-size: 16px; line-height: 1; cursor: pointer; color: #475569; }
+        /* Right-side price column on every upsell card. Wider min-width
+           so "£10/night" never clips, and the stepper row below sits
+           right-aligned with explicit gap. */
+        .gas-upsell-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; min-width: 100px; }
+        .gas-upsell-price { font-weight: 700; font-size: 15px; color: <?php echo esc_attr($button_color); ?>; white-space: nowrap; line-height: 1.2; text-align: right; }
+        .gas-upsell-price small { font-weight: 400; font-size: 11px; color: #94a3b8; margin-left: 1px; }
+        .gas-upsell-stepper { display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 6px; width: 100%; }
+        .gas-upsell-qty-minus { width: 22px !important; height: 22px !important; min-width: 22px; min-height: 22px; padding: 0 !important; border-radius: 50% !important; border: 1px solid #cbd5e1; background: #fff; font-size: 14px; line-height: 1; cursor: pointer; color: #475569; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; flex: 0 0 22px; aspect-ratio: 1 / 1; vertical-align: middle; }
         .gas-upsell-qty-minus:hover { background: #f1f5f9; }
-        .gas-upsell-qty-badge { font-size: 13px; font-weight: 600; color: #1e293b; min-width: 32px; text-align: right; }
+        .gas-upsell-qty-badge { font-size: 13px; font-weight: 600; color: #1e293b; min-width: 28px; text-align: right; vertical-align: middle; line-height: 1; }
+        /* In the qty-aware item view (extras step modal), the minus +
+           badge are direct siblings of the price (no meta wrapper).
+           Center everything vertically. */
+        .gas-upsell-item.gas-upsell-qty-aware { align-items: center; }
+        .gas-upsell-item.gas-upsell-qty-aware .gas-upsell-qty-minus { align-self: center; }
+        .gas-upsell-item.gas-upsell-qty-aware .gas-upsell-qty-badge { align-self: center; }
         
         /* Voucher */
         .gas-voucher-row { display: flex; gap: 8px; }
@@ -8677,7 +8686,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             .gas-form-row { grid-template-columns: 1fr; }
             .gas-checkout-steps { flex-direction: column; }
             .gas-upsell-image { width: 56px; height: 56px; }
-            .gas-upsell-meta { min-width: 76px; }
+            .gas-upsell-meta { min-width: 88px; }
             .gas-summary-row { grid-template-columns: 1fr; }
         }
         </style>

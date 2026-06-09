@@ -2628,12 +2628,13 @@ jQuery(document).ready(function($) {
             $('.gas-occupancy-row').hide();
         }
         
-        if (upsellsTotal > 0) {
-            $('.gas-upsells-row').show();
-            $('.gas-upsells-total').text('+' + formatPrice(upsellsTotal, currency));
-        } else {
-            $('.gas-upsells-row').hide();
-        }
+        // Listing-card breakdown does NOT show extras — they're added at
+        // the checkout step (step 2) where the guest can actually pick
+        // them. Showing "+ $X" here while leaving Total unchanged read
+        // as a bug to the guest: "why is the +$134 not in my total?".
+        // Hide unconditionally so the breakdown only contains figures
+        // that ARE in the total.
+        $('.gas-upsells-row').hide();
         
         $('.gas-offer-row').hide();
         
