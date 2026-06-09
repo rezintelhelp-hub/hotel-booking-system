@@ -2546,11 +2546,17 @@ jQuery(document).ready(function($) {
             html += '</div>';
             html += '</div>';
             html += '<div class="gas-rate-price">';
+            // R5b: hide the per-night number for CM-imported rate plans —
+            // they pull from PriceLabs / daily Beds24 rates so a single
+            // /night figure is misleading. Total for the stay is enough.
+            var hidePerNight = offer.source === 'cm-import' && offer.rate_plan_total != null;
             html += '<div class="gas-rate-total">' + formatPrice(offerTotal, currency) + '</div>';
-            if (showBadge) {
-                html += '<div class="gas-rate-per-night"><s>' + formatPriceShort(perNightStandard, currency) + '</s> ' + formatPriceShort(perNightOffer, currency) + '/night</div>';
-            } else {
-                html += '<div class="gas-rate-per-night">' + formatPriceShort(perNightOffer, currency) + '/night</div>';
+            if (!hidePerNight) {
+                if (showBadge) {
+                    html += '<div class="gas-rate-per-night"><s>' + formatPriceShort(perNightStandard, currency) + '</s> ' + formatPriceShort(perNightOffer, currency) + '/night</div>';
+                } else {
+                    html += '<div class="gas-rate-per-night">' + formatPriceShort(perNightOffer, currency) + '/night</div>';
+                }
             }
             html += '</div>';
             html += '</div>';
