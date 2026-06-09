@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.61
+ * Version: 3.8.62
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.61');
+define('GAS_BOOKING_VERSION', '3.8.62');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5751,14 +5751,26 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             background: <?php echo !empty($filter_bg) ? esc_attr($filter_bg) : '#f8f9fa'; ?> !important;
             padding: 12px 20px !important;
             margin: 0 0 24px 0 !important;
-            display: flex !important;
-            flex-wrap: wrap !important;
+            /* CSS Grid: each field gets its own cell. Cells auto-fit by
+               whatever space is available. Guarantees no overlap regardless
+               of viewport, theme container width, or label length. */
+            display: grid !important;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
             gap: 12px !important;
-            align-items: flex-end !important;
-            justify-content: center !important;
+            align-items: end !important;
             border-bottom: 1px solid #e5e7eb !important;
             position: relative !important;
             z-index: 10 !important;
+        }
+        .gas-date-filter > * {
+            min-width: 0 !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        .gas-date-filter .gas-filter-field-property {
+            /* Property/Accommodation field gets 2 columns when it fits */
+            grid-column: span 2 !important;
+            flex: none !important;
         }
         <?php if (!$is_embedded) : ?>
         /* Only add top margin on dedicated rooms page, not embedded sections */
@@ -5786,34 +5798,21 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             display: none !important;
         }
         .gas-date-filter .gas-filter-field {
-            flex: 1 1 140px !important;
-            min-width: 140px !important;
-            max-width: 200px !important;
+            /* Grid handles sizing; just normalise per-field box */
+            min-width: 0 !important;
             box-sizing: border-box !important;
         }
-        .gas-date-filter .gas-filter-field:last-of-type {
-            max-width: 140px !important;
-        }
-        /* Stack the whole bar to a column at <= 1200px so the inputs never
-           physically overlap when the theme container is constrained
-           (Atlantis 2026-06-09). 7 fields × 140px + property field 260px +
-           gaps ≈ 1170px minimum, so we collapse just above that. */
-        @media (max-width: 1200px) {
+        /* On narrower viewports collapse to one column per field — Grid
+           handles wrapping automatically via auto-fit minmax, but on
+           very narrow screens force the property field back to a single
+           column too so it doesn't stay 2 columns when there's only 1
+           column of width. */
+        @media (max-width: 768px) {
             .gas-date-filter {
-                flex-direction: column !important;
-                align-items: stretch !important;
+                grid-template-columns: 1fr !important;
             }
-            .gas-date-filter .gas-filter-field,
-            .gas-date-filter .gas-filter-field:last-of-type,
             .gas-date-filter .gas-filter-field-property {
-                flex: 1 1 100% !important;
-                min-width: 0 !important;
-                max-width: 100% !important;
-                width: 100% !important;
-            }
-            .gas-date-filter .gas-filter-btn {
-                width: 100% !important;
-                margin-top: 4px !important;
+                grid-column: span 1 !important;
             }
         }
         .gas-date-filter label {
