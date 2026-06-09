@@ -2546,10 +2546,10 @@ jQuery(document).ready(function($) {
             html += '</div>';
             html += '</div>';
             html += '<div class="gas-rate-price">';
-            // R5b: hide the per-night number for CM-imported rate plans —
+            // R5b: hide the per-night number for any CM-imported rate plan —
             // they pull from PriceLabs / daily Beds24 rates so a single
             // /night figure is misleading. Total for the stay is enough.
-            var hidePerNight = offer.source === 'cm-import' && offer.rate_plan_total != null;
+            var hidePerNight = offer.source === 'cm-import';
             html += '<div class="gas-rate-total">' + formatPrice(offerTotal, currency) + '</div>';
             if (!hidePerNight) {
                 if (showBadge) {
