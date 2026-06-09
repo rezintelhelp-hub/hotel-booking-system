@@ -2535,7 +2535,7 @@ jQuery(document).ready(function($) {
             var isSelected = anyReplacesStandard && firstOffer;
             if (isSelected) firstOffer = false;
 
-            html += '<div class="gas-rate-option' + (isSelected ? ' selected' : '') + '" data-rate="offer-' + idx + '" data-offer-id="' + (offer.id || '') + '" data-offer-name="' + (offer.name || '').replace(/"/g, '&quot;') + '" data-offer-discount-type="' + (offer.discount_type || '') + '" data-offer-discount-value="' + (offer.discount_value || '') + '" data-offer-total="' + offerTotal + '">';
+            html += '<div class="gas-rate-option' + (isSelected ? ' selected' : '') + '" data-rate="offer-' + idx + '" data-offer-id="' + (offer.id || '') + '" data-offer-name="' + (offer.name || '').replace(/"/g, '&quot;') + '" data-offer-discount-type="' + (offer.discount_type || '') + '" data-offer-discount-value="' + (offer.discount_value || '') + '" data-offer-total="' + offerTotal + '" data-offer-is-cm-import="' + (offer.source === 'cm-import') + '">';
             html += '<div class="gas-rate-radio"><div class="gas-rate-radio-inner"></div></div>';
             html += '<div class="gas-rate-details">';
             html += '<div class="gas-rate-name">' + (offer.name || 'Special Offer');
@@ -2673,6 +2673,7 @@ jQuery(document).ready(function($) {
         var offerId = $(this).data('offer-id');
         var offerName = $(this).data('offer-name');
         var offerTotal = $(this).data('offer-total');
+        var offerIsCmImport = $(this).data('offer-is-cm-import') === true || $(this).data('offer-is-cm-import') === 'true';
         if (offerId) {
             $roomWidget.data('active-offer', {
                 id: offerId,
@@ -2686,7 +2687,23 @@ jQuery(document).ready(function($) {
             $roomWidget.data('offer-total', $roomWidget.data('standard-total'));
         }
 
+        // R5b: for CM-imported rate plans, the offer's total IS the room's
+        // total (no separate discount line). Sync the big header price so
+        // it reflects the picked rate. Manual offers stay on the old
+        // behaviour where the header shows the base accommodation and
+        // the discount appears as a separate row.
         var currency = resolveCurrency($roomWidget.data('currency'));
+        if (offerIsCmImport && offerTotal) {
+            $('.gas-total-price').text(formatPrice(parseFloat(offerTotal), currency));
+            $roomWidget.data('total-price', parseFloat(offerTotal));
+        } else if (!offerId) {
+            // Standard picked — restore the base accommodation total.
+            var stdTotal = $roomWidget.data('standard-total');
+            if (stdTotal != null) {
+                $('.gas-total-price').text(formatPrice(parseFloat(stdTotal), currency));
+                $roomWidget.data('total-price', parseFloat(stdTotal));
+            }
+        }
         updateBookingButton(currency);
     });
     
