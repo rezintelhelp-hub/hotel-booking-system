@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.52
+ * Version: 3.8.53
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.52');
+define('GAS_BOOKING_VERSION', '3.8.53');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -6673,9 +6673,12 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $has_dates = !empty($checkin) && !empty($checkout);
         ?>
         
+        <?php
+            $gas_default_sort = isset($data['default_sort']) ? $data['default_sort'] : 'default';
+        ?>
         <div class="gas-rooms-wrapper">
             <div class="gas-rooms-list">
-                <div id="gas-rooms-container">
+                <div id="gas-rooms-container" data-default-sort="<?php echo esc_attr($gas_default_sort); ?>">
                     <?php if ($use_row_layout) : ?>
                     <!-- Row Layout for 1-2 rooms -->
                     <div class="gas-rooms-row-layout">
@@ -6811,8 +6814,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $loc_state = trim($room['state'] ?? '');
                             $loc_line = $loc_city && $loc_state ? $loc_city . ', ' . $loc_state : ($loc_city ?: $loc_state);
                             $room_index++;
+                            $pin_to_end = (isset($room['unit_role']) && $room['unit_role'] === 'exclusive_hire') ? ' data-pin-to-end="true"' : '';
                         ?>
-                        <div class="gas-room-card">
+                        <div class="gas-room-card"<?php echo $pin_to_end; ?> data-price="<?php echo esc_attr($price); ?>" data-room-id="<?php echo esc_attr($room['id']); ?>">
                             <?php if (!empty($image_url)) : ?>
                             <div class="gas-room-image" <?php echo $room_index <= 6 ? 'style="background: url(\'' . esc_url($image_url) . '\') center/cover;"' : 'data-bg="' . esc_url($image_url) . '" style="background: #f0f0f0;"'; ?>></div>
                             <?php else : ?>

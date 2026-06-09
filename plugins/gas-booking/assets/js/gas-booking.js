@@ -3440,9 +3440,20 @@ jQuery(document).ready(function($) {
     // Run guest filter on page load
     $(document).ready(function() {
         setTimeout(filterByGuests, 100); // Small delay to ensure DOM is ready
-        
+
         // Load offers and update room card prices
         loadOffersForRoomCards();
+
+        // Apply per-account default sort (e.g. Hebden = price-high). The
+        // server writes it onto #gas-rooms-container; we mirror it to the
+        // dropdown and run sortRooms() after the price fetch settles so
+        // cards have their real data-price values.
+        var $cont = $('#gas-rooms-container');
+        var defaultSort = $cont.data('default-sort');
+        if (defaultSort && defaultSort !== 'default') {
+            $('.gas-sort-select').val(defaultSort);
+            setTimeout(function() { sortRooms(defaultSort); }, 1500);
+        }
     });
     
     // Load offers for all room cards and update display
@@ -3516,7 +3527,10 @@ jQuery(document).ready(function($) {
         });
     }
     
-    // Sort rooms - available first, then by price
+    // Sort rooms - available first, then by price.
+    // Cards marked data-pin-to-end="true" (whole-property listings like
+    // Exclusive Hire) are pushed to the end of their availability group
+    // regardless of price sort, so they don't dominate "Price: High to Low".
     function sortRooms(sortBy) {
         var $container = $('.gas-rooms-grid, .gas-rooms-row-layout');
         if (!$container.length) return;
@@ -3532,6 +3546,11 @@ jQuery(document).ready(function($) {
             var aGroup = $a.hasClass('unavailable') ? 2 : ($a.hasClass('min-stay-warning') ? 1 : 0);
             var bGroup = $b.hasClass('unavailable') ? 2 : ($b.hasClass('min-stay-warning') ? 1 : 0);
             if (aGroup !== bGroup) return aGroup - bGroup;
+
+            // Pin-to-end cards always last inside their group.
+            var aPin = $a.data('pin-to-end') === true || $a.data('pin-to-end') === 'true';
+            var bPin = $b.data('pin-to-end') === true || $b.data('pin-to-end') === 'true';
+            if (aPin !== bPin) return aPin ? 1 : -1;
 
             // Within same group, sort by price
             var aPrice = parseFloat($a.data('price')) || 0;
