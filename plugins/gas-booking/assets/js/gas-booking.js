@@ -2521,6 +2521,12 @@ jQuery(document).ready(function($) {
                 discountAmount = parseFloat(offer.discount_value) || 0;
             }
             var offerTotal = baseTotal - discountAmount;
+            // R5b: if the server attached a rate_plan_total (CM-imported
+            // per-rate-plan price for the selected dates), use THAT — it's
+            // the authoritative Beds24 per-slot price, not a derived %.
+            if (offer.rate_plan_total != null) {
+                offerTotal = parseFloat(offer.rate_plan_total);
+            }
             var perNightOffer = Math.round(offerTotal / nights);
             var savingsPercent = Math.round((discountAmount / standardTotal) * 100);
             var showBadge = !offer.replaces_standard && !offer.hide_discount_badge && savingsPercent > 0;
