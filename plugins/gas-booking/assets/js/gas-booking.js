@@ -826,7 +826,7 @@ jQuery(document).ready(function($) {
                     // Update checkout min date and auto-open
                     var checkoutInput = instance.element.closest('.gas-room-widget, .gas-booking-card')?.querySelector('.gas-checkout');
                     if (!checkoutInput) checkoutInput = document.querySelector('.gas-checkout');
-                    
+
                     if (checkoutInput && checkoutInput._flatpickr) {
                         var nextDay = new Date(selectedDates[0]);
                         nextDay.setDate(nextDay.getDate() + 1);
@@ -837,10 +837,32 @@ jQuery(document).ready(function($) {
                             checkoutInput._flatpickr.open();
                         }, isMobileDevice ? 300 : 100);
                     }
+                    // Sync the left-hand availability calendar so it lands on
+                    // the same month the user just picked. Without this the
+                    // operator can pick Nov 14 while the availability panel
+                    // sits on June.
+                    if (selectedDates && selectedDates[0] && typeof loadAvailabilityCalendar === 'function') {
+                        var picked = selectedDates[0];
+                        calendarMonth = new Date(picked.getFullYear(), picked.getMonth(), 1);
+                        var unitId = $roomWidget && $roomWidget.data ? $roomWidget.data('unit-id') : null;
+                        if (unitId) loadAvailabilityCalendar(unitId, calendarMonth);
+                    }
+                },
+                onMonthChange: function(_, __, instance) {
+                    // Refresh availability shading inside the picker for the
+                    // newly displayed month.
+                    if (typeof refreshFlatpickrAvailability === 'function') {
+                        refreshFlatpickrAvailability(instance);
+                    }
+                },
+                onReady: function(_, __, instance) {
+                    if (typeof refreshFlatpickrAvailability === 'function') {
+                        refreshFlatpickrAvailability(instance);
+                    }
                 }
             });
         }
-        
+
         if ($('.gas-checkout').length) {
             flatpickr('.gas-checkout', {
                 dateFormat: 'Y-m-d',
@@ -859,6 +881,12 @@ jQuery(document).ready(function($) {
                         if (availTab) availTab.click();
                     }
                     if (typeof window.gasUpdateEventStayWarning === 'function') window.gasUpdateEventStayWarning();
+                },
+                onMonthChange: function(_, __, instance) {
+                    if (typeof refreshFlatpickrAvailability === 'function') refreshFlatpickrAvailability(instance);
+                },
+                onReady: function(_, __, instance) {
+                    if (typeof refreshFlatpickrAvailability === 'function') refreshFlatpickrAvailability(instance);
                 }
             });
         }
@@ -1987,6 +2015,58 @@ jQuery(document).ready(function($) {
         $item.toggleClass('active');
     });
     
+    // Shade unavailable days inside the flatpickr check-in/check-out
+    // popup so guests see availability without switching to the
+    // Availability tab. Fetches once per displayed month, caches the
+    // result, and adds the `gas-fp-unavailable` class to matching
+    // day cells.
+    var _flatpickrAvailCache = {};
+    function refreshFlatpickrAvailability(instance) {
+        try {
+            var unitId = ($roomWidget && $roomWidget.data && $roomWidget.data('unit-id'))
+              || (document.querySelector('.gas-room-widget') && document.querySelector('.gas-room-widget').dataset.unitId);
+            if (!unitId || !instance || !instance.currentYear) return;
+            var year = instance.currentYear;
+            var month = instance.currentMonth;
+            // Pull 2 months so the next-month cell row stays accurate.
+            var from = year + '-' + String(month + 1).padStart(2, '0') + '-01';
+            var endDate = new Date(year, month + 2, 0);
+            var to = endDate.getFullYear() + '-' + String(endDate.getMonth() + 1).padStart(2, '0') + '-' + String(endDate.getDate()).padStart(2, '0');
+            var key = unitId + ':' + from + ':' + to;
+            function shade(unavail) {
+                var cells = instance.calendarContainer.querySelectorAll('.flatpickr-day');
+                cells.forEach(function(cell) {
+                    if (!cell.dateObj) return;
+                    var d = cell.dateObj;
+                    var iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                    if (unavail.indexOf(iso) >= 0) {
+                        cell.classList.add('gas-fp-unavailable');
+                    } else {
+                        cell.classList.remove('gas-fp-unavailable');
+                    }
+                });
+            }
+            if (_flatpickrAvailCache[key]) {
+                shade(_flatpickrAvailCache[key]);
+                return;
+            }
+            $.ajax({
+                url: gasBooking.apiUrl + '/api/availability/' + unitId + '?from=' + from + '&to=' + to + '&_ts=' + Date.now(),
+                method: 'GET', cache: false,
+                success: function(resp) {
+                    var unavail = [];
+                    (resp && resp.availability || []).forEach(function(row) {
+                        if (row.is_available === false || row.is_blocked === true || row.has_booking === true) {
+                            unavail.push(row.date);
+                        }
+                    });
+                    _flatpickrAvailCache[key] = unavail;
+                    shade(unavail);
+                }
+            });
+        } catch (e) { /* non-fatal */ }
+    }
+
     // Availability Calendar - 2 month view
     var calendarMonth = new Date();
     

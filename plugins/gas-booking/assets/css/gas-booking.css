@@ -2660,3 +2660,20 @@ button:active, .gas-view-btn:active, .gas-search-button:active, .gas-book-btn:ac
 .gas-description-full *:last-child {
     margin-bottom: 0;
 }
+
+/* Flatpickr: shade unavailable days red so guests see availability
+   right inside the check-in / check-out popup (no need to jump to
+   the Availability tab). Diagonal-strike + red tint. */
+.flatpickr-day.gas-fp-unavailable:not(.flatpickr-disabled) {
+    background-image: linear-gradient(to top right,
+        transparent calc(50% - 1px),
+        rgba(220, 38, 38, 0.45) calc(50% - 1px),
+        rgba(220, 38, 38, 0.45) calc(50% + 1px),
+        transparent calc(50% + 1px));
+    color: #b91c1c !important;
+    opacity: 0.65;
+}
+.flatpickr-day.gas-fp-unavailable:not(.flatpickr-disabled):hover {
+    background-color: #fee2e2 !important;
+    opacity: 0.85;
+}
