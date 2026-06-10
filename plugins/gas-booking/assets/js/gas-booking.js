@@ -1927,13 +1927,18 @@ jQuery(document).ready(function($) {
         }
     });
 
-    // Auto-switch to tab from URL param (e.g. ?tab=availability)
+    // Initial-tab policy: every room-page first view MUST land on
+    // Description. Even if the listing-page link carries
+    // ?tab=availability (which it did when checkin+checkout were
+    // pre-filled), force-activate Description so guests always see
+    // the property pitch first. The user can click Availability
+    // themselves; the inline flatpickr onOpen still flips to it
+    // when they tap the date input.
     (function() {
-        var params = new URLSearchParams(window.location.search);
-        var tabParam = params.get('tab');
-        if (tabParam && $('.gas-tab-btn[data-tab="' + tabParam + '"]').length) {
-            $('.gas-tab-btn[data-tab="' + tabParam + '"]').trigger('click');
-        }
+        $('.gas-tab-btn').removeClass('active');
+        $('.gas-tab-content').removeClass('active');
+        $('.gas-tab-btn[data-tab="description"]').addClass('active');
+        $('.gas-tab-content[data-tab="description"]').addClass('active');
     })();
     
     // Pre-load reviews check to hide/show tab before user interaction
