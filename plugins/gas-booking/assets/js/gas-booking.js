@@ -2394,6 +2394,11 @@ jQuery(document).ready(function($) {
                     
                     var allOffers = response.all_offers || [];
                     var cmTotal = response.cm_total || accommodationTotal;
+                    // Standard Rate extras (rate-plan-derived, applied to
+                    // the Standard card so guests over base_occupancy pay
+                    // the surcharge even without picking an offer).
+                    var stdExtras = parseFloat(response.standard_rate_extras_total) || 0;
+                    if (stdExtras > 0) accommodationTotal = accommodationTotal + stdExtras;
                     // Operator-customised Standard Rate labels (property-level).
                     // Plugin renders these on the Standard Rate card; falls
                     // back to "Standard Rate" + "✓ Free cancellation" when unset.
