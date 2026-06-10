@@ -859,6 +859,14 @@ jQuery(document).ready(function($) {
                     if (typeof refreshFlatpickrAvailability === 'function') {
                         refreshFlatpickrAvailability(instance);
                     }
+                },
+                onOpen: function(_, __, instance) {
+                    // onReady fires only on init; onOpen fires every reopen.
+                    // Without this, picking a check-in date jumps the checkout
+                    // picker to the right month but the cells are unshaded.
+                    if (typeof refreshFlatpickrAvailability === 'function') {
+                        setTimeout(function(){ refreshFlatpickrAvailability(instance); }, 30);
+                    }
                 }
             });
         }
@@ -887,6 +895,11 @@ jQuery(document).ready(function($) {
                 },
                 onReady: function(_, __, instance) {
                     if (typeof refreshFlatpickrAvailability === 'function') refreshFlatpickrAvailability(instance);
+                },
+                onOpen: function(_, __, instance) {
+                    if (typeof refreshFlatpickrAvailability === 'function') {
+                        setTimeout(function(){ refreshFlatpickrAvailability(instance); }, 30);
+                    }
                 }
             });
         }
