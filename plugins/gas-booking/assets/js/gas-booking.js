@@ -1730,15 +1730,25 @@ jQuery(document).ready(function($) {
             BED_FUTON: '🛏️', BED_MURPHY: '🛏️', BED_FAMILY: '🛏️',
             BED_COT: '🍼', BED_CRIB: '🍼'
         };
-        function bedLine(bed) {
+        function bedTag(bed) {
             var qty  = parseInt(bed.quantity || bed.qty || 1) || 1;
             var name = bed.name || '';
             var type = (bed.type || '').toUpperCase();
-            // Normalise lowercase legacy values (e.g. type:'double')
             if (type && !type.startsWith('BED_')) type = 'BED_' + type;
             var icon = bedTypeIcons[type] || '🛏️';
             var label = name || (type.replace(/^BED_/, '').toLowerCase().replace(/\b\w/g, function(c){return c.toUpperCase();}) + ' Bed');
-            return '<span class="gas-amenity-item"><span class="gas-amenity-icon">' + icon + '</span><span>' + (qty > 1 ? qty + '× ' : '') + label + '</span></span>';
+            return '<div class="gas-amenity-tag"><span class="gas-amenity-icon">' + icon + '</span>' + (qty > 1 ? qty + '× ' : '') + label + '</div>';
+        }
+        function featTag(icon, label) {
+            return '<div class="gas-amenity-tag"><span class="gas-amenity-icon">' + icon + '</span>' + label + '</div>';
+        }
+        // Sub-heading for each bedroom/bathroom — matches the existing
+        // category-title weight but smaller so it nests visually under
+        // "Sleeping arrangements" / "Bathrooms".
+        function subHeading(label, ensuite) {
+            return '<div style="width:100%; font-size:14px; font-weight:600; color:var(--gas-text, #1f2937); margin:8px 0 4px 0;">' + label
+                 + (ensuite ? ' <span style="font-size:11px; font-weight:500; color:#059669;">✓ Ensuite</span>' : '')
+                 + '</div>';
         }
         var html = '';
         if (Array.isArray(bedrooms) && bedrooms.length > 0) {
@@ -1748,14 +1758,8 @@ jQuery(document).ready(function($) {
             bedrooms.forEach(function(br) {
                 var beds = Array.isArray(br.bed_config) ? br.bed_config
                   : (br.bed_config && Array.isArray(br.bed_config.beds) ? br.bed_config.beds : []);
-                var brName = br.name || 'Bedroom';
-                var bedsLine = beds.map(bedLine).join(' ');
-                html += '<div class="gas-amenity-row" style="width:100%; padding:0.4rem 0; border-bottom:1px dashed rgba(0,0,0,0.08);">'
-                     +   '<div style="font-weight:600; color:#1f2937; margin-bottom:0.2rem;">' + brName
-                     +     (br.has_ensuite ? ' <span style="font-size:0.7rem; color:#059669;">✓ Ensuite</span>' : '')
-                     +   '</div>'
-                     +   '<div style="display:flex; flex-wrap:wrap; gap:0.5rem;">' + bedsLine + '</div>'
-                     + '</div>';
+                html += subHeading(br.name || 'Bedroom', br.has_ensuite);
+                beds.forEach(function(b) { html += bedTag(b); });
             });
             html += '</div></div>';
         }
@@ -1764,25 +1768,18 @@ jQuery(document).ready(function($) {
             html += '<h4 class="gas-amenities-category-title">' + t('property', 'bathrooms', 'Bathrooms') + '</h4>';
             html += '<div class="gas-amenities-list">';
             bathrooms.forEach(function(ba) {
-                var label = ba.name || (ba.is_ensuite ? 'Ensuite' : 'Bathroom');
                 var feats = ba.features || {};
-                var chips = [];
-                if (feats.shower)       chips.push('🚿 Shower');
-                if (feats.bathtub)      chips.push('🛁 Bathtub');
-                if (feats.walkin)       chips.push('🚶 Walk-in');
-                if (feats.rainfall)     chips.push('🌧️ Rainfall');
-                if (feats.jacuzzi)      chips.push('🛁 Jacuzzi');
-                if (feats.bidet)        chips.push('🚽 Bidet');
-                if (feats.accessible)   chips.push('♿ Accessible');
-                if (feats['heated-floor'])   chips.push('♨️ Heated floor');
-                if (feats['double-vanity'])  chips.push('🪞 Double vanity');
-                if (feats.toilet && !chips.length) chips.push('🚽 Toilet');
-                html += '<div class="gas-amenity-row" style="width:100%; padding:0.4rem 0; border-bottom:1px dashed rgba(0,0,0,0.08);">'
-                     +   '<div style="font-weight:600; color:#1f2937; margin-bottom:0.2rem;">' + label
-                     +     (ba.is_ensuite ? ' <span style="font-size:0.7rem; color:#059669;">✓ Ensuite</span>' : '')
-                     +   '</div>'
-                     +   (chips.length ? '<div style="display:flex; flex-wrap:wrap; gap:0.5rem; font-size:0.85rem; color:#475569;">' + chips.join(' · ') + '</div>' : '')
-                     + '</div>';
+                html += subHeading(ba.name || (ba.is_ensuite ? 'Ensuite' : 'Bathroom'), ba.is_ensuite);
+                if (feats.shower)            html += featTag('🚿', 'Shower');
+                if (feats.bathtub)           html += featTag('🛁', 'Bathtub');
+                if (feats.walkin)            html += featTag('🚶', 'Walk-in');
+                if (feats.rainfall)          html += featTag('🌧️', 'Rainfall');
+                if (feats.jacuzzi)           html += featTag('🛁', 'Jacuzzi');
+                if (feats.bidet)             html += featTag('🚽', 'Bidet');
+                if (feats.accessible)        html += featTag('♿', 'Accessible');
+                if (feats['heated-floor'])   html += featTag('♨️', 'Heated floor');
+                if (feats['double-vanity'])  html += featTag('🪞', 'Double vanity');
+                if (feats.toilet)            html += featTag('🚽', 'Toilet');
             });
             html += '</div></div>';
         }
