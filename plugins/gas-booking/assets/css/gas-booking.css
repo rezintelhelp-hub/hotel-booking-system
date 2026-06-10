@@ -2676,3 +2676,12 @@ button:active, .gas-view-btn:active, .gas-search-button:active, .gas-book-btn:ac
     background: #fca5a5 !important;
     color: #7f1d1d !important;
 }
+/* Available days — green wash to match .gas-calendar-day.available. */
+.flatpickr-day.gas-fp-available:not(.flatpickr-disabled):not(.selected):not(.startRange):not(.endRange):not(.inRange) {
+    background: #d1fae5 !important;
+    color: #065f46 !important;
+}
+.flatpickr-day.gas-fp-available:not(.flatpickr-disabled):not(.selected):not(.startRange):not(.endRange):not(.inRange):hover {
+    background: #a7f3d0 !important;
+    color: #064e3b !important;
+}

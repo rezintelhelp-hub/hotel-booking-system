@@ -2052,10 +2052,18 @@ jQuery(document).ready(function($) {
                     if (!cell.dateObj) return;
                     var d = cell.dateObj;
                     var iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-                    if (unavail.indexOf(iso) >= 0) {
+                    var isUnavail = unavail.indexOf(iso) >= 0;
+                    // Skip cells that are disabled by flatpickr (past, min/max
+                    // bounds, event-date rules) so the green doesn't override
+                    // their faded look.
+                    var isDisabled = cell.classList.contains('flatpickr-disabled');
+                    if (isUnavail) {
                         cell.classList.add('gas-fp-unavailable');
+                        cell.classList.remove('gas-fp-available');
                     } else {
                         cell.classList.remove('gas-fp-unavailable');
+                        if (isDisabled) cell.classList.remove('gas-fp-available');
+                        else            cell.classList.add('gas-fp-available');
                     }
                 });
             }
