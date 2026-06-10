@@ -1510,6 +1510,14 @@ jQuery(document).ready(function($) {
         
         // Render amenities grouped by category
         renderAmenities(amenities);
+
+        // Per-bedroom + per-bathroom layout. Reads the actual property_bedrooms
+        // / property_bathrooms rows from the server. The amenities "Beds"
+        // category only carries a generic icon; this block surfaces the real
+        // sleeping arrangement (Bedroom 1: King, Bedroom 2: Double, etc.).
+        if (typeof renderLayoutBlock === 'function') {
+            renderLayoutBlock(room.bedroom_details, room.bathroom_details);
+        }
         
         // Build adults and children dropdowns based on occupancy settings
         var maxGuests = room.max_guests || occSettings.max_guests || 4;
@@ -1706,6 +1714,79 @@ jQuery(document).ready(function($) {
         var langMap = AMENITY_CATEGORY_LABELS[lang] || AMENITY_CATEGORY_LABELS.en;
         // Fall back: lang label → en label → raw key prettified
         return langMap[key] || AMENITY_CATEGORY_LABELS.en[key] || key.replace(/_/g,' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
+    }
+
+    // Render the actual sleeping + bathroom layout from
+    // property_bedrooms / property_bathrooms. Prepended to the
+    // amenities grid so it reads as part of the Features tab.
+    function renderLayoutBlock(bedrooms, bathrooms) {
+        var $container = $('.gas-amenities-container');
+        if (!$container.length) return;
+        $container.find('.gas-layout-block').remove();
+        var bedTypeIcons = {
+            BED_KING: '🛏️', BED_QUEEN: '🛏️', BED_DOUBLE: '🛏️',
+            BED_SINGLE: '🛌', BED_TWIN: '🛌', BED_BUNK: '🪜', BED_BUNKBED: '🪜',
+            BED_SOFA: '🛋️', BED_SOFABED: '🛋️',
+            BED_FUTON: '🛏️', BED_MURPHY: '🛏️', BED_FAMILY: '🛏️',
+            BED_COT: '🍼', BED_CRIB: '🍼'
+        };
+        function bedLine(bed) {
+            var qty  = parseInt(bed.quantity || bed.qty || 1) || 1;
+            var name = bed.name || '';
+            var type = (bed.type || '').toUpperCase();
+            // Normalise lowercase legacy values (e.g. type:'double')
+            if (type && !type.startsWith('BED_')) type = 'BED_' + type;
+            var icon = bedTypeIcons[type] || '🛏️';
+            var label = name || (type.replace(/^BED_/, '').toLowerCase().replace(/\b\w/g, function(c){return c.toUpperCase();}) + ' Bed');
+            return '<span class="gas-amenity-item"><span class="gas-amenity-icon">' + icon + '</span><span>' + (qty > 1 ? qty + '× ' : '') + label + '</span></span>';
+        }
+        var html = '';
+        if (Array.isArray(bedrooms) && bedrooms.length > 0) {
+            html += '<div class="gas-amenities-category gas-layout-block">';
+            html += '<h4 class="gas-amenities-category-title">' + t('property', 'sleeping_arrangements', 'Sleeping arrangements') + '</h4>';
+            html += '<div class="gas-amenities-list">';
+            bedrooms.forEach(function(br) {
+                var beds = Array.isArray(br.bed_config) ? br.bed_config
+                  : (br.bed_config && Array.isArray(br.bed_config.beds) ? br.bed_config.beds : []);
+                var brName = br.name || 'Bedroom';
+                var bedsLine = beds.map(bedLine).join(' ');
+                html += '<div class="gas-amenity-row" style="width:100%; padding:0.4rem 0; border-bottom:1px dashed rgba(0,0,0,0.08);">'
+                     +   '<div style="font-weight:600; color:#1f2937; margin-bottom:0.2rem;">' + brName
+                     +     (br.has_ensuite ? ' <span style="font-size:0.7rem; color:#059669;">✓ Ensuite</span>' : '')
+                     +   '</div>'
+                     +   '<div style="display:flex; flex-wrap:wrap; gap:0.5rem;">' + bedsLine + '</div>'
+                     + '</div>';
+            });
+            html += '</div></div>';
+        }
+        if (Array.isArray(bathrooms) && bathrooms.length > 0) {
+            html += '<div class="gas-amenities-category gas-layout-block">';
+            html += '<h4 class="gas-amenities-category-title">' + t('property', 'bathrooms', 'Bathrooms') + '</h4>';
+            html += '<div class="gas-amenities-list">';
+            bathrooms.forEach(function(ba) {
+                var label = ba.name || (ba.is_ensuite ? 'Ensuite' : 'Bathroom');
+                var feats = ba.features || {};
+                var chips = [];
+                if (feats.shower)       chips.push('🚿 Shower');
+                if (feats.bathtub)      chips.push('🛁 Bathtub');
+                if (feats.walkin)       chips.push('🚶 Walk-in');
+                if (feats.rainfall)     chips.push('🌧️ Rainfall');
+                if (feats.jacuzzi)      chips.push('🛁 Jacuzzi');
+                if (feats.bidet)        chips.push('🚽 Bidet');
+                if (feats.accessible)   chips.push('♿ Accessible');
+                if (feats['heated-floor'])   chips.push('♨️ Heated floor');
+                if (feats['double-vanity'])  chips.push('🪞 Double vanity');
+                if (feats.toilet && !chips.length) chips.push('🚽 Toilet');
+                html += '<div class="gas-amenity-row" style="width:100%; padding:0.4rem 0; border-bottom:1px dashed rgba(0,0,0,0.08);">'
+                     +   '<div style="font-weight:600; color:#1f2937; margin-bottom:0.2rem;">' + label
+                     +     (ba.is_ensuite ? ' <span style="font-size:0.7rem; color:#059669;">✓ Ensuite</span>' : '')
+                     +   '</div>'
+                     +   (chips.length ? '<div style="display:flex; flex-wrap:wrap; gap:0.5rem; font-size:0.85rem; color:#475569;">' + chips.join(' · ') + '</div>' : '')
+                     + '</div>';
+            });
+            html += '</div></div>';
+        }
+        if (html) $container.prepend(html);
     }
 
     function renderAmenities(amenities) {
