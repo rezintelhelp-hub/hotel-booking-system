@@ -2525,6 +2525,16 @@ jQuery(document).ready(function($) {
                 discountAmount = parseFloat(offer.discount_value) || 0;
             }
             var offerTotal = baseTotal - discountAmount;
+            // Beds24 V2 priceRules carry their adjustment as
+            // offset_multiplier (e.g. 0.93 = -7%, 1.12 = +12%). When the
+            // offer has no daily_prices map and no explicit discount_value,
+            // apply the offset so length-of-stay rate plans (7+ days,
+            // 28+ days, 3+ Months) actually show different prices.
+            var offMult = parseFloat(offer.offset_multiplier);
+            if (!isNaN(offMult) && offMult > 0 && offMult !== 1 && parseFloat(offer.discount_value) === 0) {
+                offerTotal = baseTotal * offMult;
+                discountAmount = baseTotal - offerTotal;
+            }
             // R5b: if the server attached a rate_plan_total (CM-imported
             // per-rate-plan price for the selected dates), use THAT — it's
             // the authoritative Beds24 per-slot price, not a derived %.
