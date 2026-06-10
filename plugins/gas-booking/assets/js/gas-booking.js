@@ -2741,15 +2741,20 @@ jQuery(document).ready(function($) {
     // Load and display offers
     function loadOffers(unitId, checkin, checkout, guests) {
         if (!gasBooking.clientId) return;
-        
+
         var params = '?unit_id=' + unitId;
         if (checkin) params += '&check_in=' + checkin;
         if (checkout) params += '&check_out=' + checkout;
         if (guests) params += '&guests=' + guests;
-        
+        // Bust any browser/edge cache so operator visibility toggles
+        // surface on the very next page load. Pairs with no-store
+        // headers on /api/public/client/:id/offers.
+        params += '&_ts=' + Date.now();
+
         $.ajax({
             url: gasBooking.apiUrl + '/api/public/client/' + gasBooking.clientId + '/offers' + params,
             method: 'GET',
+            cache: false,
             dataType: 'json',
             success: function(response) {
                 if (response.success && response.offers && response.offers.length > 0) {
