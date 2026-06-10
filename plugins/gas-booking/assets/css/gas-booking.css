@@ -2661,10 +2661,13 @@ button:active, .gas-view-btn:active, .gas-search-button:active, .gas-book-btn:ac
     margin-bottom: 0;
 }
 
-/* Flatpickr: shade unavailable days using the same red wash as the
-   Availability tab calendar (.gas-calendar-day.unavailable). Guests
-   see availability inside the check-in / check-out popup without
-   leaving the picker. */
+/* Flatpickr: square day cells (no circles) + match Availability tab
+   colours so the check-in / check-out popup reads as the same widget
+   as the Availability calendar. */
+.flatpickr-calendar .flatpickr-day {
+    border-radius: var(--gas-radius, 6px) !important;
+    max-width: none;
+}
 .flatpickr-day.gas-fp-unavailable:not(.flatpickr-disabled) {
     background: #fecaca !important;
     color: #991b1b !important;
