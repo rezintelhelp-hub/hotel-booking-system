@@ -2606,25 +2606,29 @@ jQuery(document).ready(function($) {
                     
                     $roomWidget.data('price-details', response);
                 } else if (response.min_stay_required) {
-                    // MIN STAY NOT MET
+                    // MIN STAY NOT MET — instead of a dead-end warning, offer
+                    // the guest a way to enquire about a shorter stay. Many
+                    // operators (hostel buyouts, big lodges) will still take a
+                    // 1-nighter when there's a gap because the setup cost is
+                    // the same; the rate plan just defaults to a higher minimum.
                     $('.gas-price-breakdown').hide();
                     $('.gas-rate-options').hide();
                     $('.gas-occupancy-adjustment').hide();
-                    
-                    // Show min stay warning
+
                     var nightsWord = response.min_stay_required > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night');
                     var selectedWord = response.nights_selected > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night');
                     var minStayHtml = '<div class="gas-min-stay-warning" style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; text-align: center;">';
                     minStayHtml += '<div style="font-weight: 600; color: #92400e; margin-bottom: 0.25rem;">⚠️ ' + t('booking', 'minimum', 'Minimum') + ' ' + response.min_stay_required + ' ' + nightsWord + ' ' + t('booking', 'required', 'required') + '</div>';
-                    minStayHtml += '<div style="font-size: 0.85rem; color: #78350f;">' + t('booking', 'you_selected', 'You selected') + ' ' + response.nights_selected + ' ' + selectedWord + '. ' + t('booking', 'choose_longer', 'Please choose a longer stay.') + '</div>';
+                    minStayHtml += '<div style="font-size: 0.85rem; color: #78350f; margin-bottom: 0.75rem;">' + t('booking', 'you_selected', 'You selected') + ' ' + response.nights_selected + ' ' + selectedWord + '. ' + t('booking', 'short_stay_enquire_lede', 'We can ask the host whether they\'ll accept a shorter stay.') + '</div>';
+                    minStayHtml += '<button type="button" class="gas-short-stay-enquire-btn" style="background:#f59e0b; color:#fff; border:none; padding:0.6rem 1.2rem; border-radius:6px; cursor:pointer; font-weight:600;">' + t('booking', 'short_stay_enquire_cta', 'Enquire about a ' + response.nights_selected + '-' + selectedWord + ' stay') + '</button>';
                     minStayHtml += '</div>';
-                    
+
                     if ($('.gas-min-stay-warning').length) {
                         $('.gas-min-stay-warning').replaceWith(minStayHtml);
                     } else {
                         $('.gas-price-breakdown').before(minStayHtml);
                     }
-                    
+
                     $btn.prop('disabled', true).text(t('booking', 'minimum', 'Minimum') + ' ' + response.min_stay_required + ' ' + nightsWord + ' ' + t('booking', 'required', 'required'));
                 } else {
                     // NOT AVAILABLE - Switch to Availability tab and show unavailable price
@@ -2888,6 +2892,66 @@ jQuery(document).ready(function($) {
         $('.gas-add-to-cart-btn').prop('disabled', false);
     }
     
+    // Short-stay enquiry — opens a modal so the guest can ask the host
+    // whether they'll accept the under-min stay. Submits to a server
+    // endpoint that emails the operator + master.
+    $(document).on('click', '.gas-short-stay-enquire-btn', function() {
+        var unitId = $roomWidget.data('unit-id');
+        var checkin = $('.gas-checkin').val() || ($('.gas-checkin')[0] && $('.gas-checkin')[0]._flatpickr && $('.gas-checkin')[0]._flatpickr.input.value) || '';
+        var checkout = $('.gas-checkout').val() || ($('.gas-checkout')[0] && $('.gas-checkout')[0]._flatpickr && $('.gas-checkout')[0]._flatpickr.input.value) || '';
+        var adults = parseInt($('.gas-adults').val()) || 1;
+        var children = parseInt($('.gas-children').val()) || 0;
+        var modalHtml = '<div class="gas-short-stay-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;">'
+          + '  <div style="background:#fff;border-radius:12px;max-width:480px;width:100%;padding:1.75rem;box-shadow:0 20px 50px rgba(0,0,0,0.3);">'
+          + '    <h3 style="margin:0 0 0.5rem 0;color:#111827;">Enquire about a shorter stay</h3>'
+          + '    <p style="margin:0 0 1rem 0;color:#4b5563;font-size:0.9rem;">We\'ll forward your request to the host. They\'ll get back to you within 24 hours.</p>'
+          + '    <div style="margin-bottom:0.75rem;"><label style="display:block;font-size:0.85rem;color:#374151;margin-bottom:0.25rem;">Your name</label><input type="text" class="gas-ss-name" style="width:100%;padding:0.55rem;border:1px solid #d1d5db;border-radius:6px;"></div>'
+          + '    <div style="margin-bottom:0.75rem;"><label style="display:block;font-size:0.85rem;color:#374151;margin-bottom:0.25rem;">Email</label><input type="email" class="gas-ss-email" style="width:100%;padding:0.55rem;border:1px solid #d1d5db;border-radius:6px;"></div>'
+          + '    <div style="margin-bottom:0.75rem;"><label style="display:block;font-size:0.85rem;color:#374151;margin-bottom:0.25rem;">Phone (optional)</label><input type="tel" class="gas-ss-phone" style="width:100%;padding:0.55rem;border:1px solid #d1d5db;border-radius:6px;"></div>'
+          + '    <div style="margin-bottom:1rem;"><label style="display:block;font-size:0.85rem;color:#374151;margin-bottom:0.25rem;">Message (optional)</label><textarea class="gas-ss-message" rows="3" style="width:100%;padding:0.55rem;border:1px solid #d1d5db;border-radius:6px;resize:vertical;" placeholder="Anything the host should know about your trip?"></textarea></div>'
+          + '    <div style="display:flex;gap:0.75rem;justify-content:flex-end;">'
+          + '      <button type="button" class="gas-ss-cancel" style="background:#e5e7eb;color:#374151;border:none;padding:0.6rem 1.1rem;border-radius:6px;cursor:pointer;font-weight:600;">Cancel</button>'
+          + '      <button type="button" class="gas-ss-submit" style="background:#f59e0b;color:#fff;border:none;padding:0.6rem 1.1rem;border-radius:6px;cursor:pointer;font-weight:600;">Send enquiry</button>'
+          + '    </div>'
+          + '  </div>'
+          + '</div>';
+        $('body').append(modalHtml);
+        var $modal = $('.gas-short-stay-modal');
+        // Prefill email if guest is logged in to GAS (rare on public widget)
+        $modal.on('click', '.gas-ss-cancel', function(){ $modal.remove(); });
+        $modal.on('click', '.gas-ss-submit', function(){
+            var $sub = $modal.find('.gas-ss-submit');
+            var name = $modal.find('.gas-ss-name').val().trim();
+            var email = $modal.find('.gas-ss-email').val().trim();
+            var phone = $modal.find('.gas-ss-phone').val().trim();
+            var msg = $modal.find('.gas-ss-message').val().trim();
+            if (!name || !email) { alert('Name and email required'); return; }
+            $sub.prop('disabled', true).text('Sending…');
+            $.ajax({
+                url: gasBooking.apiUrl + '/api/public/short-stay-enquiry',
+                method: 'POST', contentType: 'application/json',
+                data: JSON.stringify({
+                    client_id: gasBooking.clientId, unit_id: unitId,
+                    check_in: checkin, check_out: checkout,
+                    adults: adults, children: children,
+                    guest_name: name, guest_email: email, guest_phone: phone, message: msg
+                }),
+                success: function(r) {
+                    if (r && r.success) {
+                        $modal.find('div[style*="background:#fff"]').html('<h3 style="margin:0 0 0.5rem 0;color:#065f46;">✓ Enquiry sent</h3><p style="margin:0 0 1rem 0;color:#4b5563;">Thanks — we\'ve forwarded your request to the host. They\'ll be in touch within 24 hours.</p><div style="text-align:right;"><button type="button" class="gas-ss-cancel" style="background:#10b981;color:#fff;border:none;padding:0.6rem 1.1rem;border-radius:6px;cursor:pointer;font-weight:600;">Close</button></div>');
+                    } else {
+                        alert((r && r.error) || 'Unable to send right now — please email the host directly.');
+                        $sub.prop('disabled', false).text('Send enquiry');
+                    }
+                },
+                error: function() {
+                    alert('Network error — please try again.');
+                    $sub.prop('disabled', false).text('Send enquiry');
+                }
+            });
+        });
+    });
+
     // Rate option click handler
     $(document).on('click', '.gas-rate-option', function() {
         $('.gas-rate-option').removeClass('selected');
