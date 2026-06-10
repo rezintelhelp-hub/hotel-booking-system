@@ -2541,6 +2541,13 @@ jQuery(document).ready(function($) {
             if (offer.rate_plan_total != null) {
                 offerTotal = parseFloat(offer.rate_plan_total);
             }
+            // Extras surcharge (extra adult / child × nights). Server
+            // computes against base_occupancy and emits this alongside
+            // the offer; we add it on top of the discounted accommodation.
+            var extraSurcharge = parseFloat(offer.rate_plan_extra_person_total);
+            if (!isNaN(extraSurcharge) && extraSurcharge > 0) {
+                offerTotal = offerTotal + extraSurcharge;
+            }
             var perNightOffer = Math.round(offerTotal / nights);
             var savingsPercent = Math.round((discountAmount / standardTotal) * 100);
             var showBadge = !offer.replaces_standard && !offer.hide_discount_badge && savingsPercent > 0;
