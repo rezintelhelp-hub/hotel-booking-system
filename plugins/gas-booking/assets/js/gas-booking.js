@@ -103,21 +103,30 @@ jQuery(document).ready(function($) {
         btn.href = url;
         btn.textContent = label;
 
-        // Find the header's content container (the visible bounded area
-        // inside <header>) and measure its actual right edge. The cart's
-        // right edge then matches the header content area's right edge
-        // exactly — no calc formulas, no theme-specific magic numbers,
-        // works across viewport widths.
+        // Find the "main image" below the header — that's what Steve wants
+        // the cart's right edge to align with. Themes use different margins
+        // for the header vs the hero (Hebden: header 80px, hero 100px;
+        // developer-light: hero is full-bleed). Measure the actual hero
+        // element's right edge in the DOM and match it.
         var header = document.querySelector('header.developer-header, header.gas-header, header.site-header, header');
-        var container = header && (
-            header.querySelector('.developer-container, .gas-container, .site-container, .container, .header-inner') ||
-            header.firstElementChild
-        );
+        var anchorSelectors = [
+            '.wp-block-cover.alignfull',                // Hebden / WP block themes
+            '.developer-hero',                          // developer-light / dark
+            '.gas-hero',                                // legacy GAS theme
+            'main > section:first-of-type',             // generic first section
+            'main > *:first-child',                     // anything as fallback
+            'header.developer-header .developer-container'  // last-ditch: header container
+        ];
+        var anchor = null;
+        for (var i = 0; i < anchorSelectors.length; i++) {
+            anchor = document.querySelector(anchorSelectors[i]);
+            if (anchor) break;
+        }
 
-        if (header && container) {
+        if (header && anchor) {
             var setRight = function() {
-                var rect = container.getBoundingClientRect();
-                btn.style.right = (window.innerWidth - rect.right) + 'px';
+                var rect = anchor.getBoundingClientRect();
+                btn.style.right = Math.max(0, window.innerWidth - rect.right) + 'px';
             };
             // Header is position:fixed on developer-light, so absolute-in-
             // header lays out the cart at the header's coordinates.
