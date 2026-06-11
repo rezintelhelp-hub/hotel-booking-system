@@ -2670,18 +2670,22 @@ button:active, .gas-view-btn:active, .gas-search-button:active, .gas-book-btn:ac
 }
 .flatpickr-day.gas-fp-unavailable:not(.flatpickr-disabled) {
     background: #fecaca !important;
+    background-clip: padding-box !important;
     color: #991b1b !important;
 }
 .flatpickr-day.gas-fp-unavailable:not(.flatpickr-disabled):hover {
     background: #fca5a5 !important;
+    background-clip: padding-box !important;
     color: #7f1d1d !important;
 }
 /* Available days — green wash to match .gas-calendar-day.available. */
 .flatpickr-day.gas-fp-available:not(.flatpickr-disabled):not(.selected):not(.startRange):not(.endRange):not(.inRange) {
     background: #d1fae5 !important;
+    background-clip: padding-box !important;
     color: #065f46 !important;
 }
 .flatpickr-day.gas-fp-available:not(.flatpickr-disabled):not(.selected):not(.startRange):not(.endRange):not(.inRange):hover {
     background: #a7f3d0 !important;
+    background-clip: padding-box !important;
     color: #064e3b !important;
 }
