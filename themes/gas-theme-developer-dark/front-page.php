@@ -661,7 +661,7 @@ if (!is_wp_error($repuso_response)) {
             <p style="color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.8;"><?php echo esc_html($reviews_subtitle); ?></p>
         </div>
         <?php if (!empty($repuso_reviews)) : ?>
-        <div style="position: relative; overflow: hidden; padding: 0 60px;">
+        <div style="position: relative; padding: 0 60px;"><div style="overflow: hidden;">
             <div id="gas-repuso-slider" style="display: flex; transition: transform 0.5s ease;">
                 <?php foreach ($repuso_reviews as $rev) :
                     $r_rating = floatval($rev['rating'] ?? 5);
@@ -684,7 +684,7 @@ if (!is_wp_error($repuso_response)) {
                     </div>
                 </div>
                 <?php endforeach; ?>
-            </div>
+            </div></div>
             <button class="gas-review-nav prev" onclick="slideRepuso(-1)">‹</button>
             <button class="gas-review-nav next" onclick="slideRepuso(1)">›</button>
         </div>
@@ -760,7 +760,7 @@ if (!is_wp_error($hostaway_response)) {
             <p style="color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.8;"><?php echo esc_html($reviews_subtitle); ?></p>
         </div>
         <?php if (!empty($hostaway_reviews)) : ?>
-        <div style="position: relative; overflow: hidden; padding: 0 60px;">
+        <div style="position: relative; padding: 0 60px;"><div style="overflow: hidden;">
             <div id="gas-hostaway-slider" style="display: flex; transition: transform 0.5s ease;">
                 <?php foreach ($hostaway_reviews as $rev) :
                     $h_rating = round(floatval($rev['rating'] ?? 5));
@@ -783,7 +783,7 @@ if (!is_wp_error($hostaway_response)) {
                     </div>
                 </div>
                 <?php endforeach; ?>
-            </div>
+            </div></div>
             <button class="gas-review-nav prev" onclick="slideHostaway(-1)">‹</button>
             <button class="gas-review-nav next" onclick="slideHostaway(1)">›</button>
         </div>
