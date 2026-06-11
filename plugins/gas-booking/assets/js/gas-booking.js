@@ -13,7 +13,128 @@
  * @version 3.8.00
  */
 jQuery(document).ready(function($) {
-    
+
+    // ─── GAS Cart ────────────────────────────────────────────────────────
+    // Cross-page mini cart. Used by the bike-storage standalone widget
+    // (and any future "add to cart from another page" flows) so the guest
+    // can see what's in their cart from any page on the site, with a
+    // fixed top-right button that navigates to /book-now/ to complete the
+    // purchase. Cart state lives in localStorage with a 24h expiry; clears
+    // automatically after a successful booking on /book-now/.
+    var GAS_CART_KEY = 'gas_cart_v1';
+    var GAS_CART_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+    function gasCartRead() {
+        try {
+            var raw = localStorage.getItem(GAS_CART_KEY);
+            if (!raw) return null;
+            var c = JSON.parse(raw);
+            if (!c || !c.expires_at || c.expires_at < Date.now()) {
+                localStorage.removeItem(GAS_CART_KEY);
+                return null;
+            }
+            return c;
+        } catch (e) { return null; }
+    }
+    function gasCartWrite(cart) {
+        try {
+            cart.expires_at = Date.now() + GAS_CART_TTL_MS;
+            localStorage.setItem(GAS_CART_KEY, JSON.stringify(cart));
+            gasCartRenderButton();
+        } catch (e) { /* localStorage disabled — fail silent */ }
+    }
+    function gasCartClear() {
+        try {
+            localStorage.removeItem(GAS_CART_KEY);
+            var btn = document.getElementById('gas-cart-button');
+            if (btn) btn.remove();
+        } catch (e) {}
+    }
+    // Build the URL that opens /book-now/ with the cart pre-filled.
+    function gasCartCheckoutUrl(cart) {
+        var base = cart.booking_url || '/book-now/';
+        var sep = base.indexOf('?') === -1 ? '?' : '&';
+        var params = [];
+        if (cart.checkin)  params.push('checkin='  + encodeURIComponent(cart.checkin));
+        if (cart.checkout) params.push('checkout=' + encodeURIComponent(cart.checkout));
+        if (cart.upsells && cart.upsells.length) {
+            var ids = cart.upsells.map(function(u) { return u.id; }).join(',');
+            params.push('prefill_upsells=' + encodeURIComponent(ids));
+            // Single-item carts also send quantity + label so the upsell
+            // ticks at the right qty and the dropdown placeholder is rich.
+            if (cart.upsells.length === 1) {
+                params.push('prefill_quantity=' + encodeURIComponent(cart.upsells[0].qty || 1));
+                if (cart.upsells[0].label) params.push('prefill_label=' + encodeURIComponent(cart.upsells[0].label));
+            }
+        }
+        return base + sep + params.join('&');
+    }
+    function gasCartItemCount(cart) {
+        if (!cart || !cart.upsells) return 0;
+        return cart.upsells.reduce(function(s, u) { return s + (u.qty || 1); }, 0);
+    }
+    function gasCartTotal(cart) {
+        if (!cart || !cart.upsells) return 0;
+        return cart.upsells.reduce(function(s, u) { return s + ((u.price || 0) * (u.qty || 1)); }, 0);
+    }
+    // Inject the cart button. Fixed position, top-right, sits over the
+    // theme header (which is itself fixed/sticky on most GAS themes).
+    // No dropdown — single click navigates straight to /book-now/.
+    function gasCartRenderButton() {
+        var existing = document.getElementById('gas-cart-button');
+        var cart = gasCartRead();
+        if (!cart || gasCartItemCount(cart) === 0) {
+            if (existing) existing.remove();
+            return;
+        }
+        // Don't double-render on /book-now/ itself — the cart is the upsell
+        // panel inline; a header button would be redundant.
+        var path = (window.location.pathname || '').replace(/\/+$/, '');
+        var bookPath = (cart.booking_url || '/book-now/').split('?')[0].replace(/\/+$/, '');
+        if (path && bookPath && path === bookPath) {
+            if (existing) existing.remove();
+            return;
+        }
+        var symbol = (cart.currency === 'GBP') ? '£' : (cart.currency === 'EUR' ? '€' : (cart.currency === 'USD' ? '$' : ''));
+        var total = gasCartTotal(cart);
+        var count = gasCartItemCount(cart);
+        if (!existing) {
+            existing = document.createElement('a');
+            existing.id = 'gas-cart-button';
+            // Inline styles only — guarantees consistent look across every
+            // theme without needing per-theme CSS. Colour pulled from the
+            // CSS variable the theme exposes; falls back to a sane orange.
+            existing.style.cssText = [
+                'position:fixed', 'top:14px', 'right:18px', 'z-index:9998',
+                'display:inline-flex', 'align-items:center', 'gap:8px',
+                'padding:8px 14px', 'border-radius:999px',
+                'background:var(--developer-btn-primary-bg, var(--button_color, #F97224))',
+                'color:var(--developer-btn-primary-text, #fff)',
+                'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
+                'text-decoration:none', 'box-shadow:0 2px 8px rgba(0,0,0,0.15)',
+                'cursor:pointer'
+            ].join(';');
+            document.body.appendChild(existing);
+        }
+        existing.href = gasCartCheckoutUrl(cart);
+        existing.innerHTML =
+            '<span aria-hidden="true">🛒</span>' +
+            '<span>' + count + '</span>' +
+            (total > 0 ? '<span style="opacity:0.85;font-weight:500;">· ' + symbol + total + '</span>' : '') +
+            '<span style="opacity:0.7;font-weight:400;font-size:1rem;line-height:0;margin-left:4px;" title="Remove from cart" data-clear>×</span>';
+        // The little × on the right clears the cart instead of navigating.
+        existing.addEventListener('click', function(e) {
+            if (e.target && e.target.dataset && e.target.dataset.clear !== undefined) {
+                e.preventDefault();
+                gasCartClear();
+            }
+        }, { once: false });
+    }
+    // Render on every page load so the button appears wherever the guest
+    // navigates while the cart is non-empty.
+    setTimeout(gasCartRenderButton, 0);
+    // Expose to widget code that wants to write to the cart.
+    window.gasCart = { read: gasCartRead, write: gasCartWrite, clear: gasCartClear };
+
     // Get current language from URL parameter, cookie, or default to 'en'.
     // Browser navigator.language auto-detection was REMOVED 2026-05-21 — it
     // was making English-only properties (e.g. Atlantis Realty) show Japanese
@@ -7502,6 +7623,10 @@ jQuery(document).ready(function($) {
         // Show booking confirmation — shared by both payment flows
         function showBookingConfirmation(response, $btn) {
             localStorage.removeItem('gas_hostvana_bookingId');
+            // Cart's done — clear it so the floating header button vanishes
+            // and the next visit starts fresh. Handles bike-storage standalone
+            // (Flow A → /book-now/) and any future cart-driven flows.
+            try { if (window.gasCart) window.gasCart.clear(); } catch (e) {}
 
             // Fire conversion events to whichever analytics platforms the site
             // has loaded. The gtag/fbq scripts are injected by gas-booking.php's
@@ -8618,10 +8743,29 @@ jQuery(document).ready(function($) {
                         $btn.prop('disabled', false).text(origLabel);
                         return;
                     }
-                    var sep = bookingUrl.indexOf('?') === -1 ? '?' : '&';
                     var symbolOut = (lastQuote.currency === 'GBP') ? '£' : (lastQuote.currency === 'EUR' ? '€' : (lastQuote.currency === 'USD' ? '$' : lastQuote.currency + ' '));
                     var totalAll = lastQuote.total_price * quantity;
                     var label = 'Bike storage × ' + quantity + ' · ' + symbolOut + totalAll + ' for ' + lastQuote.nights + ' day' + (lastQuote.nights === 1 ? '' : 's');
+                    // Persist to the shared cart so the top-right cart button
+                    // appears on every other page until checkout (or the 24h
+                    // TTL clears it). The redirect URL still carries the same
+                    // params as a belt-and-braces fallback if localStorage is
+                    // disabled (private browsing etc).
+                    if (window.gasCart) {
+                        window.gasCart.write({
+                            upsells: [{
+                                id: lastQuote.upsell_id,
+                                qty: quantity,
+                                price: lastQuote.total_price,
+                                label: label
+                            }],
+                            checkin: ci,
+                            checkout: co,
+                            currency: lastQuote.currency,
+                            booking_url: bookingUrl
+                        });
+                    }
+                    var sep = bookingUrl.indexOf('?') === -1 ? '?' : '&';
                     var url = bookingUrl + sep + 'checkin=' + encodeURIComponent(ci) +
                                            '&checkout=' + encodeURIComponent(co) +
                                            '&prefill_upsells=' + encodeURIComponent(lastQuote.upsell_id) +
