@@ -328,20 +328,20 @@ function developer_developer_scripts() {
         );
     }
     
-    // Theme styles
+    // Theme styles — filemtime() so any CSS edit auto-busts browser cache
     wp_enqueue_style(
         'developer-style',
         get_stylesheet_uri(),
         array(),
-        GAS_DEVELOPER_VERSION
+        @filemtime(get_stylesheet_directory() . '/style.css') ?: GAS_DEVELOPER_VERSION
     );
-    
-    // Theme scripts
+
+    // Theme scripts — same: filemtime so JS edits auto-bust
     wp_enqueue_script(
         'developer-script',
         get_template_directory_uri() . '/assets/js/main.js',
         array('jquery'),
-        GAS_DEVELOPER_VERSION,
+        @filemtime(get_template_directory() . '/assets/js/main.js') ?: GAS_DEVELOPER_VERSION,
         true
     );
     
