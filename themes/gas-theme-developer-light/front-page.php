@@ -735,13 +735,24 @@ if (!is_wp_error($repuso_response)) {
             var slider = document.getElementById('gas-repuso-slider');
             var pos = 0;
             var total = <?php echo count($repuso_reviews); ?>;
-            var visible = window.innerWidth < 768 ? 1 : window.innerWidth < 1024 ? 2 : window.innerWidth < 1280 ? 3 : 4;
-            var max = Math.max(0, total - visible);
+            function cardW() { var c = slider.firstElementChild; return c ? c.getBoundingClientRect().width : 0; }
+            function visible() { var w = cardW(); return w ? Math.max(1, Math.floor(slider.parentElement.clientWidth / w)) : 1; }
+            function apply() {
+                var max = Math.max(0, total - visible());
+                if (pos > max) pos = max;
+                slider.style.transform = 'translateX(-' + (pos * cardW()) + 'px)';
+            }
             window.slideRepuso = function(dir) {
+                var max = Math.max(0, total - visible());
                 pos = Math.max(0, Math.min(max, pos + dir));
-                slider.style.transform = 'translateX(-' + (pos * (100 / total)) + '%)';
+                apply();
             };
-            setInterval(function() { pos = pos >= max ? 0 : pos + 1; slider.style.transform = 'translateX(-' + (pos * (100 / total)) + '%)'; }, 5000);
+            setInterval(function() {
+                var max = Math.max(0, total - visible());
+                pos = pos >= max ? 0 : pos + 1;
+                apply();
+            }, 5000);
+            window.addEventListener('resize', apply);
         })();
         </script>
         <?php else : ?>
@@ -823,13 +834,24 @@ if (!is_wp_error($hostaway_response)) {
             var slider = document.getElementById('gas-hostaway-slider');
             var pos = 0;
             var total = <?php echo count($hostaway_reviews); ?>;
-            var visible = window.innerWidth < 768 ? 1 : window.innerWidth < 1024 ? 2 : window.innerWidth < 1280 ? 3 : 4;
-            var max = Math.max(0, total - visible);
+            function cardW() { var c = slider.firstElementChild; return c ? c.getBoundingClientRect().width : 0; }
+            function visible() { var w = cardW(); return w ? Math.max(1, Math.floor(slider.parentElement.clientWidth / w)) : 1; }
+            function apply() {
+                var max = Math.max(0, total - visible());
+                if (pos > max) pos = max;
+                slider.style.transform = 'translateX(-' + (pos * cardW()) + 'px)';
+            }
             window.slideHostaway = function(dir) {
+                var max = Math.max(0, total - visible());
                 pos = Math.max(0, Math.min(max, pos + dir));
-                slider.style.transform = 'translateX(-' + (pos * (100 / total)) + '%)';
+                apply();
             };
-            setInterval(function() { pos = pos >= max ? 0 : pos + 1; slider.style.transform = 'translateX(-' + (pos * (100 / total)) + '%)'; }, 5000);
+            setInterval(function() {
+                var max = Math.max(0, total - visible());
+                pos = pos >= max ? 0 : pos + 1;
+                apply();
+            }, 5000);
+            window.addEventListener('resize', apply);
         })();
         </script>
         <?php else : ?>
