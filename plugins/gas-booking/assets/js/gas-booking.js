@@ -103,52 +103,42 @@ jQuery(document).ready(function($) {
         btn.href = url;
         btn.textContent = label;
 
-        // Find the theme's fixed header. The cart goes INSIDE it as an
-        // absolutely-positioned child, anchored to the right edge of the
-        // page's content container (typically 1280px max-width centered)
-        // so the cart's right edge lines up with the hero image's right
-        // edge — not the right edge of the nav's last <a>, which is where
-        // it ended up when we inserted next to the Book Now CTA.
-        var headerSelectors = [
-            'header.developer-header',
-            'header.gas-header',
-            'header.site-header',
-            'header[class*="header"]',
-            'header'
-        ];
-        var header = null;
-        for (var i = 0; i < headerSelectors.length; i++) {
-            header = document.querySelector(headerSelectors[i]);
-            if (header) break;
-        }
+        // Find the header's content container (the visible bounded area
+        // inside <header>) and measure its actual right edge. The cart's
+        // right edge then matches the header content area's right edge
+        // exactly — no calc formulas, no theme-specific magic numbers,
+        // works across viewport widths.
+        var header = document.querySelector('header.developer-header, header.gas-header, header.site-header, header');
+        var container = header && (
+            header.querySelector('.developer-container, .gas-container, .site-container, .container, .header-inner') ||
+            header.firstElementChild
+        );
 
-        if (header) {
-            // Ensure header is positioned so absolute child anchors to it.
-            // Developer-light is position:fixed already; burger / unknown
-            // themes may be static — only override if needed.
-            var hpos = getComputedStyle(header).position;
-            if (hpos === 'static') header.style.position = 'relative';
+        if (header && container) {
+            var setRight = function() {
+                var rect = container.getBoundingClientRect();
+                btn.style.right = (window.innerWidth - rect.right) + 'px';
+            };
+            // Header is position:fixed on developer-light, so absolute-in-
+            // header lays out the cart at the header's coordinates.
+            if (getComputedStyle(header).position === 'static') header.style.position = 'relative';
             btn.style.cssText = [
                 'position:absolute', 'top:50%', 'transform:translateY(-50%)',
-                // Match the hero section's padding-right (24px on developer-
-                // light) so the cart's right edge lines up with the hero
-                // image's visual right edge regardless of viewport width.
-                // The page-container math was wrong on wide viewports because
-                // the hero is full-bleed (no max-width), only padded.
-                'right:24px',
                 'padding:10px 18px', 'border-radius:0',
                 'background:#0f172a', 'color:#fff',
                 'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
                 'text-decoration:none', 'z-index:1001'
             ].join(';');
             header.appendChild(btn);
+            // Initial measurement now + on resize (viewport changes shift
+            // the centered container's right edge).
+            setRight();
+            window.addEventListener('resize', setRight);
         } else {
-            // Fallback if no <header> at all — pin to top-right of viewport
-            // using the same right calc so it's still aligned with content.
+            // Fallback if header structure is unrecognised: pin to viewport
+            // top-right with a 24px inset.
             btn.style.cssText = [
-                'position:fixed', 'top:18px',
-                'right:24px',
-                'z-index:9998',
+                'position:fixed', 'top:18px', 'right:24px', 'z-index:9998',
                 'padding:10px 18px', 'border-radius:0',
                 'background:#0f172a', 'color:#fff',
                 'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
