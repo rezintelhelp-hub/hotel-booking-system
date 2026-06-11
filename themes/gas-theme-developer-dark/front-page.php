@@ -676,7 +676,7 @@ if (!is_wp_error($repuso_response)) {
                 <div class="gas-review-card-cell">
                     <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                         <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $r_stars; ?></div>
-                        <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px; line-height: 1.5; flex: 1; margin: 0 0 12px 0; overflow: hidden; opacity: 0.9;">"<?php echo esc_html($r_text); ?>"</p>
+                        <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px; line-height: 1.5; flex: 1; width: 100%; margin: 0 0 12px 0; padding: 0; overflow: hidden; opacity: 0.9; text-align: left;">"<?php echo esc_html($r_text); ?>"</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
                             <div style="font-weight: 600; color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px;"><?php echo esc_html($r_name); ?></div>
                             <?php if ($r_source) : ?><div style="font-size: 12px; color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($r_source); ?></div><?php endif; ?>
@@ -698,7 +698,7 @@ if (!is_wp_error($repuso_response)) {
             function apply() {
                 var max = Math.max(0, total - visible());
                 if (pos > max) pos = max;
-                slider.style.transform = 'translateX(-' + (pos * cardW()) + 'px)';
+                slider.style.transform = 'translateX(-' + Math.round(pos * cardW()) + 'px)';
             }
             window.slideRepuso = function(dir) {
                 var max = Math.max(0, total - visible());
@@ -775,7 +775,7 @@ if (!is_wp_error($hostaway_response)) {
                 <div class="gas-review-card-cell">
                     <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                         <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $h_stars; ?></div>
-                        <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px; line-height: 1.5; flex: 1; margin: 0 0 12px 0; overflow: hidden; opacity: 0.9;">"<?php echo esc_html($h_text); ?>"</p>
+                        <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px; line-height: 1.5; flex: 1; width: 100%; margin: 0 0 12px 0; padding: 0; overflow: hidden; opacity: 0.9; text-align: left;">"<?php echo esc_html($h_text); ?>"</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
                             <div style="font-weight: 600; color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px;"><?php echo esc_html($h_name); ?></div>
                             <?php if ($h_meta) : ?><div style="font-size: 12px; color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($h_meta); ?></div><?php endif; ?>
@@ -797,7 +797,7 @@ if (!is_wp_error($hostaway_response)) {
             function apply() {
                 var max = Math.max(0, total - visible());
                 if (pos > max) pos = max;
-                slider.style.transform = 'translateX(-' + (pos * cardW()) + 'px)';
+                slider.style.transform = 'translateX(-' + Math.round(pos * cardW()) + 'px)';
             }
             window.slideHostaway = function(dir) {
                 var max = Math.max(0, total - visible());
