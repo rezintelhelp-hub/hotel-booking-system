@@ -3,7 +3,7 @@
  * Plugin Name: GAS Reviews
  * Plugin URI: https://gas.travel
  * Description: Display guest reviews from Repuso/The Reviews Place or GAS internal reviews with Review schema markup. Colors controlled via GAS Admin.
- * Version: 1.2.4
+ * Version: 1.2.5
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -243,9 +243,10 @@ class GAS_Reviews {
                 .gas-reviews-wrap, .gas-reviews-wrap * { text-align:left !important; }
                 .gas-reviews-wrap .gas-reviews-loading { text-align:center !important; }
                 .gas-reviews-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:20px; }
-                .gas-reviews-slider-wrap { position:relative; overflow:hidden; padding:0 50px; }
+                .gas-reviews-slider-wrap { position:relative; padding:0 50px; }
+                .gas-reviews-slider-clip { overflow:hidden; }
                 .gas-reviews-slider { display:flex; transition:transform 0.5s ease; }
-                .gas-reviews-slider > div { flex:0 0 25%; min-width:260px; padding:0 8px; box-sizing:border-box; }
+                .gas-reviews-slider > div { flex:0 0 25%; max-width:25%; padding:0 8px; box-sizing:border-box; }
                 .gas-review-nav { position:absolute; top:50%; transform:translateY(-50%); width:44px; height:44px; border-radius:50%; background:<?php echo $star_color; ?>; border:2px solid <?php echo $star_color; ?>; cursor:pointer; font-size:20px; color:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); z-index:10; transition:all 0.3s; text-align:center !important; }
                 .gas-review-nav:hover { background:<?php echo $card_bg; ?>; color:<?php echo $star_color; ?>; }
                 .gas-review-nav.prev { left:0; }
@@ -277,13 +278,16 @@ class GAS_Reviews {
                 }
                 .gas-review-source { display:inline-block; font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; padding:3px 8px; border-radius:4px; background:<?php echo $accent; ?>10; color:<?php echo $accent; ?>; margin-top:10px; }
                 .gas-reviews-loading { padding:60px 20px; color:<?php echo $text2; ?>; }
-                @media (max-width:768px) { .gas-reviews-grid { grid-template-columns:1fr; } .gas-reviews-slider > div { flex:0 0 100%; min-width:100%; } .gas-reviews-slider-wrap { padding:0 40px; } }
-                @media (max-width:1024px) and (min-width:769px) { .gas-reviews-slider > div { flex:0 0 50%; } }
+                @media (max-width:1279px) { .gas-reviews-slider > div { flex-basis:33.3333%; max-width:33.3333%; } }
+                @media (max-width:1023px) { .gas-reviews-slider > div { flex-basis:50%; max-width:50%; } }
+                @media (max-width:767px) { .gas-reviews-grid { grid-template-columns:1fr; } .gas-reviews-slider > div { flex-basis:100%; max-width:100%; } .gas-reviews-slider-wrap { padding:0 40px; } }
             </style>
             <?php if ($layout === 'slider') : ?>
             <div class="gas-reviews-slider-wrap">
-                <div class="gas-reviews-slider" id="<?php echo esc_attr($uid); ?>">
-                    <div class="gas-reviews-loading">Loading reviews...</div>
+                <div class="gas-reviews-slider-clip">
+                    <div class="gas-reviews-slider" id="<?php echo esc_attr($uid); ?>">
+                        <div class="gas-reviews-loading">Loading reviews...</div>
+                    </div>
                 </div>
                 <button class="gas-review-nav prev" onclick="gasRevSlide_<?php echo esc_attr($uid); ?>(-1)">&#8249;</button>
                 <button class="gas-review-nav next" onclick="gasRevSlide_<?php echo esc_attr($uid); ?>(1)">&#8250;</button>
@@ -364,7 +368,7 @@ class GAS_Reviews {
                             // line-clamp:4 truncates the last visible line with an ellipsis;
                             // min-height:0 is required so flex:1 can actually shrink the <p>
                             // below natural content size, otherwise it overflows the card.
-                            html += '<p style="flex:1 1 0;min-height:0;margin:0 0 12px;overflow:hidden;color:'+textColor+';opacity:0.9;font-size:0.95rem;line-height:1.6;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;line-clamp:4;">&ldquo;' + text + '&rdquo;</p>';
+                            html += '<p style="flex:1 1 0;min-height:0;width:100%;margin:0 0 12px;padding:0;overflow:hidden;color:'+textColor+';opacity:0.9;font-size:0.95rem;line-height:1.6;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;line-clamp:4;text-align:left;">&ldquo;' + text + '&rdquo;</p>';
                             html += '<div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:12px;margin-top:auto;">';
                             html += '<div style="font-weight:600;font-size:14px;color:'+textColor+';">' + name + '</div>';
                             if (source) html += '<div style="font-size:12px;color:'+textColor2+';margin-top:2px;">' + source + '</div>';
@@ -374,13 +378,24 @@ class GAS_Reviews {
                         // Auto-slide
                         var pos = 0;
                         var total = reviews.length;
-                        var visible = window.innerWidth < 768 ? 1 : window.innerWidth < 1024 ? 2 : window.innerWidth < 1280 ? 3 : 4;
-                        var max = Math.max(0, total - visible);
+                        function cardW() { var c = container.firstElementChild; return c ? c.getBoundingClientRect().width : 0; }
+                        function visible() { var w = cardW(); return w ? Math.max(1, Math.floor(container.getBoundingClientRect().width / w)) : 1; }
+                        function apply() {
+                            var max = Math.max(0, total - visible());
+                            if (pos > max) pos = max;
+                            container.style.transform = 'translateX(-' + Math.round(pos * cardW()) + 'px)';
+                        }
                         window['gasRevSlide_' + containerId] = function(dir) {
+                            var max = Math.max(0, total - visible());
                             pos = Math.max(0, Math.min(max, pos + dir));
-                            container.style.transform = 'translateX(-' + (pos * (100 / total)) + '%)';
+                            apply();
                         };
-                        setInterval(function() { pos = pos >= max ? 0 : pos + 1; container.style.transform = 'translateX(-' + (pos * (100 / total)) + '%)'; }, 5000);
+                        setInterval(function() {
+                            var max = Math.max(0, total - visible());
+                            pos = pos >= max ? 0 : pos + 1;
+                            apply();
+                        }, 5000);
+                        window.addEventListener('resize', apply);
                     } else {
                         // Grid layout — card grid
                         reviews.forEach(function(r){
