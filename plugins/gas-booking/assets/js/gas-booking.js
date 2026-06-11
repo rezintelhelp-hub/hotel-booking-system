@@ -159,14 +159,14 @@ jQuery(document).ready(function($) {
                           header.querySelector('.developer-header-inner') ||
                           header.querySelector('nav') ||
                           header;
-            btn.style.cssText = 'margin-left:auto;align-self:center;padding:10px 18px;background:var(--developer-btn-primary-bg, var(--button_color, #F97224));color:#fff;font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;text-decoration:none;';
+            btn.style.cssText = 'margin-left:auto;align-self:center;padding:10px 18px;background:var(--developer-btn-primary-bg, var(--button_color, #ff931e));color:#fff;font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;text-decoration:none;';
             flexRow.appendChild(btn);
         } else {
             // Last-resort fallback when no <header> at all is in the DOM.
             btn.style.cssText = [
                 'position:fixed', 'top:18px', 'right:24px', 'z-index:9998',
                 'padding:10px 18px',
-                'background:var(--developer-btn-primary-bg, var(--button_color, #F97224))',
+                'background:var(--developer-btn-primary-bg, var(--button_color, #ff931e))',
                 'color:#fff',
                 'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
                 'text-decoration:none', 'box-shadow:0 2px 8px rgba(0,0,0,0.15)'
