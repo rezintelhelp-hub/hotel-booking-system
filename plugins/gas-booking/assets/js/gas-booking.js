@@ -142,35 +142,32 @@ jQuery(document).ready(function($) {
         var ctaIsOnRight = ctaRect && (ctaRect.right > window.innerWidth * 0.5);
 
         if (cta && ctaIsOnRight) {
+            // Inherit the CTA's className verbatim so the cart picks up
+            // the theme's exact button styling — including the colour.
+            // Matches the orange Book Now exactly.
             btn.className = cta.className;
-            btn.style.cssText = 'margin-left:8px;background:#0f172a !important;color:#fff !important;text-decoration:none;';
+            btn.style.cssText = 'margin-left:8px;color:#fff !important;text-decoration:none;';
             cta.insertAdjacentElement('afterend', btn);
-        } else if (header && hero) {
-            // Hebden case: header has CTA on the left, hero defines the
-            // visible right edge of the page (100px right margin on the
-            // burger theme). Anchor the cart to match the hero's right.
-            if (getComputedStyle(header).position === 'static') header.style.position = 'relative';
-            btn.style.cssText = [
-                'position:absolute',
-                'top:50%', 'transform:translateY(-50%)',
-                'padding:10px 18px',
-                'background:#0f172a', 'color:#fff',
-                'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
-                'text-decoration:none', 'z-index:1001'
-            ].join(';');
-            header.appendChild(btn);
-            var setRight = function() {
-                var hr = hero.getBoundingClientRect();
-                btn.style.right = Math.max(0, window.innerWidth - hr.right) + 'px';
-            };
-            setRight();
-            window.addEventListener('resize', setRight);
+        } else if (header) {
+            // CTA is on the left (Hebden burger theme) or no CTA found.
+            // Append the cart to the header's main flex row with
+            // margin-left:auto so the header's flexbox pushes it to the
+            // right edge of that row — no fixed pixel positioning, no
+            // measure-and-resize.
+            var flexRow = header.querySelector('.wp-block-group.alignfull:has(.wp-block-navigation)') ||
+                          header.querySelector('.wp-block-group.alignfull') ||
+                          header.querySelector('.developer-header-inner') ||
+                          header.querySelector('nav') ||
+                          header;
+            btn.style.cssText = 'margin-left:auto;align-self:center;padding:10px 18px;background:var(--developer-btn-primary-bg, var(--button_color, #F97224));color:#fff;font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;text-decoration:none;';
+            flexRow.appendChild(btn);
         } else {
-            // Last-resort fallback
+            // Last-resort fallback when no <header> at all is in the DOM.
             btn.style.cssText = [
                 'position:fixed', 'top:18px', 'right:24px', 'z-index:9998',
                 'padding:10px 18px',
-                'background:#0f172a', 'color:#fff',
+                'background:var(--developer-btn-primary-bg, var(--button_color, #F97224))',
+                'color:#fff',
                 'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
                 'text-decoration:none', 'box-shadow:0 2px 8px rgba(0,0,0,0.15)'
             ].join(';');
