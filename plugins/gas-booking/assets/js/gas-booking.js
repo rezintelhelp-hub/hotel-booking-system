@@ -40,30 +40,6 @@ jQuery(document).ready(function($) {
     var currentLanguage = getCurrentLanguage();
     var dateLocale = { en: 'en-GB', fr: 'fr-FR', de: 'de-DE', es: 'es-ES', nl: 'nl-NL', ja: 'ja-JP', it: 'it-IT', pt: 'pt-PT' }[currentLanguage] || 'en-GB';
 
-    // Flow D — Bike storage in cart banner. When the guest came in from the
-    // bike-storage widget via "Add a room to this stay", the URL carries
-    // ?prefill_upsells=ID and ?prefill_label="Bike storage · £20 for 2 days".
-    // Render a sticky banner at the top of the page so they can see what's
-    // already in their cart while choosing a room. The upsell itself auto-
-    // ticks on the checkout screen (see prefill_upsells logic further down).
-    (function injectBikeStorageInCartBanner() {
-        try {
-            var qp = new URLSearchParams(window.location.search);
-            if (!qp.get('prefill_upsells')) return;
-            var label = qp.get('prefill_label') || 'Item added to cart';
-            var bar = document.createElement('div');
-            bar.id = 'gas-prefill-cart-banner';
-            bar.style.cssText = 'position:sticky;top:0;z-index:9999;background:#10b981;color:#fff;padding:10px 16px;font:600 0.95rem/1.3 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.12);';
-            bar.innerHTML = '🛒 In your cart: <strong>' + label.replace(/[<>"&]/g, function(c){return {"<":"&lt;",">":"&gt;","\"":"&quot;","&":"&amp;"}[c];}) + '</strong> — pick a room for these dates below';
-            // Insert before the very first body child so it sits above the
-            // theme header. If body isn't ready (shouldn't happen inside
-            // document.ready) just bail silently.
-            if (document.body && document.body.firstChild) {
-                document.body.insertBefore(bar, document.body.firstChild);
-            }
-        } catch (e) { /* non-fatal */ }
-    })();
-
     // Shop event entry-point — when the user lands here from a shop event's
     // "Book Now" button (?event=<slug>), fetch the event details and prepend a
     // small banner above the rooms grid / room widget so they know what they're
