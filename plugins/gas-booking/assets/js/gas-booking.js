@@ -98,47 +98,59 @@ jQuery(document).ready(function($) {
         var url = gasCartCheckoutUrl(cart);
         var label = '🛒 ' + count + (total > 0 ? ' · ' + symbol + total : '');
 
-        // Try to find an existing Book Now CTA so we can sit in-line with it.
-        // Selectors in priority order — first match wins.
-        var ctaSelectors = [
-            'header .developer-nav-cta',
-            'header a.developer-nav-cta',
-            'header a[href*="/book-now"]:not(.developer-logo)',
-            'header a[href*="/book/"]:not(.developer-logo)',
-            '.gas-header a[href*="/book"]',
-            'nav a[href*="/book-now"]:not(.developer-logo)'
-        ];
-        var cta = null;
-        for (var i = 0; i < ctaSelectors.length; i++) {
-            cta = document.querySelector(ctaSelectors[i]);
-            if (cta) break;
-        }
-
         var btn = document.createElement('a');
         btn.id = 'gas-cart-button';
         btn.href = url;
         btn.textContent = label;
 
-        if (cta && cta.parentNode) {
-            // In-header mode: copy the Book Now CTA's classes so the cart
-            // inherits the theme's exact button styling (colour, padding,
-            // font), then nudge background to a neutral darker shade so
-            // the two buttons are visually distinct but obviously paired.
-            // Insert AFTER the Book Now CTA so the cart sits to its right.
-            btn.className = cta.className;
-            btn.style.cssText = 'margin-left:8px;border-radius:0;background:#0f172a;color:#fff;text-decoration:none;';
-            if (cta.nextSibling) cta.parentNode.insertBefore(btn, cta.nextSibling);
-            else cta.parentNode.appendChild(btn);
-        } else {
-            // Fallback mode: header CTA not found (unknown theme). Pin to
-            // top-right so the button is still discoverable.
+        // Find the theme's fixed header. The cart goes INSIDE it as an
+        // absolutely-positioned child, anchored to the right edge of the
+        // page's content container (typically 1280px max-width centered)
+        // so the cart's right edge lines up with the hero image's right
+        // edge — not the right edge of the nav's last <a>, which is where
+        // it ended up when we inserted next to the Book Now CTA.
+        var headerSelectors = [
+            'header.developer-header',
+            'header.gas-header',
+            'header.site-header',
+            'header[class*="header"]',
+            'header'
+        ];
+        var header = null;
+        for (var i = 0; i < headerSelectors.length; i++) {
+            header = document.querySelector(headerSelectors[i]);
+            if (header) break;
+        }
+
+        if (header) {
+            // Ensure header is positioned so absolute child anchors to it.
+            // Developer-light is position:fixed already; burger / unknown
+            // themes may be static — only override if needed.
+            var hpos = getComputedStyle(header).position;
+            if (hpos === 'static') header.style.position = 'relative';
             btn.style.cssText = [
-                'position:fixed','top:14px','right:18px','z-index:9998',
-                'display:inline-flex','align-items:center','gap:6px',
-                'padding:10px 18px','border-radius:0',
-                'background:#0f172a','color:#fff',
+                'position:absolute', 'top:50%', 'transform:translateY(-50%)',
+                // 1280px = developer-light container max-width; 24px = container
+                // side padding. Result: right edge of cart aligns with right
+                // edge of container content area at every viewport width.
+                'right:max(24px, calc((100vw - 1280px) / 2 + 24px))',
+                'padding:10px 18px', 'border-radius:0',
+                'background:#0f172a', 'color:#fff',
                 'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
-                'text-decoration:none','box-shadow:0 2px 8px rgba(0,0,0,0.15)'
+                'text-decoration:none', 'z-index:1001'
+            ].join(';');
+            header.appendChild(btn);
+        } else {
+            // Fallback if no <header> at all — pin to top-right of viewport
+            // using the same right calc so it's still aligned with content.
+            btn.style.cssText = [
+                'position:fixed', 'top:18px',
+                'right:max(24px, calc((100vw - 1280px) / 2 + 24px))',
+                'z-index:9998',
+                'padding:10px 18px', 'border-radius:0',
+                'background:#0f172a', 'color:#fff',
+                'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
+                'text-decoration:none', 'box-shadow:0 2px 8px rgba(0,0,0,0.15)'
             ].join(';');
             document.body.appendChild(btn);
         }
