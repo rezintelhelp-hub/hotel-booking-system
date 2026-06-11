@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.0.0
+ * Version: 4.0.1
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -218,11 +218,22 @@ jQuery(document).ready(function($) {
                 if (!a.href || a.target === '_blank') return;
                 try {
                     var u = new URL(a.href, window.location.origin);
-                    if (u.searchParams.has('prefill_upsells')) return; // already carried
-                    u.searchParams.set('prefill_upsells', upsells);
-                    if (qty) u.searchParams.set('prefill_quantity', qty);
-                    a.href = u.toString();
+                    if (!u.searchParams.has('prefill_upsells')) {
+                        u.searchParams.set('prefill_upsells', upsells);
+                        if (qty) u.searchParams.set('prefill_quantity', qty);
+                        a.href = u.toString();
+                    }
                 } catch (e) {}
+                // Relabel View & Book → Add to booking so the guest sees
+                // they're adding the room to their existing cart rather
+                // than starting a fresh booking. Skip if the button is
+                // already a non-default state (e.g. "Checking…" while
+                // dates are validating, or external Beds24 URLs).
+                if (a.classList.contains('gas-view-btn') || a.classList.contains('gas-row-view-btn') || a.classList.contains('gas-property-cta')) {
+                    var current = (a.textContent || '').trim();
+                    var skip = ['Checking…', 'Unavailable', 'Sold out', ''].indexOf(current) !== -1;
+                    if (!skip) a.textContent = 'Add to booking →';
+                }
             });
         } catch (e) {}
     }
