@@ -5337,6 +5337,23 @@ jQuery(document).ready(function($) {
                                 });
                             });
 
+                            // Flow D: pre-tick any upsells listed in
+                            // ?prefill_upsells=ID,ID — auto-selected when
+                            // the guest came in from the bike-storage widget
+                            // having chosen to bundle a room. We simulate a
+                            // click on each matching card so all existing
+                            // selection side-effects fire (totals, deposit
+                            // recalc, mandatory-style display etc).
+                            try {
+                                var prefillRaw = new URLSearchParams(window.location.search).get('prefill_upsells');
+                                if (prefillRaw) {
+                                    var prefillIds = prefillRaw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+                                    prefillIds.forEach(function(id) {
+                                        var $card = $('.gas-upsell-card[data-upsell-id="' + id + '"]').not('.selected');
+                                        if ($card.length) $card.trigger('click');
+                                    });
+                                }
+                            } catch (e) { /* non-fatal */ }
                             // Render mandatory items in PRICE DETAILS + update total
                             var groupMand = ug.selectedUpsells.filter(function(u) { return u.mandatory === true || u.mandatory === 'true'; });
                             if (groupMand.length > 0) {
@@ -8237,6 +8254,8 @@ jQuery(document).ready(function($) {
                 '.gas-bs-linked-cancel{font-size:0.8rem;color:#64748b;text-decoration:underline}',
                 '.gas-bs-linked-msg{margin-top:0.5rem;font-size:0.85rem}',
                 '.gas-bs-linked-banner{padding:0.6rem 0.85rem;background:#dcfce7;color:#166534;border-radius:6px;font-size:0.9rem;margin-bottom:0.85rem}',
+                '.gas-bs-book-room-btn{display:block;width:100%;padding:0.65rem 1rem;margin-top:0.6rem;border:1px solid var(--button_color,#F97224);border-radius:8px;background:#fff;color:var(--button_color,#F97224);font-size:0.95rem;font-weight:600;cursor:pointer;transition:all 0.15s}',
+                '.gas-bs-book-room-btn:hover{background:var(--button_color,#F97224);color:#fff}',
                 '@media(max-width:520px){.gas-bs-date-row,.gas-bs-form-row,.gas-bs-linked-row{grid-template-columns:1fr}}'
             ].join('');
             var styleEl = document.createElement('style');
@@ -8253,6 +8272,7 @@ jQuery(document).ready(function($) {
             $container.data('gasBsInited', true);
 
             var propertyId = $container.data('property-id');
+            var bookingUrl = $container.data('booking-url') || '/';
             var apiUrl = (typeof gasBooking !== 'undefined' && gasBooking.apiUrl) ? gasBooking.apiUrl : 'https://admin.gas.travel';
 
             $container.html(
@@ -8287,6 +8307,7 @@ jQuery(document).ready(function($) {
                 '      <input name="email" type="email" placeholder="Email *" required>' +
                 '      <input name="phone" type="tel" placeholder="Phone (optional)">' +
                 '      <button type="submit" class="gas-bs-book-btn">Book and pay</button>' +
+                '      <button type="button" class="gas-bs-book-room-btn" style="display:none">Add a room to this stay →</button>' +
                 '      <div class="gas-bs-form-error"></div>' +
                 '    </form>' +
                 '    <button type="button" class="gas-bs-back-btn">← Change dates</button>' +
@@ -8437,10 +8458,20 @@ jQuery(document).ready(function($) {
                             ).show();
                             $container.find('.gas-bs-guest-form input[name]').prop('required', false);
                             $container.find('.gas-bs-guest-form .gas-bs-form-row, .gas-bs-guest-form input[name=email], .gas-bs-guest-form input[name=phone]').hide();
+                            $container.find('.gas-bs-book-room-btn').hide();
                         } else {
                             $container.find('.gas-bs-linked-banner').hide();
                             $container.find('.gas-bs-guest-form input[name]').prop('required', true);
                             $container.find('.gas-bs-guest-form .gas-bs-form-row, .gas-bs-guest-form input[name=email], .gas-bs-guest-form input[name=phone]').show();
+                            // Flow D: only offer the "Add a room" path when
+                            // the property has a bike-storage upsell wired
+                            // up — without one, the main booking widget has
+                            // no way to bundle the storage with the room.
+                            if (r.upsell_id) {
+                                $container.find('.gas-bs-book-room-btn').show();
+                            } else {
+                                $container.find('.gas-bs-book-room-btn').hide();
+                            }
                         }
                         $container.find('.gas-bs-book-btn').text('Book and pay ' + symbol + r.total_price);
                     },
@@ -8452,6 +8483,22 @@ jQuery(document).ready(function($) {
                 $container.find('.gas-bs-step-confirm').hide();
                 $container.find('.gas-bs-step-dates').show();
                 lastQuote = null;
+            });
+
+            // Flow D: redirect into the main booking widget with the bike-
+            // storage upsell pre-ticked. Dates are pre-filled via ?checkin /
+            // ?checkout (existing widget params). prefill_upsells carries the
+            // upsell ID — the main widget's upsell-render code picks it up
+            // and auto-selects matching cards after upsells render.
+            $container.on('click', '.gas-bs-book-room-btn', function() {
+                if (!lastQuote || !lastQuote.upsell_id) return;
+                var ci = $checkin.val();
+                var co = $checkout.val();
+                var sep = bookingUrl.indexOf('?') === -1 ? '?' : '&';
+                var url = bookingUrl + sep + 'checkin=' + encodeURIComponent(ci) +
+                                       '&checkout=' + encodeURIComponent(co) +
+                                       '&prefill_upsells=' + encodeURIComponent(lastQuote.upsell_id);
+                window.location.href = url;
             });
 
             $container.on('submit', '.gas-bs-guest-form', function(e) {

@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.78
+ * Version: 3.8.79
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.78');
+define('GAS_BOOKING_VERSION', '3.8.79');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -10694,12 +10694,17 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
     public function bike_storage_shortcode($atts) {
         $a = shortcode_atts(array(
             'property_id' => '',
+            // Flow D: bike-storage widget can offer "Book storage + a room".
+            // booking_url is where to send the guest with checkin/checkout +
+            // upsells pre-filled. Defaults to "/" (site root). Set to "/book/"
+            // or wherever the [gas_rooms] shortcode lives on this site.
+            'booking_url' => '/',
         ), $atts);
         $pid = intval($a['property_id']);
         if (!$pid) {
             return '<p style="color:#b91c1c;font-size:0.9rem;">Bike Storage block: pick a property in Pro Builder so the widget knows which cabinets to show.</p>';
         }
-        return '<div class="gas-bike-storage" data-property-id="' . esc_attr($pid) . '"></div>';
+        return '<div class="gas-bike-storage" data-property-id="' . esc_attr($pid) . '" data-booking-url="' . esc_attr($a['booking_url']) . '"></div>';
     }
 
     public function footer_shortcode($atts) {
