@@ -103,15 +103,14 @@ jQuery(document).ready(function($) {
         btn.href = url;
         btn.textContent = label;
 
-        // The simplest thing that works: insert the cart as a sibling of
-        // the Book Now CTA inside the same nav. The browser's flex layout
-        // for the nav handles alignment — no positioning math, no
-        // viewport calculations, no theme-specific selectors.
+        // Find the Book Now CTA (for vertical centering) and the hero/main
+        // image element (for right-edge alignment). Both measured live.
         var ctaSelectors = [
             'header .developer-nav-cta',
             'header nav a[href*="/book-now"]:not(.developer-logo)',
             'header nav a[href*="/book/"]:not(.developer-logo)',
             'header a[href*="/book-now"]:not(.developer-logo)',
+            'header a[href*="/book/"]:not(.developer-logo)',
             'nav a[href*="/book-now"]:not(.developer-logo)'
         ];
         var cta = null;
@@ -119,16 +118,55 @@ jQuery(document).ready(function($) {
             cta = document.querySelector(ctaSelectors[i]);
             if (cta) break;
         }
+        var heroSelectors = [
+            '.wp-block-cover.alignfull',          // Hebden / WP block themes
+            '.developer-hero',                    // developer-light/dark
+            'main .wp-block-cover',
+            'main section:first-of-type',
+            'main > *:first-child'
+        ];
+        var hero = null;
+        for (var j = 0; j < heroSelectors.length; j++) {
+            hero = document.querySelector(heroSelectors[j]);
+            if (hero) break;
+        }
+        var header = document.querySelector('header.developer-header, header.wp-block-template-part, header.gas-header, header');
 
-        if (cta && cta.parentNode) {
-            // Inherit the CTA's classes so the cart picks up the theme's
-            // exact button rule (padding, font, border-radius). Override
-            // only the background colour to distinguish them.
+        // Decide: if the Book Now CTA already sits on the right side of the
+        // viewport (right edge in the right half), insert the cart as a
+        // sibling next to it — the nav's flex layout handles alignment.
+        // If Book Now is on the LEFT (Hebden burger theme has logo + CTA
+        // all left-clustered), absolutely position the cart inside the
+        // header, anchored to the hero's right edge.
+        var ctaRect = cta ? cta.getBoundingClientRect() : null;
+        var ctaIsOnRight = ctaRect && (ctaRect.right > window.innerWidth * 0.5);
+
+        if (cta && ctaIsOnRight) {
             btn.className = cta.className;
             btn.style.cssText = 'margin-left:8px;background:#0f172a !important;color:#fff !important;text-decoration:none;';
             cta.insertAdjacentElement('afterend', btn);
+        } else if (header && hero) {
+            // Hebden case: header has CTA on the left, hero defines the
+            // visible right edge of the page (100px right margin on the
+            // burger theme). Anchor the cart to match the hero's right.
+            if (getComputedStyle(header).position === 'static') header.style.position = 'relative';
+            btn.style.cssText = [
+                'position:absolute',
+                'top:50%', 'transform:translateY(-50%)',
+                'padding:10px 18px',
+                'background:#0f172a', 'color:#fff',
+                'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
+                'text-decoration:none', 'z-index:1001'
+            ].join(';');
+            header.appendChild(btn);
+            var setRight = function() {
+                var hr = hero.getBoundingClientRect();
+                btn.style.right = Math.max(0, window.innerWidth - hr.right) + 'px';
+            };
+            setRight();
+            window.addEventListener('resize', setRight);
         } else {
-            // Genuine fallback only when no Book Now CTA is in the DOM.
+            // Last-resort fallback
             btn.style.cssText = [
                 'position:fixed', 'top:18px', 'right:24px', 'z-index:9998',
                 'padding:10px 18px',
