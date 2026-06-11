@@ -76,58 +76,70 @@ jQuery(document).ready(function($) {
         if (!cart || !cart.upsells) return 0;
         return cart.upsells.reduce(function(s, u) { return s + ((u.price || 0) * (u.qty || 1)); }, 0);
     }
-    // Inject the cart button. Fixed position, top-right, sits over the
-    // theme header (which is itself fixed/sticky on most GAS themes).
-    // No dropdown — single click navigates straight to /book-now/.
+    // Inject the cart button. First choice: drop it INTO the theme header
+    // right next to the existing "Book Now" CTA so it visually lines up
+    // (developer-light/dark have .developer-nav-cta in <header>; burger
+    // theme nav varies). Fallback: position:fixed top-right pill if no
+    // header CTA found. Single click always navigates to /book-now/ —
+    // no dropdown, no inline clear button.
     function gasCartRenderButton() {
         var existing = document.getElementById('gas-cart-button');
+        if (existing) existing.remove();
         var cart = gasCartRead();
-        if (!cart || gasCartItemCount(cart) === 0) {
-            if (existing) existing.remove();
-            return;
-        }
-        // Don't double-render on /book-now/ itself — the cart is the upsell
-        // panel inline; a header button would be redundant.
+        if (!cart || gasCartItemCount(cart) === 0) return;
+        // Don't render on /book-now/ — cart is already inline as the upsell.
         var path = (window.location.pathname || '').replace(/\/+$/, '');
         var bookPath = (cart.booking_url || '/book-now/').split('?')[0].replace(/\/+$/, '');
-        if (path && bookPath && path === bookPath) {
-            if (existing) existing.remove();
-            return;
-        }
+        if (path && bookPath && path === bookPath) return;
+
         var symbol = (cart.currency === 'GBP') ? '£' : (cart.currency === 'EUR' ? '€' : (cart.currency === 'USD' ? '$' : ''));
         var total = gasCartTotal(cart);
         var count = gasCartItemCount(cart);
-        if (!existing) {
-            existing = document.createElement('a');
-            existing.id = 'gas-cart-button';
-            // Inline styles only — guarantees consistent look across every
-            // theme without needing per-theme CSS. Colour pulled from the
-            // CSS variable the theme exposes; falls back to a sane orange.
-            existing.style.cssText = [
-                'position:fixed', 'top:14px', 'right:18px', 'z-index:9998',
-                'display:inline-flex', 'align-items:center', 'gap:8px',
-                'padding:8px 14px', 'border-radius:999px',
-                'background:var(--developer-btn-primary-bg, var(--button_color, #F97224))',
-                'color:var(--developer-btn-primary-text, #fff)',
-                'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
-                'text-decoration:none', 'box-shadow:0 2px 8px rgba(0,0,0,0.15)',
-                'cursor:pointer'
-            ].join(';');
-            document.body.appendChild(existing);
+        var url = gasCartCheckoutUrl(cart);
+        var label = '🛒 ' + count + (total > 0 ? ' · ' + symbol + total : '');
+
+        // Try to find an existing Book Now CTA so we can sit in-line with it.
+        // Selectors in priority order — first match wins.
+        var ctaSelectors = [
+            'header .developer-nav-cta',
+            'header a.developer-nav-cta',
+            'header a[href*="/book-now"]:not(.developer-logo)',
+            'header a[href*="/book/"]:not(.developer-logo)',
+            '.gas-header a[href*="/book"]',
+            'nav a[href*="/book-now"]:not(.developer-logo)'
+        ];
+        var cta = null;
+        for (var i = 0; i < ctaSelectors.length; i++) {
+            cta = document.querySelector(ctaSelectors[i]);
+            if (cta) break;
         }
-        existing.href = gasCartCheckoutUrl(cart);
-        existing.innerHTML =
-            '<span aria-hidden="true">🛒</span>' +
-            '<span>' + count + '</span>' +
-            (total > 0 ? '<span style="opacity:0.85;font-weight:500;">· ' + symbol + total + '</span>' : '') +
-            '<span style="opacity:0.7;font-weight:400;font-size:1rem;line-height:0;margin-left:4px;" title="Remove from cart" data-clear>×</span>';
-        // The little × on the right clears the cart instead of navigating.
-        existing.addEventListener('click', function(e) {
-            if (e.target && e.target.dataset && e.target.dataset.clear !== undefined) {
-                e.preventDefault();
-                gasCartClear();
-            }
-        }, { once: false });
+
+        var btn = document.createElement('a');
+        btn.id = 'gas-cart-button';
+        btn.href = url;
+        btn.textContent = label;
+
+        if (cta && cta.parentNode) {
+            // In-header mode: copy the Book Now CTA's classes so the cart
+            // inherits the theme's exact button styling (colour, padding,
+            // font), then nudge background to a neutral darker shade so
+            // the two buttons are visually distinct but obviously paired.
+            btn.className = cta.className;
+            btn.style.cssText = 'margin-right:8px;border-radius:0;background:#0f172a;color:#fff;text-decoration:none;';
+            cta.parentNode.insertBefore(btn, cta);
+        } else {
+            // Fallback mode: header CTA not found (unknown theme). Pin to
+            // top-right so the button is still discoverable.
+            btn.style.cssText = [
+                'position:fixed','top:14px','right:18px','z-index:9998',
+                'display:inline-flex','align-items:center','gap:6px',
+                'padding:10px 18px','border-radius:0',
+                'background:#0f172a','color:#fff',
+                'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
+                'text-decoration:none','box-shadow:0 2px 8px rgba(0,0,0,0.15)'
+            ].join(';');
+            document.body.appendChild(btn);
+        }
     }
     // Render on every page load so the button appears wherever the guest
     // navigates while the cart is non-empty.
