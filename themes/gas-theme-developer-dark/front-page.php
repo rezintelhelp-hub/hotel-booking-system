@@ -344,7 +344,7 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
                     <?php if ($has_card) : ?>
                         <div class="developer-wrap-card" style="<?php echo $has_media ? 'margin-top: 1rem; ' : ''; ?>padding: 1.25rem; background: rgba(255,255,255,0.05); border-radius: 12px;">
                             <?php if ($card_image) : ?>
-                                <img src="<?php echo esc_url($card_image); ?>" alt="<?php echo esc_attr($card_title); ?>" style="width: 100%; height: auto; border-radius: 8px; margin-bottom: 1rem; display: block;">
+                                <img src="<?php echo esc_url($card_image); ?>" alt="<?php echo esc_attr($card_title); ?>" style="width: calc(100% + 2.5rem); max-width: none; height: auto; margin: -1.25rem -1.25rem 1rem; border-radius: 12px 12px 0 0; display: block;">
                             <?php endif; ?>
                             <?php if ($card_title) : ?><h3 style="margin: 0 0 0.5rem; font-size: 1.15rem;"><?php echo esc_html($card_title); ?></h3><?php endif; ?>
                             <?php if ($card_text) : ?><p style="margin: 0 0 1rem; opacity: 0.9; font-size: 0.95rem;"><?php echo esc_html($card_text); ?></p><?php endif; ?>
