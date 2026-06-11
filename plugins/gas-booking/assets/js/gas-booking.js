@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.9.4
+ * Version: 3.9.5
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -4458,6 +4458,17 @@ jQuery(document).ready(function($) {
                                 '<button type="button" class="gas-cart-remove" aria-label="Remove" style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:1.1rem;line-height:1;padding:0 4px;">×</button>' +
                                 '</div>';
                         });
+                        // "Add a room" link — built from cart.booking_url
+                        // (set by the bike-storage widget when it wrote the
+                        // cart) with checkin/checkout pre-filled so the rooms
+                        // page lands on the same dates as the cart.
+                        if (cart.booking_url) {
+                            var addRoomUrl = cart.booking_url;
+                            var sep = addRoomUrl.indexOf('?') === -1 ? '?' : '&';
+                            if (checkin)      addRoomUrl += sep + 'checkin=' + encodeURIComponent(checkin); sep = '&';
+                            if (checkoutDate) addRoomUrl += sep + 'checkout=' + encodeURIComponent(checkoutDate);
+                            html += '<a href="' + addRoomUrl + '" class="gas-cart-add-room" style="display:block;margin-top:10px;padding:8px 12px;border:1px dashed #cbd5e1;border-radius:6px;text-align:center;color:#2563eb;text-decoration:none;font-size:0.9rem;font-weight:600;">+ Add a room to this booking</a>';
+                        }
                     }
                     html += '</div>';
                     if ($existing.length) { $existing.replaceWith(html); }
