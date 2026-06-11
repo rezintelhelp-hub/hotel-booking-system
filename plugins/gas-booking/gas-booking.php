@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.98
+ * Version: 3.8.99
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.98');
+define('GAS_BOOKING_VERSION', '3.8.99');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7865,8 +7865,16 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         // Apply site currency override so checkout always uses the correct display currency
         $currency_param = $this->resolve_currency($currency_param);
 
+        // Cart-only flow: guest arrived from the floating cart pill carrying
+        // upsells (e.g. bike storage) but no room. Skip the room-required
+        // gate; the JS will populate the summary from localStorage cart and
+        // route the submit through /api/public/bike-storage/checkout instead
+        // of /api/public/book. Other params (checkin/checkout) still come via
+        // URL and feed the existing date display.
+        $is_cart_only = isset($_GET['cart_only']) && $_GET['cart_only'] == '1';
+
         // For group bookings, data comes from localStorage via JS
-        if (!$is_group && (!$unit_id || !$checkin || !$checkout)) {
+        if (!$is_group && !$is_cart_only && (!$unit_id || !$checkin || !$checkout)) {
             return '<div class="gas-checkout-error">
                 <h2>Missing Booking Details</h2>
                 <p>Please select a room and dates first.</p>
@@ -7889,7 +7897,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
              data-api-url="<?php echo esc_attr($api_url); ?>"
              data-client-id="<?php echo esc_attr($client_id); ?>"
              data-currency="<?php echo esc_attr($currency_param); ?>"
-             data-is-group="<?php echo $is_group ? '1' : '0'; ?>">
+             data-is-group="<?php echo $is_group ? '1' : '0'; ?>"
+             data-cart-only="<?php echo $is_cart_only ? '1' : '0'; ?>">
             
             <h1 class="gas-checkout-title"><?php echo esc_html($t_checkout['your_booking'] ?? 'Your Booking'); ?></h1>
             

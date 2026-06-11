@@ -49,18 +49,21 @@ jQuery(document).ready(function($) {
             if (btn) btn.remove();
         } catch (e) {}
     }
-    // Build the URL that opens /book-now/ with the cart pre-filled.
+    // Build the URL that opens /checkout/?cart_only=1 — the SAME checkout
+    // surface the room flow uses, just in cart-only mode (rooms picker
+    // skipped, inline Stripe Elements payment). PHP gas_checkout_shortcode
+    // recognises cart_only=1 and bypasses the room-required gate; the JS
+    // below populates the summary from localStorage.
     function gasCartCheckoutUrl(cart) {
-        var base = cart.booking_url || '/book-now/';
-        var sep = base.indexOf('?') === -1 ? '?' : '&';
-        var params = [];
+        var base = '/checkout/';
+        var sep = '?';
+        var params = ['cart_only=1'];
         if (cart.checkin)  params.push('checkin='  + encodeURIComponent(cart.checkin));
         if (cart.checkout) params.push('checkout=' + encodeURIComponent(cart.checkout));
+        if (cart.property_id) params.push('property=' + encodeURIComponent(cart.property_id));
         if (cart.upsells && cart.upsells.length) {
             var ids = cart.upsells.map(function(u) { return u.id; }).join(',');
             params.push('prefill_upsells=' + encodeURIComponent(ids));
-            // Single-item carts also send quantity + label so the upsell
-            // ticks at the right qty and the dropdown placeholder is rich.
             if (cart.upsells.length === 1) {
                 params.push('prefill_quantity=' + encodeURIComponent(cart.upsells[0].qty || 1));
                 if (cart.upsells[0].label) params.push('prefill_label=' + encodeURIComponent(cart.upsells[0].label));
@@ -4376,6 +4379,159 @@ jQuery(document).ready(function($) {
             }
         });
         
+        // ========================================
+        // CART-ONLY CHECKOUT (bike storage etc.)
+        // ========================================
+        // When the guest arrives via the floating cart pill carrying just
+        // an upsell (no room), reuse this checkout page's guest form +
+        // Stripe Elements, but skip every room-related fetch + render.
+        // Submit goes to /api/public/bike-storage/checkout with the
+        // payment_method_id inline branch added on the server today.
+        var isCartOnly = $checkoutPage.data('cart-only') == '1';
+        if (isCartOnly) {
+            (function initCartOnlyCheckout() {
+                console.log('[GAS Cart Checkout] init');
+                // Read cart from localStorage (window.gasCart helper)
+                var cart = (window.gasCart && window.gasCart.read()) || null;
+                if (!cart || !cart.upsells || !cart.upsells.length) {
+                    $checkoutPage.html('<div style="padding:2rem;text-align:center;"><h2>Your cart is empty</h2><p>Add items to your cart first.</p></div>');
+                    return;
+                }
+                var apiUrl = $checkoutPage.data('api-url') || 'https://admin.gas.travel';
+                var sp = new URLSearchParams(window.location.search);
+                var propertyId = parseInt(sp.get('property')) || cart.property_id;
+                var checkin = sp.get('checkin') || cart.checkin;
+                var checkoutDate = sp.get('checkout') || cart.checkout;
+                var currency = (cart.currency || 'GBP').toUpperCase();
+                var symbol = currency === 'GBP' ? '£' : currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency + ' ';
+                var totalAmount = cart.upsells.reduce(function(s, u) { return s + ((u.price || 0) * (u.qty || 1)); }, 0);
+
+                // Replace the room-info summary with cart line items.
+                var $summaryRoom = $checkoutPage.find('.gas-summary-room');
+                if ($summaryRoom.length) {
+                    var cartHtml = '<div style="padding:14px 16px;background:#f8fafc;border-radius:8px;margin-bottom:12px;">';
+                    cartHtml += '<h3 style="margin:0 0 10px;font-size:1.05rem;color:#0f172a;">Your Cart</h3>';
+                    cart.upsells.forEach(function(u) {
+                        cartHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #e2e8f0;">' +
+                            '<span>' + (u.label || ('Item ' + u.id)) + ' × ' + (u.qty || 1) + '</span>' +
+                            '<span><strong>' + symbol + ((u.price || 0) * (u.qty || 1)).toFixed(2) + '</strong></span>' +
+                            '</div>';
+                    });
+                    cartHtml += '</div>';
+                    $summaryRoom.replaceWith(cartHtml);
+                }
+                // Pre-fill the date display + clear the room-specific bits.
+                if (checkin) $checkoutPage.find('.gas-checkin-display').text(new Date(checkin).toDateString());
+                if (checkoutDate) $checkoutPage.find('.gas-checkout-display').text(new Date(checkoutDate).toDateString());
+                $checkoutPage.find('.gas-summary-info-row, .gas-summary-divider').first().hide();
+                // Update Price Details to show just the cart total.
+                var $breakdown = $checkoutPage.find('.gas-price-breakdown');
+                if ($breakdown.length) {
+                    $breakdown.find('.gas-nights-label').text('Cart total');
+                    $breakdown.find('.gas-nights-total').text(symbol + totalAmount.toFixed(2));
+                }
+                $checkoutPage.find('.gas-grand-total, .gas-total-amount').text(symbol + totalAmount.toFixed(2));
+
+                // Stripe init — pull publishable key for this property.
+                var stripeInstance = null, cardElement = null;
+                $.ajax({
+                    url: apiUrl + '/api/public/property/' + propertyId + '/stripe-info',
+                    method: 'GET',
+                    success: function(resp) {
+                        if (!resp || !resp.success || !resp.stripe_enabled || !resp.stripe_publishable_key) {
+                            $('#gas-card-errors, .gas-card-errors').text('Card payments not available — contact the host.').show();
+                            return;
+                        }
+                        stripeInstance = Stripe(resp.stripe_publishable_key, resp.stripe_account_id ? { stripeAccount: resp.stripe_account_id } : undefined);
+                        var elements = stripeInstance.elements();
+                        cardElement = elements.create('card', { style: { base: { fontSize: '16px', color: '#0f172a' } } });
+                        // Find any card element mount point the existing checkout uses.
+                        var mount = document.getElementById('gas-card-element') || $checkoutPage.find('.gas-card-element')[0];
+                        if (mount) cardElement.mount(mount);
+                    },
+                    error: function() {
+                        $('#gas-card-errors, .gas-card-errors').text('Could not load payment setup.').show();
+                    }
+                });
+
+                // Wire submit. The existing checkout page form has a submit
+                // button; we intercept it for cart-only mode.
+                $checkoutPage.on('submit', 'form, .gas-guest-form, #gas-guest-form', function(e) {
+                    e.preventDefault();
+                    if (!stripeInstance || !cardElement) {
+                        $('#gas-card-errors, .gas-card-errors').text('Payment not ready — try again in a moment.').show();
+                        return;
+                    }
+                    var $form = $(this);
+                    var firstName = ($form.find('[name=first_name]').val() || '').trim();
+                    var lastName  = ($form.find('[name=last_name]').val() || '').trim();
+                    var email     = ($form.find('[name=email]').val() || '').trim();
+                    var phone     = ($form.find('[name=phone]').val() || '').trim();
+                    if (!firstName || !lastName || !email) {
+                        $('#gas-card-errors, .gas-card-errors').text('Please fill in name and email.').show();
+                        return;
+                    }
+                    var $payBtn = $form.find('button[type=submit], .gas-pay-btn').first();
+                    var origText = $payBtn.text();
+                    $payBtn.prop('disabled', true).text('Processing…');
+                    stripeInstance.createPaymentMethod({
+                        type: 'card',
+                        card: cardElement,
+                        billing_details: { name: firstName + ' ' + lastName, email: email }
+                    }).then(function(result) {
+                        if (result.error) {
+                            $('#gas-card-errors, .gas-card-errors').text(result.error.message).show();
+                            $payBtn.prop('disabled', false).text(origText);
+                            return;
+                        }
+                        $.ajax({
+                            url: apiUrl + '/api/public/bike-storage/checkout',
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({
+                                property_id: propertyId,
+                                check_in: checkin,
+                                check_out: checkoutDate,
+                                guest_first_name: firstName,
+                                guest_last_name: lastName,
+                                guest_email: email,
+                                guest_phone: phone,
+                                quantity: cart.upsells[0].qty || 1,
+                                payment_method_id: result.paymentMethod.id,
+                                source_site_url: window.location.origin + window.location.pathname
+                            }),
+                            success: function(r) {
+                                if (r && r.requires_action && r.client_secret) {
+                                    stripeInstance.handleCardAction(r.client_secret).then(function(stripeRes) {
+                                        if (stripeRes.error) {
+                                            $('#gas-card-errors, .gas-card-errors').text(stripeRes.error.message).show();
+                                            $payBtn.prop('disabled', false).text(origText);
+                                        } else {
+                                            // 3DS passed — server webhook will finish.
+                                            if (window.gasCart) window.gasCart.clear();
+                                            window.location.href = '/checkout/?paid=1';
+                                        }
+                                    });
+                                } else if (r && r.paid) {
+                                    if (window.gasCart) window.gasCart.clear();
+                                    window.location.href = '/checkout/?paid=1';
+                                } else {
+                                    $('#gas-card-errors, .gas-card-errors').text((r && r.error) || 'Payment failed.').show();
+                                    $payBtn.prop('disabled', false).text(origText);
+                                }
+                            },
+                            error: function(x) {
+                                var msg = (x.responseJSON && x.responseJSON.error) || 'Network error.';
+                                $('#gas-card-errors, .gas-card-errors').text(msg).show();
+                                $payBtn.prop('disabled', false).text(origText);
+                            }
+                        });
+                    });
+                });
+            })();
+            return; // Skip room-based checkout init
+        }
+
         // ========================================
         // GROUP BOOKING CHECKOUT
         // ========================================
@@ -8819,7 +8975,10 @@ jQuery(document).ready(function($) {
                             checkin: ci,
                             checkout: co,
                             currency: lastQuote.currency,
-                            booking_url: bookingUrl
+                            booking_url: bookingUrl,
+                            // Property is needed by the cart-only checkout page
+                            // to resolve the right Stripe publishable key.
+                            property_id: propertyId
                         });
                     }
                     var sep = bookingUrl.indexOf('?') === -1 ? '?' : '&';
