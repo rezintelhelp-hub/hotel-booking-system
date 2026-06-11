@@ -1165,17 +1165,13 @@ img {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
 }
 
 .developer-usp-icon img {
-    max-width: 100%;
-    width: auto;
-    height: auto;
-    max-height: 280px;
+    max-width: 120px;
+    max-height: 100px;
     object-fit: contain;
     border-radius: 8px;
-    display: block;
 }
 
 .developer-usp-card p {
@@ -1254,6 +1250,7 @@ img {
     padding: 32px 28px;
     transition: background 0.3s ease, transform 0.3s ease;
     cursor: default;
+    overflow: hidden;
 }
 
 .developer-services-card:hover {
@@ -1268,11 +1265,27 @@ img {
     line-height: 1;
 }
 
-.developer-services-icon-img {
+/* Default / icon mode — small icon-graphic at top of card */
+.developer-services-card--icon .developer-services-icon-img {
     width: 48px;
     height: 48px;
     object-fit: contain;
     margin-bottom: 16px;
+}
+
+/* Image mode — full-bleed photo edge-to-edge at top of card.
+   Negative margins escape the card's 32px/28px padding; overflow:hidden
+   on the card clips the image to the card's rounded top corners. */
+.developer-services-card--image {
+    padding-top: 0;
+}
+.developer-services-card--image .developer-services-icon-img {
+    display: block;
+    width: calc(100% + 56px);
+    max-width: none;
+    height: 220px;
+    object-fit: cover;
+    margin: 0 -28px 20px;
 }
 
 .developer-services-card h3 {

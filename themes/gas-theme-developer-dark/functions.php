@@ -2755,6 +2755,7 @@ function developer_get_api_settings() {
         
         // Services Section - MULTILINGUAL
         'services_enabled' => $website_services['enabled'] ?? false,
+        'services_card_style' => $website_services['card-style'] ?? 'icon',
         'services_title' => developer_get_ml_value($website_services, 'title', $lang),
         'services_bg' => $website_services['bg'] ?? $website_services['bg-color'] ?? '#ffffff',
         'services_title_color' => $website_services['title-color'] ?? '#1e293b',

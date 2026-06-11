@@ -609,8 +609,11 @@ for ($i = 1; $i <= 8; $i++) {
                     <h2 style="color: <?php echo esc_attr($services_title_color); ?>;"><?php echo esc_html($services_title); ?></h2>
                 </div>
             <?php endif; ?>
-            <?php foreach ($services_items as $item) : ?>
-                <div class="developer-services-card" style="background: <?php echo esc_attr($services_card_bg); ?>; --card-hover-bg: <?php echo esc_attr($services_card_hover_bg); ?>;">
+            <?php
+            $services_card_style = $api['services_card_style'] ?? 'icon';
+            $services_card_style_class = $services_card_style === 'image' ? ' developer-services-card--image' : ' developer-services-card--icon';
+            foreach ($services_items as $item) : ?>
+                <div class="developer-services-card<?php echo $services_card_style_class; ?>" style="background: <?php echo esc_attr($services_card_bg); ?>; --card-hover-bg: <?php echo esc_attr($services_card_hover_bg); ?>;">
                     <?php if (!empty($item['image'])) : ?>
                         <img src="<?php echo esc_url($item['image']); ?>" alt="" class="developer-services-icon-img">
                     <?php elseif (!empty($item['icon'])) : ?>
