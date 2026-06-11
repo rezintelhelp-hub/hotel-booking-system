@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.9.2
+ * Version: 3.9.3
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -193,7 +193,7 @@ jQuery(document).ready(function($) {
     // navigates while the cart is non-empty.
     setTimeout(gasCartRenderButton, 0);
     // Expose to widget code that wants to write to the cart.
-    window.gasCart = { read: gasCartRead, write: gasCartWrite, clear: gasCartClear };
+    window.gasCart = { read: gasCartRead, write: gasCartWrite, clear: gasCartClear, checkoutUrl: gasCartCheckoutUrl };
 
     // Get current language from URL parameter, cookie, or default to 'en'.
     // Browser navigator.language auto-detection was REMOVED 2026-05-21 — it
@@ -8982,29 +8982,40 @@ jQuery(document).ready(function($) {
                     // TTL clears it). The redirect URL still carries the same
                     // params as a belt-and-braces fallback if localStorage is
                     // disabled (private browsing etc).
-                    if (window.gasCart) {
-                        window.gasCart.write({
-                            upsells: [{
-                                id: lastQuote.upsell_id,
-                                qty: quantity,
-                                price: lastQuote.total_price,
-                                label: label
-                            }],
-                            checkin: ci,
-                            checkout: co,
-                            currency: lastQuote.currency,
-                            booking_url: bookingUrl,
-                            // Property is needed by the cart-only checkout page
-                            // to resolve the right Stripe publishable key.
-                            property_id: propertyId
-                        });
-                    }
-                    var sep = bookingUrl.indexOf('?') === -1 ? '?' : '&';
-                    var url = bookingUrl + sep + 'checkin=' + encodeURIComponent(ci) +
-                                           '&checkout=' + encodeURIComponent(co) +
-                                           '&prefill_upsells=' + encodeURIComponent(lastQuote.upsell_id) +
-                                           '&prefill_quantity=' + encodeURIComponent(quantity) +
-                                           '&prefill_label=' + encodeURIComponent(label);
+                    // Cart object — also persisted to localStorage so the
+                    // top-right cart pill survives page navigation, AND fed
+                    // straight into window.gasCart.checkoutUrl below so the
+                    // redirect target is identical to what the pill clicks
+                    // through to (the unified /checkout/?cart_only=1 page).
+                    var cartData = {
+                        upsells: [{
+                            id: lastQuote.upsell_id,
+                            qty: quantity,
+                            price: lastQuote.total_price,
+                            label: label
+                        }],
+                        checkin: ci,
+                        checkout: co,
+                        currency: lastQuote.currency,
+                        booking_url: bookingUrl,
+                        // Property is needed by the cart-only checkout page
+                        // to resolve the right Stripe publishable key.
+                        property_id: propertyId
+                    };
+                    if (window.gasCart) window.gasCart.write(cartData);
+                    // Route straight to /checkout/?cart_only=1 — skip the
+                    // rooms-page detour. The cart-only checkout shows the
+                    // line items (with qty +/-), name + card form, and pay
+                    // button inline. Guests who want to add a room can use
+                    // the existing booking_url link from the cart view.
+                    var url = (window.gasCart && typeof window.gasCart.checkoutUrl === 'function')
+                        ? window.gasCart.checkoutUrl(cartData)
+                        : '/checkout/?cart_only=1&checkin=' + encodeURIComponent(ci) +
+                                                 '&checkout=' + encodeURIComponent(co) +
+                                                 '&property=' + encodeURIComponent(propertyId) +
+                                                 '&prefill_upsells=' + encodeURIComponent(lastQuote.upsell_id) +
+                                                 '&prefill_quantity=' + encodeURIComponent(quantity) +
+                                                 '&prefill_label=' + encodeURIComponent(label);
                     window.location.href = url;
                     return;
                 }
