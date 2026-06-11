@@ -103,52 +103,35 @@ jQuery(document).ready(function($) {
         btn.href = url;
         btn.textContent = label;
 
-        // Find the "main image" below the header — that's what Steve wants
-        // the cart's right edge to align with. Themes use different margins
-        // for the header vs the hero (Hebden: header 80px, hero 100px;
-        // developer-light: hero is full-bleed). Measure the actual hero
-        // element's right edge in the DOM and match it.
-        var header = document.querySelector('header.developer-header, header.gas-header, header.site-header, header');
-        var anchorSelectors = [
-            '.wp-block-cover.alignfull',                // Hebden / WP block themes
-            '.developer-hero',                          // developer-light / dark
-            '.gas-hero',                                // legacy GAS theme
-            'main > section:first-of-type',             // generic first section
-            'main > *:first-child',                     // anything as fallback
-            'header.developer-header .developer-container'  // last-ditch: header container
+        // The simplest thing that works: insert the cart as a sibling of
+        // the Book Now CTA inside the same nav. The browser's flex layout
+        // for the nav handles alignment — no positioning math, no
+        // viewport calculations, no theme-specific selectors.
+        var ctaSelectors = [
+            'header .developer-nav-cta',
+            'header nav a[href*="/book-now"]:not(.developer-logo)',
+            'header nav a[href*="/book/"]:not(.developer-logo)',
+            'header a[href*="/book-now"]:not(.developer-logo)',
+            'nav a[href*="/book-now"]:not(.developer-logo)'
         ];
-        var anchor = null;
-        for (var i = 0; i < anchorSelectors.length; i++) {
-            anchor = document.querySelector(anchorSelectors[i]);
-            if (anchor) break;
+        var cta = null;
+        for (var i = 0; i < ctaSelectors.length; i++) {
+            cta = document.querySelector(ctaSelectors[i]);
+            if (cta) break;
         }
 
-        if (header && anchor) {
-            var setRight = function() {
-                var rect = anchor.getBoundingClientRect();
-                btn.style.right = Math.max(0, window.innerWidth - rect.right) + 'px';
-            };
-            // Header is position:fixed on developer-light, so absolute-in-
-            // header lays out the cart at the header's coordinates.
-            if (getComputedStyle(header).position === 'static') header.style.position = 'relative';
-            btn.style.cssText = [
-                'position:absolute', 'top:50%', 'transform:translateY(-50%)',
-                'padding:10px 18px', 'border-radius:0',
-                'background:#0f172a', 'color:#fff',
-                'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
-                'text-decoration:none', 'z-index:1001'
-            ].join(';');
-            header.appendChild(btn);
-            // Initial measurement now + on resize (viewport changes shift
-            // the centered container's right edge).
-            setRight();
-            window.addEventListener('resize', setRight);
+        if (cta && cta.parentNode) {
+            // Inherit the CTA's classes so the cart picks up the theme's
+            // exact button rule (padding, font, border-radius). Override
+            // only the background colour to distinguish them.
+            btn.className = cta.className;
+            btn.style.cssText = 'margin-left:8px;background:#0f172a !important;color:#fff !important;text-decoration:none;';
+            cta.insertAdjacentElement('afterend', btn);
         } else {
-            // Fallback if header structure is unrecognised: pin to viewport
-            // top-right with a 24px inset.
+            // Genuine fallback only when no Book Now CTA is in the DOM.
             btn.style.cssText = [
                 'position:fixed', 'top:18px', 'right:24px', 'z-index:9998',
-                'padding:10px 18px', 'border-radius:0',
+                'padding:10px 18px',
                 'background:#0f172a', 'color:#fff',
                 'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
                 'text-decoration:none', 'box-shadow:0 2px 8px rgba(0,0,0,0.15)'
