@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.8.33
+ * Version: 3.9.2
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -1707,7 +1707,7 @@ jQuery(document).ready(function($) {
         // category only carries a generic icon; this block surfaces the real
         // sleeping arrangement (Bedroom 1: King, Bedroom 2: Double, etc.).
         if (typeof renderLayoutBlock === 'function') {
-            renderLayoutBlock(room.bedroom_details, room.bathroom_details);
+            renderLayoutBlock(room.bedroom_details, room.bathroom_details, amenities);
         }
         
         // Build adults and children dropdowns based on occupancy settings
@@ -1910,7 +1910,7 @@ jQuery(document).ready(function($) {
     // Render the actual sleeping + bathroom layout from
     // property_bedrooms / property_bathrooms. Prepended to the
     // amenities grid so it reads as part of the Features tab.
-    function renderLayoutBlock(bedrooms, bathrooms) {
+    function renderLayoutBlock(bedrooms, bathrooms, amenities) {
         var $container = $('.gas-amenities-container');
         if (!$container.length) return;
         $container.find('.gas-layout-block').remove();
@@ -1956,7 +1956,7 @@ jQuery(document).ready(function($) {
         }
         if (Array.isArray(bathrooms) && bathrooms.length > 0) {
             html += '<div class="gas-amenities-category gas-layout-block">';
-            html += '<h4 class="gas-amenities-category-title">' + t('property', 'bathrooms', 'Bathrooms') + '</h4>';
+            html += '<h4 class="gas-amenities-category-title">' + t('property', 'bathrooms_heading', 'Bathrooms') + '</h4>';
             html += '<div class="gas-amenities-list">';
             bathrooms.forEach(function(ba) {
                 var feats = ba.features || {};
@@ -1972,6 +1972,19 @@ jQuery(document).ready(function($) {
                 if (feats['double-vanity'])  html += featTag('🪞', 'Double vanity');
                 if (feats.toilet)            html += featTag('🚽', 'Toilet');
             });
+            // Pull legacy "Bathrooms" category amenities (Toiletries, Towels,
+            // Hair Dryer etc) into this same section so they don't render as
+            // a duplicate heading further down the Features tab.
+            if (Array.isArray(amenities)) {
+                amenities.forEach(function(a) {
+                    var cat = (a.category || '').toLowerCase();
+                    if (cat === 'bathrooms' || cat === 'bathroom') {
+                        var nm = (typeof parseDescription === 'function' ? parseDescription(a.name) : null) || a.name;
+                        var ic = a.icon || (typeof getAmenityIcon === 'function' ? getAmenityIcon(nm) : '');
+                        html += featTag(ic, nm);
+                    }
+                });
+            }
             html += '</div></div>';
         }
         if (html) $container.prepend(html);
@@ -1983,10 +1996,15 @@ jQuery(document).ready(function($) {
             return;
         }
 
-        // Group by category
+        // Group by category. "Beds" and "Bathrooms" categories are
+        // intentionally skipped — Sleeping arrangements + structured
+        // Bathrooms above already cover them, and re-rendering here
+        // produced duplicate sections on the Features tab.
         var categories = {};
         amenities.forEach(function(amenity) {
             var cat = amenity.category || 'General';
+            var catLc = cat.toLowerCase();
+            if (catLc === 'beds' || catLc === 'bed' || catLc === 'bathrooms' || catLc === 'bathroom') return;
             if (!categories[cat]) {
                 categories[cat] = [];
             }
