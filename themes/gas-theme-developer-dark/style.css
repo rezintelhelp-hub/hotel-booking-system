@@ -1159,13 +1159,17 @@ img {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 100%;
 }
 
 .developer-usp-icon img {
-    max-width: 120px;
-    max-height: 100px;
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    max-height: 280px;
     object-fit: contain;
     border-radius: 8px;
+    display: block;
 }
 
 .developer-usp-card p {
