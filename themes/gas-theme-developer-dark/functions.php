@@ -2474,6 +2474,7 @@ function developer_get_api_settings() {
         'btn_secondary_bg' => $website_styles['btn-secondary-bg'] ?? null,
         'btn_secondary_text' => $website_styles['btn-secondary-text'] ?? null,
         'btn_radius' => $website_styles['btn-radius'] ?? null,
+        'btn_size' => $website_styles['btn-size'] ?? null,
         'card_radius' => (intval($website_styles['btn-radius'] ?? 8) > 0) ? intval($website_styles['btn-radius'] ?? 8) + 4 : 0,
         'lg_radius' => (intval($website_styles['btn-radius'] ?? 8) > 0) ? intval($website_styles['btn-radius'] ?? 8) * 2 : 0,
         'section_spacing' => $website_styles['section-spacing'] ?? null,
@@ -3042,6 +3043,17 @@ function developer_developer_custom_css() {
     $subheading_size = $api['subheading_size'] ?? get_theme_mod('developer_subheading_size', '32');
     $body_text_size = $api['body_size'] ?? get_theme_mod('developer_body_text_size', '16');
     $btn_radius = $api['btn_radius'] ?? get_theme_mod('developer_btn_radius', '8');
+    $btn_size = $api['btn_size'] ?? 'medium';
+    // Map Web Builder's btn-size to padding + font-size. Applies to both
+    // .developer-btn (theme buttons) and .gas-view-btn ("View & Book" room
+    // cards from gas-booking plugin) so the Styles section button-size
+    // control behaves consistently across the public site.
+    $btn_size_map = [
+        'small'  => ['py' => '6px',  'px' => '14px', 'font' => '12px'],
+        'medium' => ['py' => '10px', 'px' => '22px', 'font' => '14px'],
+        'large'  => ['py' => '14px', 'px' => '30px', 'font' => '16px'],
+    ];
+    $bs = $btn_size_map[$btn_size] ?? $btn_size_map['medium'];
     $card_radius = $api['card_radius'] ?? (intval($btn_radius) > 0 ? intval($btn_radius) + 4 : 0);
     $lg_radius = $api['lg_radius'] ?? (intval($btn_radius) > 0 ? intval($btn_radius) * 2 : 0);
     $link_color = $api['link_color'] ?? get_theme_mod('developer_link_color', '#2563eb');
@@ -3182,7 +3194,16 @@ function developer_developer_custom_css() {
         .developer-btn {
             border-radius: ' . esc_attr($btn_radius) . 'px;
         }
-        
+        /* Button Size — Web Builder Styles section, three-tier select.
+           Applies to .developer-btn AND .gas-view-btn so size stays
+           consistent everywhere on the public site. */
+        .developer-btn,
+        .gas-view-btn,
+        .gas-row-view-btn {
+            padding: ' . esc_attr($bs['py']) . ' ' . esc_attr($bs['px']) . ' !important;
+            font-size: ' . esc_attr($bs['font']) . ' !important;
+        }
+
         .developer-btn-primary,
         .developer-btn:not(.developer-btn-secondary):not(.developer-btn-white),
         .gas-view-btn {

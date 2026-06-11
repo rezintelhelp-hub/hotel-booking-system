@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.82
+ * Version: 3.8.83
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.8.82');
+define('GAS_BOOKING_VERSION', '3.8.83');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -6182,7 +6182,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-room-footer {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            /* flex-end so the "View & Book" button visually aligns with
+               the bottom of the price block — the "Accommodation from"
+               label sits above the amount on its own line (display:block
+               at line 6205), so center-alignment left the button hanging
+               between the two lines and looking off-vertical. flex-end
+               aligns the button with the big amount line. */
+            align-items: flex-end;
             padding-top: 16px;
             border-top: 1px solid #eee;
         }
