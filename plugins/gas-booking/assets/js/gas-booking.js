@@ -40,6 +40,30 @@ jQuery(document).ready(function($) {
     var currentLanguage = getCurrentLanguage();
     var dateLocale = { en: 'en-GB', fr: 'fr-FR', de: 'de-DE', es: 'es-ES', nl: 'nl-NL', ja: 'ja-JP', it: 'it-IT', pt: 'pt-PT' }[currentLanguage] || 'en-GB';
 
+    // Flow D — Bike storage in cart banner. When the guest came in from the
+    // bike-storage widget via "Add a room to this stay", the URL carries
+    // ?prefill_upsells=ID and ?prefill_label="Bike storage · £20 for 2 days".
+    // Render a sticky banner at the top of the page so they can see what's
+    // already in their cart while choosing a room. The upsell itself auto-
+    // ticks on the checkout screen (see prefill_upsells logic further down).
+    (function injectBikeStorageInCartBanner() {
+        try {
+            var qp = new URLSearchParams(window.location.search);
+            if (!qp.get('prefill_upsells')) return;
+            var label = qp.get('prefill_label') || 'Item added to cart';
+            var bar = document.createElement('div');
+            bar.id = 'gas-prefill-cart-banner';
+            bar.style.cssText = 'position:sticky;top:0;z-index:9999;background:#10b981;color:#fff;padding:10px 16px;font:600 0.95rem/1.3 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.12);';
+            bar.innerHTML = '🛒 In your cart: <strong>' + label.replace(/[<>"&]/g, function(c){return {"<":"&lt;",">":"&gt;","\"":"&quot;","&":"&amp;"}[c];}) + '</strong> — pick a room for these dates below';
+            // Insert before the very first body child so it sits above the
+            // theme header. If body isn't ready (shouldn't happen inside
+            // document.ready) just bail silently.
+            if (document.body && document.body.firstChild) {
+                document.body.insertBefore(bar, document.body.firstChild);
+            }
+        } catch (e) { /* non-fatal */ }
+    })();
+
     // Shop event entry-point — when the user lands here from a shop event's
     // "Book Now" button (?event=<slug>), fetch the event details and prepend a
     // small banner above the rooms grid / room widget so they know what they're
@@ -904,10 +928,13 @@ jQuery(document).ready(function($) {
             });
         }
 
-        // Pre-fill dates and property from URL params (e.g. from offers page links)
+        // Pre-fill dates and property from URL params (e.g. from offers page links,
+        // and from the bike-storage "add a room" Flow D redirect which uses the
+        // no-underscore checkin/checkout convention).
         setTimeout(function() {
             var pageUrlParams = new URLSearchParams(window.location.search);
-            var urlCheckIn = pageUrlParams.get('check_in');
+            var urlCheckIn  = pageUrlParams.get('check_in')  || pageUrlParams.get('checkin');
+            var urlCheckOut = pageUrlParams.get('check_out') || pageUrlParams.get('checkout');
             var urlPropertyId = pageUrlParams.get('property_id');
 
             if (urlCheckIn) {
@@ -915,6 +942,13 @@ jQuery(document).ready(function($) {
                 document.querySelectorAll('.gas-checkin, .gas-search-checkin').forEach(function(el) {
                     if (el._flatpickr) {
                         el._flatpickr.setDate(urlCheckIn, true);
+                    }
+                });
+            }
+            if (urlCheckOut) {
+                document.querySelectorAll('.gas-checkout, .gas-search-checkout').forEach(function(el) {
+                    if (el._flatpickr) {
+                        el._flatpickr.setDate(urlCheckOut, true);
                     }
                 });
             }
@@ -8489,15 +8523,20 @@ jQuery(document).ready(function($) {
             // storage upsell pre-ticked. Dates are pre-filled via ?checkin /
             // ?checkout (existing widget params). prefill_upsells carries the
             // upsell ID — the main widget's upsell-render code picks it up
-            // and auto-selects matching cards after upsells render.
+            // and auto-selects matching cards after upsells render. We also
+            // pass the label + total so the rooms page can render a sticky
+            // "bike storage in cart" banner immediately, no API call needed.
             $container.on('click', '.gas-bs-book-room-btn', function() {
                 if (!lastQuote || !lastQuote.upsell_id) return;
                 var ci = $checkin.val();
                 var co = $checkout.val();
                 var sep = bookingUrl.indexOf('?') === -1 ? '?' : '&';
+                var symbolOut = (lastQuote.currency === 'GBP') ? '£' : (lastQuote.currency === 'EUR' ? '€' : (lastQuote.currency === 'USD' ? '$' : lastQuote.currency + ' '));
+                var label = 'Bike storage · ' + symbolOut + lastQuote.total_price + ' for ' + lastQuote.nights + ' day' + (lastQuote.nights === 1 ? '' : 's');
                 var url = bookingUrl + sep + 'checkin=' + encodeURIComponent(ci) +
                                        '&checkout=' + encodeURIComponent(co) +
-                                       '&prefill_upsells=' + encodeURIComponent(lastQuote.upsell_id);
+                                       '&prefill_upsells=' + encodeURIComponent(lastQuote.upsell_id) +
+                                       '&prefill_label=' + encodeURIComponent(label);
                 window.location.href = url;
             });
 
