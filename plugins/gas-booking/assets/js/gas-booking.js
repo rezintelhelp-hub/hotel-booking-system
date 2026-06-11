@@ -87,10 +87,6 @@ jQuery(document).ready(function($) {
         if (existing) existing.remove();
         var cart = gasCartRead();
         if (!cart || gasCartItemCount(cart) === 0) return;
-        // Don't render on /book-now/ — cart is already inline as the upsell.
-        var path = (window.location.pathname || '').replace(/\/+$/, '');
-        var bookPath = (cart.booking_url || '/book-now/').split('?')[0].replace(/\/+$/, '');
-        if (path && bookPath && path === bookPath) return;
 
         var symbol = (cart.currency === 'GBP') ? '£' : (cart.currency === 'EUR' ? '€' : (cart.currency === 'USD' ? '$' : ''));
         var total = gasCartTotal(cart);
