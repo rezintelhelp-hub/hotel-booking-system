@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.9.5
+ * Version: 3.9.6
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -5772,32 +5772,34 @@ jQuery(document).ready(function($) {
                                 });
                             });
 
-                            // Flow A / D: pre-tick any upsells listed in
-                            // ?prefill_upsells=ID,ID — auto-selected when
-                            // the guest came in from the bike-storage widget
-                            // (either standalone or "Add a room" bundle).
-                            // ?prefill_quantity bumps the upsell's quantity
-                            // stepper so 2 cabinets becomes 2× in cart.
+                            // Flow A / D / "Add a room from cart": pre-tick
+                            // upsells listed in ?prefill_upsells=ID,ID AND
+                            // anything already sitting in the localStorage
+                            // cart (bike-storage etc that survived the
+                            // detour through /book-now/). Per-item qty comes
+                            // from cart.upsells[i].qty when the ID is from
+                            // the cart, else from ?prefill_quantity.
                             try {
                                 var sp = new URLSearchParams(window.location.search);
                                 var prefillRaw = sp.get('prefill_upsells');
                                 var prefillQty = parseInt(sp.get('prefill_quantity')) || 1;
-                                if (prefillRaw) {
-                                    var prefillIds = prefillRaw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-                                    prefillIds.forEach(function(id) {
-                                        var $card = $('.gas-upsell-card[data-upsell-id="' + id + '"]').not('.selected');
-                                        if ($card.length) {
-                                            // First click selects (qty becomes 1)
-                                            $card.trigger('click');
-                                            // Extra clicks bump qty on quantity-aware upsells.
-                                            // Bounded by card's data-max-quantity so we
-                                            // don't loop past the upsell's allowed cap.
-                                            var maxQty = parseInt($card.attr('data-max-quantity')) || 1;
-                                            var extra = Math.min(prefillQty, maxQty) - 1;
-                                            for (var k = 0; k < extra; k++) $card.trigger('click');
-                                        }
-                                    });
-                                }
+                                var idsFromUrl = prefillRaw ? prefillRaw.split(',').map(function(s) { return s.trim(); }).filter(Boolean) : [];
+                                var cartObj = (window.gasCart && window.gasCart.read()) || null;
+                                var cartUpsells = (cartObj && Array.isArray(cartObj.upsells)) ? cartObj.upsells : [];
+                                var idsFromCart = cartUpsells.map(function(u) { return String(u.id); });
+                                var mergedIds = idsFromUrl.concat(idsFromCart.filter(function(id) { return idsFromUrl.indexOf(id) === -1; }));
+                                mergedIds.forEach(function(id) {
+                                    var $card = $('.gas-upsell-card[data-upsell-id="' + id + '"]').not('.selected');
+                                    if ($card.length) {
+                                        $card.trigger('click');
+                                        var maxQty = parseInt($card.attr('data-max-quantity')) || 1;
+                                        // Prefer cart's qty for this ID; fall back to URL prefill_quantity
+                                        var cartItem = cartUpsells.find(function(u) { return String(u.id) === String(id); });
+                                        var thisQty = (cartItem && cartItem.qty) ? cartItem.qty : prefillQty;
+                                        var extra = Math.min(thisQty, maxQty) - 1;
+                                        for (var k = 0; k < extra; k++) $card.trigger('click');
+                                    }
+                                });
                             } catch (e) { /* non-fatal */ }
                             // Render mandatory items in PRICE DETAILS + update total
                             var groupMand = ug.selectedUpsells.filter(function(u) { return u.mandatory === true || u.mandatory === 'true'; });
