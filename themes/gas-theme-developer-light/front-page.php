@@ -695,6 +695,10 @@ if (!is_wp_error($repuso_response)) {
 .gas-review-nav:hover { background: <?php echo esc_attr($reviews_card_bg); ?>; color: <?php echo esc_attr($reviews_star_color); ?>; }
 .gas-review-nav.prev { left: 0; }
 .gas-review-nav.next { right: 0; }
+.gas-review-card-cell { flex: 0 0 25%; max-width: 25%; padding: 0 8px; box-sizing: border-box; }
+@media (max-width: 1279px) { .gas-review-card-cell { flex-basis: 33.3333%; max-width: 33.3333%; } }
+@media (max-width: 1023px) { .gas-review-card-cell { flex-basis: 50%; max-width: 50%; } }
+@media (max-width: 767px) { .gas-review-card-cell { flex-basis: 100%; max-width: 100%; } }
 </style>
 <section class="developer-section developer-reviews" style="background: <?php echo esc_attr($reviews_bg); ?>; color: <?php echo esc_attr($reviews_text_color); ?>;">
     <div class="developer-container">
@@ -715,7 +719,7 @@ if (!is_wp_error($repuso_response)) {
                     if (strlen($r_text) > 160) $r_text = substr($r_text, 0, 160) . '...';
                     $r_source = $rev['source'] ?? '';
                 ?>
-                <div style="flex: 0 0 25%; min-width: 260px; padding: 0 8px; box-sizing: border-box;">
+                <div class="gas-review-card-cell">
                     <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                         <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $r_stars; ?></div>
                         <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 0.95rem; line-height: 1.6; flex: 1; margin: 0 0 12px 0; overflow: hidden; opacity: 0.9;">"<?php echo esc_html($r_text); ?>"</p>
@@ -814,7 +818,7 @@ if (!is_wp_error($hostaway_response)) {
                     $h_date = !empty($rev['date']) ? date('M Y', strtotime($rev['date'])) : '';
                     $h_meta = $h_date . ($h_source ? ' · ' . $h_source : '');
                 ?>
-                <div style="flex: 0 0 25%; min-width: 260px; padding: 0 8px; box-sizing: border-box;">
+                <div class="gas-review-card-cell">
                     <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                         <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $h_stars; ?></div>
                         <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 0.95rem; line-height: 1.6; flex: 1; margin: 0 0 12px 0; overflow: hidden; opacity: 0.9;">"<?php echo esc_html($h_text); ?>"</p>
