@@ -102,17 +102,22 @@ jQuery(document).ready(function($) {
         btn.id = 'gas-cart-button';
         btn.href = url;
         btn.textContent = label;
-        // Defensive: when injected inside the burger theme's flex row, the
-        // outer .wp-block-group sometimes ends up over the cart in stacking
-        // order, swallowing the click. Explicit handler guarantees nav.
+        // Defensive: WP block navigation's interactivity API delegates
+        // clicks at the document level and can swallow ours when the cart
+        // is inside the same .wp-block-group as the nav. Hook click on
+        // CAPTURE phase so we run before any other handler, force a hard
+        // navigation. Also log the URL — turn this into a no-op once
+        // we've confirmed it works.
         btn.addEventListener('click', function(e) {
-            // Honour modifier keys (cmd/ctrl click → new tab) by NOT
-            // preventing default in those cases.
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
             e.preventDefault();
-            e.stopPropagation();
-            window.location.href = url;
-        });
+            try { console.log('[gas-cart] navigating →', url); } catch (_) {}
+            // Absolute URL avoids any relative-path resolution surprises
+            // when the cart is on a deeper path like /bike-storage/.
+            var absUrl = url;
+            if (url && url.charAt(0) === '/') absUrl = window.location.origin + url;
+            window.location.assign(absUrl);
+        }, true);
 
         // Find the Book Now CTA (for vertical centering) and the hero/main
         // image element (for right-edge alignment). Both measured live.
