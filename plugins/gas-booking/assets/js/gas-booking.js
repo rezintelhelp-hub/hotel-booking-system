@@ -8290,6 +8290,14 @@ jQuery(document).ready(function($) {
                 '.gas-bs-linked-banner{padding:0.6rem 0.85rem;background:#dcfce7;color:#166534;border-radius:6px;font-size:0.9rem;margin-bottom:0.85rem}',
                 '.gas-bs-book-room-btn{display:block;width:100%;padding:0.65rem 1rem;margin-top:0.6rem;border:1px solid var(--button_color,#F97224);border-radius:8px;background:#fff;color:var(--button_color,#F97224);font-size:0.95rem;font-weight:600;cursor:pointer;transition:all 0.15s}',
                 '.gas-bs-book-room-btn:hover{background:var(--button_color,#F97224);color:#fff}',
+                '.gas-bs-qty-row{display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;padding:0.55rem 0.85rem;background:#fff;border:1px solid #e2e8f0;border-radius:8px}',
+                '.gas-bs-qty-label{font-size:0.9rem;color:#475569;font-weight:600}',
+                '.gas-bs-qty-controls{display:inline-flex;align-items:center;gap:0;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden}',
+                '.gas-bs-qty-btn{width:32px;height:32px;border:none;background:#f8fafc;color:#0f172a;font-size:1.1rem;font-weight:700;cursor:pointer;line-height:1}',
+                '.gas-bs-qty-btn:hover:not(:disabled){background:#e2e8f0}',
+                '.gas-bs-qty-btn:disabled{opacity:0.4;cursor:not-allowed}',
+                '.gas-bs-qty-display{min-width:36px;text-align:center;font-weight:700;font-size:1rem;color:#0f172a}',
+                '.gas-bs-qty-hint{font-size:0.75rem;color:#94a3b8;margin-left:auto}',
                 '@media(max-width:520px){.gas-bs-date-row,.gas-bs-form-row,.gas-bs-linked-row{grid-template-columns:1fr}}'
             ].join('');
             var styleEl = document.createElement('style');
@@ -8333,6 +8341,15 @@ jQuery(document).ready(function($) {
                 '  <div class="gas-bs-step gas-bs-step-confirm" style="display:none">' +
                 '    <div class="gas-bs-linked-banner" style="display:none"></div>' +
                 '    <div class="gas-bs-summary"></div>' +
+                '    <div class="gas-bs-qty-row">' +
+                '      <span class="gas-bs-qty-label">Number of cabinets</span>' +
+                '      <div class="gas-bs-qty-controls">' +
+                '        <button type="button" class="gas-bs-qty-btn gas-bs-qty-minus" aria-label="Decrease">−</button>' +
+                '        <span class="gas-bs-qty-display">1</span>' +
+                '        <button type="button" class="gas-bs-qty-btn gas-bs-qty-plus" aria-label="Increase">+</button>' +
+                '      </div>' +
+                '      <span class="gas-bs-qty-hint"></span>' +
+                '    </div>' +
                 '    <form class="gas-bs-guest-form">' +
                 '      <div class="gas-bs-form-row">' +
                 '        <input name="first_name" placeholder="First name *" required>' +
@@ -8386,6 +8403,38 @@ jQuery(document).ready(function($) {
             // accommodation booking, we lock dates + guest details to it
             // and the checkout call carries parent_booking_id.
             var linkedParent = null; // { id, reference, arrival_date, departure_date, guest_first_name, guest_last_name }
+            // Multi-cabinet quantity. Clamped against q.available_count at
+            // step-2 render time; the +/- buttons update both state and the
+            // summary line.
+            var quantity = 1;
+            function fmtSymbol(c) { return c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'USD' ? '$' : (c + ' '); }
+            function renderSummary() {
+                if (!lastQuote) return;
+                var symbol = fmtSymbol(lastQuote.currency);
+                var lineTotal = lastQuote.total_price * quantity;
+                $container.find('.gas-bs-summary').html(
+                    '<div style="font-size:1rem;line-height:1.5">' +
+                    '<strong>' + lastQuote.nights + ' day' + (lastQuote.nights === 1 ? '' : 's') + '</strong>' +
+                    ' · <strong>' + quantity + '</strong> cabinet' + (quantity === 1 ? '' : 's') +
+                    ' · <strong>' + symbol + lineTotal + '</strong> total<br>' +
+                    '<span style="color:#64748b;font-size:0.85rem">' +
+                    lastQuote.available_count + ' of ' + lastQuote.total_units + ' cabinets free · ' +
+                    'Pickup ' + lastQuote.pickup_time + ', return ' + lastQuote.return_time +
+                    '</span></div>'
+                );
+                $container.find('.gas-bs-book-btn').text('Book and pay ' + symbol + lineTotal);
+                // Update the +/- enabled state + hint
+                $container.find('.gas-bs-qty-display').text(quantity);
+                $container.find('.gas-bs-qty-minus').prop('disabled', quantity <= 1);
+                $container.find('.gas-bs-qty-plus').prop('disabled', quantity >= lastQuote.available_count);
+                $container.find('.gas-bs-qty-hint').text('Up to ' + lastQuote.available_count + ' available');
+            }
+            $container.on('click', '.gas-bs-qty-minus', function() {
+                if (quantity > 1) { quantity -= 1; renderSummary(); }
+            });
+            $container.on('click', '.gas-bs-qty-plus', function() {
+                if (lastQuote && quantity < lastQuote.available_count) { quantity += 1; renderSummary(); }
+            });
 
             // Toggle the "I already have a booking" panel.
             $container.on('click', '.gas-bs-show-linked', function(e) {
@@ -8399,7 +8448,19 @@ jQuery(document).ready(function($) {
                 $container.find('.gas-bs-linked-toggle').show();
                 $container.find('.gas-bs-linked-msg').html('');
                 $container.find('.gas-bs-date-row').show();
-                $container.find('.gas-bs-check-btn').show();
+                $container.find('.gas-bs-check-btn').text('Check availability').show();
+                // Release the parent-range constraints on the date pickers
+                // — otherwise the user is stuck with old min/maxDate.
+                if ($checkin[0]?._flatpickr) {
+                    $checkin[0]._flatpickr.set('minDate', 'today');
+                    $checkin[0]._flatpickr.set('maxDate', null);
+                    $checkin[0]._flatpickr.clear();
+                }
+                if ($checkout[0]?._flatpickr) {
+                    $checkout[0]._flatpickr.set('minDate', 'today');
+                    $checkout[0]._flatpickr.set('maxDate', null);
+                    $checkout[0]._flatpickr.clear();
+                }
                 linkedParent = null;
             });
 
@@ -8430,13 +8491,31 @@ jQuery(document).ready(function($) {
                         $msg.html(
                             '<div style="color:#16a34a">✓ Found ' + linkedParent.reference + ' — ' +
                             linkedParent.guest_first_name + ' ' + linkedParent.guest_last_name + '.<br>' +
-                            'Dates: ' + linkedParent.arrival_date + ' to ' + linkedParent.departure_date + '</div>'
+                            'Your room: ' + linkedParent.arrival_date + ' to ' + linkedParent.departure_date + '.<br>' +
+                            '<span style="color:#64748b;font-size:0.85rem">Storage can match your room dates or be shorter — adjust below.</span></div>'
                         );
-                        // Auto-run the availability check for those dates.
-                        $checkin.val(linkedParent.arrival_date);
-                        $checkout.val(linkedParent.departure_date);
-                        $container.find('.gas-bs-date-row').hide();
-                        $container.find('.gas-bs-check-btn').text('Continue to payment').show().trigger('click');
+                        // Pre-fill dates to match the parent room booking but
+                        // KEEP the date row visible so the guest can shorten
+                        // the storage window (e.g. only need storage night 2
+                        // of a 3-night stay). Constrain the flatpickr range
+                        // to within the parent's nights — server re-validates
+                        // anyway but the picker prevents most mistakes.
+                        if ($checkin[0]._flatpickr) {
+                            $checkin[0]._flatpickr.set('minDate', linkedParent.arrival_date);
+                            $checkin[0]._flatpickr.set('maxDate', linkedParent.departure_date);
+                            $checkin[0]._flatpickr.setDate(linkedParent.arrival_date, true);
+                        } else {
+                            $checkin.val(linkedParent.arrival_date);
+                        }
+                        if ($checkout[0]._flatpickr) {
+                            $checkout[0]._flatpickr.set('minDate', linkedParent.arrival_date);
+                            $checkout[0]._flatpickr.set('maxDate', linkedParent.departure_date);
+                            $checkout[0]._flatpickr.setDate(linkedParent.departure_date, true);
+                        } else {
+                            $checkout.val(linkedParent.departure_date);
+                        }
+                        $container.find('.gas-bs-date-row').show();
+                        $container.find('.gas-bs-check-btn').text('Check availability for these dates').show();
                     },
                     error: function(x) {
                         var em = (x.responseJSON && x.responseJSON.error) ? x.responseJSON.error : 'Network error';
@@ -8469,19 +8548,13 @@ jQuery(document).ready(function($) {
                         // always has them even if the picker is hidden.
                         lastQuote.check_in = $checkin.val();
                         lastQuote.check_out = $checkout.val();
+                        // Clamp quantity if the user already adjusted it on
+                        // a previous quote that had more cabinets free.
+                        if (quantity > r.available_count) quantity = r.available_count;
+                        if (quantity < 1) quantity = 1;
                         $msg.html('');
                         $container.find('.gas-bs-step-dates').hide();
                         $container.find('.gas-bs-step-confirm').show();
-                        var symbol = (r.currency === 'GBP') ? '£' : (r.currency === 'EUR' ? '€' : (r.currency === 'USD' ? '$' : r.currency + ' '));
-                        $container.find('.gas-bs-summary').html(
-                            '<div style="font-size:1rem;line-height:1.5">' +
-                            '<strong>' + r.nights + ' day' + (r.nights === 1 ? '' : 's') + '</strong> · ' +
-                            '<strong>' + symbol + r.total_price + '</strong> total<br>' +
-                            '<span style="color:#64748b;font-size:0.85rem">' +
-                            r.available_count + ' of ' + r.total_units + ' cabinets free · ' +
-                            'Pickup ' + r.pickup_time + ', return ' + r.return_time +
-                            '</span></div>'
-                        );
                         // Linked mode: hide the guest form (we have the
                         // guest's details on the parent booking) and show
                         // a banner so they know what they're attaching to.
@@ -8507,7 +8580,7 @@ jQuery(document).ready(function($) {
                                 $container.find('.gas-bs-book-room-btn').hide();
                             }
                         }
-                        $container.find('.gas-bs-book-btn').text('Book and pay ' + symbol + r.total_price);
+                        renderSummary();
                     },
                     error: function() { $msg.html('<div style="color:#b91c1c">Network error — please try again.</div>'); }
                 });
@@ -8549,24 +8622,32 @@ jQuery(document).ready(function($) {
                 var origLabel = $btn.text();
                 $err.html('');
                 $btn.prop('disabled', true).text('Creating booking…');
-                // Linked-mode payload uses parent_booking_id; the server
-                // pulls dates + guest details from the parent, so we don't
-                // send the guest form fields.
+                // Linked-mode payload uses parent_booking_id; server pulls
+                // guest details from the parent. Dates are sent explicitly
+                // so the server uses the picker values (which may be
+                // shorter than parent's range) — server validates they
+                // sit inside parent's nights.
+                var ci = lastQuote.check_in || $checkin.val();
+                var co = lastQuote.check_out || $checkout.val();
                 var payload = linkedParent
                     ? {
                         property_id: propertyId,
                         parent_booking_id: linkedParent.id,
                         parent_last_name: linkedParent.guest_last_name,
+                        check_in: ci,
+                        check_out: co,
+                        quantity: quantity,
                         source_site_url: window.location.origin + window.location.pathname
                       }
                     : {
                         property_id: propertyId,
-                        check_in: lastQuote.check_in || $checkin.val(),
-                        check_out: lastQuote.check_out || $checkout.val(),
+                        check_in: ci,
+                        check_out: co,
                         guest_first_name: $form.find('[name=first_name]').val().trim(),
                         guest_last_name: $form.find('[name=last_name]').val().trim(),
                         guest_email: $form.find('[name=email]').val().trim(),
                         guest_phone: $form.find('[name=phone]').val().trim(),
+                        quantity: quantity,
                         source_site_url: window.location.origin + window.location.pathname
                       };
                 $.ajax({
