@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 3.9.3
+ * Version: 3.9.4
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -4424,31 +4424,93 @@ jQuery(document).ready(function($) {
                 var symbol = currency === 'GBP' ? '£' : currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency + ' ';
                 var totalAmount = cart.upsells.reduce(function(s, u) { return s + ((u.price || 0) * (u.qty || 1)); }, 0);
 
-                // Replace the room-info summary with cart line items.
+                // Render the cart line items + qty/remove/clear controls.
+                // Factored into a function so we can re-render whenever the
+                // guest tweaks quantities or clears items. Recomputes total
+                // and updates the breakdown + grand-total inline.
                 var $summaryRoom = $checkoutPage.find('.gas-summary-room');
-                if ($summaryRoom.length) {
-                    var cartHtml = '<div style="padding:14px 16px;background:#f8fafc;border-radius:8px;margin-bottom:12px;">';
-                    cartHtml += '<h3 style="margin:0 0 10px;font-size:1.05rem;color:#0f172a;">Your Cart</h3>';
-                    cart.upsells.forEach(function(u) {
-                        cartHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #e2e8f0;">' +
-                            '<span>' + (u.label || ('Item ' + u.id)) + ' × ' + (u.qty || 1) + '</span>' +
-                            '<span><strong>' + symbol + ((u.price || 0) * (u.qty || 1)).toFixed(2) + '</strong></span>' +
-                            '</div>';
-                    });
-                    cartHtml += '</div>';
-                    $summaryRoom.replaceWith(cartHtml);
+                function recalcTotal() {
+                    return cart.upsells.reduce(function(s, u) { return s + ((u.price || 0) * (u.qty || 1)); }, 0);
                 }
+                function renderCart() {
+                    var $existing = $checkoutPage.find('.gas-cart-summary');
+                    var html = '<div class="gas-cart-summary" style="padding:14px 16px;background:#f8fafc;border-radius:8px;margin-bottom:12px;">';
+                    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 10px;">' +
+                            '<h3 style="margin:0;font-size:1.05rem;color:#0f172a;">Your Cart</h3>' +
+                            '<a href="#" class="gas-cart-clear" style="font-size:0.8rem;color:#b91c1c;text-decoration:underline;">Clear cart</a>' +
+                            '</div>';
+                    if (!cart.upsells.length) {
+                        html += '<p style="margin:0;color:#64748b;font-size:0.95rem;">Your cart is empty.</p>';
+                        if (cart.booking_url) {
+                            html += '<p style="margin:0.5rem 0 0;"><a href="' + cart.booking_url + '" style="color:#2563eb;font-size:0.9rem;">← Continue shopping</a></p>';
+                        }
+                    } else {
+                        cart.upsells.forEach(function(u, i) {
+                            var lineTotal = (u.price || 0) * (u.qty || 1);
+                            html += '<div class="gas-cart-line" data-idx="' + i + '" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid #e2e8f0;">' +
+                                '<span style="flex:1;font-size:0.95rem;">' + (u.label || ('Item ' + u.id)) + '</span>' +
+                                '<div style="display:inline-flex;align-items:center;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;">' +
+                                '  <button type="button" class="gas-cart-qty-minus" aria-label="Decrease" style="width:26px;height:26px;border:none;background:#f8fafc;cursor:pointer;font-weight:700;">−</button>' +
+                                '  <span class="gas-cart-qty-val" style="min-width:24px;text-align:center;font-weight:600;font-size:0.9rem;">' + (u.qty || 1) + '</span>' +
+                                '  <button type="button" class="gas-cart-qty-plus"  aria-label="Increase" style="width:26px;height:26px;border:none;background:#f8fafc;cursor:pointer;font-weight:700;">+</button>' +
+                                '</div>' +
+                                '<span style="min-width:60px;text-align:right;font-weight:600;font-size:0.95rem;">' + symbol + lineTotal.toFixed(2) + '</span>' +
+                                '<button type="button" class="gas-cart-remove" aria-label="Remove" style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:1.1rem;line-height:1;padding:0 4px;">×</button>' +
+                                '</div>';
+                        });
+                    }
+                    html += '</div>';
+                    if ($existing.length) { $existing.replaceWith(html); }
+                    else if ($summaryRoom.length) { $summaryRoom.replaceWith(html); }
+                    // Recompute + redraw totals
+                    var t = recalcTotal();
+                    var $breakdown = $checkoutPage.find('.gas-price-breakdown');
+                    if ($breakdown.length) {
+                        $breakdown.find('.gas-nights-label').text('Cart total');
+                        $breakdown.find('.gas-nights-total').text(symbol + t.toFixed(2));
+                    }
+                    $checkoutPage.find('.gas-grand-total, .gas-total-amount').text(symbol + t.toFixed(2));
+                    // Disable the pay button if cart is empty
+                    var $payBtn = $checkoutPage.find('button[type=submit], .gas-pay-btn').first();
+                    if (!cart.upsells.length) { $payBtn.prop('disabled', true).css('opacity','0.5'); }
+                    else { $payBtn.prop('disabled', false).css('opacity',''); }
+                }
+                renderCart();
+                // Wire qty / remove / clear controls. Delegated so they
+                // survive each renderCart() re-render.
+                $checkoutPage.on('click', '.gas-cart-qty-plus', function() {
+                    var idx = parseInt($(this).closest('.gas-cart-line').data('idx'));
+                    if (!cart.upsells[idx]) return;
+                    cart.upsells[idx].qty = (cart.upsells[idx].qty || 1) + 1;
+                    if (window.gasCart) window.gasCart.write(cart);
+                    renderCart();
+                });
+                $checkoutPage.on('click', '.gas-cart-qty-minus', function() {
+                    var idx = parseInt($(this).closest('.gas-cart-line').data('idx'));
+                    if (!cart.upsells[idx]) return;
+                    var q = (cart.upsells[idx].qty || 1) - 1;
+                    if (q < 1) q = 1;
+                    cart.upsells[idx].qty = q;
+                    if (window.gasCart) window.gasCart.write(cart);
+                    renderCart();
+                });
+                $checkoutPage.on('click', '.gas-cart-remove', function() {
+                    var idx = parseInt($(this).closest('.gas-cart-line').data('idx'));
+                    if (isNaN(idx)) return;
+                    cart.upsells.splice(idx, 1);
+                    if (window.gasCart) window.gasCart.write(cart);
+                    renderCart();
+                });
+                $checkoutPage.on('click', '.gas-cart-clear', function(e) {
+                    e.preventDefault();
+                    cart.upsells = [];
+                    if (window.gasCart) window.gasCart.clear();
+                    renderCart();
+                });
                 // Pre-fill the date display + clear the room-specific bits.
                 if (checkin) $checkoutPage.find('.gas-checkin-display').text(new Date(checkin).toDateString());
                 if (checkoutDate) $checkoutPage.find('.gas-checkout-display').text(new Date(checkoutDate).toDateString());
                 $checkoutPage.find('.gas-summary-info-row, .gas-summary-divider').first().hide();
-                // Update Price Details to show just the cart total.
-                var $breakdown = $checkoutPage.find('.gas-price-breakdown');
-                if ($breakdown.length) {
-                    $breakdown.find('.gas-nights-label').text('Cart total');
-                    $breakdown.find('.gas-nights-total').text(symbol + totalAmount.toFixed(2));
-                }
-                $checkoutPage.find('.gas-grand-total, .gas-total-amount').text(symbol + totalAmount.toFixed(2));
 
                 // Stripe init — pull publishable key for this property.
                 var stripeInstance = null, cardElement = null;
