@@ -3,7 +3,7 @@
  * Plugin Name: GAS Reviews
  * Plugin URI: https://gas.travel
  * Description: Display guest reviews from Repuso/The Reviews Place or GAS internal reviews with Review schema markup. Colors controlled via GAS Admin.
- * Version: 1.2.6
+ * Version: 1.2.7
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -368,7 +368,7 @@ class GAS_Reviews {
                             // line-clamp:4 truncates the last visible line with an ellipsis;
                             // min-height:0 is required so flex:1 can actually shrink the <p>
                             // below natural content size, otherwise it overflows the card.
-                            html += '<p style="flex:1 1 auto;align-self:stretch;min-height:0;width:100%;min-width:100%;margin:0 0 12px;padding:0;overflow:hidden;color:'+textColor+';opacity:0.9;font-size:0.95rem;line-height:1.6;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;line-clamp:4;text-align:left !important;">&ldquo;' + text + '&rdquo;</p>';
+                            html += '<p style="flex:1 1 auto;align-self:stretch;min-height:0;width:100%;margin:0 0 12px;padding:0;overflow:hidden;color:'+textColor+';opacity:0.9;font-size:0.95rem;line-height:1.6;text-align:left;">&ldquo;' + text + '&rdquo;</p>';
                             html += '<div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:12px;margin-top:auto;">';
                             html += '<div style="font-weight:600;font-size:14px;color:'+textColor+';">' + name + '</div>';
                             if (source) html += '<div style="font-size:12px;color:'+textColor2+';margin-top:2px;">' + source + '</div>';
