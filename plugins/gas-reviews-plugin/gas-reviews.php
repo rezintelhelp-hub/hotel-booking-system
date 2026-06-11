@@ -3,7 +3,7 @@
  * Plugin Name: GAS Reviews
  * Plugin URI: https://gas.travel
  * Description: Display guest reviews from Repuso/The Reviews Place or GAS internal reviews with Review schema markup. Colors controlled via GAS Admin.
- * Version: 1.2.8
+ * Version: 1.2.9
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -252,7 +252,7 @@ class GAS_Reviews {
                 .gas-review-nav.prev { left:0; }
                 .gas-review-nav.next { right:0; }
                 .gas-review-card { background:<?php echo $card_bg; ?>; color:<?php echo $text; ?>; border-radius:<?php echo $card_radius; ?>px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); border:1px solid rgba(0,0,0,0.06); }
-                .gas-review-slider-card { background:<?php echo $card_bg; ?>; color:<?php echo $text; ?>; border-radius:<?php echo $card_radius; ?>px; padding:20px; height:260px; display:flex; flex-direction:column; border:1px solid rgba(255,255,255,0.08); }
+                .gas-review-slider-card { background:<?php echo $card_bg; ?>; color:<?php echo $text; ?>; border-radius:<?php echo $card_radius; ?>px; padding:20px; height:290px; display:flex; flex-direction:column; border:1px solid rgba(255,255,255,0.08); }
                 .gas-review-header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
                 .gas-review-avatar { width:44px; height:44px; border-radius:50%; background:<?php echo $accent; ?>15; display:flex; align-items:center; justify-content:center; font-size:1.1rem; font-weight:700; color:<?php echo $accent; ?>; flex-shrink:0; }
                 .gas-review-meta { flex:1; }

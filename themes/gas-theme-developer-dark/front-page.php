@@ -674,7 +674,7 @@ if (!is_wp_error($repuso_response)) {
                     $r_source = $rev['source'] ?? '';
                 ?>
                 <div class="gas-review-card-cell">
-                    <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
+                    <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 20px; height: 290px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                         <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $r_stars; ?></div>
                         <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px; line-height: 1.5; flex: 1; width: 100%; margin: 0 0 12px 0; padding: 0; overflow: hidden; opacity: 0.9; text-align: left;">"<?php echo esc_html($r_text); ?>"</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
@@ -773,7 +773,7 @@ if (!is_wp_error($hostaway_response)) {
                     $h_meta = $h_date . ($h_source ? ' · ' . $h_source : '');
                 ?>
                 <div class="gas-review-card-cell">
-                    <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
+                    <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 20px; height: 290px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                         <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $h_stars; ?></div>
                         <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px; line-height: 1.5; flex: 1; width: 100%; margin: 0 0 12px 0; padding: 0; overflow: hidden; opacity: 0.9; text-align: left;">"<?php echo esc_html($h_text); ?>"</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
