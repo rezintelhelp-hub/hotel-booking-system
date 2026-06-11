@@ -130,10 +130,12 @@ jQuery(document).ready(function($) {
             if (hpos === 'static') header.style.position = 'relative';
             btn.style.cssText = [
                 'position:absolute', 'top:50%', 'transform:translateY(-50%)',
-                // 1280px = developer-light container max-width; 24px = container
-                // side padding. Result: right edge of cart aligns with right
-                // edge of container content area at every viewport width.
-                'right:max(24px, calc((100vw - 1280px) / 2 + 24px))',
+                // Match the hero section's padding-right (24px on developer-
+                // light) so the cart's right edge lines up with the hero
+                // image's visual right edge regardless of viewport width.
+                // The page-container math was wrong on wide viewports because
+                // the hero is full-bleed (no max-width), only padded.
+                'right:24px',
                 'padding:10px 18px', 'border-radius:0',
                 'background:#0f172a', 'color:#fff',
                 'font:600 0.85rem/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
@@ -145,7 +147,7 @@ jQuery(document).ready(function($) {
             // using the same right calc so it's still aligned with content.
             btn.style.cssText = [
                 'position:fixed', 'top:18px',
-                'right:max(24px, calc((100vw - 1280px) / 2 + 24px))',
+                'right:24px',
                 'z-index:9998',
                 'padding:10px 18px', 'border-radius:0',
                 'background:#0f172a', 'color:#fff',
