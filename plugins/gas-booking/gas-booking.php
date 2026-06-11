@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.8.99
+ * Version: 3.9.0
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -6268,9 +6268,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             gap: 2px;
         }
         .gas-view-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
             background: <?php echo !empty($book_btn_bg) ? esc_attr($book_btn_bg) : esc_attr($this->get_effective_button_color()); ?>;
             color: <?php echo !empty($book_btn_text) ? esc_attr($book_btn_text) : 'white'; ?> !important;
-            padding: 8px 18px;
+            padding: 10px 18px;
             border-radius: var(--gas-btn-radius, <?php echo intval($btn_radius); ?>px);
             text-decoration: none;
             font-weight: 600;
@@ -6545,9 +6549,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             color: #64748b;
         }
         .gas-row-view-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
             background: <?php echo esc_attr($this->get_effective_button_color()); ?>;
             color: white !important;
-            padding: 10px 20px;
+            padding: 12px 20px;
             border-radius: 8px;
             text-decoration: none;
             font-weight: 600;
