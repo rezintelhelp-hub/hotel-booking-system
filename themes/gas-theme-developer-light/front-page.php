@@ -366,18 +366,18 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
                     <?php if ($has_media) : ?>
                         <div class="developer-wrap-media">
                             <?php if ($wrap_media_type === 'video' && $embed_url) : ?>
-                                <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px;">
+                                <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
                                     <iframe src="<?php echo esc_url($embed_url); ?>" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                                 </div>
                             <?php elseif ($wrap_media_type === 'image' && $wrap_media_image) : ?>
-                                <img src="<?php echo esc_url($wrap_media_image); ?>" alt="<?php echo esc_attr($wrap_title); ?>" style="width: 100%; height: auto; border-radius: 12px; display: block;">
+                                <img src="<?php echo esc_url($wrap_media_image); ?>" alt="<?php echo esc_attr($wrap_title); ?>" style="width: 100%; height: auto; display: block;">
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>
                     <?php if ($has_card) : ?>
-                        <div class="developer-wrap-card" style="<?php echo $has_media ? 'margin-top: 1rem; ' : ''; ?>padding: 1.25rem; background: rgba(0,0,0,0.04); border-radius: 12px;">
+                        <div class="developer-wrap-card" style="<?php echo $has_media ? 'margin-top: 1rem; ' : ''; ?>padding: 1.25rem; background: rgba(0,0,0,0.04);">
                             <?php if ($card_image) : ?>
-                                <img src="<?php echo esc_url($card_image); ?>" alt="<?php echo esc_attr($card_title); ?>" style="width: calc(100% + 2.5rem); max-width: none; height: auto; margin: -1.25rem -1.25rem 1rem; border-radius: 12px 12px 0 0; display: block;">
+                                <img src="<?php echo esc_url($card_image); ?>" alt="<?php echo esc_attr($card_title); ?>" style="width: calc(100% + 2.5rem); max-width: none; height: auto; margin: -1.25rem -1.25rem 1rem; display: block;">
                             <?php endif; ?>
                             <?php if ($card_title) : ?><h3 style="margin: 0 0 0.5rem; font-size: 1.15rem;"><?php echo esc_html($card_title); ?></h3><?php endif; ?>
                             <?php if ($card_text) : ?><p style="margin: 0 0 1rem; opacity: 0.9; font-size: 0.95rem;"><?php echo esc_html($card_text); ?></p><?php endif; ?>
