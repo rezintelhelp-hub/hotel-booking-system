@@ -8228,7 +8228,16 @@ jQuery(document).ready(function($) {
                 '.gas-bs-guest-form input{width:100%;padding:0.6rem 0.75rem;border:1px solid #cbd5e1;border-radius:8px;font-size:0.95rem;margin-bottom:0.5rem;box-sizing:border-box}',
                 '.gas-bs-step-success{text-align:center;padding:1rem 0}',
                 '.gas-bs-step-success h3{color:#10b981;margin:0 0 0.5rem}',
-                '@media(max-width:520px){.gas-bs-date-row,.gas-bs-form-row{grid-template-columns:1fr}}'
+                '.gas-bs-linked-toggle{margin-bottom:0.75rem}',
+                '.gas-bs-show-linked{font-size:0.85rem;color:var(--button_color,#F97224);text-decoration:underline}',
+                '.gas-bs-linked-panel{padding:0.85rem;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;margin-bottom:1rem}',
+                '.gas-bs-linked-row{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem}',
+                '.gas-bs-linked-row input{padding:0.5rem 0.65rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.9rem}',
+                '.gas-bs-linked-find{padding:0.45rem 0.85rem;border:none;border-radius:6px;background:#64748b;color:#fff;font-size:0.85rem;cursor:pointer;margin-right:0.5rem}',
+                '.gas-bs-linked-cancel{font-size:0.8rem;color:#64748b;text-decoration:underline}',
+                '.gas-bs-linked-msg{margin-top:0.5rem;font-size:0.85rem}',
+                '.gas-bs-linked-banner{padding:0.6rem 0.85rem;background:#dcfce7;color:#166534;border-radius:6px;font-size:0.9rem;margin-bottom:0.85rem}',
+                '@media(max-width:520px){.gas-bs-date-row,.gas-bs-form-row,.gas-bs-linked-row{grid-template-columns:1fr}}'
             ].join('');
             var styleEl = document.createElement('style');
             styleEl.id = 'gas-bike-storage-styles';
@@ -8250,6 +8259,16 @@ jQuery(document).ready(function($) {
                 '<div class="gas-bike-storage-widget">' +
                 '  <div class="gas-bs-step gas-bs-step-dates">' +
                 '    <div class="gas-bs-tagline">£10 per cabinet per day · Secure · Individual code lock · CCTV-monitored</div>' +
+                '    <div class="gas-bs-linked-toggle"><a href="#" class="gas-bs-show-linked">Already booked a room? Add storage to your booking →</a></div>' +
+                '    <div class="gas-bs-linked-panel" style="display:none">' +
+                '      <div class="gas-bs-linked-row">' +
+                '        <input class="gas-bs-linked-ref" placeholder="Booking ref (e.g. GAS-123)">' +
+                '        <input class="gas-bs-linked-name" placeholder="Last name">' +
+                '      </div>' +
+                '      <button type="button" class="gas-bs-linked-find">Find my booking</button>' +
+                '      <a href="#" class="gas-bs-linked-cancel">← Cancel, book without a room</a>' +
+                '      <div class="gas-bs-linked-msg"></div>' +
+                '    </div>' +
                 '    <div class="gas-bs-date-row">' +
                 '      <label>Arrival<input type="text" class="gas-bs-checkin" placeholder="Pick a date" readonly></label>' +
                 '      <label>Departure<input type="text" class="gas-bs-checkout" placeholder="Pick a date" readonly></label>' +
@@ -8258,6 +8277,7 @@ jQuery(document).ready(function($) {
                 '    <div class="gas-bs-message"></div>' +
                 '  </div>' +
                 '  <div class="gas-bs-step gas-bs-step-confirm" style="display:none">' +
+                '    <div class="gas-bs-linked-banner" style="display:none"></div>' +
                 '    <div class="gas-bs-summary"></div>' +
                 '    <form class="gas-bs-guest-form">' +
                 '      <div class="gas-bs-form-row">' +
@@ -8307,6 +8327,68 @@ jQuery(document).ready(function($) {
             }
 
             var lastQuote = null;
+            // Linked-booking state: when the guest verifies an existing
+            // accommodation booking, we lock dates + guest details to it
+            // and the checkout call carries parent_booking_id.
+            var linkedParent = null; // { id, reference, arrival_date, departure_date, guest_first_name, guest_last_name }
+
+            // Toggle the "I already have a booking" panel.
+            $container.on('click', '.gas-bs-show-linked', function(e) {
+                e.preventDefault();
+                $container.find('.gas-bs-linked-toggle').hide();
+                $container.find('.gas-bs-linked-panel').show();
+            });
+            $container.on('click', '.gas-bs-linked-cancel', function(e) {
+                e.preventDefault();
+                $container.find('.gas-bs-linked-panel').hide();
+                $container.find('.gas-bs-linked-toggle').show();
+                $container.find('.gas-bs-linked-msg').html('');
+                $container.find('.gas-bs-date-row').show();
+                $container.find('.gas-bs-check-btn').show();
+                linkedParent = null;
+            });
+
+            // Find-my-booking → server verifies ref + last name.
+            $container.on('click', '.gas-bs-linked-find', function() {
+                var ref = $container.find('.gas-bs-linked-ref').val().trim();
+                var ln  = $container.find('.gas-bs-linked-name').val().trim();
+                var $msg = $container.find('.gas-bs-linked-msg');
+                if (!ref || !ln) {
+                    $msg.html('<div style="color:#b91c1c">Booking reference and last name required.</div>');
+                    return;
+                }
+                $msg.html('<div style="color:#64748b">Looking up your booking…</div>');
+                $.ajax({
+                    url: apiUrl + '/api/public/bike-storage/find-booking',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ property_id: propertyId, booking_reference: ref, last_name: ln }),
+                    success: function(r) {
+                        if (!r.success) {
+                            $msg.html('<div style="color:#b91c1c">' + (r.error || 'Booking not found') + '</div>');
+                            return;
+                        }
+                        // Lock to parent's dates + guest. Skip the date picker
+                        // entirely — bike storage runs for the same window as
+                        // the parent accommodation booking.
+                        linkedParent = r.booking;
+                        $msg.html(
+                            '<div style="color:#16a34a">✓ Found ' + linkedParent.reference + ' — ' +
+                            linkedParent.guest_first_name + ' ' + linkedParent.guest_last_name + '.<br>' +
+                            'Dates: ' + linkedParent.arrival_date + ' to ' + linkedParent.departure_date + '</div>'
+                        );
+                        // Auto-run the availability check for those dates.
+                        $checkin.val(linkedParent.arrival_date);
+                        $checkout.val(linkedParent.departure_date);
+                        $container.find('.gas-bs-date-row').hide();
+                        $container.find('.gas-bs-check-btn').text('Continue to payment').show().trigger('click');
+                    },
+                    error: function(x) {
+                        var em = (x.responseJSON && x.responseJSON.error) ? x.responseJSON.error : 'Network error';
+                        $msg.html('<div style="color:#b91c1c">' + em + '</div>');
+                    }
+                });
+            });
 
             $container.on('click', '.gas-bs-check-btn', function() {
                 var checkin = $checkin.val();
@@ -8328,6 +8410,10 @@ jQuery(document).ready(function($) {
                             return;
                         }
                         lastQuote = r;
+                        // Stash dates on the quote so the checkout payload
+                        // always has them even if the picker is hidden.
+                        lastQuote.check_in = $checkin.val();
+                        lastQuote.check_out = $checkout.val();
                         $msg.html('');
                         $container.find('.gas-bs-step-dates').hide();
                         $container.find('.gas-bs-step-confirm').show();
@@ -8341,6 +8427,21 @@ jQuery(document).ready(function($) {
                             'Pickup ' + r.pickup_time + ', return ' + r.return_time +
                             '</span></div>'
                         );
+                        // Linked mode: hide the guest form (we have the
+                        // guest's details on the parent booking) and show
+                        // a banner so they know what they're attaching to.
+                        if (linkedParent) {
+                            $container.find('.gas-bs-linked-banner').html(
+                                'Adding to <strong>' + linkedParent.reference + '</strong> · ' +
+                                linkedParent.guest_first_name + ' ' + linkedParent.guest_last_name
+                            ).show();
+                            $container.find('.gas-bs-guest-form input[name]').prop('required', false);
+                            $container.find('.gas-bs-guest-form .gas-bs-form-row, .gas-bs-guest-form input[name=email], .gas-bs-guest-form input[name=phone]').hide();
+                        } else {
+                            $container.find('.gas-bs-linked-banner').hide();
+                            $container.find('.gas-bs-guest-form input[name]').prop('required', true);
+                            $container.find('.gas-bs-guest-form .gas-bs-form-row, .gas-bs-guest-form input[name=email], .gas-bs-guest-form input[name=phone]').show();
+                        }
                         $container.find('.gas-bs-book-btn').text('Book and pay ' + symbol + r.total_price);
                     },
                     error: function() { $msg.html('<div style="color:#b91c1c">Network error — please try again.</div>'); }
@@ -8362,11 +8463,17 @@ jQuery(document).ready(function($) {
                 var origLabel = $btn.text();
                 $err.html('');
                 $btn.prop('disabled', true).text('Creating booking…');
-                $.ajax({
-                    url: apiUrl + '/api/public/bike-storage/checkout',
-                    method: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({
+                // Linked-mode payload uses parent_booking_id; the server
+                // pulls dates + guest details from the parent, so we don't
+                // send the guest form fields.
+                var payload = linkedParent
+                    ? {
+                        property_id: propertyId,
+                        parent_booking_id: linkedParent.id,
+                        parent_last_name: linkedParent.guest_last_name,
+                        source_site_url: window.location.origin + window.location.pathname
+                      }
+                    : {
                         property_id: propertyId,
                         check_in: lastQuote.check_in || $checkin.val(),
                         check_out: lastQuote.check_out || $checkout.val(),
@@ -8375,7 +8482,12 @@ jQuery(document).ready(function($) {
                         guest_email: $form.find('[name=email]').val().trim(),
                         guest_phone: $form.find('[name=phone]').val().trim(),
                         source_site_url: window.location.origin + window.location.pathname
-                    }),
+                      };
+                $.ajax({
+                    url: apiUrl + '/api/public/bike-storage/checkout',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(payload),
                     success: function(r) {
                         if (!r.success || !r.checkout_url) {
                             $err.html('<div style="color:#b91c1c">' + (r.error || 'Could not create booking') + '</div>');
