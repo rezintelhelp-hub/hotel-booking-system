@@ -5371,20 +5371,30 @@ jQuery(document).ready(function($) {
                                 });
                             });
 
-                            // Flow D: pre-tick any upsells listed in
+                            // Flow A / D: pre-tick any upsells listed in
                             // ?prefill_upsells=ID,ID — auto-selected when
                             // the guest came in from the bike-storage widget
-                            // having chosen to bundle a room. We simulate a
-                            // click on each matching card so all existing
-                            // selection side-effects fire (totals, deposit
-                            // recalc, mandatory-style display etc).
+                            // (either standalone or "Add a room" bundle).
+                            // ?prefill_quantity bumps the upsell's quantity
+                            // stepper so 2 cabinets becomes 2× in cart.
                             try {
-                                var prefillRaw = new URLSearchParams(window.location.search).get('prefill_upsells');
+                                var sp = new URLSearchParams(window.location.search);
+                                var prefillRaw = sp.get('prefill_upsells');
+                                var prefillQty = parseInt(sp.get('prefill_quantity')) || 1;
                                 if (prefillRaw) {
                                     var prefillIds = prefillRaw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
                                     prefillIds.forEach(function(id) {
                                         var $card = $('.gas-upsell-card[data-upsell-id="' + id + '"]').not('.selected');
-                                        if ($card.length) $card.trigger('click');
+                                        if ($card.length) {
+                                            // First click selects (qty becomes 1)
+                                            $card.trigger('click');
+                                            // Extra clicks bump qty on quantity-aware upsells.
+                                            // Bounded by card's data-max-quantity so we
+                                            // don't loop past the upsell's allowed cap.
+                                            var maxQty = parseInt($card.attr('data-max-quantity')) || 1;
+                                            var extra = Math.min(prefillQty, maxQty) - 1;
+                                            for (var k = 0; k < extra; k++) $card.trigger('click');
+                                        }
                                     });
                                 }
                             } catch (e) { /* non-fatal */ }
@@ -8352,13 +8362,12 @@ jQuery(document).ready(function($) {
                 '    </div>' +
                 '    <form class="gas-bs-guest-form">' +
                 '      <div class="gas-bs-form-row">' +
-                '        <input name="first_name" placeholder="First name *" required>' +
-                '        <input name="last_name" placeholder="Last name *" required>' +
+                '        <input name="first_name" placeholder="First name *">' +
+                '        <input name="last_name" placeholder="Last name *">' +
                 '      </div>' +
-                '      <input name="email" type="email" placeholder="Email *" required>' +
+                '      <input name="email" type="email" placeholder="Email *">' +
                 '      <input name="phone" type="tel" placeholder="Phone (optional)">' +
-                '      <button type="submit" class="gas-bs-book-btn">Book and pay</button>' +
-                '      <button type="button" class="gas-bs-book-room-btn" style="display:none">Add a room to this stay →</button>' +
+                '      <button type="submit" class="gas-bs-book-btn">Continue to checkout →</button>' +
                 '      <div class="gas-bs-form-error"></div>' +
                 '    </form>' +
                 '    <button type="button" class="gas-bs-back-btn">← Change dates</button>' +
@@ -8567,18 +8576,14 @@ jQuery(document).ready(function($) {
                             $container.find('.gas-bs-guest-form .gas-bs-form-row, .gas-bs-guest-form input[name=email], .gas-bs-guest-form input[name=phone]').hide();
                             $container.find('.gas-bs-book-room-btn').hide();
                         } else {
+                            // Standalone path: hide the guest form too —
+                            // /book-now/ collects guest details + payment
+                            // inline. The widget's only job here is to
+                            // confirm dates + quantity + jump into checkout.
                             $container.find('.gas-bs-linked-banner').hide();
-                            $container.find('.gas-bs-guest-form input[name]').prop('required', true);
-                            $container.find('.gas-bs-guest-form .gas-bs-form-row, .gas-bs-guest-form input[name=email], .gas-bs-guest-form input[name=phone]').show();
-                            // Flow D: only offer the "Add a room" path when
-                            // the property has a bike-storage upsell wired
-                            // up — without one, the main booking widget has
-                            // no way to bundle the storage with the room.
-                            if (r.upsell_id) {
-                                $container.find('.gas-bs-book-room-btn').show();
-                            } else {
-                                $container.find('.gas-bs-book-room-btn').hide();
-                            }
+                            $container.find('.gas-bs-guest-form input[name]').prop('required', false);
+                            $container.find('.gas-bs-guest-form .gas-bs-form-row, .gas-bs-guest-form input[name=email], .gas-bs-guest-form input[name=phone]').hide();
+                            $container.find('.gas-bs-book-room-btn').hide();
                         }
                         renderSummary();
                     },
@@ -8622,34 +8627,49 @@ jQuery(document).ready(function($) {
                 var origLabel = $btn.text();
                 $err.html('');
                 $btn.prop('disabled', true).text('Creating booking…');
-                // Linked-mode payload uses parent_booking_id; server pulls
-                // guest details from the parent. Dates are sent explicitly
-                // so the server uses the picker values (which may be
-                // shorter than parent's range) — server validates they
-                // sit inside parent's nights.
                 var ci = lastQuote.check_in || $checkin.val();
                 var co = lastQuote.check_out || $checkout.val();
-                var payload = linkedParent
-                    ? {
-                        property_id: propertyId,
-                        parent_booking_id: linkedParent.id,
-                        parent_last_name: linkedParent.guest_last_name,
-                        check_in: ci,
-                        check_out: co,
-                        quantity: quantity,
-                        source_site_url: window.location.origin + window.location.pathname
-                      }
-                    : {
-                        property_id: propertyId,
-                        check_in: ci,
-                        check_out: co,
-                        guest_first_name: $form.find('[name=first_name]').val().trim(),
-                        guest_last_name: $form.find('[name=last_name]').val().trim(),
-                        guest_email: $form.find('[name=email]').val().trim(),
-                        guest_phone: $form.find('[name=phone]').val().trim(),
-                        quantity: quantity,
-                        source_site_url: window.location.origin + window.location.pathname
-                      };
+
+                // STANDALONE PATH — route to the standard /book-now/ checkout
+                // page with bike storage pre-ticked as an upsell. Lets the
+                // guest also add a room if they want, and keeps payment on
+                // the same site (inline Stripe Elements) instead of bouncing
+                // out to checkout.stripe.com. Replaces the old POST-to-
+                // /checkout that created a hosted Stripe Checkout session.
+                if (!linkedParent) {
+                    if (!lastQuote.upsell_id) {
+                        $err.html('<div style="color:#b91c1c">No bike-storage upsell configured for this property — contact the host.</div>');
+                        $btn.prop('disabled', false).text(origLabel);
+                        return;
+                    }
+                    var sep = bookingUrl.indexOf('?') === -1 ? '?' : '&';
+                    var symbolOut = (lastQuote.currency === 'GBP') ? '£' : (lastQuote.currency === 'EUR' ? '€' : (lastQuote.currency === 'USD' ? '$' : lastQuote.currency + ' '));
+                    var totalAll = lastQuote.total_price * quantity;
+                    var label = 'Bike storage × ' + quantity + ' · ' + symbolOut + totalAll + ' for ' + lastQuote.nights + ' day' + (lastQuote.nights === 1 ? '' : 's');
+                    var url = bookingUrl + sep + 'checkin=' + encodeURIComponent(ci) +
+                                           '&checkout=' + encodeURIComponent(co) +
+                                           '&prefill_upsells=' + encodeURIComponent(lastQuote.upsell_id) +
+                                           '&prefill_quantity=' + encodeURIComponent(quantity) +
+                                           '&prefill_label=' + encodeURIComponent(label);
+                    window.location.href = url;
+                    return;
+                }
+
+                // LINKED-TO-EXISTING-BOOKING PATH (Flow C) — still uses the
+                // server's /checkout endpoint + Stripe Checkout. The guest's
+                // already paid their room and just wants to attach storage;
+                // they don't need to re-enter card details for the same trip.
+                // Future cleanup: charge their card-on-file via Stripe API
+                // directly so this also stays on-site.
+                var payload = {
+                    property_id: propertyId,
+                    parent_booking_id: linkedParent.id,
+                    parent_last_name: linkedParent.guest_last_name,
+                    check_in: ci,
+                    check_out: co,
+                    quantity: quantity,
+                    source_site_url: window.location.origin + window.location.pathname
+                };
                 $.ajax({
                     url: apiUrl + '/api/public/bike-storage/checkout',
                     method: 'POST',
