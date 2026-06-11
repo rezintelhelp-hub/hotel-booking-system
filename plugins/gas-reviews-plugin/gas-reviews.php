@@ -3,7 +3,7 @@
  * Plugin Name: GAS Reviews
  * Plugin URI: https://gas.travel
  * Description: Display guest reviews from Repuso/The Reviews Place or GAS internal reviews with Review schema markup. Colors controlled via GAS Admin.
- * Version: 1.2.7
+ * Version: 1.2.8
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -267,6 +267,20 @@ class GAS_Reviews {
                    cut horizontally by the card's bottom edge. min-height:0 is the
                    classic flex gotcha that lets the item shrink below content size. */
                 .gas-review-slider-card { overflow: hidden; }
+                /* Force quote p to fill card and left-align — beats any inline /
+                   inherited rule that might centre or shrink it. */
+                .gas-review-slider-card > p {
+                    display: block !important;
+                    width: 100% !important;
+                    min-width: 100% !important;
+                    margin: 0 0 12px 0 !important;
+                    padding: 0 !important;
+                    text-align: left !important;
+                    direction: ltr !important;
+                    -webkit-box-align: start !important;
+                    -webkit-box-pack: start !important;
+                    align-self: stretch !important;
+                }
                 .gas-review-slider-card .gas-review-text {
                     flex: 1 1 0;
                     min-height: 0;
