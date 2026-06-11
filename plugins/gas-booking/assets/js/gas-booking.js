@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.0.1
+ * Version: 4.0.2
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -4486,13 +4486,12 @@ jQuery(document).ready(function($) {
                 $checkoutPage.find('.gas-summary-info-row, .gas-summary-divider').first().hide();
                 if (checkin)      $checkoutPage.find('.gas-checkin-display').text(new Date(checkin).toDateString());
                 if (checkoutDate) $checkoutPage.find('.gas-checkout-display').text(new Date(checkoutDate).toDateString());
+                // Just the upsell line — no duplicate "add a room" CTA.
+                // The shop widget (bike storage, events, etc.) already lets
+                // the guest choose room-only / extra-only / extra+room up
+                // front via its own buttons (e.g. .gas-bs-book-room-btn).
+                // Repeating the choice here was the duplicate Steve flagged.
                 var extraHtml = '<div class="gas-price-line"><span>' + label + '</span><span>' + symbol + lineTotal.toFixed(2) + '</span></div>';
-                var addRoomUrl = bookingUrl + (bookingUrl.indexOf('?') === -1 ? '?' : '&') +
-                    'checkin=' + encodeURIComponent(checkin) +
-                    '&checkout=' + encodeURIComponent(checkoutDate) +
-                    '&prefill_upsells=' + encodeURIComponent(upsellId) +
-                    '&prefill_quantity=' + encodeURIComponent(qty);
-                extraHtml += '<a href="' + addRoomUrl + '" class="gas-cart-add-room" style="display:block;margin-top:10px;padding:8px 12px;border:1px dashed #cbd5e1;border-radius:6px;text-align:center;color:#2563eb;text-decoration:none;font-size:0.9rem;font-weight:600;">+ Add a room to this booking</a>';
                 $checkoutPage.find('.gas-mandatory-extras').html(extraHtml).show();
                 $checkoutPage.find('.gas-price-breakdown .gas-nights-label').text('Subtotal');
                 $checkoutPage.find('.gas-price-breakdown .gas-nights-total').text(symbol + lineTotal.toFixed(2));
