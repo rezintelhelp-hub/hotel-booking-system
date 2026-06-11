@@ -226,6 +226,51 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 </section>
                 <?php break;
 
+            case 'media_wrap':
+                // Magazine-style: text wraps around an image or YouTube/Vimeo embed
+                // floated left or right. Mobile (<=768px) stacks vertically.
+                // Fields saved by Section Builder editor:
+                //   heading, body, media_type (image|video), media_url,
+                //   media_position (left|right), media_width (33|40|50),
+                //   content_width, background_color
+                $media_type = $section['media_type'] ?? 'image';
+                $media_url = $section['media_url'] ?? '';
+                $media_position = ($section['media_position'] ?? 'right') === 'left' ? 'left' : 'right';
+                $media_width = max(20, min(60, intval($section['media_width'] ?? 40)));
+                $embed_url = '';
+                if ($media_type === 'video' && $media_url) {
+                    if (preg_match('~(?:youtu\.be/|youtube\.com/(?:watch\?v=|embed/|v/|shorts/))([A-Za-z0-9_-]{11})~', $media_url, $m)) {
+                        $embed_url = 'https://www.youtube.com/embed/' . $m[1];
+                    } elseif (preg_match('~vimeo\.com/(?:video/)?(\d+)~', $media_url, $m)) {
+                        $embed_url = 'https://player.vimeo.com/video/' . $m[1];
+                    }
+                }
+                $has_media = ($media_type === 'video' && $embed_url) || ($media_type === 'image' && $media_url);
+                $mw_uid = 'gas-mw-' . ($section['id'] ?? rand(1000,9999));
+                ?>
+                <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-media-wrap <?php echo esc_attr($mw_uid); ?>" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
+                    <div style="max-width: <?php echo $max_w; ?>; margin: 0 auto;">
+                        <div class="gas-ps-media-wrap-inner" style="overflow: hidden;">
+                            <?php if ($has_media) : ?>
+                                <div class="gas-ps-media-wrap-media" style="float: <?php echo esc_attr($media_position); ?>; width: <?php echo $media_width; ?>%; margin: 0 <?php echo $media_position === 'right' ? '0 1.5rem 1.5rem' : '1.5rem 1.5rem 0'; ?>; max-width: 100%;">
+                                    <?php if ($media_type === 'video' && $embed_url) : ?>
+                                        <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: <?php echo esc_attr($lg_radius); ?>px;">
+                                            <iframe src="<?php echo esc_url($embed_url); ?>" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                        </div>
+                                    <?php elseif ($media_type === 'image' && $media_url) : ?>
+                                        <img src="<?php echo esc_url($media_url); ?>" alt="<?php echo esc_attr($heading); ?>" style="width: 100%; height: auto; border-radius: <?php echo esc_attr($lg_radius); ?>px; display: block;">
+                                    <?php endif; ?>
+                                </div>
+                            <?php endif; ?>
+                            <?php if ($heading) : ?><h2 style="font-size: 1.8rem; font-weight: 700; color: #1e293b; margin: 0 0 16px;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
+                            <?php if ($body) : ?><div class="gas-ps-body" style="line-height: 1.7;"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
+                            <div style="clear: both;"></div>
+                        </div>
+                    </div>
+                    <style>@media (max-width: 768px) { .<?php echo esc_attr($mw_uid); ?> .gas-ps-media-wrap-media { float: none !important; width: 100% !important; margin: 0 0 1.5rem !important; } }</style>
+                </section>
+                <?php break;
+
             case 'videos':
                 $videos = $section['videos'] ?? array();
                 // Filter out empties — support both string and object formats
