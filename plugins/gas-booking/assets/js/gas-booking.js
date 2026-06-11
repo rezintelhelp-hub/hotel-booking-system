@@ -124,9 +124,11 @@ jQuery(document).ready(function($) {
             // inherits the theme's exact button styling (colour, padding,
             // font), then nudge background to a neutral darker shade so
             // the two buttons are visually distinct but obviously paired.
+            // Insert AFTER the Book Now CTA so the cart sits to its right.
             btn.className = cta.className;
-            btn.style.cssText = 'margin-right:8px;border-radius:0;background:#0f172a;color:#fff;text-decoration:none;';
-            cta.parentNode.insertBefore(btn, cta);
+            btn.style.cssText = 'margin-left:8px;border-radius:0;background:#0f172a;color:#fff;text-decoration:none;';
+            if (cta.nextSibling) cta.parentNode.insertBefore(btn, cta.nextSibling);
+            else cta.parentNode.appendChild(btn);
         } else {
             // Fallback mode: header CTA not found (unknown theme). Pin to
             // top-right so the button is still discoverable.
