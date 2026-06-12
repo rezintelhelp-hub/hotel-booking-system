@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.5
+ * Version: 4.2.6
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -7343,6 +7343,27 @@ jQuery(document).ready(function($) {
                 });
             });
             updateCheckoutPricing();
+            // Pre-tick any upsells listed in ?prefill_upsells=ID,ID — the
+            // single-room checkout flow's version of the prefill logic that
+            // was already present in the group-booking branch. Bike storage
+            // (or any shop item) carried through the cart → checkout URL
+            // gets auto-selected at the Extras step here.
+            try {
+                var spP = new URLSearchParams(window.location.search);
+                var preRaw = spP.get('prefill_upsells');
+                var preQty = parseInt(spP.get('prefill_quantity')) || 1;
+                if (preRaw) {
+                    var preIds = preRaw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+                    preIds.forEach(function(id) {
+                        var $card = $('.gas-upsell-card[data-upsell-id="' + id + '"]').not('.selected');
+                        if (!$card.length) return;
+                        $card.trigger('click');
+                        var maxQty = parseInt($card.attr('data-max-quantity')) || 1;
+                        var extra = Math.min(preQty, maxQty) - 1;
+                        for (var k = 0; k < extra; k++) $card.trigger('click');
+                    });
+                }
+            } catch (e) { /* non-fatal */ }
         }
 
         // "more"/"less" toggle for upsell descriptions. The link sits under a clamped
