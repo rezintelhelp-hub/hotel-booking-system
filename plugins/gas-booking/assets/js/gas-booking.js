@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.0.3
+ * Version: 4.0.4
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -4486,6 +4486,21 @@ jQuery(document).ready(function($) {
                 $checkoutPage.find('.gas-summary-info-row, .gas-summary-divider').first().hide();
                 if (checkin)      $checkoutPage.find('.gas-checkin-display').text(new Date(checkin).toDateString());
                 if (checkoutDate) $checkoutPage.find('.gas-checkout-display').text(new Date(checkoutDate).toDateString());
+
+                // Cart-only mode: there's no room, so no room-extras step.
+                // Collapse the multi-step UI down to a single page — name +
+                // email + card + pay all visible together. Done by hiding
+                // step 2 progress + content, unhiding step 3 content, and
+                // hiding the Continue/Back nav buttons. The Confirm Booking
+                // button in step 3 becomes the Pay button (intercepted below).
+                $checkoutPage.find('.gas-checkout-steps').hide();
+                $checkoutPage.find('.gas-step[data-step="2"]').hide();
+                $checkoutPage.find('.gas-checkout-step-content[data-step="2"]').hide();
+                $checkoutPage.find('.gas-checkout-step-content[data-step="3"]').show();
+                $checkoutPage.find('.gas-next-step, .gas-prev-step').hide();
+                // Relabel the room-flow "Confirm Booking" to a cart-friendly
+                // pay button so the guest knows what clicking does.
+                $checkoutPage.find('#gas-confirm-booking .gas-btn-text').text('Pay ' + symbol + (unitPrice * qty).toFixed(2));
                 // Upsell line with inline qty +/- + remove. No duplicate
                 // "add a room" CTA — the shop widget already handles that
                 // choice up-front via its own buttons.
@@ -4502,10 +4517,24 @@ jQuery(document).ready(function($) {
                           '<span class="gas-upsell-line-total" style="min-width:60px;text-align:right;">' + symbol + lt.toFixed(2) + '</span>' +
                           '<button type="button" class="gas-upsell-remove" aria-label="Remove" style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:1.1rem;line-height:1;padding:0 4px;">×</button>' +
                         '</div>';
+                    // Optional "+ Add a room" link below the line. The room
+                    // checkout's own multi-step Extras step handles room
+                    // upsells (towels etc.) — this link only forwards the
+                    // bike-storage params so the guest lands on /book-now/
+                    // with the storage already pre-selected.
+                    if (bookingUrl) {
+                        var addRoomUrl = bookingUrl + (bookingUrl.indexOf('?') === -1 ? '?' : '&') +
+                            'checkin=' + encodeURIComponent(checkin) +
+                            '&checkout=' + encodeURIComponent(checkoutDate) +
+                            '&prefill_upsells=' + encodeURIComponent(upsellId) +
+                            '&prefill_quantity=' + encodeURIComponent(qty);
+                        html += '<a href="' + addRoomUrl + '" class="gas-cart-add-room" style="display:block;margin:6px 0 0;padding:7px 10px;border:1px dashed #cbd5e1;border-radius:6px;text-align:center;color:#2563eb;text-decoration:none;font-size:0.85rem;font-weight:600;">+ Add a room to your booking</a>';
+                    }
                     $checkoutPage.find('.gas-mandatory-extras').html(html).show();
                     $checkoutPage.find('.gas-price-breakdown .gas-nights-label').text('Subtotal');
                     $checkoutPage.find('.gas-price-breakdown .gas-nights-total').text(symbol + lt.toFixed(2));
                     $checkoutPage.find('.gas-grand-total, .gas-total-amount').text(symbol + lt.toFixed(2));
+                    $checkoutPage.find('#gas-confirm-booking .gas-btn-text').text('Pay ' + symbol + lt.toFixed(2));
                     // Keep URL in sync with current qty so a refresh /
                     // share preserves what's on screen.
                     try {
@@ -4570,6 +4599,15 @@ jQuery(document).ready(function($) {
 
                 // Wire submit. The existing checkout page form has a submit
                 // button; we intercept it for cart-only mode.
+                // The room-flow "Confirm Booking" button is type="button"
+                // (it doesn't submit the form on its own). In cart-only mode
+                // it's the only Pay control we show — wire it to fire the
+                // same form submit our handler below already listens for.
+                $checkoutPage.on('click', '#gas-confirm-booking', function(e) {
+                    e.preventDefault();
+                    var $form = $checkoutPage.find('form, .gas-guest-form, #gas-guest-form').first();
+                    if ($form.length) $form.trigger('submit');
+                });
                 $checkoutPage.on('submit', 'form, .gas-guest-form, #gas-guest-form', function(e) {
                     e.preventDefault();
                     if (qty < 1) {
