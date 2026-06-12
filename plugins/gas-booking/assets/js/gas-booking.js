@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.3
+ * Version: 4.2.4
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -54,22 +54,11 @@ jQuery(document).ready(function($) {
     // skipped, inline Stripe Elements payment). PHP gas_checkout_shortcode
     // recognises cart_only=1 and bypasses the room-required gate; the JS
     // below populates the summary from localStorage.
-    function gasCartCheckoutUrl(cart) {
-        var base = '/checkout/';
-        var sep = '?';
-        var params = ['cart_only=1'];
-        if (cart.checkin)  params.push('checkin='  + encodeURIComponent(cart.checkin));
-        if (cart.checkout) params.push('checkout=' + encodeURIComponent(cart.checkout));
-        if (cart.property_id) params.push('property=' + encodeURIComponent(cart.property_id));
-        if (cart.upsells && cart.upsells.length) {
-            var ids = cart.upsells.map(function(u) { return u.id; }).join(',');
-            params.push('prefill_upsells=' + encodeURIComponent(ids));
-            if (cart.upsells.length === 1) {
-                params.push('prefill_quantity=' + encodeURIComponent(cart.upsells[0].qty || 1));
-                if (cart.upsells[0].label) params.push('prefill_label=' + encodeURIComponent(cart.upsells[0].label));
-            }
-        }
-        return base + sep + params.join('&');
+    // The floating cart pill (and any other "go to cart" target) sends
+    // the guest to /cart/ — that's where they review/edit before
+    // continuing to the actual /checkout/.
+    function gasCartCheckoutUrl(/* cart */) {
+        return '/cart/';
     }
     function gasCartItemCount(cart) {
         if (!cart) return 0;
@@ -396,6 +385,34 @@ jQuery(document).ready(function($) {
             draw();
         });
         $page.on('click', '.gas-cart-checkout-btn', function() {
+            var cart = (window.gasCart && window.gasCart.read()) || null;
+            var items = (cart && Array.isArray(cart.items)) ? cart.items : [];
+            // Smart routing: cart with a room → standard room checkout
+            // (3-step Details → Extras → Payment, with any upsells pre-
+            // ticked at the Extras step). Cart with only upsells → the
+            // cart-only flow (?from_cart=1 reads localStorage cart).
+            var room = items.find(function(i) { return i.type === 'room'; });
+            if (room) {
+                var upsells = items.filter(function(i) { return i.type === 'upsell'; });
+                var url = checkoutUrl;
+                var sep = url.indexOf('?') === -1 ? '?' : '&';
+                url += sep + 'room=' + encodeURIComponent(room.id);
+                url += '&checkin=' + encodeURIComponent(room.checkin || '');
+                url += '&checkout=' + encodeURIComponent(room.checkout || '');
+                url += '&guests=' + (room.guests || 1);
+                url += '&adults='  + (room.adults || 1);
+                url += '&children=' + (room.children || 0);
+                if (room.property_id) url += '&property=' + encodeURIComponent(room.property_id);
+                if (room.currency)    url += '&currency=' + encodeURIComponent(room.currency);
+                if (upsells.length) {
+                    url += '&prefill_upsells='  + encodeURIComponent(upsells.map(function(u) { return u.id; }).join(','));
+                    if (upsells.length === 1 && upsells[0].qty) {
+                        url += '&prefill_quantity=' + encodeURIComponent(upsells[0].qty);
+                    }
+                }
+                window.location.href = url;
+                return;
+            }
             var sep2 = checkoutUrl.indexOf('?') === -1 ? '?' : '&';
             window.location.href = checkoutUrl + sep2 + 'from_cart=1';
         });
@@ -4669,20 +4686,11 @@ jQuery(document).ready(function($) {
                 if (checkin)      $checkoutPage.find('.gas-checkin-display').text(new Date(checkin).toDateString());
                 if (checkoutDate) $checkoutPage.find('.gas-checkout-display').text(new Date(checkoutDate).toDateString());
 
-                // Cart-only mode: there's no room, so no room-extras step.
-                // Collapse the multi-step UI down to a single page — name +
-                // email + card + pay all visible together. Done by hiding
-                // step 2 progress + content, unhiding step 3 content, and
-                // hiding the Continue/Back nav buttons. The Confirm Booking
-                // button in step 3 becomes the Pay button (intercepted below).
-                $checkoutPage.find('.gas-checkout-steps').hide();
-                $checkoutPage.find('.gas-step[data-step="2"]').hide();
-                $checkoutPage.find('.gas-checkout-step-content[data-step="2"]').hide();
-                $checkoutPage.find('.gas-checkout-step-content[data-step="3"]').show();
-                $checkoutPage.find('.gas-next-step, .gas-prev-step').hide();
-                // Relabel the room-flow "Confirm Booking" to a cart-friendly
-                // pay button so the guest knows what clicking does.
-                $checkoutPage.find('#gas-confirm-booking .gas-btn-text').text('Pay ' + symbol + (unitPrice * qty).toFixed(2));
+                // Standard 3-step flow (Details → Extras → Payment) runs as
+                // normal — same UX whether it's a room booking or a
+                // cart-only purchase. Only the data source changes (cart
+                // line in place of room data). #gas-confirm-booking still
+                // fires Stripe + the cart submit handler at step 3.
                 // Upsell line with inline qty +/- + remove. No duplicate
                 // "add a room" CTA — the shop widget already handles that
                 // choice up-front via its own buttons.
