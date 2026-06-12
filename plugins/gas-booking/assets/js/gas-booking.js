@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.10
+ * Version: 4.2.11
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -1624,8 +1624,25 @@ jQuery(document).ready(function($) {
     // Initialize date pickers after a small delay to ensure DOM is ready
     setTimeout(initDatePickers, 100);
     
-    // Pre-fill dates from cart if items exist (for "Add another room" flow)
+    // Pre-fill dates from URL (?checkin=…&checkout=…) so the date pickers
+    // land on the dates the guest already picked elsewhere (cart "Add a
+    // room", external link, etc.). Falls back to the legacy GASCart for
+    // the multi-room flow.
     setTimeout(function() {
+        var urlSp = new URLSearchParams(window.location.search);
+        var urlCi = urlSp.get('checkin');
+        var urlCo = urlSp.get('checkout');
+        if (urlCi && urlCo && /^\d{4}-\d{2}-\d{2}$/.test(urlCi) && /^\d{4}-\d{2}-\d{2}$/.test(urlCo)) {
+            ['.gas-checkin', '.gas-checkin-date', '.gas-search-checkin'].forEach(function(sel) {
+                var el = document.querySelector(sel);
+                if (el && el._flatpickr) el._flatpickr.setDate(urlCi, false);
+            });
+            ['.gas-checkout', '.gas-checkout-date', '.gas-search-checkout'].forEach(function(sel) {
+                var el = document.querySelector(sel);
+                if (el && el._flatpickr) el._flatpickr.setDate(urlCo, false);
+            });
+            return;
+        }
         if (window.GASCart && window.GASCart.items.length > 0) {
             var cartDates = window.GASCart.items[0];
             if (cartDates.checkin && cartDates.checkout) {
