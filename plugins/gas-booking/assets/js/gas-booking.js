@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.0.2
+ * Version: 4.0.3
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -4486,16 +4486,65 @@ jQuery(document).ready(function($) {
                 $checkoutPage.find('.gas-summary-info-row, .gas-summary-divider').first().hide();
                 if (checkin)      $checkoutPage.find('.gas-checkin-display').text(new Date(checkin).toDateString());
                 if (checkoutDate) $checkoutPage.find('.gas-checkout-display').text(new Date(checkoutDate).toDateString());
-                // Just the upsell line — no duplicate "add a room" CTA.
-                // The shop widget (bike storage, events, etc.) already lets
-                // the guest choose room-only / extra-only / extra+room up
-                // front via its own buttons (e.g. .gas-bs-book-room-btn).
-                // Repeating the choice here was the duplicate Steve flagged.
-                var extraHtml = '<div class="gas-price-line"><span>' + label + '</span><span>' + symbol + lineTotal.toFixed(2) + '</span></div>';
-                $checkoutPage.find('.gas-mandatory-extras').html(extraHtml).show();
-                $checkoutPage.find('.gas-price-breakdown .gas-nights-label').text('Subtotal');
-                $checkoutPage.find('.gas-price-breakdown .gas-nights-total').text(symbol + lineTotal.toFixed(2));
-                $checkoutPage.find('.gas-grand-total, .gas-total-amount').text(symbol + lineTotal.toFixed(2));
+                // Upsell line with inline qty +/- + remove. No duplicate
+                // "add a room" CTA — the shop widget already handles that
+                // choice up-front via its own buttons.
+                function renderUpsellLine() {
+                    var lt = unitPrice * qty;
+                    var html =
+                        '<div class="gas-price-line gas-upsell-line" style="align-items:center;gap:8px;">' +
+                          '<span style="flex:1;">' + label + '</span>' +
+                          '<div style="display:inline-flex;align-items:center;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;">' +
+                            '<button type="button" class="gas-upsell-qty-minus" aria-label="Decrease" style="width:26px;height:26px;border:none;background:#f8fafc;cursor:pointer;font-weight:700;">−</button>' +
+                            '<span class="gas-upsell-qty-val" style="min-width:24px;text-align:center;font-weight:600;font-size:0.9rem;">' + qty + '</span>' +
+                            '<button type="button" class="gas-upsell-qty-plus" aria-label="Increase" style="width:26px;height:26px;border:none;background:#f8fafc;cursor:pointer;font-weight:700;">+</button>' +
+                          '</div>' +
+                          '<span class="gas-upsell-line-total" style="min-width:60px;text-align:right;">' + symbol + lt.toFixed(2) + '</span>' +
+                          '<button type="button" class="gas-upsell-remove" aria-label="Remove" style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:1.1rem;line-height:1;padding:0 4px;">×</button>' +
+                        '</div>';
+                    $checkoutPage.find('.gas-mandatory-extras').html(html).show();
+                    $checkoutPage.find('.gas-price-breakdown .gas-nights-label').text('Subtotal');
+                    $checkoutPage.find('.gas-price-breakdown .gas-nights-total').text(symbol + lt.toFixed(2));
+                    $checkoutPage.find('.gas-grand-total, .gas-total-amount').text(symbol + lt.toFixed(2));
+                    // Keep URL in sync with current qty so a refresh /
+                    // share preserves what's on screen.
+                    try {
+                        var sp2 = new URLSearchParams(window.location.search);
+                        sp2.set('prefill_quantity', String(qty));
+                        history.replaceState(null, '', window.location.pathname + '?' + sp2.toString());
+                    } catch (e) {}
+                    // Empty cart state — disable the pay button.
+                    var $payBtn = $checkoutPage.find('button[type=submit], .gas-pay-btn').first();
+                    if (qty < 1) { $payBtn.prop('disabled', true).css('opacity','0.5'); }
+                    else         { $payBtn.prop('disabled', false).css('opacity',''); }
+                }
+                renderUpsellLine();
+                // Delegated handlers so they survive each re-render.
+                $checkoutPage.on('click', '.gas-upsell-qty-plus', function() {
+                    qty += 1;
+                    renderUpsellLine();
+                });
+                $checkoutPage.on('click', '.gas-upsell-qty-minus', function() {
+                    if (qty > 1) qty -= 1;
+                    renderUpsellLine();
+                });
+                $checkoutPage.on('click', '.gas-upsell-remove', function() {
+                    qty = 0;
+                    var $line = $checkoutPage.find('.gas-upsell-line');
+                    var emptyMsg = bookingUrl
+                        ? '<div class="gas-price-line gas-upsell-empty" style="color:#64748b;font-style:italic;">Cart empty — <a href="' + bookingUrl + '" style="color:#2563eb;text-decoration:underline;">return to shop</a></div>'
+                        : '<div class="gas-price-line gas-upsell-empty" style="color:#64748b;font-style:italic;">Cart empty.</div>';
+                    $line.replaceWith(emptyMsg);
+                    $checkoutPage.find('.gas-price-breakdown .gas-nights-total').text(symbol + '0.00');
+                    $checkoutPage.find('.gas-grand-total, .gas-total-amount').text(symbol + '0.00');
+                    var $payBtn = $checkoutPage.find('button[type=submit], .gas-pay-btn').first();
+                    $payBtn.prop('disabled', true).css('opacity','0.5');
+                    try {
+                        var sp3 = new URLSearchParams(window.location.search);
+                        sp3.set('prefill_quantity', '0');
+                        history.replaceState(null, '', window.location.pathname + '?' + sp3.toString());
+                    } catch (e) {}
+                });
 
                 // Stripe init — pull publishable key for this property.
                 var stripeInstance = null, cardElement = null;
@@ -4523,6 +4572,10 @@ jQuery(document).ready(function($) {
                 // button; we intercept it for cart-only mode.
                 $checkoutPage.on('submit', 'form, .gas-guest-form, #gas-guest-form', function(e) {
                     e.preventDefault();
+                    if (qty < 1) {
+                        $('#gas-card-errors, .gas-card-errors').text('Your cart is empty — pick an item before checkout.').show();
+                        return;
+                    }
                     if (!stripeInstance || !cardElement) {
                         $('#gas-card-errors, .gas-card-errors').text('Payment not ready — try again in a moment.').show();
                         return;
