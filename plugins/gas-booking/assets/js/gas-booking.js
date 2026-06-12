@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.1.0
+ * Version: 4.2.0
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -189,18 +189,34 @@ jQuery(document).ready(function($) {
             document.body.appendChild(btn);
         }
     }
-    // Cart layer disabled — the bike-storage flow now uses URL params
-    // (?prefill_upsells=ID&prefill_quantity=N) end-to-end, the same
-    // mechanism the room checkout already uses. The floating pill +
-    // localStorage cart were duplicating the upsell system. Sweep up any
-    // stale cart from a prior session, expose a no-op window.gasCart so
-    // legacy `.clear()` calls don't throw, and don't render the pill.
-    try { gasCartClear(); } catch (e) {}
+    // Single shopping cart — localStorage-backed, populated by shop
+    // widgets (bike storage, etc.) and by room "Add to Cart" actions.
+    // The /cart/ page reads it and shows items; /checkout/ reads it
+    // and bills. ONE cart, no parallel URL-param vs localStorage split.
     window.gasCart = {
-        read:        function() { return null; },
-        write:       function() {},
+        read:        gasCartRead,
+        write:       gasCartWrite,
         clear:       gasCartClear,
-        checkoutUrl: gasCartCheckoutUrl
+        checkoutUrl: gasCartCheckoutUrl,
+        addItem: function(item) {
+            var cart = gasCartRead() || { items: [], created_at: Date.now() };
+            if (!Array.isArray(cart.items)) cart.items = [];
+            // Merge by (type, id) so a second click on the same upsell
+            // bumps qty instead of stacking duplicate rows.
+            var match = cart.items.find(function(i) {
+                return i.type === item.type && String(i.id) === String(item.id);
+            });
+            if (match) match.qty = (match.qty || 1) + (item.qty || 1);
+            else cart.items.push(item);
+            // Mirror first item's dates / property at top level for any
+            // legacy code reading the older flat cart shape.
+            if (!cart.checkin && item.checkin)   cart.checkin = item.checkin;
+            if (!cart.checkout && item.checkout) cart.checkout = item.checkout;
+            if (!cart.property_id && item.property_id) cart.property_id = item.property_id;
+            if (!cart.currency && item.currency) cart.currency = item.currency;
+            gasCartWrite(cart);
+            return cart;
+        }
     };
 
     // When the guest is on /book-now/?prefill_upsells=... (came from "+ Add
@@ -251,6 +267,102 @@ jQuery(document).ready(function($) {
         document.addEventListener('DOMContentLoaded', gasForwardUpsellParams);
     } else {
         gasForwardUpsellParams();
+    }
+
+    // Cart page renderer — populates [gas_cart] from window.gasCart.read().
+    // Items get qty +/- and remove. "Continue to checkout" advances to the
+    // configured checkout URL with ?from_cart=1; the checkout reads the
+    // same localStorage cart on arrival.
+    function gasRenderCartPage() {
+        var $page = $('.gas-cart-page');
+        if (!$page.length) return;
+        var checkoutUrl = $page.data('checkout-url') || '/checkout/';
+        var bookingUrl  = $page.data('booking-url')  || '/book-now/';
+        var btnColor    = $page.data('button-color') || '#F97224';
+        function fmt(c) {
+            return c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'USD' ? '$' : (c + ' ');
+        }
+        function draw() {
+            var cart = (window.gasCart && window.gasCart.read()) || null;
+            var items = (cart && Array.isArray(cart.items)) ? cart.items : [];
+            var currency = (cart && cart.currency) || 'GBP';
+            var sym = fmt(currency);
+            var $items = $page.find('.gas-cart-items').empty();
+            if (!items.length) {
+                $page.find('.gas-cart-empty').show();
+                $page.find('.gas-cart-footer').hide();
+                return;
+            }
+            $page.find('.gas-cart-empty').hide();
+            $page.find('.gas-cart-footer').show();
+            var total = 0;
+            items.forEach(function(item, i) {
+                var qty = item.qty || 1;
+                var price = item.price || 0;
+                var lineTotal = qty * price;
+                total += lineTotal;
+                var sub = '';
+                if (item.checkin && item.checkout) sub = item.checkin + ' → ' + item.checkout;
+                var html =
+                    '<div class="gas-cart-row" data-idx="' + i + '" style="display:flex;align-items:center;gap:10px;padding:14px 0;border-top:1px solid #e2e8f0;">' +
+                      '<div style="flex:1;min-width:0;">' +
+                        '<div style="font-weight:600;color:#0f172a;font-size:1rem;">' + (item.label || (item.type + ' ' + item.id)) + '</div>' +
+                        (sub ? '<div style="font-size:0.85rem;color:#64748b;margin-top:2px;">' + sub + '</div>' : '') +
+                      '</div>' +
+                      '<div style="display:inline-flex;align-items:center;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;">' +
+                        '<button type="button" class="gas-cart-qty-minus" aria-label="Decrease" style="width:30px;height:30px;border:none;background:#f8fafc;cursor:pointer;font-weight:700;">−</button>' +
+                        '<span style="min-width:28px;text-align:center;font-weight:600;font-size:0.95rem;">' + qty + '</span>' +
+                        '<button type="button" class="gas-cart-qty-plus" aria-label="Increase" style="width:30px;height:30px;border:none;background:#f8fafc;cursor:pointer;font-weight:700;">+</button>' +
+                      '</div>' +
+                      '<span style="min-width:72px;text-align:right;font-weight:700;color:#0f172a;font-size:1rem;">' + sym + lineTotal.toFixed(2) + '</span>' +
+                      '<button type="button" class="gas-cart-remove" aria-label="Remove" style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:1.3rem;line-height:1;padding:0 4px;">×</button>' +
+                    '</div>';
+                $items.append(html);
+            });
+            $page.find('.gas-cart-total').text(sym + total.toFixed(2));
+            // Add-room link forwards dates so /book-now/ lands on the same window.
+            var sep = bookingUrl.indexOf('?') === -1 ? '?' : '&';
+            var addRoomUrl = bookingUrl;
+            if (cart && cart.checkin)  { addRoomUrl += sep + 'checkin=' + encodeURIComponent(cart.checkin); sep = '&'; }
+            if (cart && cart.checkout) { addRoomUrl += sep + 'checkout=' + encodeURIComponent(cart.checkout); }
+            $page.find('.gas-cart-add-room').attr('href', addRoomUrl);
+        }
+        draw();
+        $page.on('click', '.gas-cart-qty-plus', function() {
+            var idx = parseInt($(this).closest('.gas-cart-row').data('idx'));
+            var cart = window.gasCart.read();
+            if (!cart || !cart.items[idx]) return;
+            cart.items[idx].qty = (cart.items[idx].qty || 1) + 1;
+            window.gasCart.write(cart);
+            draw();
+        });
+        $page.on('click', '.gas-cart-qty-minus', function() {
+            var idx = parseInt($(this).closest('.gas-cart-row').data('idx'));
+            var cart = window.gasCart.read();
+            if (!cart || !cart.items[idx]) return;
+            var q = (cart.items[idx].qty || 1) - 1;
+            if (q < 1) q = 1;
+            cart.items[idx].qty = q;
+            window.gasCart.write(cart);
+            draw();
+        });
+        $page.on('click', '.gas-cart-remove', function() {
+            var idx = parseInt($(this).closest('.gas-cart-row').data('idx'));
+            var cart = window.gasCart.read();
+            if (!cart || isNaN(idx)) return;
+            cart.items.splice(idx, 1);
+            window.gasCart.write(cart);
+            draw();
+        });
+        $page.on('click', '.gas-cart-checkout-btn', function() {
+            var sep2 = checkoutUrl.indexOf('?') === -1 ? '?' : '&';
+            window.location.href = checkoutUrl + sep2 + 'from_cart=1';
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', gasRenderCartPage);
+    } else {
+        gasRenderCartPage();
     }
 
     // Get current language from URL parameter, cookie, or default to 'en'.
@@ -9134,29 +9246,23 @@ jQuery(document).ready(function($) {
                     var symbolOut = (lastQuote.currency === 'GBP') ? '£' : (lastQuote.currency === 'EUR' ? '€' : (lastQuote.currency === 'USD' ? '$' : lastQuote.currency + ' '));
                     var totalAll = lastQuote.total_price * quantity;
                     var label = 'Bike storage × ' + quantity + ' · ' + symbolOut + totalAll + ' for ' + lastQuote.nights + ' day' + (lastQuote.nights === 1 ? '' : 's');
-                    // Single source of truth: URL params. No localStorage
-                    // cart layer — the bike storage upsell already exists
-                    // in the DB and prefill_upsells/quantity is the same
-                    // mechanism the room flow uses. cart_only=1 only
-                    // bypasses the "select a room" gate on the checkout
-                    // page; everything else routes through the standard
-                    // upsell rendering.
-                    var params = [
-                        'cart_only=1',
-                        'checkin=' + encodeURIComponent(ci),
-                        'checkout=' + encodeURIComponent(co),
-                        'property=' + encodeURIComponent(propertyId),
-                        'prefill_upsells=' + encodeURIComponent(lastQuote.upsell_id),
-                        'prefill_quantity=' + encodeURIComponent(quantity),
-                        'prefill_label=' + encodeURIComponent(label),
-                        'prefill_price=' + encodeURIComponent(lastQuote.total_price),
-                        'prefill_currency=' + encodeURIComponent(lastQuote.currency || 'GBP'),
-                        // booking_url lets the cart-only checkout render an
-                        // "Add a room" link that round-trips back to /book-now/
-                        // with these same upsell params attached.
-                        'booking_url=' + encodeURIComponent(bookingUrl)
-                    ];
-                    window.location.href = '/checkout/?' + params.join('&');
+                    // Single shopping cart. Write the bike storage as one
+                    // line and redirect to /cart/ — the guest reviews +
+                    // edits there before clicking through to checkout.
+                    if (window.gasCart && window.gasCart.addItem) {
+                        window.gasCart.addItem({
+                            type: 'upsell',
+                            id: lastQuote.upsell_id,
+                            qty: quantity,
+                            price: lastQuote.total_price,
+                            label: label,
+                            checkin: ci,
+                            checkout: co,
+                            property_id: propertyId,
+                            currency: lastQuote.currency || 'GBP'
+                        });
+                    }
+                    window.location.href = '/cart/';
                     return;
                 }
 

@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.1.0
+ * Version: 4.2.0
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.1.0');
+define('GAS_BOOKING_VERSION', '4.2.0');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -199,6 +199,7 @@ class GAS_Booking {
         add_shortcode('gas_room', array($this, 'room_shortcode'));
         add_shortcode('gas_booking', array($this, 'booking_shortcode'));
         add_shortcode('gas_checkout', array($this, 'checkout_shortcode'));
+        add_shortcode('gas_cart', array($this, 'cart_shortcode'));
         add_shortcode('gas_offers', array($this, 'offers_shortcode'));
         add_shortcode('gas_about', array($this, 'about_shortcode'));
         add_shortcode('gas_contact', array($this, 'contact_shortcode'));
@@ -8750,7 +8751,47 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         <?php
         return ob_get_clean();
     }
-    
+
+    /**
+     * Shopping Cart Page Shortcode
+     * Usage: [gas_cart]
+     * Reads the shared shopping cart from localStorage (window.gasCart) and
+     * renders a single page where the guest reviews / edits items before
+     * advancing to /checkout/. ONE cart, holds upsells (bike storage etc.)
+     * AND rooms — populated by widgets and rendered here.
+     */
+    public function cart_shortcode($atts) {
+        $api_url     = get_option('gas_api_url', 'https://admin.gas.travel');
+        $checkout_url = get_option('gas_checkout_url', '/checkout/');
+        $booking_url  = get_option('gas_search_results_url', '/book-now/');
+        $button_color = $this->get_effective_button_color();
+        ob_start();
+        ?>
+        <div class="gas-cart-page"
+             data-api-url="<?php echo esc_attr($api_url); ?>"
+             data-checkout-url="<?php echo esc_attr($checkout_url); ?>"
+             data-booking-url="<?php echo esc_attr($booking_url); ?>"
+             data-button-color="<?php echo esc_attr($button_color); ?>"
+             style="max-width:760px;margin:2rem auto;padding:1.5rem;background:#fff;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,0.06);font-family:inherit;">
+            <h1 style="margin:0 0 1rem;font-size:1.5rem;color:#0f172a;">Your Cart</h1>
+            <div class="gas-cart-items"></div>
+            <div class="gas-cart-empty" style="display:none;text-align:center;padding:2rem 0;color:#64748b;">
+                <p style="margin:0 0 1rem;">Your cart is empty.</p>
+                <a href="<?php echo esc_url($booking_url); ?>" style="display:inline-block;padding:10px 20px;background:<?php echo esc_attr($button_color); ?>;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Browse rooms</a>
+            </div>
+            <div class="gas-cart-footer" style="display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid #e2e8f0;">
+                <a href="#" class="gas-cart-add-room" style="display:block;margin:0 0 12px;padding:10px 14px;border:1px dashed #cbd5e1;border-radius:8px;text-align:center;color:#2563eb;text-decoration:none;font-size:0.95rem;font-weight:600;">+ Add a room to your booking</a>
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:1.1rem;font-weight:700;color:#0f172a;margin:8px 0 16px;">
+                    <span>Total</span>
+                    <span class="gas-cart-total"></span>
+                </div>
+                <button type="button" class="gas-cart-checkout-btn" style="display:block;width:100%;padding:14px;background:<?php echo esc_attr($button_color); ?>;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;">Continue to checkout →</button>
+            </div>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
     /**
      * Offers Showcase Page Shortcode
      * Usage: [gas_offers]
