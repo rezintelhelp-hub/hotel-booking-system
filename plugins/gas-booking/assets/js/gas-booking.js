@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.4
+ * Version: 4.2.5
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -309,8 +309,36 @@ jQuery(document).ready(function($) {
         var checkoutUrl = $page.data('checkout-url') || '/checkout/';
         var bookingUrl  = $page.data('booking-url')  || '/book-now/';
         var btnColor    = $page.data('button-color') || '#F97224';
+        var apiUrl      = $page.data('api-url')      || 'https://admin.gas.travel';
         function fmt(c) {
             return c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'USD' ? '$' : (c + ' ');
+        }
+        // Async availability check per item — Steve's call-out about
+        // double-booking. Rooms: hard-cap qty at 1 (a private room can't
+        // be sold twice for the same dates). Upsells (bike storage etc.):
+        // call /api/public/bike-storage/availability for the live count
+        // and cap qty+ there.
+        function checkItemAvailability(item) {
+            if (item.type === 'room') {
+                // Hard cap rooms at 1. Future: per-property qty>1 for
+                // identical-room pools (Standard 4 Bed, etc.) needs a
+                // pool-aware availability endpoint — flagged for v4.3.
+                return Promise.resolve({ ok: true, max: 1, msg: '' });
+            }
+            if (item.type === 'upsell') {
+                var url = apiUrl + '/api/public/bike-storage/availability?property_id=' + encodeURIComponent(item.property_id) +
+                    '&check_in=' + encodeURIComponent(item.checkin || '') +
+                    '&check_out=' + encodeURIComponent(item.checkout || '');
+                return fetch(url, { credentials: 'omit' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        if (!d || !d.success) return { ok: false, max: 0, msg: 'Not available for these dates' };
+                        if ((d.available_count || 0) < 1) return { ok: false, max: 0, msg: 'Sold out for these dates' };
+                        return { ok: true, max: d.available_count, msg: d.available_count + ' available' };
+                    })
+                    .catch(function() { return { ok: true, max: Infinity, msg: '' }; }); // network blip — don't block
+            }
+            return Promise.resolve({ ok: true, max: Infinity, msg: '' });
         }
         function draw() {
             var cart = (window.gasCart && window.gasCart.read()) || null;
@@ -356,6 +384,53 @@ jQuery(document).ready(function($) {
             if (cart && cart.checkin)  { addRoomUrl += sep + 'checkin=' + encodeURIComponent(cart.checkin); sep = '&'; }
             if (cart && cart.checkout) { addRoomUrl += sep + 'checkout=' + encodeURIComponent(cart.checkout); }
             $page.find('.gas-cart-add-room').attr('href', addRoomUrl);
+            // Async availability check per row. Mark each row with the
+            // live count or a "no longer available" banner, and block
+            // Continue to checkout if any row is unavailable.
+            var anyUnavailable = false;
+            var pending = items.length;
+            if (pending === 0) return;
+            items.forEach(function(item, i) {
+                checkItemAvailability(item).then(function(r) {
+                    var $row = $page.find('.gas-cart-row[data-idx="' + i + '"]');
+                    if (!$row.length) { pending--; return; }
+                    // Strip any prior status
+                    $row.find('.gas-cart-avail').remove();
+                    var badge;
+                    if (!r.ok) {
+                        anyUnavailable = true;
+                        badge = '<div class="gas-cart-avail" style="margin-top:6px;font-size:0.85rem;color:#b91c1c;font-weight:600;">⚠ ' + r.msg + '</div>';
+                    } else {
+                        badge = '<div class="gas-cart-avail" style="margin-top:4px;font-size:0.8rem;color:#059669;">✓ ' + (r.msg || 'Available') + '</div>';
+                    }
+                    $row.find('> div:first-child').append(badge);
+                    // Clamp qty + against the live max. The cap goes on the
+                    // button so further clicks just bounce against it.
+                    var curQty = (item.qty || 1);
+                    if (r.max && curQty > r.max) {
+                        // Auto-clamp the cart down to the new max so the
+                        // total reflects what the guest can actually buy.
+                        var cart2 = window.gasCart.read();
+                        if (cart2 && cart2.items[i]) {
+                            cart2.items[i].qty = r.max;
+                            window.gasCart.write(cart2);
+                        }
+                        draw();
+                        return;
+                    }
+                    if (r.max != null && r.max !== Infinity && curQty >= r.max) {
+                        $row.find('.gas-cart-qty-plus').prop('disabled', true).css('opacity', '0.4').css('cursor', 'not-allowed');
+                    }
+                    pending--;
+                    if (pending === 0 && anyUnavailable) {
+                        $page.find('.gas-cart-checkout-btn')
+                            .prop('disabled', true)
+                            .css('opacity', '0.5')
+                            .css('cursor', 'not-allowed')
+                            .attr('title', 'Remove unavailable items before continuing');
+                    }
+                });
+            });
         }
         draw();
         $page.on('click', '.gas-cart-qty-plus', function() {
