@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.7
+ * Version: 4.2.8
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -313,6 +313,14 @@ jQuery(document).ready(function($) {
         function fmt(c) {
             return c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'USD' ? '$' : (c + ' ');
         }
+        // Per-pageload cache of the live max for each item, keyed by the
+        // item's (type, id, checkin, checkout). Set on first availability
+        // fetch; reused on every draw() so the badge can be re-rendered
+        // as "X remaining" (max minus current cart qty) on qty +/-.
+        var availMaxByKey = {};
+        function availKey(item) {
+            return (item.type || '?') + '|' + (item.id || '') + '|' + (item.checkin || '') + '|' + (item.checkout || '');
+        }
         // Async availability check per item — Steve's call-out about
         // double-booking. Rooms: hard-cap qty at 1 (a private room can't
         // be sold twice for the same dates). Upsells (bike storage etc.):
@@ -398,50 +406,69 @@ jQuery(document).ready(function($) {
             if (cart && cart.checkin)  { addRoomUrl += sep + 'checkin=' + encodeURIComponent(cart.checkin); sep = '&'; }
             if (cart && cart.checkout) { addRoomUrl += sep + 'checkout=' + encodeURIComponent(cart.checkout); }
             $page.find('.gas-cart-add-room').attr('href', addRoomUrl);
-            // Async availability check per row. Mark each row with the
-            // live count or a "no longer available" banner, and block
-            // Continue to checkout if any row is unavailable.
+            // Availability + dynamic remaining-count rendering. The max
+            // is fetched once and cached; the rendered "X remaining" is
+            // computed on every draw as (max - cart qty) so the badge
+            // ticks down as the guest clicks +.
+            function renderAvailBadge(item, i, max, okMsg) {
+                var $row = $page.find('.gas-cart-row[data-idx="' + i + '"]');
+                if (!$row.length) return;
+                $row.find('.gas-cart-avail').remove();
+                var curQty = item.qty || 1;
+                var $plus = $row.find('.gas-cart-qty-plus');
+                if (max === 0) {
+                    $row.find('> div:first-child').append('<div class="gas-cart-avail" style="margin-top:6px;font-size:0.85rem;color:#b91c1c;font-weight:600;">⚠ Sold out for these dates</div>');
+                    $plus.prop('disabled', true).css('opacity', '0.4').css('cursor', 'not-allowed');
+                    return false;
+                }
+                if (max === Infinity || max == null) {
+                    $row.find('> div:first-child').append('<div class="gas-cart-avail" style="margin-top:4px;font-size:0.8rem;color:#059669;">✓ Available</div>');
+                    return true;
+                }
+                if (curQty > max) {
+                    // Auto-clamp the cart to fit
+                    var cart3 = window.gasCart.read();
+                    if (cart3 && cart3.items[i]) { cart3.items[i].qty = max; window.gasCart.write(cart3); }
+                    draw();
+                    return true;
+                }
+                var remaining = Math.max(0, max - curQty);
+                var msg = (max === 1)
+                    ? (okMsg || 'Available')
+                    : (remaining === 0 ? 'Max reached · ' + max + ' available' : remaining + ' more available · ' + max + ' total');
+                $row.find('> div:first-child').append('<div class="gas-cart-avail" style="margin-top:4px;font-size:0.8rem;color:' + (remaining === 0 ? '#b45309' : '#059669') + ';">✓ ' + msg + '</div>');
+                if (remaining === 0) {
+                    $plus.prop('disabled', true).css('opacity', '0.4').css('cursor', 'not-allowed');
+                } else {
+                    $plus.prop('disabled', false).css('opacity', '').css('cursor', '');
+                }
+                return true;
+            }
             var anyUnavailable = false;
             var pending = items.length;
             if (pending === 0) return;
             items.forEach(function(item, i) {
-                checkItemAvailability(item).then(function(r) {
-                    var $row = $page.find('.gas-cart-row[data-idx="' + i + '"]');
-                    if (!$row.length) { pending--; return; }
-                    // Strip any prior status
-                    $row.find('.gas-cart-avail').remove();
-                    var badge;
-                    if (!r.ok) {
-                        anyUnavailable = true;
-                        badge = '<div class="gas-cart-avail" style="margin-top:6px;font-size:0.85rem;color:#b91c1c;font-weight:600;">⚠ ' + r.msg + '</div>';
-                    } else {
-                        badge = '<div class="gas-cart-avail" style="margin-top:4px;font-size:0.8rem;color:#059669;">✓ ' + (r.msg || 'Available') + '</div>';
-                    }
-                    $row.find('> div:first-child').append(badge);
-                    // Clamp qty + against the live max. The cap goes on the
-                    // button so further clicks just bounce against it.
-                    var curQty = (item.qty || 1);
-                    if (r.max && curQty > r.max) {
-                        // Auto-clamp the cart down to the new max so the
-                        // total reflects what the guest can actually buy.
-                        var cart2 = window.gasCart.read();
-                        if (cart2 && cart2.items[i]) {
-                            cart2.items[i].qty = r.max;
-                            window.gasCart.write(cart2);
-                        }
-                        draw();
-                        return;
-                    }
-                    if (r.max != null && r.max !== Infinity && curQty >= r.max) {
-                        $row.find('.gas-cart-qty-plus').prop('disabled', true).css('opacity', '0.4').css('cursor', 'not-allowed');
-                    }
+                var key = availKey(item);
+                if (availMaxByKey.hasOwnProperty(key)) {
+                    // Cached from a prior draw — just re-render the badge
+                    // with the current qty.
+                    var cachedMax = availMaxByKey[key];
+                    var stillOk = renderAvailBadge(item, i, cachedMax, '');
+                    if (!stillOk) anyUnavailable = true;
                     pending--;
                     if (pending === 0 && anyUnavailable) {
-                        $page.find('.gas-cart-checkout-btn')
-                            .prop('disabled', true)
-                            .css('opacity', '0.5')
-                            .css('cursor', 'not-allowed')
-                            .attr('title', 'Remove unavailable items before continuing');
+                        $page.find('.gas-cart-checkout-btn').prop('disabled', true).css('opacity', '0.5').css('cursor', 'not-allowed').attr('title', 'Remove unavailable items before continuing');
+                    }
+                    return;
+                }
+                checkItemAvailability(item).then(function(r) {
+                    var max = r.ok ? (r.max == null ? Infinity : r.max) : 0;
+                    availMaxByKey[key] = max;
+                    var stillOk = renderAvailBadge(item, i, max, r.msg);
+                    if (!stillOk) anyUnavailable = true;
+                    pending--;
+                    if (pending === 0 && anyUnavailable) {
+                        $page.find('.gas-cart-checkout-btn').prop('disabled', true).css('opacity', '0.5').css('cursor', 'not-allowed').attr('title', 'Remove unavailable items before continuing');
                     }
                 });
             });
