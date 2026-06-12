@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.0.4
+ * Version: 4.0.5
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -213,6 +213,16 @@ jQuery(document).ready(function($) {
             var sp = new URLSearchParams(window.location.search);
             var upsells = sp.get('prefill_upsells');
             if (!upsells) return;
+            // Bike-storage / shop directed flow: the guest is here to pick
+            // ONE room to attach to their cart item. Hide the multi-room
+            // group-cart UI on the room detail page (Add to Cart, Go to
+            // Cart, + Add another room, Clear cart) so "Book Now" is the
+            // single CTA. .gas-add-to-cart-btn renders disabled at first
+            // and gets enabled when dates are picked, so we hide it
+            // unconditionally here + via CSS just in case.
+            document.querySelectorAll('.gas-add-to-cart-btn, .gas-cart-status').forEach(function(el) {
+                el.style.setProperty('display', 'none', 'important');
+            });
             var qty = sp.get('prefill_quantity');
             document.querySelectorAll('a.gas-view-btn, a.gas-row-view-btn, .gas-property-card a, a.gas-property-cta').forEach(function(a) {
                 if (!a.href || a.target === '_blank') return;
@@ -3533,6 +3543,20 @@ jQuery(document).ready(function($) {
         if (propertyId) {
             checkoutUrl += '&property=' + propertyId;
         }
+
+        // Forward any prefill_upsells (and quantity) sitting in the current
+        // URL — that's how the bike-storage and other shop items round-trip
+        // through /book-now/ → room detail → /checkout/ without losing the
+        // upsell selection. Single mechanism, no parallel cart.
+        try {
+            var spBook = new URLSearchParams(window.location.search);
+            var upsBook = spBook.get('prefill_upsells');
+            if (upsBook) {
+                checkoutUrl += '&prefill_upsells=' + encodeURIComponent(upsBook);
+                var qBook = spBook.get('prefill_quantity');
+                if (qBook) checkoutUrl += '&prefill_quantity=' + encodeURIComponent(qBook);
+            }
+        } catch (e) {}
 
         // Redirect to checkout
         window.location.href = checkoutUrl;
