@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.6
+ * Version: 4.2.7
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -320,10 +320,24 @@ jQuery(document).ready(function($) {
         // and cap qty+ there.
         function checkItemAvailability(item) {
             if (item.type === 'room') {
-                // Hard cap rooms at 1. Future: per-property qty>1 for
-                // identical-room pools (Standard 4 Bed, etc.) needs a
-                // pool-aware availability endpoint — flagged for v4.3.
-                return Promise.resolve({ ok: true, max: 1, msg: '' });
+                var rurl = apiUrl + '/api/public/availability/' + encodeURIComponent(item.id) +
+                    '?from=' + encodeURIComponent(item.checkin || '') +
+                    '&to=' + encodeURIComponent(item.checkout || '');
+                return fetch(rurl, { credentials: 'omit' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        if (!d || !d.success || !d.is_available) {
+                            return { ok: false, max: 0, msg: 'Sold out for these dates' };
+                        }
+                        var ac = (typeof d.available_count === 'number') ? d.available_count : 1;
+                        if (ac < 1) return { ok: false, max: 0, msg: 'Sold out for these dates' };
+                        // Identical-room pools (e.g. 5 Standard 4 Bed rooms,
+                        // 4 dorm beds, etc.) — show the live count. Single
+                        // private rooms show "Available" with max 1.
+                        if (ac === 1) return { ok: true, max: 1, msg: 'Available' };
+                        return { ok: true, max: ac, msg: ac + ' available' };
+                    })
+                    .catch(function() { return { ok: true, max: 1, msg: '' }; });
             }
             if (item.type === 'upsell') {
                 var url = apiUrl + '/api/public/bike-storage/availability?property_id=' + encodeURIComponent(item.property_id) +
