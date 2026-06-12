@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.1
+ * Version: 4.2.2
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.1');
+define('GAS_BOOKING_VERSION', '4.2.2');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8786,6 +8786,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     <span class="gas-cart-total"></span>
                 </div>
                 <button type="button" class="gas-cart-checkout-btn" style="display:block;width:100%;padding:14px;background:<?php echo esc_attr($button_color); ?>;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;">Continue to checkout →</button>
+                <a href="#" class="gas-cart-clear-all" style="display:block;text-align:center;margin-top:12px;color:#b91c1c;font-size:0.85rem;text-decoration:underline;">Clear cart</a>
             </div>
         </div>
         <?php

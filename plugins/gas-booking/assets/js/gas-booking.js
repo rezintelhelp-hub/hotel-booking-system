@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.1
+ * Version: 4.2.2
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -297,6 +297,19 @@ jQuery(document).ready(function($) {
         gasHideBookNowIfCart();
     }
 
+    // Emergency clear: visiting any GAS page with ?clear_cart=1 wipes the
+    // cart and removes the param so a refresh stays clean. Useful when an
+    // old session's items are stuck and the guest wants to start over.
+    try {
+        var spClear = new URLSearchParams(window.location.search);
+        if (spClear.get('clear_cart') === '1') {
+            gasCartClear();
+            spClear.delete('clear_cart');
+            var rest = spClear.toString();
+            history.replaceState(null, '', window.location.pathname + (rest ? '?' + rest : ''));
+        }
+    } catch (e) {}
+
     // Cart page renderer — populates [gas_cart] from window.gasCart.read().
     // Items get qty +/- and remove. "Continue to checkout" advances to the
     // configured checkout URL with ?from_cart=1; the checkout reads the
@@ -385,6 +398,11 @@ jQuery(document).ready(function($) {
         $page.on('click', '.gas-cart-checkout-btn', function() {
             var sep2 = checkoutUrl.indexOf('?') === -1 ? '?' : '&';
             window.location.href = checkoutUrl + sep2 + 'from_cart=1';
+        });
+        $page.on('click', '.gas-cart-clear-all', function(e) {
+            e.preventDefault();
+            if (window.gasCart) window.gasCart.clear();
+            draw();
         });
     }
     if (document.readyState === 'loading') {
