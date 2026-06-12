@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.2
+ * Version: 4.2.3
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -4634,25 +4634,29 @@ jQuery(document).ready(function($) {
         var isCartOnly = $checkoutPage.data('cart-only') == '1';
         if (isCartOnly) {
             (function initCartOnlyCheckout() {
-                console.log('[GAS Cart Checkout] init (URL-driven)');
-                // URL is the single source of truth. The bike-storage widget
-                // (or any upsell entry point) redirects with these params,
-                // and they round-trip through /book-now/ when the guest
-                // takes the "Add a room" detour.
+                console.log('[GAS Cart Checkout] init');
+                // Read URL params first; fall back to the single localStorage
+                // cart for anything missing. That's how the from_cart=1 entry
+                // works — /cart/ "Continue to checkout" redirects here with
+                // no URL params and we pull everything from window.gasCart.
                 var apiUrl = $checkoutPage.data('api-url') || 'https://admin.gas.travel';
                 var sp = new URLSearchParams(window.location.search);
-                var propertyId   = parseInt(sp.get('property')) || 0;
-                var checkin      = sp.get('checkin') || '';
-                var checkoutDate = sp.get('checkout') || '';
-                var upsellId     = sp.get('prefill_upsells') || '';
-                var qty          = parseInt(sp.get('prefill_quantity')) || 1;
-                var label        = sp.get('prefill_label') || ('Item ' + upsellId);
-                var unitPrice    = parseFloat(sp.get('prefill_price')) || 0;
-                var currency     = (sp.get('prefill_currency') || 'GBP').toUpperCase();
-                var bookingUrl   = sp.get('booking_url') || '/';
+                var cart = (window.gasCart && window.gasCart.read()) || null;
+                var cartItems = (cart && Array.isArray(cart.items)) ? cart.items : [];
+                var first = cartItems[0] || {};
+                var propertyId   = parseInt(sp.get('property')) || first.property_id || 0;
+                var checkin      = sp.get('checkin') || first.checkin || '';
+                var checkoutDate = sp.get('checkout') || first.checkout || '';
+                var upsellId     = sp.get('prefill_upsells') || (first.type === 'upsell' ? String(first.id || '') : '');
+                var qty          = parseInt(sp.get('prefill_quantity')) || first.qty || 1;
+                var label        = sp.get('prefill_label') || first.label || ('Item ' + upsellId);
+                var unitPrice    = parseFloat(sp.get('prefill_price'));
+                if (isNaN(unitPrice) || unitPrice <= 0) unitPrice = first.price || 0;
+                var currency     = (sp.get('prefill_currency') || first.currency || cart && cart.currency || 'GBP').toUpperCase();
+                var bookingUrl   = sp.get('booking_url') || (cart && cart.booking_url) || '/book-now/';
                 var symbol = currency === 'GBP' ? '£' : currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency + ' ';
                 if (!upsellId || !propertyId) {
-                    $checkoutPage.html('<div style="padding:2rem;text-align:center;"><h2>Nothing to check out</h2><p>Open the bike-storage widget to start a booking.</p></div>');
+                    $checkoutPage.html('<div style="padding:2rem;text-align:center;"><h2>Nothing to check out</h2><p>Your cart is empty. <a href="/cart/">Open the cart</a> or add an item from the shop.</p></div>');
                     return;
                 }
                 var lineTotal = unitPrice * qty;

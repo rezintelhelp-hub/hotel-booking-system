@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.2
+ * Version: 4.2.3
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.2');
+define('GAS_BOOKING_VERSION', '4.2.3');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7892,7 +7892,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         // route the submit through /api/public/bike-storage/checkout instead
         // of /api/public/book. Other params (checkin/checkout) still come via
         // URL and feed the existing date display.
-        $is_cart_only = isset($_GET['cart_only']) && $_GET['cart_only'] == '1';
+        // cart_only=1 (legacy direct-to-checkout) and from_cart=1 (from
+        // /cart/ Continue to checkout) both bypass the room-required gate.
+        // The JS init reads window.gasCart and renders everything.
+        $is_cart_only = (isset($_GET['cart_only']) && $_GET['cart_only'] == '1')
+                     || (isset($_GET['from_cart']) && $_GET['from_cart'] == '1');
 
         // For group bookings, data comes from localStorage via JS
         if (!$is_group && !$is_cart_only && (!$unit_id || !$checkin || !$checkout)) {
