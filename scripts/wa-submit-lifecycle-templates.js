@@ -41,6 +41,17 @@ const TEMPLATES = [
     category: 'UTILITY',
     body: 'Hi {{1}},\n\nA reminder that the remaining balance for your stay at {{2}} is due soon.\n\nCheck-in: {{3}}\nCheck-out: {{4}}\nBalance due: {{5}}\n\nPlease contact us if you need any help.',
     example: ['Sarah', 'Park Row Hotel', '2026-07-15', '2026-07-18', 'GBP 175.00']
+  },
+  {
+    // Master → operator onboarding ping. Sent cold to a new operator
+    // so they save the GAS Support WhatsApp number and reply, which
+    // opens Meta's 24-hour conversation window for free-form support.
+    // Single body param (operator first name) — keeps it simple and
+    // approval-friendly.
+    name: 'support_welcome',
+    category: 'UTILITY',
+    body: 'Hi {{1}},\n\nThis is your GAS Travel Support line on WhatsApp.\n\nPlease save this number as "GAS Support" in your contacts and reply to this message so we can connect it to your account.\n\nAfter that we can help you with any questions whenever you need us.\n\n— GAS Travel Support',
+    example: ['Tracey']
   }
 ];
 
