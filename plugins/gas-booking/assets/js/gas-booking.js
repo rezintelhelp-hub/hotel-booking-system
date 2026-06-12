@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.11
+ * Version: 4.2.18
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -209,13 +209,22 @@ jQuery(document).ready(function($) {
         addItem: function(item) {
             var cart = gasCartRead() || { items: [], created_at: Date.now() };
             if (!Array.isArray(cart.items)) cart.items = [];
-            // Merge by (type, id) so a second click on the same upsell
-            // bumps qty instead of stacking duplicate rows.
-            var match = cart.items.find(function(i) {
-                return i.type === item.type && String(i.id) === String(item.id);
-            });
-            if (match) match.qty = (match.qty || 1) + (item.qty || 1);
-            else cart.items.push(item);
+            // Merge by (type, id) for upsells so a second click on the same
+            // bike-storage bay just bumps qty. Rooms NEVER merge — each
+            // "Add to Cart" on a room represents a discrete reservation
+            // (its own guest, its own bed in the pool), so we always push
+            // a new row. This is what lets two clicks on the Male 4-Bed
+            // Dorm produce two cart rows and trigger the multi-room
+            // group-booking flow at checkout.
+            if (item.type === 'room') {
+                cart.items.push(item);
+            } else {
+                var match = cart.items.find(function(i) {
+                    return i.type === item.type && String(i.id) === String(item.id);
+                });
+                if (match) match.qty = (match.qty || 1) + (item.qty || 1);
+                else cart.items.push(item);
+            }
             // Mirror first item's dates / property at top level for any
             // legacy code reading the older flat cart shape.
             if (!cart.checkin && item.checkin)   cart.checkin = item.checkin;
@@ -400,11 +409,14 @@ jQuery(document).ready(function($) {
                 $items.append(html);
             });
             $page.find('.gas-cart-total').text(sym + total.toFixed(2));
-            // Add-room link forwards dates so /book-now/ lands on the same window.
-            // Try cart-level dates first; fall back to the first item's so the
-            // bike-storage-only cart (which never set cart-level dates) still works.
-            var ci = (cart && cart.checkin)  || (items[0] && items[0].checkin)  || '';
-            var co = (cart && cart.checkout) || (items[0] && items[0].checkout) || '';
+            // Add-room link forwards dates so /book-now/ lands on the same
+            // window. Use the LAST item added, not the first — the guest is
+            // most likely extending their most recent action (e.g. just
+            // added bike for 24-Jun). The cart-level fields can be stale
+            // from earlier additions, so they're a final fallback only.
+            var last = items[items.length - 1] || {};
+            var ci = last.checkin  || (cart && cart.checkin)  || '';
+            var co = last.checkout || (cart && cart.checkout) || '';
             var sep = bookingUrl.indexOf('?') === -1 ? '?' : '&';
             var addRoomUrl = bookingUrl;
             if (ci) { addRoomUrl += sep + 'checkin='  + encodeURIComponent(ci); sep = '&'; }
@@ -507,13 +519,83 @@ jQuery(document).ready(function($) {
         $page.on('click', '.gas-cart-checkout-btn', function() {
             var cart = (window.gasCart && window.gasCart.read()) || null;
             var items = (cart && Array.isArray(cart.items)) ? cart.items : [];
-            // Smart routing: cart with a room → standard room checkout
-            // (3-step Details → Extras → Payment, with any upsells pre-
-            // ticked at the Extras step). Cart with only upsells → the
-            // cart-only flow (?from_cart=1 reads localStorage cart).
-            var room = items.find(function(i) { return i.type === 'room'; });
-            if (room) {
-                var upsells = items.filter(function(i) { return i.type === 'upsell'; });
+            // Smart routing:
+            //   2+ rooms   → existing group-booking checkout (?group=1).
+            //               Reuses the proven multi-room UI + the
+            //               /api/public/create-group-booking server flow,
+            //               which already handles N rooms with shared lead
+            //               guest, single Stripe payment, and pool-model
+            //               inventory (via the bookings INSERT trigger).
+            //   1 room     → standard single-room checkout, upsells pre-
+            //               ticked at Extras step.
+            //   No rooms   → cart-only flow (?from_cart=1).
+            var rooms = items.filter(function(i) { return i.type === 'room'; });
+            var upsells = items.filter(function(i) { return i.type === 'upsell'; });
+            // Total room qty across all rows — handles both "2 separate
+            // dorm-bed rows" and "1 row with qty 2" the same way (multi-
+            // room = 2+ beds either way).
+            var totalRoomQty = rooms.reduce(function(s, r) { return s + (r.qty || 1); }, 0);
+            if (totalRoomQty >= 2) {
+                // Group flow requires all rooms share dates. Refuse with a
+                // clear message rather than silently picking one set.
+                var firstCi = rooms[0].checkin, firstCo = rooms[0].checkout;
+                var datesMatch = rooms.every(function(r) {
+                    return r.checkin === firstCi && r.checkout === firstCo;
+                });
+                if (!datesMatch) {
+                    alert('All rooms in your cart must share the same check-in and check-out dates. Please update the cart before continuing.');
+                    return;
+                }
+                // Bridge new cart → legacy gas_cart format the group
+                // checkout reads from localStorage[gas_cart]. Unroll any
+                // room row with qty>1 into N separate legacy entries so
+                // the group flow renders N rooms and submits N booking
+                // rows. Pool model handles the per-bed inventory decrement
+                // via the bookings INSERT trigger.
+                var legacyCart = [];
+                rooms.forEach(function(r) {
+                    var qty = r.qty || 1;
+                    for (var k = 0; k < qty; k++) {
+                        legacyCart.push({
+                            roomId:     r.id,
+                            unitId:     r.id,
+                            name:       r.label || ('Room ' + r.id),
+                            checkin:    r.checkin,
+                            checkout:   r.checkout,
+                            totalPrice: r.price || 0,
+                            currency:   r.currency || cart.currency || 'GBP',
+                            propertyId: r.property_id,
+                            guests:     r.guests || 1,
+                            adults:     r.adults || 1,
+                            children:   r.children || 0,
+                            nights:     r.nights || 1
+                        });
+                    }
+                });
+                try { localStorage.setItem('gas_cart', JSON.stringify(legacyCart)); } catch (e) {}
+                // Group flow already handles upsells end-to-end: the
+                // /api/public/client/:clientId/upsells endpoint returns
+                // bike storage (via upsells.linked_shop_product_id), the
+                // Extras step renders the card, ?prefill_upsells= pre-
+                // ticks it, recalcGroupDeposit rolls the price into the
+                // group total, and create-group-booking auto-allocates the
+                // companion cabinet on submit. Forward the cart's upsell
+                // IDs (and qty when there's exactly one) the same way the
+                // single-room path does.
+                var groupUrl = checkoutUrl;
+                var sepG = groupUrl.indexOf('?') === -1 ? '?' : '&';
+                groupUrl += sepG + 'group=1';
+                if (upsells.length) {
+                    groupUrl += '&prefill_upsells=' + encodeURIComponent(upsells.map(function(u) { return u.id; }).join(','));
+                    if (upsells.length === 1 && upsells[0].qty) {
+                        groupUrl += '&prefill_quantity=' + encodeURIComponent(upsells[0].qty);
+                    }
+                }
+                window.location.href = groupUrl;
+                return;
+            }
+            if (rooms.length === 1) {
+                var room = rooms[0];
                 var url = checkoutUrl;
                 var sep = url.indexOf('?') === -1 ? '?' : '&';
                 url += sep + 'room=' + encodeURIComponent(room.id);
@@ -5077,7 +5159,12 @@ jQuery(document).ready(function($) {
 
             function recalcGroupDeposit(group) {
                 var grandTotal = group.subtotal + (group.taxTotal || 0);
-                var upsellsTotal = (group.selectedUpsells || []).reduce(function(sum, u) { return sum + u.price; }, 0);
+                // Quantity-aware: each selectedUpsell stores per-unit price +
+                // quantity. Line total = price * quantity. Single-pick entries
+                // default to quantity=1, so this is back-compatible.
+                var upsellsTotal = (group.selectedUpsells || []).reduce(function(sum, u) {
+                    return sum + (u.price * (parseInt(u.quantity) || 1));
+                }, 0);
                 grandTotal += upsellsTotal;
 
                 var depositAmt = grandTotal;
@@ -6098,7 +6185,9 @@ jQuery(document).ready(function($) {
                                 var snpAttr = (upsell.subsequent_night_price !== undefined && upsell.subsequent_night_price !== null) ? upsell.subsequent_night_price : '';
                                 var inclAttr = (upsell.included_nights_per_unit !== undefined && upsell.included_nights_per_unit !== null) ? upsell.included_nights_per_unit : '';
                                 var nameAttr = (upsell.name || '').replace(/"/g, '&quot;');
-                                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + '" data-upsell-id="' + upsell.id + '" data-upsell-name="' + nameAttr + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-first-night-price="' + fnpAttr + '" data-subsequent-night-price="' + snpAttr + '" data-included-nights-per-unit="' + inclAttr + '" data-mandatory="' + isMandatory + '">';
+                                var ugMaxQty = parseInt(upsell.max_quantity, 10) || 1;
+                                var ugQtyAware = ugMaxQty > 1;
+                                html += '<div class="gas-upsell-card' + (isMandatory ? ' selected mandatory' : '') + (ugQtyAware ? ' gas-upsell-qty-aware' : '') + '" data-upsell-id="' + upsell.id + '" data-upsell-name="' + nameAttr + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '" data-first-night-price="' + fnpAttr + '" data-subsequent-night-price="' + snpAttr + '" data-included-nights-per-unit="' + inclAttr + '" data-mandatory="' + isMandatory + '" data-max-quantity="' + ugMaxQty + '">';
 
                                 // Icon based on name
                                 var icon = '✨';
@@ -6133,7 +6222,16 @@ jQuery(document).ready(function($) {
                                 }
                                 html += '</div>';
 
-                                html += '<div class="gas-upsell-check">✓</div>';
+                                if (ugQtyAware) {
+                                    // Match single-room markup so the existing CSS
+                                    // (gas-booking.css:2114+) handles layout: minus
+                                    // floats top-right corner, badge sits inline,
+                                    // both visible only when card is .selected.
+                                    html += '<button type="button" class="gas-upsell-qty-minus" aria-label="Remove one" title="Remove one">−</button>';
+                                    html += '<span class="gas-upsell-qty-badge">×&nbsp;<span class="gas-upsell-qty-value">0</span></span>';
+                                } else {
+                                    html += '<div class="gas-upsell-check">✓</div>';
+                                }
                                 html += '</div>';
                             });
                             $('.gas-checkout-upsells').html(html);
@@ -6165,10 +6263,12 @@ jQuery(document).ready(function($) {
                             });
 
                             // Pre-tick any upsells listed in ?prefill_upsells.
-                            // This is the single mechanism — bike-storage or
-                            // any add-on landing here arrives with the ID(s)
-                            // in the URL (set by the widget) and the existing
-                            // upsell click handler updates the price details.
+                            // For qty-aware cards we trigger click once (which
+                            // creates the entry at quantity=1), then for
+                            // remaining qty we trigger additional clicks —
+                            // safe now that the click handler increments
+                            // (rather than toggles) when maxQty > 1. For
+                            // single-pick cards we trigger exactly once.
                             try {
                                 var sp = new URLSearchParams(window.location.search);
                                 var prefillRaw = sp.get('prefill_upsells');
@@ -6177,12 +6277,10 @@ jQuery(document).ready(function($) {
                                     var prefillIds = prefillRaw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
                                     prefillIds.forEach(function(id) {
                                         var $card = $('.gas-upsell-card[data-upsell-id="' + id + '"]').not('.selected');
-                                        if ($card.length) {
-                                            $card.trigger('click');
-                                            var maxQty = parseInt($card.attr('data-max-quantity')) || 1;
-                                            var extra = Math.min(prefillQty, maxQty) - 1;
-                                            for (var k = 0; k < extra; k++) $card.trigger('click');
-                                        }
+                                        if (!$card.length) return;
+                                        var maxQty = parseInt($card.attr('data-max-quantity')) || 1;
+                                        var wantQty = Math.max(1, Math.min(prefillQty, maxQty));
+                                        for (var k = 0; k < wantQty; k++) $card.trigger('click');
                                     });
                                 }
                             } catch (e) { /* non-fatal */ }
@@ -6403,15 +6501,17 @@ jQuery(document).ready(function($) {
             });
             
             // Upsell selection for group bookings — per-group
-            $(document).on('click', '.gas-upsell-card', function() {
+            $(document).on('click', '.gas-upsell-card', function(e) {
+                // Don't double-trigger from a minus button click
+                if ($(e.target).closest('.gas-upsell-qty-minus').length) return;
                 var $card = $(this);
                 // Mandatory upsells can't be deselected
                 if ($card.data('mandatory') === true || $card.data('mandatory') === 'true') return;
-                $card.toggleClass('selected');
                 var upsellGroup = getCurrentGroup();
 
                 var upsellId = $card.data('upsell-id');
                 var upsellName = $card.attr('data-upsell-name') || $card.find('.gas-upsell-name').text();
+                var maxQty = parseInt($card.attr('data-max-quantity'), 10) || 1;
 
                 // Look up the full upsell record from the cache populated at render
                 // time. This carries first_night_price / subsequent_night_price /
@@ -6430,32 +6530,61 @@ jQuery(document).ready(function($) {
                 var nights = upsellGroup.items[0].nights || 1;
                 var guests = upsellGroup.items.reduce(function(sum, item) { return sum + (item.guests || 1); }, 0);
                 var actualPrice = calculateUpsellLineTotal(upsellForCalc, nights, guests);
+                var pickedDate = $card.find('.gas-upsell-date').val() || null;
+                var inclPerUnit = parseInt($card.attr('data-included-nights-per-unit')) || null;
 
-                if ($card.hasClass('selected')) {
-                    var pickedDate = $card.find('.gas-upsell-date').val() || null;
-                    var inclPerUnit = parseInt($card.attr('data-included-nights-per-unit')) || null;
-                    // selectedUpsells.price is the line total. Don't include
-                    // charge_type / tier fields here — calculateUpsellsTotal
-                    // recomputes via calculateUpsellLineTotal and would
-                    // over-multiply (treat the stored line total as a base
-                    // and multiply by nights again). The price field already
-                    // carries the correct total.
-                    upsellGroup.selectedUpsells.push({
-                        id: upsellId,
-                        price: actualPrice,
-                        name: upsellName,
-                        upsell_date: pickedDate,
-                        included_nights_per_unit: inclPerUnit
+                if (maxQty > 1) {
+                    // Qty-aware: each click increments quantity on a single
+                    // entry keyed by (id, date). The server's companion-
+                    // booking allocator (server.js:31253) reads
+                    // matchingUpsell.quantity and spawns N cabinets, so one
+                    // entry with quantity=N submits cleanly.
+                    var sumQty = upsellGroup.selectedUpsells
+                        .filter(function(u) { return u.id === upsellId; })
+                        .reduce(function(s, u) { return s + (parseInt(u.quantity) || 0); }, 0);
+                    if (sumQty >= maxQty) return;
+                    var existing = upsellGroup.selectedUpsells.find(function(u) {
+                        return u.id === upsellId && (u.upsell_date || null) === (pickedDate || null);
                     });
+                    if (existing) {
+                        existing.quantity = (parseInt(existing.quantity) || 0) + 1;
+                    } else {
+                        upsellGroup.selectedUpsells.push({
+                            id: upsellId,
+                            price: actualPrice,
+                            name: upsellName,
+                            quantity: 1,
+                            upsell_date: pickedDate,
+                            included_nights_per_unit: inclPerUnit
+                        });
+                    }
+                    var newSum = sumQty + 1;
+                    $card.find('.gas-upsell-qty-value').text(newSum);
+                    $card.toggleClass('selected', newSum > 0);
                 } else {
-                    upsellGroup.selectedUpsells = upsellGroup.selectedUpsells.filter(function(u) {
-                        return u.id !== upsellId;
-                    });
+                    // Single-pick (parking, breakfast, etc.) — binary toggle.
+                    $card.toggleClass('selected');
+                    if ($card.hasClass('selected')) {
+                        upsellGroup.selectedUpsells.push({
+                            id: upsellId,
+                            price: actualPrice,
+                            name: upsellName,
+                            quantity: 1,
+                            upsell_date: pickedDate,
+                            included_nights_per_unit: inclPerUnit
+                        });
+                    } else {
+                        upsellGroup.selectedUpsells = upsellGroup.selectedUpsells.filter(function(u) {
+                            return u.id !== upsellId;
+                        });
+                    }
                 }
 
-                // Update total using current group's values
+                // Update total using current group's values. Quantity-aware:
+                // price is per-unit (after charge_type math), quantity is N.
+                // Line total = price * quantity.
                 var upsellsTotal = upsellGroup.selectedUpsells.reduce(function(sum, u) {
-                    return sum + u.price;
+                    return sum + (u.price * (parseInt(u.quantity) || 1));
                 }, 0);
                 var newTotal = upsellGroup.subtotal + (upsellGroup.taxTotal || 0) + upsellsTotal;
                 $('.gas-grand-total').text(formatPrice(newTotal, upsellGroup.currency));
@@ -6471,7 +6600,8 @@ jQuery(document).ready(function($) {
                 if (groupMandatory.length > 0) {
                     var mandHtml = '';
                     groupMandatory.forEach(function(u) {
-                        mandHtml += '<div class="gas-price-line"><span>' + u.name + '</span><span>' + formatPrice(u.price, upsellGroup.currency) + '</span></div>';
+                        var mq = parseInt(u.quantity) || 1;
+                        mandHtml += '<div class="gas-price-line"><span>' + u.name + (mq > 1 ? ' × ' + mq : '') + '</span><span>' + formatPrice(u.price * mq, upsellGroup.currency) + '</span></div>';
                     });
                     $('.gas-mandatory-extras').html(mandHtml).show();
                 } else {
@@ -6481,7 +6611,8 @@ jQuery(document).ready(function($) {
                 if (groupOptional.length > 0) {
                     var extrasHtml = '';
                     groupOptional.forEach(function(u) {
-                        extrasHtml += '<div class="gas-price-line"><span>' + u.name + '</span><span>' + formatPrice(u.price, upsellGroup.currency) + '</span></div>';
+                        var oq = parseInt(u.quantity) || 1;
+                        extrasHtml += '<div class="gas-price-line"><span>' + u.name + (oq > 1 ? ' × ' + oq : '') + '</span><span>' + formatPrice(u.price * oq, upsellGroup.currency) + '</span></div>';
                     });
                     $('.gas-selected-extras .gas-extras-list').html(extrasHtml);
                     $('.gas-selected-extras').show();
@@ -6489,7 +6620,76 @@ jQuery(document).ready(function($) {
                     $('.gas-selected-extras').hide();
                 }
             });
-            
+
+            // Minus button on qty-aware upsell cards — decrement quantity.
+            // When the last unit is removed, the entry is dropped from
+            // selectedUpsells and the card flips out of `.selected`.
+            $(document).on('click', '.gas-upsell-card .gas-upsell-qty-minus', function(e) {
+                e.stopPropagation();
+                var $card = $(this).closest('.gas-upsell-card');
+                if (!$card.length) return;
+                if ($card.data('mandatory') === true || $card.data('mandatory') === 'true') return;
+                var upsellGroup = getCurrentGroup();
+                if (!upsellGroup || !Array.isArray(upsellGroup.selectedUpsells)) return;
+                var upsellId = $card.data('upsell-id');
+                var pickedDate = $card.find('.gas-upsell-date').val() || null;
+                var target = upsellGroup.selectedUpsells.find(function(u) {
+                    return u.id === upsellId && (u.upsell_date || null) === (pickedDate || null);
+                });
+                if (!target) {
+                    // Fall back to the most recent entry for this id
+                    for (var i = upsellGroup.selectedUpsells.length - 1; i >= 0; i--) {
+                        if (upsellGroup.selectedUpsells[i].id === upsellId) {
+                            target = upsellGroup.selectedUpsells[i];
+                            break;
+                        }
+                    }
+                }
+                if (!target) return;
+                target.quantity = (parseInt(target.quantity) || 1) - 1;
+                if (target.quantity <= 0) {
+                    upsellGroup.selectedUpsells = upsellGroup.selectedUpsells.filter(function(u) { return u !== target; });
+                }
+                var newSum = upsellGroup.selectedUpsells
+                    .filter(function(u) { return u.id === upsellId; })
+                    .reduce(function(s, u) { return s + (parseInt(u.quantity) || 0); }, 0);
+                $card.find('.gas-upsell-qty-value').text(newSum);
+                $card.toggleClass('selected', newSum > 0);
+
+                // Refresh totals + Your Extras + mandatory display by re-running
+                // the same recompute the card-click handler does.
+                var upsellsTotal = upsellGroup.selectedUpsells.reduce(function(sum, u) {
+                    return sum + (u.price * (parseInt(u.quantity) || 1));
+                }, 0);
+                var newTotal = upsellGroup.subtotal + (upsellGroup.taxTotal || 0) + upsellsTotal;
+                $('.gas-grand-total').text(formatPrice(newTotal, upsellGroup.currency));
+                if (typeof recalcGroupDeposit === 'function') recalcGroupDeposit(upsellGroup);
+
+                var groupMandatory = upsellGroup.selectedUpsells.filter(function(u) { return u.mandatory === true || u.mandatory === 'true'; });
+                var groupOptional  = upsellGroup.selectedUpsells.filter(function(u) { return !(u.mandatory === true || u.mandatory === 'true'); });
+                if (groupMandatory.length > 0) {
+                    var mandHtml = '';
+                    groupMandatory.forEach(function(u) {
+                        var mq = parseInt(u.quantity) || 1;
+                        mandHtml += '<div class="gas-price-line"><span>' + u.name + (mq > 1 ? ' × ' + mq : '') + '</span><span>' + formatPrice(u.price * mq, upsellGroup.currency) + '</span></div>';
+                    });
+                    $('.gas-mandatory-extras').html(mandHtml).show();
+                } else {
+                    $('.gas-mandatory-extras').empty().hide();
+                }
+                if (groupOptional.length > 0) {
+                    var extrasHtml = '';
+                    groupOptional.forEach(function(u) {
+                        var oq = parseInt(u.quantity) || 1;
+                        extrasHtml += '<div class="gas-price-line"><span>' + u.name + (oq > 1 ? ' × ' + oq : '') + '</span><span>' + formatPrice(u.price * oq, upsellGroup.currency) + '</span></div>';
+                    });
+                    $('.gas-selected-extras .gas-extras-list').html(extrasHtml);
+                    $('.gas-selected-extras').show();
+                } else {
+                    $('.gas-selected-extras').hide();
+                }
+            });
+
             // Payment method selection for group bookings
             $(document).on('click', '.gas-payment-option:not(.disabled)', function() {
                 $('.gas-payment-option').removeClass('selected');
