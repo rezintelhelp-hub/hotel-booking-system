@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.9
+ * Version: 4.2.10
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -284,52 +284,6 @@ jQuery(document).ready(function($) {
         document.addEventListener('DOMContentLoaded', gasHideBookNowIfCart);
     } else {
         gasHideBookNowIfCart();
-    }
-
-    // /book-now/ room cards: surface the live available_count so dorms /
-    // multi-unit room types show "✓ 4 beds available" before the guest
-    // clicks through. Mirrors the cart badge format.
-    function gasAnnotateRoomCardAvailability() {
-        try {
-            var sp = new URLSearchParams(window.location.search);
-            var ci = sp.get('checkin');
-            var co = sp.get('checkout');
-            if (!ci || !co) return;
-            var apiBase = (typeof gasBooking !== 'undefined' && gasBooking.apiUrl) ? gasBooking.apiUrl : '';
-            if (!apiBase) return;
-            var cards = document.querySelectorAll('.gas-room-card[data-room-id], .gas-room-row[data-room-id]');
-            cards.forEach(function(card) {
-                if (card.querySelector('.gas-card-avail-badge')) return;
-                var rid = card.dataset.roomId;
-                if (!rid) return;
-                fetch(apiBase + '/api/public/availability/' + encodeURIComponent(rid) +
-                      '?from=' + encodeURIComponent(ci) + '&to=' + encodeURIComponent(co),
-                      { credentials: 'omit' })
-                    .then(function(r) { return r.json(); })
-                    .then(function(d) {
-                        if (!d || !d.success) return;
-                        var ac = (typeof d.available_count === 'number') ? d.available_count : (d.is_available ? 1 : 0);
-                        var html;
-                        if (ac === 0) {
-                            html = '<div class="gas-card-avail-badge" style="display:inline-block;margin-top:6px;padding:3px 8px;background:#fee2e2;color:#b91c1c;border-radius:4px;font-size:12px;font-weight:600;">Sold out</div>';
-                        } else if (ac === 1 && !d.pool_aware) {
-                            html = '<div class="gas-card-avail-badge" style="display:inline-block;margin-top:6px;padding:3px 8px;background:#dcfce7;color:#166534;border-radius:4px;font-size:12px;font-weight:600;">✓ Available</div>';
-                        } else if (ac <= 2) {
-                            html = '<div class="gas-card-avail-badge" style="display:inline-block;margin-top:6px;padding:3px 8px;background:#fef3c7;color:#92400e;border-radius:4px;font-size:12px;font-weight:600;">⚠ Only ' + ac + ' left</div>';
-                        } else {
-                            html = '<div class="gas-card-avail-badge" style="display:inline-block;margin-top:6px;padding:3px 8px;background:#dcfce7;color:#166534;border-radius:4px;font-size:12px;font-weight:600;">✓ ' + ac + ' available</div>';
-                        }
-                        var anchor = card.querySelector('.gas-room-card-title, .gas-room-row-title, h3, h4, .gas-room-price') || card;
-                        anchor.insertAdjacentHTML('afterend', html);
-                    })
-                    .catch(function() {});
-            });
-        } catch (e) {}
-    }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', gasAnnotateRoomCardAvailability);
-    } else {
-        gasAnnotateRoomCardAvailability();
     }
 
     // Emergency clear: visiting any GAS page with ?clear_cart=1 wipes the
