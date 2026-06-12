@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.0
+ * Version: 4.2.1
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -72,12 +72,14 @@ jQuery(document).ready(function($) {
         return base + sep + params.join('&');
     }
     function gasCartItemCount(cart) {
-        if (!cart || !cart.upsells) return 0;
-        return cart.upsells.reduce(function(s, u) { return s + (u.qty || 1); }, 0);
+        if (!cart) return 0;
+        var arr = Array.isArray(cart.items) ? cart.items : (Array.isArray(cart.upsells) ? cart.upsells : []);
+        return arr.reduce(function(s, u) { return s + (u.qty || 1); }, 0);
     }
     function gasCartTotal(cart) {
-        if (!cart || !cart.upsells) return 0;
-        return cart.upsells.reduce(function(s, u) { return s + ((u.price || 0) * (u.qty || 1)); }, 0);
+        if (!cart) return 0;
+        var arr = Array.isArray(cart.items) ? cart.items : (Array.isArray(cart.upsells) ? cart.upsells : []);
+        return arr.reduce(function(s, u) { return s + ((u.price || 0) * (u.qty || 1)); }, 0);
     }
     // Inject the cart button. First choice: drop it INTO the theme header
     // right next to the existing "Book Now" CTA so it visually lines up
@@ -193,6 +195,23 @@ jQuery(document).ready(function($) {
     // widgets (bike storage, etc.) and by room "Add to Cart" actions.
     // The /cart/ page reads it and shows items; /checkout/ reads it
     // and bills. ONE cart, no parallel URL-param vs localStorage split.
+    // Re-render the floating pill on every page load so the guest sees
+    // their cart count + total wherever they navigate.
+    setTimeout(function() {
+        // Force pill to link to the single cart page, regardless of
+        // any legacy gasCartCheckoutUrl override.
+        var orig = gasCartRenderButton;
+        try {
+            var existingBtn = document.getElementById('gas-cart-button');
+            if (existingBtn) existingBtn.remove();
+            var cart = gasCartRead();
+            if (cart && gasCartItemCount(cart) > 0) {
+                orig();
+                var btn = document.getElementById('gas-cart-button');
+                if (btn) btn.href = '/cart/';
+            }
+        } catch (e) {}
+    }, 0);
     window.gasCart = {
         read:        gasCartRead,
         write:       gasCartWrite,
@@ -229,16 +248,6 @@ jQuery(document).ready(function($) {
             var sp = new URLSearchParams(window.location.search);
             var upsells = sp.get('prefill_upsells');
             if (!upsells) return;
-            // Bike-storage / shop directed flow: the guest is here to pick
-            // ONE room to attach to their cart item. Hide the multi-room
-            // group-cart UI on the room detail page (Add to Cart, Go to
-            // Cart, + Add another room, Clear cart) so "Book Now" is the
-            // single CTA. .gas-add-to-cart-btn renders disabled at first
-            // and gets enabled when dates are picked, so we hide it
-            // unconditionally here + via CSS just in case.
-            document.querySelectorAll('.gas-add-to-cart-btn, .gas-cart-status').forEach(function(el) {
-                el.style.setProperty('display', 'none', 'important');
-            });
             var qty = sp.get('prefill_quantity');
             document.querySelectorAll('a.gas-view-btn, a.gas-row-view-btn, .gas-property-card a, a.gas-property-cta').forEach(function(a) {
                 if (!a.href || a.target === '_blank') return;
@@ -267,6 +276,25 @@ jQuery(document).ready(function($) {
         document.addEventListener('DOMContentLoaded', gasForwardUpsellParams);
     } else {
         gasForwardUpsellParams();
+    }
+
+    // When the cart already has items, the room page should only offer
+    // "Add to Cart" — Book Now means "go straight to checkout with just
+    // this room" which would discard everything already in the cart.
+    function gasHideBookNowIfCart() {
+        try {
+            var cart = (window.gasCart && window.gasCart.read()) || null;
+            var arr = cart && Array.isArray(cart.items) ? cart.items : [];
+            if (!arr.length) return;
+            document.querySelectorAll('.gas-book-btn').forEach(function(el) {
+                el.style.setProperty('display', 'none', 'important');
+            });
+        } catch (e) {}
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', gasHideBookNowIfCart);
+    } else {
+        gasHideBookNowIfCart();
     }
 
     // Cart page renderer — populates [gas_cart] from window.gasCart.read().
@@ -3678,39 +3706,35 @@ jQuery(document).ready(function($) {
     $(document).on('click', '.gas-add-to-cart-btn:not(:disabled)', function() {
         var checkin = $('.gas-checkin').val();
         var checkout = $('.gas-checkout').val();
-        
-        // Get adults and children from new dropdowns, fall back to legacy guests
         var numAdults = parseInt($('.gas-adults').val()) || parseInt($('.gas-guests').val()) || 2;
         var numChildren = parseInt($('.gas-children').val()) || 0;
         var totalGuests = numAdults + numChildren;
-        
-        if (!checkin || !checkout) {
-            alert('Please select dates first.');
-            return;
-        }
-        
-        var checkinDate = new Date(checkin);
-        var checkoutDate = new Date(checkout);
+        if (!checkin || !checkout) { alert('Please select dates first.'); return; }
+        var checkinDate = new Date(checkin), checkoutDate = new Date(checkout);
         var nights = Math.round((checkoutDate - checkinDate) / (1000 * 60 * 60 * 24));
-        
-        var roomData = {
-            roomId: $roomWidget.data('unit-id'),
-            propertyId: $roomWidget.data('property-id'),
-            paymentAccountId: $roomWidget.data('payment-account-id') || null,
-            name: $('.gas-room-title').text() || 'Room',
-            checkin: checkin,
-            checkout: checkout,
-            nights: nights,
-            guests: totalGuests,
-            adults: numAdults,
-            children: numChildren,
-            totalPrice: $roomWidget.data('total-price') || 0,
-            currency: resolveCurrency($roomWidget.data('currency'))
-        };
-        
-        if (window.GASCart && window.GASCart.add(roomData)) {
-            alert('Room added to cart!\n\nYou have ' + window.GASCart.items.length + ' room(s) in your cart.');
+        var totalPrice = parseFloat($roomWidget.data('total-price')) || 0;
+        var perNight = nights > 0 ? totalPrice / nights : totalPrice;
+        // Single cart — same shape as the bike-storage write. Type 'room'
+        // lets the cart + checkout tell the two apart.
+        if (window.gasCart && window.gasCart.addItem) {
+            window.gasCart.addItem({
+                type: 'room',
+                id: $roomWidget.data('unit-id'),
+                qty: 1,
+                price: totalPrice,
+                price_per_night: perNight,
+                nights: nights,
+                label: ($('.gas-room-title').text() || 'Room') + ' · ' + nights + ' night' + (nights === 1 ? '' : 's'),
+                checkin: checkin,
+                checkout: checkout,
+                guests: totalGuests,
+                adults: numAdults,
+                children: numChildren,
+                property_id: $roomWidget.data('property-id'),
+                currency: resolveCurrency($roomWidget.data('currency'))
+            });
         }
+        window.location.href = '/cart/';
     });
     
     // View Cart link click
