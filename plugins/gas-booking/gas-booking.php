@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.0.5
+ * Version: 4.1.0
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.0.5');
+define('GAS_BOOKING_VERSION', '4.1.0');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7749,6 +7749,17 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 <button type="button" class="gas-book-btn" disabled>
                                     <?php echo esc_html($t_booking['select_dates_to_check'] ?? 'Select dates to check availability'); ?>
                                 </button>
+                                <?php
+                                // Multi-room group-booking cart. Default ON for
+                                // back-compat with hotels selling 2+ rooms in one
+                                // transaction. Turn OFF (set 'gas_enable_multi_room_cart'
+                                // to '0' in the site's wp_options) for sites where it
+                                // makes no commercial sense — hostels, single-property
+                                // operators, anywhere the shop-cart is the only
+                                // checkout entry. Stops the "two cart systems on one
+                                // page" confusion (group-cart vs URL-param shop flow).
+                                if (get_option('gas_enable_multi_room_cart', '1') === '1') :
+                                ?>
                                 <button type="button" class="gas-add-to-cart-btn" disabled>
                                     + <?php echo esc_html($t_booking['add_to_cart'] ?? 'Add to Cart'); ?>
                                 </button>
@@ -7763,6 +7774,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                         <a href="#" class="gas-clear-cart-link" style="color: #dc2626; text-decoration: none;"><?php echo esc_html($t_booking['clear_cart'] ?? 'Clear cart'); ?></a>
                                     </div>
                                 </div>
+                                <?php endif; ?>
                             </div>
                             
                             <!-- Booking Form -->
