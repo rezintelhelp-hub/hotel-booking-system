@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Square Sandbox Checkout Test — GAS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; color: #1e293b; max-width: 640px; margin: 2rem auto; padding: 0 1.5rem; line-height: 1.5; }
+  h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+  .sub { color: #64748b; font-size: 0.9rem; margin: 0 0 1.5rem; }
+  .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+  label { display: block; font-size: 0.8rem; color: #475569; margin: 0.75rem 0 0.25rem; font-weight: 600; }
+  input { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; }
+  input:focus { outline: 2px solid #6366f1; border-color: #6366f1; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  button { background: #000; color: white; border: 0; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.95rem; cursor: pointer; width: 100%; margin-top: 1rem; font-weight: 600; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pill { display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 999px; font-weight: 600; }
+  .pill.ok { background: #dcfce7; color: #166534; }
+  .pill.err { background: #fee2e2; color: #991b1b; }
+  .pill.info { background: #dbeafe; color: #1e40af; }
+  #status-box, #result-box { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem; white-space: pre-wrap; word-break: break-all; }
+  #sq-card { min-height: 90px; padding: 1rem; border: 1px solid #cbd5e1; border-radius: 8px; background: white; }
+  .test-cards { font-size: 0.78rem; background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem; }
+  .test-cards code { background: white; padding: 0.05rem 0.3rem; border-radius: 4px; font-size: 0.82rem; }
+  a { color: #6366f1; }
+</style>
+</head>
+<body>
+<h1>⬛ Square Sandbox Checkout Test</h1>
+<p class="sub">Isolated test of <code>POST /api/public/book</code> with <code>payment_method=square</code>. Use this to verify Phase 2b before wiring the production plugin.</p>
+
+<div class="card">
+  <label>Property ID</label>
+  <input type="number" id="property-id" value="" placeholder="GAS property id (must have Square ticked + account OAuth-connected)">
+  <button id="load-info-btn" style="background: #6366f1; margin-top: 0.5rem;">Load Square Info</button>
+  <div id="status-box">Enter a property id and click Load Square Info.</div>
+</div>
+
+<div class="card" id="checkout-card" style="display:none;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 0.5rem;">
+    <strong>Booking</strong>
+    <span class="pill info" id="env-pill">SANDBOX</span>
+  </div>
+  <div class="row">
+    <div><label>Bookable unit id</label><input type="number" id="unit-id" placeholder="bookable_unit row id"></div>
+    <div><label>Deposit amount</label><input type="number" id="deposit-amount" step="0.01" value="1.00"></div>
+  </div>
+  <div class="row">
+    <div><label>Check-in</label><input type="date" id="check-in"></div>
+    <div><label>Check-out</label><input type="date" id="check-out"></div>
+  </div>
+  <div class="row">
+    <div><label>First name</label><input type="text" id="first-name" value="Square"></div>
+    <div><label>Last name</label><input type="text" id="last-name" value="Test"></div>
+  </div>
+  <label>Email</label>
+  <input type="email" id="email" value="square-test@example.com">
+
+  <label>Card</label>
+  <div id="sq-card"></div>
+  <div class="test-cards">
+    Sandbox cards: <code>4111 1111 1111 1111</code> (success), <code>4000 0000 0000 0002</code> (decline), CVV any 3 digits, exp any future date, ZIP <code>94103</code>.
+  </div>
+
+  <button id="pay-btn" disabled>Tokenise card &amp; charge via Square</button>
+  <div id="result-box" style="display:none;"></div>
+</div>
+
+<p style="font-size: 0.8rem; color: #94a3b8; margin-top: 2rem;">Hits production GAS server but uses Square sandbox merchant — no real money moves.</p>
+
+<script>
+const API_BASE = '';
+let infoCache = null;
+let payments = null;
+let cardInstance = null;
+
+function setStatus(html) { document.getElementById('status-box').innerHTML = html; }
+function setResult(html, ok) {
+  const box = document.getElementById('result-box');
+  box.style.display = 'block';
+  box.style.background = ok ? '#dcfce7' : '#fee2e2';
+  box.innerHTML = html;
+}
+
+function defaultDates() {
+  const today = new Date();
+  const inDate = new Date(today.getTime() + 14 * 86400000);
+  const outDate = new Date(today.getTime() + 16 * 86400000);
+  document.getElementById('check-in').value = inDate.toISOString().slice(0, 10);
+  document.getElementById('check-out').value = outDate.toISOString().slice(0, 10);
+}
+defaultDates();
+
+document.getElementById('load-info-btn').addEventListener('click', async () => {
+  const propertyId = parseInt(document.getElementById('property-id').value, 10);
+  if (!propertyId) { setStatus('<span class="pill err">Missing property id</span>'); return; }
+  setStatus('Loading...');
+  try {
+    const r = await fetch(`${API_BASE}/api/public/property/${propertyId}/square-info`);
+    const data = await r.json();
+    if (!data.success || !data.square_enabled) {
+      setStatus(`<span class="pill err">Square not available</span>\n${JSON.stringify(data, null, 2)}`);
+      return;
+    }
+    infoCache = data;
+    document.getElementById('env-pill').textContent = (data.environment || 'sandbox').toUpperCase();
+    document.getElementById('checkout-card').style.display = 'block';
+    setStatus(`<span class="pill ok">Square enabled</span>  application_id: ${data.application_id}  location_id: ${data.location_id}  currency: ${data.currency}`);
+
+    // Load Square Web SDK matching the env.
+    const sdkSrc = data.environment === 'production'
+      ? 'https://web.squarecdn.com/v1/square.js'
+      : 'https://sandbox.web.squarecdn.com/v1/square.js';
+    await loadScript(sdkSrc);
+    payments = window.Square.payments(data.application_id, data.location_id);
+    cardInstance = await payments.card();
+    await cardInstance.attach('#sq-card');
+    document.getElementById('pay-btn').disabled = false;
+  } catch (e) {
+    setStatus(`<span class="pill err">Error</span>\n${e.message}`);
+  }
+});
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (Array.from(document.scripts).some(s => s.src === src)) return resolve();
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+document.getElementById('pay-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('pay-btn');
+  btn.disabled = true; btn.textContent = 'Tokenising…';
+  document.getElementById('result-box').style.display = 'none';
+
+  try {
+    const tokenResult = await cardInstance.tokenize();
+    if (tokenResult.status !== 'OK') {
+      setResult(`<strong>Tokenise failed</strong>\n${JSON.stringify(tokenResult, null, 2)}`, false);
+      btn.disabled = false; btn.textContent = 'Tokenise card & charge via Square';
+      return;
+    }
+    btn.textContent = 'Charging…';
+
+    const unitId = parseInt(document.getElementById('unit-id').value, 10);
+    const depositAmount = parseFloat(document.getElementById('deposit-amount').value) || 1;
+    const body = {
+      unit_id: unitId,
+      check_in: document.getElementById('check-in').value,
+      check_out: document.getElementById('check-out').value,
+      adults: 2,
+      children: 0,
+      guest_first_name: document.getElementById('first-name').value,
+      guest_last_name: document.getElementById('last-name').value,
+      guest_email: document.getElementById('email').value,
+      total_price: depositAmount,
+      deposit_amount: depositAmount,
+      balance_amount: 0,
+      payment_method: 'square',
+      square_source_id: tokenResult.token,
+      square_verification_token: undefined,
+      source_site_url: window.location.origin + window.location.pathname,
+    };
+
+    const resp = await fetch(`${API_BASE}/api/public/book`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      setResult(`<strong>✓ Booking created</strong>\n${JSON.stringify(data, null, 2)}`, true);
+    } else {
+      setResult(`<strong>✗ Booking failed</strong>\n${JSON.stringify(data, null, 2)}`, false);
+    }
+  } catch (e) {
+    setResult(`<strong>Error</strong>\n${e.stack || e.message}`, false);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Tokenise card & charge via Square';
+  }
+});
+</script>
+</body>
+</html>
