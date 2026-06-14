@@ -463,6 +463,28 @@ app.get('/', (req, res) => {
   <div class="err" id="err"></div>
 </form>
 <p class="lead" style="margin-top: 2rem; font-size: 0.8rem;">Need an account? Contact <a href="mailto:partnerships@gas.travel">partnerships@gas.travel</a>.</p>
+<p style="margin-top: 1rem; font-size: 0.75rem; color:#94a3b8;">
+  <a href="#" onclick="devLogin(); return false;" style="color:#6366f1;">Dev login (master admin)</a>
+</p>
+<script>
+window.devLogin = async function() {
+  const secret = prompt('Paste the AGENT_JWT_SECRET from Railway:');
+  if (!secret) return;
+  const r = await fetch('/api/auth/dev-token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret }),
+  });
+  const data = await r.json();
+  if (data.success) {
+    localStorage.setItem('gas_agent_token', data.token);
+    localStorage.setItem('gas_agent_profile', JSON.stringify(data.agent));
+    window.location.href = '/search';
+  } else {
+    document.getElementById('err').textContent = data.error || 'Dev login failed';
+  }
+};
+</script>
 <script>
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
