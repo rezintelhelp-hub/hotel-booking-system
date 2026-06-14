@@ -690,7 +690,16 @@ app.get('/hotel/:code', async (req, res) => {
             const typeName = img.type?.description?.content || img.type?.code || 'Other';
             (imagesByType[typeName] = imagesByType[typeName] || []).push(img);
         }
-        const imgUrl = (p) => `https://photos.hotelbeds.com/giata/${p}`;
+        const imgUrl = (p) => {
+            // /giata/bigger/{path} is the confirmed-working CDN URL. Plain
+            // /giata/{path} silently 404s for some paths. onerror=hide so
+            // any genuinely-missing image disappears rather than showing
+            // a broken-image icon.
+            const hasSize = /^(bigger|big|small|xl|xxl|original)\//i.test(p);
+            return hasSize
+                ? `https://photos.hotelbeds.com/giata/${p}`
+                : `https://photos.hotelbeds.com/giata/bigger/${p}`;
+        };
         const imageStrips = Object.entries(imagesByType).map(([t, list]) => {
             const sorted = list.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
             return `
@@ -711,10 +720,20 @@ app.get('/hotel/:code', async (req, res) => {
                 return `<span style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:999px; padding:0.2rem 0.6rem; margin:0.15rem; display:inline-block; font-size:0.75rem;">${name}${fee}</span>`;
             }).join('');
 
-        const roomList = rooms.map((rm) => `
-            <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem; margin-bottom:0.5rem;">
-                <strong style="font-size:0.9rem;">${rm.description || rm.roomCode || ''}</strong>
-                <div style="font-size:0.75rem; color:#94a3b8;">Code: ${rm.roomCode || ''}</div>
+        // Group rooms by description name to collapse Hotelbeds' subtle
+        // variants (DBL.ST-1 / DBL.ST-2 / DBL.ST-3 are all "Double Standard").
+        // Render as a grid not a list — friendlier for a demo screen.
+        const roomsByName = new Map();
+        for (const rm of rooms) {
+            const k = (rm.description || rm.roomCode || '').toUpperCase();
+            if (!roomsByName.has(k)) roomsByName.set(k, { name: rm.description || rm.roomCode || '', codes: [] });
+            roomsByName.get(k).codes.push(rm.roomCode);
+        }
+        const roomGrid = Array.from(roomsByName.values()).map((rm) => `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem;">
+                <strong style="font-size:0.85rem;">${rm.name}</strong>
+                ${rm.codes.length > 1 ? `<span style="font-size:0.65rem; color:#6366f1; background:#eef2ff; padding:0.1rem 0.35rem; border-radius:999px; margin-left:0.35rem;">${rm.codes.length} variants</span>` : ''}
+                <div style="font-size:0.7rem; color:#94a3b8; margin-top:0.25rem; font-family: ui-monospace, monospace;">${rm.codes.join(' · ')}</div>
             </div>
         `).join('');
 
@@ -747,7 +766,7 @@ ${imageStrips || '<p class="lead">No images cached.</p>'}
 
 ${facList ? `<h2>Facilities</h2><div>${facList}</div>` : ''}
 
-${roomList ? `<h2>Room types (${rooms.length})</h2>${roomList}` : ''}
+${roomGrid ? `<h2>Room types (${rooms.length})</h2><div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem;">${roomGrid}</div>` : ''}
 
 <p class="meta" style="margin-top:2rem;">Cached from Hotelbeds Content API · refreshed ${new Date(h.refreshed_at).toLocaleString()}</p>
 </body></html>`);
