@@ -593,9 +593,12 @@ document.getElementById('sf').addEventListener('submit', async (e) => {
       const bookBtn = r.source === 'hotelbeds'
         ? '<button onclick="openBook(' + i + ')" style="margin-top:0.4rem; font-size:0.75rem; padding: 0.3rem 0.6rem; background:#1e293b; color:white; border:0; border-radius:6px; cursor:pointer;">Book this</button>'
         : '<span style="font-size:0.7rem; color:#94a3b8;">(operator-direct book: TA.4.1)</span>';
+      const hotelLink = r.source === 'hotelbeds' && r.hotel_code
+        ? '<a href="/hotel/' + r.hotel_code + '" target="_blank" style="color:#1e293b; text-decoration:none;"><strong>' + (r.hotel_name || '') + '</strong></a>'
+        : '<strong>' + (r.hotel_name || '') + '</strong>';
       return '<div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:0.75rem; margin-bottom:0.5rem;">'
         + '<div style="display:flex; justify-content:space-between; gap:0.5rem;">'
-        + '<div><strong>' + (r.hotel_name || '') + '</strong> ' + sourceLabel
+        + '<div>' + hotelLink + ' ' + sourceLabel
         + '<div style="font-size:0.75rem; color:#64748b;">' + (r.zone || '') + ' · ' + (r.category || '') + '</div>'
         + '<div style="font-size:0.75rem; color:#475569; margin-top:0.25rem;">' + (r.room_name || '') + (r.board ? ' · ' + r.board : '') + '</div>'
         + '</div>'
@@ -661,6 +664,97 @@ window.confirmBook = async function(i) {
   }
 });
 </script>` + HTML_FOOT);
+});
+
+// Hotel detail page — renders from the cached Hotelbeds content (description,
+// images, facilities, rooms). NO live Hotelbeds calls so it doesn't burn the
+// sandbox quota. Useful both as a pre-purchase browsing surface for agents and
+// as a demo screen we can show Resort Breaks without depending on live API.
+app.get('/hotel/:code', async (req, res) => {
+    try {
+        const code = parseInt(req.params.code, 10);
+        if (!Number.isFinite(code)) return res.status(400).send('invalid code');
+        const r = await pool.query(`SELECT * FROM hotelbeds_hotel_content WHERE code = $1`, [code]);
+        if (r.rows.length === 0) {
+            return res.send(HTML_HEAD + `<h1>Hotel ${code}</h1><p class="lead">No cached content for this hotel. Open it in the admin search panel first to pull content.</p>` + HTML_FOOT);
+        }
+        const h = r.rows[0];
+        const images = Array.isArray(h.images) ? h.images : (typeof h.images === 'string' ? JSON.parse(h.images) : []);
+        const facilities = Array.isArray(h.facilities) ? h.facilities : (typeof h.facilities === 'string' ? JSON.parse(h.facilities) : []);
+        const rooms = Array.isArray(h.rooms) ? h.rooms : (typeof h.rooms === 'string' ? JSON.parse(h.rooms) : []);
+
+        // Group images by type for a nicer scroll-strip layout (Restaurant /
+        // Room / Pool / Beach / Entrance / Common etc.).
+        const imagesByType = {};
+        for (const img of images) {
+            const typeName = img.type?.description?.content || img.type?.code || 'Other';
+            (imagesByType[typeName] = imagesByType[typeName] || []).push(img);
+        }
+        const imgUrl = (p) => `https://photos.hotelbeds.com/giata/${p}`;
+        const imageStrips = Object.entries(imagesByType).map(([t, list]) => {
+            const sorted = list.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+            return `
+              <div style="margin-top:1rem;">
+                <div style="font-size:0.85rem; font-weight:600; color:#475569; margin-bottom:0.5rem;">${t} <span style="color:#94a3b8; font-weight:400;">(${list.length})</span></div>
+                <div style="display:flex; overflow-x:auto; gap:0.5rem; padding-bottom:0.5rem;">
+                  ${sorted.map((img) => `<img src="${imgUrl(img.path)}" alt="${t}" style="height:180px; width:280px; object-fit:cover; border-radius:8px; flex-shrink:0;" loading="lazy" onerror="this.style.display='none'">`).join('')}
+                </div>
+              </div>`;
+        }).join('');
+
+        const facList = facilities
+            .filter((f) => f.indYesOrNo)
+            .map((f) => {
+                const name = f.description?.content || '';
+                if (!name) return '';
+                const fee = f.indFee ? ' <span style="font-size:0.65rem; color:#f59e0b;">(extra fee)</span>' : '';
+                return `<span style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:999px; padding:0.2rem 0.6rem; margin:0.15rem; display:inline-block; font-size:0.75rem;">${name}${fee}</span>`;
+            }).join('');
+
+        const roomList = rooms.map((rm) => `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem; margin-bottom:0.5rem;">
+                <strong style="font-size:0.9rem;">${rm.description || rm.roomCode || ''}</strong>
+                <div style="font-size:0.75rem; color:#94a3b8;">Code: ${rm.roomCode || ''}</div>
+            </div>
+        `).join('');
+
+        const mapsLink = (h.latitude && h.longitude)
+            ? `<a href="https://maps.google.com/?q=${h.latitude},${h.longitude}" target="_blank" style="color:#6366f1; font-size:0.85rem;">📍 ${h.latitude}, ${h.longitude}</a>`
+            : '';
+
+        res.send(`
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${h.name} — GAS Agents</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 980px; margin: 2rem auto; padding: 0 1.5rem; color:#1e293b; line-height: 1.55; }
+  h1 { font-size: 1.8rem; margin: 0 0 0.25rem; }
+  h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color:#475569; }
+  .lead { color:#64748b; margin: 0; }
+  .meta { font-size: 0.8rem; color:#94a3b8; margin: 0.5rem 0; }
+  code { background:#f1f5f9; padding:0.1rem 0.35rem; border-radius:4px; font-size:0.85rem; }
+  a.back { font-size: 0.8rem; color:#6366f1; text-decoration:none; }
+</style></head><body>
+<a href="/search" class="back">← back to search</a>
+<h1 style="margin-top:0.5rem;">${h.name}</h1>
+<p class="lead">${h.category_name || ''} · ${h.zone_name || ''}${h.destination_name ? ' · ' + h.destination_name : ''}</p>
+<p class="meta">Code <code>${h.code}</code> · ${h.address || ''}${h.city ? ', ' + h.city : ''} ${mapsLink}</p>
+
+${h.description ? `<h2>About</h2><p style="font-size:0.95rem; color:#1e293b;">${h.description}</p>` : ''}
+
+<h2>Gallery (${images.length} images)</h2>
+${imageStrips || '<p class="lead">No images cached.</p>'}
+
+${facList ? `<h2>Facilities</h2><div>${facList}</div>` : ''}
+
+${roomList ? `<h2>Room types (${rooms.length})</h2>${roomList}` : ''}
+
+<p class="meta" style="margin-top:2rem;">Cached from Hotelbeds Content API · refreshed ${new Date(h.refreshed_at).toLocaleString()}</p>
+</body></html>`);
+    } catch (error) {
+        console.error('[hotel detail]', error);
+        res.status(500).send('Error: ' + error.message);
+    }
 });
 
 app.get('/dashboard', (req, res) => {
