@@ -131,169 +131,37 @@ app.get('/api/me', requireAgent, async (req, res) => {
 });
 
 // ---- TA.2: unified search --------------------------------------------------
-// Body: {
-//   checkIn, checkOut,                  // YYYY-MM-DD
-//   adults (default 2), children (default 0),
-//   destinationCode  | hotelCodes[],    // wholesale fan-out hint
-//   operatorPropertyIds[]               // optional — operator-direct filter
-// }
-//
-// Returns: { success, count, markup_applied_pct, results: [
-//   { source: 'hotelbeds' | 'operator', net_rate, sell_rate, currency, ... }
-// ] }
-const { searchAvailability: hbSearch } = require('./lib/hotelbeds');
+// gas-agents is a thin renderer. Hotelbeds adapter + business logic live in
+// admin.gas.travel alongside the other adapters; we proxy via HTTPS so
+// agents.gas.travel can crash/redeploy without touching operator flows.
+const ADMIN_API_BASE = process.env.ADMIN_API_BASE || 'https://admin.gas.travel';
+async function callAdmin(path, body) {
+    const secret = process.env.INTERNAL_AGENT_SECRET;
+    if (!secret) return { ok: false, error: 'INTERNAL_AGENT_SECRET not set' };
+    try {
+        const resp = await fetch(`${ADMIN_API_BASE}${path}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Internal-Auth': secret,
+            },
+            body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        return { ok: resp.ok, status: resp.status, data };
+    } catch (e) {
+        return { ok: false, error: e.message };
+    }
+}
 
 app.post('/api/search', requireAgent, async (req, res) => {
-    try {
-        const {
-            checkIn, checkOut,
-            adults = 2, children = 0,
-            destinationCode, hotelCodes,
-            operatorPropertyIds,
-        } = req.body || {};
-        if (!checkIn || !checkOut) {
-            return res.status(400).json({ success: false, error: 'checkIn + checkOut required (YYYY-MM-DD)' });
-        }
-        const a = parseInt(adults, 10) || 2;
-        const c = parseInt(children, 10) || 0;
-
-        // Agent markup from accounts row.
-        const agentRow = await pool.query(`SELECT agent_markup_pct FROM accounts WHERE id = $1`, [req.agent.sub]);
-        const markupPct = parseFloat(agentRow.rows[0]?.agent_markup_pct) || 0;
-        const markup = 1 + (markupPct / 100);
-        const applyMarkup = (net) => Math.round(net * markup * 100) / 100;
-
-        const results = [];
-        const debug = {};
-
-        // === Hotelbeds wholesale half ===
-        if (destinationCode || (Array.isArray(hotelCodes) && hotelCodes.length)) {
-            const hb = await hbSearch(pool, 272, {
-                stay: { checkIn, checkOut },
-                occupancies: { rooms: 1, adults: a, children: c },
-                destinationCode,
-                hotelCodes,
-            });
-            debug.hotelbeds_ok = hb.ok;
-            debug.hotelbeds_total = hb.data?.hotels?.total;
-            debug.hotelbeds_audit = hb.data?.auditData;
-            if (!hb.ok) debug.hotelbeds_error = hb.error;
-            if (hb.ok) {
-                const hotels = hb.data?.hotels?.hotels || [];
-                for (const h of hotels) {
-                    for (const rm of (h.rooms || [])) {
-                        const cheapest = (rm.rates || []).reduce((best, rate) =>
-                            !best || parseFloat(rate.net) < parseFloat(best.net) ? rate : best, null);
-                        if (!cheapest) continue;
-                        const net = parseFloat(cheapest.net);
-                        results.push({
-                            source: 'hotelbeds',
-                            hotel_code: h.code,
-                            hotel_name: h.name,
-                            zone: h.zoneName,
-                            destination: h.destinationName,
-                            category: h.categoryName,
-                            room_code: rm.code,
-                            room_name: rm.name,
-                            board: cheapest.boardName,
-                            net_rate: net,
-                            sell_rate: applyMarkup(net),
-                            currency: cheapest.currency || h.currency,
-                            rate_key: cheapest.rateKey,
-                            rate_type: cheapest.rateType,
-                            cancellation_policies: cheapest.cancellationPolicies || [],
-                            allotment: cheapest.allotment,
-                        });
-                    }
-                }
-            } else {
-                // Don't fail the whole search if Hotelbeds glitches — return what
-                // we have + a warning.
-                console.warn('[search] Hotelbeds failed:', hb.error);
-            }
-        }
-
-        // === Operator-direct half ===
-        // Pulls distribution_access rows for this agent (status='approved') and
-        // joins to bookable_units + room_availability for the stay window.
-        // current_price on distribution_access is the agreed wholesale-to-agent
-        // net (fixed-price model). If absent, falls back to room_availability
-        // cm_price/direct_price per night.
-        if (Array.isArray(operatorPropertyIds) && operatorPropertyIds.length) {
-            const op = await pool.query(`
-                SELECT
-                    p.id AS property_id, p.name AS hotel_name, p.city, p.country, p.currency,
-                    bu.id AS bookable_unit_id, bu.name AS room_name, bu.max_guests,
-                    da.current_price AS agreed_net_rate,
-                    ra.date,
-                    COALESCE(ra.direct_price, ra.cm_price) AS night_price,
-                    ra.is_available
-                  FROM distribution_access da
-                  JOIN properties p ON p.id = da.property_id
-                  JOIN bookable_units bu ON bu.property_id = p.id
-             LEFT JOIN room_availability ra ON ra.room_id = bu.id
-                                          AND ra.date >= $2::date
-                                          AND ra.date < $3::date
-                 WHERE da.travel_agent_id = $1
-                   AND da.status = 'approved'
-                   AND da.property_id = ANY($4::int[])
-                   AND bu.max_guests >= $5
-            `, [req.agent.sub, checkIn, checkOut, operatorPropertyIds, a + c]);
-
-            // Group by unit; require ALL nights available; sum per-night prices
-            // unless DA has agreed_net_rate (then use it × nights).
-            const byUnit = new Map();
-            for (const row of op.rows) {
-                if (!byUnit.has(row.bookable_unit_id)) {
-                    byUnit.set(row.bookable_unit_id, {
-                        ...row,
-                        nights: 0,
-                        sum: 0,
-                        all_available: true,
-                    });
-                }
-                const u = byUnit.get(row.bookable_unit_id);
-                if (row.date) {
-                    u.nights++;
-                    if (row.is_available === false) u.all_available = false;
-                    if (row.night_price != null) u.sum += parseFloat(row.night_price);
-                }
-            }
-            for (const u of byUnit.values()) {
-                if (!u.all_available || u.nights === 0) continue;
-                const net = u.agreed_net_rate != null
-                    ? parseFloat(u.agreed_net_rate) * u.nights
-                    : u.sum;
-                if (!Number.isFinite(net) || net <= 0) continue;
-                results.push({
-                    source: 'operator',
-                    property_id: u.property_id,
-                    hotel_name: u.hotel_name,
-                    zone: u.city,
-                    destination: u.country,
-                    room_name: u.room_name,
-                    max_guests: u.max_guests,
-                    bookable_unit_id: u.bookable_unit_id,
-                    nights: u.nights,
-                    net_rate: Math.round(net * 100) / 100,
-                    sell_rate: applyMarkup(net),
-                    currency: u.currency || 'EUR',
-                });
-            }
-        }
-
-        results.sort((x, y) => x.sell_rate - y.sell_rate);
-        res.json({
-            success: true,
-            count: results.length,
-            markup_applied_pct: markupPct,
-            results,
-            debug,
-        });
-    } catch (error) {
-        console.error('[search]', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
+    // Thin proxy — business logic lives in admin.
+    const r = await callAdmin('/api/internal/agent-search', {
+        agent_id: req.agent.sub,
+        ...req.body,
+    });
+    if (!r.ok && r.error) return res.status(500).json({ success: false, error: r.error });
+    res.status(r.status || 200).json(r.data);
 });
 
 // Dev-only: issue a master_admin session without a password check. Gated by
@@ -329,109 +197,13 @@ app.post('/api/auth/dev-token', async (req, res) => {
 //   paxes: [{ roomId, type:'AD'|'CH', name?, surname?, age? }],   // optional
 //   // operator-direct fields land here in a future ship — TA.4 ships HB only
 // }
-const { createBooking: hbBook } = require('./lib/hotelbeds');
-
 app.post('/api/book', requireAgent, async (req, res) => {
-    try {
-        const { source, rateKey, holder, paxes, sell_rate, currency } = req.body || {};
-        if (source !== 'hotelbeds') {
-            // Operator-direct booking via TA portal follows in a later ship.
-            return res.status(501).json({ success: false, error: 'operator-direct booking via TA portal not yet wired — TA.4.1' });
-        }
-        if (!rateKey || !holder?.name || !holder?.surname) {
-            return res.status(400).json({ success: false, error: 'rateKey + holder.name + holder.surname required' });
-        }
-        // Use account 272's Hotelbeds creds (singleton inventory account).
-        const result = await hbBook(pool, 272, {
-            rateKey,
-            holder,
-            paxes,
-            clientReference: `GAS-AG${req.agent.sub}-${Date.now()}`,
-        });
-        if (!result.ok) {
-            return res.json({ success: false, error: typeof result.error === 'string' ? result.error : JSON.stringify(result.error), raw: result.raw });
-        }
-        const booking = result.data?.booking || {};
-
-        // Persist: hotelbeds_bookings ledger (created earlier in main app) +
-        // bookings mirror with travel_agent_id stamped for the dashboard.
-        try {
-            await pool.query(`
-                CREATE TABLE IF NOT EXISTS hotelbeds_bookings (
-                    id SERIAL PRIMARY KEY,
-                    account_id INTEGER NOT NULL,
-                    reference VARCHAR(100) UNIQUE,
-                    status VARCHAR(50),
-                    client_reference VARCHAR(100),
-                    hotel_code VARCHAR(50),
-                    hotel_name VARCHAR(255),
-                    check_in DATE,
-                    check_out DATE,
-                    total_net NUMERIC(12,2),
-                    currency VARCHAR(10),
-                    holder_name VARCHAR(255),
-                    holder_email VARCHAR(255),
-                    raw JSONB,
-                    travel_agent_id INTEGER,
-                    sell_price NUMERIC(12,2),
-                    created_at TIMESTAMP DEFAULT NOW()
-                )
-            `);
-            // The main app's create-table doesn't have travel_agent_id +
-            // sell_price; add them idempotently here so this app can write them.
-            await pool.query(`ALTER TABLE hotelbeds_bookings ADD COLUMN IF NOT EXISTS travel_agent_id INTEGER`);
-            await pool.query(`ALTER TABLE hotelbeds_bookings ADD COLUMN IF NOT EXISTS sell_price NUMERIC(12,2)`);
-
-            await pool.query(
-                `INSERT INTO hotelbeds_bookings (
-                    account_id, reference, status, client_reference,
-                    hotel_code, hotel_name, check_in, check_out,
-                    total_net, currency, holder_name, holder_email, raw,
-                    travel_agent_id, sell_price
-                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-                 ON CONFLICT (reference) DO UPDATE SET
-                    status = EXCLUDED.status,
-                    travel_agent_id = COALESCE(EXCLUDED.travel_agent_id, hotelbeds_bookings.travel_agent_id),
-                    sell_price = COALESCE(EXCLUDED.sell_price, hotelbeds_bookings.sell_price),
-                    raw = EXCLUDED.raw`,
-                [
-                    272,
-                    booking.reference || null,
-                    booking.status || null,
-                    booking.clientReference || null,
-                    booking.hotel?.code != null ? String(booking.hotel.code) : null,
-                    booking.hotel?.name || null,
-                    booking.hotel?.checkIn || null,
-                    booking.hotel?.checkOut || null,
-                    parseFloat(booking.totalNet) || null,
-                    booking.currency || null,
-                    `${holder.name} ${holder.surname}`,
-                    holder.email || null,
-                    JSON.stringify(result.data),
-                    req.agent.sub,
-                    sell_rate != null ? parseFloat(sell_rate) : null,
-                ]
-            );
-        } catch (persistErr) {
-            console.error('[book] persist failed (booking was made upstream):', persistErr.message);
-            // Surface but don't fail — Hotelbeds reference is captured in
-            // the response so the agent can still see what was booked.
-        }
-
-        const net = parseFloat(booking.totalNet) || 0;
-        const sell = sell_rate != null ? parseFloat(sell_rate) : net;
-        res.json({
-            success: true,
-            booking,
-            net_paid: net,
-            sell_charged: sell,
-            margin: sell - net,
-            currency: booking.currency,
-        });
-    } catch (error) {
-        console.error('[book]', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
+    const r = await callAdmin('/api/internal/agent-book', {
+        agent_id: req.agent.sub,
+        ...req.body,
+    });
+    if (!r.ok && r.error) return res.status(500).json({ success: false, error: r.error });
+    res.status(r.status || 200).json(r.data);
 });
 
 // ---- HTML pages (minimal scaffolds — full UI lands in TA.3 / TA.5) -------
@@ -711,16 +483,25 @@ app.get('/hotel/:code', async (req, res) => {
                 ? `https://photos.hotelbeds.com/giata/${p}`
                 : `https://photos.hotelbeds.com/giata/bigger/${p}`;
         };
-        const imageStrips = Object.entries(imagesByType).map(([t, list]) => {
-            const sorted = list.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
-            return `
-              <div style="margin-top:1rem;">
-                <div style="font-size:0.85rem; font-weight:600; color:#475569; margin-bottom:0.5rem;">${t} <span style="color:#94a3b8; font-weight:400;">(${list.length})</span></div>
-                <div style="display:flex; overflow-x:auto; gap:0.5rem; padding-bottom:0.5rem;">
-                  ${sorted.map((img) => `<img src="${imgUrl(img.path)}" alt="${t}" style="height:180px; width:280px; object-fit:cover; border-radius:8px; flex-shrink:0;" loading="lazy" onerror="this.style.display='none'">`).join('')}
-                </div>
-              </div>`;
+        // Customer-facing: one big photo grid in priority order (Room → Pool →
+        // Beach → General view → Restaurant → Bar → Lobby → other), not flat
+        // horizontal strips per category. Clicking opens a fullscreen lightbox.
+        const TYPE_PRIORITY = ['Room', 'General view', 'Pool', 'Beach', 'Restaurant', 'Bar', 'Lobby', 'Sports and Entertainment'];
+        const allImagesSorted = images.slice().sort((a, b) => {
+            const ta = a.type?.description?.content || '';
+            const tb = b.type?.description?.content || '';
+            const pa = TYPE_PRIORITY.indexOf(ta);
+            const pb = TYPE_PRIORITY.indexOf(tb);
+            const pra = pa === -1 ? 99 : pa;
+            const prb = pb === -1 ? 99 : pb;
+            if (pra !== prb) return pra - prb;
+            return (a.order || 0) - (b.order || 0);
+        });
+        const imageGrid = allImagesSorted.map((img, i) => {
+            const url = imgUrl(img.path);
+            return `<div style="aspect-ratio: 4/3; overflow:hidden; border-radius:8px; cursor:pointer; background:#f1f5f9;" onclick="openLb(${i})"><img src="${url}" alt="" style="width:100%; height:100%; object-fit:cover; display:block;" loading="lazy" onerror="this.parentNode.style.display='none'"></div>`;
         }).join('');
+        const lbUrls = allImagesSorted.map((img) => imgUrl(img.path));
 
         const facList = facilities
             .filter((f) => f.indYesOrNo)
@@ -740,13 +521,17 @@ app.get('/hotel/:code', async (req, res) => {
             if (!roomsByName.has(k)) roomsByName.set(k, { name: rm.description || rm.roomCode || '', codes: [] });
             roomsByName.get(k).codes.push(rm.roomCode);
         }
-        const roomGrid = Array.from(roomsByName.values()).map((rm) => `
-            <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem;">
-                <strong style="font-size:0.85rem;">${rm.name}</strong>
-                ${rm.codes.length > 1 ? `<span style="font-size:0.65rem; color:#6366f1; background:#eef2ff; padding:0.1rem 0.35rem; border-radius:999px; margin-left:0.35rem;">${rm.codes.length} variants</span>` : ''}
-                <div style="font-size:0.7rem; color:#94a3b8; margin-top:0.25rem; font-family: ui-monospace, monospace;">${rm.codes.join(' · ')}</div>
-            </div>
-        `).join('');
+        // Customer-facing: just the friendly room name, no Hotelbeds codes.
+        // Codes are operator-side noise.
+        const roomGrid = Array.from(roomsByName.values()).map((rm) => {
+            const friendly = rm.name
+                .toLowerCase()
+                .replace(/\bstandard\b/gi, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .replace(/\b\w/g, (l) => l.toUpperCase());
+            return `<div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem; font-size:0.85rem;">${friendly}</div>`;
+        }).join('');
 
         const mapsLink = (h.latitude && h.longitude)
             ? `<a href="https://maps.google.com/?q=${h.latitude},${h.longitude}" target="_blank" style="color:#6366f1; font-size:0.85rem;">📍 ${h.latitude}, ${h.longitude}</a>`
