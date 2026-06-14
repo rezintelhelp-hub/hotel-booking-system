@@ -8687,9 +8687,8 @@ jQuery(document).ready(function($) {
                 data: JSON.stringify(formData),
                 success: function(response) {
                     if (response.success) {
-                        console.log('[Square] Booking created:', response.booking_id);
-                        var redirectUrl = '/booking-confirmed/?id=' + response.booking_id;
-                        window.location.href = redirectUrl;
+                        console.log('[Square] Booking created:', response.booking_id || response.booking?.id);
+                        showBookingConfirmation(response, $btn);
                     } else {
                         $('#gas-square-card-errors').text(response.error || 'Booking could not be created.');
                         $btn.prop('disabled', false);
