@@ -682,6 +682,17 @@ app.get('/hotel/:code', async (req, res) => {
         const images = Array.isArray(h.images) ? h.images : (typeof h.images === 'string' ? JSON.parse(h.images) : []);
         const facilities = Array.isArray(h.facilities) ? h.facilities : (typeof h.facilities === 'string' ? JSON.parse(h.facilities) : []);
         const rooms = Array.isArray(h.rooms) ? h.rooms : (typeof h.rooms === 'string' ? JSON.parse(h.rooms) : []);
+        const phones = Array.isArray(h.phones) ? h.phones : (typeof h.phones === 'string' ? JSON.parse(h.phones) : []);
+        // Raw blob carries fields we didn't normalise into columns: points of
+        // interest, issues, wildcards, board types, accommodation, segments.
+        const raw = h.raw ? (typeof h.raw === 'string' ? JSON.parse(h.raw) : h.raw) : null;
+        const rawHotel = raw?.hotel || {};
+        const pois = Array.isArray(rawHotel.interestPoints) ? rawHotel.interestPoints : [];
+        const issues = Array.isArray(rawHotel.issues) ? rawHotel.issues : [];
+        const wildcards = Array.isArray(rawHotel.wildcards) ? rawHotel.wildcards : [];
+        const boards = Array.isArray(rawHotel.boards) ? rawHotel.boards : [];
+        const segments = Array.isArray(rawHotel.segments) ? rawHotel.segments : [];
+        const accommodationType = rawHotel.accommodationTypeCode || rawHotel.accommodationType || null;
 
         // Group images by type for a nicer scroll-strip layout (Restaurant /
         // Room / Pool / Beach / Entrance / Common etc.).
@@ -767,6 +778,35 @@ ${imageStrips || '<p class="lead">No images cached.</p>'}
 ${facList ? `<h2>Facilities</h2><div>${facList}</div>` : ''}
 
 ${roomGrid ? `<h2>Room types (${rooms.length})</h2><div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem;">${roomGrid}</div>` : ''}
+
+${pois.length ? `
+<h2>Points of interest</h2>
+<ul style="font-size:0.85rem; color:#475569; padding-left:1.25rem; margin: 0.25rem 0;">
+${pois.slice(0, 20).map((p) => `<li>${p.poiName || ''}${p.distance ? ` <span style="color:#94a3b8; font-size:0.75rem;">(${p.distance} km)</span>` : ''}</li>`).join('')}
+</ul>` : ''}
+
+${boards.length ? `
+<h2>Board types available</h2>
+<div>${boards.map((b) => `<span style="background:#dbeafe; color:#1e40af; font-size:0.75rem; padding:0.2rem 0.5rem; border-radius:999px; margin:0.15rem; display:inline-block;">${b.description?.content || b.code}</span>`).join('')}</div>` : ''}
+
+${segments.length ? `
+<h2>Segments</h2>
+<div>${segments.map((s) => `<span style="background:#f1f5f9; color:#475569; font-size:0.75rem; padding:0.2rem 0.5rem; border-radius:999px; margin:0.15rem; display:inline-block;">${s.description?.content || s.code}</span>`).join('')}</div>` : ''}
+
+${issues.length ? `
+<h2>Important notices</h2>
+<div style="background:#fef3c7; border: 1px solid #fde68a; border-radius:8px; padding: 0.75rem; font-size: 0.8rem;">
+<ul style="margin:0; padding-left: 1.25rem; color:#92400e;">
+${issues.slice(0, 10).map((i) => `<li>${i.issueCode || ''}${i.dateFrom ? ` (from ${i.dateFrom}${i.dateTo ? ' to ' + i.dateTo : ''})` : ''}${i.alternative ? ' — alternative: ' + i.alternative : ''}</li>`).join('')}
+</ul></div>` : ''}
+
+${(phones.length || wildcards.length || accommodationType) ? `
+<h2>Other</h2>
+<div style="font-size:0.8rem; color:#64748b;">
+${accommodationType ? `<div>Accommodation: <code>${accommodationType}</code></div>` : ''}
+${phones.length ? `<div>Phones: ${phones.map((p) => p.phoneNumber || p.content).filter(Boolean).join(' · ')}</div>` : ''}
+${wildcards.length ? `<div>Wildcards: ${wildcards.map((w) => w.roomType?.description?.content || w.characteristicCode).filter(Boolean).join(' · ')}</div>` : ''}
+</div>` : ''}
 
 <p class="meta" style="margin-top:2rem;">Cached from Hotelbeds Content API · refreshed ${new Date(h.refreshed_at).toLocaleString()}</p>
 </body></html>`);
