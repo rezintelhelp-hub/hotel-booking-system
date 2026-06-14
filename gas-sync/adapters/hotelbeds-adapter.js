@@ -133,6 +133,28 @@ class HotelbedsAdapter {
     }
   }
 
+  // GET /hotel-content-api/1.0/locations/destinations — Content API endpoint.
+  // Lists Hotelbeds destinations with their canonical codes. Same Hotels API
+  // key signs it.
+  async listDestinations({ countryCode, from = 1, to = 200, language = 'ENG' } = {}) {
+    try {
+      const params = new URLSearchParams({
+        fields: 'code,name,countryCode',
+        language,
+        from: String(from),
+        to: String(to),
+      });
+      if (countryCode) params.set('countryCode', countryCode);
+      const resp = await axios.get(`${this.base}/hotel-content-api/1.0/locations/destinations?${params.toString()}`, {
+        headers: headers({ apiKey: this.apiKey, secret: this.secret }),
+        timeout: 15000,
+      });
+      return { ok: true, data: resp.data };
+    } catch (e) {
+      return { ok: false, error: e.response?.data?.error || e.message, http: e.response?.status || null };
+    }
+  }
+
   async cancelBooking(reference, cancellationFlag = 'CANCELLATION') {
     try {
       const resp = await axios.delete(`${this.base}/hotel-api/1.0/bookings/${encodeURIComponent(reference)}?cancellationFlag=${cancellationFlag}`, {
