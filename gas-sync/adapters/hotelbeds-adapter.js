@@ -67,9 +67,12 @@ class HotelbedsAdapter {
   // POST /hotel-api/1.0/hotels — availability search.
   // params: { stay: { checkIn, checkOut }, occupancies: [{rooms, adults, children}],
   //          destination: { code }  OR  geolocation: { latitude, longitude, radius, unit } }
+  // Adds sourceMarket if caller didn't (Hotelbeds cert recommends source market
+  // declaration for correct localised pricing).
   async searchAvailability(params) {
     try {
-      const resp = await axios.post(`${this.base}/hotel-api/1.0/hotels`, params, {
+      const payload = { sourceMarket: 'UK', ...params };
+      const resp = await axios.post(`${this.base}/hotel-api/1.0/hotels`, payload, {
         headers: {
           ...headers({ apiKey: this.apiKey, secret: this.secret }),
           'Content-Type': 'application/json',
@@ -106,6 +109,7 @@ class HotelbedsAdapter {
   }
 
   // POST /hotel-api/1.0/bookings — confirms a booking against a rateKey.
+  // Cert requires 60s+ timeout for booking confirmation.
   async createBooking(payload) {
     try {
       const resp = await axios.post(`${this.base}/hotel-api/1.0/bookings`, payload, {
@@ -113,7 +117,23 @@ class HotelbedsAdapter {
           ...headers({ apiKey: this.apiKey, secret: this.secret }),
           'Content-Type': 'application/json',
         },
-        timeout: 30000,
+        timeout: 75000,
+      });
+      return { ok: true, data: resp.data };
+    } catch (e) {
+      return { ok: false, error: e.response?.data?.error || e.message, raw: e.response?.data || null };
+    }
+  }
+
+  // GET /hotel-content-api/1.0/hotels/{code} — full hotel detail (images,
+  // descriptions, facilities, address, GPS). Cert requires that this data
+  // be cached in our DB, not fetched per-search.
+  async getHotelContent(hotelCode, { language = 'ENG' } = {}) {
+    try {
+      const params = new URLSearchParams({ language });
+      const resp = await axios.get(`${this.base}/hotel-content-api/1.0/hotels/${encodeURIComponent(hotelCode)}/details?${params.toString()}`, {
+        headers: headers({ apiKey: this.apiKey, secret: this.secret }),
+        timeout: 15000,
       });
       return { ok: true, data: resp.data };
     } catch (e) {
