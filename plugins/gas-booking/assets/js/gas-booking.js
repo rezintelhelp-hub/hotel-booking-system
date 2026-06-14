@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.18
+ * Version: 4.2.27
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -6867,6 +6867,7 @@ jQuery(document).ready(function($) {
         // Check Stripe availability (only if property ID already available)
         if (checkoutData.propertyId) {
             loadStripeInfo();
+            loadSquareInfo();
             // Check card guarantee
             $.ajax({
                 url: checkoutData.apiUrl + '/api/public/property/' + checkoutData.propertyId + '/card-guarantee-info?lang=' + currentLanguage,
@@ -7048,6 +7049,74 @@ jQuery(document).ready(function($) {
                     $('.gas-card-status').text(t('booking', 'not_available', 'Not available'));
                 }
             });
+        }
+
+        // Square Web Payments parallel to Stripe. Mounts a Square card form
+        // when the property has accepted_methods.square AND its account has
+        // an active Square OAuth connection (Phase 1). Cleanly absent for
+        // properties that haven't opted in — the existing Stripe / Pay-at-
+        // Property / Card-Guarantee chips are not touched.
+        function loadSquareInfo() {
+            if (!checkoutData.propertyId) return;
+            $.ajax({
+                url: checkoutData.apiUrl + '/api/public/property/' + checkoutData.propertyId + '/square-info',
+                method: 'GET',
+                success: function(response) {
+                    if (!response || !response.success || !response.square_enabled) return;
+                    checkoutData.squareEnabled = true;
+                    checkoutData.squareApplicationId = response.application_id;
+                    checkoutData.squareLocationId = response.location_id;
+                    checkoutData.squareEnvironment = response.environment || 'sandbox';
+                    checkoutData.squareCurrency = response.currency || 'USD';
+
+                    var $sqOption = $('.gas-payment-square-option');
+                    $sqOption.show().removeClass('disabled');
+                    $sqOption.find('input').prop('disabled', false);
+
+                    // If Stripe isn't enabled and Square is, auto-select Square
+                    // when card is the only paid option. Mirror Stripe behaviour.
+                    var stripeChipVisible = $('.gas-payment-card-option').is(':visible')
+                        && !$('.gas-payment-card-option').hasClass('disabled');
+                    if (!stripeChipVisible) {
+                        var visibleOptions = $('.gas-payment-option:visible');
+                        if (visibleOptions.length === 1) {
+                            visibleOptions.find('input').prop('disabled', false);
+                            visibleOptions.trigger('click');
+                        }
+                    }
+
+                    // Dynamically load the Square Web Payments SDK matching env.
+                    var sdkSrc = (response.environment === 'production')
+                        ? 'https://web.squarecdn.com/v1/square.js'
+                        : 'https://sandbox.web.squarecdn.com/v1/square.js';
+                    var existing = Array.prototype.find.call(document.scripts, function(s) { return s.src === sdkSrc; });
+                    if (existing) { initSquareCard(); return; }
+                    var s = document.createElement('script');
+                    s.src = sdkSrc;
+                    s.onload = initSquareCard;
+                    s.onerror = function() {
+                        console.error('[Square] SDK failed to load');
+                        $('.gas-payment-square-option').hide();
+                    };
+                    document.head.appendChild(s);
+                },
+                error: function() { /* Square unavailable — silent, no chip rendered */ }
+            });
+        }
+
+        function initSquareCard() {
+            if (!window.Square || !checkoutData.squareApplicationId || !checkoutData.squareLocationId) return;
+            try {
+                checkoutData.squarePayments = window.Square.payments(checkoutData.squareApplicationId, checkoutData.squareLocationId);
+                checkoutData.squarePayments.card().then(function(card) {
+                    checkoutData.squareCard = card;
+                    return card.attach('#gas-square-card-element');
+                }).catch(function(err) {
+                    console.error('[Square] init failed:', err);
+                });
+            } catch (e) {
+                console.error('[Square] init threw:', e);
+            }
         }
 
         function loadCheckoutData() {
@@ -7851,6 +7920,10 @@ jQuery(document).ready(function($) {
                     $('.gas-stripe-form').show();
                     $('.gas-payment-summary').show();
                 }
+                if (checkoutData.squareEnabled && $('.gas-payment-square-option').hasClass('selected')) {
+                    $('.gas-square-form').show();
+                    $('.gas-payment-summary').show();
+                }
                 if (typeof window._gasRecalcCheckoutDeposit === 'function') {
                     window._gasRecalcCheckoutDeposit();
                 }
@@ -8004,7 +8077,74 @@ jQuery(document).ready(function($) {
                         $('.gas-balance-row').hide();
                     }
                 }
+            } else if (paymentMethod === 'square' && checkoutData.squareEnabled) {
+                // Same deposit math as Stripe, but render the Square card form
+                // and the Square-branded "secure" note. The chip is only ever
+                // visible when /square-info reported square_enabled=true.
+                if (e.type === 'click') {
+                    $('.gas-stripe-form').slideUp(200);
+                    $('.gas-card-guarantee-form').slideUp(200);
+                    $('.gas-bank-transfer-panel').slideUp(200);
+                    $('.gas-square-form').slideDown(200);
+                    $('.gas-payment-summary').show();
+                    $('.gas-card-guarantee-note').remove();
+                }
+
+                var total = checkoutData.grandTotal || 0;
+                var voucherDiscount = parseFloat(checkoutData.voucherDiscount) || 0;
+                var depositBase = total + voucherDiscount;
+                var depositAmount = total;
+                var balanceAmount = 0;
+
+                if (checkoutData.depositRule) {
+                    var rule = checkoutData.depositRule;
+                    if (rule.schedule_mode === 'schedule' && rule.payment_schedule && Array.isArray(rule.payment_schedule)) {
+                        var checkIn = checkoutData.checkIn || checkoutData.items?.[0]?.checkIn;
+                        var today = new Date();
+                        var arrival = checkIn ? new Date(checkIn) : today;
+                        var daysUntil = Math.floor((arrival - today) / 86400000);
+                        var chargeNowPct = 0;
+                        rule.payment_schedule.forEach(function(tier) {
+                            var isAtBooking = tier.days_before === null || tier.days_before === undefined;
+                            var hasPassed = !isAtBooking && daysUntil <= tier.days_before;
+                            if (isAtBooking || hasPassed) chargeNowPct += parseFloat(tier.percentage) || 0;
+                        });
+                        depositAmount = depositBase * (chargeNowPct / 100);
+                    } else if (rule.deposit_type === 'percentage') {
+                        depositAmount = depositBase * (rule.deposit_percentage / 100);
+                    } else if (rule.deposit_type === 'fixed') {
+                        depositAmount = parseFloat(rule.deposit_fixed_amount) || depositBase;
+                    } else if (rule.deposit_type === 'first_night') {
+                        depositAmount = checkoutData.pricing?.base_rate || depositBase;
+                    }
+                    if (depositAmount > total) depositAmount = total;
+                    balanceAmount = total - depositAmount;
+                }
+
+                checkoutData.depositAmount = depositAmount;
+                checkoutData.balanceAmount = balanceAmount;
+
+                var currency = checkoutData.currency || '';
+                var balanceLabel = _gasBalanceDueLabel(checkoutData.depositRule);
+
+                if (depositAmount === 0 && balanceAmount > 0) {
+                    $('.gas-deposit-amount-display').closest('.gas-payment-row').hide();
+                    $('.gas-balance-row').show();
+                    $('.gas-balance-row span').first().text(balanceLabel);
+                    $('.gas-balance-amount-display').text(formatPrice(balanceAmount, currency));
+                } else {
+                    $('.gas-deposit-amount-display').closest('.gas-payment-row').show();
+                    $('.gas-deposit-amount-display').text(formatPrice(depositAmount, currency));
+                    if (balanceAmount > 0) {
+                        $('.gas-balance-row').show();
+                        $('.gas-balance-row span').first().text(balanceLabel);
+                        $('.gas-balance-amount-display').text(formatPrice(balanceAmount, currency));
+                    } else {
+                        $('.gas-balance-row').hide();
+                    }
+                }
             } else if (paymentMethod === 'card_guarantee') {
+                $('.gas-square-form').slideUp(200);
                 $('.gas-bank-transfer-panel').slideUp(200);
                 if (window.gasCardGuaranteeProvider === 'stripe') {
                     $('.gas-card-guarantee-form').slideUp(200);
@@ -8047,6 +8187,7 @@ jQuery(document).ready(function($) {
                 $('.gas-payment-summary').after('<p class="gas-card-guarantee-note" style="text-align:center;color:#64748b;font-size:0.85rem;margin-top:12px;">' + t('payment', 'card_guarantee_note', 'No charge — your card will be securely held as a guarantee only.') + '</p>');
             } else if (paymentMethod === 'pay_at_property') {
                 $('.gas-stripe-form').slideUp(200);
+                $('.gas-square-form').slideUp(200);
                 $('.gas-card-guarantee-form').slideUp(200);
                 var mode = window.gasPayPropertyMode || 'no_payment';
                 if ((mode === 'bank_optional' || mode === 'bank_required') && window.gasBankDetails) {
@@ -8057,6 +8198,7 @@ jQuery(document).ready(function($) {
                 }
             } else {
                 $('.gas-stripe-form').slideUp(200);
+                $('.gas-square-form').slideUp(200);
                 $('.gas-card-guarantee-form').slideUp(200);
                 $('.gas-bank-transfer-panel').slideUp(200);
                 $('.gas-card-guarantee-note').remove();
@@ -8153,10 +8295,20 @@ jQuery(document).ready(function($) {
             }
             
             var paymentMethod = $('input[name="payment_method"]:checked').val();
-            
+
             // If card payment selected, process with Stripe first
             if (paymentMethod === 'card' && checkoutData.stripeEnabled) {
                 processCardPayment($btn);
+                return;
+            }
+
+            // Square uses the same shape as server-side Stripe: tokenise the
+            // card client-side, then POST to /api/public/book with
+            // payment_method='square' + square_source_id. Server checks
+            // availability THEN charges via Square Payments API + auto-refunds
+            // if the booking row can't be saved.
+            if (paymentMethod === 'square' && checkoutData.squareEnabled) {
+                processSquarePayment($btn);
                 return;
             }
             
@@ -8372,6 +8524,185 @@ jQuery(document).ready(function($) {
                 var pmId = result.paymentMethod.id;
                 console.log('[Server-side payment] PaymentMethod created:', pmId);
                 submitBookingServerPayment($btn, pmId);
+            });
+        }
+
+        // Square parallel to processCardPayment: tokenise via Square Web SDK,
+        // then post to /api/public/book with payment_method='square'. Server
+        // checks availability THEN charges via Square Payments API (Phase 2b.1),
+        // with auto-refund if the booking row can't be saved.
+        function processSquarePayment($btn) {
+            $btn.prop('disabled', true);
+            $btn.find('.gas-btn-text').hide();
+            $btn.find('.gas-btn-loading').text(t('booking', 'processing_payment', 'Processing payment...')).show();
+
+            // Recompute deposit from live grandTotal — same pattern as Stripe.
+            if (checkoutData.grandTotal) {
+                var total = checkoutData.grandTotal;
+                var depositAmount = total;
+                var balanceAmount = 0;
+                if (checkoutData.depositRule) {
+                    var rule = checkoutData.depositRule;
+                    if (rule.schedule_mode === 'schedule' && rule.payment_schedule && Array.isArray(rule.payment_schedule)) {
+                        var checkIn = checkoutData.checkin;
+                        var today = new Date();
+                        var arrival = checkIn ? new Date(checkIn) : today;
+                        var daysUntil = Math.floor((arrival - today) / 86400000);
+                        var chargeNowPct = 0;
+                        rule.payment_schedule.forEach(function(tier) {
+                            var isAtBooking = tier.days_before === null || tier.days_before === undefined;
+                            var hasPassed = !isAtBooking && daysUntil <= tier.days_before;
+                            if (isAtBooking || hasPassed) chargeNowPct += parseFloat(tier.percentage) || 0;
+                        });
+                        depositAmount = total * (chargeNowPct / 100);
+                        balanceAmount = total - depositAmount;
+                    } else if (rule.deposit_type === 'percentage') {
+                        depositAmount = total * (rule.deposit_percentage / 100);
+                        balanceAmount = total - depositAmount;
+                    } else if (rule.deposit_type === 'fixed') {
+                        depositAmount = parseFloat(rule.deposit_fixed_amount) || total;
+                        balanceAmount = total - depositAmount;
+                    } else if (rule.deposit_type === 'first_night') {
+                        depositAmount = checkoutData.pricing?.base_rate || total;
+                        balanceAmount = total - depositAmount;
+                    }
+                }
+                checkoutData.depositAmount = depositAmount;
+                checkoutData.balanceAmount = balanceAmount;
+            }
+
+            // 0%-deposit (card-on-file for later auto-charge) needs Square
+            // Cards API support — Phase 3, not yet wired. Surface a clean
+            // message rather than silently failing.
+            if (checkoutData.depositAmount === 0 && checkoutData.balanceAmount > 0) {
+                $('#gas-square-card-errors').text('Card-on-file for deferred deposits is not yet available with Square. Please contact the property.');
+                $btn.prop('disabled', false);
+                $btn.find('.gas-btn-text').show();
+                $btn.find('.gas-btn-loading').hide();
+                return;
+            }
+
+            if (!checkoutData.squareCard) {
+                $('#gas-square-card-errors').text('Card form not loaded. Please re-select Pay by Card.');
+                $btn.prop('disabled', false);
+                $btn.find('.gas-btn-text').show();
+                $btn.find('.gas-btn-loading').hide();
+                return;
+            }
+
+            checkoutData.squareCard.tokenize().then(function(result) {
+                if (result.status !== 'OK') {
+                    var msg = (result.errors && result.errors[0] && result.errors[0].message) || 'Card details could not be verified.';
+                    $('#gas-square-card-errors').text(msg);
+                    $btn.prop('disabled', false);
+                    $btn.find('.gas-btn-text').show();
+                    $btn.find('.gas-btn-loading').hide();
+                    return;
+                }
+                $('#gas-square-card-errors').text('');
+                console.log('[Square] Tokenised:', result.token);
+                submitBookingSquarePayment($btn, result.token, /* verification_token */ null);
+            }).catch(function(err) {
+                console.error('[Square] tokenize threw:', err);
+                $('#gas-square-card-errors').text('Card service unavailable. Please try again.');
+                $btn.prop('disabled', false);
+                $btn.find('.gas-btn-text').show();
+                $btn.find('.gas-btn-loading').hide();
+            });
+        }
+
+        function submitBookingSquarePayment($btn, sourceId, verificationToken) {
+            $btn.find('.gas-btn-loading').text(t('booking', 'confirming', 'Confirming booking...')).show();
+
+            var $form = $('#gas-guest-form');
+            // Build the same shape as submitBookingServerPayment (Stripe) but
+            // with payment_method='square' + square_source_id. price_breakdown
+            // duplication kept as-is to match the Stripe path — server-side
+            // booking_extras persistence relies on it.
+            var formData = {
+                unit_id: checkoutData.unitId,
+                check_in: checkoutData.checkin,
+                check_out: checkoutData.checkout,
+                guests: checkoutData.guests,
+                adults: (checkoutData.adults != null ? parseInt(checkoutData.adults) : parseInt(checkoutData.guests)) || 1,
+                children: parseInt(checkoutData.children) || 0,
+                guest_first_name: $form.find('[name="first_name"]').val(),
+                guest_last_name: $form.find('[name="last_name"]').val(),
+                guest_email: $form.find('[name="email"]').val(),
+                guest_phone: $form.find('[name="phone"]').val(),
+                guest_address: $form.find('[name="address"]').val(),
+                guest_city: $form.find('[name="city"]').val(),
+                guest_postcode: $form.find('[name="postcode"]').val(),
+                guest_country: $form.find('[name="country"]').val(),
+                notes: $form.find('[name="notes"]').val(),
+                marketing: $form.find('[name="marketing"]').is(':checked'),
+                sms_consent: $form.find('[name="sms_consent"]').is(':checked'),
+                payment_method: 'square',
+                square_source_id: sourceId,
+                square_verification_token: verificationToken || undefined,
+                total_price: checkoutData.grandTotal,
+                rate_type: checkoutData.rateType,
+                upsells: checkoutData.selectedUpsells,
+                voucher_code: checkoutData.voucherCode,
+                source_site_url: window.location.origin + window.location.pathname,
+                deposit_amount: checkoutData.depositAmount,
+                balance_amount: checkoutData.balanceAmount,
+                event_slug: new URLSearchParams(window.location.search).get('event') || undefined,
+                price_breakdown: (function() {
+                    var bd = checkoutData.gasBreakdown;
+                    if (!bd) return null;
+                    var upsellsBreakdown = [];
+                    var upsellsTotal = 0;
+                    (checkoutData.selectedUpsells || []).forEach(function(u) {
+                        var total = calculateUpsellItemTotal(u);
+                        upsellsTotal += total;
+                        upsellsBreakdown.push({
+                            id: u.id,
+                            name: u.name,
+                            quantity: u.quantity || 1,
+                            unit_price: parseFloat(u.price) || 0,
+                            total: total
+                        });
+                    });
+                    bd.upsells_breakdown = upsellsBreakdown;
+                    bd.upsells_total = upsellsTotal;
+                    bd.voucher_discount = parseFloat(checkoutData.voucherDiscount) || 0;
+                    if (checkoutData.voucher) {
+                        bd.voucher_applied = {
+                            code: checkoutData.voucherCode || (checkoutData.voucher && checkoutData.voucher.code) || '',
+                            name: (checkoutData.voucher && checkoutData.voucher.name) || '',
+                            voucher_type: (checkoutData.voucher && checkoutData.voucher.voucher_type) || 'discount',
+                            discount_type: (checkoutData.voucher && checkoutData.voucher.discount_type) || 'percentage',
+                            discount_value: (checkoutData.voucher && checkoutData.voucher.discount_value) || 0
+                        };
+                    }
+                    return bd;
+                })()
+            };
+
+            $.ajax({
+                url: checkoutData.apiUrl + '/api/public/book',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(formData),
+                success: function(response) {
+                    if (response.success) {
+                        console.log('[Square] Booking created:', response.booking_id);
+                        var redirectUrl = '/booking-confirmed/?id=' + response.booking_id;
+                        window.location.href = redirectUrl;
+                    } else {
+                        $('#gas-square-card-errors').text(response.error || 'Booking could not be created.');
+                        $btn.prop('disabled', false);
+                        $btn.find('.gas-btn-text').show();
+                        $btn.find('.gas-btn-loading').hide();
+                    }
+                },
+                error: function() {
+                    $('#gas-square-card-errors').text('Booking service unavailable. Please try again.');
+                    $btn.prop('disabled', false);
+                    $btn.find('.gas-btn-text').show();
+                    $btn.find('.gas-btn-loading').hide();
+                }
             });
         }
 
@@ -9288,6 +9619,14 @@ jQuery(document).ready(function($) {
         if (!document.getElementById('gas-bike-storage-styles')) {
             var css = [
                 '.gas-bike-storage-widget{font-family:inherit;max-width:560px;margin:1rem 0;padding:1.25rem;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}',
+                // When the widget sits inside a Pro Builder / Gutenberg column,
+                // lift the 560px cap so it fills the column width, drop the
+                // 12px corner radius (square corners match the image column
+                // it sits next to), and stretch to the column's height so a
+                // 50/50 with an image on one side reads as a clean two-pane
+                // block. Standalone pages keep the original styling.
+                '.wp-block-column .gas-bike-storage,.wp-block-columns .gas-bike-storage,.pb-layout .gas-bike-storage{height:100%;display:block}',
+                '.wp-block-column .gas-bike-storage-widget,.wp-block-columns .gas-bike-storage-widget,.pb-layout .gas-bike-storage-widget{max-width:100%;width:100%;height:100%;margin:0;border-radius:0;box-sizing:border-box;display:flex;flex-direction:column}',
                 '.gas-bs-tagline{color:#64748b;font-size:0.9rem;margin-bottom:1rem}',
                 '.gas-bs-date-row{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem}',
                 '.gas-bs-date-row label{display:flex;flex-direction:column;font-size:0.85rem;color:#475569;gap:0.25rem}',

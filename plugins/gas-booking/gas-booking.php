@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.18
+ * Version: 4.2.28
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.18');
+define('GAS_BOOKING_VERSION', '4.2.28');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8262,7 +8262,18 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                         </div>
                                     </div>
                                 </label>
-                                
+
+                                <label class="gas-payment-option gas-payment-square-option" data-requires-square="true" style="display:none;">
+                                    <input type="radio" name="payment_method" value="square" />
+                                    <div class="gas-payment-option-content">
+                                        <div class="gas-payment-icon">&#x2B1B;</div>
+                                        <div class="gas-payment-details">
+                                            <strong><?php echo esc_html($t_payment['pay_by_card'] ?? 'Pay by Card'); ?></strong>
+                                            <span class="gas-square-status">Powered by Square</span>
+                                        </div>
+                                    </div>
+                                </label>
+
                                 <label class="gas-payment-option gas-payment-card-guarantee-option" style="display:none;">
                                     <input type="radio" name="payment_method" value="card_guarantee" />
                                     <div class="gas-payment-option-content">
@@ -8315,7 +8326,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <div id="gas-card-element" class="gas-card-element"></div>
                                     <div id="gas-card-errors" class="gas-card-errors" role="alert"></div>
                                 </div>
-                                
+
                                 <div class="gas-payment-summary">
                                     <div class="gas-payment-row">
                                         <span><?php echo esc_html($t_payment['deposit_amount'] ?? 'Deposit Amount'); ?></span>
@@ -8326,6 +8337,27 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                         <strong class="gas-balance-amount-display">£0.00</strong>
                                     </div>
                                     <p class="gas-secure-note">🔒 <?php echo esc_html($t_payment['payment_secure'] ?? 'Your payment is secured by Stripe'); ?></p>
+                                </div>
+                            </div>
+
+                            <!-- Square Card Form (hidden until square payment selected) -->
+                            <div class="gas-square-form" style="display:none;">
+                                <div class="gas-square-card-element-container">
+                                    <label><?php echo esc_html($t_payment['card_details'] ?? 'Card Details'); ?></label>
+                                    <div id="gas-square-card-element" style="min-height: 56px; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; background: white;"></div>
+                                    <div id="gas-square-card-errors" class="gas-card-errors" role="alert"></div>
+                                </div>
+
+                                <div class="gas-payment-summary">
+                                    <div class="gas-payment-row">
+                                        <span><?php echo esc_html($t_payment['deposit_amount'] ?? 'Deposit Amount'); ?></span>
+                                        <strong class="gas-deposit-amount-display">£0.00</strong>
+                                    </div>
+                                    <div class="gas-payment-row gas-balance-row" style="display:none;">
+                                        <span><?php echo esc_html($t_payment['balance_due'] ?? 'Balance due at check-in'); ?></span>
+                                        <strong class="gas-balance-amount-display">£0.00</strong>
+                                    </div>
+                                    <p class="gas-secure-note">🔒 Your payment is secured by Square</p>
                                 </div>
                             </div>
                             
