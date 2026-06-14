@@ -81,4 +81,41 @@ async function searchAvailability(pool, accountId, { stay, occupancies, destinat
     }
 }
 
-module.exports = { searchAvailability };
+/**
+ * Confirm a Hotelbeds booking against a previously-returned rateKey.
+ * Body: { rateKey, holder: {name, surname, email?}, paxes?, clientReference? }
+ * Returns { ok, data } where data.booking is Hotelbeds' booking row.
+ */
+async function createBooking(pool, accountId, { rateKey, holder, paxes, clientReference, tolerance, remark }) {
+    const creds = await loadCreds(pool, accountId);
+    if (!creds) return { ok: false, error: 'no Hotelbeds credentials on account' };
+    if (!rateKey || !holder?.name || !holder?.surname) {
+        return { ok: false, error: 'rateKey + holder.name + holder.surname required' };
+    }
+    const payload = {
+        holder: { name: holder.name, surname: holder.surname },
+        rooms: [{
+            rateKey,
+            paxes: Array.isArray(paxes) && paxes.length
+                ? paxes
+                : [{ roomId: 1, type: 'AD', name: holder.name, surname: holder.surname }],
+        }],
+        clientReference: clientReference || `GAS-AG-${Date.now()}`,
+    };
+    if (tolerance != null) payload.tolerance = tolerance;
+    if (remark) payload.remark = remark;
+    try {
+        const resp = await fetch(`${creds.base}/hotel-api/1.0/bookings`, {
+            method: 'POST',
+            headers: hbHeaders(creds.apiKey, creds.secret),
+            body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (!resp.ok) return { ok: false, error: data?.error || `HTTP ${resp.status}`, raw: data };
+        return { ok: true, data };
+    } catch (e) {
+        return { ok: false, error: e.message };
+    }
+}
+
+module.exports = { searchAvailability, createBooking };

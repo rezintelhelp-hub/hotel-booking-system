@@ -315,14 +315,117 @@ app.post('/api/auth/dev-token', async (req, res) => {
     }
 });
 
-// ---- TA.4 placeholder: unified booking ------------------------------------
+// ---- TA.4: unified booking dispatch --------------------------------------
+// Body: {
+//   source: 'hotelbeds' | 'operator',
+//   rateKey,                             // Hotelbeds only
+//   holder: { name, surname, email? },
+//   paxes: [{ roomId, type:'AD'|'CH', name?, surname?, age? }],   // optional
+//   // operator-direct fields land here in a future ship — TA.4 ships HB only
+// }
+const { createBooking: hbBook } = require('./lib/hotelbeds');
 
 app.post('/api/book', requireAgent, async (req, res) => {
-    res.status(501).json({
-        success: false,
-        error: 'not implemented yet',
-        phase: 'TA.4',
-    });
+    try {
+        const { source, rateKey, holder, paxes, sell_rate, currency } = req.body || {};
+        if (source !== 'hotelbeds') {
+            // Operator-direct booking via TA portal follows in a later ship.
+            return res.status(501).json({ success: false, error: 'operator-direct booking via TA portal not yet wired — TA.4.1' });
+        }
+        if (!rateKey || !holder?.name || !holder?.surname) {
+            return res.status(400).json({ success: false, error: 'rateKey + holder.name + holder.surname required' });
+        }
+        // Use account 272's Hotelbeds creds (singleton inventory account).
+        const result = await hbBook(pool, 272, {
+            rateKey,
+            holder,
+            paxes,
+            clientReference: `GAS-AG${req.agent.sub}-${Date.now()}`,
+        });
+        if (!result.ok) {
+            return res.json({ success: false, error: typeof result.error === 'string' ? result.error : JSON.stringify(result.error), raw: result.raw });
+        }
+        const booking = result.data?.booking || {};
+
+        // Persist: hotelbeds_bookings ledger (created earlier in main app) +
+        // bookings mirror with travel_agent_id stamped for the dashboard.
+        try {
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS hotelbeds_bookings (
+                    id SERIAL PRIMARY KEY,
+                    account_id INTEGER NOT NULL,
+                    reference VARCHAR(100) UNIQUE,
+                    status VARCHAR(50),
+                    client_reference VARCHAR(100),
+                    hotel_code VARCHAR(50),
+                    hotel_name VARCHAR(255),
+                    check_in DATE,
+                    check_out DATE,
+                    total_net NUMERIC(12,2),
+                    currency VARCHAR(10),
+                    holder_name VARCHAR(255),
+                    holder_email VARCHAR(255),
+                    raw JSONB,
+                    travel_agent_id INTEGER,
+                    sell_price NUMERIC(12,2),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            `);
+            // The main app's create-table doesn't have travel_agent_id +
+            // sell_price; add them idempotently here so this app can write them.
+            await pool.query(`ALTER TABLE hotelbeds_bookings ADD COLUMN IF NOT EXISTS travel_agent_id INTEGER`);
+            await pool.query(`ALTER TABLE hotelbeds_bookings ADD COLUMN IF NOT EXISTS sell_price NUMERIC(12,2)`);
+
+            await pool.query(
+                `INSERT INTO hotelbeds_bookings (
+                    account_id, reference, status, client_reference,
+                    hotel_code, hotel_name, check_in, check_out,
+                    total_net, currency, holder_name, holder_email, raw,
+                    travel_agent_id, sell_price
+                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                 ON CONFLICT (reference) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    travel_agent_id = COALESCE(EXCLUDED.travel_agent_id, hotelbeds_bookings.travel_agent_id),
+                    sell_price = COALESCE(EXCLUDED.sell_price, hotelbeds_bookings.sell_price),
+                    raw = EXCLUDED.raw`,
+                [
+                    272,
+                    booking.reference || null,
+                    booking.status || null,
+                    booking.clientReference || null,
+                    booking.hotel?.code != null ? String(booking.hotel.code) : null,
+                    booking.hotel?.name || null,
+                    booking.hotel?.checkIn || null,
+                    booking.hotel?.checkOut || null,
+                    parseFloat(booking.totalNet) || null,
+                    booking.currency || null,
+                    `${holder.name} ${holder.surname}`,
+                    holder.email || null,
+                    JSON.stringify(result.data),
+                    req.agent.sub,
+                    sell_rate != null ? parseFloat(sell_rate) : null,
+                ]
+            );
+        } catch (persistErr) {
+            console.error('[book] persist failed (booking was made upstream):', persistErr.message);
+            // Surface but don't fail — Hotelbeds reference is captured in
+            // the response so the agent can still see what was booked.
+        }
+
+        const net = parseFloat(booking.totalNet) || 0;
+        const sell = sell_rate != null ? parseFloat(sell_rate) : net;
+        res.json({
+            success: true,
+            booking,
+            net_paid: net,
+            sell_charged: sell,
+            margin: sell - net,
+            currency: booking.currency,
+        });
+    } catch (error) {
+        console.error('[book]', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 // ---- HTML pages (minimal scaffolds — full UI lands in TA.3 / TA.5) -------
@@ -452,11 +555,15 @@ document.getElementById('sf').addEventListener('submit', async (e) => {
     }
     document.getElementById('meta').textContent =
       data.count + ' results · your markup ' + data.markup_applied_pct + '% applied to net rates';
-    const html = data.results.map((r) => {
+    window._results = data.results;
+    const html = data.results.map((r, i) => {
       const margin = r.sell_rate - r.net_rate;
       const sourceLabel = r.source === 'hotelbeds'
         ? '<span style="background:#dbeafe; color:#1e40af; font-size:0.65rem; padding:0.1rem 0.4rem; border-radius:999px;">HB</span>'
         : '<span style="background:#dcfce7; color:#166534; font-size:0.65rem; padding:0.1rem 0.4rem; border-radius:999px;">Operator</span>';
+      const bookBtn = r.source === 'hotelbeds'
+        ? '<button onclick="openBook(' + i + ')" style="margin-top:0.4rem; font-size:0.75rem; padding: 0.3rem 0.6rem; background:#1e293b; color:white; border:0; border-radius:6px; cursor:pointer;">Book this</button>'
+        : '<span style="font-size:0.7rem; color:#94a3b8;">(operator-direct book: TA.4.1)</span>';
       return '<div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:0.75rem; margin-bottom:0.5rem;">'
         + '<div style="display:flex; justify-content:space-between; gap:0.5rem;">'
         + '<div><strong>' + (r.hotel_name || '') + '</strong> ' + sourceLabel
@@ -466,9 +573,59 @@ document.getElementById('sf').addEventListener('submit', async (e) => {
         + '<div style="text-align:right;">'
         + '<div style="font-size:1.1rem; font-weight:700; color:#059669;">' + fmtMoney(r.sell_rate, r.currency) + '</div>'
         + '<div style="font-size:0.7rem; color:#94a3b8;">net ' + fmtMoney(r.net_rate, r.currency) + ' · margin ' + fmtMoney(margin, r.currency) + '</div>'
+        + bookBtn
         + '</div></div></div>';
     }).join('');
     document.getElementById('results').innerHTML = html || '<p style="color:#94a3b8;">No availability for those dates.</p>';
+
+window.openBook = function(i) {
+  const r = window._results[i];
+  const formHtml = '<div id="bookForm" style="margin-top:1rem; padding:1rem; background:#f1f5f9; border:2px solid #6366f1; border-radius:10px;">'
+    + '<strong>' + r.hotel_name + ' · ' + r.room_name + '</strong><br>'
+    + '<span style="font-size:0.75rem; color:#64748b;">Sell ' + fmtMoney(r.sell_rate, r.currency) + ' · net ' + fmtMoney(r.net_rate, r.currency) + '</span>'
+    + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-top:0.75rem;">'
+    + '<div><label>First name</label><input id="bkN" type="text" placeholder="Guest first name"></div>'
+    + '<div><label>Surname</label><input id="bkS" type="text" placeholder="Guest surname"></div>'
+    + '</div>'
+    + '<label>Email (optional)</label><input id="bkE" type="email" placeholder="guest@example.com">'
+    + '<button onclick="confirmBook(' + i + ')" style="margin-top:0.6rem; background:#6366f1; color:white; border:0; padding:0.6rem 1rem; border-radius:6px; cursor:pointer;">Confirm Booking</button>'
+    + '<button onclick="document.getElementById(\\'bookForm\\').remove()" style="margin-left:0.5rem; background:transparent; color:#64748b; border:1px solid #cbd5e1; padding:0.6rem 1rem; border-radius:6px; cursor:pointer;">Cancel</button>'
+    + '<div id="bkResult" style="margin-top:0.75rem; font-size:0.8rem;"></div>'
+    + '</div>';
+  document.getElementById('results').insertAdjacentHTML('afterbegin', formHtml);
+  document.getElementById('bookForm').scrollIntoView({behavior:'smooth', block:'center'});
+};
+
+window.confirmBook = async function(i) {
+  const r = window._results[i];
+  const name = document.getElementById('bkN').value.trim();
+  const surname = document.getElementById('bkS').value.trim();
+  const email = document.getElementById('bkE').value.trim();
+  const result = document.getElementById('bkResult');
+  if (!name || !surname) { result.innerHTML = '<span style="color:#dc2626;">First name + surname required</span>'; return; }
+  result.innerHTML = 'Booking…';
+  try {
+    const r2 = await fetch('/api/book', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        source: r.source,
+        rateKey: r.rate_key,
+        holder: { name, surname, email },
+        sell_rate: r.sell_rate,
+        currency: r.currency,
+      }),
+    });
+    const data = await r2.json();
+    if (data.success) {
+      result.innerHTML = '<span style="color:#059669;">✓ Booked: ref <code>' + data.booking.reference + '</code> · margin ' + fmtMoney(data.margin, data.currency) + '</span>';
+    } else {
+      result.innerHTML = '<span style="color:#dc2626;">' + (data.error || 'failed') + '</span>';
+    }
+  } catch (e2) {
+    result.innerHTML = '<span style="color:#dc2626;">' + e2.message + '</span>';
+  }
+};
   } catch (e2) {
     document.getElementById('err').textContent = e2.message;
     document.getElementById('meta').textContent = '';
