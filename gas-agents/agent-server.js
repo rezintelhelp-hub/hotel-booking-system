@@ -164,6 +164,7 @@ app.post('/api/search', requireAgent, async (req, res) => {
         const applyMarkup = (net) => Math.round(net * markup * 100) / 100;
 
         const results = [];
+        const debug = {};
 
         // === Hotelbeds wholesale half ===
         if (destinationCode || (Array.isArray(hotelCodes) && hotelCodes.length)) {
@@ -173,6 +174,10 @@ app.post('/api/search', requireAgent, async (req, res) => {
                 destinationCode,
                 hotelCodes,
             });
+            debug.hotelbeds_ok = hb.ok;
+            debug.hotelbeds_total = hb.data?.hotels?.total;
+            debug.hotelbeds_audit = hb.data?.auditData;
+            if (!hb.ok) debug.hotelbeds_error = hb.error;
             if (hb.ok) {
                 const hotels = hb.data?.hotels?.hotels || [];
                 for (const h of hotels) {
@@ -283,6 +288,7 @@ app.post('/api/search', requireAgent, async (req, res) => {
             count: results.length,
             markup_applied_pct: markupPct,
             results,
+            debug,
         });
     } catch (error) {
         console.error('[search]', error);
@@ -575,8 +581,9 @@ document.getElementById('sf').addEventListener('submit', async (e) => {
       document.getElementById('meta').textContent = '';
       return;
     }
-    document.getElementById('meta').textContent =
-      data.count + ' results · your markup ' + data.markup_applied_pct + '% applied to net rates';
+    document.getElementById('meta').innerHTML =
+      data.count + ' results · your markup ' + data.markup_applied_pct + '% applied to net rates'
+      + (data.debug ? '<br><small style="color:#94a3b8;">debug: ' + JSON.stringify(data.debug) + '</small>' : '');
     window._results = data.results;
     const html = data.results.map((r, i) => {
       const margin = r.sell_rate - r.net_rate;
