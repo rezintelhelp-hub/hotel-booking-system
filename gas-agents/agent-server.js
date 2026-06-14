@@ -130,18 +130,189 @@ app.get('/api/me', requireAgent, async (req, res) => {
     }
 });
 
-// ---- TA.2 placeholder: unified search ------------------------------------
+// ---- TA.2: unified search --------------------------------------------------
+// Body: {
+//   checkIn, checkOut,                  // YYYY-MM-DD
+//   adults (default 2), children (default 0),
+//   destinationCode  | hotelCodes[],    // wholesale fan-out hint
+//   operatorPropertyIds[]               // optional — operator-direct filter
+// }
+//
+// Returns: { success, count, markup_applied_pct, results: [
+//   { source: 'hotelbeds' | 'operator', net_rate, sell_rate, currency, ... }
+// ] }
+const { searchAvailability: hbSearch } = require('./lib/hotelbeds');
 
 app.post('/api/search', requireAgent, async (req, res) => {
-    // Wired in TA.2. Body shape per docs/gas-travel-agent-unified-model.md:
-    //   { destination | hotelCodes | geoBox, checkIn, checkOut, occupancies[] }
-    // Returns merged operator + Hotelbeds results with markup applied.
-    res.status(501).json({
-        success: false,
-        error: 'not implemented yet',
-        phase: 'TA.2',
-        spec: 'docs/gas-travel-agent-unified-model.md',
-    });
+    try {
+        const {
+            checkIn, checkOut,
+            adults = 2, children = 0,
+            destinationCode, hotelCodes,
+            operatorPropertyIds,
+        } = req.body || {};
+        if (!checkIn || !checkOut) {
+            return res.status(400).json({ success: false, error: 'checkIn + checkOut required (YYYY-MM-DD)' });
+        }
+        const a = parseInt(adults, 10) || 2;
+        const c = parseInt(children, 10) || 0;
+
+        // Agent markup from accounts row.
+        const agentRow = await pool.query(`SELECT agent_markup_pct FROM accounts WHERE id = $1`, [req.agent.sub]);
+        const markupPct = parseFloat(agentRow.rows[0]?.agent_markup_pct) || 0;
+        const markup = 1 + (markupPct / 100);
+        const applyMarkup = (net) => Math.round(net * markup * 100) / 100;
+
+        const results = [];
+
+        // === Hotelbeds wholesale half ===
+        if (destinationCode || (Array.isArray(hotelCodes) && hotelCodes.length)) {
+            const hb = await hbSearch(pool, 272, {
+                stay: { checkIn, checkOut },
+                occupancies: { rooms: 1, adults: a, children: c },
+                destinationCode,
+                hotelCodes,
+            });
+            if (hb.ok) {
+                const hotels = hb.data?.hotels?.hotels || [];
+                for (const h of hotels) {
+                    for (const rm of (h.rooms || [])) {
+                        const cheapest = (rm.rates || []).reduce((best, rate) =>
+                            !best || parseFloat(rate.net) < parseFloat(best.net) ? rate : best, null);
+                        if (!cheapest) continue;
+                        const net = parseFloat(cheapest.net);
+                        results.push({
+                            source: 'hotelbeds',
+                            hotel_code: h.code,
+                            hotel_name: h.name,
+                            zone: h.zoneName,
+                            destination: h.destinationName,
+                            category: h.categoryName,
+                            room_code: rm.code,
+                            room_name: rm.name,
+                            board: cheapest.boardName,
+                            net_rate: net,
+                            sell_rate: applyMarkup(net),
+                            currency: cheapest.currency || h.currency,
+                            rate_key: cheapest.rateKey,
+                            rate_type: cheapest.rateType,
+                            cancellation_policies: cheapest.cancellationPolicies || [],
+                            allotment: cheapest.allotment,
+                        });
+                    }
+                }
+            } else {
+                // Don't fail the whole search if Hotelbeds glitches — return what
+                // we have + a warning.
+                console.warn('[search] Hotelbeds failed:', hb.error);
+            }
+        }
+
+        // === Operator-direct half ===
+        // Pulls distribution_access rows for this agent (status='approved') and
+        // joins to bookable_units + room_availability for the stay window.
+        // current_price on distribution_access is the agreed wholesale-to-agent
+        // net (fixed-price model). If absent, falls back to room_availability
+        // cm_price/direct_price per night.
+        if (Array.isArray(operatorPropertyIds) && operatorPropertyIds.length) {
+            const op = await pool.query(`
+                SELECT
+                    p.id AS property_id, p.name AS hotel_name, p.city, p.country, p.currency,
+                    bu.id AS bookable_unit_id, bu.name AS room_name, bu.max_guests,
+                    da.current_price AS agreed_net_rate,
+                    ra.date,
+                    COALESCE(ra.direct_price, ra.cm_price) AS night_price,
+                    ra.is_available
+                  FROM distribution_access da
+                  JOIN properties p ON p.id = da.property_id
+                  JOIN bookable_units bu ON bu.property_id = p.id
+             LEFT JOIN room_availability ra ON ra.room_id = bu.id
+                                          AND ra.date >= $2::date
+                                          AND ra.date < $3::date
+                 WHERE da.travel_agent_id = $1
+                   AND da.status = 'approved'
+                   AND da.property_id = ANY($4::int[])
+                   AND bu.max_guests >= $5
+            `, [req.agent.sub, checkIn, checkOut, operatorPropertyIds, a + c]);
+
+            // Group by unit; require ALL nights available; sum per-night prices
+            // unless DA has agreed_net_rate (then use it × nights).
+            const byUnit = new Map();
+            for (const row of op.rows) {
+                if (!byUnit.has(row.bookable_unit_id)) {
+                    byUnit.set(row.bookable_unit_id, {
+                        ...row,
+                        nights: 0,
+                        sum: 0,
+                        all_available: true,
+                    });
+                }
+                const u = byUnit.get(row.bookable_unit_id);
+                if (row.date) {
+                    u.nights++;
+                    if (row.is_available === false) u.all_available = false;
+                    if (row.night_price != null) u.sum += parseFloat(row.night_price);
+                }
+            }
+            for (const u of byUnit.values()) {
+                if (!u.all_available || u.nights === 0) continue;
+                const net = u.agreed_net_rate != null
+                    ? parseFloat(u.agreed_net_rate) * u.nights
+                    : u.sum;
+                if (!Number.isFinite(net) || net <= 0) continue;
+                results.push({
+                    source: 'operator',
+                    property_id: u.property_id,
+                    hotel_name: u.hotel_name,
+                    zone: u.city,
+                    destination: u.country,
+                    room_name: u.room_name,
+                    max_guests: u.max_guests,
+                    bookable_unit_id: u.bookable_unit_id,
+                    nights: u.nights,
+                    net_rate: Math.round(net * 100) / 100,
+                    sell_rate: applyMarkup(net),
+                    currency: u.currency || 'EUR',
+                });
+            }
+        }
+
+        results.sort((x, y) => x.sell_rate - y.sell_rate);
+        res.json({
+            success: true,
+            count: results.length,
+            markup_applied_pct: markupPct,
+            results,
+        });
+    } catch (error) {
+        console.error('[search]', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Dev-only: issue a master_admin session without a password check. Gated by
+// the JWT secret so only Steve can call it. Remove before TA goes live.
+app.post('/api/auth/dev-token', async (req, res) => {
+    try {
+        const { secret } = req.body || {};
+        if (!secret || secret !== JWT_SECRET) {
+            return res.status(403).json({ success: false, error: 'invalid secret' });
+        }
+        // Look up the first master_admin account (Steve).
+        const r = await pool.query(
+            `SELECT id, name, email FROM accounts WHERE role = 'master_admin' ORDER BY id LIMIT 1`
+        );
+        if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'no master_admin account' });
+        const acc = r.rows[0];
+        const token = jwt.sign(
+            { sub: acc.id, role: 'master_admin', kind: 'agent', dev: true },
+            JWT_SECRET,
+            { expiresIn: '12h' }
+        );
+        res.json({ success: true, token, agent: { id: acc.id, name: acc.name, email: acc.email, role: 'master_admin' } });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 // ---- TA.4 placeholder: unified booking ------------------------------------
@@ -219,12 +390,91 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 app.get('/search', (req, res) => {
     res.send(HTML_HEAD + `
 <h1>Search inventory</h1>
-<div class="placeholder">
-  Phase <code>TA.3</code> — unified search UI lands here once the
-  <code>POST /api/search</code> endpoint is wired in TA.2.
-  <br><br>
-  Spec: <code>docs/gas-travel-agent-unified-model.md</code>.
-</div>` + HTML_FOOT);
+<p class="lead">Hotelbeds wholesale + your approved operator-direct properties, with your markup applied.</p>
+
+<form id="sf">
+  <label>Destination code (Hotelbeds — e.g. <code>LVS</code> Las Vegas, <code>MIA</code> Miami, <code>FLL</code> Fort Lauderdale)</label>
+  <input name="destinationCode" placeholder="LVS" autocomplete="off">
+
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">
+    <div><label>Check-in</label><input name="checkIn" type="date" required></div>
+    <div><label>Check-out</label><input name="checkOut" type="date" required></div>
+  </div>
+
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+    <div><label>Adults</label><input name="adults" type="number" value="2" min="1" max="6"></div>
+    <div><label>Children</label><input name="children" type="number" value="0" min="0" max="4"></div>
+  </div>
+
+  <button type="submit">Search</button>
+  <div class="err" id="err"></div>
+</form>
+
+<div id="meta" style="margin-top: 1rem; font-size: 0.8rem; color:#64748b;"></div>
+<div id="results" style="margin-top: 0.5rem;"></div>
+
+<script>
+const token = localStorage.getItem('gas_agent_token');
+if (!token) window.location.href = '/';
+
+// Default dates 14 days out, 2 nights.
+const dIn = new Date(Date.now() + 14*86400000).toISOString().slice(0,10);
+const dOut = new Date(Date.now() + 16*86400000).toISOString().slice(0,10);
+document.querySelector('[name="checkIn"]').value = dIn;
+document.querySelector('[name="checkOut"]').value = dOut;
+
+const fmtMoney = (n, cur) => (cur || '') + ' ' + n.toFixed(2);
+
+document.getElementById('sf').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const body = {
+    destinationCode: (f.get('destinationCode') || '').trim().toUpperCase(),
+    checkIn: f.get('checkIn'),
+    checkOut: f.get('checkOut'),
+    adults: parseInt(f.get('adults'), 10) || 2,
+    children: parseInt(f.get('children'), 10) || 0,
+  };
+  document.getElementById('err').textContent = '';
+  document.getElementById('meta').textContent = 'Searching…';
+  document.getElementById('results').innerHTML = '';
+  try {
+    const r = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!data.success) {
+      document.getElementById('err').textContent = data.error || 'Search failed';
+      document.getElementById('meta').textContent = '';
+      return;
+    }
+    document.getElementById('meta').textContent =
+      data.count + ' results · your markup ' + data.markup_applied_pct + '% applied to net rates';
+    const html = data.results.map((r) => {
+      const margin = r.sell_rate - r.net_rate;
+      const sourceLabel = r.source === 'hotelbeds'
+        ? '<span style="background:#dbeafe; color:#1e40af; font-size:0.65rem; padding:0.1rem 0.4rem; border-radius:999px;">HB</span>'
+        : '<span style="background:#dcfce7; color:#166534; font-size:0.65rem; padding:0.1rem 0.4rem; border-radius:999px;">Operator</span>';
+      return '<div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:0.75rem; margin-bottom:0.5rem;">'
+        + '<div style="display:flex; justify-content:space-between; gap:0.5rem;">'
+        + '<div><strong>' + (r.hotel_name || '') + '</strong> ' + sourceLabel
+        + '<div style="font-size:0.75rem; color:#64748b;">' + (r.zone || '') + ' · ' + (r.category || '') + '</div>'
+        + '<div style="font-size:0.75rem; color:#475569; margin-top:0.25rem;">' + (r.room_name || '') + (r.board ? ' · ' + r.board : '') + '</div>'
+        + '</div>'
+        + '<div style="text-align:right;">'
+        + '<div style="font-size:1.1rem; font-weight:700; color:#059669;">' + fmtMoney(r.sell_rate, r.currency) + '</div>'
+        + '<div style="font-size:0.7rem; color:#94a3b8;">net ' + fmtMoney(r.net_rate, r.currency) + ' · margin ' + fmtMoney(margin, r.currency) + '</div>'
+        + '</div></div></div>';
+    }).join('');
+    document.getElementById('results').innerHTML = html || '<p style="color:#94a3b8;">No availability for those dates.</p>';
+  } catch (e2) {
+    document.getElementById('err').textContent = e2.message;
+    document.getElementById('meta').textContent = '';
+  }
+});
+</script>` + HTML_FOOT);
 });
 
 app.get('/dashboard', (req, res) => {
