@@ -140,10 +140,11 @@ if (in_array($page_slug, array('about', 'about-us', 'our-story'))) {
     $special_page = 'about';
 } elseif (in_array($page_slug, array('contact', 'contact-us', 'get-in-touch'))) {
     $special_page = 'contact';
-} elseif (in_array($page_slug, array('terms', 'terms-and-conditions', 'terms-of-service'))) {
-    $special_page = 'terms';
-} elseif (in_array($page_slug, array('privacy', 'privacy-policy'))) {
-    $special_page = 'privacy';
+// Terms / Privacy: skip the special-page hero rendering — render as plain
+// Pro Builder content (falls through to the empty $special_page branch
+// below, which just runs the_content() inside gas-burger-content).
+// Steve created Text Box sections at the top of these pages and doesn't
+// want the auto-generated <h1> hero above them.
 } elseif (in_array($page_slug, array('blog', 'news', 'journal', 'posts'))) {
     $special_page = 'blog';
 } elseif (in_array($page_slug, array('attractions', 'things-to-do', 'explore', 'local-area', 'area-guide'))) {
