@@ -1,7 +1,12 @@
 </main>
 
 <?php
-$api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+// gas_burger_get_api_settings() lives in functions.php — uniquely named so it
+// cannot collide with developer_get_api_settings() on dev-light/dev-dark.
+// developer_get_api_settings is preserved as a secondary fallback in case
+// the theme is ever loaded on a site where the function exists from elsewhere.
+$api = function_exists('gas_burger_get_api_settings') ? gas_burger_get_api_settings()
+     : (function_exists('developer_get_api_settings') ? developer_get_api_settings() : array());
 $site_name = $api['site_name'] ?? get_bloginfo('name');
 $footer_layout = $api['footer_layout'] ?? 'default';
 
