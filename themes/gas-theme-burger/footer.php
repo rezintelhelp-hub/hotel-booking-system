@@ -2,6 +2,8 @@
 
 <?php
 $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+// Match the burger header.php fallback chain — get_bloginfo first so the
+// footer copyright stays aligned with the header logo's alt text.
 $site_name = $api['site_name'] ?? get_bloginfo('name');
 $footer_layout = $api['footer_layout'] ?? 'default';
 

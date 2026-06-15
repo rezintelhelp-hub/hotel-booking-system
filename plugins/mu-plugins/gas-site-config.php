@@ -108,8 +108,14 @@ if (!function_exists('developer_get_api_settings')) {
         // Flatten the slice of fields the burger theme footer.php and
         // header.php read. Add more keys here as other themes adopt the
         // mu-plugin pattern.
+        //
+        // DELIBERATELY NOT setting site_name / cta_text / cta_link /
+        // header_logo_image. The burger header.php reads those four keys
+        // and falls back to get_bloginfo('name') / 'Book Now' /
+        // '/book-now/' / WP custom_logo respectively. Leaving them
+        // undefined here preserves the pre-mu-plugin header behaviour
+        // exactly — the header was working before, don't touch it.
         return array(
-            'site_name' => $cfg['name'] ?? get_bloginfo('name'),
             'primary_color' => $branding['primary_color'] ?? '#FF931E',
             'currency' => $cfg['currency'] ?? 'GBP',
             'language' => $lang,
