@@ -136,7 +136,7 @@ $social = array(
                 foreach ($social as $data) if (!empty($data['url'])) { $has_social = true; break; }
                 if ($has_social) :
                 ?>
-                <h4 style="margin: 1rem 0 0.5rem; font-size: 1rem; color: <?php echo esc_attr($footer_text); ?>;">Follow Us</h4>
+                <h4 style="margin: 1rem 0 0.5rem; font-size: 1rem; color: <?php echo esc_attr($footer_text); ?> !important;">Follow Us</h4>
                 <div class="gas-burger-footer-bcn-social" style="display: flex; gap: 0.75rem;">
                     <?php foreach ($social as $platform => $data) :
                         if (!empty($data['url'])) : ?>
