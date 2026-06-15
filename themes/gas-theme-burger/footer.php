@@ -23,10 +23,17 @@ $company_label = $api['footer_company_number_label'] ?? '';
 $tax_number = $api['footer_tax_number'] ?? '';
 $tax_label = $api['footer_tax_number_label'] ?? '';
 
-// Legal pages — Terms and Privacy always shown, Impressum only if enabled
+// Legal pages — Terms and Privacy always shown. Operator can override the
+// URLs via Pro Builder Header & Footer panel (Terms link / Privacy link).
+// Blank → use hardcoded /terms/ + /privacy-policy/ defaults. Configured
+// values can be absolute https URLs or relative slugs (with leading slash).
+$terms_url   = !empty($api['footer_terms_url'])   ? $api['footer_terms_url']   : '/terms/';
+$privacy_url = !empty($api['footer_privacy_url']) ? $api['footer_privacy_url'] : '/privacy-policy/';
+// If relative, expand with home_url(); if absolute (http(s)://) use as-is.
+$resolve_url = function($u) { return preg_match('#^https?://#i', $u) ? $u : home_url($u); };
 $legal_links = array();
-$legal_links[] = array('url' => home_url('/terms/'), 'label' => 'Terms & Conditions');
-$legal_links[] = array('url' => home_url('/privacy-policy/'), 'label' => 'Privacy Policy');
+$legal_links[] = array('url' => $resolve_url($terms_url),   'label' => 'Terms & Conditions');
+$legal_links[] = array('url' => $resolve_url($privacy_url), 'label' => 'Privacy Policy');
 if (!empty($api['page_impressum_enabled'])) $legal_links[] = array('url' => home_url('/impressum/'), 'label' => 'Impressum');
 
 // Social — reused by both layouts.
@@ -56,6 +63,10 @@ $social = array(
     // image is clickable; if only image set, it's a static logo.
     $brand_image_2 = $api['footer_brand_image_2_url'] ?? '';
     $brand_link_2 = $api['footer_brand_link_2'] ?? '';
+    // Contact column title — operator-configurable in Pro Builder. Falls
+    // back to '' (renders nothing) when blank so the column doesn't get
+    // an unwanted generic site-name heading.
+    $contact_title = !empty($api['footer_contact_title']) ? $api['footer_contact_title'] : '';
     $address = $api['contact_address'] ?? '';
     $phone = $api['contact_phone'] ?? '';
     $email = $api['contact_email'] ?? '';
@@ -102,7 +113,9 @@ $social = array(
             <!-- Column 2: Contact + social -->
             <div class="gas-burger-footer-bcn-col gas-burger-footer-contact">
                 <p style="margin: 0 0 1rem; line-height: 1.6;">
-                    <strong style="display: block; margin-bottom: 0.5rem;"><?php echo esc_html($site_name); ?></strong>
+                    <?php if (!empty($contact_title)) : ?>
+                        <strong style="display: block; margin-bottom: 0.5rem;"><?php echo esc_html($contact_title); ?></strong>
+                    <?php endif; ?>
                     <?php if (!empty($address)) : ?><?php echo wp_kses_post(nl2br(esc_html($address))); ?><?php endif; ?>
                 </p>
                 <?php if (!empty($phone)) : ?>
@@ -134,7 +147,7 @@ $social = array(
             <!-- Column 3: Newsletter signup -->
             <div class="gas-burger-footer-bcn-col gas-burger-footer-newsletter">
                 <?php if ($show_newsletter) : ?>
-                <h4 style="margin: 0 0 0.75rem; font-size: 1rem; color: <?php echo esc_attr($footer_text); ?>;"><?php echo esc_html($newsletter_heading); ?></h4>
+                <h4 style="margin: 0 0 0.75rem; font-size: 1rem; color: <?php echo esc_attr($footer_text); ?> !important;"><?php echo esc_html($newsletter_heading); ?></h4>
                 <form class="gas-burger-newsletter-form" data-endpoint="<?php echo esc_attr($newsletter_endpoint); ?>" data-client-id="<?php echo esc_attr($newsletter_client_id); ?>" onsubmit="return gasBurgerNewsletterSubmit(event);">
                     <input type="email" name="email" required placeholder="<?php echo esc_attr__('Your email', 'gas-burger'); ?>" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); color: <?php echo esc_attr($footer_text); ?>; border-radius: 4px; box-sizing: border-box;">
                     <button type="submit" style="margin-top: 0.5rem; padding: 0.55rem 1.25rem; background: <?php echo esc_attr($api['primary_color'] ?? '#F97224'); ?>; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Submit</button>
