@@ -367,10 +367,13 @@ function gas_burger_get_api_settings() {
         'footer_social_pinterest' => isset($footer['social-pinterest']) ? $footer['social-pinterest'] : '',
         'footer_social_tripadvisor' => isset($footer['social-tripadvisor']) ? $footer['social-tripadvisor'] : '',
 
-        // Contact (middle column for 3-col layout)
-        'contact_address' => isset($contact['address']) ? $contact['address'] : (isset($footer['address']) ? $footer['address'] : ''),
-        'contact_phone' => isset($contact['phone']) ? $contact['phone'] : (isset($footer['phone']) ? $footer['phone'] : ''),
-        'contact_email' => isset($contact['email']) ? $contact['email'] : (isset($footer['email']) ? $footer['email'] : ''),
+        // Contact (middle column for 3-col layout). Uses !empty rather than
+        // isset because the page-contact section can have an EMPTY-string
+        // address while the operator's real value lives in the footer
+        // section. isset('') = true so the empty wins; !empty falls through.
+        'contact_address' => !empty($contact['address']) ? $contact['address'] : (!empty($footer['address']) ? $footer['address'] : ''),
+        'contact_phone'   => !empty($contact['phone'])   ? $contact['phone']   : (!empty($footer['phone'])   ? $footer['phone']   : ''),
+        'contact_email'   => !empty($contact['email'])   ? $contact['email']   : (!empty($footer['email'])   ? $footer['email']   : ''),
 
         // Legal page flags
         'page_impressum_enabled' => !empty($website['page-impressum']['enabled']),
