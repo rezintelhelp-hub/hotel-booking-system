@@ -351,9 +351,14 @@ function gas_burger_get_api_settings() {
         'footer_partner_logo_8' => isset($footer['partner-logo-8-image-url']) ? $footer['partner-logo-8-image-url'] : '',
 
         // 3-col Brand + Contact + Newsletter (new layout)
+        // brand image #1 = the main hostel/business logo (top of column 1)
+        // brand image #2 = the secondary parent-org/charity roundel
+        //                  (below the brand text — rezintel pattern)
         'footer_brand_image_url' => isset($footer['brand-image-url']) ? $footer['brand-image-url'] : '',
         'footer_brand_text' => $ml($footer, 'brand-text', $lang),
         'footer_brand_link' => isset($footer['brand-link']) ? $footer['brand-link'] : '',
+        'footer_brand_image_2_url' => isset($footer['brand-image-2-url']) ? $footer['brand-image-2-url'] : '',
+        'footer_brand_link_2' => isset($footer['brand-link-2']) ? $footer['brand-link-2'] : '',
         'footer_show_newsletter' => !empty($footer['show-newsletter']),
         'footer_newsletter_heading' => $ml($footer, 'newsletter-heading', $lang),
 

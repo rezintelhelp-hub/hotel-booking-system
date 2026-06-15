@@ -51,6 +51,11 @@ $social = array(
     $brand_image = $api['footer_brand_image_url'] ?? '';
     $brand_text = $api['footer_brand_text'] ?? '';
     $brand_link = $api['footer_brand_link'] ?? '';
+    // Secondary brand image — rezintel pattern: smaller parent-org roundel
+    // rendered below the brand text. Optional; if both image+link set, the
+    // image is clickable; if only image set, it's a static logo.
+    $brand_image_2 = $api['footer_brand_image_2_url'] ?? '';
+    $brand_link_2 = $api['footer_brand_link_2'] ?? '';
     $address = $api['contact_address'] ?? '';
     $phone = $api['contact_phone'] ?? '';
     $email = $api['contact_email'] ?? '';
@@ -82,7 +87,15 @@ $social = array(
                     <?php endif; ?>
                 <?php endif; ?>
                 <?php if (!empty($brand_text)) : ?>
-                    <p style="margin: 0; line-height: 1.6; opacity: 0.9;"><?php echo wp_kses_post(nl2br($brand_text)); ?></p>
+                    <p style="margin: 0 0 1rem; line-height: 1.6; opacity: 0.9;"><?php echo wp_kses_post(nl2br($brand_text)); ?></p>
+                <?php endif; ?>
+                <?php if (!empty($brand_image_2)) : ?>
+                    <?php $brand_img2_html = '<img src="' . esc_url($brand_image_2) . '" alt="" style="max-width: 120px; height: auto; display: block;">'; ?>
+                    <?php if (!empty($brand_link_2)) : ?>
+                        <a href="<?php echo esc_url($brand_link_2); ?>" target="_blank" rel="noopener"><?php echo $brand_img2_html; ?></a>
+                    <?php else : ?>
+                        <?php echo $brand_img2_html; ?>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
 
