@@ -110,14 +110,18 @@ $social = array(
                 <?php endif; ?>
             </div>
 
-            <!-- Column 2: Contact + social -->
+            <!-- Column 2: Contact + social. Contact title uses the SAME <h4>
+                 structure + inline style as the Newsletter heading in col 3,
+                 so the two headings align on the same baseline at the top of
+                 their columns (and visually with the top of the logo in col 1
+                 since all three column tops sit on the grid's first row). -->
             <div class="gas-burger-footer-bcn-col gas-burger-footer-contact">
-                <p style="margin: 0 0 1rem; line-height: 1.6;">
-                    <?php if (!empty($contact_title)) : ?>
-                        <strong style="display: block; margin-bottom: 0.5rem;"><?php echo esc_html($contact_title); ?></strong>
-                    <?php endif; ?>
-                    <?php if (!empty($address)) : ?><?php echo wp_kses_post(nl2br(esc_html($address))); ?><?php endif; ?>
-                </p>
+                <?php if (!empty($contact_title)) : ?>
+                    <h4 style="margin: 0 0 0.75rem; font-size: 1rem; color: <?php echo esc_attr($footer_text); ?> !important;"><?php echo esc_html($contact_title); ?></h4>
+                <?php endif; ?>
+                <?php if (!empty($address)) : ?>
+                    <p style="margin: 0 0 1rem; line-height: 1.6;"><?php echo wp_kses_post(nl2br(esc_html($address))); ?></p>
+                <?php endif; ?>
                 <?php if (!empty($phone)) : ?>
                     <p style="margin: 0 0 0.5rem;">T: <a href="tel:<?php echo esc_attr(preg_replace('/[^0-9+]/', '', $phone)); ?>" style="color: <?php echo esc_attr($footer_text); ?>; text-decoration: none;"><?php echo esc_html($phone); ?></a></p>
                 <?php endif; ?>
