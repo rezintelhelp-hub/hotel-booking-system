@@ -7451,8 +7451,12 @@ jQuery(document).ready(function($) {
                             : base * (tax.rate / 100);
                         taxAmt = Math.round(taxAmt * 100) / 100;
                     }
+                    // Inclusive flag → render "(included)" so the row reads as
+                    // informational (the VAT is already inside the room price)
+                    // not "added on top". Avoids the UK-VAT confusion.
+                    var inclusiveLabel = (tax.type === 'total_tax' && tax.inclusive) ? ' <span style="color:#6b7280;font-size:0.85em;">(included)</span>' : '';
                     taxesHtml += '<div class="gas-tax-item">';
-                    taxesHtml += '<span>' + (extractText(tax.name_ml) || tax.name) + '</span>';
+                    taxesHtml += '<span>' + (extractText(tax.name_ml) || tax.name) + inclusiveLabel + '</span>';
                     taxesHtml += '<span>' + formatPrice(taxAmt, currency) + '</span>';
                     taxesHtml += '</div>';
                     // Inclusive Total Tax is already in the prices — don't add again to grandTotal.
