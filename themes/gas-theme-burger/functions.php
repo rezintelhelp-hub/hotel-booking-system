@@ -357,7 +357,8 @@ function gas_burger_get_api_settings() {
         'footer_brand_image_url' => isset($footer['brand-image-url']) ? $footer['brand-image-url'] : '',
         'footer_brand_text' => $ml($footer, 'brand-text', $lang),
         'footer_brand_link' => isset($footer['brand-link']) ? $footer['brand-link'] : '',
-        'footer_brand_image_2_url' => isset($footer['brand-image-2-url']) ? $footer['brand-image-2-url'] : '',
+        // Saved DB key follows the input ID: wb-footer-brand-2-image-url → brand-2-image-url
+        'footer_brand_image_2_url' => isset($footer['brand-2-image-url']) ? $footer['brand-2-image-url'] : '',
         'footer_brand_link_2' => isset($footer['brand-link-2']) ? $footer['brand-link-2'] : '',
         'footer_show_newsletter' => !empty($footer['show-newsletter']),
         'footer_newsletter_heading' => $ml($footer, 'newsletter-heading', $lang),
