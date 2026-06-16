@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.27
+ * Version: 4.2.34
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -8641,6 +8641,7 @@ jQuery(document).ready(function($) {
                 notes: $form.find('[name="notes"]').val(),
                 marketing: $form.find('[name="marketing"]').is(':checked'),
                 sms_consent: $form.find('[name="sms_consent"]').is(':checked'),
+                whatsapp_consent: $form.find('[name="whatsapp_consent"]').is(':checked'),
                 payment_method: 'square',
                 square_source_id: sourceId,
                 square_verification_token: verificationToken || undefined,
@@ -8732,6 +8733,7 @@ jQuery(document).ready(function($) {
                 notes: $form.find('[name="notes"]').val(),
                 marketing: $form.find('[name="marketing"]').is(':checked'),
                 sms_consent: $form.find('[name="sms_consent"]').is(':checked'),
+                whatsapp_consent: $form.find('[name="whatsapp_consent"]').is(':checked'),
                 payment_method: 'card',
                 payment_method_id: paymentMethodId,
                 total_price: checkoutData.grandTotal,
@@ -9034,6 +9036,7 @@ jQuery(document).ready(function($) {
                 notes: $form.find('[name="notes"]').val(),
                 marketing: $form.find('[name="marketing"]').is(':checked'),
                 sms_consent: $form.find('[name="sms_consent"]').is(':checked'),
+                whatsapp_consent: $form.find('[name="whatsapp_consent"]').is(':checked'),
                 payment_method: paymentMethod,
                 total_price: checkoutData.grandTotal,
                 rate_type: checkoutData.rateType,

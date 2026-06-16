@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.33
+ * Version: 4.2.34
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.33');
+define('GAS_BOOKING_VERSION', '4.2.34');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8201,9 +8201,19 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     </div>
                                 </div>
                                 <?php endif; ?>
+                                <!-- WhatsApp opt-in — Meta App Review requires explicit consent capture.
+                                     Always shown when the property's account has WhatsApp configured. -->
+                                <div class="gas-form-row">
+                                    <div class="gas-form-field full-width">
+                                        <label class="gas-checkbox-label">
+                                            <input type="checkbox" name="whatsapp_consent" value="1" />
+                                            <span>📲 I consent to receiving WhatsApp messages about my booking (pre-arrival info, check-in details, payment reminders). You can reply STOP at any time to unsubscribe.</span>
+                                        </label>
+                                    </div>
+                                </div>
                             </form>
                         </div>
-                        
+
                         <div class="gas-checkout-nav">
                             <a href="#" class="gas-add-another-link gas-btn-secondary">← <?php echo esc_html($t_checkout['back'] ?? 'Back'); ?></a>
                             <button type="button" class="gas-btn-primary gas-next-step" data-next="2" style="background:<?php echo esc_attr($button_color); ?>">
