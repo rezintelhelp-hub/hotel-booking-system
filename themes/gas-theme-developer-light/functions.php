@@ -2977,6 +2977,7 @@ function developer_get_api_settings() {
         'featured_bg' => $website_featured['bg'] ?? null,
         'featured_title_color' => $website_featured['title-color'] ?? null,
         'featured_subtitle_color' => $website_featured['subtitle-color'] ?? null,
+        'featured_subtitle_width' => $website_featured['subtitle-width'] ?? '',
         
         // USP "What We Offer" Section - MULTILINGUAL
         'usp_enabled' => $website_usp['enabled'] ?? false,

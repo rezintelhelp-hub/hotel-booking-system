@@ -91,6 +91,14 @@ $featured_columns = $api['featured_columns'] ?? get_theme_mod('developer_feature
 $featured_layout_style = $api['featured_layout_style'] ?? get_theme_mod('developer_featured_layout_style', 'auto');
 $featured_title = $api['featured_title'] ?? get_theme_mod('developer_featured_title', 'Featured Properties');
 $featured_subtitle = $api['featured_subtitle'] ?? get_theme_mod('developer_featured_subtitle', 'Discover our handpicked selection of stunning vacation rentals, each offering unique experiences and exceptional comfort.');
+$featured_subtitle_width = $api['featured_subtitle_width'] ?? '';
+$featured_subtitle_max_width_css = '';
+switch ($featured_subtitle_width) {
+    case 'narrow':  $featured_subtitle_max_width_css = 'max-width:480px;margin-left:auto;margin-right:auto;'; break;
+    case 'medium':  $featured_subtitle_max_width_css = 'max-width:720px;margin-left:auto;margin-right:auto;'; break;
+    case 'wide':    $featured_subtitle_max_width_css = 'max-width:960px;margin-left:auto;margin-right:auto;'; break;
+    case 'full':    $featured_subtitle_max_width_css = 'max-width:100%;'; break;
+}
 $featured_btn_enabled = $api['featured_btn_enabled'] ?? get_theme_mod('developer_featured_btn_enabled', true);
 $featured_btn_text = $api['featured_btn_text'] ?? get_theme_mod('developer_featured_btn_text', 'View All Properties');
 $featured_btn_url = $api['featured_btn_url'] ?? get_theme_mod('developer_featured_btn_url', '/book-now/');
@@ -414,7 +422,7 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
     <div class="developer-container">
         <div class="developer-section-header">
             <h2 style="color: <?php echo esc_attr($featured_title_color); ?>;"><?php echo esc_html($featured_title); ?></h2>
-            <p style="color: <?php echo esc_attr($featured_subtitle_color); ?>;"><?php echo nl2br(esc_html($featured_subtitle)); ?></p>
+            <p style="color: <?php echo esc_attr($featured_subtitle_color); ?>;<?php echo esc_attr($featured_subtitle_max_width_css); ?>"><?php echo nl2br(esc_html($featured_subtitle)); ?></p>
         </div>
         
         <?php 
