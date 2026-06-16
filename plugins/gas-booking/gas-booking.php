@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.30
+ * Version: 4.2.31
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.30');
+define('GAS_BOOKING_VERSION', '4.2.31');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -10211,6 +10211,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
 
                 <div class="gas-portal-current-booking" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem;"></div>
 
+                <!-- Access Code card — door PIN / key code, gated by info_complete + paid + arrival reached -->
+                <div class="gas-portal-access-code" style="display:none;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem;"></div>
+
                 <details class="gas-portal-arrival" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:1rem;display:none;">
                     <summary style="cursor:pointer;padding:1rem;font-weight:600;font-size:0.95rem;">Pre-arrival information</summary>
                     <div class="gas-portal-arrival-body" style="padding:0 1rem 1rem;font-size:0.9rem;color:#374151;line-height:1.5;"></div>
@@ -10449,6 +10452,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     + '<div style="margin-top:0.5rem;font-size:0.85rem;color:#64748b;">Ref: GAS-' + b.id + (b.channel ? ' · via ' + b.channel : '') + '</div>'
                     + balanceLine;
 
+                // Access Code card — gated by info_complete + paid + arrival reached
+                gasPortalRenderAccessCode(root, b);
+
                 // Pre-arrival info card — only render if at least one field is set
                 var arrivalParts = [];
                 if (b.check_in_from || b.check_in_until || b.check_in_time) {
@@ -10498,6 +10504,53 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         }).join('')
                         + '</div>';
                 }
+            }
+
+            // Access Code card — renders the locked/unlocked door PIN. Three gates:
+            // info_complete + payment received + arrival reached. When all green +
+            // a code is set, show it with a copy button. When any is red, show a
+            // checklist + a "Mark info complete" CTA if that's the missing piece.
+            function gasPortalRenderAccessCode(root, b) {
+                var card = root.querySelector('.gas-portal-access-code');
+                if (!card) return;
+                var req = b.access_code_requirements || {};
+                if (!req.code_set) { card.style.display = 'none'; return; }
+                card.style.display = '';
+                if (b.access_code_unlocked && b.access_code) {
+                    card.style.background = 'linear-gradient(135deg,#dcfce7 0%,#bbf7d0 100%)';
+                    card.style.border = '1px solid #4ade80';
+                    card.innerHTML =
+                        '<div style="font-size:0.8rem;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">🔓 Access Code</div>'
+                        + '<div style="font-family:ui-monospace,monospace;font-size:2.2rem;font-weight:700;color:#14532d;margin:0.5rem 0;letter-spacing:0.1em;">'
+                        + String(b.access_code).replace(/[<>&"]/g, function(c){ return ({"<":"&lt;",">":"&gt;","&":"&amp;","\"":"&quot;"})[c]; }) + '</div>'
+                        + '<button type="button" onclick="(function(btn){var t=btn.parentNode.querySelector(\'[data-code]\').dataset.code;try{navigator.clipboard.writeText(t);btn.textContent=\'✓ Copied\';setTimeout(function(){btn.textContent=\'📋 Copy\';},2000);}catch(e){}})(this)" style="padding:0.4rem 0.8rem;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">📋 Copy</button>'
+                        + '<span data-code="' + String(b.access_code).replace(/[<>&"]/g, function(c){ return ({"<":"&lt;",">":"&gt;","&":"&amp;","\"":"&quot;"})[c]; }) + '" style="display:none;"></span>';
+                } else {
+                    card.style.background = '#fef3c7';
+                    card.style.border = '1px solid #fcd34d';
+                    var items = [];
+                    items.push('<li style="padding:0.25rem 0;">' + (req.info_complete ? '✅' : '⏳') + ' Complete your pre-arrival info' + (!req.info_complete ? ' <button type="button" onclick="gasPortalMarkInfoComplete(this)" style="margin-left:0.5rem;padding:0.2rem 0.6rem;background:#f59e0b;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.75rem;">Mark complete</button>' : '') + '</li>');
+                    items.push('<li style="padding:0.25rem 0;">' + (req.payment_received ? '✅' : '⏳') + ' Payment received</li>');
+                    items.push('<li style="padding:0.25rem 0;">' + (req.arrival_reached ? '✅' : '⏳') + ' Check-in date reached</li>');
+                    card.innerHTML =
+                        '<div style="font-size:0.8rem;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">🔒 Access Code — Locked</div>'
+                        + '<p style="margin:0.5rem 0 0.75rem;color:#78350f;font-size:0.9rem;">Your door code unlocks once the items below are complete.</p>'
+                        + '<ul style="list-style:none;padding:0;margin:0;font-size:0.9rem;color:#78350f;">' + items.join('') + '</ul>';
+                }
+            }
+
+            function gasPortalMarkInfoComplete(btn) {
+                var root = btn.closest('.gas-portal-step').parentNode;
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                btn.disabled = true; btn.textContent = 'Saving…';
+                fetch(apiUrl + '/api/public/portal/mark-info-complete', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token })
+                }).then(function(r){ return r.json(); }).then(function(d){
+                    if (d.success) gasPortalLoadDashboard(root);
+                    else { btn.disabled = false; btn.textContent = 'Mark complete'; alert('Could not mark complete: ' + (d.error || '')); }
+                }).catch(function(err){ btn.disabled = false; btn.textContent = 'Mark complete'; alert('Error: ' + err.message); });
             }
 
             function travellerComplete(t) {
