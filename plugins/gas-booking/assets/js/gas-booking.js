@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.27
+ * Version: 4.2.34
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -8868,6 +8868,23 @@ jQuery(document).ready(function($) {
 
         // Show booking confirmation — shared by both payment flows
         function showBookingConfirmation(response, $btn) {
+            // WhatsApp opt-in: if the guest ticked the consent checkbox at
+            // checkout, persist consent via a separate request. Intentionally
+            // NOT bundled into /api/public/book — keeps that endpoint stable
+            // and a failure here can't block confirmation rendering.
+            try {
+                var bookingId = (response.booking && response.booking.id) || response.booking_id;
+                var consent = $('input[name="whatsapp_consent"]').is(':checked');
+                if (bookingId && consent && checkoutData.apiUrl) {
+                    $.ajax({
+                        url: checkoutData.apiUrl + '/api/public/whatsapp/consent',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ booking_id: bookingId, consent: true })
+                    });
+                }
+            } catch (e) { /* non-fatal — consent capture is best-effort */ }
+
             localStorage.removeItem('gas_hostvana_bookingId');
             // Cart's done — clear it so the floating header button vanishes
             // and the next visit starts fresh. Handles bike-storage standalone

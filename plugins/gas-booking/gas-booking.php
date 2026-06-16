@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.33
+ * Version: 4.2.34
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.33');
+define('GAS_BOOKING_VERSION', '4.2.34');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8179,6 +8179,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     </div>
                                 </div>
                                 <?php endif; ?>
+                                <div class="gas-form-row">
+                                    <div class="gas-form-field full-width">
+                                        <label class="gas-checkbox-label">
+                                            <input type="checkbox" name="whatsapp_consent" value="1" />
+                                            <span>I agree to receive WhatsApp messages about my booking (confirmation, check-in info, door codes). Reply STOP or use the unsubscribe link in any message to opt out.</span>
+                                        </label>
+                                    </div>
+                                </div>
                                 <?php if (!empty($checkout_settings['sms_consent_enabled'])): ?>
                                 <div class="gas-form-row">
                                     <div class="gas-form-field full-width">
