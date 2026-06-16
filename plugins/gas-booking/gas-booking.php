@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.32
+ * Version: 4.2.33
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.32');
+define('GAS_BOOKING_VERSION', '4.2.33');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -10547,8 +10547,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 }
             }
 
-            function gasPortalMarkInfoComplete(btn) {
-                var root = btn.closest('.gas-portal-step').parentNode;
+            window.gasPortalMarkInfoComplete = function(btn) {
+                var root = btn.closest('.gas-portal');
+                if (!root) return;
                 var apiUrl = root.dataset.apiUrl;
                 var token = sessionStorage.getItem('gas_portal_token');
                 btn.disabled = true; btn.textContent = 'Saving…';
@@ -10559,7 +10560,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     if (d.success) gasPortalLoadDashboard(root);
                     else { btn.disabled = false; btn.textContent = 'Mark complete'; alert('Could not mark complete: ' + (d.error || '')); }
                 }).catch(function(err){ btn.disabled = false; btn.textContent = 'Mark complete'; alert('Error: ' + err.message); });
-            }
+            };
 
             function travellerComplete(t) {
                 return !!(t.first_name && t.last_name && t.date_of_birth && t.nationality && t.passport_number);
