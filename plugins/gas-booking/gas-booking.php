@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.34
+ * Version: 4.2.35
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.34');
+define('GAS_BOOKING_VERSION', '4.2.35');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -553,6 +553,20 @@ class GAS_Booking {
                 'default_title' => 'Guest Portal',
                 'shortcode' => '[gas_portal]',
                 'default_menu_order' => 95,
+                'parent_slug' => null,
+                'template' => ''
+            ),
+            // /cart/ is JS-hardcoded as the post-add-to-cart landing page
+            // (gasCartCheckoutUrl in gas-booking.js). Without this entry the
+            // page never gets auto-created on a fresh sync, and any guest
+            // who adds an item to the cart hits a 404. Backfilled across all
+            // 40 existing multisite clients on 2026-06-17 via WP-CLI; this
+            // entry makes future sites auto-create on first sync.
+            'page-cart' => array(
+                'slug' => 'cart',
+                'default_title' => 'Cart',
+                'shortcode' => '[gas_cart]',
+                'default_menu_order' => 99,
                 'parent_slug' => null,
                 'template' => ''
             ),
