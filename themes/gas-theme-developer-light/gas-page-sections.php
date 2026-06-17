@@ -463,6 +463,78 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 </section>
                 <?php endif; break;
 
+            case 'reviews':
+                // Pro Builder Reviews section. Source can be:
+                //   'app'         — defer to Web Builder's reviews.use-app
+                //                   (repuso / hostaway / gas_reviews) + its app-code
+                //   'gas_reviews' — pull from GAS direct reviews
+                //   'repuso'      — pull via app-code stored on Web Builder
+                //   'hostaway'    — pull via reviews_hostaway_id
+                // Without a renderer case for 'reviews' this section silently
+                // dropped to nothing — site /reviews/ rendered an empty <main>.
+                $review_source = $section['review_source'] ?? 'app';
+                $api_for_reviews = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+                $resolved_source = ($review_source === 'app') ? ($api_for_reviews['reviews_use_app'] ?? '') : $review_source;
+                $repuso_widget = $api_for_reviews['reviews_app_code'] ?? '';
+                $hostaway_pid = $api_for_reviews['reviews_hostaway_id'] ?? '';
+                $client_id_for_reviews = get_option('gas_client_id', '');
+                $api_url_for_reviews = get_option('gas_api_url', 'https://admin.gas.travel');
+                $rev_endpoint = '';
+                if ($resolved_source === 'repuso' && $repuso_widget) {
+                    $rev_endpoint = $api_url_for_reviews . '/api/public/repuso-reviews?widget_id=' . urlencode($repuso_widget) . '&limit=12';
+                } elseif ($resolved_source === 'hostaway' && $hostaway_pid) {
+                    $rev_endpoint = $api_url_for_reviews . '/api/public/hostaway-reviews?property_id=' . urlencode($hostaway_pid) . '&limit=12';
+                } elseif ($resolved_source === 'gas_reviews' && $client_id_for_reviews) {
+                    $rev_endpoint = $api_url_for_reviews . '/api/public/client/' . urlencode($client_id_for_reviews) . '/reviews?limit=12';
+                }
+                $reviews_data = array();
+                if ($rev_endpoint) {
+                    $rev_resp = wp_remote_get($rev_endpoint, array('timeout' => 10, 'sslverify' => false));
+                    if (!is_wp_error($rev_resp)) {
+                        $rev_body = json_decode(wp_remote_retrieve_body($rev_resp), true);
+                        if (!empty($rev_body['reviews'])) {
+                            foreach ($rev_body['reviews'] as $r) {
+                                $reviews_data[] = array(
+                                    'name'   => $r['reviewer_name'] ?? $r['guest_name'] ?? 'Guest',
+                                    'text'   => $r['text'] ?? $r['comment'] ?? '',
+                                    'rating' => intval($r['rating'] ?? 5),
+                                    'date'   => $r['date'] ?? $r['review_date'] ?? '',
+                                    'source' => $r['source'] ?? $r['channel_name'] ?? '',
+                                );
+                            }
+                        }
+                    }
+                }
+                if (!empty($reviews_data)) :
+                    $rev_section_bg = !empty($bg_col) ? esc_attr($bg_col) : '#0f172a';
+                    $rev_card_bg = !empty($section['card_bg']) ? esc_attr($section['card_bg']) : '#1e293b';
+                    $rev_text_color = !empty($section['text_color']) ? esc_attr($section['text_color']) : '#ffffff';
+                    $rev_card_text = !empty($section['card_text_color']) ? esc_attr($section['card_text_color']) : '#e2e8f0';
+                    $rev_star_color = !empty($section['star_color']) ? esc_attr($section['star_color']) : '#fbbf24';
+                    $rev_card_radius = isset($section['card_radius']) ? intval($section['card_radius']) : 12;
+                    ?>
+                    <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-reviews" style="padding: 60px 24px; background: <?php echo $rev_section_bg; ?>;">
+                        <div style="max-width: 1200px; margin: 0 auto;">
+                            <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: <?php echo $rev_text_color; ?>; margin: 0 0 32px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
+                            <div class="gas-ps-reviews-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
+                                <?php foreach ($reviews_data as $rev) :
+                                    $r_rating = max(1, min(5, $rev['rating'] ?: 5));
+                                    $r_stars  = str_repeat('★', $r_rating) . str_repeat('☆', 5 - $r_rating);
+                                    $r_date   = !empty($rev['date']) ? date('M Y', strtotime($rev['date'])) : '';
+                                    $r_meta   = trim($rev['source'] . (($rev['source'] && $r_date) ? ' · ' : '') . $r_date);
+                                    ?>
+                                    <div style="background: <?php echo $rev_card_bg; ?>; padding: 24px; border-radius: <?php echo $rev_card_radius; ?>px; color: <?php echo $rev_card_text; ?>;">
+                                        <div style="margin-bottom: 12px; color: <?php echo $rev_star_color; ?>; font-size: 1.1rem; letter-spacing: 2px;"><?php echo $r_stars; ?></div>
+                                        <?php if (!empty($rev['text'])) : ?><p style="font-size: 0.95rem; line-height: 1.6; margin: 0 0 16px;"><?php echo esc_html(mb_strimwidth($rev['text'], 0, 280, '…')); ?></p><?php endif; ?>
+                                        <div style="font-weight: 600;"><?php echo esc_html($rev['name']); ?></div>
+                                        <?php if ($r_meta) : ?><div style="font-size: 0.8rem; opacity: 0.7; margin-top: 4px;"><?php echo esc_html($r_meta); ?></div><?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </section>
+                <?php endif; break;
+
             case 'map':
                 $lat = $section['latitude'] ?? '';
                 $lng = $section['longitude'] ?? '';
