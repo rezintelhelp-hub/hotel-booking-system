@@ -512,11 +512,17 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                     $rev_card_text = !empty($section['card_text_color']) ? esc_attr($section['card_text_color']) : '#e2e8f0';
                     $rev_star_color = !empty($section['star_color']) ? esc_attr($section['star_color']) : '#fbbf24';
                     $rev_card_radius = isset($section['card_radius']) ? intval($section['card_radius']) : 12;
+                    $rev_btn_color = !empty($api_for_reviews['primary_color']) ? esc_attr($api_for_reviews['primary_color']) : $rev_star_color;
+                    $rev_btn_text = '#ffffff';
+                    $rev_btn_radius = isset($api_for_reviews['btn_radius']) ? intval($api_for_reviews['btn_radius']) : 8;
+                    $rev_uid = uniqid('rev_');
+                    $rev_initial_count = count($reviews_data);
+                    $rev_per_page = 12;
                     ?>
                     <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-reviews" style="padding: 60px 24px; background: <?php echo $rev_section_bg; ?>;">
                         <div style="max-width: 1200px; margin: 0 auto;">
                             <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: <?php echo $rev_text_color; ?>; margin: 0 0 32px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
-                            <div class="gas-ps-reviews-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
+                            <div id="<?php echo $rev_uid; ?>-grid" class="gas-ps-reviews-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
                                 <?php foreach ($reviews_data as $rev) :
                                     $r_rating = max(1, min(5, $rev['rating'] ?: 5));
                                     $r_stars  = str_repeat('★', $r_rating) . str_repeat('☆', 5 - $r_rating);
@@ -531,6 +537,69 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                                     </div>
                                 <?php endforeach; ?>
                             </div>
+                            <?php if ($rev_endpoint && $rev_initial_count >= $rev_per_page) : ?>
+                            <div id="<?php echo $rev_uid; ?>-wrap" style="text-align: center; margin-top: 2.5rem;">
+                                <button id="<?php echo $rev_uid; ?>-btn" type="button"
+                                    style="display: inline-block; padding: 14px 36px; background: <?php echo $rev_btn_color; ?>; color: <?php echo $rev_btn_text; ?>; border: 0; border-radius: <?php echo $rev_btn_radius; ?>px; font-weight: 600; font-size: 1rem; cursor: pointer; transition: opacity 0.3s ease;">
+                                    Load More Reviews
+                                </button>
+                            </div>
+                            <script>
+                            (function() {
+                                var offset = <?php echo $rev_initial_count; ?>;
+                                var perPage = <?php echo $rev_per_page; ?>;
+                                var endpoint = <?php echo json_encode($rev_endpoint); ?>;
+                                var cardBg = <?php echo json_encode($rev_card_bg); ?>;
+                                var cardText = <?php echo json_encode($rev_card_text); ?>;
+                                var starColor = <?php echo json_encode($rev_star_color); ?>;
+                                var cardRadius = <?php echo intval($rev_card_radius); ?>;
+                                var grid = document.getElementById('<?php echo $rev_uid; ?>-grid');
+                                var btn  = document.getElementById('<?php echo $rev_uid; ?>-btn');
+                                var wrap = document.getElementById('<?php echo $rev_uid; ?>-wrap');
+                                btn.addEventListener('click', function() {
+                                    btn.textContent = 'Loading…';
+                                    btn.disabled = true;
+                                    var sep = endpoint.indexOf('?') !== -1 ? '&' : '?';
+                                    fetch(endpoint + sep + 'limit=' + perPage + '&offset=' + offset)
+                                        .then(function(r) { return r.json(); })
+                                        .then(function(data) {
+                                            var items = (data && data.reviews) || [];
+                                            if (items.length === 0) { wrap.style.display = 'none'; return; }
+                                            items.forEach(function(rev) {
+                                                var rating = Math.round(parseFloat(rev.rating) || 5);
+                                                var scale = parseFloat(rev.rating_scale) || 5;
+                                                if (scale > 5) rating = Math.round(rating / 2);
+                                                rating = Math.min(Math.max(rating, 0), 5);
+                                                var stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
+                                                var name = rev.reviewer_name || rev.guest_name || 'Guest';
+                                                var text = rev.text || rev.comment || '';
+                                                if (text.length > 280) text = text.substring(0, 280) + '…';
+                                                var source = rev.source || rev.channel_name || '';
+                                                var dateStr = rev.date || rev.review_date || '';
+                                                if (dateStr) { var d = new Date(dateStr); if (!isNaN(d)) dateStr = d.toLocaleDateString('en-GB', { year: 'numeric', month: 'short' }); }
+                                                var meta = dateStr + (source ? (dateStr ? ' · ' : '') + source : '');
+                                                var card = document.createElement('div');
+                                                card.style.cssText = 'background:' + cardBg + ';padding:24px;border-radius:' + cardRadius + 'px;color:' + cardText + ';opacity:0;transform:translateY(12px);transition:all .4s ease;';
+                                                card.innerHTML = '<div style="margin-bottom:12px;color:' + starColor + ';font-size:1.1rem;letter-spacing:2px;">' + stars + '</div>'
+                                                    + (text ? '<p style="font-size:0.95rem;line-height:1.6;margin:0 0 16px;">"' + text.replace(/</g, '&lt;') + '"</p>' : '')
+                                                    + '<div style="font-weight:600;">' + name.replace(/</g, '&lt;') + '</div>'
+                                                    + (meta ? '<div style="font-size:0.8rem;opacity:0.7;margin-top:4px;">' + meta + '</div>' : '');
+                                                grid.appendChild(card);
+                                                setTimeout(function() { card.style.opacity = '1'; card.style.transform = 'translateY(0)'; }, 50);
+                                            });
+                                            offset += items.length;
+                                            btn.textContent = 'Load More Reviews';
+                                            btn.disabled = false;
+                                            if (items.length < perPage) wrap.style.display = 'none';
+                                        })
+                                        .catch(function() {
+                                            btn.textContent = 'Load More Reviews';
+                                            btn.disabled = false;
+                                        });
+                                });
+                            })();
+                            </script>
+                            <?php endif; ?>
                         </div>
                     </section>
                 <?php endif; break;
