@@ -128,6 +128,19 @@
     }
 
     if (setupIntent && setupIntent.status === 'succeeded') {
+      // Tell the server to pin the PM immediately, in case the
+      // setup_intent.succeeded webhook is misconfigured or lagging. The
+      // server validates the SetupIntent belongs to this account's
+      // customer before writing.
+      try {
+        await fetch('/api/public/billing-setup/confirm?token=' + encodeURIComponent(token), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ setup_intent_id: setupIntent.id })
+        });
+      } catch (e) {
+        console.warn('confirm hop failed (webhook fallback will recover):', e);
+      }
       btn.style.display = 'none';
       showMsg('✓ Card saved successfully. You can close this window — GAS Travel can now charge your card for subscription and usage.', 'success');
       return;
