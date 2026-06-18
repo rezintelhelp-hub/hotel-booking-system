@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Set up billing — GAS Travel</title>
+<script src="https://js.stripe.com/v3/"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0; min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #635bff 0%, #4f46e5 100%);
+    color: #0f172a;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card {
+    background: #fff; border-radius: 16px; padding: 40px;
+    max-width: 480px; width: calc(100% - 32px); margin: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  }
+  .logo { font-size: 1.5rem; font-weight: 700; color: #635bff; margin-bottom: 8px; }
+  h1 { font-size: 1.5rem; margin: 0 0 8px; color: #0f172a; }
+  .lede { color: #64748b; font-size: 0.95rem; margin: 0 0 24px; line-height: 1.5; }
+  .account-line { background: #f1f5f9; border-radius: 8px; padding: 12px 14px; margin-bottom: 24px; font-size: 0.9rem; color: #475569; }
+  .account-line strong { color: #0f172a; }
+  label { display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 8px; }
+  #payment-element { margin-bottom: 24px; }
+  button {
+    width: 100%; padding: 14px; background: #635bff; color: #fff;
+    border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;
+    cursor: pointer; transition: background 0.15s;
+  }
+  button:hover:not(:disabled) { background: #4f46e5; }
+  button:disabled { background: #94a3b8; cursor: not-allowed; }
+  .msg { margin-top: 16px; padding: 12px 14px; border-radius: 8px; font-size: 0.9rem; }
+  .msg.error { background: #fee2e2; color: #b91c1c; }
+  .msg.success { background: #d1fae5; color: #047857; }
+  .footer { margin-top: 24px; font-size: 0.75rem; color: #94a3b8; text-align: center; line-height: 1.5; }
+  .footer .lock::before { content: '🔒 '; }
+  #loading { text-align: center; color: #64748b; padding: 40px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">GAS Travel</div>
+    <h1>Set up your card on file</h1>
+    <p class="lede">Add your card so we can charge your GAS Travel subscription and any usage-based fees automatically.</p>
+
+    <div id="loading">Loading secure form…</div>
+
+    <div id="form-area" style="display:none;">
+      <div class="account-line" id="account-line"></div>
+      <form id="payment-form">
+        <label for="payment-element">Card details</label>
+        <div id="payment-element"></div>
+        <button id="submit-btn" type="submit">Save card</button>
+      </form>
+      <div id="msg" class="msg" style="display:none;"></div>
+    </div>
+
+    <div class="footer">
+      <span class="lock">Card is securely held by Stripe — GAS Travel never sees your card details.</span>
+    </div>
+  </div>
+
+<script>
+(async function () {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  const loadingEl = document.getElementById('loading');
+  const formArea = document.getElementById('form-area');
+  const accountLine = document.getElementById('account-line');
+  const msgEl = document.getElementById('msg');
+  const btn = document.getElementById('submit-btn');
+
+  function showMsg(text, type) {
+    msgEl.textContent = text;
+    msgEl.className = 'msg ' + (type || 'error');
+    msgEl.style.display = 'block';
+  }
+
+  if (!token) {
+    loadingEl.textContent = 'This link is missing its security token. Please request a new one.';
+    return;
+  }
+
+  let init;
+  try {
+    const res = await fetch('/api/public/billing-setup/init?token=' + encodeURIComponent(token));
+    init = await res.json();
+    if (!init.success) throw new Error(init.error || 'Could not load setup');
+  } catch (e) {
+    loadingEl.textContent = 'This link is no longer valid: ' + e.message;
+    return;
+  }
+
+  accountLine.innerHTML = 'Setting up card for <strong>' + (init.account_name || 'your account') + '</strong>'
+    + (init.account_email ? ' &middot; ' + init.account_email : '');
+
+  const stripe = Stripe(init.publishable_key);
+  const elements = stripe.elements({
+    clientSecret: init.client_secret,
+    appearance: { theme: 'stripe', variables: { colorPrimary: '#635bff', borderRadius: '8px' } }
+  });
+  const paymentElement = elements.create('payment');
+  paymentElement.mount('#payment-element');
+
+  loadingEl.style.display = 'none';
+  formArea.style.display = 'block';
+
+  document.getElementById('payment-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    msgEl.style.display = 'none';
+
+    const { error, setupIntent } = await stripe.confirmSetup({
+      elements,
+      redirect: 'if_required'
+    });
+
+    if (error) {
+      showMsg(error.message || 'We could not save your card. Please try again.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Save card';
+      return;
+    }
+
+    if (setupIntent && setupIntent.status === 'succeeded') {
+      btn.style.display = 'none';
+      showMsg('✓ Card saved successfully. You can close this window — GAS Travel can now charge your card for subscription and usage.', 'success');
+      return;
+    }
+
+    showMsg('Saved. If the page does not update, please refresh.', 'success');
+  });
+})();
+</script>
+</body>
+</html>
