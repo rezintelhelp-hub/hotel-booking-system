@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.36
+ * Version: 4.2.37
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.36');
+define('GAS_BOOKING_VERSION', '4.2.37');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8165,8 +8165,15 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                         <input type="text" name="city" placeholder="London" />
                                     </div>
                                     <div class="gas-form-field">
-                                        <label><?php echo esc_html($t_checkout['postcode'] ?? $t_guest['postcode'] ?? 'Postcode'); ?> <span class="optional">(<?php echo esc_html($t_checkout['optional'] ?? 'optional'); ?>)</span></label>
-                                        <input type="text" name="postcode" placeholder="SW1A 1AA" />
+                                        <label><?php echo esc_html($t_checkout['state'] ?? $t_guest['state'] ?? 'State / County'); ?> <span class="optional">(<?php echo esc_html($t_checkout['optional'] ?? 'optional'); ?>)</span></label>
+                                        <input type="text" name="state" placeholder="Oxfordshire / VT / NSW" />
+                                    </div>
+                                </div>
+
+                                <div class="gas-form-row">
+                                    <div class="gas-form-field full-width">
+                                        <label><?php echo esc_html($t_checkout['postcode'] ?? $t_guest['postcode'] ?? 'Post / Zip Code'); ?> <span class="optional">(<?php echo esc_html($t_checkout['optional'] ?? 'optional'); ?>)</span></label>
+                                        <input type="text" name="postcode" placeholder="SW1A 1AA / 05751 / 2000" />
                                     </div>
                                 </div>
                                 
@@ -8193,6 +8200,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     </div>
                                 </div>
                                 <?php endif; ?>
+                                <?php /* WhatsApp consent checkbox HIDDEN pending Meta App Review approval —
+                                         do not surface to guests until both whatsapp_business_messaging
+                                         and business_management permissions are approved by Meta. The
+                                         /api/public/whatsapp/consent endpoint still exists for when
+                                         we re-enable. (Hidden 2026-06-18 per Steve.)
                                 <div class="gas-form-row">
                                     <div class="gas-form-field full-width">
                                         <label class="gas-checkbox-label">
@@ -8201,6 +8213,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                         </label>
                                     </div>
                                 </div>
+                                */ ?>
                                 <?php if (!empty($checkout_settings['sms_consent_enabled'])): ?>
                                 <div class="gas-form-row">
                                     <div class="gas-form-field full-width">
