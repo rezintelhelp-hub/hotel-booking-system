@@ -1975,6 +1975,17 @@ jQuery(document).ready(function($) {
                         generalHtml += '<div class="gas-terms-text">' + String(terms.general_terms_text).replace(/\n/g, '<br>') + '</div>';
                     }
 
+                    // Property documents (PDFs from gas_media_library) — surfaced
+                    // as download buttons inside General Terms. Operator manages
+                    // these in Edit Property → Documents.
+                    if (Array.isArray(terms.documents) && terms.documents.length) {
+                        generalHtml += '<div class="gas-terms-docs" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;">';
+                        terms.documents.forEach(function(d) {
+                            generalHtml += '<a href="' + d.file_url + '" target="_blank" rel="noopener" class="gas-terms-doc-btn" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500;">📄 ' + d.file_name + '</a>';
+                        });
+                        generalHtml += '</div>';
+                    }
+
                     $('.gas-general-terms').html(generalHtml);
                     
                     // Build House Rules content

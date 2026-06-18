@@ -2689,3 +2689,110 @@ button:active, .gas-view-btn:active, .gas-search-button:active, .gas-book-btn:ac
     background-clip: padding-box !important;
     color: #064e3b !important;
 }
+
+/* ==========================================================================
+   Column-aware overrides for booking widgets
+   When the rooms-grid (e.g. [gas_rooms room_ids="1258"] on an Exclusive
+   Hire / single-room landing page) renders inside a Pro Builder /
+   Gutenberg column, lift the auto-fill grid, drop the rounded corners,
+   and stretch the card to the column's height so it matches whatever
+   image / text content sits in the sibling column. Standalone listing
+   pages keep their original grid + radius + hover lift. Same treatment
+   as gas-bike-storage-widget for visual consistency.
+   ========================================================================== */
+.wp-block-column .gas-rooms-container,
+.wp-block-columns .gas-rooms-container,
+.pb-layout .gas-rooms-container {
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+.wp-block-column .gas-rooms-grid,
+.wp-block-columns .gas-rooms-grid,
+.pb-layout .gas-rooms-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+    height: 100%;
+}
+.wp-block-column .gas-room-card,
+.wp-block-columns .gas-room-card,
+.pb-layout .gas-room-card {
+    border-radius: 0;
+    height: 100%;
+}
+.wp-block-column .gas-room-card:hover,
+.wp-block-columns .gas-room-card:hover,
+.pb-layout .gas-room-card:hover {
+    transform: none;
+}
+
+/* Multisite row layout (gas-hebden / developer-light theme inline styles
+   inject .gas-room-row as a horizontal image+content row instead of the
+   card grid). When the row sits inside a Gutenberg column, the theme's
+   internal max-width / 16px border-radius / padding make it float at
+   half-size with rounded corners — mismatched against the plain text
+   column next to it. Drop the constraints so the row fills its column
+   edge-to-edge with square corners. */
+.wp-block-column .gas-rooms-page-wrapper,
+.wp-block-column .gas-rooms-wrapper,
+.wp-block-column .gas-rooms-list,
+.wp-block-column #gas-rooms-container,
+.wp-block-column .gas-rooms-row-layout {
+    /* !important needed to beat gas-theme-burger style.css:1252 which sets
+       width: calc(100% - 200px) + 100px side margins to keep the /book-now/
+       widget inside Hebden's site margins. That rule is correct for the
+       standalone listing but breaks the column-embedded use here. */
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100% !important;
+}
+.wp-block-column .gas-room-row {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    min-height: 100%;
+    border-radius: 0;
+    margin: 0;
+    /* Stack image on top of details inside a narrow column, instead of
+       the horizontal image-left/content-right row layout that gets
+       cramped at 50% page width. */
+    flex-direction: column !important;
+}
+.wp-block-column .gas-room-row-image {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 240px !important;
+    height: 280px !important;
+}
+.wp-block-column .gas-room-row-content {
+    width: 100% !important;
+    flex: 1 1 auto !important;
+}
+.wp-block-column .gas-room-row:hover {
+    box-shadow: none;
+}
+/* Inline "embedded mode" CSS from the gas-hebden theme template sets
+   .gas-rooms-list { flex: 1 1 65% } + .gas-rooms-map-panel { flex: 0 0 35% }
+   so the row only ever takes 65% of the column, with a sticky map alongside.
+   Inside a Gutenberg 50/50 the column is already narrow — kill the map and
+   let the list claim the full column width so the row fits the box. */
+.wp-block-column .gas-rooms-wrapper {
+    flex-direction: column !important;
+    gap: 0 !important;
+    align-items: stretch !important;
+}
+.wp-block-column .gas-rooms-list {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+}
+.wp-block-column .gas-rooms-map-panel,
+.wp-block-column .gas-rooms-map {
+    display: none !important;
+}
+.wp-block-column .gas-date-filter {
+    display: none !important;
+}
