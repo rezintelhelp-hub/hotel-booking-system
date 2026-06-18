@@ -248,6 +248,13 @@ $hero_min_height = $page_hero_image ? '350px' : '200px';
 
 // Check hero enabled toggle for pages that support it — default ON when never set
 $hero_enabled = true;
+// Cart + Checkout are functional flows, not content pages — never show
+// a hero (Steve 2026-06-17: 'can we get rid of the hero area' on cart).
+// Forces a clean entry to the cart / checkout regardless of any
+// inherited per-page settings.
+if (in_array($page_slug, array('cart', 'checkout'), true)) {
+    $hero_enabled = false;
+}
 $hero_key = 'page_' . str_replace('-', '_', $special_page) . '_hero_enabled';
 if (!empty($special_page) && isset($api[$hero_key])) {
     $hero_val = $api[$hero_key];

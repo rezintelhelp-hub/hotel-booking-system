@@ -172,6 +172,16 @@ if (!empty($api_settings['page_reviews_enabled'])) {
     );
 }
 
+// Shop
+if (!empty($api_settings['page_shop_enabled'])) {
+    $menu_items[] = array(
+        'title' => $api_settings['page_shop_menu_title'] ?? 'Shop',
+        'url' => home_url('/shop/'),
+        'order' => $api_settings['page_shop_menu_order'] ?? 9,
+        'enabled' => true
+    );
+}
+
 // Contact - enabled by default, only hidden if explicitly disabled
 $contact_enabled = $api_settings['page_contact_enabled'] ?? true;
 if ($contact_enabled && $contact_enabled !== 'false' && $contact_enabled !== false) {

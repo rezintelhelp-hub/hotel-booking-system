@@ -2434,6 +2434,7 @@ function developer_get_api_settings() {
     $website_page_properties = $website['page-properties'] ?? array();
     $website_reviews = $website['reviews'] ?? array();
     $website_page_reviews = $website['page-reviews'] ?? array();
+    $website_page_shop = $website['page-shop'] ?? array();
     $website_page_terms = $website['page-terms'] ?? array();
     $website_page_privacy = $website['page-privacy'] ?? array();
     $website_page_impressum = $website['page-impressum'] ?? array();
@@ -2680,6 +2681,11 @@ function developer_get_api_settings() {
         'page_reviews_menu_title' => developer_get_ml_value($website_page_reviews, 'menu_title', $lang) ?: 'Reviews',
         'page_reviews_enabled' => $website_page_reviews['enabled'] ?? false,
         'page_reviews_menu_order' => (($website_page_reviews['menu-order'] ?? '') !== '' ? $website_page_reviews['menu-order'] : 7),
+
+        // Shop Page - MULTILINGUAL
+        'page_shop_menu_title' => developer_get_ml_value($website_page_shop, 'menu_title', $lang) ?: 'Shop',
+        'page_shop_enabled' => $website_page_shop['enabled'] ?? false,
+        'page_shop_menu_order' => (($website_page_shop['menu-order'] ?? '') !== '' ? $website_page_shop['menu-order'] : 9),
         
         // Terms Page - MULTILINGUAL
         'page_terms_menu_title' => developer_get_ml_value($website_page_terms, 'menu_title', $lang) ?: 'Terms',
