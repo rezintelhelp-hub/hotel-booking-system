@@ -1161,17 +1161,23 @@ img {
 }
 
 .developer-usp-icon {
-    margin-bottom: 24px;
+    margin: -40px -32px 24px;  /* break out of card padding so image is edge-to-edge */
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+    border-radius: var(--developer-radius-lg) var(--developer-radius-lg) 0 0;
 }
 
+/* Selected images fill the card width (operator request — 'images as
+   selected should be full width'). Icon-only USPs keep the inline 3rem
+   span emoji untouched; the rule only targets img elements. */
 .developer-usp-icon img {
-    max-width: 120px;
-    max-height: 100px;
-    object-fit: contain;
-    border-radius: 8px;
+    width: 100%;
+    max-width: 100%;
+    height: 180px;
+    object-fit: cover;
+    display: block;
 }
 
 .developer-usp-card p {
@@ -1189,6 +1195,14 @@ img {
 .usp-card-desc {
     font-size: 1rem;
     line-height: 1.6;
+}
+
+/* Tablet — 4+ tiles get cramped under 1100px; drop to 2 per row before
+   collapsing to 1fr on phone. Below the 5-in-a-row breakpoint, the inline
+   grid-template-columns from PHP still wins; this rule kicks in via
+   !important to override it for the narrower viewport. */
+@media (max-width: 1100px) {
+    .developer-usp-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
 @media (max-width: 768px) {

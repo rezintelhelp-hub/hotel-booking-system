@@ -470,7 +470,14 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
             <p class="developer-section-subtitle" style="color: <?php echo esc_attr($usp_text_color); ?>;"><?php echo esc_html($usp_subtitle); ?></p>
         <?php endif; ?>
         
-        <div class="developer-usp-grid" style="grid-template-columns: repeat(<?php echo min(count($usp_items), 3); ?>, 1fr);">
+        <?php
+        // Column count = actual item count. Previously capped at min(N,3)
+        // which forced 5 USPs into a 3+2 stack; the explicit ask is "all
+        // items in a single row." Mobile media query in style.css collapses
+        // to 1fr at ≤768px; medium-screen wrap handled by an extra mq below.
+        $usp_cols = max(1, count($usp_items));
+        ?>
+        <div class="developer-usp-grid" style="grid-template-columns: repeat(<?php echo $usp_cols; ?>, 1fr);">
             <?php foreach ($usp_items as $item) : ?>
                 <div class="developer-usp-card" style="background: <?php echo esc_attr($usp_card_bg); ?>;">
                     <?php if (!empty($item['image'])) : ?>
