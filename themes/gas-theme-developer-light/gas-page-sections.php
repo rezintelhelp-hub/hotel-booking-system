@@ -352,7 +352,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                                         $src = is_array($img) ? ($img['url'] ?? $img['src'] ?? '') : $img;
                                         $alt = is_array($img) ? ($img['alt'] ?? '') : '';
                                     ?>
-                                        <img src="<?php echo esc_url($src); ?>" alt="<?php echo esc_attr($alt); ?>" loading="lazy" style="flex: 0 0 auto; width: clamp(240px, 32vw, 380px); height: 280px; object-fit: cover; scroll-snap-align: center; border-radius: <?php echo esc_attr($card_radius); ?>px;">
+                                        <img src="<?php echo esc_url($src); ?>" alt="<?php echo esc_attr($alt); ?>" loading="lazy" style="flex: 0 0 calc(33.333% - 11px); min-width: 220px; height: 280px; object-fit: cover; scroll-snap-align: start; border-radius: <?php echo esc_attr($card_radius); ?>px;">
                                     <?php endforeach; ?>
                                 </div>
                             </div>
