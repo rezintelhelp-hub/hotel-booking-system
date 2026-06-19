@@ -1421,7 +1421,12 @@ img {
     gap: 12px;
 }
 
-.developer-footer-social a {
+/* Social row icons — links + the Wi-Fi indicator span share the same
+   pill / circle. Targeting both selectors keeps a non-link element
+   (Wi-Fi is a status badge, not a link) visually consistent with the
+   real social anchors. */
+.developer-footer-social a,
+.developer-footer-social .developer-footer-wifi {
     width: 40px;
     height: 40px;
     border-radius: 50%;
@@ -1436,6 +1441,11 @@ img {
 .developer-footer-social a:hover {
     background: var(--developer-primary);
 }
+
+/* Wi-Fi span is not clickable — but the surrounding ring colour still
+   shifts on hover so the row feels alive. */
+.developer-footer-social .developer-footer-wifi { cursor: default; }
+.developer-footer-social .developer-footer-wifi:hover { background: rgba(255, 255, 255, 0.18); }
 
 .developer-footer h4 {
     color: white;

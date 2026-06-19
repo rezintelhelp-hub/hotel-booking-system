@@ -3058,6 +3058,10 @@ function developer_get_api_settings() {
         'footer_text' => $website_footer['text'] ?? $website_footer['text-color'] ?? null,
         'footer_layout' => $website_footer['layout'] ?? 'default',
         'footer_show_powered_by' => $website_footer['show-powered-by'] ?? true,
+        // Wi-Fi available indicator — shown as a circular icon alongside
+        // the social icons. The Web Builder checkbox saves 'show-wifi';
+        // theme had no mapping for it, so the icon never rendered.
+        'footer_show_wifi' => (isset($website_footer['show-wifi']) && $website_footer['show-wifi'] !== false && $website_footer['show-wifi'] !== 'false' && $website_footer['show-wifi'] !== ''),
 
         // Footer Band 1: CTA
         'footer_cta_enabled' => $website_footer['cta-enabled'] ?? false,
