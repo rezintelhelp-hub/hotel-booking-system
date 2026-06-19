@@ -3859,6 +3859,46 @@ function developer_seo_meta_description() {
 add_action('wp_head', 'developer_seo_meta_description', 6);
 
 /**
+ * Impressum / legal-notice noindex.
+ *
+ * Legal pages on hotel sites carry compliance-mandated PII — the
+ * representative's full name, registered address, tax IDs etc. Search
+ * engines indexing this lets spam / phishing rings scrape it for
+ * targeted attacks (Mountain Holidays' operator reported receiving spam
+ * with his full name in Japanese after Google indexed his Impressum).
+ *
+ * Emits <meta name="robots" content="noindex, nofollow"> on any page
+ * whose slug or URL path matches a known legal-notice slug. Does NOT
+ * remove the content — compliance still needs the page reachable to
+ * humans + crawlers following an existing link; it only stops search
+ * engines listing it in results.
+ *
+ * Slugs covered: impressum, imprint, legal-notice. URL-path fallback
+ * handles cases where the WP page slug doesn't match (e.g. site uses
+ * the impressum shortcode on a page slugged differently).
+ */
+function developer_impressum_noindex() {
+    $is_legal = false;
+    if (function_exists('is_page') && is_page()) {
+        $slug = get_post_field('post_name');
+        if (in_array($slug, array('impressum', 'imprint', 'legal-notice'), true)) {
+            $is_legal = true;
+        }
+    }
+    if (!$is_legal) {
+        $req = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+        $path = strtolower(rtrim((string) parse_url($req, PHP_URL_PATH), '/'));
+        if (preg_match('#/(impressum|imprint|legal-notice)$#', $path)) {
+            $is_legal = true;
+        }
+    }
+    if ($is_legal) {
+        echo '<meta name="robots" content="noindex, nofollow">' . "\n";
+    }
+}
+add_action('wp_head', 'developer_impressum_noindex', 1);
+
+/**
  * Helper: detect current page key from template
  */
 function developer_get_current_page_key() {
