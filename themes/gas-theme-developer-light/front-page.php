@@ -124,8 +124,9 @@ for ($i = 1; $i <= 6; $i++) {
     $image = $api["usp_item_{$i}_image"] ?? '';
     $title = $api["usp_item_{$i}_title"] ?? '';
     $text = $api["usp_item_{$i}_text"] ?? '';
+    $link = $api["usp_item_{$i}_link"] ?? '';
     if ($text || $title || $icon || $image) {
-        $usp_items[] = array('icon' => $icon, 'image' => $image, 'title' => $title, 'text' => $text);
+        $usp_items[] = array('icon' => $icon, 'image' => $image, 'title' => $title, 'text' => $text, 'link' => $link);
     }
 }
 
@@ -478,8 +479,20 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
         $usp_cols = max(1, count($usp_items));
         ?>
         <div class="developer-usp-grid" style="grid-template-columns: repeat(<?php echo $usp_cols; ?>, 1fr);">
-            <?php foreach ($usp_items as $item) : ?>
-                <div class="developer-usp-card" style="background: <?php echo esc_attr($usp_card_bg); ?>;">
+            <?php foreach ($usp_items as $item) :
+                // Wrap each card in an <a> when the operator's set a link
+                // URL in Web Builder. External URLs open in a new tab;
+                // internal paths (/about, /contact) stay in the same one.
+                $link_url = !empty($item['link']) ? trim($item['link']) : '';
+                $is_external = $link_url && preg_match('#^https?://#i', $link_url) && stripos($link_url, $_SERVER['HTTP_HOST'] ?? '') === false;
+                $tag = $link_url ? 'a' : 'div';
+                $extra_attrs = '';
+                if ($link_url) {
+                    $extra_attrs = ' href="' . esc_url($link_url) . '"';
+                    if ($is_external) $extra_attrs .= ' target="_blank" rel="noopener noreferrer"';
+                }
+            ?>
+                <<?php echo $tag; ?> class="developer-usp-card<?php echo $link_url ? ' developer-usp-card--linked' : ''; ?>" style="background: <?php echo esc_attr($usp_card_bg); ?>;<?php echo $link_url ? ' text-decoration: none; color: inherit;' : ''; ?>"<?php echo $extra_attrs; ?>>
                     <?php if (!empty($item['image'])) : ?>
                         <div class="developer-usp-icon">
                             <img src="<?php echo esc_url($item['image']); ?>" alt="">
@@ -495,7 +508,7 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
                     <?php if (!empty($item['text'])) : ?>
                         <p class="usp-card-desc" style="color: <?php echo esc_attr($usp_text_color); ?>;"><?php echo nl2br(esc_html($item['text'])); ?></p>
                     <?php endif; ?>
-                </div>
+                </<?php echo $tag; ?>>
             <?php endforeach; ?>
         </div>
     </div>
