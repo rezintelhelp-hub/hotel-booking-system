@@ -3057,7 +3057,11 @@ function developer_get_api_settings() {
         'footer_bg' => $website_footer['bg'] ?? $website_footer['bg-color'] ?? null,
         'footer_text' => $website_footer['text'] ?? $website_footer['text-color'] ?? null,
         'footer_layout' => $website_footer['layout'] ?? 'default',
-        'footer_show_powered_by' => $website_footer['show-powered-by'] ?? true,
+        // Hard-coded TRUE — hiding the "Powered by GAS" link is a paid
+        // add-on. The Web Builder checkbox is disabled in the UI; this
+        // value is also force-true at the API layer so any stale saved
+        // 'false' (set before the lock landed) is ignored.
+        'footer_show_powered_by' => true,
         // Wi-Fi available indicator — shown as a circular icon alongside
         // the social icons. The Web Builder checkbox saves 'show-wifi';
         // theme had no mapping for it, so the icon never rendered.

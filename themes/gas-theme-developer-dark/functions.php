@@ -2983,7 +2983,9 @@ function developer_get_api_settings() {
         'footer_bg' => $website_footer['bg'] ?? $website_footer['bg-color'] ?? null,
         'footer_text' => $website_footer['text'] ?? $website_footer['text-color'] ?? null,
         'footer_layout' => $website_footer['layout'] ?? 'default',
-        'footer_show_powered_by' => $website_footer['show-powered-by'] ?? true,
+        // Hard-coded TRUE — mirror developer-light/functions.php. Hiding
+        // "Powered by GAS" is a paid add-on.
+        'footer_show_powered_by' => true,
 
         // Language settings from account
         'supported_languages' => $config['languages']['supported'] ?? array('en'),
