@@ -67,8 +67,12 @@ $lng  = $api['page_contact_longitude'] ?? '';
 $zoom = $api['page_contact_map_zoom'] ?? '14';
 $map_height = intval($api['page_contact_map_height'] ?? 300);
 
-// 4 card toggles
-$show_details    = !empty($api['page_contact_show_details']) && $api['page_contact_show_details'] !== 'false' && $api['page_contact_show_details'] !== false;
+// 4 card toggles. Details defaults ON to match the inner address/phone/
+// email toggles (which also default ON via !isset). Otherwise an operator
+// who unticks phone+email but expects address to remain visible gets a
+// completely empty card — because the parent details gate is hiding the
+// address too. Matches the inner-toggle convention.
+$show_details    = !isset($api['page_contact_show_details']) || ($api['page_contact_show_details'] !== false && $api['page_contact_show_details'] !== 'false');
 $show_directions = !empty($api['page_contact_show_directions']) && $api['page_contact_show_directions'] !== 'false' && $api['page_contact_show_directions'] !== false;
 $show_map        = !empty($api['page_contact_show_map']) && $api['page_contact_show_map'] !== 'false' && $api['page_contact_show_map'] !== false;
 $show_form       = !empty($api['page_contact_show_form']) && $api['page_contact_show_form'] !== 'false' && $api['page_contact_show_form'] !== false;

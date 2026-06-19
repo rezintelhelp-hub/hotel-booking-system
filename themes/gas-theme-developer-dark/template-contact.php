@@ -68,7 +68,10 @@ $zoom = $api['page_contact_map_zoom'] ?? '14';
 $map_height = intval($api['page_contact_map_height'] ?? 300);
 
 // 4 card toggles
-$show_details    = !empty($api['page_contact_show_details']) && $api['page_contact_show_details'] !== 'false' && $api['page_contact_show_details'] !== false;
+// Defaults ON to match inner address/phone/email toggles. See developer-
+// light/template-contact.php for the rationale (operator who unticks
+// phone+email but expects address would otherwise get a blank card).
+$show_details    = !isset($api['page_contact_show_details']) || ($api['page_contact_show_details'] !== false && $api['page_contact_show_details'] !== 'false');
 $show_directions = !empty($api['page_contact_show_directions']) && $api['page_contact_show_directions'] !== 'false' && $api['page_contact_show_directions'] !== false;
 $show_map        = !empty($api['page_contact_show_map']) && $api['page_contact_show_map'] !== 'false' && $api['page_contact_show_map'] !== false;
 $show_form       = !empty($api['page_contact_show_form']) && $api['page_contact_show_form'] !== 'false' && $api['page_contact_show_form'] !== false;
