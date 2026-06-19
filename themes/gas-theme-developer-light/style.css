@@ -1217,6 +1217,125 @@ img {
 }
 
 /* ==========================================================================
+   Terms / Privacy / Impressum — long-form reading
+   ========================================================================== */
+/* Long T&Cs are unreadable at full container width. Constrain to a
+   research-backed 60-75ch line length, give every block element proper
+   vertical rhythm, and style typographic primitives (headings, lists,
+   blockquotes, code) so a pasted document looks intentional out of the
+   box without per-site CSS. Applies on the Terms, Privacy and
+   Impressum templates which all wrap content in .developer-terms-content. */
+.developer-terms-content {
+    max-width: 760px;
+    margin: 0 auto;
+}
+.developer-terms-content h2 {
+    font-size: 1.6rem;
+    line-height: 1.3;
+    color: var(--developer-text, #0f172a);
+    margin: 0 0 1.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--developer-border, #e2e8f0);
+}
+.developer-terms-text {
+    color: #334155;
+    font-size: 1rem;
+    line-height: 1.75;
+}
+.developer-terms-text h1,
+.developer-terms-text h2,
+.developer-terms-text h3,
+.developer-terms-text h4,
+.developer-terms-text h5,
+.developer-terms-text h6 {
+    color: var(--developer-text, #0f172a);
+    line-height: 1.3;
+    margin: 2rem 0 0.85rem;
+    font-weight: 700;
+}
+.developer-terms-text h1 { font-size: 1.7rem; }
+.developer-terms-text h2 { font-size: 1.4rem; }
+.developer-terms-text h3 { font-size: 1.18rem; }
+.developer-terms-text h4 { font-size: 1.05rem; }
+.developer-terms-text h2:first-child,
+.developer-terms-text h3:first-child,
+.developer-terms-text h4:first-child { margin-top: 0; }
+.developer-terms-text p { margin: 0 0 1.1rem; }
+.developer-terms-text ul,
+.developer-terms-text ol { margin: 0 0 1.25rem 1.5rem; padding: 0; }
+.developer-terms-text li { margin-bottom: 0.4rem; }
+.developer-terms-text li > p { margin-bottom: 0.4rem; }
+.developer-terms-text li ul,
+.developer-terms-text li ol { margin-top: 0.4rem; margin-bottom: 0.4rem; }
+.developer-terms-text strong { color: var(--developer-text, #0f172a); }
+.developer-terms-text a {
+    color: var(--developer-primary, #2563eb);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
+.developer-terms-text a:hover { text-decoration-thickness: 2px; }
+.developer-terms-text blockquote {
+    margin: 1.5rem 0;
+    padding: 0.75rem 1.25rem;
+    border-left: 3px solid var(--developer-primary, #2563eb);
+    background: #f8fafc;
+    color: #475569;
+    font-style: italic;
+}
+.developer-terms-text code {
+    background: #f1f5f9;
+    color: #be123c;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.developer-terms-text hr {
+    margin: 2rem 0;
+    border: 0;
+    border-top: 1px solid var(--developer-border, #e2e8f0);
+}
+.developer-terms-text table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.25rem 0;
+    font-size: 0.93rem;
+}
+.developer-terms-text table th,
+.developer-terms-text table td {
+    border: 1px solid var(--developer-border, #e2e8f0);
+    padding: 0.6rem 0.85rem;
+    text-align: left;
+    vertical-align: top;
+}
+.developer-terms-text table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: var(--developer-text, #0f172a);
+}
+
+/* Tight up alternating sections — the template emits a 50px-padded
+   section per logical block. With max-width content + visible heading
+   borders, halve the section vertical padding so blocks don't drift
+   apart from each other. */
+.developer-terms-section { padding: 30px 0 !important; }
+
+@media (max-width: 600px) {
+    .developer-terms-content { padding: 0 1rem; }
+    .developer-terms-text { font-size: 0.96rem; }
+    .developer-terms-text h2 { font-size: 1.25rem; }
+    .developer-terms-text h3 { font-size: 1.08rem; }
+}
+
+@media print {
+    .developer-terms-content { max-width: none; }
+    .developer-terms-section { padding: 10px 0 !important; }
+    /* Hide site chrome on print — only the content matters. */
+    .developer-header, .developer-footer, .gas-floating-cta { display: none !important; }
+}
+
+/* ==========================================================================
    Services Section
    ========================================================================== */
 .developer-services {
