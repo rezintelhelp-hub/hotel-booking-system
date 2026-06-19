@@ -318,27 +318,44 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
 
             case 'gallery':
                 $images = $section['images'] ?? array();
-                if (!empty($images)) : ?>
-                <?php
-                // Match the videos / featured-rooms pattern: render exactly as
-                // many columns as there are items, capped at 3. Two images → 2
-                // side-by-side; three images → three side-by-side; four+ wrap
-                // onto a second row of up to 3. Mobile media query below
-                // collapses to 2 columns then 1.
+                if (!empty($images)) :
                 $gal_count = count($images);
-                $gal_cols = $gal_count >= 3 ? 3 : max(1, $gal_count);
+                // Honour the operator's 'columns' choice from the Section
+                // Builder. Was ignored entirely — every gallery rendered as
+                // a 3-col grid regardless of what was picked. Supported
+                // values: 'carousel' / 'horizontal-scroll' / 'scroll' for
+                // a snap-scroll row; numeric 1-6 for explicit column count;
+                // anything else falls back to count-derived (max 3).
+                $gal_layout = $section['columns'] ?? '';
+                $is_carousel = in_array(strtolower((string) $gal_layout), array('carousel', 'horizontal-scroll', 'horizontal_scroll', 'scroll'), true);
+                $gal_cols = $is_carousel ? 0 : (is_numeric($gal_layout) ? max(1, min(6, intval($gal_layout))) : ($gal_count >= 3 ? 3 : max(1, $gal_count)));
                 ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-gallery" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
                     <div style="max-width: <?php echo esc_attr($max_w); ?>; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
-                        <div class="gas-ps-gallery-grid" style="display: grid; grid-template-columns: repeat(<?php echo $gal_cols; ?>, 1fr); gap: 16px;">
-                            <?php foreach ($images as $img) :
-                                $src = is_array($img) ? ($img['url'] ?? $img['src'] ?? '') : $img;
-                                $alt = is_array($img) ? ($img['alt'] ?? '') : '';
-                            ?>
-                                <img src="<?php echo esc_url($src); ?>" alt="<?php echo esc_attr($alt); ?>" style="width: 100%; height: 250px; object-fit: cover; border-radius: <?php echo esc_attr($card_radius); ?>px;">
-                            <?php endforeach; ?>
-                        </div>
+                        <?php if ($is_carousel) : ?>
+                            <!-- Native CSS horizontal scroller with snap.
+                                 No JS dependency, works on touch + desktop
+                                 wheel + arrow keys. Negative margin lets
+                                 the row run edge-to-edge on mobile. -->
+                            <div class="gas-ps-gallery-carousel" style="display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 12px; -webkit-overflow-scrolling: touch; scrollbar-width: thin;">
+                                <?php foreach ($images as $img) :
+                                    $src = is_array($img) ? ($img['url'] ?? $img['src'] ?? '') : $img;
+                                    $alt = is_array($img) ? ($img['alt'] ?? '') : '';
+                                ?>
+                                    <img src="<?php echo esc_url($src); ?>" alt="<?php echo esc_attr($alt); ?>" loading="lazy" style="flex: 0 0 auto; width: min(85vw, 480px); height: 320px; object-fit: cover; scroll-snap-align: start; border-radius: <?php echo esc_attr($card_radius); ?>px;">
+                                <?php endforeach; ?>
+                            </div>
+                        <?php else : ?>
+                            <div class="gas-ps-gallery-grid" style="display: grid; grid-template-columns: repeat(<?php echo $gal_cols; ?>, 1fr); gap: 16px;">
+                                <?php foreach ($images as $img) :
+                                    $src = is_array($img) ? ($img['url'] ?? $img['src'] ?? '') : $img;
+                                    $alt = is_array($img) ? ($img['alt'] ?? '') : '';
+                                ?>
+                                    <img src="<?php echo esc_url($src); ?>" alt="<?php echo esc_attr($alt); ?>" loading="lazy" style="width: 100%; height: 250px; object-fit: cover; border-radius: <?php echo esc_attr($card_radius); ?>px;">
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </section>
                 <?php endif; break;
