@@ -784,40 +784,9 @@ if ($faq_enabled && $faq_enabled !== 'false' && !empty($faqs) && is_array($faqs)
 endif;
 ?>
 
-<style>
-.developer-privacy-content {
-    max-width: 800px;
-    margin: 0 auto;
-}
-.developer-privacy-content h2 {
-    font-size: 1.75rem;
-    color: #1e293b;
-    margin-bottom: 1.5rem;
-    font-weight: 600;
-}
-.developer-privacy-text p {
-    line-height: 1.8;
-    color: #475569;
-    margin-bottom: 1rem;
-    font-size: 1rem;
-}
-.developer-privacy-text p:last-child {
-    margin-bottom: 0;
-}
-.developer-privacy-text ul {
-    line-height: 1.8;
-    color: #475569;
-    margin-bottom: 1rem;
-    font-size: 1rem;
-    padding-left: 1.5rem;
-}
-.developer-privacy-text li {
-    margin-bottom: 0.5rem;
-}
-.developer-privacy-text a {
-    color: var(--color-primary, #2563eb);
-    text-decoration: underline;
-}
-</style>
+<?php // Inline <style> block removed — the canonical Privacy/Terms
+       // typography now lives in style.css under the 'Long-form pages'
+       // section, shared with template-terms.php. Inline overrides here
+       // would defeat that single source of truth. ?>
 
 <?php get_footer(); ?>
