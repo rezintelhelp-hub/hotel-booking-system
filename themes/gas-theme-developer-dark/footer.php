@@ -255,8 +255,9 @@ $all_links = array_merge($quick_links, $legal_links);
                 </ul>
             </div>
 
-            <!-- Contact Column -->
-            <?php if ($phone || $email) : ?>
+            <!-- Contact Column — show when ANY of phone / email / address
+                 is set. See developer-light/footer.php for the rationale. -->
+            <?php if ($phone || $email || $address) : ?>
             <div>
                 <h4 style="color: <?php echo esc_attr($footer_text); ?>;"><?php echo esc_html($api_settings['page_contact_menu_title'] ?? 'Contact'); ?></h4>
                 <ul class="developer-footer-links">
