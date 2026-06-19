@@ -1,0 +1,40 @@
+{
+  "name": "GAS Admin",
+  "short_name": "GAS",
+  "description": "GAS — Global Accommodation System. Manage properties, bookings and channel sync.",
+  "start_url": "/gas-admin.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "/gas-compass-color.png",
+      "sizes": "200x200",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/gas-compass-color.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Add Booking",
+      "short_name": "Add Booking",
+      "description": "Create a new manual booking",
+      "url": "/gas-admin.html?action=add-booking",
+      "icons": [{ "src": "/gas-compass-color.png", "sizes": "200x200" }]
+    },
+    {
+      "name": "Bookings",
+      "short_name": "Bookings",
+      "url": "/gas-admin.html?view=bookings",
+      "icons": [{ "src": "/gas-compass-color.png", "sizes": "200x200" }]
+    }
+  ]
+}
