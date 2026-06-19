@@ -3600,6 +3600,32 @@ function developer_seo_meta_description() {
 add_action('wp_head', 'developer_seo_meta_description', 6);
 
 /**
+ * Impressum / legal-notice noindex — see developer-light/functions.php
+ * for the rationale (Mountain Holidays spam incident). Mirrored here so
+ * dark-theme sites get the same protection.
+ */
+function developer_impressum_noindex() {
+    $is_legal = false;
+    if (function_exists('is_page') && is_page()) {
+        $slug = get_post_field('post_name');
+        if (in_array($slug, array('impressum', 'imprint', 'legal-notice'), true)) {
+            $is_legal = true;
+        }
+    }
+    if (!$is_legal) {
+        $req = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+        $path = strtolower(rtrim((string) parse_url($req, PHP_URL_PATH), '/'));
+        if (preg_match('#/(impressum|imprint|legal-notice)$#', $path)) {
+            $is_legal = true;
+        }
+    }
+    if ($is_legal) {
+        echo '<meta name="robots" content="noindex, nofollow">' . "\n";
+    }
+}
+add_action('wp_head', 'developer_impressum_noindex', 1);
+
+/**
  * Helper: detect current page key from template
  */
 function developer_get_current_page_key() {
