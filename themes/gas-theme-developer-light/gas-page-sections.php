@@ -333,18 +333,28 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-gallery" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
                     <div style="max-width: <?php echo esc_attr($max_w); ?>; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
-                        <?php if ($is_carousel) : ?>
-                            <!-- Native CSS horizontal scroller with snap.
-                                 No JS dependency, works on touch + desktop
-                                 wheel + arrow keys. Negative margin lets
-                                 the row run edge-to-edge on mobile. -->
-                            <div class="gas-ps-gallery-carousel" style="display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 12px; -webkit-overflow-scrolling: touch; scrollbar-width: thin;">
-                                <?php foreach ($images as $img) :
-                                    $src = is_array($img) ? ($img['url'] ?? $img['src'] ?? '') : $img;
-                                    $alt = is_array($img) ? ($img['alt'] ?? '') : '';
-                                ?>
-                                    <img src="<?php echo esc_url($src); ?>" alt="<?php echo esc_attr($alt); ?>" loading="lazy" style="flex: 0 0 auto; width: min(85vw, 480px); height: 320px; object-fit: cover; scroll-snap-align: start; border-radius: <?php echo esc_attr($card_radius); ?>px;">
-                                <?php endforeach; ?>
+                        <?php if ($is_carousel) :
+                            // Stable unique id per render so the prev/next
+                            // buttons only scroll THIS carousel even if a
+                            // page has multiple gallery carousels.
+                            $car_id = 'gas-car-' . substr(md5(($section['id'] ?? '') . microtime()), 0, 8);
+                        ?>
+                            <!-- Horizontal carousel with visible prev/next
+                                 controls + proximity snap so scrolling
+                                 feels fluid (mandatory snap felt 'sticky'
+                                 — that was the operator complaint). Pure
+                                 CSS + a 4-line JS scroller, no library. -->
+                            <div style="position: relative;">
+                                <button type="button" aria-label="Scroll left" onclick="document.getElementById('<?php echo esc_attr($car_id); ?>').scrollBy({left: -Math.round(window.innerWidth*0.7), behavior: 'smooth'})" style="position: absolute; left: -6px; top: 50%; transform: translateY(-50%); z-index: 2; background: rgba(255,255,255,0.95); border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 999px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.1rem; color: #475569; padding: 0;">‹</button>
+                                <button type="button" aria-label="Scroll right" onclick="document.getElementById('<?php echo esc_attr($car_id); ?>').scrollBy({left: Math.round(window.innerWidth*0.7), behavior: 'smooth'})" style="position: absolute; right: -6px; top: 50%; transform: translateY(-50%); z-index: 2; background: rgba(255,255,255,0.95); border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 999px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.1rem; color: #475569; padding: 0;">›</button>
+                                <div id="<?php echo esc_attr($car_id); ?>" class="gas-ps-gallery-carousel" style="display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x proximity; scroll-behavior: smooth; padding: 0 8px 12px; -webkit-overflow-scrolling: touch; scrollbar-width: thin;">
+                                    <?php foreach ($images as $img) :
+                                        $src = is_array($img) ? ($img['url'] ?? $img['src'] ?? '') : $img;
+                                        $alt = is_array($img) ? ($img['alt'] ?? '') : '';
+                                    ?>
+                                        <img src="<?php echo esc_url($src); ?>" alt="<?php echo esc_attr($alt); ?>" loading="lazy" style="flex: 0 0 auto; width: clamp(240px, 32vw, 380px); height: 280px; object-fit: cover; scroll-snap-align: center; border-radius: <?php echo esc_attr($card_radius); ?>px;">
+                                    <?php endforeach; ?>
+                                </div>
                             </div>
                         <?php else : ?>
                             <div class="gas-ps-gallery-grid" style="display: grid; grid-template-columns: repeat(<?php echo $gal_cols; ?>, 1fr); gap: 16px;">
