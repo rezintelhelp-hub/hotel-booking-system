@@ -924,30 +924,30 @@ if (!is_wp_error($hostaway_response)) {
             <?php if ($review1_text) : ?>
             <div class="developer-testimonial-card" style="background: <?php echo esc_attr($reviews_card_bg); ?>;">
                 <div class="developer-testimonial-stars" style="color: <?php echo esc_attr($reviews_star_color); ?>;">★★★★★</div>
-                <p style="color: <?php echo esc_attr($reviews_text_color); ?>;">"<?php echo esc_html($review1_text); ?>"</p>
+                <p style="color: <?php echo esc_attr($reviews_card_text_color); ?>;">"<?php echo esc_html($review1_text); ?>"</p>
                 <div class="developer-testimonial-author">
-                    <strong style="color: <?php echo esc_attr($reviews_text_color); ?>;"><?php echo esc_html($review1_name ?: 'Guest'); ?></strong>
-                    <span style="color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.7;"><?php echo esc_html($review1_source); ?></span>
+                    <strong style="color: <?php echo esc_attr($reviews_card_text_color); ?>;"><?php echo esc_html($review1_name ?: 'Guest'); ?></strong>
+                    <span style="color: <?php echo esc_attr($reviews_card_text_color); ?>; opacity: 0.7;"><?php echo esc_html($review1_source); ?></span>
                 </div>
             </div>
             <?php endif; ?>
             <?php if ($review2_text) : ?>
             <div class="developer-testimonial-card" style="background: <?php echo esc_attr($reviews_card_bg); ?>;">
                 <div class="developer-testimonial-stars" style="color: <?php echo esc_attr($reviews_star_color); ?>;">★★★★★</div>
-                <p style="color: <?php echo esc_attr($reviews_text_color); ?>;">"<?php echo esc_html($review2_text); ?>"</p>
+                <p style="color: <?php echo esc_attr($reviews_card_text_color); ?>;">"<?php echo esc_html($review2_text); ?>"</p>
                 <div class="developer-testimonial-author">
-                    <strong style="color: <?php echo esc_attr($reviews_text_color); ?>;"><?php echo esc_html($review2_name ?: 'Guest'); ?></strong>
-                    <span style="color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.7;"><?php echo esc_html($review2_source); ?></span>
+                    <strong style="color: <?php echo esc_attr($reviews_card_text_color); ?>;"><?php echo esc_html($review2_name ?: 'Guest'); ?></strong>
+                    <span style="color: <?php echo esc_attr($reviews_card_text_color); ?>; opacity: 0.7;"><?php echo esc_html($review2_source); ?></span>
                 </div>
             </div>
             <?php endif; ?>
             <?php if ($review3_text) : ?>
             <div class="developer-testimonial-card" style="background: <?php echo esc_attr($reviews_card_bg); ?>;">
                 <div class="developer-testimonial-stars" style="color: <?php echo esc_attr($reviews_star_color); ?>;">★★★★★</div>
-                <p style="color: <?php echo esc_attr($reviews_text_color); ?>;">"<?php echo esc_html($review3_text); ?>"</p>
+                <p style="color: <?php echo esc_attr($reviews_card_text_color); ?>;">"<?php echo esc_html($review3_text); ?>"</p>
                 <div class="developer-testimonial-author">
-                    <strong style="color: <?php echo esc_attr($reviews_text_color); ?>;"><?php echo esc_html($review3_name ?: 'Guest'); ?></strong>
-                    <span style="color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.7;"><?php echo esc_html($review3_source); ?></span>
+                    <strong style="color: <?php echo esc_attr($reviews_card_text_color); ?>;"><?php echo esc_html($review3_name ?: 'Guest'); ?></strong>
+                    <span style="color: <?php echo esc_attr($reviews_card_text_color); ?>; opacity: 0.7;"><?php echo esc_html($review3_source); ?></span>
                 </div>
             </div>
             <?php endif; ?>
