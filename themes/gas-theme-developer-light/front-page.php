@@ -603,6 +603,7 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
 // Services Section settings (with API override)
 $services_enabled = $api['services_enabled'] ?? false;
 $services_title = $api['services_title'] ?? '';
+$services_heading = $api['services_heading'] ?? '';
 $services_bg = $api['services_bg'] ?? '#ffffff';
 $services_title_color = $api['services_title_color'] ?? '#1e293b';
 $services_card_bg = $api['services_card_bg'] ?? '#e8e4dd';
@@ -631,6 +632,11 @@ for ($i = 1; $i <= 8; $i++) {
     if ($services_bg_image) echo 'background-image: url(' . esc_url($services_bg_image) . '); background-size: cover; background-position: center;';
 ?>">
     <div class="developer-container">
+        <?php if ($services_heading) : ?>
+            <div class="developer-section-header" style="text-align:center; margin-bottom: 1.5rem;">
+                <h2 style="color: <?php echo esc_attr($services_title_color); ?>; margin:0;"><?php echo esc_html($services_heading); ?></h2>
+            </div>
+        <?php endif; ?>
         <div class="developer-services-grid">
             <?php if ($services_title) : ?>
                 <div class="developer-services-title-cell">

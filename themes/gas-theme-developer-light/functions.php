@@ -2879,6 +2879,11 @@ function developer_get_api_settings() {
         'services_enabled' => $website_services['enabled'] ?? false,
         'services_card_style' => $website_services['card-style'] ?? 'icon',
         'services_title' => developer_get_ml_value($website_services, 'title', $lang),
+        // Banner heading shown ABOVE the cards. The admin has a separate
+        // "Section Heading" field for this, but the mapping was missing
+        // (the field saved to DB but never reached the theme). Added
+        // 2026-06-20 — Talwood Manor.
+        'services_heading' => developer_get_ml_value($website_services, 'heading', $lang),
         'services_bg' => $website_services['bg'] ?? $website_services['bg-color'] ?? '#ffffff',
         'services_title_color' => $website_services['title-color'] ?? '#1e293b',
         'services_card_bg' => $website_services['card-bg'] ?? '#e8e4dd',
