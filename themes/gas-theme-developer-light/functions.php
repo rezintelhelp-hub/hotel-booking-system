@@ -2937,6 +2937,10 @@ function developer_get_api_settings() {
         'reviews_bg' => $website_reviews['bg'] ?? '#0f172a',
         'reviews_text_color' => $website_reviews['text-color'] ?? '#ffffff',
         'reviews_card_bg' => $website_reviews['card-bg'] ?? '#1e293b',
+        // Card-text-color was being saved to the DB by the admin but never
+        // surfaced through this mapping, so templates fell back to white
+        // (the section text colour). Added 2026-06-20.
+        'reviews_card_text_color' => $website_reviews['card-text-color'] ?? ($website_reviews['text-color'] ?? '#ffffff'),
         'reviews_star_color' => $website_reviews['star-color'] ?? '#fbbf24',
         'reviews_show_btn' => $website_reviews['show-btn'] ?? true,
         'reviews_btn_color' => $website_reviews['btn-color'] ?? ($website_reviews['star-color'] ?? '#fbbf24'),

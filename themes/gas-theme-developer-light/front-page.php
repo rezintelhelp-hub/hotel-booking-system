@@ -673,6 +673,11 @@ $reviews_subtitle = $api['reviews_subtitle'] ?? get_theme_mod('developer_reviews
 $reviews_bg = $api['reviews_bg'] ?? get_theme_mod('developer_reviews_bg', '#0f172a');
 $reviews_text_color = $api['reviews_text_color'] ?? get_theme_mod('developer_reviews_text_color', '#ffffff');
 $reviews_card_bg = $api['reviews_card_bg'] ?? get_theme_mod('developer_reviews_card_bg', '#1e293b');
+// Separate text colour for the card body — the section header text sits on
+// the section bg, but the review quote / name / source sit on the card bg
+// and need their own colour. Falls back to the section text colour when not
+// explicitly set (preserves old behaviour for sites that never picked one).
+$reviews_card_text_color = $api['reviews_card_text_color'] ?? $reviews_text_color;
 $reviews_star_color = $api['reviews_star_color'] ?? get_theme_mod('developer_reviews_star_color', '#fbbf24');
 
 // Manual reviews
@@ -750,10 +755,10 @@ if (!is_wp_error($repuso_response)) {
                 <div class="gas-review-card-cell">
                     <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 20px; height: 298px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                         <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $r_stars; ?></div>
-                        <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 0.95rem; line-height: 1.6; flex: 1; width: 100%; margin: 0 0 12px 0; padding: 0; overflow: hidden; opacity: 0.9; text-align: left;">"<?php echo esc_html($r_text); ?>"</p>
+                        <p style="color: <?php echo esc_attr($reviews_card_text_color); ?>; font-size: 0.95rem; line-height: 1.6; flex: 1; width: 100%; margin: 0 0 12px 0; padding: 0; overflow: hidden; opacity: 0.9; text-align: left;">"<?php echo esc_html($r_text); ?>"</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
-                            <div style="font-weight: 600; color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px;"><?php echo esc_html($r_name); ?></div>
-                            <?php if ($r_source) : ?><div style="font-size: 12px; color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($r_source); ?></div><?php endif; ?>
+                            <div style="font-weight: 600; color: <?php echo esc_attr($reviews_card_text_color); ?>; font-size: 14px;"><?php echo esc_html($r_name); ?></div>
+                            <?php if ($r_source) : ?><div style="font-size: 12px; color: <?php echo esc_attr($reviews_card_text_color); ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($r_source); ?></div><?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -849,10 +854,10 @@ if (!is_wp_error($hostaway_response)) {
                 <div class="gas-review-card-cell">
                     <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 20px; height: 298px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                         <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $h_stars; ?></div>
-                        <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 0.95rem; line-height: 1.6; flex: 1; width: 100%; margin: 0 0 12px 0; padding: 0; overflow: hidden; opacity: 0.9; text-align: left;">"<?php echo esc_html($h_text); ?>"</p>
+                        <p style="color: <?php echo esc_attr($reviews_card_text_color); ?>; font-size: 0.95rem; line-height: 1.6; flex: 1; width: 100%; margin: 0 0 12px 0; padding: 0; overflow: hidden; opacity: 0.9; text-align: left;">"<?php echo esc_html($h_text); ?>"</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
-                            <div style="font-weight: 600; color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px;"><?php echo esc_html($h_name); ?></div>
-                            <?php if ($h_meta) : ?><div style="font-size: 12px; color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($h_meta); ?></div><?php endif; ?>
+                            <div style="font-weight: 600; color: <?php echo esc_attr($reviews_card_text_color); ?>; font-size: 14px;"><?php echo esc_html($h_name); ?></div>
+                            <?php if ($h_meta) : ?><div style="font-size: 12px; color: <?php echo esc_attr($reviews_card_text_color); ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($h_meta); ?></div><?php endif; ?>
                         </div>
                     </div>
                 </div>
