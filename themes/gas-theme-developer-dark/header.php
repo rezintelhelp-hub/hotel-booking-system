@@ -20,6 +20,42 @@
     <meta charset="<?php bloginfo('charset'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <?php wp_head(); ?>
+    <?php
+    // Auto-generated SVG favicon — uses site initials + primary brand colour.
+    // Only emitted if no custom favicon is set in API settings (so client uploads win).
+    // Initials: first letter of each word in the site name, max 2 chars.
+    // Pull API settings here (the global $api_settings is set further down in this
+    // file, after <head>, so we can't rely on it at this point).
+    $favicon_api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+    $custom_favicon = $favicon_api['header_favicon'] ?? '';
+    if (empty($custom_favicon)) {
+        $auto_site_name = trim(wp_strip_all_tags(get_bloginfo('name')));
+        $auto_words = preg_split('/\s+/', $auto_site_name);
+        $auto_initials = '';
+        foreach ($auto_words as $w) {
+            if (strlen($w) === 0) continue;
+            if (in_array(strtolower($w), array('the', 'a', 'an', 'of', 'at', 'in', 'on', '&', 'and'))) continue;
+            $auto_initials .= mb_strtoupper(mb_substr($w, 0, 1));
+            if (mb_strlen($auto_initials) >= 2) break;
+        }
+        if (mb_strlen($auto_initials) < 1) {
+            $auto_initials = mb_strtoupper(mb_substr($auto_site_name, 0, 2));
+        }
+        $auto_bg = $favicon_api['btn_primary_bg'] ?? $favicon_api['primary_color'] ?? $favicon_api['accent_color'] ?? '#2563eb';
+        $auto_fg = $favicon_api['btn_primary_text'] ?? '#ffffff';
+        $auto_size = mb_strlen($auto_initials) >= 2 ? 32 : 40;
+        $auto_svg = sprintf(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="10" ry="10" fill="%s"/><text x="32" y="32" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="%d" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="%s">%s</text></svg>',
+            esc_attr($auto_bg),
+            $auto_size,
+            esc_attr($auto_fg),
+            esc_html($auto_initials)
+        );
+        $auto_data_uri = 'data:image/svg+xml;base64,' . base64_encode($auto_svg);
+        echo "\n    <link rel=\"icon\" type=\"image/svg+xml\" href=\"" . esc_attr($auto_data_uri) . "\">\n";
+        echo "    <link rel=\"apple-touch-icon\" href=\"" . esc_attr($auto_data_uri) . "\">\n";
+    }
+    ?>
 </head>
 <?php
 $menu_layout = get_theme_mod('developer_menu_layout', 'logo-left');
@@ -39,6 +75,10 @@ if (isset($_GET['debug_menu']) && $_GET['debug_menu'] == '1') {
     echo "page_rooms_menu_title: " . var_export($api_settings['page_rooms_menu_title'] ?? 'NOT SET', true) . "\n";
     echo "page_about_menu_title: " . var_export($api_settings['page_about_menu_title'] ?? 'NOT SET', true) . "\n";
     echo "page_contact_menu_title: " . var_export($api_settings['page_contact_menu_title'] ?? 'NOT SET', true) . "\n";
+    echo "\n=== CTA DEBUG ===\n";
+    echo "cta_text: " . var_export($api_settings['cta_text'] ?? 'NOT SET', true) . "\n";
+    echo "cta_link: " . var_export($api_settings['cta_link'] ?? 'NOT SET', true) . "\n";
+    echo "cta_bg: " . var_export($api_settings['cta_bg'] ?? 'NOT SET', true) . "\n";
     echo "\n=== RAW HERO SETTINGS ===\n";
     if (isset($api_settings['_debug_hero'])) {
         print_r($api_settings['_debug_hero']);
@@ -49,7 +89,10 @@ if (isset($_GET['debug_menu']) && $_GET['debug_menu'] == '1') {
 }
 
 $cta_text = $api_settings['cta_text'] ?? get_theme_mod('developer_header_cta_label', 'Book Now');
-$cta_link = $api_settings['cta_link'] ?? get_theme_mod('developer_header_cta_link', '/book-now/');
+$cta_link_raw = $api_settings['cta_link'] ?? get_theme_mod('developer_header_cta_link', '/book-now/');
+$cta_is_external = preg_match('#^https?://#i', $cta_link_raw);
+$cta_link = $cta_is_external ? $cta_link_raw : home_url($cta_link_raw);
+$cta_target = $cta_is_external ? ' target="_blank" rel="noopener noreferrer"' : '';
 
 // Get logo from API, fallback to theme_mod, then WP custom logo
 // If API explicitly sets empty string, respect it (logo was removed)
@@ -165,6 +208,16 @@ if (!empty($api_settings['page_reviews_enabled'])) {
     );
 }
 
+// Shop
+if (!empty($api_settings['page_shop_enabled'])) {
+    $menu_items[] = array(
+        'title' => $api_settings['page_shop_menu_title'] ?? 'Shop',
+        'url' => home_url('/shop/'),
+        'order' => $api_settings['page_shop_menu_order'] ?? 6,
+        'enabled' => true
+    );
+}
+
 // Contact - enabled by default, only hidden if explicitly disabled
 $contact_enabled = $api_settings['page_contact_enabled'] ?? true;
 if ($contact_enabled && $contact_enabled !== 'false' && $contact_enabled !== false) {
@@ -181,13 +234,18 @@ $custom_pages = $api_settings['custom_pages'] ?? array();
 $custom_page_settings = $api_settings['custom_page_settings'] ?? array();
 foreach ($custom_pages as $cp) {
     $cp_slug = $cp['slug'] ?? '';
-    // Per-page settings override the registry (latest user toggle wins).
+    // Per-page settings (page-custom-{slug}) override the registry — the
+    // registry is set at create time, the per-page settings reflect later
+    // user toggles. Walnut Canyon's free-guide-landing-page was disabled
+    // (visibility=hidden + enabled=false) but the registry still said
+    // visibility=menu, so the menu item kept showing. (2026-05-22.)
     $cp_settings = $custom_page_settings[$cp_slug] ?? array();
     $cp_enabled_raw = $cp_settings['enabled'] ?? true;
     $cp_is_enabled = ($cp_enabled_raw === true || $cp_enabled_raw === 'true' || $cp_enabled_raw === '1' || $cp_enabled_raw === 'on');
     if (!$cp_is_enabled) continue;
     $cp_visibility = $cp_settings['visibility'] ?? $cp['visibility'] ?? 'menu';
     if ($cp_visibility === 'hidden') continue;
+    // Read menu-order from per-page settings (page-custom-{slug} section)
     $cp_order = $cp_settings['menu-order'] ?? $cp['menu_order'] ?? 10;
     $cp_parent = $cp_settings['parent'] ?? $cp['parent'] ?? '';
     $cp_title = '';
@@ -221,19 +279,62 @@ $menu_items = array_filter($menu_items, function($item) use (&$seen_urls) {
     return true;
 });
 
-// Helper function to output menu items
+// Helper function to output menu items (with dropdown support for sub-menu items)
 function developer_output_nav_items($menu_items) {
+    $current_url = trailingslashit(home_url(add_query_arg(array(), $GLOBALS['wp']->request)));
+
+    // Group children by parent slug
+    $children = array();
+    $top_level = array();
     foreach ($menu_items as $item) {
+        if (!empty($item['is_submenu']) && !empty($item['parent'])) {
+            $children[$item['parent']][] = $item;
+        } else {
+            $top_level[] = $item;
+        }
+    }
+
+    // Map top-level items by their URL slug for parent matching
+    $slug_map = array();
+    foreach ($top_level as $item) {
+        $slug = trim(str_replace(home_url(), '', $item['url']), '/');
+        $slug_map[$slug] = true;
+    }
+
+    // Output top-level items, wrapping parents in dropdowns
+    foreach ($top_level as $item) {
+        $slug = trim(str_replace(home_url(), '', $item['url']), '/');
         $is_active = '';
         if (!empty($item['is_home']) && is_front_page()) {
             $is_active = ' class="active"';
-        } elseif (!empty($item['url'])) {
-            $current_url = trailingslashit(home_url(add_query_arg(array(), $GLOBALS['wp']->request)));
-            if (trailingslashit($item['url']) === $current_url) {
-                $is_active = ' class="active"';
+        } elseif (trailingslashit($item['url']) === $current_url) {
+            $is_active = ' class="active"';
+        }
+
+        if (!empty($children[$slug])) {
+            // Parent with children — render dropdown
+            echo '<div class="developer-nav-dropdown">';
+            echo '<a href="' . esc_url($item['url']) . '" class="developer-nav-parent">' . esc_html($item['title']) . ' <span class="developer-nav-arrow">▾</span></a>';
+            echo '<div class="developer-nav-submenu">';
+            foreach ($children[$slug] as $child) {
+                $child_active = (trailingslashit($child['url']) === $current_url) ? ' class="active"' : '';
+                echo '<a href="' . esc_url($child['url']) . '"' . $child_active . '>' . esc_html($child['title']) . '</a>';
+            }
+            echo '</div></div>';
+        } else {
+            // Regular item
+            echo '<a href="' . esc_url($item['url']) . '"' . $is_active . '>' . esc_html($item['title']) . '</a>';
+        }
+    }
+
+    // Output orphaned sub-menu items (parent doesn't exist) as flat links
+    foreach ($children as $parent_slug => $kids) {
+        if (empty($slug_map[$parent_slug])) {
+            foreach ($kids as $child) {
+                $child_active = (trailingslashit($child['url']) === $current_url) ? ' class="active"' : '';
+                echo '<a href="' . esc_url($child['url']) . '"' . $child_active . '>' . esc_html($child['title']) . '</a>';
             }
         }
-        echo '<a href="' . esc_url($item['url']) . '"' . $is_active . '>' . esc_html($item['title']) . '</a>';
     }
 }
 
@@ -313,10 +414,10 @@ function developer_output_logo($api_logo_image, $site_name, $api_logo_light_imag
                     $right_items = array_slice($menu_items, $half);
                     developer_output_nav_items($right_items);
                     ?>
-                    <a href="<?php echo esc_url(home_url($cta_link)); ?>" class="developer-nav-cta"><?php echo esc_html($cta_text); ?></a>
+                    <a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a>
                     <?php echo developer_language_switcher(); ?>
                </nav>
-                
+
                 <button class="developer-menu-toggle" aria-label="Toggle menu">
                     <span></span>
                     <span></span>
@@ -340,7 +441,7 @@ function developer_output_logo($api_logo_image, $site_name, $api_logo_light_imag
                 <nav class="developer-nav developer-nav-stacked">
                     <?php developer_output_nav_items($menu_items); ?>
                     <?php if (!$menu_has_cta) : ?>
-                    <a href="<?php echo esc_url(home_url($cta_link)); ?>" class="developer-nav-cta"><?php echo esc_html($cta_text); ?></a>
+                    <a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a>
                     <?php endif; ?>
                     <?php echo developer_language_switcher(); ?>
                 </nav>
@@ -362,7 +463,7 @@ function developer_output_logo($api_logo_image, $site_name, $api_logo_light_imag
                 <nav class="developer-nav">
                     <?php developer_output_nav_items($menu_items); ?>
                     <?php if (!$menu_has_cta) : ?>
-                    <a href="<?php echo esc_url(home_url($cta_link)); ?>" class="developer-nav-cta"><?php echo esc_html($cta_text); ?></a>
+                    <a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a>
                     <?php endif; ?>
                     <?php echo developer_language_switcher(); ?>
                 </nav>

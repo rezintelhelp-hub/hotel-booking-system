@@ -20,6 +20,42 @@
     <meta charset="<?php bloginfo('charset'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <?php wp_head(); ?>
+    <?php
+    // Auto-generated SVG favicon — uses site initials + primary brand colour.
+    // Only emitted if no custom favicon is set in API settings (so client uploads win).
+    // Initials: first letter of each word in the site name, max 2 chars.
+    // Pull API settings here (the global $api_settings is set further down in this
+    // file, after <head>, so we can't rely on it at this point).
+    $favicon_api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+    $custom_favicon = $favicon_api['header_favicon'] ?? '';
+    if (empty($custom_favicon)) {
+        $auto_site_name = trim(wp_strip_all_tags(get_bloginfo('name')));
+        $auto_words = preg_split('/\s+/', $auto_site_name);
+        $auto_initials = '';
+        foreach ($auto_words as $w) {
+            if (strlen($w) === 0) continue;
+            if (in_array(strtolower($w), array('the', 'a', 'an', 'of', 'at', 'in', 'on', '&', 'and'))) continue;
+            $auto_initials .= mb_strtoupper(mb_substr($w, 0, 1));
+            if (mb_strlen($auto_initials) >= 2) break;
+        }
+        if (mb_strlen($auto_initials) < 1) {
+            $auto_initials = mb_strtoupper(mb_substr($auto_site_name, 0, 2));
+        }
+        $auto_bg = $favicon_api['btn_primary_bg'] ?? $favicon_api['primary_color'] ?? $favicon_api['accent_color'] ?? '#2563eb';
+        $auto_fg = $favicon_api['btn_primary_text'] ?? '#ffffff';
+        $auto_size = mb_strlen($auto_initials) >= 2 ? 32 : 40;
+        $auto_svg = sprintf(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="10" ry="10" fill="%s"/><text x="32" y="32" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="%d" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="%s">%s</text></svg>',
+            esc_attr($auto_bg),
+            $auto_size,
+            esc_attr($auto_fg),
+            esc_html($auto_initials)
+        );
+        $auto_data_uri = 'data:image/svg+xml;base64,' . base64_encode($auto_svg);
+        echo "\n    <link rel=\"icon\" type=\"image/svg+xml\" href=\"" . esc_attr($auto_data_uri) . "\">\n";
+        echo "    <link rel=\"apple-touch-icon\" href=\"" . esc_attr($auto_data_uri) . "\">\n";
+    }
+    ?>
 </head>
 <?php
 $menu_layout = get_theme_mod('developer_menu_layout', 'logo-left');
