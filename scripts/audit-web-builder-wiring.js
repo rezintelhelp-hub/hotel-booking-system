@@ -41,8 +41,19 @@ const LANG_SUFFIXES = ['-en', '-fr', '-es', '-nl', '-de', '-ja'];
 // Sections that don't go through developer_get_api_settings (Pro Builder,
 // modals, etc.) — skip to keep the report focused on Web Builder.
 const SKIP_SECTIONS = new Set([
-  'pb', 'shop', 'rooms', 'account', 'agency', 'booking', 'media',
+  'pb', 'shop', 'account', 'agency', 'booking', 'media',
   'partner', 'auth', 'login', 'signup', 'profile', 'theme', 'site',
+]);
+// Multi-word section prefixes — the admin id "wb-page-rooms-title-color"
+// must be parsed as section="page-rooms", field="title-color", NOT
+// section="page", field="rooms-title-color". Sourced from the list of
+// $website_X variables defined in functions.php.
+const MULTIWORD_SECTIONS = new Set([
+  'page-about', 'page-attractions', 'page-blog', 'page-contact',
+  'page-dining', 'page-gallery', 'page-impressum', 'page-offers',
+  'page-privacy', 'page-properties', 'page-reviews', 'page-shop',
+  'page-terms', 'page-portal', 'page-faq', 'page-rooms',
+  'image-rows',
 ]);
 // Field tokens that signal a UI-only flag (filter, toggle, dev mode).
 // Not perfect — operator-facing flags can match too — flagged for
@@ -55,7 +66,8 @@ const LOOP_PATTERNS = [
   { name: 'item-N',       re: /^(.*?)item-(\d+)(.*)$/      },
   { name: 'slide-N',      re: /^(.*?)slide-(\d+)(.*)$/     },
   { name: 'feature-N',    re: /^(.*?)feature-(\d+)(.*)$/   },
-  { name: 'image-row-N',  re: /^(.+?)image-row-(\d+)(.*)$/   },
+  { name: 'image-row-N',  re: /^(.*?)image-row-(\d+)(.*)$/   },
+  { name: 'row-N',        re: /^(.*?)row-(\d+)(.*)$/         },
   { name: 'social-N',     re: /^(.*?)social-(\d+)(.*)$/    },
   { name: 'gallery-N',    re: /^(.*?)gallery-(\d+)(.*)$/   },
   { name: 'review-N',     re: /^(.*?)review(\d+)(.*)$/     },
@@ -78,11 +90,23 @@ function scanAdminFields(html) {
     let isUi = false;
     for (const sfx of IGNORE_SUFFIX) if (id.endsWith(sfx)) { isUi = true; break; }
     if (isUi) continue;
-    const dash = id.indexOf('-');
-    if (dash < 0) continue;
-    const section = id.slice(0, dash);
+    // Determine section. Default is the first token; if the first two
+    // tokens form a known multi-word section (page-rooms, page-blog, …),
+    // use both. Otherwise the field absorbs the second token and never
+    // matches the functions.php mapping (308 false positives without this).
+    const firstDash = id.indexOf('-');
+    if (firstDash < 0) continue;
+    let section = id.slice(0, firstDash);
+    let field = id.slice(firstDash + 1);
+    const secondDash = field.indexOf('-');
+    if (secondDash >= 0) {
+      const twoToken = `${section}-${field.slice(0, secondDash)}`;
+      if (MULTIWORD_SECTIONS.has(twoToken)) {
+        section = twoToken;
+        field = field.slice(secondDash + 1);
+      }
+    }
     if (SKIP_SECTIONS.has(section)) continue;
-    const field = id.slice(dash + 1);
 
     // Loop collapse — usp/item-1-title and usp/item-2-title become one
     // row usp/item-N-title with `looped` set.
