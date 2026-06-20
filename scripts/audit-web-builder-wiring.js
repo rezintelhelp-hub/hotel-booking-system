@@ -3,23 +3,24 @@
  * Web Builder wiring audit — finds admin fields that aren't fully plumbed
  * through to the rendered page.
  *
- * A Web Builder setting needs five things wired in lockstep:
- *
+ * A setting needs five things wired together:
  *   1. Admin input        public/gas-admin.html        <input id="wb-{section}-{field}">
- *   2. DB key             website_settings.settings    {"{field}": value}  (stored under section)
+ *   2. DB key             website_settings.settings    {"{field}": value}  (under section)
  *   3. API mapping        themes/.../functions.php     '{section}_{field}' => $website_{section}['{field}']
- *   4. Theme variable     themes/.../*.php             $varname = $api['{section}_{field}']
- *   5. Render             themes/.../*.php             echo esc_attr($varname)
+ *   4. Theme variable     themes/.../*.php             $var = $api['{section}_{field}']
+ *   5. Render             themes/.../*.php             echo esc_attr($var)
  *
- * When any link is missing the operator sees "I set it but the site
- * doesn't change". This script flags every link gap so we can fix the
- * wiring before the operator hits it.
+ * When any link is missing the operator sees "I saved it but the site
+ * doesn't change". This script flags every gap.
  *
- * Usage:    node scripts/audit-web-builder-wiring.js [--theme light|dark]
- * Output:   table to stdout, plus exit 1 if any RED rows.
+ * CLI:
+ *   node scripts/audit-web-builder-wiring.js               text, light theme, issues only
+ *   node scripts/audit-web-builder-wiring.js --all         include OK rows too
+ *   node scripts/audit-web-builder-wiring.js --theme both  both themes
+ *   node scripts/audit-web-builder-wiring.js --json        machine-readable
  *
- * Heuristic — not perfect, but catches the common breakage class
- * (missing mapping in functions.php, mapped-but-not-rendered).
+ * Also exported as a module so server.js can serve the report at
+ * /api/admin/audit/web-builder-wiring.
  */
 
 const fs = require('fs');
@@ -28,17 +29,14 @@ const path = require('path');
 const REPO = path.resolve(__dirname, '..');
 const ADMIN_HTML = path.join(REPO, 'public/gas-admin.html');
 
-// Themes to check. light is default; pass --theme dark|both to widen.
-const themeArg = (process.argv.find(a => a.startsWith('--theme=')) || '').split('=')[1] || 'light';
-const themes = themeArg === 'both' ? ['light', 'dark'] : [themeArg];
-
 // Fields to ignore in the input scan — UI plumbing, not saved values.
 const IGNORE_SUFFIX = [
   '-picker', '-preview', '-preview-url', '-save-btn', '-loading', '-value',
   '-image-preview', '-search', '-error', '-list', '-modal', '-content',
-  '-options', '-fields',
+  '-options', '-fields', '-upgrade-banner', '-app-fields',
+  '-hostaway-fields', '-btn-options',
 ];
-// Suffixes that indicate a language variant — collapse them to the base.
+// Suffixes that indicate a language variant — collapse to the base.
 const LANG_SUFFIXES = ['-en', '-fr', '-es', '-nl', '-de', '-ja'];
 // Sections that don't go through developer_get_api_settings (Pro Builder,
 // modals, etc.) — skip to keep the report focused on Web Builder.
@@ -46,56 +44,74 @@ const SKIP_SECTIONS = new Set([
   'pb', 'shop', 'rooms', 'account', 'agency', 'booking', 'media',
   'partner', 'auth', 'login', 'signup', 'profile', 'theme', 'site',
 ]);
+// Field tokens that signal a UI-only flag (filter, toggle, dev mode).
+// Not perfect — operator-facing flags can match too — flagged for
+// triage rather than auto-excluded.
+
+// Looped families: fields like usp-item-1-title, slide-2-url etc. share
+// one underlying array in the API. Collapse them to a single representative
+// row so the report doesn't show 6 copies of the same wiring question.
+const LOOP_PATTERNS = [
+  { name: 'item-N',       re: /^(.*?)item-(\d+)(.*)$/      },
+  { name: 'slide-N',      re: /^(.*?)slide-(\d+)(.*)$/     },
+  { name: 'feature-N',    re: /^(.*?)feature-(\d+)(.*)$/   },
+  { name: 'image-row-N',  re: /^(.+?)image-row-(\d+)(.*)$/   },
+  { name: 'social-N',     re: /^(.*?)social-(\d+)(.*)$/    },
+  { name: 'gallery-N',    re: /^(.*?)gallery-(\d+)(.*)$/   },
+  { name: 'review-N',     re: /^(.*?)review(\d+)(.*)$/     },
+  { name: 'faq-N',        re: /^(.*?)faq-(\d+)(.*)$/       },
+  { name: 'link-N',       re: /^(.*?)link-(\d+)(.*)$/      },
+  { name: 'partner-N',    re: /^(.*?)partner-(\d+)(.*)$/   },
+];
 
 function readFile(p) { return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : ''; }
+function safeReadDir(d) { try { return fs.readdirSync(d); } catch (_) { return []; } }
 
-// ---- 1. Extract Web Builder input IDs from admin HTML ---------------
+// ---- 1. Extract Web Builder input IDs from admin HTML ----------------------
 function scanAdminFields(html) {
-  const fields = new Map(); // key = "section/field", value = { section, field, ids: [] }
+  const fields = new Map(); // key = "section/field", value = { section, field, ids: [], looped }
   const re = /\bid="wb-([a-z0-9-]+?)"/g;
   let m;
   while ((m = re.exec(html)) !== null) {
     let id = m[1];
-    // Strip language suffix
     for (const ls of LANG_SUFFIXES) if (id.endsWith(ls)) { id = id.slice(0, -ls.length); break; }
-    // Strip UI-plumbing suffixes
     let isUi = false;
     for (const sfx of IGNORE_SUFFIX) if (id.endsWith(sfx)) { isUi = true; break; }
     if (isUi) continue;
-    // First token = section
     const dash = id.indexOf('-');
     if (dash < 0) continue;
     const section = id.slice(0, dash);
     if (SKIP_SECTIONS.has(section)) continue;
     const field = id.slice(dash + 1);
-    const key = `${section}/${field}`;
-    if (!fields.has(key)) fields.set(key, { section, field, ids: [] });
+
+    // Loop collapse — usp/item-1-title and usp/item-2-title become one
+    // row usp/item-N-title with `looped` set.
+    let collapsedField = field;
+    let looped = null;
+    for (const lp of LOOP_PATTERNS) {
+      const lm = field.match(lp.re);
+      if (lm) {
+        collapsedField = `${lm[1]}${lp.name.replace('-N', '-N')}${lm[3]}`.replace(/-{2,}/g, '-');
+        looped = lp.name;
+        break;
+      }
+    }
+
+    const key = `${section}/${collapsedField}`;
+    if (!fields.has(key)) fields.set(key, { section, field: collapsedField, ids: [], looped });
     fields.get(key).ids.push('wb-' + id);
   }
   return fields;
 }
 
-// ---- 2. Scan functions.php for $api mapping ------------------------------
-// Restricted to the body of developer_get_api_settings() — the function
-// that flattens $website[section][field] into the $api[key] dict consumed
-// by templates. add_setting() calls in the Customize API also match the
-// 'key' => 'value' shape but they aren't what we care about.
-//
-// Matches the three common right-hand-side patterns:
-//   A. 'api_key' => $website_section['field']
-//   B. 'api_key' => $website_section['field'] ?? '#default'
-//   C. 'api_key' => developer_get_ml_value($website_section, 'field', $lang)
+// ---- 2. Scan functions.php for API mappings --------------------------------
+// Restricted to the body of developer_get_api_settings() so add_setting()
+// calls in the Customize API don't pollute results.
 function scanFunctionsMappings(php) {
   const mappings = new Map();
-  // Slice to the body of developer_get_api_settings(). The function is
-  // declared roughly: `function developer_get_api_settings() { ... }`.
-  // Heuristic — first `function developer_get_api_settings` to the
-  // matching closing brace (we use the next-blank-line-followed-by-`}`
-  // pattern, fallback to end-of-file).
   const fnIdx = php.indexOf('function developer_get_api_settings');
   let body = php;
   if (fnIdx >= 0) {
-    // Find matching close brace by simple depth counting.
     let depth = 0, i = php.indexOf('{', fnIdx), start = i;
     for (; i < php.length; i++) {
       const c = php[i];
@@ -103,97 +119,144 @@ function scanFunctionsMappings(php) {
       else if (c === '}') { depth--; if (depth === 0) { body = php.slice(start, i); break; } }
     }
   }
-  // Pattern A/B — direct array access
+  const add = (apiKey, sectionVar, dbField) => {
+    const section = sectionVar.replace(/_/g, '-');
+    mappings.set(`${section}/${dbField}`, apiKey);
+  };
+  // 'api_key' => $website_section['field']  (with or without ?? default)
   const reArr = /['"]([a-z][a-z0-9_]+)['"]\s*=>\s*\$website_([a-z_-]+)\[\s*['"]([a-z0-9_-]+)['"]\s*\]/g;
+  // 'api_key' => developer_get_ml_value($website_section, 'field', ...)
+  const reMl  = /['"]([a-z][a-z0-9_]+)['"]\s*=>\s*developer_get_ml_value\(\s*\$website_([a-z_-]+)\s*,\s*['"]([a-z0-9_-]+)['"]/g;
   let m;
-  while ((m = reArr.exec(body)) !== null) {
-    const apiKey = m[1];
-    const sectionVar = m[2].replace(/_/g, '-');
-    const dbField = m[3];
-    mappings.set(`${sectionVar}/${dbField}`, apiKey);
-  }
-  // Pattern C — developer_get_ml_value() helper
-  const reMl = /['"]([a-z][a-z0-9_]+)['"]\s*=>\s*developer_get_ml_value\(\s*\$website_([a-z_-]+)\s*,\s*['"]([a-z0-9_-]+)['"]/g;
-  while ((m = reMl.exec(body)) !== null) {
-    const apiKey = m[1];
-    const sectionVar = m[2].replace(/_/g, '-');
-    const dbField = m[3];
-    mappings.set(`${sectionVar}/${dbField}`, apiKey);
-  }
+  while ((m = reArr.exec(body)) !== null) add(m[1], m[2], m[3]);
+  while ((m = reMl.exec(body)) !== null)  add(m[1], m[2], m[3]);
   return mappings;
 }
 
-// ---- 3. Scan theme templates for $api['key'] reads + var renders ------
+// ---- 3. Scan theme templates for $api['key'] reads --------------------------
 function scanThemeUsages(themeDir) {
-  const out = { apiReads: new Set(), renderedVars: new Set() };
-  const files = fs.readdirSync(themeDir)
-    .filter(f => f.endsWith('.php'))
-    .map(f => path.join(themeDir, f));
-  // Search subdirs one level deep (templates/, parts/, etc.)
-  for (const f of fs.readdirSync(themeDir, { withFileTypes: true })) {
-    if (!f.isDirectory()) continue;
-    const sub = path.join(themeDir, f.name);
-    for (const subf of fs.readdirSync(sub)) {
+  const out = { apiReads: new Set() };
+  const files = safeReadDir(themeDir).filter(f => f.endsWith('.php')).map(f => path.join(themeDir, f));
+  for (const f of safeReadDir(themeDir)) {
+    const sub = path.join(themeDir, f);
+    try {
+      if (!fs.statSync(sub).isDirectory()) continue;
+    } catch (_) { continue; }
+    for (const subf of safeReadDir(sub)) {
       if (subf.endsWith('.php')) files.push(path.join(sub, subf));
     }
   }
   const apiRe = /\$api(?:_settings)?\[\s*['"]([a-z0-9_]+)['"]\s*\]/g;
-  const varRe = /<\?php\s+echo\s+esc_attr\(\s*\$([a-z0-9_]+)\b/g;
   for (const f of files) {
     const src = readFile(f);
     let m;
     while ((m = apiRe.exec(src)) !== null) out.apiReads.add(m[1]);
-    while ((m = varRe.exec(src)) !== null) out.renderedVars.add(m[1]);
   }
   return out;
 }
 
-// ---- Status classifier ------------------------------------------------
-function classify(fieldKey, mappings, themeUsage) {
-  const apiKey = mappings.get(fieldKey);
-  if (!apiKey) return { status: 'NO_API_MAP', detail: 'functions.php has no mapping for this field' };
-  if (!themeUsage.apiReads.has(apiKey)) {
-    return { status: 'MAPPED_BUT_UNREAD', detail: `$api['${apiKey}'] is set but no template reads it` };
+// ---- 4. Plugin-consumed detection ------------------------------------------
+// Some Web Builder fields are read by plugins (gas-booking, gas-shop,
+// gas-form etc.) rather than by the theme. They show up as NO_API_MAP
+// because they're not in developer_get_api_settings, but they aren't
+// broken — they go via a different API call.
+function scanPluginConsumers(pluginsDir) {
+  const consumed = new Set();
+  for (const pdir of safeReadDir(pluginsDir)) {
+    const pluginPath = path.join(pluginsDir, pdir);
+    try { if (!fs.statSync(pluginPath).isDirectory()) continue; } catch (_) { continue; }
+    for (const f of safeReadDir(pluginPath)) {
+      if (!f.endsWith('.php') && !f.endsWith('.js')) continue;
+      const src = readFile(path.join(pluginPath, f));
+      // Look for direct references to website-settings field names.
+      const re = /['"]([a-z][a-z0-9_-]{3,})['"]/g;
+      let m;
+      while ((m = re.exec(src)) !== null) consumed.add(m[1]);
+    }
   }
-  return { status: 'OK', detail: `→ $api['${apiKey}']` };
+  return consumed;
 }
 
-// ---- Main -------------------------------------------------------------
-const adminHtml = readFile(ADMIN_HTML);
-if (!adminHtml) { console.error('Could not read', ADMIN_HTML); process.exit(2); }
-const fields = scanAdminFields(adminHtml);
+// ---- Status classifier -----------------------------------------------------
+function classify(key, field, mappings, themeUsage, pluginConsumed) {
+  const apiKey = mappings.get(key);
+  if (apiKey) {
+    if (!themeUsage.apiReads.has(apiKey)) {
+      return { status: 'MAPPED_BUT_UNREAD', detail: `$api['${apiKey}'] set but no template reads it`, apiKey };
+    }
+    return { status: 'OK', detail: `→ $api['${apiKey}']`, apiKey };
+  }
+  // Not in functions.php. Three more buckets before declaring "real bug":
+  if (field.looped) {
+    return { status: 'DYNAMIC_LOOPED', detail: `processed as array (${field.looped})`, apiKey: null };
+  }
+  // Plugin-consumed (booking plugin, shop, etc.). Heuristic: dashed
+  // field name appears in plugin source code.
+  if (pluginConsumed.has(field.field) || pluginConsumed.has(`${field.section}-${field.field}`)) {
+    return { status: 'PLUGIN_CONSUMED', detail: 'referenced in a plugin file, not the theme', apiKey: null };
+  }
+  return { status: 'NO_API_MAP', detail: 'no mapping in developer_get_api_settings()', apiKey: null };
+}
 
-const reports = themes.map(t => {
-  const themeDir = path.join(REPO, `themes/gas-theme-developer-${t}`);
+// ---- Run a single theme ----------------------------------------------------
+function runForTheme(theme, fields, pluginConsumed) {
+  const themeDir = path.join(REPO, `themes/gas-theme-developer-${theme}`);
   const funcs = readFile(path.join(themeDir, 'functions.php'));
   const mappings = scanFunctionsMappings(funcs);
   const usage = scanThemeUsages(themeDir);
-  return { theme: t, mappings, usage };
-});
-
-let anyRed = false;
-const ROW = (s, f, st, d) => `${s.padEnd(14)} ${f.padEnd(28)} ${st.padEnd(20)} ${d}`;
-for (const r of reports) {
-  console.log(`\n=== Theme: gas-theme-developer-${r.theme} ===`);
-  console.log(`Admin fields: ${fields.size}  |  Functions.php mappings: ${r.mappings.size}  |  API reads in templates: ${r.usage.apiReads.size}\n`);
-  console.log(ROW('SECTION', 'FIELD', 'STATUS', 'DETAIL'));
-  console.log('-'.repeat(96));
-  const sortedKeys = [...fields.keys()].sort();
-  const counts = { OK: 0, NO_API_MAP: 0, MAPPED_BUT_UNREAD: 0 };
-  for (const key of sortedKeys) {
-    const { section, field } = fields.get(key);
-    const verdict = classify(key, r.mappings, r.usage);
-    counts[verdict.status]++;
-    if (verdict.status !== 'OK') anyRed = true;
-    if (verdict.status !== 'OK' || process.argv.includes('--all')) {
-      console.log(ROW(section, field, verdict.status, verdict.detail));
-    }
+  const rows = [];
+  const counts = { OK: 0, NO_API_MAP: 0, MAPPED_BUT_UNREAD: 0, DYNAMIC_LOOPED: 0, PLUGIN_CONSUMED: 0 };
+  for (const [key, field] of [...fields.entries()].sort()) {
+    const v = classify(key, field, mappings, usage, pluginConsumed);
+    counts[v.status] = (counts[v.status] || 0) + 1;
+    rows.push({ section: field.section, field: field.field, status: v.status, detail: v.detail, api_key: v.apiKey, ids_count: field.ids.length });
   }
-  console.log('-'.repeat(96));
-  console.log(`Summary: OK=${counts.OK}  NO_API_MAP=${counts.NO_API_MAP}  MAPPED_BUT_UNREAD=${counts.MAPPED_BUT_UNREAD}`);
+  return { theme, mappings_count: mappings.size, api_reads_count: usage.apiReads.size, rows, counts };
 }
 
-if (!process.argv.includes('--all')) {
-  console.log('\n(Showing only fields with issues. Re-run with --all to see fully-wired fields too.)');
+// ---- Public API ------------------------------------------------------------
+function runAudit({ themes = ['light'] } = {}) {
+  const adminHtml = readFile(ADMIN_HTML);
+  const fields = scanAdminFields(adminHtml);
+  const pluginConsumed = scanPluginConsumers(path.join(REPO, 'plugins'));
+  const themeReports = themes.map(t => runForTheme(t, fields, pluginConsumed));
+  return {
+    admin_fields_count: fields.size,
+    plugin_field_refs: pluginConsumed.size,
+    themes: themeReports,
+  };
 }
-process.exit(anyRed ? 1 : 0);
+
+module.exports = { runAudit };
+
+// ---- CLI entry -------------------------------------------------------------
+if (require.main === module) {
+  const themeArg = (process.argv.find(a => a.startsWith('--theme=')) || '').split('=')[1] || 'light';
+  const themes = themeArg === 'both' ? ['light', 'dark'] : [themeArg];
+  const showAll = process.argv.includes('--all');
+  const jsonMode = process.argv.includes('--json');
+  const report = runAudit({ themes });
+  if (jsonMode) {
+    process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+    process.exit(0);
+  }
+  const ROW = (s, f, st, d) => `${s.padEnd(14)} ${f.padEnd(28)} ${st.padEnd(20)} ${d}`;
+  console.log(`\nAdmin fields: ${report.admin_fields_count}  |  Plugin field refs: ${report.plugin_field_refs}`);
+  let anyRed = false;
+  for (const r of report.themes) {
+    console.log(`\n=== Theme: gas-theme-developer-${r.theme} ===`);
+    console.log(`Mappings: ${r.mappings_count}  |  API reads in templates: ${r.api_reads_count}\n`);
+    console.log(ROW('SECTION', 'FIELD', 'STATUS', 'DETAIL'));
+    console.log('-'.repeat(96));
+    for (const row of r.rows) {
+      const isReal = (row.status === 'NO_API_MAP' || row.status === 'MAPPED_BUT_UNREAD');
+      if (isReal) anyRed = true;
+      if (isReal || showAll) console.log(ROW(row.section, row.field, row.status, row.detail));
+    }
+    console.log('-'.repeat(96));
+    const c = r.counts;
+    console.log(`Summary: OK=${c.OK}  NO_API_MAP=${c.NO_API_MAP}  MAPPED_BUT_UNREAD=${c.MAPPED_BUT_UNREAD}  DYNAMIC_LOOPED=${c.DYNAMIC_LOOPED}  PLUGIN_CONSUMED=${c.PLUGIN_CONSUMED}`);
+  }
+  if (!showAll) console.log('\n(Showing only real-bug rows. Re-run with --all to see everything.)');
+  process.exit(anyRed ? 1 : 0);
+}
