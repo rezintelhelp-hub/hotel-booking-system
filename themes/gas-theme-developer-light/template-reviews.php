@@ -35,6 +35,7 @@ $page_title       = $api['reviews_title'] ?? 'What Our Guests Say';
 $page_subtitle    = $api['reviews_subtitle'] ?? 'Real reviews from real guests';
 $bg_color         = $api['reviews_bg'] ?? '#0f172a';
 $text_color       = $api['reviews_text_color'] ?? '#ffffff';
+$card_text_color  = $api['reviews_card_text_color'] ?? $text_color;
 $card_bg          = $api['reviews_card_bg'] ?? '#1e293b';
 $star_color       = $api['reviews_star_color'] ?? '#fbbf24';
 $btn_color        = $api['reviews_btn_color'] ?? $star_color;
@@ -116,7 +117,15 @@ if ($reviews_source === 'repuso' && $reviews_app_code) {
 ?>
 
 <!-- Reviews Page -->
-<section class="developer-section" style="background: <?php echo esc_attr($bg_color); ?>; padding: 140px 0 80px;">
+<?php
+// The header is position:fixed regardless of the transparent flag (see
+// .developer-header in style.css), so content always needs clearance —
+// 60px was too small, the page title sat behind the header. Transparent
+// headers want a bit more breathing room because they overlay imagery.
+// Matches the 100px clearance used by the other developer-page-* templates.
+$reviews_pad_top = !empty($api['header_transparent']) ? '140px' : '100px';
+?>
+<section class="developer-section" style="background: <?php echo esc_attr($bg_color); ?>; padding: <?php echo esc_attr($reviews_pad_top); ?> 0 80px;">
     <div class="developer-container">
         <div style="text-align: center; margin-bottom: 3rem;">
             <h2 style="color: <?php echo esc_attr($text_color); ?>; font-size: 2.5rem; margin: 0 0 0.75rem;"><?php echo esc_html($page_title); ?></h2>
@@ -138,10 +147,10 @@ if ($reviews_source === 'repuso' && $reviews_app_code) {
             ?>
             <div class="gas-review-card" style="background: <?php echo esc_attr($card_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 24px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
                 <div style="color: <?php echo esc_attr($star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 12px;"><?php echo $stars . $empty; ?></div>
-                <p style="color: <?php echo esc_attr($text_color); ?>; font-size: 14px; line-height: 1.6; flex: 1; margin: 0 0 16px 0; opacity: 0.9;">"<?php echo esc_html($text); ?>"</p>
+                <p style="color: <?php echo esc_attr($card_text_color); ?>; font-size: 14px; line-height: 1.6; flex: 1; margin: 0 0 16px 0; opacity: 0.9;">"<?php echo esc_html($text); ?>"</p>
                 <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
-                    <div style="font-weight: 600; color: <?php echo esc_attr($text_color); ?>; font-size: 14px;"><?php echo esc_html($name); ?></div>
-                    <?php if ($meta) : ?><div style="font-size: 12px; color: <?php echo esc_attr($text_color); ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($meta); ?></div><?php endif; ?>
+                    <div style="font-weight: 600; color: <?php echo esc_attr($card_text_color); ?>; font-size: 14px;"><?php echo esc_html($name); ?></div>
+                    <?php if ($meta) : ?><div style="font-size: 12px; color: <?php echo esc_attr($card_text_color); ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($meta); ?></div><?php endif; ?>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -150,7 +159,7 @@ if ($reviews_source === 'repuso' && $reviews_app_code) {
         <?php if ($data_endpoint && count($reviews) >= $per_page) : ?>
         <div id="gas-load-more-wrap" style="text-align: center; margin-top: 2.5rem;">
             <button id="gas-load-more-btn" onclick="gasLoadMoreReviews()"
-                style="display: inline-block; padding: 14px 36px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; border: 2px solid <?php echo esc_attr($btn_color); ?>; border-radius: <?php echo esc_attr($btn_radius); ?>px; font-weight: 600; font-size: 1rem; cursor: pointer; transition: all 0.3s ease;">
+                class="developer-btn" style="background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; border-radius: <?php echo esc_attr($btn_radius); ?>px;">
                 Load More Reviews
             </button>
         </div>
@@ -160,7 +169,7 @@ if ($reviews_source === 'repuso' && $reviews_app_code) {
             var perPage = <?php echo $per_page; ?>;
             var endpoint = <?php echo json_encode($data_endpoint); ?>;
             var cardBg = <?php echo json_encode($card_bg); ?>;
-            var textColor = <?php echo json_encode($text_color); ?>;
+            var textColor = <?php echo json_encode($card_text_color); ?>;
             var starColor = <?php echo json_encode($star_color); ?>;
             var grid = document.getElementById('gas-reviews-grid');
             var btn = document.getElementById('gas-load-more-btn');
