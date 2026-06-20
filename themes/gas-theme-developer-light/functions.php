@@ -2374,17 +2374,49 @@ function developer_get_ml_value($settings, $key, $lang = null) {
     return $settings[$key] ?? ($settings[str_replace('_', '-', $key)] ?? null);
 }
 
+// Dev-site detection: site_status is set on a per-blog WP option by the
+// GAS Admin when a site is marked live. While the site is in development
+// every cache layer must be bypassed — otherwise the operator saves a
+// Web Builder change, doesn't see it, and assumes the platform is broken.
+// Default to 'development' so the safer behaviour applies to any site
+// that hasn't been explicitly marked live yet.
+if (!function_exists('gas_is_dev_site')) {
+    function gas_is_dev_site() {
+        return get_option('gas_site_status', 'development') !== 'live';
+    }
+}
+
+// On dev sites, force the response uncacheable end-to-end. Stops WP
+// Super Cache (whose drop-in runs network-wide because WP_CACHE=true
+// in wp-config.php) from storing the page on disk, and tells the
+// browser / any intermediate proxy to skip caching too.
+if (!has_filter('wp_headers', 'gas_dev_no_cache_headers')) {
+    add_filter('wp_headers', 'gas_dev_no_cache_headers');
+    function gas_dev_no_cache_headers($headers) {
+        if (gas_is_dev_site()) {
+            $headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0';
+            $headers['Pragma']        = 'no-cache';
+            $headers['Expires']       = '0';
+        }
+        return $headers;
+    }
+}
+
 function developer_get_api_settings() {
     $client_id = get_option('gas_client_id', '');
     if (empty($client_id)) {
         return array();
     }
-    
-    // Check transient cache first (5 min TTL, cleared on Web Builder save)
+
+    // Dev sites bypass the 5-min transient — every save must be visible
+    // on the next page load. Live sites keep the transient for perf.
+    $is_dev = function_exists('gas_is_dev_site') ? gas_is_dev_site() : false;
     $cache_key = 'gas_api_settings_' . get_current_blog_id() . '_' . developer_get_current_language();
-    $cached = get_transient($cache_key);
-    if ($cached !== false) {
-        return $cached;
+    if (!$is_dev) {
+        $cached = get_transient($cache_key);
+        if ($cached !== false) {
+            return $cached;
+        }
     }
     
     $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
@@ -3250,8 +3282,11 @@ function developer_get_api_settings() {
         'section_order_badge_row' => ($website['badge-row'] ?? array())['position'] ?? null,
     );
     
-    // Cache for 5 minutes — cleared by GAS API on Web Builder save
-    set_transient($cache_key, $result, 5 * MINUTE_IN_SECONDS);
+    // Cache for 5 minutes on live sites only — cleared by GAS API on
+    // Web Builder save. Dev sites bypass this so saves are immediate.
+    if (!$is_dev) {
+        set_transient($cache_key, $result, 5 * MINUTE_IN_SECONDS);
+    }
 
     return $result;
 }
