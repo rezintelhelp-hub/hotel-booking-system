@@ -35,9 +35,19 @@ const IGNORE_SUFFIX = [
   '-image-preview', '-search', '-error', '-list', '-modal', '-content',
   '-options', '-fields', '-upgrade-banner', '-app-fields',
   '-hostaway-fields', '-btn-options',
+  // File picker inputs — the URL field next to them (-image-url) is
+  // what gets saved; the bare -image input is just the OS file picker
+  // and has no persisted value. False-positive source otherwise.
+  '-image', '-image-file',
 ];
 // Suffixes that indicate a language variant — collapse to the base.
 const LANG_SUFFIXES = ['-en', '-fr', '-es', '-nl', '-de', '-ja'];
+// Pro Builder variants. These admin inputs are part of the separate
+// Pro Builder UI flow with its own backend path, not the Web Builder
+// → theme pipeline this audit covers. Strip the suffix so the
+// underlying field gets bucketed (it's audited via its non-pb name)
+// or, if the field only exists in -pb form, dropped as out-of-scope.
+const PRO_BUILDER_SUFFIX = '-pb';
 // Sections that don't go through developer_get_api_settings (Pro Builder,
 // modals, etc.) — skip to keep the report focused on Web Builder.
 const SKIP_SECTIONS = new Set([
@@ -86,7 +96,15 @@ function scanAdminFields(html) {
   let m;
   while ((m = re.exec(html)) !== null) {
     let id = m[1];
-    for (const ls of LANG_SUFFIXES) if (id.endsWith(ls)) { id = id.slice(0, -ls.length); break; }
+    // Strip Pro Builder suffix before language so id-pb-en and id-en
+    // both collapse to id. Pro Builder fields exit the audit entirely
+    // for now (separate code path, separate audit later).
+    if (id.endsWith(PRO_BUILDER_SUFFIX)) continue;
+    for (const ls of LANG_SUFFIXES) {
+      if (id.endsWith(ls + PRO_BUILDER_SUFFIX)) { id = null; break; } // -en-pb etc
+      if (id.endsWith(ls)) { id = id.slice(0, -ls.length); break; }
+    }
+    if (!id) continue;
     let isUi = false;
     for (const sfx of IGNORE_SUFFIX) if (id.endsWith(sfx)) { isUi = true; break; }
     if (isUi) continue;
@@ -143,8 +161,18 @@ function scanFunctionsMappings(php) {
       else if (c === '}') { depth--; if (depth === 0) { body = php.slice(start, i); break; } }
     }
   }
+  // Some $website_X variables alias a section with a DIFFERENT db key
+  // than the variable name suggests. Confirmed today (2026-06-21):
+  //   $website_rooms = $website['page-rooms']   (the only one in light theme)
+  // Without this alias, the audit mis-attributed every $website_rooms[...]
+  // mapping as "section=rooms" while the admin and DB use "section=page-rooms".
+  // Result: 13+ page-rooms fields false-flagged as NO_API_MAP.
+  const VAR_TO_DB_SECTION_ALIAS = {
+    'rooms': 'page-rooms',
+  };
   const add = (apiKey, sectionVar, dbField) => {
-    const section = sectionVar.replace(/_/g, '-');
+    let section = sectionVar.replace(/_/g, '-');
+    if (VAR_TO_DB_SECTION_ALIAS[section]) section = VAR_TO_DB_SECTION_ALIAS[section];
     mappings.set(`${section}/${dbField}`, apiKey);
   };
   // 'api_key' => $website_section['field']  (with or without ?? default)
