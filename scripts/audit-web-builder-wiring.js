@@ -173,7 +173,15 @@ function scanFunctionsMappings(php) {
   const add = (apiKey, sectionVar, dbField) => {
     let section = sectionVar.replace(/_/g, '-');
     if (VAR_TO_DB_SECTION_ALIAS[section]) section = VAR_TO_DB_SECTION_ALIAS[section];
-    mappings.set(`${section}/${dbField}`, apiKey);
+    // Field-name underscore/dash normalization: developer_get_ml_value()
+    // in PHP accepts either underscore or dash and tries both internally
+    // (line ~2354 of functions.php). functions.php authors mix the two
+    // freely — e.g. 'details_title' (underscore) for ml fields, but the
+    // admin id and DB key always use dash ('details-title'). Index both
+    // forms here so the lookup matches regardless.
+    const dbFieldDash = dbField.replace(/_/g, '-');
+    mappings.set(`${section}/${dbFieldDash}`, apiKey);
+    if (dbField !== dbFieldDash) mappings.set(`${section}/${dbField}`, apiKey);
   };
   // 'api_key' => $website_section['field']  (with or without ?? default)
   const reArr = /['"]([a-z][a-z0-9_]+)['"]\s*=>\s*\$website_([a-z_-]+)\[\s*['"]([a-z0-9_-]+)['"]\s*\]/g;
@@ -189,18 +197,35 @@ function scanFunctionsMappings(php) {
   // Same lesson — allow ')' in the default-expression slot.
   const reMlWrap = /['"]([a-z][a-z0-9_]+)['"]\s*=>\s*developer_get_ml_value\(\s*\$website\[\s*['"]([a-z0-9_-]+)['"]\s*\][\s\S]*?,\s*['"]([a-z0-9_-]+)['"]/g;
   let m;
+  // Wrapped variants don't go through add() (their section name is
+  // already in dash-case literal form from $website['section']) — so
+  // index both underscore + dash forms of the field here too. Without
+  // this, ml_value-on-wrap mappings would miss for the same reason
+  // covered by the underscore↔dash note inside add().
+  const addRaw = (apiKey, section, dbField) => {
+    const dbFieldDash = dbField.replace(/_/g, '-');
+    mappings.set(`${section}/${dbFieldDash}`, apiKey);
+    if (dbField !== dbFieldDash) mappings.set(`${section}/${dbField}`, apiKey);
+  };
   while ((m = reArr.exec(body)) !== null)     add(m[1], m[2], m[3]);
   while ((m = reMl.exec(body)) !== null)      add(m[1], m[2], m[3]);
-  // Wrapped patterns: section comes through unchanged (already dash-case),
-  // so bypass the underscore-to-dash conversion in add().
-  while ((m = reArrWrap.exec(body)) !== null) mappings.set(`${m[2]}/${m[3]}`, m[1]);
-  while ((m = reMlWrap.exec(body)) !== null)  mappings.set(`${m[2]}/${m[3]}`, m[1]);
+  while ((m = reArrWrap.exec(body)) !== null) addRaw(m[1], m[2], m[3]);
+  while ((m = reMlWrap.exec(body)) !== null)  addRaw(m[1], m[2], m[3]);
   return mappings;
 }
 
 // ---- 3. Scan theme templates for $api['key'] reads --------------------------
+// Also catches the "direct API access" pattern used by template-privacy.php
+// and template-terms.php:
+//
+//   $wp = $site_config['website']['page-privacy'];
+//   echo $wp['business-address'];
+//
+// Templates that read via this pattern bypass developer_get_api_settings()
+// entirely. Without recording them, every field they read shows as
+// NO_API_MAP even though it's wired and rendered.
 function scanThemeUsages(themeDir) {
-  const out = { apiReads: new Set() };
+  const out = { apiReads: new Set(), directReads: new Set() };
   const files = safeReadDir(themeDir).filter(f => f.endsWith('.php')).map(f => path.join(themeDir, f));
   for (const f of safeReadDir(themeDir)) {
     const sub = path.join(themeDir, f);
@@ -212,10 +237,34 @@ function scanThemeUsages(themeDir) {
     }
   }
   const apiRe = /\$api(?:_settings)?\[\s*['"]([a-z0-9_]+)['"]\s*\]/g;
+  // Pattern: $local = (...) $site_config['website']['section'] (...)
+  // Captures local variable name + section so we can resolve later reads.
+  const aliasRe = /\$([a-z_][a-z0-9_]*)\s*=[^;]*\$site_config\[\s*['"]website['"]\s*\]\s*\[\s*['"]([a-z0-9_-]+)['"]\s*\]/g;
   for (const f of files) {
     const src = readFile(f);
     let m;
     while ((m = apiRe.exec(src)) !== null) out.apiReads.add(m[1]);
+
+    // Find each alias binding ($wp = ...website['section']...) and then
+    // every $wp['field'] read in the same file. Per-file scope is fine —
+    // PHP includes don't carry locals across files in this codebase.
+    const aliases = new Map(); // localVar -> section
+    let am;
+    while ((am = aliasRe.exec(src)) !== null) {
+      aliases.set(am[1], am[2]);
+    }
+    for (const [varName, section] of aliases.entries()) {
+      const fieldRe = new RegExp(`\\$${varName}\\[\\s*['"]([a-z0-9_-]+)['"]\\s*\\]`, 'g');
+      let fm;
+      while ((fm = fieldRe.exec(src)) !== null) {
+        const field = fm[1];
+        out.directReads.add(`${section}/${field}`);
+        // Index dash form too for the same underscore↔dash reason as
+        // the mapping scanner.
+        const fieldDash = field.replace(/_/g, '-');
+        if (fieldDash !== field) out.directReads.add(`${section}/${fieldDash}`);
+      }
+    }
   }
   return out;
 }
@@ -251,7 +300,13 @@ function classify(key, field, mappings, themeUsage, pluginConsumed) {
     }
     return { status: 'OK', detail: `→ $api['${apiKey}']`, apiKey };
   }
-  // Not in functions.php. Three more buckets before declaring "real bug":
+  // No api-mapping found. Check the alternative wiring channels before
+  // declaring this a real bug.
+  // Direct read: template-privacy/terms style — $wp = $site_config
+  // ['website']['section']; ... $wp['field']. Recorded by scanThemeUsages.
+  if (themeUsage.directReads && themeUsage.directReads.has(key)) {
+    return { status: 'OK', detail: `→ read directly via $site_config['website']['${field.section}']['${field.field}']`, apiKey: null };
+  }
   if (field.looped) {
     return { status: 'DYNAMIC_LOOPED', detail: `processed as array (${field.looped})`, apiKey: null };
   }
