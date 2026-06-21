@@ -53,7 +53,7 @@ const MULTIWORD_SECTIONS = new Set([
   'page-dining', 'page-gallery', 'page-impressum', 'page-offers',
   'page-privacy', 'page-properties', 'page-reviews', 'page-shop',
   'page-terms', 'page-portal', 'page-faq', 'page-rooms',
-  'image-rows',
+  'image-rows', 'badge-row',
 ]);
 // Field tokens that signal a UI-only flag (filter, toggle, dev mode).
 // Not perfect — operator-facing flags can match too — flagged for
@@ -151,9 +151,22 @@ function scanFunctionsMappings(php) {
   const reArr = /['"]([a-z][a-z0-9_]+)['"]\s*=>\s*\$website_([a-z_-]+)\[\s*['"]([a-z0-9_-]+)['"]\s*\]/g;
   // 'api_key' => developer_get_ml_value($website_section, 'field', ...)
   const reMl  = /['"]([a-z][a-z0-9_]+)['"]\s*=>\s*developer_get_ml_value\(\s*\$website_([a-z_-]+)\s*,\s*['"]([a-z0-9_-]+)['"]/g;
+  // 'api_key' => ($website['section'] ?? array())['field']
+  // Used for sections without their own $website_X variable (badge-row etc.).
+  // The .*? between the section closing ] and the field opening [ must allow
+  // ')' chars because the default expression is "?? array()" — that's the
+  // bug that hid 6 badge-row mappings on the first pass.
+  const reArrWrap = /['"]([a-z][a-z0-9_]+)['"]\s*=>\s*\(\s*\$website\[\s*['"]([a-z0-9_-]+)['"]\s*\][\s\S]*?\)\s*\[\s*['"]([a-z0-9_-]+)['"]\s*\]/g;
+  // 'api_key' => developer_get_ml_value($website['section'] ?? array(), 'field', ...)
+  // Same lesson — allow ')' in the default-expression slot.
+  const reMlWrap = /['"]([a-z][a-z0-9_]+)['"]\s*=>\s*developer_get_ml_value\(\s*\$website\[\s*['"]([a-z0-9_-]+)['"]\s*\][\s\S]*?,\s*['"]([a-z0-9_-]+)['"]/g;
   let m;
-  while ((m = reArr.exec(body)) !== null) add(m[1], m[2], m[3]);
-  while ((m = reMl.exec(body)) !== null)  add(m[1], m[2], m[3]);
+  while ((m = reArr.exec(body)) !== null)     add(m[1], m[2], m[3]);
+  while ((m = reMl.exec(body)) !== null)      add(m[1], m[2], m[3]);
+  // Wrapped patterns: section comes through unchanged (already dash-case),
+  // so bypass the underscore-to-dash conversion in add().
+  while ((m = reArrWrap.exec(body)) !== null) mappings.set(`${m[2]}/${m[3]}`, m[1]);
+  while ((m = reMlWrap.exec(body)) !== null)  mappings.set(`${m[2]}/${m[3]}`, m[1]);
   return mappings;
 }
 
