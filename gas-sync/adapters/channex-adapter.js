@@ -177,7 +177,10 @@ class ChannexAdapter {
         const code = body?.errors?.code || 'UNKNOWN';
         const title = body?.errors?.title || ('HTTP ' + status);
         const details = body?.errors?.details;
-        if (status === 401) return { success: false, status, error: 'Authentication failed', code: 'AUTH_FAILED' };
+        if (status === 401) {
+          console.error(`[Channex] 401 on ${method} ${endpoint}`, { body, sentData: data });
+          return { success: false, status, error: 'Authentication failed', code: 'AUTH_FAILED', details: body };
+        }
         if (status === 429) return { success: false, status, error: 'Rate limit exceeded', code: 'RATE_LIMIT' };
         if (status === 422) return { success: false, status, error: title, code: 'VALIDATION', details };
         return { success: false, status, error: title, code: status || code, details };
