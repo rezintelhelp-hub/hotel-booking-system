@@ -255,9 +255,28 @@ foreach ($custom_pages as $cp) {
     if (empty($cp_title)) {
         $cp_title = $cp_settings['menu-title-en'] ?? $cp['title'] ?? ucfirst($cp_slug);
     }
+    // External URL override — when the operator pastes a custom URL on
+    // the page (e.g. /room/?unit_id=1220&guests=1 to point a "Tudor Room"
+    // sub-page at the gas-room shortcode with the unit pre-selected),
+    // use that instead of the auto-generated slug URL. Absolute URLs
+    // pass through unchanged; relative paths get prefixed with home_url.
+    // Without this, custom URLs were silently ignored and the menu link
+    // resolved to /<slug>/ which often 404s because there's no real
+    // WordPress page at that path (2026-06-21 — Talwood / Marie).
+    $cp_external = trim((string)(
+        $cp_settings['external-url'] ?? $cp_settings['external_url']
+        ?? $cp['external_url'] ?? $cp['external-url'] ?? ''
+    ));
+    if ($cp_external !== '') {
+        $cp_url = preg_match('#^https?://#i', $cp_external)
+            ? $cp_external
+            : home_url(($cp_external[0] === '/') ? $cp_external : '/' . $cp_external);
+    } else {
+        $cp_url = home_url('/' . $cp_slug . '/');
+    }
     $menu_items[] = array(
         'title' => $cp_title,
-        'url' => home_url('/' . $cp_slug . '/'),
+        'url' => $cp_url,
         'order' => $cp_order,
         'enabled' => true,
         'parent' => $cp_parent,
@@ -296,10 +315,28 @@ function developer_output_nav_items($menu_items) {
 
     // Map top-level items by their URL slug for parent matching
     $slug_map = array();
+    // Title alias — operators set parent to the page TITLE (e.g. "rooms")
+    // but the URL slug may differ (the Rooms menu item links to /book-now/
+    // so its slug is "book-now"). Without this alias the child silently
+    // pops to top-level — exactly Marie's 2026-06-21 ticket where Tudor
+    // Room sat next to Rooms instead of under it.
+    $title_to_slug = array();
     foreach ($top_level as $item) {
         $slug = trim(str_replace(home_url(), '', $item['url']), '/');
         $slug_map[$slug] = true;
+        $title_to_slug[strtolower(trim($item['title'] ?? ''))] = $slug;
     }
+    // Re-key children so a parent set as title resolves to the matching
+    // top-level item's actual slug. Original-key children still work.
+    $normalised_children = array();
+    foreach ($children as $parent_key => $kids) {
+        $resolved = isset($title_to_slug[strtolower($parent_key)])
+            ? $title_to_slug[strtolower($parent_key)]
+            : $parent_key;
+        if (!isset($normalised_children[$resolved])) $normalised_children[$resolved] = array();
+        $normalised_children[$resolved] = array_merge($normalised_children[$resolved], $kids);
+    }
+    $children = $normalised_children;
 
     // Output top-level items, wrapping parents in dropdowns
     foreach ($top_level as $item) {
