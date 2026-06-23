@@ -3870,6 +3870,21 @@ function developer_developer_custom_css() {
         
         ' . ($custom_css ? '/* Custom CSS */ ' . $custom_css : '') . '
     </style>';
+
+    // Mirror hero search radius onto the /book-now/ filter bar inputs/
+    // selects/button so a pill-shaped hero stays consistent with the
+    // listing filters. Renders on every page (cheap) — actual radius
+    // only applies when /book-now/ is loaded.
+    $hsr = intval($api['hero_search_radius'] ?? 0);
+    if ($hsr > 0) {
+        echo "\n<style>\n" .
+            ".gas-date-filter .gas-filter-field input,\n" .
+            ".gas-date-filter .gas-filter-field select,\n" .
+            ".gas-date-filter .gas-amenity-trigger,\n" .
+            ".gas-date-filter .gas-filter-btn,\n" .
+            ".gas-rooms-ref-search-input { border-radius: {$hsr}px !important; }\n" .
+            "</style>\n";
+    }
 }
 add_action('wp_head', 'developer_developer_custom_css', 100);
 
