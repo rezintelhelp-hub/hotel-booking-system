@@ -59,6 +59,8 @@ $search_offset = $api["hero_search_offset"] ?? "0";
 $search_position = $api["hero_search_position"] ?? "center";
 // Optional 4th field on the left ("Where are you going?"). Off by default.
 $search_show_location = !empty($api["hero_search_show_location"]);
+// Label placement: 'above' (default) or 'inside' (compact, labels-as-placeholders).
+$search_labels = $api["hero_search_labels"] ?? 'above';
 
 // Search label translations (with API override)
 $search_checkin_label = $api['hero_search_checkin_label'] ?? '';
@@ -266,6 +268,7 @@ $homepage_sections = array(); // position => html
                     <?php
                     $sc_attrs = 'layout="horizontal" max_width="100%" primary_color="' . esc_attr($search_btn_bg) . '" text_color="' . esc_attr($search_btn_text) . '" label_color="' . esc_attr($search_label_color) . '" background_color="transparent"';
                     if ($search_show_location) $sc_attrs .= ' show_location="true"';
+                    if ($search_labels === 'inside') $sc_attrs .= ' labels="inside"';
                     if (!empty($search_checkin_label)) $sc_attrs .= ' checkin_label="' . esc_attr($search_checkin_label) . '"';
                     if (!empty($search_checkout_label)) $sc_attrs .= ' checkout_label="' . esc_attr($search_checkout_label) . '"';
                     if (!empty($search_guests_label)) $sc_attrs .= ' guests_label="' . esc_attr($search_guests_label) . '"';

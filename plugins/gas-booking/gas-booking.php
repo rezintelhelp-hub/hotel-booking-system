@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.39
+ * Version: 4.2.40
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -5069,6 +5069,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             
             // Field options
             'show_location' => 'false',      // Show location/destination field
+            'labels' => 'above',             // 'above' = labels on top (default); 'inside' = hide labels and use as placeholders (compact)
             'location_label' => $t_booking['location'] ?? 'Location',
             'location_placeholder' => $t_booking['where_going'] ?? 'Where are you going?',
             'checkin_label' => !empty($custom['checkin_label']) ? $custom['checkin_label'] : ($t_booking['check_in'] ?? 'Check-in'),
@@ -5106,6 +5107,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $custom_class = !empty($atts['class']) ? ' ' . esc_attr($atts['class']) : '';
         $show_location = $atts['show_location'] === 'true';
         $button_full = $atts['button_full_width'] === 'true';
+        $labels_inside = $atts['labels'] === 'inside';
+        // When labels are "inside", each input gets the label text as its
+        // placeholder, the <label> stays in the DOM for screen readers but
+        // is visually hidden via CSS (.gas-search-labels-inside class).
+        $loc_ph    = $labels_inside ? $atts['location_label']  : $atts['location_placeholder'];
+        $cin_ph    = $labels_inside ? $atts['checkin_label']   : $atts['date_placeholder'];
+        $cout_ph   = $labels_inside ? $atts['checkout_label']  : $atts['date_placeholder'];
         
         // Build inline styles
         $widget_styles = array();
@@ -5141,23 +5149,23 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         </style>
         <?php endif; ?>
         
-        <div id="<?php echo $widget_id; ?>" class="gas-search-widget <?php echo $layout_class . $custom_class; ?>"<?php echo $widget_style_attr; ?>>
+        <div id="<?php echo $widget_id; ?>" class="gas-search-widget <?php echo $layout_class . $custom_class; ?><?php echo $labels_inside ? ' gas-search-labels-inside' : ''; ?>"<?php echo $widget_style_attr; ?>>
             <div class="gas-search-fields">
                 <?php if ($show_location) : ?>
                 <div class="gas-search-field gas-search-location">
                     <label><?php echo esc_html($atts['location_label']); ?></label>
-                    <input type="text" class="gas-location-input" placeholder="<?php echo esc_attr($atts['location_placeholder']); ?>" />
+                    <input type="text" class="gas-location-input" placeholder="<?php echo esc_attr($loc_ph); ?>" />
                 </div>
                 <?php endif; ?>
-                
+
                 <div class="gas-search-field gas-search-checkin">
                     <label><?php echo esc_html($atts['checkin_label']); ?></label>
-                    <input type="text" class="gas-checkin-date" placeholder="<?php echo esc_attr($atts['date_placeholder']); ?>" readonly />
+                    <input type="text" class="gas-checkin-date" placeholder="<?php echo esc_attr($cin_ph); ?>" readonly />
                 </div>
-                
+
                 <div class="gas-search-field gas-search-checkout">
                     <label><?php echo esc_html($atts['checkout_label']); ?></label>
-                    <input type="text" class="gas-checkout-date" placeholder="<?php echo esc_attr($atts['date_placeholder']); ?>" readonly />
+                    <input type="text" class="gas-checkout-date" placeholder="<?php echo esc_attr($cout_ph); ?>" readonly />
                 </div>
                 
                 <div class="gas-search-field gas-search-guests">

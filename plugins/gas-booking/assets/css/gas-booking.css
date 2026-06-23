@@ -1462,6 +1462,18 @@
     margin-bottom: 6px;
 }
 
+/* Compact mode: labels-as-placeholders. Halves the widget depth.
+   Enabled via the "labels=inside" shortcode attr → adds the
+   .gas-search-labels-inside class on the widget root. Keeps <label>
+   in DOM (screen readers) but visually removes it; placeholders
+   on inputs are swapped by the PHP shortcode for the label text. */
+.gas-search-labels-inside .gas-search-field label {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
 .gas-search-field input,
 .gas-search-field select {
     width: 100%;
