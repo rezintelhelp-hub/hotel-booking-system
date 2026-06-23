@@ -53,6 +53,10 @@ $search_max_width = $api['hero_search_max_width'] ?? get_theme_mod('developer_se
 $search_padding = $api['hero_search_padding'] ?? get_theme_mod('developer_search_padding', '24');
 $search_scale = $api['hero_search_scale'] ?? get_theme_mod('developer_search_scale', '100');
 $search_offset = $api["hero_search_offset"] ?? "0";
+// "center" = legacy default (search sits inside the hero-content block).
+// "bottom" = Pro Builder pattern: search rendered as a separate band after
+// the hero with negative top margin, anchoring it to the hero's bottom edge.
+$search_position = $api["hero_search_position"] ?? "center";
 
 // Search label translations (with API override)
 $search_checkin_label = $api['hero_search_checkin_label'] ?? '';
@@ -246,26 +250,39 @@ $homepage_sections = array(); // position => html
         
         <!-- GAS Search Widget with custom styling -->
         <?php $show_search = $api['hero_show_search'] ?? true; ?>
-        <?php if ($show_search && $show_search !== 'false') : ?>
-        <div class="developer-search-wrapper" style="background: <?php echo esc_attr($search_bg_rgba); ?>; border-radius: <?php echo esc_attr($search_radius); ?>px; max-width: <?php echo esc_attr($search_max_width); ?>px; transform: scale(<?php echo esc_attr($search_scale / 100); ?>); transform-origin: center top;">
-            <?php if (shortcode_exists('gas_search')) : ?>
-                <?php
-                $sc_attrs = 'layout="horizontal" max_width="100%" primary_color="' . esc_attr($search_btn_bg) . '" text_color="' . esc_attr($search_btn_text) . '" label_color="' . esc_attr($search_label_color) . '" background_color="transparent"';
-                if (!empty($search_checkin_label)) $sc_attrs .= ' checkin_label="' . esc_attr($search_checkin_label) . '"';
-                if (!empty($search_checkout_label)) $sc_attrs .= ' checkout_label="' . esc_attr($search_checkout_label) . '"';
-                if (!empty($search_guests_label)) $sc_attrs .= ' guests_label="' . esc_attr($search_guests_label) . '"';
-                if (!empty($search_btn_label)) $sc_attrs .= ' button_text="' . esc_attr($search_btn_label) . '"';
-                if (!empty($search_date_placeholder)) $sc_attrs .= ' date_placeholder="' . esc_attr($search_date_placeholder) . '"';
-                if (!empty($search_guest_singular)) $sc_attrs .= ' guest_singular="' . esc_attr($search_guest_singular) . '"';
-                echo do_shortcode('[gas_search ' . $sc_attrs . ']');
-                ?>
-            <?php else : ?>
-                <div style="padding: 24px 32px; text-align: center;">
-                    <p style="margin: 0; color: #64748b;">Search widget will appear here when GAS Booking plugin is activated.</p>
-                </div>
-            <?php endif; ?>
-        </div>
-        <?php endif; ?>
+        <?php
+        // Build the search wrapper markup once. It's emitted either INSIDE
+        // .developer-hero-content (position=center, legacy) or as a SIBLING
+        // block right after the </section> (position=bottom — overlaps the
+        // hero's bottom edge via negative margin).
+        $search_markup = '';
+        if ($show_search && $show_search !== 'false') {
+            ob_start();
+            ?>
+            <div class="developer-search-wrapper<?php echo ($search_position === 'bottom') ? ' developer-search-bottom' : ''; ?>" style="background: <?php echo esc_attr($search_bg_rgba); ?>; border-radius: <?php echo esc_attr($search_radius); ?>px; max-width: <?php echo esc_attr($search_max_width); ?>px; transform: scale(<?php echo esc_attr($search_scale / 100); ?>); transform-origin: center top;">
+                <?php if (shortcode_exists('gas_search')) : ?>
+                    <?php
+                    $sc_attrs = 'layout="horizontal" max_width="100%" primary_color="' . esc_attr($search_btn_bg) . '" text_color="' . esc_attr($search_btn_text) . '" label_color="' . esc_attr($search_label_color) . '" background_color="transparent"';
+                    if (!empty($search_checkin_label)) $sc_attrs .= ' checkin_label="' . esc_attr($search_checkin_label) . '"';
+                    if (!empty($search_checkout_label)) $sc_attrs .= ' checkout_label="' . esc_attr($search_checkout_label) . '"';
+                    if (!empty($search_guests_label)) $sc_attrs .= ' guests_label="' . esc_attr($search_guests_label) . '"';
+                    if (!empty($search_btn_label)) $sc_attrs .= ' button_text="' . esc_attr($search_btn_label) . '"';
+                    if (!empty($search_date_placeholder)) $sc_attrs .= ' date_placeholder="' . esc_attr($search_date_placeholder) . '"';
+                    if (!empty($search_guest_singular)) $sc_attrs .= ' guest_singular="' . esc_attr($search_guest_singular) . '"';
+                    echo do_shortcode('[gas_search ' . $sc_attrs . ']');
+                    ?>
+                <?php else : ?>
+                    <div style="padding: 24px 32px; text-align: center;">
+                        <p style="margin: 0; color: #64748b;">Search widget will appear here when GAS Booking plugin is activated.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <?php
+            $search_markup = ob_get_clean();
+        }
+        // Emit here only when position = center (default).
+        if ($search_position !== 'bottom') echo $search_markup;
+        ?>
 
         <?php if (($show_search && $show_search !== 'false') && $search_below_text) : ?>
             <p class="developer-search-below-text"><?php echo esc_html($search_below_text); ?></p>
@@ -296,7 +313,20 @@ $homepage_sections = array(); // position => html
     </div>
 </section>
 
-<?php if ($search_offset && intval($search_offset) !== 0) : ?>
+<?php if ($search_position === 'bottom' && $search_markup) : ?>
+<!-- Bottom-anchored hero search (Dwellfort / Pro Builder pattern). The
+     hero section ends above; we drop the wrapper as a sibling and pull it
+     up with negative top margin so it sits over the hero's bottom edge.
+     Offset slider re-purposed here as the overlap amount (default -60). -->
+<?php $bottom_overlap = intval($search_offset) !== 0 ? intval($search_offset) : -60; ?>
+<div class="developer-search-bottom-shell" style="position:relative; z-index:10; margin: <?php echo intval($bottom_overlap); ?>px auto 0; max-width:<?php echo esc_attr($search_max_width); ?>px; padding: 0 16px;">
+    <?php echo $search_markup; ?>
+</div>
+<style>
+.developer-hero { overflow: visible !important; padding-bottom: <?php echo max(40, abs(intval($bottom_overlap)) + 20); ?>px !important; }
+.developer-search-bottom-shell .developer-search-wrapper { transform: scale(<?php echo esc_attr($search_scale / 100); ?>) !important; transform-origin: center top; }
+</style>
+<?php elseif ($search_offset && intval($search_offset) !== 0) : ?>
 <style>
 .developer-hero { overflow: visible !important; padding-bottom: <?php echo abs(intval($search_offset)); ?>px !important; }
 .developer-search-wrapper { transform: scale(<?php echo esc_attr($search_scale / 100); ?>) translateY(<?php echo intval($search_offset); ?>px) !important; transform-origin: center top; position: relative; z-index: 10; }

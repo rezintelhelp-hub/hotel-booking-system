@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.37
+ * Version: 4.2.39
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -5201,6 +5201,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             'room_ids' => '',       // Comma-separated room IDs to show
             'layout' => !empty($license_display['layout']) ? $license_display['layout'] : get_option('gas_room_layout', 'auto'),
             'show_filters' => isset($license_display['show_filters']) ? ($license_display['show_filters'] ? 'true' : 'false') : 'true',
+            'show_ref_search' => 'false',  // Per-account WB toggle; lets guests filter cards by Ref or name + supports ?ref= URL param
             'show_amenity_filter' => get_option('gas_show_amenity_filter', '1') === '1' ? 'true' : 'false',
             'show_location_filter' => get_option('gas_show_location_filter', '1') === '1' ? 'true' : 'false',
             'background' => !empty($license_display['background']) ? $license_display['background'] : '',
@@ -5275,6 +5276,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         'rooms_show_amenity_filter' => $boolFlag('show-amenity-filter'),
                         'rooms_show_location_filter' => $boolFlag('show-location-filter'),
                         'rooms_show_property_filter' => $boolFlag('show-property-filter'),
+                        'rooms_show_ref_search' => $boolFlag('show-ref-search'),
                     );
                     set_transient($cache_key, $api_settings, 300);
                 }
@@ -5310,6 +5312,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             }
             if (isset($api_settings['rooms_show_guest_filter'])) {
                 $atts['show_guest_filter'] = $api_settings['rooms_show_guest_filter'] ? 'true' : 'false';
+            }
+            if (isset($api_settings['rooms_show_ref_search'])) {
+                $atts['show_ref_search'] = $api_settings['rooms_show_ref_search'] ? 'true' : 'false';
             }
             if (!empty($api_settings['rooms_filter_bg'])) {
                 $atts['filter_bg'] = $api_settings['rooms_filter_bg'];
@@ -6620,6 +6625,12 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         ?>
         <!-- Date Filter -->
         <div class="gas-date-filter">
+            <?php if ($atts['show_ref_search'] === 'true') : ?>
+            <div class="gas-filter-field gas-filter-ref-search" style="min-width:200px;">
+                <label><?php echo esc_html($t_filters['ref_search'] ?? 'Find by Ref / Name'); ?></label>
+                <input type="search" id="gas-rooms-ref-search-input" placeholder="<?php echo esc_attr($t_filters['ref_search_placeholder'] ?? 'Type a ref or name…'); ?>" autocomplete="off">
+            </div>
+            <?php endif; ?>
             <?php if ($show_location_filter && count($all_locations) > 1) : ?>
             <div class="gas-filter-field">
                 <label><?php echo esc_html($t_filters['location'] ?? 'Location'); ?></label>
@@ -6769,6 +6780,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $room_amenities = $room['amenities'] ?? array();
                             $room_location = $room['city'] ?? $room['district'] ?? '';
                             $room_property_name = $room['property_name'] ?? '';
+                            $_row_room_show_ref = !empty($room['show_reference']);
+                            $_row_room_ref_code = isset($room['reference_code']) ? trim((string)$room['reference_code']) : '';
+                            $_row_prop_show_ref = !empty($room['property_show_reference']);
+                            $_row_prop_ref_code = isset($room['property_reference_code']) ? trim((string)$room['property_reference_code']) : '';
+                            $_row_eff_ref = ($_row_room_show_ref && $_row_room_ref_code !== '') ? $_row_room_ref_code
+                                          : (($_row_prop_show_ref && $_row_prop_ref_code !== '') ? $_row_prop_ref_code : '');
+                            $_row_display_name = $this->extract_display_text($room['display_name'] ?? '') ?: $room['name'];
                         ?>
                         <div class="gas-room-row<?php echo $has_dates ? ' checking' : ''; ?>"
                              data-room-id="<?php echo esc_attr($room['id']); ?>"
@@ -6778,6 +6796,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                              data-state="<?php echo esc_attr($room['state'] ?? ''); ?>"
                              data-country="<?php echo esc_attr($room['country'] ?? ''); ?>"
                              data-property-name="<?php echo esc_attr($room_property_name); ?>"
+                             data-ref="<?php echo esc_attr($_row_eff_ref); ?>"
+                             data-name="<?php echo esc_attr($_row_display_name); ?>"
                              data-amenities="<?php echo esc_attr(json_encode(array_column($room_amenities, 'code'))); ?>"
                              data-marketing-tags="<?php echo esc_attr(json_encode(is_array($room['marketing_tags'] ?? null) ? $room['marketing_tags'] : array())); ?>"><?php if (!empty($image_url)) : ?>
                             <div class="gas-room-row-image" style="background-image: url('<?php echo esc_url($image_url); ?>');"></div>
@@ -6874,8 +6894,15 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $loc_line = $loc_city && $loc_state ? $loc_city . ', ' . $loc_state : ($loc_city ?: $loc_state);
                             $room_index++;
                             $pin_to_end = (isset($room['unit_role']) && $room['unit_role'] === 'exclusive_hire') ? ' data-pin-to-end="true"' : '';
+                            $_g2_show_room = !empty($room['show_reference']);
+                            $_g2_room_ref = isset($room['reference_code']) ? trim((string)$room['reference_code']) : '';
+                            $_g2_show_prop = !empty($room['property_show_reference']);
+                            $_g2_prop_ref = isset($room['property_reference_code']) ? trim((string)$room['property_reference_code']) : '';
+                            $_g2_eff_ref = ($_g2_show_room && $_g2_room_ref !== '') ? $_g2_room_ref
+                                         : (($_g2_show_prop && $_g2_prop_ref !== '') ? $_g2_prop_ref : '');
+                            $_g2_name = $this->extract_display_text($room['display_name'] ?? '') ?: $room['name'];
                         ?>
-                        <div class="gas-room-card"<?php echo $pin_to_end; ?> data-price="<?php echo esc_attr($price); ?>" data-room-id="<?php echo esc_attr($room['id']); ?>">
+                        <div class="gas-room-card"<?php echo $pin_to_end; ?> data-price="<?php echo esc_attr($price); ?>" data-room-id="<?php echo esc_attr($room['id']); ?>" data-ref="<?php echo esc_attr($_g2_eff_ref); ?>" data-name="<?php echo esc_attr($_g2_name); ?>">
                             <?php if (!empty($image_url)) : ?>
                             <div class="gas-room-image" <?php echo $room_index <= 6 ? 'style="background: url(\'' . esc_url($image_url) . '\') center/cover;"' : 'data-bg="' . esc_url($image_url) . '" style="background: #f0f0f0;"'; ?>></div>
                             <?php else : ?>
@@ -6958,13 +6985,25 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $card_city = trim($room['city'] ?? '');
                             $card_state = trim($room['state'] ?? '');
                             $card_location_line = $card_city && $card_state ? $card_city . ', ' . $card_state : ($card_city ?: $card_state);
-                            
+
+                            // Effective reference (room-level wins over property-level)
+                            // — computed up here so we can put it on the card's
+                            // data-ref attribute for the ref-search filter.
+                            $_card_room_show_ref = !empty($room['show_reference']);
+                            $_card_room_ref_code = isset($room['reference_code']) ? trim((string)$room['reference_code']) : '';
+                            $_card_prop_show_ref = !empty($room['property_show_reference']);
+                            $_card_prop_ref_code = isset($room['property_reference_code']) ? trim((string)$room['property_reference_code']) : '';
+                            $_card_eff_ref = ($_card_room_show_ref && $_card_room_ref_code !== '') ? $_card_room_ref_code
+                                           : (($_card_prop_show_ref && $_card_prop_ref_code !== '') ? $_card_prop_ref_code : '');
+
                             // Hide rooms beyond initial load
                             // Show all rooms - no pagination
                             $is_hidden = false;
                             $room_index++;
                         ?>
-                        <div class="gas-room-card <?php echo $is_hidden ? 'gas-room-hidden' : ''; ?><?php echo $has_dates ? ' checking' : ''; ?>" 
+                        <div class="gas-room-card <?php echo $is_hidden ? 'gas-room-hidden' : ''; ?><?php echo $has_dates ? ' checking' : ''; ?>"
+                             data-ref="<?php echo esc_attr($_card_eff_ref); ?>"
+                             data-name="<?php echo esc_attr($card_display_name); ?>"
                              data-room-id="<?php echo esc_attr($room['id']); ?>"
                              data-property-id="<?php echo esc_attr($room['property_id'] ?? ''); ?>"
                              data-payment-account-id="<?php echo esc_attr($room['payment_account_id'] ?? ''); ?>"
@@ -7046,7 +7085,37 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             <?php endif; ?>
         </div>
         </div><!-- .gas-rooms-page-wrapper -->
-        
+
+        <?php if ($atts['show_ref_search'] === 'true') : ?>
+        <script type="text/javascript">
+        // Ref / name search filter for /book-now/ cards.
+        // - Filters .gas-room-card OR .gas-room-row by data-ref OR data-name (case-insensitive contains).
+        // - Reads ?ref=… on load so links like /book-now/?ref=546364 land on the right card.
+        // - Live filters as the operator/guest types.
+        (function() {
+            var input = document.getElementById('gas-rooms-ref-search-input');
+            if (!input) return;
+            function applyFilter(q) {
+                var term = (q || '').trim().toLowerCase();
+                var cards = document.querySelectorAll('.gas-room-card, .gas-room-row');
+                cards.forEach(function(c) {
+                    if (!term) { c.style.display = ''; return; }
+                    var ref = (c.getAttribute('data-ref') || '').toLowerCase();
+                    var name = (c.getAttribute('data-name') || '').toLowerCase();
+                    var hit = (ref && ref.indexOf(term) !== -1) || (name && name.indexOf(term) !== -1);
+                    c.style.display = hit ? '' : 'none';
+                });
+            }
+            input.addEventListener('input', function() { applyFilter(input.value); });
+            // ?ref= URL param → pre-fill + filter on load
+            try {
+                var urlRef = new URLSearchParams(window.location.search).get('ref');
+                if (urlRef) { input.value = urlRef; applyFilter(urlRef); }
+            } catch (e) {}
+        })();
+        </script>
+        <?php endif; ?>
+
         <script type="text/javascript">
         var gasRoomsConfig = <?php echo wp_json_encode(array(
             'checkin' => $checkin,
@@ -9621,7 +9690,12 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         ?>
         <div class="gas-page gas-gallery-page" data-gallery-lightbox="<?php echo $lightbox ? '1' : '0'; ?>" style="background: <?php echo esc_attr($bg); ?>;" translate="no">
             <style>
-                .gas-gallery-page { padding: 70px 0 60px; }
+                /* No top padding — the host theme's page wrapper already adds
+                   header-clearance + breathing room above. The old 70px top
+                   double-stacked with the wrapper's 60px (and the 120px
+                   fixed-header spacer) producing a ~250px empty gap on
+                   /gallery/. Bottom keeps 60px so the grid clears any footer. */
+                .gas-gallery-page { padding: 0 0 60px; }
                 .gas-gallery-page .gas-page-inner { max-width: 1200px; margin: 0 auto; padding: 0 20px; font-family: var(--gas-body-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }
                 .gas-gallery-page .gas-page-title { font-size: 2.5rem; font-weight: 700; color: #1e293b; margin-bottom: 24px; font-family: var(--gas-heading-font, inherit); }
                 .gas-gallery-page .gas-page-content { font-size: 1.1rem; line-height: 1.8; color: #475569; margin-bottom: 32px; }

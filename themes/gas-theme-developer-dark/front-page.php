@@ -67,6 +67,10 @@ $search_below_text = $api['hero_search_below_text'] ?? get_theme_mod('developer_
 $search_max_width = $api['hero_search_max_width'] ?? get_theme_mod('developer_search_max_width', '900');
 $search_padding = $api['hero_search_padding'] ?? get_theme_mod('developer_search_padding', '24');
 $search_scale = $api['hero_search_scale'] ?? get_theme_mod('developer_search_scale', '100');
+$search_offset = $api['hero_search_offset'] ?? '0';
+// "center" = legacy default (search inside hero-content). "bottom" = Pro
+// Builder pattern: separate band after hero with negative top margin.
+$search_position = $api['hero_search_position'] ?? 'center';
 
 // Search label translations (with API override)
 $search_checkin_label = $api['hero_search_checkin_label'] ?? '';
@@ -222,9 +226,14 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
         <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo esc_html($hero_subtitle); ?></p>
         
         <!-- GAS Search Widget with custom styling -->
-        <div class="developer-search-wrapper" style="background: <?php echo esc_attr($search_bg_rgba); ?>; border-radius: <?php echo esc_attr($search_radius); ?>px; max-width: <?php echo esc_attr($search_max_width); ?>px; transform: scale(<?php echo esc_attr($search_scale / 100); ?>); transform-origin: center top;">
+        <?php
+        // Build wrapper once. Emit in-hero (position=center) OR after the
+        // </section> (position=bottom — Dwellfort pattern) below.
+        ob_start();
+        ?>
+        <div class="developer-search-wrapper<?php echo ($search_position === 'bottom') ? ' developer-search-bottom' : ''; ?>" style="background: <?php echo esc_attr($search_bg_rgba); ?>; border-radius: <?php echo esc_attr($search_radius); ?>px; max-width: <?php echo esc_attr($search_max_width); ?>px; transform: scale(<?php echo esc_attr($search_scale / 100); ?>); transform-origin: center top;">
             <?php if (shortcode_exists('gas_search')) : ?>
-                <?php 
+                <?php
                 $sc_attrs = 'layout="horizontal" max_width="100%" primary_color="' . esc_attr($search_btn_bg) . '" text_color="' . esc_attr($search_btn_text) . '" label_color="' . esc_attr($search_label_color) . '" background_color="transparent"';
                 if (!empty($search_checkin_label)) $sc_attrs .= ' checkin_label="' . esc_attr($search_checkin_label) . '"';
                 if (!empty($search_checkout_label)) $sc_attrs .= ' checkout_label="' . esc_attr($search_checkout_label) . '"';
@@ -232,7 +241,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
                 if (!empty($search_btn_label)) $sc_attrs .= ' button_text="' . esc_attr($search_btn_label) . '"';
                 if (!empty($search_date_placeholder)) $sc_attrs .= ' date_placeholder="' . esc_attr($search_date_placeholder) . '"';
                 if (!empty($search_guest_singular)) $sc_attrs .= ' guest_singular="' . esc_attr($search_guest_singular) . '"';
-                echo do_shortcode('[gas_search ' . $sc_attrs . ']'); 
+                echo do_shortcode('[gas_search ' . $sc_attrs . ']');
                 ?>
             <?php else : ?>
                 <div style="padding: 24px 32px; text-align: center;">
@@ -240,6 +249,10 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
                 </div>
             <?php endif; ?>
         </div>
+        <?php
+        $search_markup = ob_get_clean();
+        if ($search_position !== 'bottom') echo $search_markup;
+        ?>
         
         <?php if ($search_below_text) : ?>
             <p class="developer-search-below-text"><?php echo esc_html($search_below_text); ?></p>
@@ -269,6 +282,18 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
         <?php endif; ?>
     </div>
 </section>
+
+<?php if ($search_position === 'bottom' && !empty($search_markup)) : ?>
+<!-- Bottom-anchored hero search (Dwellfort / Pro Builder pattern). -->
+<?php $bottom_overlap = intval($search_offset) !== 0 ? intval($search_offset) : -60; ?>
+<div class="developer-search-bottom-shell" style="position:relative; z-index:10; margin: <?php echo intval($bottom_overlap); ?>px auto 0; max-width:<?php echo esc_attr($search_max_width); ?>px; padding: 0 16px;">
+    <?php echo $search_markup; ?>
+</div>
+<style>
+.developer-hero { overflow: visible !important; padding-bottom: <?php echo max(40, abs(intval($bottom_overlap)) + 20); ?>px !important; }
+.developer-search-bottom-shell .developer-search-wrapper { transform: scale(<?php echo esc_attr($search_scale / 100); ?>) !important; transform-origin: center top; }
+</style>
+<?php endif; ?>
 
 <?php if ($intro_enabled && ($intro_title || $intro_text)) : ?>
 <!-- Intro Section -->
