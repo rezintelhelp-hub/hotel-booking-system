@@ -2741,6 +2741,7 @@ function developer_get_api_settings() {
         'hero_search_scale' => $website_hero['search-scale'] ?? ($website_hero['search']['scale'] ?? null),
         'hero_search_offset' => $website_hero['search-offset'] ?? ($website_hero['search']['offset'] ?? null),
         'hero_search_position' => $website_hero['search-position'] ?? ($website_hero['search']['position'] ?? null),
+        'hero_search_show_location' => $website_hero['search-show-location'] ?? ($website_hero['search']['show_location'] ?? null),
         'hero_search_below_text' => $website_hero['search-below-text'] ?? ($website_hero['search']['below_text'] ?? null),
         'hero_search_checkin_label' => developer_get_ml_value($website_hero, 'search-checkin-label', $lang),
         'hero_search_checkout_label' => developer_get_ml_value($website_hero, 'search-checkout-label', $lang),

@@ -71,6 +71,8 @@ $search_offset = $api['hero_search_offset'] ?? '0';
 // "center" = legacy default (search inside hero-content). "bottom" = Pro
 // Builder pattern: separate band after hero with negative top margin.
 $search_position = $api['hero_search_position'] ?? 'center';
+// Optional 4th field on the left ("Where are you going?"). Off by default.
+$search_show_location = !empty($api['hero_search_show_location']);
 
 // Search label translations (with API override)
 $search_checkin_label = $api['hero_search_checkin_label'] ?? '';
@@ -235,6 +237,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
             <?php if (shortcode_exists('gas_search')) : ?>
                 <?php
                 $sc_attrs = 'layout="horizontal" max_width="100%" primary_color="' . esc_attr($search_btn_bg) . '" text_color="' . esc_attr($search_btn_text) . '" label_color="' . esc_attr($search_label_color) . '" background_color="transparent"';
+                if ($search_show_location) $sc_attrs .= ' show_location="true"';
                 if (!empty($search_checkin_label)) $sc_attrs .= ' checkin_label="' . esc_attr($search_checkin_label) . '"';
                 if (!empty($search_checkout_label)) $sc_attrs .= ' checkout_label="' . esc_attr($search_checkout_label) . '"';
                 if (!empty($search_guests_label)) $sc_attrs .= ' guests_label="' . esc_attr($search_guests_label) . '"';
