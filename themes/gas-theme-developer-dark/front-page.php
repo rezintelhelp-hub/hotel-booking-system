@@ -301,6 +301,18 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
 </style>
 <?php endif; ?>
 
+<?php if (intval($search_radius) > 0) : ?>
+<!-- Mirror the wrapper's corner radius to inputs / select / button so the
+     pill / rounded shape carries through every visible edge. -->
+<style>
+.developer-search-wrapper .gas-search-field input,
+.developer-search-wrapper .gas-search-field select,
+.developer-search-wrapper .gas-search-button {
+    border-radius: <?php echo intval($search_radius); ?>px !important;
+}
+</style>
+<?php endif; ?>
+
 <?php if ($intro_enabled && ($intro_title || $intro_text)) : ?>
 <!-- Intro Section -->
 <section class="developer-section developer-intro" style="background: <?php echo esc_attr($intro_bg); ?>; color: <?php echo esc_attr($intro_text_color); ?>;">

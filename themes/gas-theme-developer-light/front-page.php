@@ -339,6 +339,19 @@ $homepage_sections = array(); // position => html
 </style>
 <?php endif; ?>
 
+<?php if (intval($search_radius) > 0) : ?>
+<!-- Mirror the wrapper's corner radius to inputs / select / button so the
+     pill / rounded shape carries through every visible edge. !important is
+     needed to beat the plugin's default --gas-radius variable. -->
+<style>
+.developer-search-wrapper .gas-search-field input,
+.developer-search-wrapper .gas-search-field select,
+.developer-search-wrapper .gas-search-button {
+    border-radius: <?php echo intval($search_radius); ?>px !important;
+}
+</style>
+<?php endif; ?>
+
 <?php ob_start(); ?>
 <?php if ($intro_enabled && ($intro_title || $intro_text)) : ?>
 <!-- Intro Section -->
