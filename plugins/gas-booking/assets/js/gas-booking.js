@@ -4272,6 +4272,26 @@ jQuery(document).ready(function($) {
                             
                             $room.find('.gas-room-price, .gas-room-row-price').html(priceHtml);
                             $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '', 'pointer-events': ''}).text(t('booking', 'view_book', 'View & Book'));
+
+                            // Pool-aware inventory pill — only renders for
+                            // dorm-style listings (multi-bed pool unit).
+                            // total_capacity > 1 keeps the pill off single
+                            // private rooms where "1 of 1 left" is noise.
+                            $room.find('.gas-pool-left-pill').remove();
+                            if (response.pool_aware && typeof response.available_count === 'number' && response.total_capacity > 1) {
+                                var left = response.available_count;
+                                var total = response.total_capacity;
+                                var pillBg, pillColor, pillTxt;
+                                if (left === 1) {
+                                    pillBg = '#fef3c7'; pillColor = '#92400e';
+                                    pillTxt = 'Only 1 left';
+                                } else {
+                                    pillBg = '#dcfce7'; pillColor = '#166534';
+                                    pillTxt = left + ' of ' + total + ' beds left';
+                                }
+                                var pillHtml = '<span class="gas-pool-left-pill" style="display:inline-block;margin-left:8px;padding:2px 8px;background:' + pillBg + ';color:' + pillColor + ';border-radius:999px;font-size:0.75rem;font-weight:600;">' + pillTxt + '</span>';
+                                $room.find('.gas-room-meta').first().append(pillHtml);
+                            }
                         } else if (response.min_stay_required) {
                             // Min stay not met — show price but with warning, not "unavailable"
                             $room.removeClass('unavailable checking available dates-blocked').addClass('min-stay-warning');
@@ -4280,6 +4300,7 @@ jQuery(document).ready(function($) {
                             $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#f59e0b', 'pointer-events': ''}).text(t('booking', 'view_book', 'View & Book'));
                         } else {
                             $room.removeClass('available').addClass('unavailable dates-blocked');
+                            $room.find('.gas-pool-left-pill').remove();
                             $room.find('.gas-room-price, .gas-room-row-price').html('—');
                             $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#9ca3af', 'pointer-events': ''}).text(t('booking', 'view_calendar', 'View Calendar')).attr('title', t('booking', 'check_other_dates', 'Check other dates'));
                         }
