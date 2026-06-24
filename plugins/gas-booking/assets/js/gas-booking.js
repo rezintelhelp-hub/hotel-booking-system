@@ -4274,20 +4274,24 @@ jQuery(document).ready(function($) {
                             $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '', 'pointer-events': ''}).text(t('booking', 'view_book', 'View & Book'));
 
                             // Pool-aware inventory pill — only renders for
-                            // dorm-style listings (multi-bed pool unit).
-                            // total_capacity > 1 keeps the pill off single
-                            // private rooms where "1 of 1 left" is noise.
+                            // multi-quantity listings (dorm beds OR private
+                            // room pools). total_capacity > 1 keeps the pill
+                            // off single private rooms where "1 of 1 left"
+                            // would be noise. capacity_unit comes from the
+                            // bottleneck pool ('beds' / 'rooms' / 'slots').
                             $room.find('.gas-pool-left-pill').remove();
                             if (response.pool_aware && typeof response.available_count === 'number' && response.total_capacity > 1) {
                                 var left = response.available_count;
                                 var total = response.total_capacity;
+                                var unitPlural = response.capacity_unit || 'rooms';
+                                var unitSingular = unitPlural.replace(/s$/, '');
                                 var pillBg, pillColor, pillTxt;
                                 if (left === 1) {
                                     pillBg = '#fef3c7'; pillColor = '#92400e';
-                                    pillTxt = 'Only 1 left';
+                                    pillTxt = 'Only 1 ' + unitSingular + ' left';
                                 } else {
                                     pillBg = '#dcfce7'; pillColor = '#166534';
-                                    pillTxt = left + ' of ' + total + ' beds left';
+                                    pillTxt = left + ' of ' + total + ' ' + unitPlural + ' left';
                                 }
                                 var pillHtml = '<span class="gas-pool-left-pill" style="display:inline-block;margin-left:8px;padding:2px 8px;background:' + pillBg + ';color:' + pillColor + ';border-radius:999px;font-size:0.75rem;font-weight:600;">' + pillTxt + '</span>';
                                 $room.find('.gas-room-meta').first().append(pillHtml);
