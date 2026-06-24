@@ -5333,26 +5333,48 @@ jQuery(document).ready(function($) {
                             response.taxes.forEach(function(tax) {
                                 var taxAmt = 0;
                                 var taxLabel = '';
-
                                 var taxName = tax.name;
-                                if (tax.type === 'fixed' || tax.amount) {
+                                // type='total_tax' (VAT): always recalculate
+                                // from the live group subtotal using the
+                                // rate, so a mixed-price cart (£30 bed +
+                                // £50 private) gets the right base — the
+                                // first-item × items.length shortcut only
+                                // works when all items cost the same.
+                                // Honour inclusive: when the price already
+                                // includes VAT, back it out via
+                                // base - base/(1+rate/100); otherwise add
+                                // on top.
+                                if (tax.type === 'total_tax' && tax.rate) {
+                                    var base = group.subtotal;
+                                    if (base < 0) base = 0;
+                                    taxAmt = tax.inclusive
+                                        ? base - (base / (1 + parseFloat(tax.rate) / 100))
+                                        : base * (parseFloat(tax.rate) / 100);
+                                    taxAmt = Math.round(taxAmt * 100) / 100;
+                                    taxLabel = taxName;
+                                } else if (tax.type === 'fixed' || tax.amount) {
                                     taxAmt = (parseFloat(tax.amount) || parseFloat(tax.rate) || 0) * group.items.length;
                                     taxLabel = taxName;
                                 } else {
                                     taxAmt = group.subtotal * (parseFloat(tax.rate) / 100);
                                     taxLabel = taxName + ' (' + tax.rate + '%)';
                                 }
-
-                                group.taxTotal += taxAmt;
-                                group.taxes.push({ label: taxLabel, amount: taxAmt });
+                                // Inclusive Total Tax is already inside
+                                // the room price → display only, don't
+                                // add to the grand total below.
+                                if (!(tax.type === 'total_tax' && tax.inclusive)) {
+                                    group.taxTotal += taxAmt;
+                                }
+                                group.taxes.push({ label: taxLabel, amount: taxAmt, inclusive: !!(tax.type === 'total_tax' && tax.inclusive) });
                             });
 
                             // Only update DOM for the current group
                             if (gIndex === currentPaymentGroupIndex) {
                                 var taxesHtml = '';
                                 group.taxes.forEach(function(t) {
+                                    var inclLabel = t.inclusive ? ' <span style="color:#6b7280;font-size:0.85em;">(included)</span>' : '';
                                     taxesHtml += '<div class="gas-tax-item" style="display:flex;justify-content:space-between;font-size:14px;color:#666;margin-bottom:4px;">';
-                                    taxesHtml += '<span>' + t.label + '</span>';
+                                    taxesHtml += '<span>' + t.label + inclLabel + '</span>';
                                     taxesHtml += '<span>' + formatPrice(t.amount, group.currency) + '</span>';
                                     taxesHtml += '</div>';
                                 });
