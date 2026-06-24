@@ -6073,7 +6073,14 @@ jQuery(document).ready(function($) {
                                 // else fall through to show final confirmation
                             }
 
-                            // All payments complete - clear cart and show final confirmation
+                            // All payments complete - clear cart and show final
+                            // confirmation. gas_cart_v1 is the canonical key
+                            // (line ~24); gas_cart is the legacy bridge written
+                            // at line ~575 just before group checkout starts.
+                            // Old code only cleared the bridge, so the real
+                            // cart persisted and the badge stayed at "2" after
+                            // a successful sale (Steve, Hebden, 2026-06-24).
+                            try { if (window.gasCart) window.gasCart.clear(); } catch (e) {}
                             localStorage.removeItem('gas_cart');
                             
                             // Show confirmation
