@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.44
+ * Version: 4.2.45
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.44');
+define('GAS_BOOKING_VERSION', '4.2.45');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4546,7 +4546,14 @@ class GAS_Booking {
         </head>
         <article class="gas-spark-page">
             <?php echo $hero_html; ?>
-            <div style="max-width: 800px; margin: 0 auto; padding: 3rem 1.5rem;">
+            <?php if (!$hero_html): ?>
+                <!-- No hero set — without a 60vh banner on top, the title
+                     starts at y=0 and the WordPress site header (sticky /
+                     transparent burger menu, etc) hides it. Reserve a
+                     150px spacer so the title always clears the header. -->
+                <div style="height: 150px;"></div>
+            <?php endif; ?>
+            <div style="max-width: 800px; margin: 0 auto; padding: 3rem 1.5rem; position: relative; z-index: 1;">
                 <?php if ($layout === 'side_by_side' && $hero_image): ?>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: center;">
                         <img src="<?php echo esc_url($hero_image); ?>" alt="" style="width: 100%; border-radius: 12px;">
