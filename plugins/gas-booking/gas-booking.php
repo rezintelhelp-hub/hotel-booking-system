@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.43
+ * Version: 4.2.44
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.43');
+define('GAS_BOOKING_VERSION', '4.2.44');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4396,6 +4396,7 @@ class GAS_Booking {
                 'shop_product' => 'Buy now',
                 'room' => 'Check availability',
                 'external_url' => 'Learn more',
+                'lead_form' => 'Submit',
                 'form_embed' => ''
             )[$cta['type']];
             $btn_url = '';
@@ -4406,6 +4407,8 @@ class GAS_Booking {
 
             if ($cta['type'] === 'form_embed' && !empty($cta['html'])) {
                 $cta_html = '<div class="gas-spark-form" style="margin: 2rem auto; max-width: 600px;">' . $cta['html'] . '</div>';
+            } elseif ($cta['type'] === 'lead_form' && !empty($cta['form'])) {
+                $cta_html = $this->gas_spark_render_lead_form($cta['form'], $btn_text);
             } elseif ($btn_url && $btn_text) {
                 $cta_html = '<a href="' . esc_url($btn_url) . '" class="gas-spark-cta" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); color: white; padding: 1rem 2.5rem; border-radius: 8px; font-weight: 700; font-size: 1.1rem; text-decoration: none; box-shadow: 0 4px 14px rgba(220,38,38,0.3); margin-top: 1.5rem;">' . esc_html($btn_text) . '</a>';
             }
@@ -4584,6 +4587,154 @@ class GAS_Booking {
         </article>
         <?php
         get_footer();
+    }
+
+    /**
+     * Render a native GAS lead form inline on a Spark page.
+     *
+     * Posts to https://admin.gas.travel/api/public/forms/{account}/{slug}/submit
+     * — the same endpoint /book-now / web-builder forms use. Submission
+     * upserts a contact (idempotent on email), pushes to any external
+     * CRM connection on the form, fires spark.form_submitted +
+     * newsletter.signup events for connected workflows.
+     */
+    private function gas_spark_render_lead_form($form, $btn_text) {
+        $form_id     = intval($form['id'] ?? 0);
+        $account_id  = intval($form['account_id'] ?? 0);
+        $slug        = sanitize_title($form['slug'] ?? '');
+        $title       = $form['title'] ?? '';
+        $description = $form['description'] ?? '';
+        $fields      = $form['fields'] ?? array();
+        $success_msg = $form['success_message'] ?? 'Thanks — we\'ll be in touch.';
+        $action      = $form['post_submit_action'] ?? 'show_message';
+        $redirect_url = $form['redirect_url'] ?? '';
+        if (!$account_id || !$slug) return '';
+
+        // Older forms stored an object keyed by field name; newer forms
+        // store an ordered array. Normalise to a list of field defs with
+        // keys: name, label, type, required, placeholder, options.
+        $normalised = array();
+        if (is_array($fields)) {
+            if (isset($fields[0]) && is_array($fields[0])) {
+                $normalised = $fields;
+            } else {
+                foreach ($fields as $name => $def) {
+                    if (is_array($def)) {
+                        $def['name'] = $def['name'] ?? $name;
+                        $normalised[] = $def;
+                    }
+                }
+            }
+        }
+        // Sane default — every lead form has at least email; some have
+        // first/last name. Synthesize when the form has nothing stored.
+        if (empty($normalised)) {
+            $normalised = array(
+                array('name' => 'first_name', 'label' => 'First name', 'type' => 'text', 'required' => true),
+                array('name' => 'email',      'label' => 'Email',      'type' => 'email', 'required' => true),
+            );
+        }
+
+        $form_dom_id = 'gas-spark-form-' . $form_id;
+        $submit_url = 'https://admin.gas.travel/api/public/forms/' . $account_id . '/' . rawurlencode($slug) . '/submit';
+
+        ob_start();
+        ?>
+        <div class="gas-spark-form-wrap" style="margin: 2rem auto; max-width: 560px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.75rem; text-align: left; box-shadow: 0 4px 14px rgba(15,23,42,0.06);">
+            <?php if ($title): ?>
+                <h3 style="margin: 0 0 0.4rem 0; font-size: 1.25rem; color: #1e293b;"><?php echo esc_html($title); ?></h3>
+            <?php endif; ?>
+            <?php if ($description): ?>
+                <p style="margin: 0 0 1rem 0; color: #475569; font-size: 0.95rem;"><?php echo esc_html($description); ?></p>
+            <?php endif; ?>
+            <form id="<?php echo esc_attr($form_dom_id); ?>" novalidate
+                  data-submit-url="<?php echo esc_url($submit_url); ?>"
+                  data-success-action="<?php echo esc_attr($action); ?>"
+                  data-success-message="<?php echo esc_attr($success_msg); ?>"
+                  data-redirect-url="<?php echo esc_url($redirect_url); ?>">
+                <?php foreach ($normalised as $f):
+                    $fname = sanitize_key($f['name'] ?? '');
+                    if (!$fname) continue;
+                    $flabel = $f['label'] ?? ucfirst(str_replace('_', ' ', $fname));
+                    $ftype  = $f['type'] ?? 'text';
+                    $req    = !empty($f['required']);
+                    $place  = $f['placeholder'] ?? '';
+                ?>
+                    <label style="display:block; margin-bottom: 0.85rem;">
+                        <span style="display:block; font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; font-weight: 500;">
+                            <?php echo esc_html($flabel); ?><?php if ($req) echo ' <span style="color:#dc2626;">*</span>'; ?>
+                        </span>
+                        <?php if ($ftype === 'textarea'): ?>
+                            <textarea name="<?php echo esc_attr($fname); ?>" <?php if ($req) echo 'required'; ?> rows="3" placeholder="<?php echo esc_attr($place); ?>" style="width:100%; padding:0.6rem 0.7rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.95rem; font-family:inherit; box-sizing:border-box;"></textarea>
+                        <?php elseif ($ftype === 'select' && !empty($f['options']) && is_array($f['options'])): ?>
+                            <select name="<?php echo esc_attr($fname); ?>" <?php if ($req) echo 'required'; ?> style="width:100%; padding:0.6rem 0.7rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.95rem; font-family:inherit; box-sizing:border-box; background:#fff;">
+                                <option value="">— Select —</option>
+                                <?php foreach ($f['options'] as $opt): ?>
+                                    <option value="<?php echo esc_attr($opt); ?>"><?php echo esc_html($opt); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        <?php else: ?>
+                            <input type="<?php echo esc_attr(in_array($ftype, array('email','tel','number','url')) ? $ftype : 'text'); ?>"
+                                   name="<?php echo esc_attr($fname); ?>"
+                                   <?php if ($req) echo 'required'; ?>
+                                   placeholder="<?php echo esc_attr($place); ?>"
+                                   style="width:100%; padding:0.6rem 0.7rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.95rem; font-family:inherit; box-sizing:border-box;">
+                        <?php endif; ?>
+                    </label>
+                <?php endforeach; ?>
+                <!-- Honeypot — bots fill this, real users can't see it. Matches the server-side check. -->
+                <input type="text" name="website_url" tabindex="-1" autocomplete="off" style="position:absolute; left:-9999px; height:0; width:0; opacity:0;">
+                <button type="submit" style="display:inline-block; margin-top:0.5rem; background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); color: #ffffff; padding: 0.85rem 2rem; border: 0; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 14px rgba(220,38,38,0.25);">
+                    <?php echo esc_html($btn_text ?: 'Submit'); ?>
+                </button>
+                <div class="gas-spark-form-msg" style="margin-top: 0.85rem; font-size: 0.9rem; min-height: 1.2rem;"></div>
+            </form>
+        </div>
+        <script>
+        (function () {
+            var form = document.getElementById(<?php echo wp_json_encode($form_dom_id); ?>);
+            if (!form) return;
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                var msg = form.querySelector('.gas-spark-form-msg');
+                var btn = form.querySelector('button[type="submit"]');
+                msg.style.color = '#64748b';
+                msg.textContent = 'Sending…';
+                if (btn) btn.disabled = true;
+                var fd = new FormData(form);
+                var payload = {};
+                fd.forEach(function (v, k) { payload[k] = v; });
+                try {
+                    var resp = await fetch(form.dataset.submitUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    var data = await resp.json();
+                    if (!data.success) throw new Error(data.error || 'Submission failed');
+                    var action = form.dataset.successAction || 'show_message';
+                    if (action === 'redirect' && form.dataset.redirectUrl) {
+                        window.location.href = form.dataset.redirectUrl;
+                        return;
+                    }
+                    if (action === 'serve_file' && data.download_url) {
+                        window.location.href = data.download_url;
+                        return;
+                    }
+                    form.style.display = 'none';
+                    msg.style.color = '#065f46';
+                    msg.style.fontSize = '1rem';
+                    msg.textContent = data.message || form.dataset.successMessage || 'Thanks!';
+                } catch (err) {
+                    msg.style.color = '#dc2626';
+                    msg.textContent = err.message || 'Something went wrong — please try again.';
+                    if (btn) btn.disabled = false;
+                }
+            });
+        })();
+        </script>
+        <?php
+        return ob_get_clean();
     }
 
     public function inject_seo_meta() {
