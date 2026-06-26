@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.48
+ * Version: 4.2.49
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -7134,21 +7134,19 @@ jQuery(document).ready(function($) {
         // /api/public/book payload (payment_method='worldpay' +
         // worldpay_session) and the server charges via /cardPayments.
         function loadWorldpayInfo() {
+            console.log('[Worldpay] loadWorldpayInfo called, propertyId=', checkoutData.propertyId);
             if (!checkoutData.propertyId) return;
             $.ajax({
                 url: checkoutData.apiUrl + '/api/public/property/' + checkoutData.propertyId + '/worldpay-info',
                 method: 'GET',
                 success: function(response) {
-                    if (!response || !response.success) return;
-                    // Only opt-in when Worldpay is fully ready (connected + has
-                    // a Checkout ID). If Checkout ID is missing, surface it
-                    // quietly in the console so the operator's dashboard
-                    // step is obvious without spamming guests.
+                    console.log('[Worldpay] /worldpay-info response:', response);
+                    if (!response || !response.success) { console.warn('[Worldpay] response not success — bailing'); return; }
                     if (response.checkout_id_missing) {
                         console.warn('[Worldpay] Connected but Checkout ID missing on account — Access Checkout SDK cannot init.');
                         return;
                     }
-                    if (!response.worldpay_enabled) return;
+                    if (!response.worldpay_enabled) { console.warn('[Worldpay] worldpay_enabled is false — bailing'); return; }
                     checkoutData.worldpayEnabled = true;
                     checkoutData.worldpayEnvironment = response.environment || 'sandbox';
                     checkoutData.worldpayCheckoutId = response.checkout_id;
@@ -7167,12 +7165,13 @@ jQuery(document).ready(function($) {
                         ? 'https://access.worldpay.com/access-checkout/v2/checkout.js'
                         : 'https://try.access.worldpay.com/access-checkout/v2/checkout.js';
                     var existing = Array.prototype.find.call(document.scripts, function(s) { return s.src === sdkSrc; });
-                    if (existing) { initWorldpayCard(); return; }
+                    if (existing) { console.log('[Worldpay] SDK already loaded, initing'); initWorldpayCard(); return; }
+                    console.log('[Worldpay] Loading SDK from', sdkSrc);
                     var s = document.createElement('script');
                     s.src = sdkSrc;
-                    s.onload = initWorldpayCard;
+                    s.onload = function() { console.log('[Worldpay] SDK loaded'); initWorldpayCard(); };
                     s.onerror = function() {
-                        console.error('[Worldpay] SDK failed to load');
+                        console.error('[Worldpay] SDK failed to load from', sdkSrc);
                         $cardOption.removeClass('worldpay-enabled');
                         checkoutData.worldpayEnabled = false;
                     };
@@ -7189,9 +7188,13 @@ jQuery(document).ready(function($) {
         // points at #gas-guest-form (the existing checkout form Stripe +
         // Square already submit through).
         function initWorldpayCard() {
-            if (!window.Worldpay || !window.Worldpay.checkout || !checkoutData.worldpayCheckoutId) return;
+            console.log('[Worldpay] initWorldpayCard — Worldpay=', !!window.Worldpay, 'checkoutId=', checkoutData.worldpayCheckoutId);
+            if (!window.Worldpay || !window.Worldpay.checkout || !checkoutData.worldpayCheckoutId) {
+                console.warn('[Worldpay] init prerequisites missing — Worldpay obj?', !!window.Worldpay, 'checkout?', !!(window.Worldpay && window.Worldpay.checkout), 'id?', !!checkoutData.worldpayCheckoutId);
+                return;
+            }
             var $cardEl = $('#gas-card-element');
-            if (!$cardEl.length) return;
+            if (!$cardEl.length) { console.warn('[Worldpay] #gas-card-element not in DOM — booking widget not rendered yet?'); return; }
             $cardEl.html(
                 '<div class="gas-wp-row" style="margin-bottom:0.55rem;">' +
                   '<div style="font-size:0.78rem; color:#475569; margin-bottom:0.25rem; font-weight:500;">Card number</div>' +
@@ -7224,6 +7227,7 @@ jQuery(document).ready(function($) {
                         checkoutData.worldpayEnabled = false;
                         return;
                     }
+                    console.log('[Worldpay] init succeeded — iframes mounted, checkout instance:', checkout);
                     checkoutData.worldpayCheckout = checkout;
                 });
             } catch (e) {
