@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.50
+ * Version: 4.2.51
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -7160,16 +7160,20 @@ jQuery(document).ready(function($) {
                     $cardOption.find('.gas-card-status').text(label);
 
                     // Dynamically load Worldpay's checkout.js matching env.
-                    // Mirrors Square's pattern (loadSquareInfo).
+                    // We do NOT init yet — the iframes need a non-zero
+                    // container to layout into, and #gas-card-element is
+                    // 0x0 until the operator picks Pay by Card. The card-
+                    // option click handler calls initWorldpayCard() once
+                    // the panel has expanded.
                     var sdkSrc = (response.environment === 'production')
                         ? 'https://access.worldpay.com/access-checkout/v2/checkout.js'
                         : 'https://try.access.worldpay.com/access-checkout/v2/checkout.js';
                     var existing = Array.prototype.find.call(document.scripts, function(s) { return s.src === sdkSrc; });
-                    if (existing) { console.log('[Worldpay] SDK already loaded, initing'); initWorldpayCard(); return; }
+                    if (existing) { console.log('[Worldpay] SDK already loaded'); checkoutData.worldpaySdkReady = true; maybeAutoSelectCard(); return; }
                     console.log('[Worldpay] Loading SDK from', sdkSrc);
                     var s = document.createElement('script');
                     s.src = sdkSrc;
-                    s.onload = function() { console.log('[Worldpay] SDK loaded'); initWorldpayCard(); };
+                    s.onload = function() { console.log('[Worldpay] SDK loaded'); checkoutData.worldpaySdkReady = true; maybeAutoSelectCard(); };
                     s.onerror = function() {
                         console.error('[Worldpay] SDK failed to load from', sdkSrc);
                         $cardOption.removeClass('worldpay-enabled');
@@ -7187,14 +7191,32 @@ jQuery(document).ready(function($) {
         // wrappers so the SDK has selectors to target. The form attribute
         // points at #gas-guest-form (the existing checkout form Stripe +
         // Square already submit through).
+        // Auto-select Pay by Card when Worldpay is the ONLY paid card
+        // provider (mirrors loadStripeInfo / loadSquareInfo). Without
+        // this the operator has to click Pay by Card themselves; with
+        // it the panel expands on its own and triggers the lazy init.
+        function maybeAutoSelectCard() {
+            if (checkoutData.stripeEnabled || checkoutData.squareEnabled) return;
+            var $visible = $('.gas-payment-option:visible');
+            if ($visible.length === 1) {
+                $visible.find('input').prop('disabled', false);
+                $visible.trigger('click');
+            }
+        }
+
         function initWorldpayCard() {
             console.log('[Worldpay] initWorldpayCard — Worldpay=', !!window.Worldpay, 'checkoutId=', checkoutData.worldpayCheckoutId);
+            if (checkoutData.worldpayCheckout) { console.log('[Worldpay] already inited, skipping'); return; }
             if (!window.Worldpay || !window.Worldpay.checkout || !checkoutData.worldpayCheckoutId) {
                 console.warn('[Worldpay] init prerequisites missing — Worldpay obj?', !!window.Worldpay, 'checkout?', !!(window.Worldpay && window.Worldpay.checkout), 'id?', !!checkoutData.worldpayCheckoutId);
                 return;
             }
             var $cardEl = $('#gas-card-element');
             if (!$cardEl.length) { console.warn('[Worldpay] #gas-card-element not in DOM — booking widget not rendered yet?'); return; }
+            if ($cardEl[0].offsetWidth === 0) {
+                console.warn('[Worldpay] #gas-card-element has 0 width — parent panel still collapsed. Retry from click handler after slideDown.');
+                return;
+            }
             $cardEl.html(
                 '<div class="gas-wp-row" style="margin-bottom:0.55rem;">' +
                   '<div style="font-size:0.78rem; color:#475569; margin-bottom:0.25rem; font-weight:500;">Card number</div>' +
@@ -8219,6 +8241,53 @@ jQuery(document).ready(function($) {
 
             // Show/hide Stripe form based on selection
             var paymentMethod = $(this).find('input').val();
+
+            // Worldpay branch — fires when Pay by Card is selected and
+            // Worldpay is the active card provider (Stripe + Square not
+            // connected). Slides down the same .gas-stripe-form panel
+            // that holds #gas-card-element, then lazy-inits the SDK now
+            // that the container has a real width. Runs deposit math via
+            // a synthetic _gasRecalcDeposit re-trigger so we don't
+            // duplicate that 30-line block here.
+            if (paymentMethod === 'card' && checkoutData.worldpayEnabled
+                && !checkoutData.stripeEnabled && !checkoutData.squareEnabled) {
+                if (e.type === 'click') {
+                    $('.gas-stripe-form').slideDown(200, function() {
+                        if (checkoutData.worldpaySdkReady) initWorldpayCard();
+                    });
+                    $('.gas-payment-summary').show();
+                    $('.gas-card-guarantee-note').remove();
+                }
+                // Reuse Stripe's deposit math by setting the temp flag and
+                // falling through — Stripe block also handles 'card' but
+                // gated on stripeEnabled. Just inline a lean version here.
+                var totalW = checkoutData.grandTotal || 0;
+                var voucherDiscountW = parseFloat(checkoutData.voucherDiscount) || 0;
+                var depositBaseW = totalW + voucherDiscountW;
+                var depositAmountW = totalW;
+                var balanceAmountW = 0;
+                if (checkoutData.depositRule) {
+                    var rule = checkoutData.depositRule;
+                    if (rule.deposit_type === 'percentage') depositAmountW = depositBaseW * (rule.deposit_percentage / 100);
+                    else if (rule.deposit_type === 'fixed') depositAmountW = parseFloat(rule.deposit_fixed_amount) || depositBaseW;
+                    else if (rule.deposit_type === 'first_night') depositAmountW = checkoutData.pricing?.base_rate || depositBaseW;
+                    if (depositAmountW > totalW) depositAmountW = totalW;
+                    balanceAmountW = totalW - depositAmountW;
+                }
+                checkoutData.depositAmount = depositAmountW;
+                checkoutData.balanceAmount = balanceAmountW;
+                var currencyW = checkoutData.currency || '';
+                $('.gas-deposit-amount-display').closest('.gas-payment-row').show();
+                $('.gas-deposit-amount-display').text(formatPrice(depositAmountW, currencyW));
+                if (balanceAmountW > 0) {
+                    $('.gas-balance-row').show();
+                    $('.gas-balance-amount-display').text(formatPrice(balanceAmountW, currencyW));
+                } else {
+                    $('.gas-balance-row').hide();
+                }
+                return;
+            }
+
             if (paymentMethod === 'card' && checkoutData.stripeEnabled) {
                 if (e.type === 'click') {
                     $('.gas-stripe-form').slideDown(200);
