@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.55
+ * Version: 4.2.56
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -7213,6 +7213,14 @@ jQuery(document).ready(function($) {
             // inner element measures 0×0 even after the animation
             // completes. A ResizeObserver fires once the layout settles.
             waitForCardElAndInit();
+            // Pricing usually fires BEFORE Worldpay init finishes, so
+            // the recalc helper bails (worldpayEnabled wasn't set then)
+            // and the deposit row stays at £0. Force a synthetic
+            // _gasRecalcDeposit now to re-run the deposit math against
+            // the current grandTotal — at most a no-op if pricing
+            // hasn't loaded yet, the helper will fire again on the next
+            // pricing update.
+            $('.gas-payment-card-option').trigger('_gasRecalcDeposit');
             $('.gas-payment-summary').show();
             // Replace Stripe branding (the panel label says "secured by Stripe"
             // until we override) and run the same deposit math the click
