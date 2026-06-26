@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.49
+ * Version: 4.2.50
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -7229,6 +7229,28 @@ jQuery(document).ready(function($) {
                     }
                     console.log('[Worldpay] init succeeded — iframes mounted, checkout instance:', checkout);
                     checkoutData.worldpayCheckout = checkout;
+                    // Diagnostic: 2s later inspect the DOM to confirm the
+                    // iframes are actually there + visible. Hidden parents
+                    // are the most common "init succeeded but I don't see
+                    // anything" cause.
+                    setTimeout(function() {
+                        var pan = document.getElementById('gas-wp-pan');
+                        var exp = document.getElementById('gas-wp-expiry');
+                        var cvv = document.getElementById('gas-wp-cvv');
+                        var cardEl = document.getElementById('gas-card-element');
+                        console.log('[Worldpay] DOM check', {
+                            cardEl_exists: !!cardEl,
+                            cardEl_visible: cardEl ? (cardEl.offsetWidth > 0 && cardEl.offsetHeight > 0) : false,
+                            cardEl_size: cardEl ? cardEl.offsetWidth + 'x' + cardEl.offsetHeight : null,
+                            cardEl_displayCSS: cardEl ? getComputedStyle(cardEl).display : null,
+                            pan_iframes: pan ? pan.querySelectorAll('iframe').length : 'no pan div',
+                            expiry_iframes: exp ? exp.querySelectorAll('iframe').length : 'no expiry div',
+                            cvv_iframes: cvv ? cvv.querySelectorAll('iframe').length : 'no cvv div',
+                            pan_size: pan ? pan.offsetWidth + 'x' + pan.offsetHeight : null,
+                            payment_card_option_visible: $('.gas-payment-card-option').is(':visible'),
+                            payment_card_option_selected: $('.gas-payment-card-option input').is(':checked'),
+                        });
+                    }, 2000);
                 });
             } catch (e) {
                 console.error('[Worldpay] init threw:', e);
