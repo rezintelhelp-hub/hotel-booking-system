@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.53
+ * Version: 4.2.54
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -7206,12 +7206,13 @@ jQuery(document).ready(function($) {
             $cardOption.find('input[name="payment_method"]').prop('checked', true).prop('disabled', false);
             // Reveal the same panel Stripe + Square use (it contains
             // #gas-card-element, which is where our iframes live).
-            $('.gas-stripe-form').slideDown(200, function() {
-                console.log('[Worldpay] slideDown done. #gas-card-element size now:',
-                    document.getElementById('gas-card-element')?.offsetWidth + 'x' +
-                    document.getElementById('gas-card-element')?.offsetHeight);
-                initWorldpayCard();
-            });
+            $('.gas-stripe-form').slideDown(200);
+            // Init the SDK as soon as the container actually has size.
+            // slideDown alone isn't enough — when fired from SDK onload
+            // the booking widget hasn't reached final layout so the
+            // inner element measures 0×0 even after the animation
+            // completes. A ResizeObserver fires once the layout settles.
+            waitForCardElAndInit();
             $('.gas-payment-summary').show();
             // Replace Stripe branding (the panel label says "secured by Stripe"
             // until we override) and run the same deposit math the click
@@ -7244,6 +7245,54 @@ jQuery(document).ready(function($) {
             } else {
                 $('.gas-balance-row').hide();
             }
+        }
+
+        // Watch #gas-card-element and fire initWorldpayCard the moment it
+        // has a non-zero width. Uses ResizeObserver when available (modern
+        // browsers), falls back to a polling loop. One-shot: disconnects /
+        // clears the interval after init runs.
+        function waitForCardElAndInit() {
+            if (checkoutData.worldpayCheckout) return;   // already inited
+            var el = document.getElementById('gas-card-element');
+            if (!el) {
+                // Element not in the DOM yet — short retry, then give up.
+                if (!checkoutData._wpWaitRetries) checkoutData._wpWaitRetries = 0;
+                if (checkoutData._wpWaitRetries++ < 20) {
+                    return setTimeout(waitForCardElAndInit, 250);
+                }
+                console.warn('[Worldpay] gave up waiting for #gas-card-element');
+                return;
+            }
+            // Already has size? Init immediately.
+            if (el.offsetWidth > 0) { initWorldpayCard(); return; }
+            // Modern path — ResizeObserver fires when layout settles.
+            if (typeof ResizeObserver !== 'undefined') {
+                console.log('[Worldpay] cardEl is 0×0, watching with ResizeObserver');
+                var ro = new ResizeObserver(function(entries) {
+                    var w = entries[0]?.contentRect?.width || 0;
+                    if (w > 0) {
+                        console.log('[Worldpay] cardEl resized to', w, '— initing');
+                        ro.disconnect();
+                        initWorldpayCard();
+                    }
+                });
+                ro.observe(el);
+                // Safety: give up after 30s so we don't leak observers.
+                setTimeout(function() { try { ro.disconnect(); } catch (_) {} }, 30000);
+                return;
+            }
+            // Fallback — poll every 250ms up to 30s.
+            console.log('[Worldpay] no ResizeObserver, polling for non-zero width');
+            var tries = 0;
+            var iv = setInterval(function() {
+                if (el.offsetWidth > 0) {
+                    clearInterval(iv);
+                    initWorldpayCard();
+                } else if (++tries > 120) {
+                    clearInterval(iv);
+                    console.warn('[Worldpay] gave up polling for cardEl width');
+                }
+            }, 250);
         }
 
         function initWorldpayCard() {
@@ -8294,11 +8343,10 @@ jQuery(document).ready(function($) {
             if (paymentMethod === 'card' && checkoutData.worldpayEnabled
                 && !checkoutData.stripeEnabled && !checkoutData.squareEnabled) {
                 if (e.type === 'click') {
-                    $('.gas-stripe-form').slideDown(200, function() {
-                        if (checkoutData.worldpaySdkReady) initWorldpayCard();
-                    });
+                    $('.gas-stripe-form').slideDown(200);
                     $('.gas-payment-summary').show();
                     $('.gas-card-guarantee-note').remove();
+                    if (checkoutData.worldpaySdkReady) waitForCardElAndInit();
                 }
                 // Reuse Stripe's deposit math by setting the temp flag and
                 // falling through — Stripe block also handles 'card' but
