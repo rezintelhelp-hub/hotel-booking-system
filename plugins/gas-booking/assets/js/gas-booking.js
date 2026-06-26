@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.46
+ * Version: 4.2.47
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -7055,8 +7055,17 @@ jQuery(document).ready(function($) {
                             });
                         }
                     } else {
-                        $('.gas-card-status').text(t('booking', 'not_available_property', 'Not available for this property'));
-                        
+                        // Race-safe: only claim "Not available" if no other
+                        // provider (Square / Worldpay) already labelled the
+                        // chip. Otherwise we'd overwrite e.g. Worldpay's
+                        // "Secure payment via Worldpay" when Stripe's
+                        // response happens to arrive second.
+                        if (!checkoutData.worldpayEnabled && !checkoutData.squareEnabled
+                            && !$('.gas-payment-card-option').hasClass('worldpay-enabled')
+                            && !$('.gas-payment-card-option').hasClass('square-enabled')) {
+                            $('.gas-card-status').text(t('booking', 'not_available_property', 'Not available for this property'));
+                        }
+
                         // Still load payment methods and bank details even without Stripe
                         if (response.payment_methods) {
                             var methods = response.payment_methods;
