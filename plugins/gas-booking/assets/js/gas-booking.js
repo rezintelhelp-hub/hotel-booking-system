@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.34
+ * Version: 4.2.46
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -6934,6 +6934,7 @@ jQuery(document).ready(function($) {
         if (checkoutData.propertyId) {
             loadStripeInfo();
             loadSquareInfo();
+            loadWorldpayInfo();
             // Check card guarantee
             $.ajax({
                 url: checkoutData.apiUrl + '/api/public/property/' + checkoutData.propertyId + '/card-guarantee-info?lang=' + currentLanguage,
@@ -7116,6 +7117,69 @@ jQuery(document).ready(function($) {
                 }
             });
         }
+
+        // Worldpay Hosted Payment Pages — SAQ-A integration. Customer never
+        // enters card details on our page; on submit we POST to
+        // /api/public/worldpay/start to create an HPP session and redirect
+        // them to Worldpay's hosted UI. They bounce back to
+        // /api/public/worldpay/return which queries the outcome + updates
+        // the booking before redirecting them here with ?wp=success|failure.
+        function loadWorldpayInfo() {
+            if (!checkoutData.propertyId) return;
+            $.ajax({
+                url: checkoutData.apiUrl + '/api/public/property/' + checkoutData.propertyId + '/worldpay-info',
+                method: 'GET',
+                success: function(response) {
+                    if (!response.success || !response.worldpay_enabled) return;
+                    checkoutData.worldpayEnabled = true;
+                    checkoutData.worldpayEnvironment = response.environment || 'sandbox';
+                    var $cardOption = $('.gas-payment-card-option');
+                    $cardOption.removeClass('disabled').addClass('worldpay-enabled');
+                    $cardOption.find('input').prop('disabled', false);
+                    var label = response.environment === 'sandbox'
+                        ? 'Secure payment via Worldpay (sandbox)'
+                        : 'Secure payment via Worldpay';
+                    $cardOption.find('.gas-card-status').text(label);
+                    // The HPP redirect means we don't need to mount any card
+                    // iframe locally — clear the placeholder if Stripe didn't
+                    // claim it first.
+                    var $cardEl = $('#gas-card-element');
+                    if ($cardEl.length && !checkoutData.stripeEnabled && !checkoutData.squareEnabled) {
+                        $cardEl.html('<div style="padding:0.75rem; font-size:0.85rem; color:#64748b; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px;">You\'ll be redirected to Worldpay\'s secure payment page after you click <strong>Confirm booking</strong>.</div>');
+                    }
+                }
+            });
+        }
+
+        // Send the customer to Worldpay's hosted page for an already-
+        // created booking. Called from the existing submit flow when
+        // worldpayEnabled is true and neither Stripe nor Square claimed
+        // the card option. The booking row already exists (we let the
+        // normal /api/public/book path create it as payment_status =
+        // 'pending'), so we just kick off the HPP session.
+        window.gasWorldpayRedirectForBooking = function(bookingId) {
+            $.ajax({
+                url: checkoutData.apiUrl + '/api/public/worldpay/start',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    booking_id: bookingId,
+                    return_origin: window.location.origin + window.location.pathname
+                }),
+                success: function(r) {
+                    if (r.success && r.url) {
+                        window.location.href = r.url;
+                    } else {
+                        alert('Could not start Worldpay payment: ' + (r.error || 'unknown'));
+                    }
+                },
+                error: function(xhr) {
+                    var msg = 'Network error';
+                    try { msg = (JSON.parse(xhr.responseText).error) || msg; } catch (e) {}
+                    alert('Could not start Worldpay payment: ' + msg);
+                }
+            });
+        };
 
         // Square Web Payments parallel to Stripe. Mounts a Square card form
         // when the property has accepted_methods.square AND its account has
@@ -8366,6 +8430,17 @@ jQuery(document).ready(function($) {
             
             var paymentMethod = $('input[name="payment_method"]:checked').val();
 
+            // Worldpay HPP — Stripe/Square take priority (operator may
+            // have multiple connected). When Worldpay is the ONLY card
+            // provider, switch the payment_method to 'worldpay_hpp' and
+            // submitBooking's success branch will redirect to HPP.
+            if (paymentMethod === 'card' && checkoutData.worldpayEnabled
+                && !checkoutData.stripeEnabled && !checkoutData.squareEnabled) {
+                $('input[name="payment_method"]:checked').val('worldpay_hpp');
+                submitBooking($btn, null);
+                return;
+            }
+
             // If card payment selected, process with Stripe first
             if (paymentMethod === 'card' && checkoutData.stripeEnabled) {
                 processCardPayment($btn);
@@ -9189,6 +9264,15 @@ jQuery(document).ready(function($) {
                     if (response.success) {
                         // Clear Hostvana inquiry booking ID — it's now confirmed
                         localStorage.removeItem('gas_hostvana_bookingId');
+
+                        // Worldpay HPP — booking saved as pending; hand the
+                        // customer to Worldpay's hosted page. Return handler
+                        // updates the booking, then bounces them back here
+                        // with ?wp=success|failure|cancel.
+                        if (paymentMethod === 'worldpay_hpp' && typeof window.gasWorldpayRedirectForBooking === 'function') {
+                            var bid = response.booking_id || (response.booking && response.booking.id);
+                            if (bid) { window.gasWorldpayRedirectForBooking(bid); return; }
+                        }
 
                         // Show confirmation
                         $('.gas-checkout-main > *').hide();
