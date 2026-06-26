@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.51
+ * Version: 4.2.52
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -7191,17 +7191,25 @@ jQuery(document).ready(function($) {
         // wrappers so the SDK has selectors to target. The form attribute
         // points at #gas-guest-form (the existing checkout form Stripe +
         // Square already submit through).
-        // Auto-select Pay by Card when Worldpay is the ONLY paid card
-        // provider (mirrors loadStripeInfo / loadSquareInfo). Without
-        // this the operator has to click Pay by Card themselves; with
-        // it the panel expands on its own and triggers the lazy init.
+        // After SDK loads, open the Pay-by-Card panel directly and init
+        // the iframes — don't depend on a synthetic click (which races
+        // with loadStripeInfo's hide-others logic and silently bails
+        // when more than one payment option is still visible).
         function maybeAutoSelectCard() {
-            if (checkoutData.stripeEnabled || checkoutData.squareEnabled) return;
-            var $visible = $('.gas-payment-option:visible');
-            if ($visible.length === 1) {
-                $visible.find('input').prop('disabled', false);
-                $visible.trigger('click');
+            if (checkoutData.stripeEnabled || checkoutData.squareEnabled) {
+                console.log('[Worldpay] another provider active, deferring to it');
+                return;
             }
+            console.log('[Worldpay] forcing Pay-by-Card open + lazy init');
+            var $cardOption = $('.gas-payment-card-option');
+            $cardOption.removeClass('disabled').addClass('selected');
+            $cardOption.find('input[name="payment_method"]').prop('checked', true).prop('disabled', false);
+            // Reveal the same panel Stripe + Square use (it contains
+            // #gas-card-element, which is where our iframes live).
+            $('.gas-stripe-form').slideDown(200, function() {
+                initWorldpayCard();
+            });
+            $('.gas-payment-summary').show();
         }
 
         function initWorldpayCard() {
