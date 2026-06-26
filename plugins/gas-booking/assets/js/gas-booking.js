@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.52
+ * Version: 4.2.53
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -7207,9 +7207,43 @@ jQuery(document).ready(function($) {
             // Reveal the same panel Stripe + Square use (it contains
             // #gas-card-element, which is where our iframes live).
             $('.gas-stripe-form').slideDown(200, function() {
+                console.log('[Worldpay] slideDown done. #gas-card-element size now:',
+                    document.getElementById('gas-card-element')?.offsetWidth + 'x' +
+                    document.getElementById('gas-card-element')?.offsetHeight);
                 initWorldpayCard();
             });
             $('.gas-payment-summary').show();
+            // Replace Stripe branding (the panel label says "secured by Stripe"
+            // until we override) and run the same deposit math the click
+            // handler would have done. Without this the deposit shows £0.00.
+            $('.gas-stripe-form').find('*').contents().filter(function() {
+                return this.nodeType === 3 && /secured by Stripe/i.test(this.nodeValue);
+            }).each(function() { this.nodeValue = this.nodeValue.replace(/secured by Stripe/i, 'secured by Worldpay'); });
+            // Deposit math (lean version mirroring the click handler).
+            var totalW = checkoutData.grandTotal || 0;
+            var voucherDiscountW = parseFloat(checkoutData.voucherDiscount) || 0;
+            var depositBaseW = totalW + voucherDiscountW;
+            var depositAmountW = totalW;
+            var balanceAmountW = 0;
+            if (checkoutData.depositRule) {
+                var rule = checkoutData.depositRule;
+                if (rule.deposit_type === 'percentage') depositAmountW = depositBaseW * (rule.deposit_percentage / 100);
+                else if (rule.deposit_type === 'fixed') depositAmountW = parseFloat(rule.deposit_fixed_amount) || depositBaseW;
+                else if (rule.deposit_type === 'first_night') depositAmountW = checkoutData.pricing?.base_rate || depositBaseW;
+                if (depositAmountW > totalW) depositAmountW = totalW;
+                balanceAmountW = totalW - depositAmountW;
+            }
+            checkoutData.depositAmount = depositAmountW;
+            checkoutData.balanceAmount = balanceAmountW;
+            var currencyW = checkoutData.currency || '';
+            $('.gas-deposit-amount-display').closest('.gas-payment-row').show();
+            $('.gas-deposit-amount-display').text(formatPrice(depositAmountW, currencyW));
+            if (balanceAmountW > 0) {
+                $('.gas-balance-row').show();
+                $('.gas-balance-amount-display').text(formatPrice(balanceAmountW, currencyW));
+            } else {
+                $('.gas-balance-row').hide();
+            }
         }
 
         function initWorldpayCard() {
