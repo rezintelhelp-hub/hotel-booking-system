@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.54
+ * Version: 4.2.55
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -8314,7 +8314,7 @@ jQuery(document).ready(function($) {
         // firing and the deposit row stayed at €0 (e.g. Hotel Balduin, 100%
         // deposit rule, no taxes — the auto-load path never updated the display).
         window._gasRecalcCheckoutDeposit = function() {
-            if (!checkoutData.stripeEnabled) return;
+            if (!checkoutData.stripeEnabled && !checkoutData.squareEnabled && !checkoutData.worldpayEnabled) return;
             // $card isn't in this scope (it was a local var in click handlers
             // further down). Select the card payment option directly.
             $('.gas-payment-card-option').trigger('_gasRecalcDeposit');
