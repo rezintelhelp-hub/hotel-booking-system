@@ -136,10 +136,11 @@ $usp_items = array();
 for ($i = 1; $i <= 6; $i++) {
     $icon = $api["usp_item_{$i}_icon"] ?? '';
     $image = $api["usp_item_{$i}_image"] ?? '';
+    $display_mode = $api["usp_item_{$i}_display_mode"] ?? 'icon';
     $title = $api["usp_item_{$i}_title"] ?? '';
     $text = $api["usp_item_{$i}_text"] ?? '';
     if ($text || $title || $icon || $image) {
-        $usp_items[] = array('icon' => $icon, 'image' => $image, 'title' => $title, 'text' => $text);
+        $usp_items[] = array('icon' => $icon, 'image' => $image, 'display_mode' => $display_mode, 'title' => $title, 'text' => $text);
     }
 }
 
@@ -468,9 +469,19 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
         <?php endif; ?>
 
         <div class="developer-usp-grid" style="grid-template-columns: repeat(<?php echo min(count($usp_items), 3); ?>, 1fr);">
-            <?php foreach ($usp_items as $item) : ?>
-                <div class="developer-usp-card" style="background: <?php echo esc_attr($usp_card_bg); ?>;">
-                    <?php if (!empty($item['image'])) : ?>
+            <?php foreach ($usp_items as $item) :
+                $mode = $item['display_mode'] ?? 'icon';
+                if ($mode === 'image' && empty($item['image'])) $mode = 'icon';
+                $card_mode_cls = ($mode === 'image' && !empty($item['image']))
+                    ? ' developer-usp-card--image'
+                    : ' developer-usp-card--icon';
+            ?>
+                <div class="developer-usp-card<?php echo $card_mode_cls; ?>" style="background: <?php echo esc_attr($usp_card_bg); ?>;">
+                    <?php if ($mode === 'image' && !empty($item['image'])) : ?>
+                        <div class="developer-usp-banner">
+                            <img src="<?php echo esc_url($item['image']); ?>" alt="">
+                        </div>
+                    <?php elseif (!empty($item['image'])) : ?>
                         <div class="developer-usp-icon">
                             <img src="<?php echo esc_url($item['image']); ?>" alt="">
                         </div>

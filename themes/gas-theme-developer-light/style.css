@@ -1162,6 +1162,7 @@ img {
 
 .developer-usp-icon {
     margin: -40px -32px 24px;  /* break out of card padding so image is edge-to-edge */
+    align-self: stretch;       /* card is align-items:center; without this the icon sizes to its content not card width */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1176,6 +1177,24 @@ img {
     width: 100%;
     max-width: 100%;
     height: 180px;
+    object-fit: cover;
+    display: block;
+}
+
+/* Image-mode banner — used when operator picks display_mode='image' in
+   the Web Builder USP section. Same edge-to-edge break-out as
+   .developer-usp-icon but a touch taller, since the operator's intent
+   here is "use this as the dominant card visual". */
+.developer-usp-card--image .developer-usp-banner {
+    margin: -40px -32px 24px;
+    align-self: stretch;
+    overflow: hidden;
+    border-radius: var(--developer-radius-lg) var(--developer-radius-lg) 0 0;
+}
+.developer-usp-card--image .developer-usp-banner img {
+    width: 100%;
+    max-width: 100%;
+    height: 220px;
     object-fit: cover;
     display: block;
 }

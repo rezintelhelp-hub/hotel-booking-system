@@ -1168,6 +1168,23 @@ img {
     border-radius: 8px;
 }
 
+/* Image-mode banner — operator picked display_mode='image' in Web
+   Builder. Full-width banner at the top of the card; falls through
+   to icon-mode rendering if no image is uploaded yet. */
+.developer-usp-card--image .developer-usp-banner {
+    align-self: stretch;
+    overflow: hidden;
+    border-radius: var(--developer-radius-lg, 12px) var(--developer-radius-lg, 12px) 0 0;
+    margin: -40px -32px 24px;
+}
+.developer-usp-card--image .developer-usp-banner img {
+    width: 100%;
+    max-width: 100%;
+    height: 220px;
+    object-fit: cover;
+    display: block;
+}
+
 .developer-usp-card p {
     font-size: 1rem;
     line-height: 1.6;

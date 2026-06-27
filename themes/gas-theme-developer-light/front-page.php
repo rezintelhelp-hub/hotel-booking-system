@@ -130,11 +130,15 @@ $usp_items = array();
 for ($i = 1; $i <= 6; $i++) {
     $icon = $api["usp_item_{$i}_icon"] ?? '';
     $image = $api["usp_item_{$i}_image"] ?? '';
+    // Operator picks per-item display mode in Web Builder. 'image' →
+    // full-width banner at top of card; 'icon' → small icon size
+    // (default, back-compat for legacy items without a saved mode).
+    $display_mode = $api["usp_item_{$i}_display_mode"] ?? 'icon';
     $title = $api["usp_item_{$i}_title"] ?? '';
     $text = $api["usp_item_{$i}_text"] ?? '';
     $link = $api["usp_item_{$i}_link"] ?? '';
     if ($text || $title || $icon || $image) {
-        $usp_items[] = array('icon' => $icon, 'image' => $image, 'title' => $title, 'text' => $text, 'link' => $link);
+        $usp_items[] = array('icon' => $icon, 'image' => $image, 'display_mode' => $display_mode, 'title' => $title, 'text' => $text, 'link' => $link);
     }
 }
 
@@ -541,8 +545,24 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
                     if ($is_external) $extra_attrs .= ' target="_blank" rel="noopener noreferrer"';
                 }
             ?>
-                <<?php echo $tag; ?> class="developer-usp-card<?php echo $link_url ? ' developer-usp-card--linked' : ''; ?>" style="background: <?php echo esc_attr($usp_card_bg); ?>;<?php echo $link_url ? ' text-decoration: none; color: inherit;' : ''; ?>"<?php echo $extra_attrs; ?>>
-                    <?php if (!empty($item['image'])) : ?>
+                <?php
+                // Card modifier class so CSS can lay out image-mode cards
+                // (full-width banner) vs icon-mode cards (small centred icon)
+                // distinctly. Image mode falls back to icon mode if no image
+                // is uploaded yet — keeps the card from collapsing while the
+                // operator's still setting up.
+                $mode = $item['display_mode'] ?? 'icon';
+                if ($mode === 'image' && empty($item['image'])) $mode = 'icon';
+                $card_mode_cls = ($mode === 'image' && !empty($item['image']))
+                    ? ' developer-usp-card--image'
+                    : ' developer-usp-card--icon';
+                ?>
+                <<?php echo $tag; ?> class="developer-usp-card<?php echo $link_url ? ' developer-usp-card--linked' : ''; ?><?php echo $card_mode_cls; ?>" style="background: <?php echo esc_attr($usp_card_bg); ?>;<?php echo $link_url ? ' text-decoration: none; color: inherit;' : ''; ?>"<?php echo $extra_attrs; ?>>
+                    <?php if ($mode === 'image' && !empty($item['image'])) : ?>
+                        <div class="developer-usp-banner">
+                            <img src="<?php echo esc_url($item['image']); ?>" alt="">
+                        </div>
+                    <?php elseif (!empty($item['image'])) : ?>
                         <div class="developer-usp-icon">
                             <img src="<?php echo esc_url($item['image']); ?>" alt="">
                         </div>
