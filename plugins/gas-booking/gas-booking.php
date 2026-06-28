@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.48
+ * Version: 4.2.49
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.48');
+define('GAS_BOOKING_VERSION', '4.2.49');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4566,7 +4566,30 @@ class GAS_Booking {
                     <h1 class="gas-spark-title"><?php echo esc_html($title); ?></h1>
                     <?php if ($subtitle): ?><p class="gas-spark-subtitle"><?php echo esc_html($subtitle); ?></p><?php endif; ?>
                 <?php endif; ?>
-                <div class="gas-spark-body"><?php echo wp_kses_post($body); ?></div>
+                <div class="gas-spark-body"><?php
+                // wp_kses_post strips <iframe> + <video> + <source>, which
+                // kills YouTube/Vimeo embeds — Walnut's Sparks are 80%
+                // video, so the body went blank. Extend the allowlist
+                // with embed tags + the iframe attrs YouTube/Vimeo emit.
+                $spark_allowed = wp_kses_allowed_html('post');
+                $spark_allowed['iframe'] = array(
+                    'src' => true, 'width' => true, 'height' => true,
+                    'frameborder' => true, 'allow' => true,
+                    'allowfullscreen' => true, 'title' => true,
+                    'loading' => true, 'referrerpolicy' => true,
+                    'name' => true, 'sandbox' => true, 'style' => true,
+                );
+                $spark_allowed['video'] = array(
+                    'src' => true, 'controls' => true, 'autoplay' => true,
+                    'muted' => true, 'loop' => true, 'playsinline' => true,
+                    'preload' => true, 'poster' => true, 'width' => true,
+                    'height' => true, 'style' => true,
+                );
+                $spark_allowed['source'] = array(
+                    'src' => true, 'type' => true, 'media' => true,
+                );
+                echo wp_kses($body, $spark_allowed);
+                ?></div>
                 <?php
                 $gallery = isset($spark['gallery_images']) ? $spark['gallery_images'] : array();
                 if (is_string($gallery)) { $decoded = json_decode($gallery, true); $gallery = is_array($decoded) ? $decoded : array(); }
