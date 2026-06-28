@@ -323,7 +323,10 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
                 <h2 style="color: <?php echo esc_attr($intro_text_color); ?>; font-size: <?php echo esc_attr($intro_title_size); ?>px;"><?php echo esc_html($intro_title); ?></h2>
             <?php endif; ?>
             <?php if ($intro_text) : ?>
-                <p style="font-size: <?php echo esc_attr($intro_text_size); ?>px;"><?php echo nl2br(esc_html($intro_text)); ?></p>
+                <?php // <div> not <p> — body usually has block-level tags inside.
+                      // p-wrapping auto-closes the moment they appear, killing
+                      // the slider's font-size. ?>
+                <div class="developer-intro-text" style="font-size: <?php echo esc_attr($intro_text_size); ?>px;"><?php echo wp_kses_post($intro_text); ?></div>
             <?php endif; ?>
             <?php 
             $intro_show_btn = $api['intro_show_btn'] ?? null;

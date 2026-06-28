@@ -804,6 +804,26 @@ img {
     margin-bottom: 24px;
 }
 
+/* Intro body wrapper — Web Builder slider sets font-size on this
+   div. Force every descendant element to inherit, so legacy inline
+   <span style="font-size:0.85rem"> blobs left over from earlier
+   WYSIWYG output don't override the operator's slider value.
+   Same idea for font-family (so the theme's chosen font wins). */
+.developer-intro-text {
+    line-height: 1.8;
+}
+.developer-intro-text p,
+.developer-intro-text div,
+.developer-intro-text span,
+.developer-intro-text li {
+    font-size: inherit !important;
+    font-family: inherit !important;
+}
+.developer-intro-text p,
+.developer-intro-text div {
+    margin: 0 0 1rem 0;
+}
+
 .developer-intro .developer-btn {
     margin-top: 10px;
 }

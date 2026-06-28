@@ -366,7 +366,17 @@ $homepage_sections = array(); // position => html
                 <h2 style="color: <?php echo esc_attr($intro_text_color); ?>; font-size: <?php echo esc_attr($intro_title_size); ?>px;"><?php echo esc_html($intro_title); ?></h2>
             <?php endif; ?>
             <?php if ($intro_text) : ?>
-                <p style="font-size: <?php echo esc_attr($intro_text_size); ?>px;"><?php echo nl2br(wp_kses_post($intro_text)); ?></p>
+                <?php
+                // Wrap in <div> not <p>. The intro body usually contains
+                // <p>/<div>/<h*> tags from the WYSIWYG — nesting block
+                // elements in a <p> makes the browser auto-close it
+                // immediately, so the font-size from the Web Builder
+                // text-size slider only ever applied to the empty gap
+                // before the first inner block. Pumice Tiny House
+                // (account 274) hit this with text-size=20 doing
+                // nothing on the live page.
+                ?>
+                <div class="developer-intro-text" style="font-size: <?php echo esc_attr($intro_text_size); ?>px;"><?php echo wp_kses_post($intro_text); ?></div>
             <?php endif; ?>
             <?php 
             $intro_show_btn = $api['intro_show_btn'] ?? null;

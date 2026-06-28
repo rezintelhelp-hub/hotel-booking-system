@@ -798,6 +798,23 @@ img {
     margin-bottom: 24px;
 }
 
+/* Intro body wrapper — forces every descendant to inherit so the
+   text-size slider value actually wins over legacy inline spans. */
+.developer-intro-text {
+    line-height: 1.8;
+}
+.developer-intro-text p,
+.developer-intro-text div,
+.developer-intro-text span,
+.developer-intro-text li {
+    font-size: inherit !important;
+    font-family: inherit !important;
+}
+.developer-intro-text p,
+.developer-intro-text div {
+    margin: 0 0 1rem 0;
+}
+
 .developer-intro .developer-btn {
     margin-top: 10px;
 }
