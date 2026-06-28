@@ -572,11 +572,7 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
                         <div class="developer-usp-banner">
                             <img src="<?php echo esc_url($item['image']); ?>" alt="">
                         </div>
-                    <?php elseif (!empty($item['image'])) : ?>
-                        <div class="developer-usp-icon">
-                            <img src="<?php echo esc_url($item['image']); ?>" alt="">
-                        </div>
-                    <?php elseif (!empty($item['icon'])) : ?>
+                    <?php elseif ($mode === 'icon' && !empty($item['icon'])) : ?>
                         <div class="developer-usp-icon">
                             <span style="font-size: 3rem;"><?php echo $item['icon']; ?></span>
                         </div>
