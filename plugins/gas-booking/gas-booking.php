@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.49
+ * Version: 4.2.50
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.49');
+define('GAS_BOOKING_VERSION', '4.2.50');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8412,15 +8412,15 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 
                                 <div class="gas-form-row">
                                     <div class="gas-form-field full-width">
-                                        <label><?php echo esc_html($t_checkout['address'] ?? $t_guest['address'] ?? 'Address'); ?> <span class="optional">(<?php echo esc_html($t_checkout['optional'] ?? 'optional'); ?>)</span></label>
-                                        <input type="text" name="address" placeholder="123 Main Street" />
+                                        <label><?php echo esc_html($t_checkout['address'] ?? $t_guest['address'] ?? 'Address'); ?> <span class="required">*</span></label>
+                                        <input type="text" name="address" required placeholder="123 Main Street" />
                                     </div>
                                 </div>
-                                
+
                                 <div class="gas-form-row">
                                     <div class="gas-form-field">
-                                        <label><?php echo esc_html($t_checkout['city'] ?? $t_guest['city'] ?? 'City'); ?> <span class="optional">(<?php echo esc_html($t_checkout['optional'] ?? 'optional'); ?>)</span></label>
-                                        <input type="text" name="city" placeholder="London" />
+                                        <label><?php echo esc_html($t_checkout['city'] ?? $t_guest['city'] ?? 'City'); ?> <span class="required">*</span></label>
+                                        <input type="text" name="city" required placeholder="London" />
                                     </div>
                                     <div class="gas-form-field">
                                         <label><?php echo esc_html($t_checkout['state'] ?? $t_guest['state'] ?? 'State / County'); ?> <span class="optional">(<?php echo esc_html($t_checkout['optional'] ?? 'optional'); ?>)</span></label>
@@ -8430,8 +8430,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
 
                                 <div class="gas-form-row">
                                     <div class="gas-form-field full-width">
-                                        <label><?php echo esc_html($t_checkout['postcode'] ?? $t_guest['postcode'] ?? 'Post / Zip Code'); ?> <span class="optional">(<?php echo esc_html($t_checkout['optional'] ?? 'optional'); ?>)</span></label>
-                                        <input type="text" name="postcode" placeholder="SW1A 1AA / 05751 / 2000" />
+                                        <label><?php echo esc_html($t_checkout['postcode'] ?? $t_guest['postcode'] ?? 'Post / Zip Code'); ?> <span class="required">*</span></label>
+                                        <input type="text" name="postcode" required placeholder="SW1A 1AA / 05751 / 2000" />
                                     </div>
                                 </div>
                                 
