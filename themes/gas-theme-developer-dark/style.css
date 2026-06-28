@@ -1171,8 +1171,9 @@ img {
     box-shadow: 0 8px 32px rgba(0,0,0,0.1);
 }
 
+/* Icon wrapper — small centred thumbnail (mode=icon or unset). */
 .developer-usp-icon {
-    margin-bottom: 24px;
+    margin: 0 auto 16px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1180,9 +1181,12 @@ img {
 
 .developer-usp-icon img {
     max-width: 120px;
-    max-height: 100px;
+    max-height: 120px;
+    width: auto;
+    height: auto;
     object-fit: contain;
     border-radius: 8px;
+    display: block;
 }
 
 /* Image-mode banner — operator picked display_mode='image' in Web

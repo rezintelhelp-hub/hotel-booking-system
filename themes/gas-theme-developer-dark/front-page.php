@@ -480,11 +480,16 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
                     : ' developer-usp-card--icon';
             ?>
                 <div class="developer-usp-card<?php echo $card_mode_cls; ?>" style="background: <?php echo esc_attr($usp_card_bg); ?>;">
-                    <?php if ($mode === 'image' && !empty($item['image'])) : ?>
+                    <?php // dropdown picks how image is rendered: icon=thumbnail, image=banner ?>
+                    <?php if (!empty($item['image']) && $mode === 'image') : ?>
                         <div class="developer-usp-banner">
                             <img src="<?php echo esc_url($item['image']); ?>" alt="">
                         </div>
-                    <?php elseif ($mode === 'icon' && !empty($item['icon'])) : ?>
+                    <?php elseif (!empty($item['image'])) : ?>
+                        <div class="developer-usp-icon">
+                            <img src="<?php echo esc_url($item['image']); ?>" alt="">
+                        </div>
+                    <?php elseif (!empty($item['icon'])) : ?>
                         <div class="developer-usp-icon">
                             <span style="font-size: 3rem;"><?php echo $item['icon']; ?></span>
                         </div>

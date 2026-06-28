@@ -1180,24 +1180,24 @@ img {
     box-shadow: 0 8px 32px rgba(0,0,0,0.1);
 }
 
+/* Icon wrapper — small centred thumbnail. Used when mode=icon (or
+   unset). Card is align-items:center so the wrapper sizes to its
+   content — kept that way intentionally so the thumbnail stays
+   icon-sized rather than stretching to card width. */
 .developer-usp-icon {
-    margin: -40px -32px 24px;  /* break out of card padding so image is edge-to-edge */
-    align-self: stretch;       /* card is align-items:center; without this the icon sizes to its content not card width */
+    margin: 0 auto 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
-    border-radius: var(--developer-radius-lg) var(--developer-radius-lg) 0 0;
 }
 
-/* Selected images fill the card width (operator request — 'images as
-   selected should be full width'). Icon-only USPs keep the inline 3rem
-   span emoji untouched; the rule only targets img elements. */
 .developer-usp-icon img {
-    width: 100%;
-    max-width: 100%;
-    height: 180px;
-    object-fit: cover;
+    max-width: 120px;
+    max-height: 120px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 8px;
     display: block;
 }
 

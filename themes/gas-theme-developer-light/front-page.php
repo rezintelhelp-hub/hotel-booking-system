@@ -568,11 +568,23 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
                     : ' developer-usp-card--icon';
                 ?>
                 <<?php echo $tag; ?> class="developer-usp-card<?php echo $link_url ? ' developer-usp-card--linked' : ''; ?><?php echo $card_mode_cls; ?>" style="background: <?php echo esc_attr($usp_card_bg); ?>;<?php echo $link_url ? ' text-decoration: none; color: inherit;' : ''; ?>"<?php echo $extra_attrs; ?>>
-                    <?php if ($mode === 'image' && !empty($item['image'])) : ?>
+                    <?php
+                    // The dropdown picks how the IMAGE is rendered:
+                    //   icon  → small centred thumbnail (.developer-usp-icon)
+                    //   image → full-width banner (.developer-usp-banner)
+                    // Emoji icon field is a fallback for the rare case where
+                    // there's no image and mode=icon — keeps legacy emoji USPs
+                    // working but operator's day-to-day is "upload one image".
+                    ?>
+                    <?php if (!empty($item['image']) && $mode === 'image') : ?>
                         <div class="developer-usp-banner">
                             <img src="<?php echo esc_url($item['image']); ?>" alt="">
                         </div>
-                    <?php elseif ($mode === 'icon' && !empty($item['icon'])) : ?>
+                    <?php elseif (!empty($item['image'])) : ?>
+                        <div class="developer-usp-icon">
+                            <img src="<?php echo esc_url($item['image']); ?>" alt="">
+                        </div>
+                    <?php elseif (!empty($item['icon'])) : ?>
                         <div class="developer-usp-icon">
                             <span style="font-size: 3rem;"><?php echo $item['icon']; ?></span>
                         </div>
