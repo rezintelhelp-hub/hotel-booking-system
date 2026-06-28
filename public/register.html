@@ -1527,37 +1527,26 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             const gasAccountId = accountData?.account?.id;
             const sessionToken = accountData?.token;
 
-            // Fetch all marketplace properties — send session token from
-            // create-account so the endpoint accepts the request (it now
-            // permits account-owner auth in addition to master admin).
+            // Fetch matching marketplace properties — server filters by
+            // owner before responding (no client-side filtering, no
+            // fallback-to-all that would otherwise leak the entire
+            // GAS-marketplace client list).
             const resp = await fetch(`/api/accounts/${gasAccountId}/beds24v2/connect`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     ...(sessionToken ? { 'Authorization': 'Bearer ' + sessionToken } : {})
-                }
+                },
+                body: JSON.stringify({ owner: ownerInput })
             });
             const data = await resp.json();
 
             if (!data.success || !data.properties?.length) {
-                throw new Error(data.error || 'No properties found in the marketplace. Check your Beds24 account is connected to the GAS marketplace.');
+                throw new Error(data.error || 'No properties found for that Beds24 email or owner ID. Check the value and confirm you enabled your properties in Beds24 → Settings → Marketplace → RezIntel.');
             }
 
-            // Filter by owner if input looks like an ID or email
-            let matchedProps = data.properties;
-            if (ownerInput.includes('@')) {
-                matchedProps = data.properties.filter(p => (p.username || '').toLowerCase().includes(ownerInput.toLowerCase()));
-            } else if (/^\d+$/.test(ownerInput)) {
-                matchedProps = data.properties.filter(p => String(p.ownerId) === ownerInput || String(p.masterId) === ownerInput);
-            }
-
-            if (matchedProps.length === 0) {
-                // Fall back to showing all if filter returned nothing
-                matchedProps = data.properties;
-                statusDiv.innerHTML = `<p style="color: #f59e0b; font-size: 0.85rem;">No exact match for "${ownerInput}" — showing all ${data.properties.length} marketplace properties. Select yours below.</p>`;
-            } else {
-                statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">Found ${matchedProps.length} property/properties!</p>`;
-            }
+            const matchedProps = data.properties;
+            statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">Found ${matchedProps.length} property/properties!</p>`;
 
             // Render property picker
             listDiv.style.display = 'block';
@@ -1565,7 +1554,7 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
                 <p style="font-size: 0.85rem; color: var(--ink-light); margin-bottom: 0.75rem;">Select the properties to import:</p>
                 ${matchedProps.map(p => `
                     <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" checked value="${p.propId}" data-owner="${p.ownerId}" data-propkey="${p.propKey || ''}" data-name="${(p.name || '').replace(/"/g, '&quot;')}" data-rooms="${p.roomCount || 0}" class="marketplace-prop-check" style="width: 18px; height: 18px;">
+                        <input type="checkbox" checked value="${p.propId}" data-owner="${p.ownerId}" data-name="${(p.name || '').replace(/"/g, '&quot;')}" data-rooms="${p.roomCount || 0}" class="marketplace-prop-check" style="width: 18px; height: 18px;">
                         <div>
                             <strong>${p.name || 'Property ' + p.propId}</strong>
                             <span style="font-size: 0.8rem; color: var(--ink-muted); margin-left: 0.5rem;">${p.roomCount || 0} rooms</span>
@@ -1615,8 +1604,11 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
                     body: JSON.stringify({
                         propId: cb.value,
                         ownerId: cb.dataset.owner,
-                        propKey: cb.dataset.propkey,
                         propName: cb.dataset.name
+                        // propKey intentionally omitted — server now
+                        // re-fetches it from the marketplace API by
+                        // (ownerId, propId) so the V1 API key never
+                        // travels via the browser.
                     })
                 });
                 const linkData = await linkResp.json();
