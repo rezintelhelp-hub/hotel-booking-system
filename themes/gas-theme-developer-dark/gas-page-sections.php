@@ -143,11 +143,19 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 <?php break;
 
             case 'text':
+                $cta_text = gas_ps_field($section, 'cta_text', $lang);
+                $cta_link = $section['cta_link'] ?? '';
+                $cta_target = !empty($section['cta_new_tab']) ? ' target="_blank" rel="noopener noreferrer"' : '';
                 ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-text" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
                     <div style="max-width: 800px; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 12px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                         <?php if ($body) : ?><div class="gas-ps-body"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
+                        <?php if ($cta_text && $cta_link) : ?>
+                            <div style="text-align: center; margin-top: 24px;">
+                                <a href="<?php echo esc_url($cta_link); ?>"<?php echo $cta_target; ?> style="display: inline-block; background: <?php echo esc_attr($primary_color); ?>; color: #fff; padding: 14px 36px; border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 600;"><?php echo esc_html($cta_text); ?></a>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </section>
                 <?php break;
@@ -290,6 +298,126 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                         <?php if ($cta_text && $cta_link) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; background: #fff; color: <?php echo esc_attr($bg_color); ?>; padding: 16px 40px; border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 700; font-size: 1.1rem;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                     </div>
                 </section>
+                <?php break;
+
+            case 'form':
+                // Section Builder inline form. Posts to admin.gas.travel
+                // /api/public/form-submit (multipart, supports File fields,
+                // writes to lead_form_submissions, emails recipient_email).
+                $fields = $section['fields'] ?? array();
+                $form_name = $section['form_name'] ?? ($heading ?: 'Form');
+                $recipient_email = $section['recipient_email'] ?? '';
+                $success_message = gas_ps_field($section, 'success_message', $lang, 'Thank you!');
+                $btn_text = gas_ps_field($section, 'button_text', $lang, 'Submit');
+                $card_bg = $section['card_bg'] ?? '#ffffff';
+                $card_radius_form = $section['card_radius'] ?? '12';
+                $btn_color = $section['button_color'] ?? '#10b981';
+                $btn_text_color = $section['button_text_color'] ?? '#ffffff';
+                $form_uid = 'gas-form-' . substr(md5(uniqid('', true)), 0, 8);
+                $form_site_url = home_url('/');
+                $form_api = get_option('gas_api_url', 'https://admin.gas.travel');
+                ?>
+                <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-form" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
+                    <div style="max-width: <?php echo $max_w; ?>; margin: 0 auto;">
+                        <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
+                        <?php if ($body) : ?><div class="gas-ps-body" style="margin: 0 0 24px;"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
+                        <div id="<?php echo esc_attr($form_uid); ?>-wrap" style="background: <?php echo esc_attr($card_bg); ?>; border-radius: <?php echo esc_attr($card_radius_form); ?>px; padding: 24px; border: 1px solid #e5e7eb;">
+                            <form id="<?php echo esc_attr($form_uid); ?>" method="POST" enctype="multipart/form-data" action="<?php echo esc_url($form_api . '/api/public/form-submit'); ?>">
+                                <input type="hidden" name="site_url" value="<?php echo esc_attr($form_site_url); ?>">
+                                <input type="hidden" name="form_name" value="<?php echo esc_attr($form_name); ?>">
+                                <input type="hidden" name="recipient_email" value="<?php echo esc_attr($recipient_email); ?>">
+                                <input type="hidden" name="success_message" value="<?php echo esc_attr($success_message); ?>">
+                                <input type="text" name="website_url" value="" tabindex="-1" autocomplete="off" style="position: absolute; left: -10000px; width: 1px; height: 1px; opacity: 0;" aria-hidden="true">
+                                <?php
+                                $used_names = array();
+                                foreach ($fields as $fi => $f) {
+                                    $label_val = gas_ps_field($f, 'label', $lang, 'Field ' . ($fi + 1));
+                                    $placeholder = gas_ps_field($f, 'placeholder', $lang, '');
+                                    $ftype = $f['field_type'] ?? 'text';
+                                    $required = !empty($f['required']);
+                                    $name = strtolower(preg_replace('/[^a-z0-9]+/i', '_', $label_val));
+                                    $name = trim($name, '_');
+                                    if ($name === '' || isset($used_names[$name])) {
+                                        $name = 'field_' . ($fi + 1);
+                                    }
+                                    $used_names[$name] = true;
+                                    $req_attr = $required ? ' required' : '';
+                                    $req_mark = $required ? ' <span style="color:#dc2626;">*</span>' : '';
+                                    $base_style = 'width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; font-family: inherit; box-sizing: border-box; background: #fff;';
+                                    echo '<div style="margin-bottom: 16px;">';
+                                    if ($ftype !== 'checkbox') {
+                                        echo '<label style="display: block; font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 6px;">' . esc_html($label_val) . $req_mark . '</label>';
+                                    }
+                                    switch ($ftype) {
+                                        case 'textarea':
+                                            echo '<textarea name="' . esc_attr($name) . '" rows="4" placeholder="' . esc_attr($placeholder) . '"' . $req_attr . ' style="' . $base_style . ' resize: vertical;"></textarea>';
+                                            break;
+                                        case 'select':
+                                            $opts = array_map('trim', explode(',', $f['options'] ?? ''));
+                                            echo '<select name="' . esc_attr($name) . '"' . $req_attr . ' style="' . $base_style . '"><option value="">' . esc_html($placeholder ?: 'Choose...') . '</option>';
+                                            foreach ($opts as $opt) {
+                                                if ($opt === '') continue;
+                                                echo '<option value="' . esc_attr($opt) . '">' . esc_html($opt) . '</option>';
+                                            }
+                                            echo '</select>';
+                                            break;
+                                        case 'checkbox':
+                                            echo '<label style="display: flex; align-items: center; gap: 8px; font-size: 0.95rem; color: #374151; cursor: pointer;"><input type="checkbox" name="' . esc_attr($name) . '" value="yes"' . $req_attr . ' style="width: 18px; height: 18px;"> ' . esc_html($label_val) . $req_mark . '</label>';
+                                            break;
+                                        case 'file':
+                                            echo '<input type="file" name="' . esc_attr($name) . '"' . $req_attr . ' style="' . $base_style . ' padding: 8px;">';
+                                            break;
+                                        case 'email':
+                                        case 'date':
+                                        case 'number':
+                                            echo '<input type="' . esc_attr($ftype) . '" name="' . esc_attr($name) . '" placeholder="' . esc_attr($placeholder) . '"' . $req_attr . ' style="' . $base_style . '">';
+                                            break;
+                                        case 'phone':
+                                            echo '<input type="tel" name="' . esc_attr($name) . '" placeholder="' . esc_attr($placeholder) . '"' . $req_attr . ' style="' . $base_style . '">';
+                                            break;
+                                        default:
+                                            echo '<input type="text" name="' . esc_attr($name) . '" placeholder="' . esc_attr($placeholder) . '"' . $req_attr . ' style="' . $base_style . '">';
+                                    }
+                                    echo '</div>';
+                                }
+                                ?>
+                                <button type="submit" style="width: 100%; padding: 12px 24px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; border: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; font-size: 1rem; font-weight: 600; cursor: pointer;"><?php echo esc_html($btn_text); ?></button>
+                                <div class="gas-form-error" style="display: none; margin-top: 12px; padding: 10px 14px; background: #fef2f2; color: #b91c1c; border-radius: 6px; font-size: 0.9rem;"></div>
+                            </form>
+                        </div>
+                    </div>
+                </section>
+                <script>
+                (function() {
+                    var form = document.getElementById('<?php echo esc_js($form_uid); ?>');
+                    if (!form) return;
+                    var wrap = document.getElementById('<?php echo esc_js($form_uid); ?>-wrap');
+                    var errBox = form.querySelector('.gas-form-error');
+                    var btn = form.querySelector('button[type="submit"]');
+                    form.addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        errBox.style.display = 'none';
+                        btn.disabled = true;
+                        var origText = btn.textContent;
+                        btn.textContent = 'Sending...';
+                        fetch(form.action, { method: 'POST', body: new FormData(form) })
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) {
+                                if (data && data.success) {
+                                    wrap.innerHTML = '<div style="text-align: center; padding: 40px 24px;"><div style="font-size: 3rem; margin-bottom: 12px;">✅</div><p style="font-size: 1.1rem; color: #1e293b; margin: 0; font-weight: 600;"><?php echo esc_js($success_message); ?></p></div>';
+                                } else {
+                                    throw new Error((data && data.error) || 'Submission failed');
+                                }
+                            })
+                            .catch(function(err) {
+                                errBox.textContent = err.message || 'Submission failed. Please try again.';
+                                errBox.style.display = 'block';
+                                btn.disabled = false;
+                                btn.textContent = origText;
+                            });
+                    });
+                })();
+                </script>
                 <?php break;
 
             case 'faq':
