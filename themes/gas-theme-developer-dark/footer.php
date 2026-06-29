@@ -243,7 +243,6 @@ $all_links = array_merge($quick_links, $legal_links);
                         <form id="<?php echo esc_attr($bcn_newsletter_uid); ?>" style="display: flex; flex-direction: column; gap: 0.5rem;">
                             <input type="hidden" name="client_id" value="<?php echo esc_attr($bcn_client_id); ?>">
                             <input type="hidden" name="source_url" value="<?php echo esc_attr(home_url($_SERVER['REQUEST_URI'] ?? '/')); ?>">
-                            <input type="text" name="name" placeholder="Name (optional)" autocomplete="name" style="width: 100%; padding: 10px 12px; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; font-size: 0.95rem; background: rgba(255,255,255,0.08); color: <?php echo esc_attr($footer_text); ?>; box-sizing: border-box; font-family: inherit;">
                             <input type="email" name="email" placeholder="Your email" required autocomplete="email" style="width: 100%; padding: 10px 12px; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; font-size: 0.95rem; background: rgba(255,255,255,0.08); color: <?php echo esc_attr($footer_text); ?>; box-sizing: border-box; font-family: inherit;">
                             <button type="submit" style="padding: 10px 16px; background: <?php echo esc_attr($footer_text); ?>; color: <?php echo esc_attr($footer_bg); ?>; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; font-family: inherit;">Subscribe</button>
                             <div class="gas-newsletter-msg" style="display: none; margin-top: 4px; font-size: 0.85rem;"></div>
@@ -262,7 +261,7 @@ $all_links = array_merge($quick_links, $legal_links);
                             btn.disabled = true;
                             var orig = btn.textContent;
                             btn.textContent = 'Sending...';
-                            var data = { client_id: f.client_id.value, email: f.email.value, name: f.name.value, source_url: f.source_url.value };
+                            var data = { client_id: f.client_id.value, email: f.email.value, source_url: f.source_url.value };
                             fetch('<?php echo esc_js($bcn_api); ?>/api/public/newsletter-signup', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -391,6 +390,14 @@ $all_links = array_merge($quick_links, $legal_links);
 
         <?php if ($footer_layout !== 'minimal') : ?>
         <div class="developer-footer-bottom" style="border-color: <?php echo esc_attr($footer_text); ?>33;">
+            <?php if ($footer_layout === 'brand_contact_newsletter' && !empty($all_links)) : ?>
+            <nav style="text-align: center; margin: 0 0 0.75rem; padding: 0 0 0.75rem; border-bottom: 1px solid <?php echo esc_attr($footer_text); ?>1a;">
+                <?php foreach ($all_links as $i => $link) : ?>
+                    <?php if ($i > 0) : ?><span style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.4; margin: 0 0.5rem;">|</span><?php endif; ?>
+                    <a href="<?php echo !empty($link['external']) ? esc_url($link['url']) : esc_url(home_url($link['url'])); ?>"<?php echo !empty($link['external']) ? ' target="_blank" rel="noopener noreferrer"' : ''; ?> style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8; text-decoration: none; font-size: 0.9rem;"><?php echo esc_html($link['label']); ?></a>
+                <?php endforeach; ?>
+            </nav>
+            <?php endif; ?>
             <p style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.7;">
                 <?php if (!empty($api_settings['footer_copyright'])) : ?>
                     <?php echo esc_html($api_settings['footer_copyright']); ?>
