@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.51
+ * Version: 4.2.52
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.51');
+define('GAS_BOOKING_VERSION', '4.2.52');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -6951,7 +6951,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 if ($checkin) $room_url .= '&checkin=' . urlencode($checkin);
                                 if ($checkout) $room_url .= '&checkout=' . urlencode($checkout);
                                 if ($guests) $room_url .= '&guests=' . intval($guests);
-                                if ($checkin && $checkout) $room_url .= '&tab=availability';
+                                // Land on Description tab by default — guest sees
+                                // the room write-up first. Dates are still on the
+                                // right-hand booking form so they can tap into
+                                // Availability themselves. Steve 2026-06-29.
                             }
 
                             $price = floatval($room['price'] ?? 0);
@@ -7150,7 +7153,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 if ($checkin) $room_url .= '&checkin=' . urlencode($checkin);
                                 if ($checkout) $room_url .= '&checkout=' . urlencode($checkout);
                                 if ($guests) $room_url .= '&guests=' . intval($guests);
-                                if ($checkin && $checkout) $room_url .= '&tab=availability';
+                                // Land on Description tab by default — guest sees
+                                // the room write-up first. Dates are still on the
+                                // right-hand booking form so they can tap into
+                                // Availability themselves. Steve 2026-06-29.
                             }
 
                             $price = floatval($room['price'] ?? 0);
