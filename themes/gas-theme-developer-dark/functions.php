@@ -3000,6 +3000,13 @@ function developer_get_api_settings() {
         'footer_bg' => $website_footer['bg'] ?? $website_footer['bg-color'] ?? null,
         'footer_text' => $website_footer['text'] ?? $website_footer['text-color'] ?? null,
         'footer_layout' => $website_footer['layout'] ?? 'default',
+        // Brand + Contact + Newsletter (3-col) layout fields.
+        // Only consumed when footer_layout === 'brand_contact_newsletter'.
+        'footer_brand_image' => $website_footer['brand-image-url'] ?? '',
+        'footer_brand_text' => developer_get_ml_value($website_footer, 'brand-text', $lang),
+        'footer_brand_link' => $website_footer['brand-link'] ?? '',
+        'footer_show_newsletter' => !empty($website_footer['show-newsletter']) && $website_footer['show-newsletter'] !== 'false' && $website_footer['show-newsletter'] !== '0',
+        'footer_newsletter_heading' => developer_get_ml_value($website_footer, 'newsletter-heading', $lang) ?: 'Sign up to our Newsletter',
         // Hard-coded TRUE — mirror developer-light/functions.php. Hiding
         // "Powered by GAS" is a paid add-on.
         'footer_show_powered_by' => true,
