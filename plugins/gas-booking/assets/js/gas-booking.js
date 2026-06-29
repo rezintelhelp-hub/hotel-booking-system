@@ -3303,13 +3303,13 @@ jQuery(document).ready(function($) {
 
                     $btn.prop('disabled', true).text(t('booking', 'minimum', 'Minimum') + ' ' + response.min_stay_required + ' ' + nightsWord + ' ' + t('booking', 'required', 'required'));
                 } else {
-                    // NOT AVAILABLE - Switch to Availability tab and show unavailable price
+                    // NOT AVAILABLE - keep current tab (Description by default per
+                    // the initial-tab policy at ~line 2609). Previously this
+                    // force-switched to Availability so the guest "saw why";
+                    // Steve 2026-06-29 prefers the description stays visible and
+                    // the disabled Book button text + price dash do the talking.
                     $('.gas-min-stay-warning').remove();
-                    $('.gas-tab-btn').removeClass('active');
-                    $('.gas-tab-btn[data-tab="availability"]').addClass('active');
-                    $('.gas-tab-content').removeClass('active');
-                    $('.gas-tab-content[data-tab="availability"]').addClass('active');
-                    
+
                     // Not available — show dash, hide pricing, disable button
                     $('.gas-price-amount').text('—');
                     $('.gas-price-period').text(t('booking', 'price_per_night', '/ night'));
