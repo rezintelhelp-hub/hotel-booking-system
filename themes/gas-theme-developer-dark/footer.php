@@ -153,6 +153,11 @@ $all_links = array_merge($quick_links, $legal_links);
                     <a href="<?php echo !empty($link['external']) ? esc_url($link['url']) : esc_url(home_url($link['url'])); ?>"<?php echo !empty($link['external']) ? ' target="_blank" rel="noopener noreferrer"' : ''; ?> style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8; text-decoration: none; font-size: 0.9rem;"><?php echo esc_html($link['label']); ?></a>
                 <?php endforeach; ?>
             </nav>
+            <?php if (!empty($api_settings['footer_newsletter_enabled']) && function_exists('developer_render_footer_newsletter')) : ?>
+            <div style="max-width: 360px; margin: 0 auto;">
+                <?php echo developer_render_footer_newsletter($footer_text, $footer_bg, $api_settings['footer_newsletter_heading'] ?? 'Sign up to our Newsletter'); ?>
+            </div>
+            <?php endif; ?>
         </div>
 
         <?php elseif ($footer_layout === 'minimal') : ?>
@@ -237,59 +242,17 @@ $all_links = array_merge($quick_links, $legal_links);
 
             <!-- Newsletter Column (right) — only when show-newsletter is ticked -->
             <div>
-                <?php if ($bcn_show_newsletter) : ?>
-                    <h4 style="color: <?php echo esc_attr($footer_text); ?>; margin: 0 0 0.75rem;"><?php echo esc_html($bcn_newsletter_heading); ?></h4>
-                    <div id="<?php echo esc_attr($bcn_newsletter_uid); ?>-wrap">
-                        <form id="<?php echo esc_attr($bcn_newsletter_uid); ?>" style="display: flex; flex-direction: column; gap: 0.5rem;">
-                            <input type="hidden" name="client_id" value="<?php echo esc_attr($bcn_client_id); ?>">
-                            <input type="hidden" name="source_url" value="<?php echo esc_attr(home_url($_SERVER['REQUEST_URI'] ?? '/')); ?>">
-                            <input type="email" name="email" placeholder="Your email" required autocomplete="email" style="width: 100%; padding: 10px 12px; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; font-size: 0.95rem; background: rgba(255,255,255,0.08); color: <?php echo esc_attr($footer_text); ?>; box-sizing: border-box; font-family: inherit;">
-                            <button type="submit" style="padding: 10px 16px; background: <?php echo esc_attr($footer_text); ?>; color: <?php echo esc_attr($footer_bg); ?>; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; font-family: inherit;">Subscribe</button>
-                            <div class="gas-newsletter-msg" style="display: none; margin-top: 4px; font-size: 0.85rem;"></div>
-                        </form>
-                    </div>
-                    <script>
-                    (function() {
-                        var f = document.getElementById('<?php echo esc_js($bcn_newsletter_uid); ?>');
-                        if (!f) return;
-                        var wrap = document.getElementById('<?php echo esc_js($bcn_newsletter_uid); ?>-wrap');
-                        var msg = f.querySelector('.gas-newsletter-msg');
-                        var btn = f.querySelector('button[type="submit"]');
-                        f.addEventListener('submit', function(e) {
-                            e.preventDefault();
-                            msg.style.display = 'none';
-                            btn.disabled = true;
-                            var orig = btn.textContent;
-                            btn.textContent = 'Sending...';
-                            var data = { client_id: f.client_id.value, email: f.email.value, source_url: f.source_url.value };
-                            fetch('<?php echo esc_js($bcn_api); ?>/api/public/newsletter-signup', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(data)
-                            }).then(function(r) { return r.json(); }).then(function(d) {
-                                if (d && d.success) {
-                                    wrap.innerHTML = '<p style="color: <?php echo esc_js($footer_text); ?>; opacity: 0.9; margin: 0;">✅ Thanks — you’re subscribed.</p>';
-                                } else {
-                                    throw new Error((d && d.error) || 'Subscription failed');
-                                }
-                            }).catch(function(err) {
-                                msg.textContent = err.message || 'Subscription failed. Please try again.';
-                                msg.style.color = '#fca5a5';
-                                msg.style.display = 'block';
-                                btn.disabled = false;
-                                btn.textContent = orig;
-                            });
-                        });
-                    })();
-                    </script>
+                <?php if ($bcn_show_newsletter && function_exists('developer_render_footer_newsletter')) : ?>
+                    <?php echo developer_render_footer_newsletter($footer_text, $footer_bg, $bcn_newsletter_heading); ?>
                 <?php endif; ?>
             </div>
 
         </div>
 
         <?php else : ?>
-        <!-- DEFAULT 4-COLUMN LAYOUT -->
-        <div class="developer-footer-grid">
+        <!-- DEFAULT 4-COLUMN LAYOUT (becomes 5-col when newsletter signup is on) -->
+        <?php $_show_newsletter_default = !empty($api_settings['footer_newsletter_enabled']); ?>
+        <div class="developer-footer-grid"<?php echo $_show_newsletter_default ? ' style="grid-template-columns: repeat(5, minmax(0, 1fr));"' : ''; ?>>
             <!-- Brand Column -->
             <div class="developer-footer-brand">
                 <?php if (has_custom_logo()) : ?>
@@ -385,19 +348,17 @@ $all_links = array_merge($quick_links, $legal_links);
                 </ul>
             </div>
             <?php endif; ?>
+            <?php if ($_show_newsletter_default && function_exists('developer_render_footer_newsletter')) : ?>
+            <!-- Newsletter Column (5th) — global toggle, any layout can opt-in -->
+            <div>
+                <?php echo developer_render_footer_newsletter($footer_text, $footer_bg, $api_settings['footer_newsletter_heading'] ?? 'Sign up to our Newsletter'); ?>
+            </div>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
 
         <?php if ($footer_layout !== 'minimal') : ?>
         <div class="developer-footer-bottom" style="border-color: <?php echo esc_attr($footer_text); ?>33;">
-            <?php if ($footer_layout === 'brand_contact_newsletter' && !empty($all_links)) : ?>
-            <nav style="text-align: center; margin: 0 0 0.75rem; padding: 0 0 0.75rem; border-bottom: 1px solid <?php echo esc_attr($footer_text); ?>1a;">
-                <?php foreach ($all_links as $i => $link) : ?>
-                    <?php if ($i > 0) : ?><span style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.4; margin: 0 0.5rem;">|</span><?php endif; ?>
-                    <a href="<?php echo !empty($link['external']) ? esc_url($link['url']) : esc_url(home_url($link['url'])); ?>"<?php echo !empty($link['external']) ? ' target="_blank" rel="noopener noreferrer"' : ''; ?> style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8; text-decoration: none; font-size: 0.9rem;"><?php echo esc_html($link['label']); ?></a>
-                <?php endforeach; ?>
-            </nav>
-            <?php endif; ?>
             <p style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.7;">
                 <?php if (!empty($api_settings['footer_copyright'])) : ?>
                     <?php echo esc_html($api_settings['footer_copyright']); ?>

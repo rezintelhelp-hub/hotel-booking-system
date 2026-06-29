@@ -2402,6 +2402,68 @@ if (!has_filter('wp_headers', 'gas_dev_no_cache_headers')) {
     }
 }
 
+/**
+ * Footer newsletter signup form — single source of truth shared by every
+ * layout that opts-in via the "Show newsletter signup in footer" tick.
+ * Default 4-col calls this as a 5th column, Centered as a stacked block,
+ * BCN as its right column. Posts JSON to /api/public/newsletter-signup
+ * (server.js:32184) and swaps the form for a success message on 200.
+ */
+function developer_render_footer_newsletter($footer_text, $footer_bg, $heading) {
+    $uid = 'gas-newsletter-' . substr(md5(uniqid('', true)), 0, 8);
+    $api = get_option('gas_api_url', 'https://admin.gas.travel');
+    $client_id = get_option('gas_client_id', '');
+    $req_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/';
+    ob_start();
+    ?>
+    <div id="<?php echo esc_attr($uid); ?>-wrap">
+        <?php if ($heading) : ?><h4 style="color: <?php echo esc_attr($footer_text); ?>; margin: 0 0 0.75rem;"><?php echo esc_html($heading); ?></h4><?php endif; ?>
+        <form id="<?php echo esc_attr($uid); ?>" style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <input type="hidden" name="client_id" value="<?php echo esc_attr($client_id); ?>">
+            <input type="hidden" name="source_url" value="<?php echo esc_attr(home_url($req_uri)); ?>">
+            <input type="email" name="email" placeholder="Your email" required autocomplete="email" style="width: 100%; padding: 10px 12px; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; font-size: 0.95rem; background: rgba(255,255,255,0.08); color: <?php echo esc_attr($footer_text); ?>; box-sizing: border-box; font-family: inherit;">
+            <button type="submit" style="padding: 10px 16px; background: <?php echo esc_attr($footer_text); ?>; color: <?php echo esc_attr($footer_bg); ?>; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; font-family: inherit;">Subscribe</button>
+            <div class="gas-newsletter-msg" style="display: none; margin-top: 4px; font-size: 0.85rem;"></div>
+        </form>
+    </div>
+    <script>
+    (function() {
+        var f = document.getElementById('<?php echo esc_js($uid); ?>');
+        if (!f) return;
+        var wrap = document.getElementById('<?php echo esc_js($uid); ?>-wrap');
+        var msg = f.querySelector('.gas-newsletter-msg');
+        var btn = f.querySelector('button[type="submit"]');
+        f.addEventListener('submit', function(e) {
+            e.preventDefault();
+            msg.style.display = 'none';
+            btn.disabled = true;
+            var orig = btn.textContent;
+            btn.textContent = 'Sending...';
+            var data = { client_id: f.client_id.value, email: f.email.value, source_url: f.source_url.value };
+            fetch('<?php echo esc_js($api); ?>/api/public/newsletter-signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (d && d.success) {
+                    wrap.innerHTML = '<p style="color: <?php echo esc_js($footer_text); ?>; opacity: 0.9; margin: 0;">✅ Thanks — you’re subscribed.</p>';
+                } else {
+                    throw new Error((d && d.error) || 'Subscription failed');
+                }
+            }).catch(function(err) {
+                msg.textContent = err.message || 'Subscription failed. Please try again.';
+                msg.style.color = '#fca5a5';
+                msg.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = orig;
+            });
+        });
+    })();
+    </script>
+    <?php
+    return ob_get_clean();
+}
+
 function developer_get_api_settings() {
     $client_id = get_option('gas_client_id', '');
     if (empty($client_id)) {
@@ -3129,6 +3191,10 @@ function developer_get_api_settings() {
         'footer_brand_link' => $website_footer['brand-link'] ?? '',
         'footer_show_newsletter' => !empty($website_footer['show-newsletter']) && $website_footer['show-newsletter'] !== 'false' && $website_footer['show-newsletter'] !== '0',
         'footer_newsletter_heading' => developer_get_ml_value($website_footer, 'newsletter-heading', $lang) ?: 'Sign up to our Newsletter',
+        // Same flag, kept generic: any layout can opt-in to the newsletter
+        // signup slot. Default = 5th column on the right; Centered = stacked
+        // under the nav; BCN = right column. See developer_render_footer_newsletter().
+        'footer_newsletter_enabled' => !empty($website_footer['show-newsletter']) && $website_footer['show-newsletter'] !== 'false' && $website_footer['show-newsletter'] !== '0',
         // Hard-coded TRUE — hiding the "Powered by GAS" link is a paid
         // add-on. The Web Builder checkbox is disabled in the UI; this
         // value is also force-true at the API layer so any stale saved
