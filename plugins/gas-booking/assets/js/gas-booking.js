@@ -5674,7 +5674,14 @@ jQuery(document).ready(function($) {
                         if (response.payment_methods) {
                             var methods = response.payment_methods;
                             var $payAtProp = $('.gas-payment-option').filter(function() { return $(this).find('input[value="pay_at_property"]').length > 0; });
-                            if (methods.pay_at_property === false) $payAtProp.hide();
+                            // pay_at_property is pre-checked at init (line ~5647).
+                            // If the server says it's disabled, we MUST also uncheck
+                            // the radio — otherwise it stays checked behind display:none
+                            // and the form submits payment_method=pay_at_property
+                            // (the Hotel Caracas booking 294592 bug, 2026-06-28).
+                            if (methods.pay_at_property === false) {
+                                $payAtProp.hide().removeClass('selected').find('input').prop('checked', false);
+                            }
                             if (methods.card === false) $('.gas-payment-card-option').hide();
                         }
                         if (response.pay_property_mode) window.gasPayPropertyMode = response.pay_property_mode;
@@ -5716,7 +5723,9 @@ jQuery(document).ready(function($) {
                                 var m = response.payment_methods;
                                 var $pp = $('.gas-payment-option').filter(function() { return $(this).find('input[value="pay_at_property"]').length > 0; });
                                 var $paypal = $('.gas-payment-option').filter(function() { return $(this).find('input[value="paypal"]').length > 0; });
-                                if (m.pay_at_property === false) $pp.hide();
+                                if (m.pay_at_property === false) {
+                                    $pp.hide().removeClass('selected').find('input').prop('checked', false);
+                                }
                                 if (m.paypal === false) $paypal.hide();
                                 if (m.card === false) $cardOption.hide();
                                 if (response.pay_property_mode) window.gasPayPropertyMode = response.pay_property_mode;
@@ -6410,7 +6419,11 @@ jQuery(document).ready(function($) {
                             var $payAtProperty = $('.gas-payment-option').filter(function() {
                                 return $(this).find('input[value="pay_at_property"]').length > 0;
                             });
-                            if (methods.pay_at_property === false) $payAtProperty.hide();
+                            // See single-flow comment ~5677 — must uncheck the hidden
+                            // radio, otherwise submission sends pay_at_property anyway.
+                            if (methods.pay_at_property === false) {
+                                $payAtProperty.hide().removeClass('selected').find('input').prop('checked', false);
+                            }
                             if (methods.card === false) $('.gas-payment-card-option').hide();
                         }
                         if (response.pay_property_mode) window.gasPayPropertyMode = response.pay_property_mode;
@@ -6461,7 +6474,7 @@ jQuery(document).ready(function($) {
                                 });
 
                                 if (methods.pay_at_property === false) {
-                                    $payAtProperty.hide();
+                                    $payAtProperty.hide().removeClass('selected').find('input').prop('checked', false);
                                 }
                                 if (methods.paypal === false) {
                                     $paypal.hide();
@@ -6983,7 +6996,7 @@ jQuery(document).ready(function($) {
                             });
                             
                             if (methods.pay_at_property === false) {
-                                $payAtProperty.hide();
+                                $payAtProperty.hide().removeClass('selected').find('input').prop('checked', false);
                             }
                             if (methods.paypal === false) {
                                 $paypal.hide();
@@ -6991,7 +7004,7 @@ jQuery(document).ready(function($) {
                             if (methods.card === false) {
                                 $cardOption.hide();
                             }
-                            
+
                             // Store bank details and pay property mode
                             if (response.pay_property_mode) {
                                 window.gasPayPropertyMode = response.pay_property_mode;
@@ -7075,8 +7088,15 @@ jQuery(document).ready(function($) {
                             });
                             
                             if (methods.card === false) $cardOption.hide();
-                            if (methods.pay_at_property === false) $payAtProperty.hide();
-                            
+                            // THIS is the branch that hit Hotel Caracas booking
+                            // 294592 (2026-06-28): Stripe disabled, only card_guarantee
+                            // allowed. Previously just .hide()'d the pay_at_property
+                            // option but left its radio checked, so submission shipped
+                            // payment_method=pay_at_property anyway.
+                            if (methods.pay_at_property === false) {
+                                $payAtProperty.hide().removeClass('selected').find('input').prop('checked', false);
+                            }
+
                             if (response.pay_property_mode) window.gasPayPropertyMode = response.pay_property_mode;
                             if (response.bank_details) window.gasBankDetails = response.bank_details;
                             
