@@ -1497,13 +1497,13 @@ jQuery(document).ready(function($) {
                 locale: flatpickrLocale,
                 disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
                 onChange: function(selectedDates, dateStr, instance) {
-                    // When checkout date is selected on room detail page, switch to availability tab
-                    var checkinInput = instance.element.closest('.gas-room-widget, .gas-booking-card')?.querySelector('.gas-checkin');
-                    if (!checkinInput) checkinInput = document.querySelector('.gas-checkin');
-                    if (checkinInput && checkinInput.value && dateStr) {
-                        var availTab = document.querySelector('.gas-tab-btn[data-tab="availability"]');
-                        if (availTab) availTab.click();
-                    }
+                    // Previously switched to Availability tab whenever a checkout
+                    // date arrived with checkin already set. That fired on
+                    // page-load pre-fill (from ?checkin&checkout URL params),
+                    // not just user interaction, so Steve's "land on Description"
+                    // expectation broke even after the URL/min-stay fixes.
+                    // Steve 2026-06-29: keep current tab. The right-hand booking
+                    // form still updates; description stays visible.
                     if (typeof window.gasUpdateEventStayWarning === 'function') window.gasUpdateEventStayWarning();
                 },
                 onMonthChange: function(_, __, instance) {
