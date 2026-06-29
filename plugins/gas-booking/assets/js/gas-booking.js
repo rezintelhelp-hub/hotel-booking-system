@@ -1434,29 +1434,31 @@ jQuery(document).ready(function($) {
                 // When ?event=<slug> is in the URL, this delegates to the rules
                 // fetched in showEventBanner so non-matching weekdays/dates grey out.
                 disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
-                onOpen: function() {
-                    var availTab = document.querySelector('.gas-tab-btn[data-tab="availability"]');
-                    if (availTab && !availTab.classList.contains('active')) availTab.click();
-                },
                 onChange: function(selectedDates, dateStr, instance) {
-                    // Update checkout min date and auto-open
-                    var checkoutInput = instance.element.closest('.gas-room-widget, .gas-booking-card')?.querySelector('.gas-checkout');
-                    if (!checkoutInput) checkoutInput = document.querySelector('.gas-checkout');
+                    // Auto-open the checkout picker AND switch to the
+                    // Availability tab — but only after the page is past its
+                    // initial pre-fill from URL params (?checkin/checkout).
+                    // _gasPickerReady is flipped true 250ms after onReady, so
+                    // page-load .setDate() calls don't trigger either behaviour.
+                    // Steve 2026-06-29: arriving on the page must NOT pop the
+                    // calendar or flip the tab; only real user interaction does.
+                    if (window._gasPickerReady) {
+                        var checkoutInput = instance.element.closest('.gas-room-widget, .gas-booking-card')?.querySelector('.gas-checkout');
+                        if (!checkoutInput) checkoutInput = document.querySelector('.gas-checkout');
 
-                    if (checkoutInput && checkoutInput._flatpickr) {
-                        var nextDay = new Date(selectedDates[0]);
-                        nextDay.setDate(nextDay.getDate() + 1);
-                        checkoutInput._flatpickr.set('minDate', nextDay);
-                        // Jump to check-in month and auto-open
-                        checkoutInput._flatpickr.jumpToDate(nextDay);
-                        setTimeout(function() {
-                            checkoutInput._flatpickr.open();
-                        }, isMobileDevice ? 300 : 100);
+                        if (checkoutInput && checkoutInput._flatpickr) {
+                            var nextDay = new Date(selectedDates[0]);
+                            nextDay.setDate(nextDay.getDate() + 1);
+                            checkoutInput._flatpickr.set('minDate', nextDay);
+                            checkoutInput._flatpickr.jumpToDate(nextDay);
+                            setTimeout(function() {
+                                checkoutInput._flatpickr.open();
+                            }, isMobileDevice ? 300 : 100);
+                        }
                     }
                     // Sync the left-hand availability calendar so it lands on
-                    // the same month the user just picked. Without this the
-                    // operator can pick Nov 14 while the availability panel
-                    // sits on June.
+                    // the same month the user just picked. Safe to do always —
+                    // it's a display refresh, not a tab/popup trigger.
                     if (selectedDates && selectedDates[0] && typeof loadAvailabilityCalendar === 'function') {
                         var picked = selectedDates[0];
                         calendarMonth = new Date(picked.getFullYear(), picked.getMonth(), 1);
@@ -1465,8 +1467,6 @@ jQuery(document).ready(function($) {
                     }
                 },
                 onMonthChange: function(_, __, instance) {
-                    // Refresh availability shading inside the picker for the
-                    // newly displayed month.
                     if (typeof refreshFlatpickrAvailability === 'function') {
                         refreshFlatpickrAvailability(instance);
                     }
@@ -1475,13 +1475,24 @@ jQuery(document).ready(function($) {
                     if (typeof refreshFlatpickrAvailability === 'function') {
                         refreshFlatpickrAvailability(instance);
                     }
+                    // Allow the page-load pre-fill to settle before treating
+                    // any onChange / onOpen as "real user interaction".
+                    setTimeout(function() { window._gasPickerReady = true; }, 250);
                 },
                 onOpen: function(_, __, instance) {
-                    // onReady fires only on init; onOpen fires every reopen.
-                    // Without this, picking a check-in date jumps the checkout
-                    // picker to the right month but the cells are unshaded.
+                    // Refresh availability shading every reopen (without this,
+                    // picking a check-in date and reopening the picker shows
+                    // stale shading for the new month).
                     if (typeof refreshFlatpickrAvailability === 'function') {
                         setTimeout(function(){ refreshFlatpickrAvailability(instance); }, 30);
+                    }
+                    // User clicked the check-in input → switch to the
+                    // Availability tab. Gated by _gasPickerReady so the page-
+                    // load init doesn't trigger this (flatpickr can fire onOpen
+                    // briefly during init in some configurations).
+                    if (window._gasPickerReady) {
+                        var availTab = document.querySelector('.gas-tab-btn[data-tab="availability"]');
+                        if (availTab && !availTab.classList.contains('active')) availTab.click();
                     }
                 }
             });
