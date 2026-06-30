@@ -25,6 +25,10 @@ const RENAMES = [
 
 (async () => {
   try {
+    // Self-contained: ensure the column exists before we set values, so
+    // the script works whether or not the latest server.js has deployed.
+    await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS bike_cabinet_public BOOLEAN DEFAULT true`).catch(() => {});
+
     for (const r of RENAMES) {
       await pool.query(
         `UPDATE bookable_units SET name = $1, bike_cabinet_public = $2, updated_at = NOW() WHERE id = $3`,
