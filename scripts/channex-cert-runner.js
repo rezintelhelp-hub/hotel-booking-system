@@ -18,19 +18,29 @@ require('dotenv').config({ path: '.env.channex', override: false });
 const fs = require('fs');
 const { ChannexAdapter } = require('../gas-sync/adapters/channex-adapter');
 
-// === Steve's gîte test fixtures (from gas_sync_room_types / gas_sync_rate_plans) ===
-const PROPERTY_ID = 'eaeefe34-56f6-42ed-9afd-0c5391691d27';
+// === Channex cert test property (standard structure required by cert form) ===
+// "Test Property - GAS" — Twin Room + Double Room, each with BAR + B&B plans
+const PROPERTY_ID = 'd3397365-a134-48c4-a7c9-de9f497466a8';
 const ROOM_TYPES = {
-  julieAnne: '806d665f-f6cd-4c1c-a919-da63fc7f6ce6',
-  no5:       '9b342c84-a936-4660-ae21-d1ef0ddc129a',
+  twin:   '2108e611-4698-46c2-88f6-a2d72039b39b',
+  double: '443ce23a-2899-4b8f-862c-31d6a9836c8d',
 };
 const RATE_PLANS = {
-  // Standard EUR plans
-  julieAnne_std: '0e7ba301-4f90-44ee-919b-318cbdef8742',
-  no5_std:       'c6d9ffd9-9f5f-4e44-a381-c0828a9b04dc',
-  // Standard GBP plans (for "multiple rates" tests)
-  julieAnne_gbp: 'e4f791a8-edd7-40cc-b1dd-446852a8e153',
-  no5_gbp:       '564a81e3-268a-45dc-b44d-4fa0fd02796c',
+  twin_bar:    '1d43121a-8ca1-49f7-801e-b40a1fd7c0e9',
+  twin_bb:     'a50a7ffe-65f3-4b8d-a9d7-6fc2f091bf88',
+  double_bar:  'c2471d7b-f417-4382-83ac-86d1f1db5682',
+  double_bb:   '23968f57-3d14-43cd-acca-1a7e4ed8d4b9',
+};
+// Backwards-compat aliases for the script body below
+const RP_ALIAS = {
+  julieAnne_std: RATE_PLANS.twin_bar,
+  no5_std:       RATE_PLANS.double_bar,
+  julieAnne_gbp: RATE_PLANS.twin_bb,
+  no5_gbp:       RATE_PLANS.double_bb,
+};
+const RT_ALIAS = {
+  julieAnne: ROOM_TYPES.twin,
+  no5:       ROOM_TYPES.double,
 };
 
 const adapter = new ChannexAdapter({ apiKey: process.env.CHANNEX_API_KEY });
