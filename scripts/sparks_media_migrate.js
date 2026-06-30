@@ -36,6 +36,14 @@ const SETSEED_SOURCES = {
     ssh: 'root@139.162.234.112',
     base: '/var/www/html/sites/wwwlehmannhousecom5x5gp57chag',
   },
+  'walnutcanyoncabins.com': {
+    ssh: 'root@139.162.234.112',
+    base: '/var/www/html/sites/wwwwalnutcanyoncabinscoms0vrf6knsk8',
+  },
+  'www.walnutcanyoncabins.com': {
+    ssh: 'root@139.162.234.112',
+    base: '/var/www/html/sites/wwwwalnutcanyoncabinscoms0vrf6knsk8',
+  },
 };
 
 function sshCatFile(remote, sshTarget) {
