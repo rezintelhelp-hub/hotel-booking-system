@@ -73,13 +73,20 @@ async function getBeds24Mapping(pool, gasRoomId) {
  * if the GAS write rolls back, you don't want an orphan outbox row.
  */
 async function enqueueAvailabilityForRoom(pool, gasRoomId, date, numAvail) {
-  const m = await getBeds24Mapping(pool, gasRoomId);
-  if (!m) return false;
-  await pool.query(`
-    INSERT INTO gas_beds24_outbox (account_id, gas_room_id, beds24_room_id, date, num_avail)
-    VALUES ($1, $2, $3, $4, $5)
-  `, [m.account_id, gasRoomId, parseInt(m.beds24_room_id), date, Math.max(0, parseInt(numAvail) || 0)]);
-  return true;
+  // KILL SWITCH 2026-06-30: the /inventory/rooms/calendar endpoint returned
+  // {success:true} on our POSTs but Beds24 didn't actually apply the block
+  // (numAvail stayed at 1). Until we identify the correct V2 push endpoint /
+  // payload shape, do NOT enqueue any rows — the worker would just keep
+  // hitting the wrong endpoint. Re-enable the body of this function once we
+  // have the right API confirmed via a methodical (non-rate-limited) probe.
+  return false;
+  // const m = await getBeds24Mapping(pool, gasRoomId);
+  // if (!m) return false;
+  // await pool.query(`
+  //   INSERT INTO gas_beds24_outbox (account_id, gas_room_id, beds24_room_id, date, num_avail)
+  //   VALUES ($1, $2, $3, $4, $5)
+  // `, [m.account_id, gasRoomId, parseInt(m.beds24_room_id), date, Math.max(0, parseInt(numAvail) || 0)]);
+  // return true;
 }
 
 /**
