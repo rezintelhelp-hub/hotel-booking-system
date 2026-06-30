@@ -149,10 +149,14 @@ async function drain(pool) {
   let batches = 0, drained = 0;
   for (const group of byRoom.values()) {
     const dates = Array.from(group.rowsByDate.keys()).sort();
-    const calendar = [];
-    // Collapse consecutive same-num_avail dates into ranges
+    // Collapse consecutive same-num_avail dates into flat {roomId, from, to,
+    // numAvail} entries — verified payload shape via
+    // scripts/_lehmann_beds24_block_probe.js (2026-06-30). Endpoint is
+    // /inventory/rooms/calendar; entries are NOT nested under a parent
+    // {id, calendar:[...]} object.
+    const entries = [];
     let runStart = null, runEnd = null, runNum = null;
-    const flush = () => { if (runStart) calendar.push({ from: runStart, to: runEnd, numAvail: runNum }); };
+    const flush = () => { if (runStart) entries.push({ roomId: group.beds24_room_id, from: runStart, to: runEnd, numAvail: runNum }); };
     for (const d of dates) {
       const row = group.rowsByDate.get(d);
       if (runStart && runNum === row.num_avail && _nextDay(runEnd) === d) {
@@ -172,14 +176,16 @@ async function drain(pool) {
 
     try {
       const resp = await axios.post(
-        'https://beds24.com/api/v2/inventory/rooms',
-        [{ id: group.beds24_room_id, calendar }],
+        'https://beds24.com/api/v2/inventory/rooms/calendar',
+        entries,
         { headers: { token, accept: 'application/json' }, timeout: 30_000 }
       );
-      // V2 returns array per posted item; failures land as {success:false, error}
-      const result = Array.isArray(resp.data) ? resp.data[0] : resp.data;
-      if (result && result.success === false) {
-        await _markBatchFailed(pool, Array.from(group.rowsByDate.values()), 'api_error', JSON.stringify(result).slice(0, 500));
+      // V2 returns an array — one result per entry. Treat the batch as
+      // failed if ANY entry came back success:false.
+      const results = Array.isArray(resp.data) ? resp.data : [resp.data];
+      const firstFailure = results.find(r => r && r.success === false);
+      if (firstFailure) {
+        await _markBatchFailed(pool, Array.from(group.rowsByDate.values()), 'api_error', JSON.stringify(firstFailure).slice(0, 500));
         continue;
       }
       const ids = Array.from(group.rowsByDate.values()).map(r => r.id);
@@ -212,10 +218,10 @@ async function _markBatchFailed(pool, rows, code, errorMsg) {
     const backoff = BACKOFF_BASE_MS * Math.pow(2, attempts - 1);
     await pool.query(`
       UPDATE gas_beds24_outbox
-         SET status = $2, attempts = $3,
-             next_try_at = NOW() + ($4 || ' milliseconds')::interval,
+         SET status = $2::text, attempts = $3,
+             next_try_at = NOW() + ($4::bigint || ' milliseconds')::interval,
              last_error = $5,
-             processed_at = CASE WHEN $2 = 'failed' THEN NOW() ELSE processed_at END
+             processed_at = CASE WHEN $2::text = 'failed' THEN NOW() ELSE processed_at END
        WHERE id = $1
     `, [r.id, giveUp ? 'failed' : 'pending', attempts, backoff, `[${code}] ${errorMsg}`.slice(0, 1000)]);
   }
