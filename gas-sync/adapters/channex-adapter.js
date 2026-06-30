@@ -1034,9 +1034,14 @@ class ChannexAdapter {
    * options: { propertyId, isGlobal, events }
    */
   async registerWebhook(callbackUrl, events, options = {}) {
+    // Channex uses single-word event names (probed 2026-06-30 — only
+    // 'booking' was accepted of [booking_new, booking_created, booking.created,
+    // reservation.created, etc.]). The 'booking' event fires for the entire
+    // booking lifecycle — handler differentiates by reading the booking's
+    // is_cancelled / status field after fetching the full payload.
     const eventList = Array.isArray(events) && events.length
       ? events
-      : ['booking_new', 'booking_modify', 'booking_cancel'];
+      : ['booking'];
     const body = {
       webhook: {
         callback_url: callbackUrl,
