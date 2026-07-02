@@ -904,13 +904,15 @@ jQuery(document).ready(function($) {
                     stayHint = 'Pick a stay within this window to add the ' + (u.name || 'add-on') + ' at checkout.';
                 }
 
-                // Compact banner. Placed OUTSIDE (before) the rooms wrapper so
-                // nothing inside the wrapper's stacking context can cover it,
-                // and given a high z-index for safety against sticky site
-                // chrome. Steve 2026-07-02 iter 2: inside-wrapper placement
-                // left the banner totally hidden behind the wrapper's own hero
-                // artwork; height reserved was correct.
-                var banner = '<div class="gas-addon-banner" style="background:' + cardBg + ';border:1px solid ' + accent + ';border-radius:' + radius + 'px;padding:12px 16px;margin:12px auto;max-width:1200px;display:flex;gap:12px;align-items:center;position:relative;z-index:1000;box-shadow:0 2px 10px rgba(15,23,42,0.06);">';
+                // Compact banner. Placed INSIDE .gas-rooms-page-wrapper as the
+                // first child + explicit margin-top:60px so it inherits the
+                // same fixed-header clearance the theme applies to a first-
+                // child .gas-date-filter (per the wrapper's own inline CSS at
+                // .gas-rooms-page-wrapper > .gas-date-filter:first-child).
+                // Outside the wrapper the banner ended up under the fixed
+                // header; inside without the top margin the banner sat at
+                // 0px hidden behind the same header. Steve 2026-07-03.
+                var banner = '<div class="gas-addon-banner" style="background:' + cardBg + ';border:1px solid ' + accent + ';border-radius:' + radius + 'px;padding:12px 16px;margin:60px auto 12px;max-width:1200px;display:flex;gap:12px;align-items:center;position:relative;z-index:1000;box-shadow:0 2px 10px rgba(15,23,42,0.06);">';
                 if (u.image_url) banner += '<img src="' + u.image_url + '" style="width:56px;height:56px;object-fit:cover;border-radius:' + Math.min(radius, 8) + 'px;flex-shrink:0;">';
                 banner += '<div style="flex:1;min-width:0;">';
                 banner += '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;">';
@@ -921,10 +923,13 @@ jQuery(document).ready(function($) {
                 banner += '<p style="margin:4px 0 0;color:#64748b;font-size:12px;line-height:1.35;">' + stayHint + '</p>';
                 banner += '</div></div>';
                 $('.gas-addon-banner').remove(); // idempotent
-                var $anchor = $('.gas-rooms-page-wrapper').first();
-                if (!$anchor.length) $anchor = $('.gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget').first();
-                if ($anchor.length) $anchor.before(banner);
-                else $('body').prepend(banner);
+                var $wrapper = $('.gas-rooms-page-wrapper').first();
+                if ($wrapper.length) $wrapper.prepend(banner);
+                else {
+                    var $anchor = $('.gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget').first();
+                    if ($anchor.length) $anchor.before(banner);
+                    else $('body').prepend(banner);
+                }
             }
         });
     })();
