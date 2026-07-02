@@ -850,6 +850,77 @@ jQuery(document).ready(function($) {
         });
     })();
 
+    // Booking Add-on banner — guest arrived via ?prefill_upsells=<id> from a
+    // Booking Add-on shop product's "Book with a room" CTA. Show a small
+    // informational banner so they know the add-on's constraints (day-of-week,
+    // valid window, min notice). Does NOT lock the date picker — the upsell
+    // simply won't appear at checkout if the picked stay doesn't match.
+    (function showAddonBanner() {
+        var upsellId = new URLSearchParams(window.location.search).get('prefill_upsells');
+        if (!upsellId) return;
+        // Only on /book-now/-style pages that show a rooms list. Skip checkout.
+        if (!document.querySelector('.gas-rooms-page-wrapper, .gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget')) return;
+        if (document.querySelector('.gas-checkout-page, .gas-booking-summary, .gas-checkout-container')) return;
+        // If an ?event= param is also present, the event banner handles this
+        // — don't stack two banners.
+        if (new URLSearchParams(window.location.search).get('event')) return;
+        // Handle CSV form (?prefill_upsells=1,2,3) — take the first id.
+        var firstId = String(upsellId).split(',')[0].trim();
+        if (!/^\d+$/.test(firstId)) return;
+        $.ajax({
+            url: gasBooking.apiUrl + '/api/public/upsell/' + firstId,
+            method: 'GET',
+            success: function(resp) {
+                if (!resp.success || !resp.upsell) return;
+                var u = resp.upsell;
+                var pal = (typeof gasBooking !== 'undefined' && gasBooking.shopPalette) ? gasBooking.shopPalette : {};
+                var accent = pal.accent || '#1d4ed8';
+                var cardBg = pal.card_bg || '#ffffff';
+                var radius = (pal.card_radius != null) ? parseInt(pal.card_radius) : 12;
+                var dateLoc = (typeof gasBooking !== 'undefined' && gasBooking.currentLanguage) ? gasBooking.currentLanguage : undefined;
+                var toLocal = function(s) { if (!s) return null; var iso = String(s).split('T')[0]; var p = iso.split('-'); return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])); };
+                var fmt = function(d) { return d ? d.toLocaleDateString(dateLoc, { day: 'numeric', month: 'long', year: 'numeric' }) : ''; };
+                var dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                var dayNamesShort = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+                var allowedDays = String(u.available_days_of_week || '').split(',').map(function(s){ return parseInt(s, 10); }).filter(function(n){ return !isNaN(n); });
+                var vFrom = toLocal(u.valid_from);
+                var vUntil = toLocal(u.valid_until);
+                var priceAmt = parseFloat(u.price) || 0;
+                var currency = u.currency || '';
+
+                var bits = [];
+                if (priceAmt > 0) bits.push((currency ? currency + ' ' : '') + priceAmt.toFixed(2));
+                if (allowedDays.length && allowedDays.length < 7) {
+                    bits.push('Available ' + allowedDays.map(function(d){ return dayNamesShort[d]; }).join(', '));
+                }
+                if (vFrom && vUntil) bits.push(fmt(vFrom) + ' – ' + fmt(vUntil));
+                if (u.min_notice_hours && u.min_notice_hours > 0) bits.push('book at least ' + u.min_notice_hours + 'h ahead');
+
+                var stayHint;
+                if (allowedDays.length && allowedDays.length < 7) {
+                    var dayList = allowedDays.map(function(d){ return dayNames[d]; }).join(' / ');
+                    stayHint = 'Pick a stay that includes a ' + dayList + ' night' + (allowedDays.length > 1 ? '' : '') + ' within this window to add the ' + (u.name || 'add-on') + ' at checkout.';
+                } else {
+                    stayHint = 'Pick a stay within this window to add the ' + (u.name || 'add-on') + ' at checkout.';
+                }
+
+                var banner = '<div class="gas-addon-banner" style="background:' + cardBg + ';border:1px solid ' + accent + ';border-radius:' + radius + 'px;padding:16px 20px;margin:16px auto;max-width:1200px;display:flex;gap:16px;align-items:center;">';
+                if (u.image_url) banner += '<img src="' + u.image_url + '" style="width:80px;height:80px;object-fit:cover;border-radius:' + Math.min(radius, 8) + 'px;flex-shrink:0;">';
+                banner += '<div style="flex:1;min-width:0;">';
+                banner += '<p style="margin:0 0 4px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:' + accent + ';font-weight:600;">Add-on included</p>';
+                banner += '<h3 style="margin:0 0 6px;color:' + accent + ';font-size:18px;">' + (u.name || 'Booking add-on') + '</h3>';
+                if (bits.length) banner += '<p style="margin:0;color:#475569;font-size:14px;">' + bits.join(' · ') + '</p>';
+                banner += '<p style="margin:6px 0 0;color:#64748b;font-size:12px;">' + stayHint + '</p>';
+                banner += '</div></div>';
+                $('.gas-addon-banner').remove(); // idempotent
+                var $anchor = $('.gas-rooms-page-wrapper').first();
+                if (!$anchor.length) $anchor = $('.gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget').first();
+                if ($anchor.length) $anchor.before(banner);
+                else $('body').prepend(banner);
+            }
+        });
+    })();
+
     // Disable callback for flatpickr instances. We DON'T filter by day-of-week
     // on the picker itself — the event runs on certain nights but the
     // accommodation min stay is a separate property-level setting we can't
