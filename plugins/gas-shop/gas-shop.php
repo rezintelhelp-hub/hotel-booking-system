@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.5.1
+ * Version: 1.5.2
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -799,16 +799,31 @@ function gasShopAddToCart(product) {
     totalEl.innerHTML = lines;
     checkoutBtn.style.display = "inline-block";
 
-    // Show accommodation prompt for event products
+    // Accommodation prompt for event products.
+    //   - If the event product has offers_accommodation on AND event dates set,
+    //     use the in-cart room picker (fixed-date events).
+    //   - Otherwise, just point the guest at /book-now/ in a new tab. Cart
+    //     persists in localStorage so they can come back to pay for the ticket.
+    //     Handles the common "recurring event / no locked dates" case (Steve
+    //     2026-07-02) without pretending we know the guest's dates yet.
     var accomDiv = document.getElementById("gas-cart-accommodation");
-    var eventItem = cart.find(function(i){ return i.product_type === "event" && i.offers_accommodation; });
-    if (eventItem && !selectedRoom) {
+    var eventItem = cart.find(function(i){ return i.product_type === "event"; });
+    var eventItemWithAccom = cart.find(function(i){ return i.product_type === "event" && i.offers_accommodation; });
+    if (eventItemWithAccom && !selectedRoom) {
       accomDiv.style.display = "block";
       accomDiv.innerHTML = "<div style=\"padding:16px;background:#eff6ff;border-radius:8px;margin:16px 0;border:1px solid #bfdbfe\">" +
         "<p style=\"margin:0 0 8px;font-weight:600;color:#1d4ed8\">Would you like to stay with us during your event?</p>" +
-        "<button onclick=\"gasLoadRoomOptions(\x27" + eventItem.slug + "\x27)\" style=\"padding:8px 20px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;cursor:pointer\">See available rooms</button>" +
+        "<button onclick=\"gasLoadRoomOptions(\x27" + eventItemWithAccom.slug + "\x27)\" style=\"padding:8px 20px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;cursor:pointer\">See available rooms</button>" +
         "</div>";
-    } else if (eventItem && selectedRoom) {
+    } else if (eventItem && !eventItemWithAccom) {
+      var bookUrl = "'.esc_js(home_url('/book-now/')).'";
+      accomDiv.style.display = "block";
+      accomDiv.innerHTML = "<div style=\"padding:16px;background:#eff6ff;border-radius:8px;margin:16px 0;border:1px solid #bfdbfe\">" +
+        "<p style=\"margin:0 0 8px;font-weight:600;color:#1d4ed8\">Want a room for your stay?</p>" +
+        "<p style=\"margin:0 0 12px;color:#475569;font-size:0.9rem\">Your cart is saved. Book a room on our booking page and it will be waiting when you come back.</p>" +
+        "<a href=\"" + bookUrl + "\" target=\"_blank\" rel=\"noopener\" style=\"display:inline-block;padding:8px 20px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;cursor:pointer;text-decoration:none\">Book a room &rarr;</a>" +
+        "</div>";
+    } else if (eventItemWithAccom && selectedRoom) {
       accomDiv.style.display = "block";
       accomDiv.innerHTML = "<div style=\"padding:16px;background:#f0fdf4;border-radius:8px;margin:16px 0;border:1px solid #bbf7d0\">" +
         "<div style=\"display:flex;justify-content:space-between;align-items:center\">" +
