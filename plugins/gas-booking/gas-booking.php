@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.55
+ * Version: 4.2.56
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -10038,6 +10038,17 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     background: <?php echo esc_attr($button_color); ?>;
                     color: #ffffff; border-color: <?php echo esc_attr($button_color); ?>;
                 }
+                /* Specificity bump — the masonry/grid/slider/featured rules
+                   below use "body .gas-gallery-page .gas-page-gallery-XXX >
+                   .gas-page-gallery-item { display: block !important }" which
+                   was beating the hide rule (both !important, higher specificity
+                   wins). Match the ancestor chain so this rule wins with the
+                   same weight + later source order. Steve 2026-07-02. */
+                body .gas-gallery-page .gas-page-gallery-masonry .gas-page-gallery-item.is-hidden,
+                body .gas-gallery-page .gas-page-gallery-grid .gas-page-gallery-item.is-hidden,
+                body .gas-gallery-page .gas-page-gallery-slider .gas-page-gallery-item.is-hidden,
+                body .gas-gallery-page .gas-page-gallery-featured .gas-page-gallery-item.is-hidden,
+                body .gas-gallery-page .gas-page-gallery-featured .gas-page-gallery-item-hero.is-hidden,
                 .gas-page-gallery-item.is-hidden,
                 .gas-page-gallery-item-hero.is-hidden { display: none !important; }
 
