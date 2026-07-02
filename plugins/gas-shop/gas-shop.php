@@ -699,6 +699,7 @@ function gasShopAddToCart(product) {
         echo '</div>';
 
         $shop_url = esc_url(home_url('/shop/'));
+        $book_now_url = esc_url(home_url('/book-now/'));
         $cfg = $this->get_shop_config();
         $cfg_json = wp_json_encode($cfg);
         echo '<script>
@@ -802,10 +803,10 @@ function gasShopAddToCart(product) {
     // Accommodation prompt for event products.
     //   - If the event product has offers_accommodation on AND event dates set,
     //     use the in-cart room picker (fixed-date events).
-    //   - Otherwise, just point the guest at /book-now/ in a new tab. Cart
+    //   - Otherwise, just point the visitor at /book-now/ in a new tab. Cart
     //     persists in localStorage so they can come back to pay for the ticket.
-    //     Handles the common "recurring event / no locked dates" case (Steve
-    //     2026-07-02) without pretending we know the guest's dates yet.
+    //     Handles the common recurring-event / no-locked-dates case (Steve
+    //     2026-07-02) without pretending we know their dates yet.
     var accomDiv = document.getElementById("gas-cart-accommodation");
     var eventItem = cart.find(function(i){ return i.product_type === "event"; });
     var eventItemWithAccom = cart.find(function(i){ return i.product_type === "event" && i.offers_accommodation; });
@@ -816,7 +817,7 @@ function gasShopAddToCart(product) {
         "<button onclick=\"gasLoadRoomOptions(\x27" + eventItemWithAccom.slug + "\x27)\" style=\"padding:8px 20px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;cursor:pointer\">See available rooms</button>" +
         "</div>";
     } else if (eventItem && !eventItemWithAccom) {
-      var bookUrl = "'.esc_js(home_url('/book-now/')).'";
+      var bookUrl = "'.$book_now_url.'";
       accomDiv.style.display = "block";
       accomDiv.innerHTML = "<div style=\"padding:16px;background:#eff6ff;border-radius:8px;margin:16px 0;border:1px solid #bfdbfe\">" +
         "<p style=\"margin:0 0 8px;font-weight:600;color:#1d4ed8\">Want a room for your stay?</p>" +
