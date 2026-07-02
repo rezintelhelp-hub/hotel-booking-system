@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.5.2
+ * Version: 1.5.3
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -342,6 +342,11 @@ class GAS_Shop {
                 } elseif ((float)$p['price'] > 0) {
                     echo '<div class="gas-shop-card-price">'.$curr.' '.$price.'</div>';
                 }
+                // Booking Add-on grid hint — signals the "sold with a room" flow
+                // before the click so the guest knows this needs a stay.
+                if (($p['product_type'] ?? '') === 'booking_addon') {
+                    echo '<div style="font-size:0.85rem;color:'.$c['text_secondary'].';margin-top:6px">Book with a room &rarr;</div>';
+                }
                 echo '</div></a></article>';
             }
             echo '</div>';
@@ -481,9 +486,24 @@ class GAS_Shop {
         // a guest who isn't going to stay in one).
         $hasAccommodation = !empty($p['offers_accommodation']) || !empty($p['event_block_rooms']);
         $isEventBookable = $isEvent && $hasAccommodation && !empty($p['booking_url']) && ($isEventRecurring || $isEventFixed);
+        // Booking Add-on = a shop product that is only sold accompanied by a
+        // room booking. Renders a "Book with room" CTA that pre-selects the
+        // linked upsell on the booking page via ?prefill_upsells=<id>. The
+        // booking widget already forwards prefill_upsells through the room
+        // pick step (gas-booking.js: gasForwardUpsellParams). Distinct from
+        // Event / Bike Storage: no room holds, no event banner, no companion
+        // unit — just a normal room booking with the upsell pre-ticked.
+        $isBookingAddon = ($p['product_type'] ?? '') === 'booking_addon';
+        $isBookingAddonBookable = $isBookingAddon
+            && !empty($p['booking_url'])
+            && !empty($p['linked_upsell_id']);
         if (($p['product_type'] ?? '') === 'external' && !empty($p['external_url'])) {
             $btnLabel = esc_html($p['external_button_label'] ?? 'Buy Now');
             echo '<a href="'.esc_url($p['external_url']).'" target="_blank" rel="noopener" class="gas-shop-btn">'.$btnLabel.' &rarr;</a>';
+        } elseif ($isBookingAddonBookable) {
+            $bookingUrl = rtrim($p['booking_url'], '/').'/?prefill_upsells='.urlencode($p['linked_upsell_id']);
+            echo '<a href="'.esc_url($bookingUrl).'" class="gas-shop-btn" id="gas-book-addon">Book with a room &rarr;</a>';
+            echo '<p style="margin:12px 0 0;color:'.$c['text_secondary'].';font-size:0.9rem">Pick a room on the next page. This add-on rides through checkout with your stay.</p>';
         } elseif ($isEventBookable) {
             // Push the buyer to the booking page. The page reads ?event=<slug>
             // and shows the "You're booking the {Event Name}" banner above the
