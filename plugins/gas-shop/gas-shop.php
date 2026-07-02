@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.5.0
+ * Version: 1.5.1
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -634,8 +634,17 @@ function gasShopAddToCart(product) {
   var cart = JSON.parse(localStorage.getItem("gas_shop_cart") || "[]");
   var found = false;
   var maxQty = product.stock_tracking ? product.max_qty : 0;
+  // Events are qty-locked at 1 (one seat / one date / one package) — clicking
+  // Add to Cart again on the same product just no-ops with a friendly note.
+  var isEvent = product.product_type === "event";
   for (var i = 0; i < cart.length; i++) {
     if (cart[i].id === product.id) {
+      if (isEvent) {
+        var btn = document.getElementById("gas-add-to-cart");
+        btn.textContent = "Already in cart";
+        setTimeout(function(){ btn.textContent = "Add to Cart"; }, 1800);
+        return;
+      }
       var newQty = (cart[i].quantity||1) + 1;
       if (maxQty > 0 && newQty > maxQty) {
         var btn = document.getElementById("gas-add-to-cart");
@@ -731,6 +740,14 @@ function gasShopAddToCart(product) {
           sumLine += "<br><span style=\"font-size:0.85rem;color:#94a3b8\">(emailed to you at checkout)</span>";
         }
         html += \'<div class="gas-cart-item">\'+img+\'<div style="flex:1"><strong>\'+item.name+\'</strong><div style="color:#64748b;font-size:0.9rem;line-height:1.5">\'+sumLine+\'</div></div><div style="min-width:80px;text-align:right;font-weight:600">\'+curr+\' \'+lineTotal.toFixed(2)+\'</div><button onclick="gasCartRemove(\'+idx+\')" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:#ef4444" title="Remove">&times;</button></div>\';
+      } else if (item.product_type === "event") {
+        // One seat / one package — no qty stepper, show event dates if we have them.
+        var eventLine = curr + " " + parseFloat(item.price).toFixed(2);
+        if (item.event_start_date) {
+          var _dates = item.event_start_date + (item.event_end_date && item.event_end_date !== item.event_start_date ? " → " + item.event_end_date : "");
+          eventLine += "<br><span style=\"font-size:0.85rem;color:#64748b\">" + _dates + "</span>";
+        }
+        html += \'<div class="gas-cart-item">\'+img+\'<div style="flex:1"><strong>\'+item.name+\'</strong><div style="color:#64748b;font-size:0.9rem;line-height:1.5">\'+eventLine+\'</div></div><div style="min-width:80px;text-align:right;font-weight:600">\'+curr+\' \'+lineTotal.toFixed(2)+\'</div><button onclick="gasCartRemove(\'+idx+\')" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:#ef4444" title="Remove">&times;</button></div>\';
       } else {
         html += \'<div class="gas-cart-item">\'+img+\'<div style="flex:1"><strong>\'+item.name+\'</strong><div style="color:#64748b;font-size:0.9rem">\'+curr+\' \'+item.price.toFixed(2)+\'</div></div><div class="gas-cart-qty"><button onclick="gasCartQty(\'+idx+\',-1)">-</button><span>\'+( item.quantity||1)+\'</span><button onclick="gasCartQty(\'+idx+\',1)">+</button></div><div style="min-width:80px;text-align:right;font-weight:600">\'+curr+\' \'+lineTotal.toFixed(2)+\'</div><button onclick="gasCartRemove(\'+idx+\')" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:#ef4444" title="Remove">&times;</button></div>\';
       }
