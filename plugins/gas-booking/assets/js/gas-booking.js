@@ -904,19 +904,32 @@ jQuery(document).ready(function($) {
                     stayHint = 'Pick a stay within this window to add the ' + (u.name || 'add-on') + ' at checkout.';
                 }
 
-                var banner = '<div class="gas-addon-banner" style="background:' + cardBg + ';border:1px solid ' + accent + ';border-radius:' + radius + 'px;padding:16px 20px;margin:16px auto;max-width:1200px;display:flex;gap:16px;align-items:center;">';
-                if (u.image_url) banner += '<img src="' + u.image_url + '" style="width:80px;height:80px;object-fit:cover;border-radius:' + Math.min(radius, 8) + 'px;flex-shrink:0;">';
+                // Compact banner — designed to sit above the rooms filter bar
+                // WITHOUT pushing the whole page down. Small padding, tight
+                // margins, position:relative + z-index so a sticky site header
+                // doesn't overlap it. Steve 2026-07-02.
+                var banner = '<div class="gas-addon-banner" style="background:' + cardBg + ';border:1px solid ' + accent + ';border-radius:' + radius + 'px;padding:12px 16px;margin:0 auto 12px;max-width:1200px;display:flex;gap:12px;align-items:center;position:relative;z-index:5;">';
+                if (u.image_url) banner += '<img src="' + u.image_url + '" style="width:56px;height:56px;object-fit:cover;border-radius:' + Math.min(radius, 8) + 'px;flex-shrink:0;">';
                 banner += '<div style="flex:1;min-width:0;">';
-                banner += '<p style="margin:0 0 4px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:' + accent + ';font-weight:600;">Add-on included</p>';
-                banner += '<h3 style="margin:0 0 6px;color:' + accent + ';font-size:18px;">' + (u.name || 'Booking add-on') + '</h3>';
-                if (bits.length) banner += '<p style="margin:0;color:#475569;font-size:14px;">' + bits.join(' · ') + '</p>';
-                banner += '<p style="margin:6px 0 0;color:#64748b;font-size:12px;">' + stayHint + '</p>';
+                banner += '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;">';
+                banner += '<span style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:' + accent + ';font-weight:700;">Add-on</span>';
+                banner += '<strong style="color:' + accent + ';font-size:15px;">' + (u.name || 'Booking add-on') + '</strong>';
+                if (bits.length) banner += '<span style="color:#475569;font-size:13px;">' + bits.join(' · ') + '</span>';
+                banner += '</div>';
+                banner += '<p style="margin:4px 0 0;color:#64748b;font-size:12px;line-height:1.35;">' + stayHint + '</p>';
                 banner += '</div></div>';
                 $('.gas-addon-banner').remove(); // idempotent
-                var $anchor = $('.gas-rooms-page-wrapper').first();
-                if (!$anchor.length) $anchor = $('.gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget').first();
-                if ($anchor.length) $anchor.before(banner);
-                else $('body').prepend(banner);
+                // Prepend INSIDE the rooms wrapper (as first child) rather than
+                // BEFORE it — that way the site's normal top padding still
+                // clears any sticky header, and we don't add a gap above the
+                // filter bar. Falls back to before-anchor if no wrapper exists.
+                var $wrapper = $('.gas-rooms-page-wrapper, .gas-rooms-wrapper').first();
+                if ($wrapper.length) $wrapper.prepend(banner);
+                else {
+                    var $anchor = $('.gas-rooms-grid, .gas-room-widget').first();
+                    if ($anchor.length) $anchor.before(banner);
+                    else $('body').prepend(banner);
+                }
             }
         });
     })();
