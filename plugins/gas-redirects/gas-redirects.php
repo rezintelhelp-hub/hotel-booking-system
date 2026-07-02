@@ -6,7 +6,7 @@
  *              (SetSeed room / attractions / blog URLs that Google still has
  *              indexed). Configured per-host so a single mini-plugin can
  *              cover every migrated client without cross-site collisions.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  */
@@ -111,6 +111,26 @@ function gas_redirects_lehmann_rules() {
     // Bare-slug pages that need a trailing slash
     $rules[] = array('exact' => '/attractions', 'to' => '/attractions/');
     $rules[] = array('exact' => '/blog',        'to' => '/blog/');
+
+    // Blog posts — SetSeed slugified '&' and '#' with '--' (double dash), the
+    // current GAS blog uses single '-'. Only the 3 URLs that actually 404 today
+    // are mapped; the other 4 SetSeed-shape URLs happen to already resolve on
+    // the GAS side (verified by curl 2026-07-02). If Google indexes new
+    // double-dash blog URLs later, add them here — same shape as the room map.
+    $blog_map = array(
+        // OLD SetSeed slug (with --)  =>  current GAS slug (with -)
+        'what-is-st-louis-know-for-no1--stan-musial'
+            => 'what-is-st-louis-know-for-no1-stan-musial',
+        'family-attractions--summer-fun-in-st-louis--june-2025-guide'
+            => 'family-attractions-summer-fun-in-st-louis-june-2025-guide',
+        'featuring-the-brand-new-guest-room-the-map-room-at-lehmann-house-bed--breakfast'
+            => 'featuring-the-brand-new-guest-room-the-map-room-at-lehmann-house-bed-breakfast',
+    );
+    foreach ($blog_map as $old_slug => $new_slug) {
+        $target = '/blog/' . $new_slug . '/';
+        $rules[] = array('exact' => '/blog/' . $old_slug,       'to' => $target);
+        $rules[] = array('exact' => '/blog/' . $old_slug . '/', 'to' => $target);
+    }
 
     // SetSeed used /local-attractions/<slug> for what GAS calls /attractions/<slug>/.
     // Single-segment only — leave nested SetSeed paths (which rarely map cleanly)
