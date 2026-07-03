@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.63
+ * Version: 4.2.64
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.63');
+define('GAS_BOOKING_VERSION', '4.2.64');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4616,6 +4616,78 @@ class GAS_Booking {
             </div>
         </article>
         <?php
+        // ── Funnel tracking ────────────────────────────────────────────
+        // Fires a view event on load and a click event on the CTA. For
+        // shop_product CTAs it also appends ?spark_ref=&spark_session=
+        // to the button URL at click-time so the eventual shop_order can
+        // be attributed back to this Spark session. Session id lives in a
+        // 90-day cookie (gas_spark_sid); back-fill of contact_id happens
+        // server-side when a downstream event identifies the visitor.
+        $tracking_api = esc_url_raw(get_option('gas_api_url', 'https://admin.gas.travel'));
+        $tracking_spark_id = intval($spark['id'] ?? 0);
+        $tracking_spark_slug = esc_js($spark['slug'] ?? '');
+        $tracking_cta_type = esc_js($cta['type'] ?? '');
+        if ($tracking_spark_id) : ?>
+        <script>
+        (function(){
+            var API = <?php echo json_encode($tracking_api); ?>;
+            var SPARK_ID = <?php echo $tracking_spark_id; ?>;
+            var SPARK_SLUG = <?php echo json_encode($tracking_spark_slug); ?>;
+            var CTA_TYPE = <?php echo json_encode($tracking_cta_type); ?>;
+            var HOST = window.location.host;
+
+            function getSid() {
+                var m = document.cookie.match(/(?:^|;\s*)gas_spark_sid=([^;]+)/);
+                if (m) return decodeURIComponent(m[1]);
+                var sid = (crypto && crypto.randomUUID) ? crypto.randomUUID() :
+                    ('sid-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10));
+                // 90-day, lax, path=/
+                document.cookie = 'gas_spark_sid=' + encodeURIComponent(sid) + '; Max-Age=7776000; Path=/; SameSite=Lax';
+                return sid;
+            }
+            var SID = getSid();
+
+            function fire(eventType, metadata) {
+                try {
+                    var body = JSON.stringify({
+                        host: HOST,
+                        spark_id: SPARK_ID,
+                        event_type: eventType,
+                        session_id: SID,
+                        referrer: document.referrer || null,
+                        metadata: metadata || {}
+                    });
+                    if (navigator.sendBeacon) {
+                        navigator.sendBeacon(API + '/api/public/spark-event', new Blob([body], { type: 'application/json' }));
+                    } else {
+                        fetch(API + '/api/public/spark-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true });
+                    }
+                } catch (e) { /* analytics failures never break the page */ }
+            }
+
+            // View — one per page load.
+            fire('view', { cta_type: CTA_TYPE });
+
+            // Click — attach to the CTA once the DOM is ready.
+            document.addEventListener('click', function(e) {
+                var a = e.target && e.target.closest ? e.target.closest('.gas-spark-cta') : null;
+                if (!a) return;
+                // Fire the click event with the CTA type + destination.
+                fire('click', { cta_type: CTA_TYPE, href: a.getAttribute('href') || '' });
+                // For shop_product CTAs, tag the outgoing URL so the shop
+                // order can be attributed on the way back. Non-destructive:
+                // if the URL already has query params, append with '&'.
+                if (CTA_TYPE === 'shop_product') {
+                    var href = a.getAttribute('href') || '';
+                    if (href && href.indexOf('spark_ref=') === -1) {
+                        var sep = href.indexOf('?') === -1 ? '?' : '&';
+                        a.setAttribute('href', href + sep + 'spark_ref=' + encodeURIComponent(SPARK_SLUG) + '&spark_session=' + encodeURIComponent(SID));
+                    }
+                }
+            }, true);
+        })();
+        </script>
+        <?php endif;
         get_footer();
     }
 
