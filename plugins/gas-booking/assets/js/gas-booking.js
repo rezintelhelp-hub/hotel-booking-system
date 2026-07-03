@@ -912,7 +912,7 @@ jQuery(document).ready(function($) {
                 // Outside the wrapper the banner ended up under the fixed
                 // header; inside without the top margin the banner sat at
                 // 0px hidden behind the same header. Steve 2026-07-03.
-                var banner = '<div class="gas-addon-banner" style="background:' + cardBg + ';border:1px solid ' + accent + ';border-radius:' + radius + 'px;padding:12px 16px;margin:60px auto 12px;max-width:1200px;display:flex;gap:12px;align-items:center;position:relative;z-index:1000;box-shadow:0 2px 10px rgba(15,23,42,0.06);">';
+                var banner = '<div class="gas-addon-banner" style="background:' + cardBg + ';border:1px solid ' + accent + ';border-radius:' + radius + 'px;padding:12px 16px;margin:88px auto 12px;max-width:1200px;display:flex;gap:12px;align-items:center;position:relative;z-index:1000;box-shadow:0 2px 10px rgba(15,23,42,0.06);">';
                 if (u.image_url) banner += '<img src="' + u.image_url + '" style="width:56px;height:56px;object-fit:cover;border-radius:' + Math.min(radius, 8) + 'px;flex-shrink:0;">';
                 banner += '<div style="flex:1;min-width:0;">';
                 banner += '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;">';
