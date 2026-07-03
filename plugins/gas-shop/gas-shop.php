@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.5.4
+ * Version: 1.5.5
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -401,6 +401,11 @@ class GAS_Shop {
         $curr = $p['currency'] ?? 'EUR';
 
         get_header();
+        // Capture Spark attribution breadcrumb (dropped by the gas-booking
+        // spark render on CTA click). localStorage persists across the cart
+        // + checkout hops so the eventual shop_order can be tied back to
+        // the Spark and the anonymous session's earlier events.
+        echo '<script>(function(){try{var q=new URLSearchParams(window.location.search);var ref=q.get("spark_ref"),sid=q.get("spark_session");if(ref)localStorage.setItem("gas_spark_ref",ref);if(sid)localStorage.setItem("gas_spark_session",sid);}catch(e){}})();</script>';
         echo $this->base_css();
         echo '<style>.gas-shop-single{max-width:1200px;margin:0 auto;padding:120px 20px 40px}.gas-shop-single-grid{display:grid;grid-template-columns:minmax(240px,380px) 1fr;gap:40px;align-items:start}.gas-shop-single-grid p,.gas-shop-single-grid li{line-height:1.7}@media(max-width:900px){.gas-shop-single-grid{grid-template-columns:1fr}}</style>';
         echo '<div class="gas-shop-single">';
@@ -1094,6 +1099,8 @@ function gasShopCheckout() {
       delivery_address: delAddr,
       accommodation: JSON.parse(localStorage.getItem("gas_shop_room") || "null"),
       items: items,
+      spark_ref: localStorage.getItem("gas_spark_ref") || null,
+      spark_session: localStorage.getItem("gas_spark_session") || null,
       success_url: "'.$thank_you_url.'?session_id={CHECKOUT_SESSION_ID}",
       cancel_url: window.location.href
     })
@@ -1103,6 +1110,10 @@ function gasShopCheckout() {
     if (data.success && data.checkout_url) {
       localStorage.removeItem("gas_shop_cart");
       localStorage.removeItem("gas_shop_room");
+      // Clear Spark attribution — the ref has now been forwarded to the
+      // server. Otherwise a future browse would tag the wrong Spark.
+      localStorage.removeItem("gas_spark_ref");
+      localStorage.removeItem("gas_spark_session");
       window.location.href = data.checkout_url;
     } else {
       errEl.textContent = data.error || "Payment failed. Please try again.";
