@@ -1160,6 +1160,10 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
     // STEP 2: CHANNEL MANAGER
     // =============================================
     const channelManagers = [
+        // Channex — GAS's own default channel manager. One-click provisioning
+        // via the master API key; no client-side signup or key entry needed.
+        // Pinned to the top of the list (below the sort) via a "Powered by GAS" hint.
+        { id: 'channex', name: 'Channex (GAS)', desc: 'Powered by GAS — no signup needed', logo: null, isDefault: true },
         { id: 'beds24', name: 'Beds24', desc: 'Channel Manager', logo: 'beds24.webp' },
         { id: 'booking-automation', name: 'Booking Automation', desc: 'Channel Manager', logo: 'beds24.webp' },
         { id: 'hostaway', name: 'Hostaway', desc: 'Property Management', logo: 'hostaway .webp' },
@@ -1195,8 +1199,10 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
         { id: 'other', name: 'Other / Not Listed', desc: 'Request Integration', logo: null }
     ];
 
-    // Sort alphabetically, keep "Other" at end
+    // Sort alphabetically; keep "Other" at end and pin GAS default (Channex) to top.
     channelManagers.sort((a, b) => {
+        if (a.isDefault) return -1;
+        if (b.isDefault) return 1;
         if (a.id === 'other') return 1;
         if (b.id === 'other') return -1;
         return a.name.localeCompare(b.name);
@@ -1399,6 +1405,28 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             addAiMessage("To connect <strong>" + cmLabel + "</strong>:<br><br>1. Log into Beds24<br>2. Go to <strong>Settings → Marketplace → API</strong><br>3. In the Scope section, click <strong>\"select all\"</strong> for Read, Write, and Delete<br>4. Click <strong>\"Generate invite code\"</strong><br>5. Copy and paste it below");
 
         // Hostaway — direct integration
+        } else if (cm === 'channex') {
+            // Channex (GAS default) — one-click provisioning. No credentials
+            // needed from the client: server-side POST creates a Channex Group
+            // scoped to this account using our master key, then wires up the
+            // gas_sync_connections row. Idempotent — safe to click twice.
+            fieldsDiv.innerHTML = `
+                <div style="margin-top: 1rem; padding: 1.25rem; background: var(--accent-soft); border-radius: 10px;">
+                    <p style="font-size: 0.95rem; color: var(--ink-light); margin-bottom: 0.75rem;">
+                        <strong>Channex</strong> is GAS's built-in channel manager. You don't need to sign up or paste an API key —
+                        we'll create a private, isolated Channex workspace for your account in one click.
+                    </p>
+                    <ul style="font-size: 0.85rem; color: var(--ink-muted); margin: 0 0 1rem 1.25rem; line-height: 1.7;">
+                        <li>Your properties and rates stay isolated from other GAS clients</li>
+                        <li>Push availability + rates to Booking.com, Airbnb, Expedia and others from GAS</li>
+                        <li>Bookings from any connected OTA flow back into GAS automatically</li>
+                    </ul>
+                    <button class="btn-primary" onclick="connectChannex()">Enable Channex →</button>
+                </div>
+                <div id="cm-status" style="margin-top: 1rem;"></div>
+            `;
+            addAiMessage("Perfect — <strong>Channex</strong> is our default channel manager and you don't need to do anything except click <strong>Enable</strong>. I'll set up your private workspace on Channex, wire it into your GAS account, and get you ready to connect Booking.com, Airbnb and other OTAs.");
+
         } else if (cm === 'hostaway') {
             fieldsDiv.innerHTML = `
                 <div class="field" style="margin-top: 1rem;">
@@ -1994,6 +2022,49 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             btn.textContent = 'Connect & Import';
             statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
             addAiMessage("Something went wrong. Check your credentials and try again.");
+        }
+    }
+
+    // =============================================
+    // CHANNEX CONNECTION — GAS-PROVISIONED (one click)
+    // =============================================
+    // No credentials needed — server uses CHANNEX_API_KEY env + auto-creates
+    // a Channex Group scoped to this GAS account. Idempotent server-side, so
+    // a re-click just returns the existing connection.
+    async function connectChannex() {
+        const accountId = accountData?.account?.id;
+        const statusDiv = document.getElementById('cm-status');
+        if (!accountId) {
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Account not ready — refresh the page and try again.</p>`;
+            return;
+        }
+        const btn = document.querySelector('#cm-fields .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Provisioning your Channex workspace...';
+        statusDiv.innerHTML = `<p style="color: var(--ink-muted); font-size: 0.85rem;">Creating your private Channex Group…</p>`;
+        try {
+            const resp = await fetch('/api/admin/channex/provision-account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ account_id: accountId })
+            });
+            const result = await resp.json();
+            if (!result.success) {
+                btn.disabled = false;
+                btn.textContent = 'Enable Channex →';
+                statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">${result.error || 'Provisioning failed'}${result.step ? ' (' + result.step + ')' : ''}</p>`;
+                addAiMessage(`Sorry — Channex provisioning hit a snag: <strong>${result.error || 'unknown error'}</strong>. Try again in a moment, or ping Steve if it persists.`);
+                return;
+            }
+            const alreadyMsg = result.already_exists ? ' (already existed — reusing)' : '';
+            statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Channex workspace ready${alreadyMsg}: <strong>${result.group_title}</strong></p>`;
+            btn.textContent = '✓ Channex Enabled';
+            btn.style.background = 'var(--success)';
+            addAiMessage(`All done — your Channex workspace <strong>${result.group_title}</strong> is live. Next step: from GAS Admin → Channel Manager → the new Channex connection → <strong>+ Connect Channel</strong> to plug in Booking.com or Airbnb.`);
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Enable Channex →';
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">${err.message}</p>`;
         }
     }
 
