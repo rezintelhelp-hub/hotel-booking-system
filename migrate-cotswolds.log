@@ -1,0 +1,327 @@
+[2026-04-20T19:40:37.428Z] ═══════════════════════════════════════════════════
+[2026-04-20T19:40:37.429Z] GAS Blog Migration — 🔴 LIVE MODE
+[2026-04-20T19:40:37.429Z] Site: wwwthecotswoldretreatscomyp5kz72d4ow (DB: setseed_wwwthecotswoldretreatscomyp5kz72d4ow)
+[2026-04-20T19:40:37.429Z] Account ID: 95
+[2026-04-20T19:40:37.429Z] ═══════════════════════════════════════════════════
+[2026-04-20T19:40:37.429Z] Connecting via SSH...
+[2026-04-20T19:40:37.792Z] SSH connection established
+[2026-04-20T19:40:37.792Z] Connecting to MySQL (setseed_wwwthecotswoldretreatscomyp5kz72d4ow)...
+[2026-04-20T19:40:38.771Z] MySQL connected
+[2026-04-20T19:40:38.771Z] PostgreSQL pool created
+[2026-04-20T19:40:38.777Z] R2 client initialized
+[2026-04-20T19:40:38.842Z] Found blog tag: "Blog Articles" (ID: 142)
+[2026-04-20T19:40:38.990Z] Found 156 posts via page_tags (tag ID 142)
+[2026-04-20T19:40:39.052Z] Posts to migrate: 156
+[2026-04-20T19:40:41.756Z] [1/156] Uploaded image: cotswold-lavender-fields.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/1bf8c2bd-cb84-48ad-86ac-483381c37c58-cotswold-lavender-fields.webp
+[2026-04-20T19:40:43.494Z] [1/156] ✅ INSERT id=164 slug="cotswold-lavender-season-2026-a-summer-escape-in-full-colour" category="Walks & Nature"
+[2026-04-20T19:40:45.350Z] [2/156] Uploaded image: cfp.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/dd7ad47a-d613-4288-acbd-db6eb7f3167f-cfp.webp
+[2026-04-20T19:40:45.748Z] [2/156] ✅ INSERT id=165 slug="cotswold-farm-park-2026-a-countryside-experience-for-all-ages" category="Walks & Nature"
+[2026-04-20T19:40:53.650Z] [3/156] Uploaded image: Hottub.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/b6ea6e9f-abf3-4a60-8350-04771f92e040-Hottub.webp
+[2026-04-20T19:40:54.052Z] [3/156] ✅ INSERT id=166 slug="luxury-lodges-with-hot-tubs-in-the-cotswolds-2026-escapes" category="Accommodation"
+[2026-04-20T19:40:57.068Z] [4/156] Uploaded image: badminton-horse-trials-2026.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/9f6c1bb6-d322-43ca-945a-20405b1d3886-badminton-horse-trials-2026.webp
+[2026-04-20T19:40:57.471Z] [4/156] ✅ INSERT id=167 slug="badminton-horse-trials-2026-a-classic-cotswolds-spring-getaway" category="Events & Festivals"
+[2026-04-20T19:40:59.703Z] [5/156] Uploaded image: spring-bank-holiday.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/18bddf51-4046-41a1-bf7f-0848581c3384-spring-bank-holiday.webp
+[2026-04-20T19:41:00.183Z] [5/156] ✅ INSERT id=168 slug="spring-bank-holiday-in-the-cotswolds-2026-a-long-weekend-to-slow-down" category="General"
+[2026-04-20T19:41:06.273Z] [6/156] Uploaded image: sprimg-walks-2026.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/40e062d6-b011-4db8-8029-8000ff0247e2-sprimg-walks-2026.webp
+[2026-04-20T19:41:06.674Z] [6/156] ✅ INSERT id=169 slug="spring-walks-and-nature-escapes-in-the-cotswolds-2026" category="Walks & Nature"
+[2026-04-20T19:41:08.507Z] [7/156] Uploaded image: jazz-festival-2026.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/8ea1ff4e-2628-4cea-b78e-0caed64c1ecb-jazz-festival-2026.webp
+[2026-04-20T19:41:08.918Z] [7/156] ✅ INSERT id=170 slug="cotswold-jazz-and-culture-spring-2026-music-markets-and-countryside-charm" category="Walks & Nature"
+[2026-04-20T19:41:10.584Z] [8/156] Uploaded image: Winter-Escapes-in-the-Cotswolds--January-2026-Events-and-Experiences.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/d8a2de53-bf2b-4289-adcb-8c0a48306505-Winter-Escapes-in-the-Cotswolds--January-2026-Events-and-Experiences.webp
+[2026-04-20T19:41:11.005Z] [8/156] ✅ INSERT id=171 slug="winter-escapes-in-the-cotswolds-january-2026-events-and-experiences" category="General"
+[2026-04-20T19:41:13.417Z] [9/156] Uploaded image: January-2026-in-the-Cotswolds--Seasonal-Festivals-and-Countryside-Traditions.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/7242596b-a392-4e00-a710-464c8e1df880-January-2026-in-the-Cotswolds--Seasonal-Festivals-and-Countryside-Traditions.webp
+[2026-04-20T19:41:13.825Z] [9/156] ✅ INSERT id=172 slug="january-2026-in-the-cotswolds-seasonal-festivals-and-countryside-traditions" category="Walks & Nature"
+[2026-04-20T19:41:16.581Z] [10/156] Uploaded image: Step-Inside-the-Past--Historic-Houses-and-Gardens-in-the-Cotswolds-January-2026.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/3428b8a6-ad86-41dd-82a0-9586d52877c3-Step-Inside-the-Past--Historic-Houses-and-Gardens-in-the-Cotswolds-January-2026.webp
+[2026-04-20T19:41:16.980Z] [10/156] ✅ INSERT id=173 slug="step-inside-the-past-historic-houses-and-gardens-in-the-cotswolds-january-2026" category="Walks & Nature"
+[2026-04-20T19:41:17.193Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:17.591Z] [11/156] ✅ INSERT id=174 slug="fireside-dining-and-winter-food-in-the-cotswolds-january-2026" category="Food & Drink"
+[2026-04-20T19:41:17.777Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:18.174Z] [12/156] ✅ INSERT id=175 slug="christmas-in-the-cotswolds-markets-villages" category="Events & Festivals"
+[2026-04-20T19:41:18.362Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:18.781Z] [13/156] ✅ INSERT id=176 slug="christmas-dining-and-fireside-pubs-in-the-cotswolds" category="Events & Festivals"
+[2026-04-20T19:41:18.978Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:19.381Z] [14/156] ✅ INSERT id=177 slug="cosy-winter-escapes-in-the-cotswolds" category="General"
+[2026-04-20T19:41:19.569Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:19.969Z] [15/156] ✅ INSERT id=178 slug="bonfire-night-in-the-cotswolds-sparks-in-the-countryside" category="Events & Festivals"
+[2026-04-20T19:41:20.158Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:20.562Z] [16/156] ✅ INSERT id=179 slug="pumpkin-picking-bonfire-nights-in-the-cotswolds" category="Events & Festivals"
+[2026-04-20T19:41:20.750Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:21.145Z] [17/156] ✅ INSERT id=180 slug="discover-autumn-colours-in-the-cotswolds" category="Walks & Nature"
+[2026-04-20T19:41:21.333Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:21.731Z] [18/156] ✅ INSERT id=181 slug="celebrate-tradition-at-cirencester-mop-fair" category="Events & Festivals"
+[2026-04-20T19:41:21.918Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:22.352Z] [19/156] ✅ INSERT id=182 slug="celebrate-words-at-cheltenham-literature-festival-2025" category="Events & Festivals"
+[2026-04-20T19:41:22.608Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:23.009Z] [20/156] ✅ INSERT id=183 slug="blenheim-palace-international-horse-trials" category="Events & Festivals"
+[2026-04-20T19:41:23.199Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:23.600Z] [21/156] ✅ INSERT id=184 slug="moretoninmarsh-show" category="Events & Festivals"
+[2026-04-20T19:41:23.785Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:24.179Z] [22/156] ✅ INSERT id=185 slug="broadway-horticultural-craft-show" category="Events & Festivals"
+[2026-04-20T19:41:24.364Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:24.758Z] [23/156] ✅ INSERT id=186 slug="heritage-open-days" category="General"
+[2026-04-20T19:41:24.944Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:25.343Z] [24/156] ✅ INSERT id=187 slug="experience-music-under-the-stars-at-the-cotswold-music-festival" category="Events & Festivals"
+[2026-04-20T19:41:25.538Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:25.933Z] [25/156] ✅ INSERT id=188 slug="family-fun-at-the-cotswold-country-show-in-august" category="Events & Festivals"
+[2026-04-20T19:41:26.119Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:26.534Z] [26/156] ✅ INSERT id=189 slug="discover-art-and-culture-at-the-cheltenham-art-festival-this-august" category="Events & Festivals"
+[2026-04-20T19:41:26.758Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:27.166Z] [27/156] ✅ INSERT id=190 slug="celebrate-summer-at-the-tetbury-woolsack-races-in-august" category="Events & Festivals"
+[2026-04-20T19:41:27.358Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:27.755Z] [28/156] ✅ INSERT id=191 slug="unwind-in-style-a-relaxing-cotswold-escape-with-the-cotswold-retreats" category="General"
+[2026-04-20T19:41:27.942Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:28.405Z] [29/156] ✅ INSERT id=192 slug="indulge-in-the-cotswolds-farm-shops-markets-cream-teas" category="General"
+[2026-04-20T19:41:28.632Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:29.068Z] [30/156] ✅ INSERT id=193 slug="summer-walks-and-hidden-villages-in-the-cotswolds" category="Walks & Nature"
+[2026-04-20T19:41:29.327Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:29.789Z] [31/156] ✅ INSERT id=194 slug="family-days-out-in-the-cotswolds-this-summer" category="General"
+[2026-04-20T19:41:30.440Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:31.088Z] [32/156] ✅ INSERT id=195 slug="frenchinspired-fine-dining-at-le-champignon-sauvage-a-cotswold-classic-in-cheltenham" category="Food & Drink"
+[2026-04-20T19:41:31.356Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:31.949Z] [33/156] ✅ INSERT id=196 slug="farmtotable-excellence-dining-at-the-wild-rabbit-in-kingham" category="Food & Drink"
+[2026-04-20T19:41:32.476Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:32.987Z] [34/156] ✅ INSERT id=197 slug="modern-british-dining-with-soul-a-visit-to-lumiere-in-cheltenham" category="Food & Drink"
+[2026-04-20T19:41:33.536Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:34.327Z] [35/156] ✅ INSERT id=198 slug="culinary-elegance-in-the-countryside-a-fine-dining-escape-at-the-feathered-nest-cotswolds" category="Food & Drink"
+[2026-04-20T19:41:35.057Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:35.560Z] [36/156] ✅ INSERT id=199 slug="cotswolds-through-the-seasons-what-to-see-and-do-yearround" category="Guides & Inspiration"
+[2026-04-20T19:41:35.783Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:36.209Z] [37/156] ✅ INSERT id=200 slug="historic-houses-and-castles-you-must-see-in-the-cotswolds" category="General"
+[2026-04-20T19:41:36.396Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:36.797Z] [38/156] ✅ INSERT id=201 slug="the-most-beautiful-gardens-to-visit-in-the-cotswolds" category="Walks & Nature"
+[2026-04-20T19:41:36.996Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:37.407Z] [39/156] ✅ INSERT id=202 slug="exploring-cotswold-markets-food-crafts-and-local-finds" category="Food & Drink"
+[2026-04-20T19:41:37.593Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:37.994Z] [40/156] ✅ INSERT id=203 slug="best-walks-and-hiking-trails-in-the-cotswolds" category="Walks & Nature"
+[2026-04-20T19:41:38.203Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:38.601Z] [41/156] ✅ INSERT id=204 slug="hidden-gems-of-the-cotswolds-secret-spots-youll-love" category="Guides & Inspiration"
+[2026-04-20T19:41:38.791Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:39.189Z] [42/156] ✅ INSERT id=205 slug="a-perfect-weekend-itinerary-for-the-cotswolds" category="Guides & Inspiration"
+[2026-04-20T19:41:39.467Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:39.866Z] [43/156] ✅ INSERT id=206 slug="top-10-mustvisit-villages-in-the-cotswolds" category="Things to Do"
+[2026-04-20T19:41:40.095Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:40.532Z] [44/156] ✅ INSERT id=207 slug="rollright-stones" category="General"
+[2026-04-20T19:41:40.991Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:41.432Z] [45/156] ✅ INSERT id=208 slug="jazz-festival-may-2025" category="Events & Festivals"
+[2026-04-20T19:41:42.005Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:42.471Z] [46/156] ✅ INSERT id=209 slug="the-jolly-nice-farm-shop" category="Food & Drink"
+[2026-04-20T19:41:42.896Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:43.346Z] [47/156] ✅ INSERT id=210 slug="the-porch-house" category="General"
+[2026-04-20T19:41:43.686Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:44.160Z] [48/156] ✅ INSERT id=211 slug="cirencester-arts-crafts-market" category="General"
+[2026-04-20T19:41:44.460Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:44.939Z] [49/156] ✅ INSERT id=212 slug="exhibition-featuring-original-artwork-by-e-h-shepard" category="Things to Do"
+[2026-04-20T19:41:45.369Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:45.867Z] [50/156] ✅ INSERT id=213 slug="cirencester-charter-market" category="General"
+[2026-04-20T19:41:46.075Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:46.491Z] [51/156] ✅ INSERT id=214 slug="the-cheltenham-festival-2025" category="Events & Festivals"
+[2026-04-20T19:41:46.688Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:47.105Z] [52/156] ✅ INSERT id=215 slug="reflections-art-exhibition" category="Things to Do"
+[2026-04-20T19:41:47.306Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:47.722Z] [53/156] ✅ INSERT id=216 slug="evening-with-the-swans-2025" category="General"
+[2026-04-20T19:41:47.911Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:48.314Z] [54/156] ✅ INSERT id=217 slug="hidcote-visitors-photos-exhibition" category="Things to Do"
+[2026-04-20T19:41:48.504Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:48.906Z] [55/156] ✅ INSERT id=218 slug="guided-winter-walk-at-hidcote" category="Walks & Nature"
+[2026-04-20T19:41:49.150Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:49.587Z] [56/156] ✅ INSERT id=219 slug="christmas-at-blenheim-palace" category="Events & Festivals"
+[2026-04-20T19:41:49.774Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:50.174Z] [57/156] ✅ INSERT id=220 slug="meet-father-christmas" category="Events & Festivals"
+[2026-04-20T19:41:50.362Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:50.773Z] [58/156] ✅ INSERT id=221 slug="christmas-markets" category="Events & Festivals"
+[2026-04-20T19:41:50.960Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:51.365Z] [59/156] ✅ INSERT id=222 slug="christmas-light-show-at-sudeley-castle" category="Events & Festivals"
+[2026-04-20T19:41:51.553Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:51.958Z] [60/156] ✅ INSERT id=223 slug="five-valleys-firework-display-2024" category="Events & Festivals"
+[2026-04-20T19:41:52.144Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:52.542Z] [61/156] ✅ INSERT id=224 slug="hoburne-cotswold-firework-night" category="Events & Festivals"
+[2026-04-20T19:41:52.759Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:53.161Z] [62/156] ✅ INSERT id=225 slug="halloween-at-sudeley-castle" category="Events & Festivals"
+[2026-04-20T19:41:53.416Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:53.840Z] [63/156] ✅ INSERT id=226 slug="halloween-at-blenheim-palace" category="Events & Festivals"
+[2026-04-20T19:41:54.025Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:54.421Z] [64/156] ✅ INSERT id=227 slug="nature-tots-at-dyrham-park" category="Walks & Nature"
+[2026-04-20T19:41:54.609Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:55.004Z] [65/156] ✅ INSERT id=228 slug="prescott-hill-climb-season-finale" category="Events & Festivals"
+[2026-04-20T19:41:55.193Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:55.597Z] [66/156] ✅ INSERT id=229 slug="cheltenham-literature-festival-2024" category="Events & Festivals"
+[2026-04-20T19:41:55.787Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:56.182Z] [67/156] ✅ INSERT id=230 slug="oktoberfest-in-cirencester" category="Food & Drink"
+[2026-04-20T19:41:56.371Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:56.768Z] [68/156] ✅ INSERT id=231 slug="cogges-harvest-fayre" category="General"
+[2026-04-20T19:41:56.963Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:57.453Z] [69/156] ✅ INSERT id=232 slug="poulton-hill-tour-tasting-at-the-cellar-door" category="Food & Drink"
+[2026-04-20T19:41:57.640Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:58.042Z] [70/156] ✅ INSERT id=233 slug="british-and-midland-hill-climb-championships" category="Events & Festivals"
+[2026-04-20T19:41:58.239Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:58.642Z] [71/156] ✅ INSERT id=234 slug="shakespeare-in-the-garden" category="Walks & Nature"
+[2026-04-20T19:41:58.829Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:59.228Z] [72/156] ✅ INSERT id=235 slug="holiday-lodges-with-hot-tubs" category="Accommodation"
+[2026-04-20T19:41:59.413Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:41:59.814Z] [73/156] ✅ INSERT id=236 slug="busy-bees-holiday-lodge" category="Accommodation"
+[2026-04-20T19:42:00.007Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:00.404Z] [74/156] ✅ INSERT id=237 slug="the-bumble-bee-holiday-lodge" category="Accommodation"
+[2026-04-20T19:42:00.588Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:01.026Z] [75/156] ✅ INSERT id=238 slug="the-beehive-holiday-lodge" category="Accommodation"
+[2026-04-20T19:42:01.249Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:01.666Z] [76/156] ✅ INSERT id=239 slug="fantasy-forest-festival-2024" category="Events & Festivals"
+[2026-04-20T19:42:01.864Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:02.294Z] [77/156] ✅ INSERT id=240 slug="cheltenham-music-festival" category="Events & Festivals"
+[2026-04-20T19:42:02.482Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:02.885Z] [78/156] ✅ INSERT id=241 slug="battle-proms-picnic-concert" category="Events & Festivals"
+[2026-04-20T19:42:03.069Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:03.466Z] [79/156] ✅ INSERT id=242 slug="forest-live-at-westonbirt-arboretum" category="Walks & Nature"
+[2026-04-20T19:42:03.654Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:04.055Z] [80/156] ✅ INSERT id=243 slug="visit-sudeley-castle-and-gardens-this-summer" category="Walks & Nature"
+[2026-04-20T19:42:04.241Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:04.683Z] [81/156] ✅ INSERT id=244 slug="visit-the-cotswold-farm-park-this-summer" category="Things to Do"
+[2026-04-20T19:42:05.026Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:05.448Z] [82/156] ✅ INSERT id=245 slug="wine-tasting-at-poulton-hill" category="Food & Drink"
+[2026-04-20T19:42:05.641Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:06.060Z] [83/156] ✅ INSERT id=246 slug="blenheim-palace-triathlon" category="Events & Festivals"
+[2026-04-20T19:42:06.249Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:06.648Z] [84/156] ✅ INSERT id=247 slug="watersports-in-the-cotswold-water-park" category="Things to Do"
+[2026-04-20T19:42:06.836Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:07.237Z] [85/156] ✅ INSERT id=248 slug="broadway-arts-festival" category="Events & Festivals"
+[2026-04-20T19:42:07.423Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:07.819Z] [86/156] ✅ INSERT id=249 slug="cheltenham-food-and-drink-festival" category="Events & Festivals"
+[2026-04-20T19:42:08.004Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:08.405Z] [87/156] ✅ INSERT id=250 slug="visit-birdland" category="Things to Do"
+[2026-04-20T19:42:08.661Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:09.117Z] [88/156] ✅ INSERT id=251 slug="cheltenham-jazz-festival-2024" category="Events & Festivals"
+[2026-04-20T19:42:09.309Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:09.706Z] [89/156] ✅ INSERT id=252 slug="tulip-mania-at-dyrham-park" category="Things to Do"
+[2026-04-20T19:42:09.890Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:10.286Z] [90/156] ✅ INSERT id=253 slug="the-april-meeting-cheltenham" category="General"
+[2026-04-20T19:42:10.476Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:10.879Z] [91/156] ✅ INSERT id=254 slug="lambing-and-kidding-at-cotswold-farm-park" category="Things to Do"
+[2026-04-20T19:42:11.075Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:11.472Z] [92/156] ✅ INSERT id=255 slug="book-early-for-easter" category="Events & Festivals"
+[2026-04-20T19:42:11.659Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:12.054Z] [93/156] ✅ INSERT id=256 slug="cotswold-country-park-beach" category="Things to Do"
+[2026-04-20T19:42:12.245Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:12.659Z] [94/156] ✅ INSERT id=257 slug="walking-holidays-in-the-cotswolds" category="General"
+[2026-04-20T19:42:12.843Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:13.242Z] [95/156] ✅ INSERT id=258 slug="spring-in-the-cotswolds" category="General"
+[2026-04-20T19:42:13.426Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:13.833Z] [96/156] ✅ INSERT id=259 slug="golf-in-the-cotswolds" category="Things to Do"
+[2026-04-20T19:42:14.020Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:14.423Z] [97/156] ✅ INSERT id=260 slug="the-history-of-the-cotswolds" category="Guides & Inspiration"
+[2026-04-20T19:42:14.627Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:15.028Z] [98/156] ✅ INSERT id=261 slug="evening-with-the-swans" category="General"
+[2026-04-20T19:42:15.216Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:15.623Z] [99/156] ✅ INSERT id=262 slug="snowdrops-at-painswick" category="General"
+[2026-04-20T19:42:15.808Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:16.223Z] [100/156] ✅ INSERT id=263 slug="rusalka-the-royal-opera-live" category="Events & Festivals"
+[2026-04-20T19:42:16.406Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:16.805Z] [101/156] ✅ INSERT id=264 slug="cocklebarrow-races" category="Events & Festivals"
+[2026-04-20T19:42:17.033Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:17.432Z] [102/156] ✅ INSERT id=265 slug="christmas-at-cogges-santas-grotto" category="Events & Festivals"
+[2026-04-20T19:42:17.623Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:18.018Z] [103/156] ✅ INSERT id=266 slug="spectacle-of-light-sudeley-castle" category="Things to Do"
+[2026-04-20T19:42:18.206Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:18.607Z] [104/156] ✅ INSERT id=267 slug="an-enchanted-christmas" category="Events & Festivals"
+[2026-04-20T19:42:18.795Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:19.195Z] [105/156] ✅ INSERT id=268 slug="a-fairy-tale-christmas" category="Events & Festivals"
+[2026-04-20T19:42:19.383Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:19.777Z] [106/156] ✅ INSERT id=269 slug="great-pubs-for-christmas" category="Events & Festivals"
+[2026-04-20T19:42:19.993Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:20.441Z] [107/156] ✅ INSERT id=270 slug="bonfire-night-in-the-cotswolds" category="Events & Festivals"
+[2026-04-20T19:42:20.643Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:21.045Z] [108/156] ✅ INSERT id=271 slug="cirencester-christmas-market" category="Events & Festivals"
+[2026-04-20T19:42:21.230Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:21.626Z] [109/156] ✅ INSERT id=272 slug="ice-rink-opens" category="Events & Festivals"
+[2026-04-20T19:42:21.814Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:22.213Z] [110/156] ✅ INSERT id=273 slug="outlet-shopping" category="Things to Do"
+[2026-04-20T19:42:22.399Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:22.799Z] [111/156] ✅ INSERT id=274 slug="walking-routes-in-the-cotswolds" category="General"
+[2026-04-20T19:42:22.989Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:23.386Z] [112/156] ✅ INSERT id=275 slug="back-to-school-in-the-cotswolds" category="General"
+[2026-04-20T19:42:23.576Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:23.992Z] [113/156] ✅ INSERT id=276 slug="autumn-in-the-cotswolds" category="General"
+[2026-04-20T19:42:24.186Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:24.581Z] [114/156] ✅ INSERT id=277 slug="old-news-from-the-cotswold-water-park" category="Things to Do"
+[2026-04-20T19:42:24.768Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:25.165Z] [115/156] ✅ INSERT id=278 slug="badminton-horse-trials-2024" category="Events & Festivals"
+[2026-04-20T19:42:25.351Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:25.750Z] [116/156] ✅ INSERT id=279 slug="dining-in-the-cotswolds" category="Food & Drink"
+[2026-04-20T19:42:25.942Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:26.345Z] [117/156] ✅ INSERT id=280 slug="fishing-in-the-cotswolds" category="Things to Do"
+[2026-04-20T19:42:26.538Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:26.933Z] [118/156] ✅ INSERT id=281 slug="beautiful-cotswold-towns" category="Guides & Inspiration"
+[2026-04-20T19:42:27.120Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:27.521Z] [119/156] ✅ INSERT id=282 slug="famous-cotswold-landmarks" category="Guides & Inspiration"
+[2026-04-20T19:42:27.709Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:28.137Z] [120/156] ✅ INSERT id=283 slug="why-should-you-visit-the-cotswolds" category="Things to Do"
+[2026-04-20T19:42:28.322Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:28.722Z] [121/156] ✅ INSERT id=284 slug="why-visit-the-cotswold-water-park" category="Things to Do"
+[2026-04-20T19:42:28.906Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:29.302Z] [122/156] ✅ INSERT id=285 slug="cotswolds-distillery-comedy-festival" category="Events & Festivals"
+[2026-04-20T19:42:29.488Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:29.885Z] [123/156] ✅ INSERT id=286 slug="the-cotswold-show" category="Events & Festivals"
+[2026-04-20T19:42:30.071Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:30.472Z] [124/156] ✅ INSERT id=287 slug="eynsham-carnival-2023" category="Events & Festivals"
+[2026-04-20T19:42:30.662Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:31.074Z] [125/156] ✅ INSERT id=288 slug="blenheim-palace-battle-proms-concert" category="Events & Festivals"
+[2026-04-20T19:42:31.303Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:31.793Z] [126/156] ✅ INSERT id=289 slug="bledington-music-festival" category="Events & Festivals"
+[2026-04-20T19:42:31.992Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:32.400Z] [127/156] ✅ INSERT id=290 slug="chadlington-beer-festival" category="Events & Festivals"
+[2026-04-20T19:42:32.588Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:32.987Z] [128/156] ✅ INSERT id=291 slug="wychwood-festival" category="Events & Festivals"
+[2026-04-20T19:42:33.177Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:33.576Z] [129/156] ✅ INSERT id=292 slug="robert-dover-games" category="Events & Festivals"
+[2026-04-20T19:42:33.763Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:34.164Z] [130/156] ✅ INSERT id=293 slug="lechlade-music-festival-2023" category="Events & Festivals"
+[2026-04-20T19:42:34.349Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:34.745Z] [131/156] ✅ INSERT id=294 slug="the-mousetrap-at-the-everyman-theatre" category="Things to Do"
+[2026-04-20T19:42:34.932Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:35.353Z] [132/156] ✅ INSERT id=295 slug="wildflower-walk" category="Walks & Nature"
+[2026-04-20T19:42:35.547Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:35.946Z] [133/156] ✅ INSERT id=296 slug="cheltenham-jazz-festival" category="Events & Festivals"
+[2026-04-20T19:42:36.140Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:36.540Z] [134/156] ✅ INSERT id=297 slug="festival-at-cheltenham" category="Events & Festivals"
+[2026-04-20T19:42:36.727Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:37.125Z] [135/156] ✅ INSERT id=298 slug="slaughters-united-cricket-club" category="Events & Festivals"
+[2026-04-20T19:42:37.311Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:37.708Z] [136/156] ✅ INSERT id=299 slug="the-cotswold-olimpicks" category="General"
+[2026-04-20T19:42:37.955Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:38.018Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:38.416Z] [137/156] ✅ INSERT id=300 slug="badminton-horse-trials" category="Events & Festivals"
+[2026-04-20T19:42:38.602Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:39.000Z] [138/156] ✅ INSERT id=301 slug="march-hare-needle-felting-workshop" category="General"
+[2026-04-20T19:42:39.211Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:39.638Z] [139/156] ✅ INSERT id=302 slug="cotswold-lakes-trust-open-weekend" category="General"
+[2026-04-20T19:42:39.872Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:40.271Z] [140/156] ✅ INSERT id=303 slug="ashton-keynes-rural-cinema-elvis" category="Things to Do"
+[2026-04-20T19:42:40.517Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:40.918Z] [141/156] ✅ INSERT id=304 slug="lechlade-music-festival" category="Events & Festivals"
+[2026-04-20T19:42:41.169Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:41.567Z] [142/156] ✅ INSERT id=305 slug="ashton-keynes-rural-cinema" category="Things to Do"
+[2026-04-20T19:42:41.818Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:42.217Z] [143/156] ✅ INSERT id=306 slug="around-the-world-in-80-days" category="General"
+[2026-04-20T19:42:42.467Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:42.866Z] [144/156] ✅ INSERT id=307 slug="wedding-fair" category="Events & Festivals"
+[2026-04-20T19:42:43.128Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:43.561Z] [145/156] ✅ INSERT id=308 slug="book-your-spring-and-summer-breaks" category="General"
+[2026-04-20T19:42:43.810Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:44.207Z] [146/156] ✅ INSERT id=309 slug="the-gateway-ice-rink" category="Events & Festivals"
+[2026-04-20T19:42:44.455Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:44.922Z] [147/156] ✅ INSERT id=310 slug="cotswold-lakes-trust-membership" category="General"
+[2026-04-20T19:42:45.174Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:45.573Z] [148/156] ✅ INSERT id=311 slug="cotswold-water-park-ball" category="Things to Do"
+[2026-04-20T19:42:45.763Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:46.162Z] [149/156] ✅ INSERT id=312 slug="the-cotswold-water-park-christmas" category="Events & Festivals"
+[2026-04-20T19:42:46.412Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:46.826Z] [150/156] ✅ INSERT id=313 slug="gladiators-a-cemetery-of-secrets" category="General"
+[2026-04-20T19:42:47.134Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:47.528Z] [151/156] ✅ INSERT id=314 slug="enchanted-christmas" category="Events & Festivals"
+[2026-04-20T19:42:47.782Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:48.178Z] [152/156] ✅ INSERT id=315 slug="blenheim-palace-christmas-market" category="Events & Festivals"
+[2026-04-20T19:42:48.425Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:48.823Z] [153/156] ✅ INSERT id=316 slug="cotswold-water-park-10k-run-at-cleveland-lakes-en" category="Things to Do"
+[2026-04-20T19:42:49.072Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:49.468Z] [154/156] ✅ INSERT id=317 slug="cheltenham-round-table-fireworks-extravaganza" category="General"
+[2026-04-20T19:42:49.720Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:50.115Z] [155/156] ✅ INSERT id=318 slug="october-half-term" category="General"
+[2026-04-20T19:42:50.367Z] ⚠️  SFTP error: (SSH) Channel open failure: open failed
+[2026-04-20T19:42:50.769Z] [156/156] ✅ INSERT id=319 slug="halloween-trail" category="Events & Festivals"

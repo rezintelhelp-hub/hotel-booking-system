@@ -1,0 +1,136 @@
+[2026-04-20T22:03:24.456Z] ═══════════════════════════════════════════════════
+[2026-04-20T22:03:24.457Z] GAS Attractions Migration — 🔴 LIVE MODE
+[2026-04-20T22:03:24.457Z] Site: wwwthecotswoldretreatscomyp5kz72d4ow (DB: setseed_wwwthecotswoldretreatscomyp5kz72d4ow)
+[2026-04-20T22:03:24.457Z] Account ID: 95
+[2026-04-20T22:03:24.457Z] ═══════════════════════════════════════════════════
+[2026-04-20T22:03:24.457Z] Connecting via SSH...
+[2026-04-20T22:03:24.815Z] SSH connection established
+[2026-04-20T22:03:24.816Z] Connecting to MySQL (setseed_wwwthecotswoldretreatscomyp5kz72d4ow)...
+[2026-04-20T22:03:25.655Z] MySQL connected
+[2026-04-20T22:03:25.655Z] PostgreSQL pool created
+[2026-04-20T22:03:25.661Z] R2 client initialized
+[2026-04-20T22:03:25.908Z] SFTP session opened
+[2026-04-20T22:03:25.976Z] Found attractions tag: "Attractions" (ID: 141)
+[2026-04-20T22:03:26.057Z] Found 48 attractions via tag ID 141
+[2026-04-20T22:03:26.058Z] Attractions to migrate: 48
+[2026-04-20T22:03:27.188Z] [1/48] Uploaded image: 4lakes.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/3dc5bff5-4a85-46af-95f6-a3d7f54d44de-4lakes.webp
+[2026-04-20T22:03:28.579Z] [1/48] UPDATE id=116 slug="4-lakes-water-skiing" category="Water Sports"
+[2026-04-20T22:03:29.583Z] [2/48] Uploaded image: adam.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/4ed92163-f52d-4a57-80a9-28825c6e0ce5-adam.webp
+[2026-04-20T22:03:29.751Z] [2/48] INSERT id=118 slug="adam-hensons-cotswold-farm-park" category="Parks & Gardens"
+[2026-04-20T22:03:30.972Z] [3/48] Uploaded image: Bacon-Theatre.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/9e6c90f0-80c8-472a-a2ca-f20df98f2e71-Bacon-Theatre.webp
+[2026-04-20T22:03:31.140Z] [3/48] INSERT id=119 slug="bacon-theatre" category="Entertainment"
+[2026-04-20T22:03:32.297Z] [4/48] Uploaded image: Barn.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/2f0fa0ac-c213-4a3b-afb5-0110791443f7-Barn.webp
+[2026-04-20T22:03:32.465Z] [4/48] INSERT id=120 slug="barn-theatre" category="Entertainment"
+[2026-04-20T22:03:35.467Z] [5/48] Uploaded image: batsford.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/cfb933be-555c-4806-bd13-b709bc488781-batsford.webp
+[2026-04-20T22:03:35.635Z] [5/48] INSERT id=121 slug="batsford-arboretum" category="Parks & Gardens"
+[2026-04-20T22:03:36.759Z] [6/48] Uploaded image: blenhiem.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/853e8a70-0ecc-48db-9f97-80acc05d5ab4-blenhiem.webp
+[2026-04-20T22:03:36.926Z] [6/48] INSERT id=122 slug="blenheim-palace" category="Parks & Gardens"
+[2026-04-20T22:03:38.128Z] [7/48] Uploaded image: Carles-cafe---main-logo.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/224f0f37-bc39-4666-ba24-13ae8f48523c-Carles-cafe---main-logo.webp
+[2026-04-20T22:03:38.299Z] [7/48] INSERT id=123 slug="carles-coffee" category="Food & Drink"
+[2026-04-20T22:03:40.811Z] [8/48] Uploaded image: Cirencester-Golf-Club.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/bc97fc4f-9f6e-49ce-874d-f63ec9cef943-Cirencester-Golf-Club.webp
+[2026-04-20T22:03:40.981Z] [8/48] INSERT id=124 slug="cirencester-golf-club" category="Golf"
+[2026-04-20T22:03:41.936Z] [9/48] Uploaded image: canoe.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/351766f1-0d75-4ff9-bf3c-495d805d2615-canoe.webp
+[2026-04-20T22:03:42.101Z] [9/48] INSERT id=125 slug="cotswold-canoe-hire" category="Water Sports"
+[2026-04-20T22:03:43.148Z] [10/48] Uploaded image: beach.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/ccc36196-308c-4cf1-9e10-ae033017b578-beach.webp
+[2026-04-20T22:03:43.314Z] [10/48] INSERT id=126 slug="cotswold-country-park-and-beach" category="Water Sports"
+[2026-04-20T22:03:44.412Z] [11/48] Uploaded image: driving.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/1203a09a-4c2e-4a30-9173-70d104707f7b-driving.webp
+[2026-04-20T22:03:44.579Z] [11/48] INSERT id=127 slug="cotswold-driving-experience" category="Outdoors"
+[2026-04-20T22:03:45.834Z] [12/48] Uploaded image: cotswold.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/7067f104-84b2-4698-850d-3bcbafe13aca-cotswold.webp
+[2026-04-20T22:03:46.005Z] [12/48] INSERT id=128 slug="cotswold-edge-golf-club" category="Golf"
+[2026-04-20T22:03:47.109Z] [13/48] Uploaded image: cotswold-Playhouse.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/6e4b9cd3-5ba6-411e-9995-681934c2e6a1-cotswold-Playhouse.webp
+[2026-04-20T22:03:47.277Z] [13/48] INSERT id=129 slug="cotswold-playhouse" category="Entertainment"
+[2026-04-20T22:03:48.395Z] [14/48] Uploaded image: waterpark.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/9f70b1eb-ea05-4488-9742-d554620e5a4c-waterpark.webp
+[2026-04-20T22:03:48.561Z] [14/48] INSERT id=130 slug="cotswold-water-park" category="Water Sports"
+[2026-04-20T22:03:50.574Z] [15/48] Uploaded image: wildlife-park.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/ec39a5cc-94d6-4e02-80b2-650e8270ab71-wildlife-park.webp
+[2026-04-20T22:03:50.743Z] [15/48] INSERT id=131 slug="cotswold-wildlife-park" category="Parks & Gardens"
+[2026-04-20T22:03:51.693Z] [16/48] Uploaded image: lion.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/28430f51-37ce-46fb-9885-a4cd919b991a-lion.webp
+[2026-04-20T22:03:51.862Z] [16/48] INSERT id=132 slug="cotswold-wildlife-park-gardens" category="Parks & Gardens"
+[2026-04-20T22:03:54.777Z] [17/48] Uploaded image: bike-hire.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/a86ca710-4768-4b02-bf46-2f94847a8569-bike-hire.webp
+[2026-04-20T22:03:54.944Z] [17/48] INSERT id=133 slug="discover-bikes" category="Outdoors"
+[2026-04-20T22:03:56.222Z] [18/48] Uploaded image: dyrham-Park.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/55d3f7a0-584c-4fb5-9af7-09b42344e7dd-dyrham-Park.webp
+[2026-04-20T22:03:56.387Z] [18/48] INSERT id=134 slug="dyrham-park" category="Parks & Gardens"
+[2026-04-20T22:03:59.357Z] [19/48] Uploaded image: fishing-hoburne.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/7b7e8519-a192-4435-998d-5054043c7428-fishing-hoburne.webp
+[2026-04-20T22:03:59.525Z] [19/48] INSERT id=135 slug="fishing-at-hoburne" category="Fishing"
+[2026-04-20T22:04:02.569Z] [20/48] Uploaded image: fishing.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/424f5de5-74ec-4f2f-8e7b-55fd1784c235-fishing.webp
+[2026-04-20T22:04:02.739Z] [20/48] INSERT id=136 slug="fishing-at-lake-pochard" category="Fishing"
+[2026-04-20T22:04:05.818Z] [21/48] Uploaded image: windrush-fishing.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/c57f725d-cd63-47e7-97a5-fc096ab41fee-windrush-fishing.webp
+[2026-04-20T22:04:05.986Z] [21/48] INSERT id=137 slug="fishing-at-windrush-and-isis" category="Fishing"
+[2026-04-20T22:04:07.489Z] [22/48] Uploaded image: gateway.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/13085cdf-7ff6-4ee1-ac26-e249356f816d-gateway.webp
+[2026-04-20T22:04:07.655Z] [22/48] INSERT id=138 slug="gateway-cafe" category="Food & Drink"
+[2026-04-20T22:04:09.511Z] [23/48] Uploaded image: -Warwickshire-Steam-Railway.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/28fcbe8e-3971-40cf-bd42-fc101287f77f--Warwickshire-Steam-Railway.webp
+[2026-04-20T22:04:09.677Z] [23/48] INSERT id=139 slug="gloucestershire-warwickshire-steam-railway" category="General"
+[2026-04-20T22:04:10.934Z] [24/48] Uploaded image: Hidcote-House.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/38077ce9-dba4-42fa-851d-37ce5a378fda-Hidcote-House.webp
+[2026-04-20T22:04:11.101Z] [24/48] INSERT id=140 slug="hidcote-park" category="Parks & Gardens"
+[2026-04-20T22:04:15.181Z] [25/48] Uploaded image: jenny.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/17aafed8-34a6-452d-8c06-574010cd62a4-jenny.webp
+[2026-04-20T22:04:15.347Z] [25/48] INSERT id=141 slug="jennies-kitchen" category="Food & Drink"
+[2026-04-20T22:04:17.908Z] [26/48] Uploaded image: Kempshott.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/10ce50ad-4f05-44d7-935f-5675ef91840b-Kempshott.webp
+[2026-04-20T22:04:18.077Z] [26/48] INSERT id=142 slug="kelmscott-manor" category="Heritage"
+[2026-04-20T22:04:19.484Z] [27/48] Uploaded image: newark-.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/a326004b-fddf-471f-b0ba-28cc9e722052-newark-.webp
+[2026-04-20T22:04:19.650Z] [27/48] INSERT id=143 slug="newark-park" category="Parks & Gardens"
+[2026-04-20T22:04:21.140Z] [28/48] Uploaded image: pizza.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/40e71f4e-415b-4538-836f-596d2a2d52bb-pizza.webp
+[2026-04-20T22:04:21.308Z] [28/48] INSERT id=144 slug="pizzeria-720" category="Food & Drink"
+[2026-04-20T22:04:23.067Z] [29/48] Uploaded image: Royal-Wootton-Bassett.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/784e15f3-77bb-4a56-a163-0e5e543c284d-Royal-Wootton-Bassett.webp
+[2026-04-20T22:04:23.233Z] [29/48] INSERT id=145 slug="royal-wootton-bassett" category="General"
+[2026-04-20T22:04:24.993Z] [30/48] Uploaded image: pochard.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/3d65cdc0-6480-47a2-afcc-bbb69a58b5eb-pochard.webp
+[2026-04-20T22:04:25.162Z] [30/48] INSERT id=146 slug="south-cerney-angling-club" category="Fishing"
+[2026-04-20T22:04:26.616Z] [31/48] Uploaded image: south-cerney-gc.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/7c8ff2e1-1ef1-4792-9556-d87cb4208ddc-south-cerney-gc.webp
+[2026-04-20T22:04:26.782Z] [31/48] INSERT id=147 slug="south-cerney-golf-club" category="Golf"
+[2026-04-20T22:04:27.775Z] [32/48] Uploaded image: sudely.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/8812c6f4-739c-4221-aa90-e396d5a582b4-sudely.webp
+[2026-04-20T22:04:27.942Z] [32/48] INSERT id=148 slug="sudeley-castle-gardens" category="Parks & Gardens"
+[2026-04-20T22:04:29.170Z] [33/48] Uploaded image: sundial-theatre.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/470c1acc-a0d1-4e7b-a821-f96be1d7199b-sundial-theatre.webp
+[2026-04-20T22:04:29.339Z] [33/48] INSERT id=149 slug="sundial-theatre" category="Entertainment"
+[2026-04-20T22:04:30.388Z] [34/48] Uploaded image: bakers-arms.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/9c4c7072-c4fe-4ae8-8cf7-cd84adc695b0-bakers-arms.webp
+[2026-04-20T22:04:30.552Z] [34/48] INSERT id=150 slug="the-bakers-arms" category="Food & Drink"
+[2026-04-20T22:04:32.976Z] [35/48] Uploaded image: cotswold-range-1.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/e2d4f4c9-ee4a-4d9c-aaa4-afbeeb563b2e-cotswold-range-1.webp
+[2026-04-20T22:04:33.142Z] [35/48] INSERT id=151 slug="the-cotswold-range" category="General"
+[2026-04-20T22:04:34.270Z] [36/48] Uploaded image: crown.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/d59bc8e3-1553-4b0f-8140-1f096b495f22-crown.webp
+[2026-04-20T22:04:34.436Z] [36/48] INSERT id=152 slug="the-crown" category="Food & Drink"
+[2026-04-20T22:04:35.565Z] [37/48] Uploaded image: old-george-inn.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/6265f180-1e12-4e4d-a83f-576c3421ebb1-old-george-inn.webp
+[2026-04-20T22:04:35.731Z] [37/48] INSERT id=153 slug="the-old-george-inn" category="Food & Drink"
+[2026-04-20T22:04:37.157Z] [38/48] Uploaded image: Rollright-Stones-004-831x552.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/5d7c265c-7cfa-4cee-af1c-a483b74b2c4e-Rollright-Stones-004-831x552.webp
+[2026-04-20T22:04:37.323Z] [38/48] INSERT id=154 slug="the-rolling-stones-monuments" category="Heritage"
+[2026-04-20T22:04:38.342Z] [39/48] Uploaded image: Tden-Logo_edited.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/b63a0685-d039-4326-ad72-1ad40a16f5e6-Tden-Logo_edited.webp
+[2026-04-20T22:04:38.510Z] [39/48] INSERT id=155 slug="the-tackle-den" category="Food & Drink"
+[2026-04-20T22:04:39.925Z] [40/48] Uploaded image: wheatsheaf2.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/e556d012-57a1-460d-9949-9fa8bf225511-wheatsheaf2.webp
+[2026-04-20T22:04:40.092Z] [40/48] INSERT id=156 slug="the-wheatsheaf-inn" category="Food & Drink"
+[2026-04-20T22:04:41.110Z] [41/48] Uploaded image: white-hart.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/f79f4721-3b08-42cf-8d5d-06a923499af5-white-hart.webp
+[2026-04-20T22:04:41.276Z] [41/48] INSERT id=157 slug="the-white-hart" category="Food & Drink"
+[2026-04-20T22:04:42.638Z] [42/48] Uploaded image: Thornbury-Golf-Centre-Gloucester.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/0abf89a0-f5d3-4a95-b375-d89dc93c64ff-Thornbury-Golf-Centre-Gloucester.webp
+[2026-04-20T22:04:42.804Z] [42/48] INSERT id=158 slug="thornbury-golf-centre" category="Golf"
+[2026-04-20T22:04:44.297Z] [43/48] Uploaded image: trout.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/8e24fda4-1dd8-49d1-8eee-d800f50a0269-trout.webp
+[2026-04-20T22:04:44.466Z] [43/48] INSERT id=159 slug="trout-fisheries" category="Fishing"
+[2026-04-20T22:04:45.657Z] [44/48] Uploaded image: walters.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/428f41b9-0e8f-4af4-810f-85a168c59573-walters.webp
+[2026-04-20T22:04:45.827Z] [44/48] INSERT id=160 slug="walters-lake" category="Water Sports"
+[2026-04-20T22:04:46.831Z] [45/48] Uploaded image: watersides.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/0c33d311-635f-41d3-b39b-d8d7e28fa98d-watersides.webp
+[2026-04-20T22:04:47.011Z] [45/48] INSERT id=161 slug="waterside-kitchen-and-bar" category="Food & Drink"
+[2026-04-20T22:04:49.728Z] [46/48] Uploaded image: Westonbirt-Arboretum.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/8ac72d48-e4fc-4a7d-b69b-90712753de02-Westonbirt-Arboretum.webp
+[2026-04-20T22:04:49.894Z] [46/48] INSERT id=162 slug="westonbirt-arboretum" category="Parks & Gardens"
+[2026-04-20T22:04:51.172Z] [47/48] Uploaded image: Woodchester.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/e24a5c6a-f4b6-45c2-8f88-950e2afa3a91-Woodchester.webp
+[2026-04-20T22:04:51.339Z] [47/48] INSERT id=163 slug="woodchester-park" category="Parks & Gardens"
+[2026-04-20T22:04:53.885Z] [48/48] Uploaded image: Woodstock.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/attraction-image/95/large/51235abe-e6fd-443d-883c-3a59dbd9270b-Woodstock.webp
+[2026-04-20T22:04:54.054Z] [48/48] INSERT id=164 slug="woodstock" category="General"
+[2026-04-20T22:04:54.054Z] 
+[2026-04-20T22:04:54.054Z] ═══════════════════════════════════════════════════
+[2026-04-20T22:04:54.054Z] MIGRATION SUMMARY
+[2026-04-20T22:04:54.054Z] ═══════════════════════════════════════════════════
+[2026-04-20T22:04:54.054Z] Mode:        🔴 LIVE
+[2026-04-20T22:04:54.054Z] Site:        wwwthecotswoldretreatscomyp5kz72d4ow
+[2026-04-20T22:04:54.054Z] Account:     95
+[2026-04-20T22:04:54.054Z] Found:       48
+[2026-04-20T22:04:54.054Z] Images:      48
+[2026-04-20T22:04:54.054Z] Inserts:     47
+[2026-04-20T22:04:54.054Z] Updates:     1
+[2026-04-20T22:04:54.054Z] Skipped:     0
+[2026-04-20T22:04:54.054Z] Failures:    0
+[2026-04-20T22:04:54.054Z] 
+[2026-04-20T22:04:54.054Z] Category distribution:
+[2026-04-20T22:04:54.055Z]   Parks & Gardens: 11
+[2026-04-20T22:04:54.055Z]   Food & Drink: 11
+[2026-04-20T22:04:54.055Z]   Water Sports: 5
+[2026-04-20T22:04:54.055Z]   Fishing: 5
+[2026-04-20T22:04:54.055Z]   Entertainment: 4
+[2026-04-20T22:04:54.055Z]   Golf: 4
+[2026-04-20T22:04:54.055Z]   General: 4
+[2026-04-20T22:04:54.055Z]   Outdoors: 2
+[2026-04-20T22:04:54.055Z]   Heritage: 2
+[2026-04-20T22:04:54.055Z] ═══════════════════════════════════════════════════

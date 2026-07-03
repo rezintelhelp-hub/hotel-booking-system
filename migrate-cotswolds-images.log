@@ -1,0 +1,328 @@
+[2026-04-20T19:45:52.309Z] ═══════════════════════════════════════════════════
+[2026-04-20T19:45:52.310Z] GAS Blog Migration — 🔴 LIVE MODE
+[2026-04-20T19:45:52.310Z] Site: wwwthecotswoldretreatscomyp5kz72d4ow (DB: setseed_wwwthecotswoldretreatscomyp5kz72d4ow)
+[2026-04-20T19:45:52.310Z] Account ID: 95
+[2026-04-20T19:45:52.310Z] ═══════════════════════════════════════════════════
+[2026-04-20T19:45:52.310Z] Connecting via SSH...
+[2026-04-20T19:45:52.668Z] SSH connection established
+[2026-04-20T19:45:52.668Z] Connecting to MySQL (setseed_wwwthecotswoldretreatscomyp5kz72d4ow)...
+[2026-04-20T19:45:53.703Z] MySQL connected
+[2026-04-20T19:45:53.703Z] PostgreSQL pool created
+[2026-04-20T19:45:53.709Z] R2 client initialized
+[2026-04-20T19:45:53.957Z] SFTP session opened
+[2026-04-20T19:45:54.023Z] Found blog tag: "Blog Articles" (ID: 142)
+[2026-04-20T19:45:54.174Z] Found 156 posts via page_tags (tag ID 142)
+[2026-04-20T19:45:54.240Z] Posts to migrate: 156
+[2026-04-20T19:45:57.071Z] [1/156] Uploaded image: cotswold-lavender-fields.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/2dbeb26b-6a7f-4572-b3b0-021d3765052c-cotswold-lavender-fields.webp
+[2026-04-20T19:45:58.647Z] [1/156] 🔄 UPDATE id=164 slug="cotswold-lavender-season-2026-a-summer-escape-in-full-colour" category="Walks & Nature"
+[2026-04-20T19:46:00.154Z] [2/156] Uploaded image: cfp.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/fb3ede11-ca34-4283-84ad-8e034863c38a-cfp.webp
+[2026-04-20T19:46:00.560Z] [2/156] 🔄 UPDATE id=165 slug="cotswold-farm-park-2026-a-countryside-experience-for-all-ages" category="Walks & Nature"
+[2026-04-20T19:46:07.149Z] [3/156] Uploaded image: Hottub.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/5d747dbd-6b87-44a8-9a1a-4d999fd81c05-Hottub.webp
+[2026-04-20T19:46:07.543Z] [3/156] 🔄 UPDATE id=166 slug="luxury-lodges-with-hot-tubs-in-the-cotswolds-2026-escapes" category="Accommodation"
+[2026-04-20T19:46:09.351Z] [4/156] Uploaded image: badminton-horse-trials-2026.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/b7488aee-e79e-4fa4-bd8c-6668e00ef96f-badminton-horse-trials-2026.webp
+[2026-04-20T19:46:09.749Z] [4/156] 🔄 UPDATE id=167 slug="badminton-horse-trials-2026-a-classic-cotswolds-spring-getaway" category="Events & Festivals"
+[2026-04-20T19:46:11.253Z] [5/156] Uploaded image: spring-bank-holiday.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/0a582436-a70d-4bec-bb28-8fcb7bd5cca0-spring-bank-holiday.webp
+[2026-04-20T19:46:11.671Z] [5/156] 🔄 UPDATE id=168 slug="spring-bank-holiday-in-the-cotswolds-2026-a-long-weekend-to-slow-down" category="General"
+[2026-04-20T19:46:17.979Z] [6/156] Uploaded image: sprimg-walks-2026.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/71340169-fe9c-494e-859b-7dd8bf99b92d-sprimg-walks-2026.webp
+[2026-04-20T19:46:18.450Z] [6/156] 🔄 UPDATE id=169 slug="spring-walks-and-nature-escapes-in-the-cotswolds-2026" category="Walks & Nature"
+[2026-04-20T19:46:20.236Z] [7/156] Uploaded image: jazz-festival-2026.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/3ef55390-55bb-40c6-9dc9-f604119c571c-jazz-festival-2026.webp
+[2026-04-20T19:46:20.636Z] [7/156] 🔄 UPDATE id=170 slug="cotswold-jazz-and-culture-spring-2026-music-markets-and-countryside-charm" category="Walks & Nature"
+[2026-04-20T19:46:22.138Z] [8/156] Uploaded image: Winter-Escapes-in-the-Cotswolds--January-2026-Events-and-Experiences.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/4e128dc9-6bc8-4c3b-8856-8738dccc0cce-Winter-Escapes-in-the-Cotswolds--January-2026-Events-and-Experiences.webp
+[2026-04-20T19:46:22.602Z] [8/156] 🔄 UPDATE id=171 slug="winter-escapes-in-the-cotswolds-january-2026-events-and-experiences" category="General"
+[2026-04-20T19:46:25.500Z] [9/156] Uploaded image: January-2026-in-the-Cotswolds--Seasonal-Festivals-and-Countryside-Traditions.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/4f010fb4-0d8e-495f-a04e-8b03d24173e5-January-2026-in-the-Cotswolds--Seasonal-Festivals-and-Countryside-Traditions.webp
+[2026-04-20T19:46:25.959Z] [9/156] 🔄 UPDATE id=172 slug="january-2026-in-the-cotswolds-seasonal-festivals-and-countryside-traditions" category="Walks & Nature"
+[2026-04-20T19:46:28.195Z] [10/156] Uploaded image: Step-Inside-the-Past--Historic-Houses-and-Gardens-in-the-Cotswolds-January-2026.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/377037dd-4988-43a3-bd3e-aa914827e550-Step-Inside-the-Past--Historic-Houses-and-Gardens-in-the-Cotswolds-January-2026.webp
+[2026-04-20T19:46:28.595Z] [10/156] 🔄 UPDATE id=173 slug="step-inside-the-past-historic-houses-and-gardens-in-the-cotswolds-january-2026" category="Walks & Nature"
+[2026-04-20T19:46:30.784Z] [11/156] Uploaded image: Fireside-Dining-and-Winter-Food-in-the-Cotswolds-.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/2e58bf65-3c47-4222-8471-354b46f1d59e-Fireside-Dining-and-Winter-Food-in-the-Cotswolds-.webp
+[2026-04-20T19:46:31.186Z] [11/156] 🔄 UPDATE id=174 slug="fireside-dining-and-winter-food-in-the-cotswolds-january-2026" category="Food & Drink"
+[2026-04-20T19:46:33.255Z] [12/156] Uploaded image: Christmas-in-the-Cotswolds--Markets--Villages--.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/8364e293-0d83-4706-a8e2-b00a8d0bb6d5-Christmas-in-the-Cotswolds--Markets--Villages--.webp
+[2026-04-20T19:46:33.694Z] [12/156] 🔄 UPDATE id=175 slug="christmas-in-the-cotswolds-markets-villages" category="Events & Festivals"
+[2026-04-20T19:46:36.547Z] [13/156] Uploaded image: Christmas-Dining-and-Fireside-Pubs-in-the-Cotswolds--.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/a2c32d9e-7e4e-4c43-907b-e91e9625c06a-Christmas-Dining-and-Fireside-Pubs-in-the-Cotswolds--.webp
+[2026-04-20T19:46:36.949Z] [13/156] 🔄 UPDATE id=176 slug="christmas-dining-and-fireside-pubs-in-the-cotswolds" category="Events & Festivals"
+[2026-04-20T19:46:38.318Z] [14/156] Uploaded image: Cosy-Winter-Escapes-in-the-Cotswolds.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/e29be520-3410-432f-bee7-75901adbd415-Cosy-Winter-Escapes-in-the-Cotswolds.webp
+[2026-04-20T19:46:38.712Z] [14/156] 🔄 UPDATE id=177 slug="cosy-winter-escapes-in-the-cotswolds" category="General"
+[2026-04-20T19:46:41.401Z] [15/156] Uploaded image: Bonfire-Night-in-the-Cotswolds--Sparks-in-the-Countryside.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/2e311387-2c35-4663-b38e-a9cc88e47a62-Bonfire-Night-in-the-Cotswolds--Sparks-in-the-Countryside.webp
+[2026-04-20T19:46:41.836Z] [15/156] 🔄 UPDATE id=178 slug="bonfire-night-in-the-cotswolds-sparks-in-the-countryside" category="Events & Festivals"
+[2026-04-20T19:46:43.782Z] [16/156] Uploaded image: Pumpkin-Picking--Bonfire-Nights-in-the-Cotswolds.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/a0d88198-2b5a-4c21-a987-16e94abfb173-Pumpkin-Picking--Bonfire-Nights-in-the-Cotswolds.webp
+[2026-04-20T19:46:44.181Z] [16/156] 🔄 UPDATE id=179 slug="pumpkin-picking-bonfire-nights-in-the-cotswolds" category="Events & Festivals"
+[2026-04-20T19:46:48.269Z] [17/156] Uploaded image: Discover-Autumn-Colours-in-the-Cotswolds.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/2c19d5a9-2c1b-43bd-a72b-1a493d9371fc-Discover-Autumn-Colours-in-the-Cotswolds.webp
+[2026-04-20T19:46:48.672Z] [17/156] 🔄 UPDATE id=180 slug="discover-autumn-colours-in-the-cotswolds" category="Walks & Nature"
+[2026-04-20T19:46:50.314Z] [18/156] Uploaded image: Celebrate-Tradition-at-Cirencester-Mop-Fair.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/5999cb98-fa75-45e1-b77d-1be5efbca8da-Celebrate-Tradition-at-Cirencester-Mop-Fair.webp
+[2026-04-20T19:46:50.711Z] [18/156] 🔄 UPDATE id=181 slug="celebrate-tradition-at-cirencester-mop-fair" category="Events & Festivals"
+[2026-04-20T19:46:51.976Z] [19/156] Uploaded image: Celebrate-Words-at-Cheltenham-Literature-Festival-2025.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/38568d72-bff2-4ea3-b68c-7bad2c28380a-Celebrate-Words-at-Cheltenham-Literature-Festival-2025.webp
+[2026-04-20T19:46:52.386Z] [19/156] 🔄 UPDATE id=182 slug="celebrate-words-at-cheltenham-literature-festival-2025" category="Events & Festivals"
+[2026-04-20T19:46:53.705Z] [20/156] Uploaded image: Blenheim-Palace-International-Horse-Trials.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/1dea7c43-20a8-43f1-8a2d-c8d2e2195609-Blenheim-Palace-International-Horse-Trials.webp
+[2026-04-20T19:46:54.099Z] [20/156] 🔄 UPDATE id=183 slug="blenheim-palace-international-horse-trials" category="Events & Festivals"
+[2026-04-20T19:46:55.812Z] [21/156] Uploaded image: Moreton-in-Marsh-Show--.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/fdec5646-c40e-41b4-aa28-72e9a91af0bd-Moreton-in-Marsh-Show--.webp
+[2026-04-20T19:46:56.207Z] [21/156] 🔄 UPDATE id=184 slug="moretoninmarsh-show" category="Events & Festivals"
+[2026-04-20T19:46:57.358Z] [22/156] Uploaded image: Broadway-Horticultural--Craft-Show.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/91d17e28-0c2e-4214-b5f0-b14133e3cd53-Broadway-Horticultural--Craft-Show.webp
+[2026-04-20T19:46:57.753Z] [22/156] 🔄 UPDATE id=185 slug="broadway-horticultural-craft-show" category="Events & Festivals"
+[2026-04-20T19:47:01.090Z] [23/156] Uploaded image: Heritage-Open-Days.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/db8b2372-3def-4c95-9984-4c6e30686deb-Heritage-Open-Days.webp
+[2026-04-20T19:47:01.485Z] [23/156] 🔄 UPDATE id=186 slug="heritage-open-days" category="General"
+[2026-04-20T19:47:04.027Z] [24/156] Uploaded image: Cotswold-Music-Festival.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/a25b89b9-4c8b-4c7f-a035-ddc83cebe185-Cotswold-Music-Festival.webp
+[2026-04-20T19:47:04.425Z] [24/156] 🔄 UPDATE id=187 slug="experience-music-under-the-stars-at-the-cotswold-music-festival" category="Events & Festivals"
+[2026-04-20T19:47:06.359Z] [25/156] Uploaded image: Family-Fun-at-the-Cotswold-Country-Show-in-August.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/5901e50f-6180-4a33-843f-915298bf926a-Family-Fun-at-the-Cotswold-Country-Show-in-August.webp
+[2026-04-20T19:47:06.762Z] [25/156] 🔄 UPDATE id=188 slug="family-fun-at-the-cotswold-country-show-in-august" category="Events & Festivals"
+[2026-04-20T19:47:09.109Z] [26/156] Uploaded image: Cheltenham-Art-Festival.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/8c882c16-ee77-4e5b-9d37-454218e325ac-Cheltenham-Art-Festival.webp
+[2026-04-20T19:47:09.501Z] [26/156] 🔄 UPDATE id=189 slug="discover-art-and-culture-at-the-cheltenham-art-festival-this-august" category="Events & Festivals"
+[2026-04-20T19:47:11.286Z] [27/156] Uploaded image: Celebrate-Summer-at-the-Tetbury-Woolsack-Races-in-August.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/fa94efcb-91dc-4c77-bd68-06d96146150e-Celebrate-Summer-at-the-Tetbury-Woolsack-Races-in-August.webp
+[2026-04-20T19:47:11.684Z] [27/156] 🔄 UPDATE id=190 slug="celebrate-summer-at-the-tetbury-woolsack-races-in-august" category="Events & Festivals"
+[2026-04-20T19:47:13.335Z] [28/156] Uploaded image: summer-view.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/3010d964-aac7-418f-9f6c-4e863767da71-summer-view.webp
+[2026-04-20T19:47:13.733Z] [28/156] 🔄 UPDATE id=191 slug="unwind-in-style-a-relaxing-cotswold-escape-with-the-cotswold-retreats" category="General"
+[2026-04-20T19:47:15.344Z] [29/156] Uploaded image: Cream-Teas.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/78df0e3f-1c41-4bb3-a077-77496cab9c82-Cream-Teas.webp
+[2026-04-20T19:47:15.739Z] [29/156] 🔄 UPDATE id=192 slug="indulge-in-the-cotswolds-farm-shops-markets-cream-teas" category="General"
+[2026-04-20T19:47:17.026Z] [30/156] Uploaded image: cotswold-walks.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/2e58294e-66d0-4530-955d-c3956a579fb9-cotswold-walks.webp
+[2026-04-20T19:47:17.433Z] [30/156] 🔄 UPDATE id=193 slug="summer-walks-and-hidden-villages-in-the-cotswolds" category="Walks & Nature"
+[2026-04-20T19:47:19.717Z] [31/156] Uploaded image: Family-Days-Out-in-the-Cotswolds-this-Summer.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/2b874b5a-62a8-4a38-af7a-3e78f0477549-Family-Days-Out-in-the-Cotswolds-this-Summer.webp
+[2026-04-20T19:47:20.153Z] [31/156] 🔄 UPDATE id=194 slug="family-days-out-in-the-cotswolds-this-summer" category="General"
+[2026-04-20T19:47:22.925Z] [32/156] Uploaded image: Champignon-Sauvage.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/14ee26f9-62ad-4786-853e-d762a4ee964b-Champignon-Sauvage.webp
+[2026-04-20T19:47:23.322Z] [32/156] 🔄 UPDATE id=195 slug="frenchinspired-fine-dining-at-le-champignon-sauvage-a-cotswold-classic-in-cheltenham" category="Food & Drink"
+[2026-04-20T19:47:26.035Z] [33/156] Uploaded image: The-Wild-Rabbit-Wisteria.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/fa36f63c-ef9a-4ddc-9d45-5cefb4ec41d5-The-Wild-Rabbit-Wisteria.webp
+[2026-04-20T19:47:26.430Z] [33/156] 🔄 UPDATE id=196 slug="farmtotable-excellence-dining-at-the-wild-rabbit-in-kingham" category="Food & Drink"
+[2026-04-20T19:47:27.936Z] [34/156] Uploaded image: Lumiere-in-Cheltenham.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/bb275a67-3c37-43ea-ae48-12ea12549152-Lumiere-in-Cheltenham.webp
+[2026-04-20T19:47:28.330Z] [34/156] 🔄 UPDATE id=197 slug="modern-british-dining-with-soul-a-visit-to-lumiere-in-cheltenham" category="Food & Drink"
+[2026-04-20T19:47:29.545Z] [35/156] Uploaded image: The-Feathered-Nest-Cotswolds.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/8633b57c-4d83-4121-a023-ae0b114e3f18-The-Feathered-Nest-Cotswolds.webp
+[2026-04-20T19:47:29.940Z] [35/156] 🔄 UPDATE id=198 slug="culinary-elegance-in-the-countryside-a-fine-dining-escape-at-the-feathered-nest-cotswolds" category="Food & Drink"
+[2026-04-20T19:47:32.003Z] [36/156] Uploaded image: Springbulbs.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/0612843d-3a04-4138-a452-2107a56fcb68-Springbulbs.webp
+[2026-04-20T19:47:32.399Z] [36/156] 🔄 UPDATE id=199 slug="cotswolds-through-the-seasons-what-to-see-and-do-yearround" category="Guides & Inspiration"
+[2026-04-20T19:47:37.672Z] [37/156] Uploaded image: Sudeley-Castle.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/3d90c66f-82a4-4d4d-9edd-6ad649251c19-Sudeley-Castle.webp
+[2026-04-20T19:47:38.082Z] [37/156] 🔄 UPDATE id=200 slug="historic-houses-and-castles-you-must-see-in-the-cotswolds" category="General"
+[2026-04-20T19:47:44.515Z] [38/156] Uploaded image: Hidcote.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/d5230cf0-e46a-447e-accd-9ccb22c578e5-Hidcote.webp
+[2026-04-20T19:47:44.991Z] [38/156] 🔄 UPDATE id=201 slug="the-most-beautiful-gardens-to-visit-in-the-cotswolds" category="Walks & Nature"
+[2026-04-20T19:47:47.167Z] [39/156] Uploaded image: market.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/51552e60-a6ec-4348-b3d5-6477f92e6b54-market.webp
+[2026-04-20T19:47:47.566Z] [39/156] 🔄 UPDATE id=202 slug="exploring-cotswold-markets-food-crafts-and-local-finds" category="Food & Drink"
+[2026-04-20T19:47:52.897Z] [40/156] Uploaded image: way.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/9e31a5c5-a60f-48a8-96d9-047f6d369622-way.webp
+[2026-04-20T19:47:53.296Z] [40/156] 🔄 UPDATE id=203 slug="best-walks-and-hiking-trails-in-the-cotswolds" category="Walks & Nature"
+[2026-04-20T19:47:54.670Z] [41/156] Uploaded image: Sez.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/8616b3d0-8e2f-427a-9baa-3422ccbd7c58-Sez.webp
+[2026-04-20T19:47:55.068Z] [41/156] 🔄 UPDATE id=204 slug="hidden-gems-of-the-cotswolds-secret-spots-youll-love" category="Guides & Inspiration"
+[2026-04-20T19:47:58.034Z] [42/156] Uploaded image: Castle-Combe-walk-bybrook-bridge.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/042c0851-04a8-49fb-b4b1-bf913496b204-Castle-Combe-walk-bybrook-bridge.webp
+[2026-04-20T19:47:58.428Z] [42/156] 🔄 UPDATE id=205 slug="a-perfect-weekend-itinerary-for-the-cotswolds" category="Guides & Inspiration"
+[2026-04-20T19:48:03.897Z] [43/156] Uploaded image: cotswold-village.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/507416e6-dcfe-4fd7-b99b-02cff1ef8646-cotswold-village.webp
+[2026-04-20T19:48:04.294Z] [43/156] 🔄 UPDATE id=206 slug="top-10-mustvisit-villages-in-the-cotswolds" category="Things to Do"
+[2026-04-20T19:48:06.901Z] [44/156] Uploaded image: Rollright.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/a0c82d0c-98d7-4cb5-97d5-96ec7bc5bb4e-Rollright.webp
+[2026-04-20T19:48:07.299Z] [44/156] 🔄 UPDATE id=207 slug="rollright-stones" category="General"
+[2026-04-20T19:48:09.896Z] [45/156] Uploaded image: Cheltenham-Jazz-Festival.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/c8f10db8-0712-4750-a39b-c9f6c32793d4-Cheltenham-Jazz-Festival.webp
+[2026-04-20T19:48:10.295Z] [45/156] 🔄 UPDATE id=208 slug="jazz-festival-may-2025" category="Events & Festivals"
+[2026-04-20T19:48:13.457Z] [46/156] Uploaded image: Jolly-Nice.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/bd1a601c-c1d9-4158-a6a6-064ad0f6c9b8-Jolly-Nice.webp
+[2026-04-20T19:48:13.859Z] [46/156] 🔄 UPDATE id=209 slug="the-jolly-nice-farm-shop" category="Food & Drink"
+[2026-04-20T19:48:15.787Z] [47/156] Uploaded image: Porch-House-.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/6807fe16-a2d5-4db8-82df-80ef32371113-Porch-House-.webp
+[2026-04-20T19:48:16.203Z] [47/156] 🔄 UPDATE id=210 slug="the-porch-house" category="General"
+[2026-04-20T19:48:18.098Z] [48/156] Uploaded image: Cirencester-Arts--Crafts-Market.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/3d586ba9-9cdd-4818-bdfc-6688824e3c09-Cirencester-Arts--Crafts-Market.webp
+[2026-04-20T19:48:18.502Z] [48/156] 🔄 UPDATE id=211 slug="cirencester-arts-crafts-market" category="General"
+[2026-04-20T19:48:20.201Z] [49/156] Uploaded image: EH-Shepard.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/6c3d946e-8968-461c-b80c-b6c7d6d3b64f-EH-Shepard.webp
+[2026-04-20T19:48:20.601Z] [49/156] 🔄 UPDATE id=212 slug="exhibition-featuring-original-artwork-by-e-h-shepard" category="Things to Do"
+[2026-04-20T19:48:22.090Z] [50/156] Uploaded image: Cirencester-Charter-Market.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/89c6eef1-b170-413e-a22b-5f1a7a3492dc-Cirencester-Charter-Market.webp
+[2026-04-20T19:48:22.492Z] [50/156] 🔄 UPDATE id=213 slug="cirencester-charter-market" category="General"
+[2026-04-20T19:48:24.753Z] [51/156] Uploaded image: cheltenham-festiva.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/faadda2f-f737-49c1-96c4-905969416123-cheltenham-festiva.webp
+[2026-04-20T19:48:25.161Z] [51/156] 🔄 UPDATE id=214 slug="the-cheltenham-festival-2025" category="Events & Festivals"
+[2026-04-20T19:48:27.027Z] [52/156] Uploaded image: Reflections-Art-Exhibition.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/90d1914b-b8ee-40f3-a16e-1bfab3276a0e-Reflections-Art-Exhibition.webp
+[2026-04-20T19:48:27.425Z] [52/156] 🔄 UPDATE id=215 slug="reflections-art-exhibition" category="Things to Do"
+[2026-04-20T19:48:29.262Z] [53/156] Uploaded image: Evening-with-the-Swans-.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/3b24a8e6-b1c2-4907-9b5c-5569311ee91b-Evening-with-the-Swans-.webp
+[2026-04-20T19:48:29.682Z] [53/156] 🔄 UPDATE id=216 slug="evening-with-the-swans-2025" category="General"
+[2026-04-20T19:48:33.380Z] [54/156] Uploaded image: Hidcote-Photography.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/7b49da6a-49f9-4e75-93e2-ba98d84e8a3e-Hidcote-Photography.webp
+[2026-04-20T19:48:33.776Z] [54/156] 🔄 UPDATE id=217 slug="hidcote-visitors-photos-exhibition" category="Things to Do"
+[2026-04-20T19:48:36.976Z] [55/156] Uploaded image: hidcote-walks.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/9929661c-3b9f-4c73-9fa7-1ab463978544-hidcote-walks.webp
+[2026-04-20T19:48:37.371Z] [55/156] 🔄 UPDATE id=218 slug="guided-winter-walk-at-hidcote" category="Walks & Nature"
+[2026-04-20T19:48:40.402Z] [56/156] Uploaded image: christmas-at-Belnhiem-Palace.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/dadb97b2-94f5-4028-8964-7593357380d5-christmas-at-Belnhiem-Palace.webp
+[2026-04-20T19:48:40.805Z] [56/156] 🔄 UPDATE id=219 slug="christmas-at-blenheim-palace" category="Events & Festivals"
+[2026-04-20T19:48:42.401Z] [57/156] Uploaded image: Meet-Father-Christmas-b2ff-05587befac13.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/a59fdee9-5426-43f7-9dbe-5a4809c75847-Meet-Father-Christmas-b2ff-05587befac13.webp
+[2026-04-20T19:48:42.798Z] [57/156] 🔄 UPDATE id=220 slug="meet-father-christmas" category="Events & Festivals"
+[2026-04-20T19:48:46.292Z] [58/156] Uploaded image: Christmas-Markets.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/129409a2-bbd3-4c68-8b7b-0988942c5e9e-Christmas-Markets.webp
+[2026-04-20T19:48:46.689Z] [58/156] 🔄 UPDATE id=221 slug="christmas-markets" category="Events & Festivals"
+[2026-04-20T19:48:48.248Z] [59/156] Uploaded image: Christmas-Light-show-at-Sudeley-Castle.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/2a22f082-28fe-4748-b102-53f34dd16a43-Christmas-Light-show-at-Sudeley-Castle.webp
+[2026-04-20T19:48:48.642Z] [59/156] 🔄 UPDATE id=222 slug="christmas-light-show-at-sudeley-castle" category="Events & Festivals"
+[2026-04-20T19:48:50.525Z] [60/156] Uploaded image: Five-Valleys-Firework-Display-2024.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/499bd0ca-c0ef-4701-9e5d-85c9e8f2f31a-Five-Valleys-Firework-Display-2024.webp
+[2026-04-20T19:48:50.923Z] [60/156] 🔄 UPDATE id=223 slug="five-valleys-firework-display-2024" category="Events & Festivals"
+[2026-04-20T19:48:53.136Z] [61/156] Uploaded image: Hoburne-Cotswold-Firework-Night.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/a034a4ef-5b2a-4c2d-9551-0e3233eca81d-Hoburne-Cotswold-Firework-Night.webp
+[2026-04-20T19:48:53.531Z] [61/156] 🔄 UPDATE id=224 slug="hoburne-cotswold-firework-night" category="Events & Festivals"
+[2026-04-20T19:48:56.413Z] [62/156] Uploaded image: Halloween-at-Sudeley-Castle.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/7679731a-80f6-4d8d-9a64-2b7abad7a36c-Halloween-at-Sudeley-Castle.webp
+[2026-04-20T19:48:56.810Z] [62/156] 🔄 UPDATE id=225 slug="halloween-at-sudeley-castle" category="Events & Festivals"
+[2026-04-20T19:49:01.700Z] [63/156] Uploaded image: Halloween-at-Blenheim-Palace.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/2ee0ec12-2db3-470f-b0a1-d01a6ed6bb33-Halloween-at-Blenheim-Palace.webp
+[2026-04-20T19:49:02.094Z] [63/156] 🔄 UPDATE id=226 slug="halloween-at-blenheim-palace" category="Events & Festivals"
+[2026-04-20T19:49:03.311Z] [64/156] Uploaded image: Nature-tots-at-Dyrham-Park.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/19d937ea-b373-45de-bc3b-7b56a29a8d3d-Nature-tots-at-Dyrham-Park.webp
+[2026-04-20T19:49:03.704Z] [64/156] 🔄 UPDATE id=227 slug="nature-tots-at-dyrham-park" category="Walks & Nature"
+[2026-04-20T19:49:04.987Z] [65/156] Uploaded image: Prescott-Hill-Climb-Season-Finale.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/9e9d9a93-44d0-4217-8df8-2e177b08b5bb-Prescott-Hill-Climb-Season-Finale.webp
+[2026-04-20T19:49:05.382Z] [65/156] 🔄 UPDATE id=228 slug="prescott-hill-climb-season-finale" category="Events & Festivals"
+[2026-04-20T19:49:07.350Z] [66/156] Uploaded image: cheltenham-literature-festival.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/1db67ad7-f267-4c3f-b33e-8a78ab444e8e-cheltenham-literature-festival.webp
+[2026-04-20T19:49:07.744Z] [66/156] 🔄 UPDATE id=229 slug="cheltenham-literature-festival-2024" category="Events & Festivals"
+[2026-04-20T19:49:09.473Z] [67/156] Uploaded image: oktoberfest-cirencester-2024.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/14d6f09b-c712-4b6a-a39c-2649a0b8a2b6-oktoberfest-cirencester-2024.webp
+[2026-04-20T19:49:09.866Z] [67/156] 🔄 UPDATE id=230 slug="oktoberfest-in-cirencester" category="Food & Drink"
+[2026-04-20T19:49:13.481Z] [68/156] Uploaded image: --Cogges-Harvest-Fayre.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/665babf2-5c84-4363-a8f3-6f1a08a3df8f---Cogges-Harvest-Fayre.webp
+[2026-04-20T19:49:13.880Z] [68/156] 🔄 UPDATE id=231 slug="cogges-harvest-fayre" category="General"
+[2026-04-20T19:49:15.202Z] [69/156] Uploaded image: Poulton-Hill-Tour.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/19fb014e-457b-4b50-b96c-67b7cf5e8f32-Poulton-Hill-Tour.webp
+[2026-04-20T19:49:15.594Z] [69/156] 🔄 UPDATE id=232 slug="poulton-hill-tour-tasting-at-the-cellar-door" category="Food & Drink"
+[2026-04-20T19:49:17.474Z] [70/156] Uploaded image: British-and-Midland-Hill-Climb-Championships.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/857b6e61-33ce-42f2-adcd-cddeb3e84d09-British-and-Midland-Hill-Climb-Championships.webp
+[2026-04-20T19:49:17.913Z] [70/156] 🔄 UPDATE id=233 slug="british-and-midland-hill-climb-championships" category="Events & Festivals"
+[2026-04-20T19:49:19.374Z] [71/156] Uploaded image: Shakespeare-in-the-garden-Arts-and-Culture--Moreton-in-Marsh.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/15f7aed9-ab9d-4198-b9ba-a5c8ab24d07a-Shakespeare-in-the-garden-Arts-and-Culture--Moreton-in-Marsh.webp
+[2026-04-20T19:49:19.767Z] [71/156] 🔄 UPDATE id=234 slug="shakespeare-in-the-garden" category="Walks & Nature"
+[2026-04-20T19:49:26.828Z] [72/156] Uploaded image: Hottub.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/f0fd9419-111a-4368-ad35-cf936ad59618-Hottub.webp
+[2026-04-20T19:49:27.228Z] [72/156] 🔄 UPDATE id=235 slug="holiday-lodges-with-hot-tubs" category="Accommodation"
+[2026-04-20T19:49:36.082Z] [73/156] Uploaded image: busy-bee.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/c4b22fec-3f60-4073-be05-37fc2392c5cd-busy-bee.webp
+[2026-04-20T19:49:36.475Z] [73/156] 🔄 UPDATE id=236 slug="busy-bees-holiday-lodge" category="Accommodation"
+[2026-04-20T19:49:41.044Z] [74/156] Uploaded image: bumblebee.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/cc19a746-e931-4a3e-85f3-830b03c17cf9-bumblebee.webp
+[2026-04-20T19:49:41.508Z] [74/156] 🔄 UPDATE id=237 slug="the-bumble-bee-holiday-lodge" category="Accommodation"
+[2026-04-20T19:49:48.421Z] [75/156] Uploaded image: beehive.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/741e15a7-b65e-4dd6-a2fc-11c8b1f727ea-beehive.webp
+[2026-04-20T19:49:48.857Z] [75/156] 🔄 UPDATE id=238 slug="the-beehive-holiday-lodge" category="Accommodation"
+[2026-04-20T19:49:50.360Z] [76/156] Uploaded image: download.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/eff042c8-ba42-4d85-9409-645832b9db32-download.webp
+[2026-04-20T19:49:50.754Z] [76/156] 🔄 UPDATE id=239 slug="fantasy-forest-festival-2024" category="Events & Festivals"
+[2026-04-20T19:49:51.968Z] [77/156] Uploaded image: cheltenham-music-festival.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/bebc9504-f2f9-4c2d-83cc-cef077068c62-cheltenham-music-festival.webp
+[2026-04-20T19:49:52.393Z] [77/156] 🔄 UPDATE id=240 slug="cheltenham-music-festival" category="Events & Festivals"
+[2026-04-20T19:49:54.566Z] [78/156] Uploaded image: blenheim_palace_battle_proms.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/ada03ab8-4904-4225-91bf-13489e71e185-blenheim_palace_battle_proms.webp
+[2026-04-20T19:49:54.961Z] [78/156] 🔄 UPDATE id=241 slug="battle-proms-picnic-concert" category="Events & Festivals"
+[2026-04-20T19:49:56.351Z] [79/156] Uploaded image: FOREST-LIVE-AT-WESTONBIRT-ARBORETUM.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/4cd35221-0a58-448a-8fc6-0c3ac7f895cb-FOREST-LIVE-AT-WESTONBIRT-ARBORETUM.webp
+[2026-04-20T19:49:56.792Z] [79/156] 🔄 UPDATE id=242 slug="forest-live-at-westonbirt-arboretum" category="Walks & Nature"
+[2026-04-20T19:50:01.581Z] [80/156] Uploaded image: Sudeley-Castle.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/2dbaf1f1-6414-4eaa-aabc-30efe9343b61-Sudeley-Castle.webp
+[2026-04-20T19:50:01.981Z] [80/156] 🔄 UPDATE id=243 slug="visit-sudeley-castle-and-gardens-this-summer" category="Walks & Nature"
+[2026-04-20T19:50:04.542Z] [81/156] Uploaded image: farm.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/b3ac515d-9d4d-4188-ba83-2055f4d778cd-farm.webp
+[2026-04-20T19:50:04.972Z] [81/156] 🔄 UPDATE id=244 slug="visit-the-cotswold-farm-park-this-summer" category="Things to Do"
+[2026-04-20T19:50:07.195Z] [82/156] Uploaded image: winetasting.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/6e88a207-83af-46d3-8d1d-7cb3e920a864-winetasting.webp
+[2026-04-20T19:50:07.608Z] [82/156] 🔄 UPDATE id=245 slug="wine-tasting-at-poulton-hill" category="Food & Drink"
+[2026-04-20T19:50:10.213Z] [83/156] Uploaded image: trialthlon.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/fa05a3df-6094-4d7b-af84-4dd878ecb054-trialthlon.webp
+[2026-04-20T19:50:10.608Z] [83/156] 🔄 UPDATE id=246 slug="blenheim-palace-triathlon" category="Events & Festivals"
+[2026-04-20T19:50:12.063Z] [84/156] Uploaded image: WATERSPORTS-IN-THE-COTSWOLD-WATER-PARK.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/116c140c-b576-47f4-987d-008affd3522d-WATERSPORTS-IN-THE-COTSWOLD-WATER-PARK.webp
+[2026-04-20T19:50:12.468Z] [84/156] 🔄 UPDATE id=247 slug="watersports-in-the-cotswold-water-park" category="Things to Do"
+[2026-04-20T19:50:14.014Z] [85/156] Uploaded image: BROADWAY-ARTS-FESTIVAL.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/385eede1-be91-44d0-b2ae-7539ab26509b-BROADWAY-ARTS-FESTIVAL.webp
+[2026-04-20T19:50:14.416Z] [85/156] 🔄 UPDATE id=248 slug="broadway-arts-festival" category="Events & Festivals"
+[2026-04-20T19:50:16.505Z] [86/156] Uploaded image: CHELTENHAM-FOOD-AND-DRINK-FESTIVAL.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/eb261ae6-dd93-4c3e-89fd-fe867fe189a4-CHELTENHAM-FOOD-AND-DRINK-FESTIVAL.webp
+[2026-04-20T19:50:16.902Z] [86/156] 🔄 UPDATE id=249 slug="cheltenham-food-and-drink-festival" category="Events & Festivals"
+[2026-04-20T19:50:19.338Z] [87/156] Uploaded image: -birdland.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/8b03e4ba-63dc-483c-93f4-b652e4573055--birdland.webp
+[2026-04-20T19:50:19.734Z] [87/156] 🔄 UPDATE id=250 slug="visit-birdland" category="Things to Do"
+[2026-04-20T19:50:22.317Z] [88/156] Uploaded image: Cheltenham-Jazz-Festival-2024.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/0a4f3e9d-c1b0-43b3-b2f7-38a0bd1ba253-Cheltenham-Jazz-Festival-2024.webp
+[2026-04-20T19:50:22.723Z] [88/156] 🔄 UPDATE id=251 slug="cheltenham-jazz-festival-2024" category="Events & Festivals"
+[2026-04-20T19:50:24.466Z] [89/156] Uploaded image: Tulip-mania-at-Dyrham-Park.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/675d28a9-8f21-4f8f-a46d-c039aa16c72d-Tulip-mania-at-Dyrham-Park.webp
+[2026-04-20T19:50:24.864Z] [89/156] 🔄 UPDATE id=252 slug="tulip-mania-at-dyrham-park" category="Things to Do"
+[2026-04-20T19:50:26.676Z] [90/156] Uploaded image: The-April-Meeting-Cheltenham.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/612f195d-bb28-4f61-9c5c-6e7a0b009872-The-April-Meeting-Cheltenham.webp
+[2026-04-20T19:50:27.111Z] [90/156] 🔄 UPDATE id=253 slug="the-april-meeting-cheltenham" category="General"
+[2026-04-20T19:50:28.567Z] [91/156] Uploaded image: Lambing-And-Kidding-At-Cotswold-Farm-Park.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/8ee0d439-234b-4f64-b1b4-e474ff31e2a4-Lambing-And-Kidding-At-Cotswold-Farm-Park.webp
+[2026-04-20T19:50:28.974Z] [91/156] 🔄 UPDATE id=254 slug="lambing-and-kidding-at-cotswold-farm-park" category="Things to Do"
+[2026-04-20T19:50:30.574Z] [92/156] Uploaded image: Cotswold-Retreats-.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/4a998ebf-c70d-4a0a-bb58-27bc6b7fb53f-Cotswold-Retreats-.webp
+[2026-04-20T19:50:30.997Z] [92/156] 🔄 UPDATE id=255 slug="book-early-for-easter" category="Events & Festivals"
+[2026-04-20T19:50:37.107Z] [93/156] Uploaded image: Cotswold-Country-Park--Beach.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/c2de8722-c729-4909-9fdf-7f7af7ec6886-Cotswold-Country-Park--Beach.webp
+[2026-04-20T19:50:37.506Z] [93/156] 🔄 UPDATE id=256 slug="cotswold-country-park-beach" category="Things to Do"
+[2026-04-20T19:50:39.847Z] [94/156] Uploaded image: Walking.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/ff6c4dfa-c500-4077-b597-190797556bf5-Walking.webp
+[2026-04-20T19:50:40.247Z] [94/156] 🔄 UPDATE id=257 slug="walking-holidays-in-the-cotswolds" category="General"
+[2026-04-20T19:50:42.125Z] [95/156] Uploaded image: Spring.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/a7932b81-cf53-4a26-9712-549f9607d66a-Spring.webp
+[2026-04-20T19:50:42.531Z] [95/156] 🔄 UPDATE id=258 slug="spring-in-the-cotswolds" category="General"
+[2026-04-20T19:50:44.097Z] [96/156] Uploaded image: golf.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/fee14565-4bd2-4b8e-925c-c893a233f48b-golf.webp
+[2026-04-20T19:50:44.494Z] [96/156] 🔄 UPDATE id=259 slug="golf-in-the-cotswolds" category="Things to Do"
+[2026-04-20T19:50:48.263Z] [97/156] Uploaded image: history.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/c741b205-f097-408b-8728-4fa800ec3b3f-history.webp
+[2026-04-20T19:50:48.664Z] [97/156] 🔄 UPDATE id=260 slug="the-history-of-the-cotswolds" category="Guides & Inspiration"
+[2026-04-20T19:50:49.859Z] [98/156] Uploaded image: swans.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/786d37f5-fc93-49aa-befa-74afaec26be1-swans.webp
+[2026-04-20T19:50:50.279Z] [98/156] 🔄 UPDATE id=261 slug="evening-with-the-swans" category="General"
+[2026-04-20T19:50:52.279Z] [99/156] Uploaded image: snowdrops.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/25a67ee5-57c4-4c32-9621-1a8c97e1bca9-snowdrops.webp
+[2026-04-20T19:50:52.681Z] [99/156] 🔄 UPDATE id=262 slug="snowdrops-at-painswick" category="General"
+[2026-04-20T19:50:54.165Z] [100/156] Uploaded image: Rusalka-The-Royal-Opera-Live.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/c1b944c7-1149-41bf-80b2-ca9332421dd3-Rusalka-The-Royal-Opera-Live.webp
+[2026-04-20T19:50:54.569Z] [100/156] 🔄 UPDATE id=263 slug="rusalka-the-royal-opera-live" category="Events & Festivals"
+[2026-04-20T19:50:56.584Z] [101/156] Uploaded image: Cocklebarrow-Races.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/f6e472db-92ed-4037-ac27-c8383d6f779d-Cocklebarrow-Races.webp
+[2026-04-20T19:50:56.984Z] [101/156] 🔄 UPDATE id=264 slug="cocklebarrow-races" category="Events & Festivals"
+[2026-04-20T19:50:59.013Z] [102/156] Uploaded image: cogges.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/c5c3cf59-6ed8-4d73-b6ab-dabf40c0039a-cogges.webp
+[2026-04-20T19:50:59.413Z] [102/156] 🔄 UPDATE id=265 slug="christmas-at-cogges-santas-grotto" category="Events & Festivals"
+[2026-04-20T19:51:01.404Z] [103/156] Uploaded image: Spectacle-of-Light-Sudeley-_thumb.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/efff4797-14ec-437b-8f30-36fede8a9c69-Spectacle-of-Light-Sudeley-_thumb.webp
+[2026-04-20T19:51:01.815Z] [103/156] 🔄 UPDATE id=266 slug="spectacle-of-light-sudeley-castle" category="Things to Do"
+[2026-04-20T19:51:03.603Z] [104/156] Uploaded image: enchanted2.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/35f5ac62-1093-4521-b54a-54ebc42f0a4e-enchanted2.webp
+[2026-04-20T19:51:04.006Z] [104/156] 🔄 UPDATE id=267 slug="an-enchanted-christmas" category="Events & Festivals"
+[2026-04-20T19:51:05.853Z] [105/156] Uploaded image: ftxmas.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/685aa60e-098c-48c6-aded-bdb77b3bdaaf-ftxmas.webp
+[2026-04-20T19:51:06.251Z] [105/156] 🔄 UPDATE id=268 slug="a-fairy-tale-christmas" category="Events & Festivals"
+[2026-04-20T19:51:07.797Z] [106/156] Uploaded image: xma-smenu.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/e2da9bff-e028-4b40-87e5-b0870547ef3f-xma-smenu.webp
+[2026-04-20T19:51:08.194Z] [106/156] 🔄 UPDATE id=269 slug="great-pubs-for-christmas" category="Events & Festivals"
+[2026-04-20T19:51:09.852Z] [107/156] Uploaded image: https___cdn.evbuc.com_images_598725339_267353766093_1_original.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/1b83c9d9-82fd-4aae-9b35-0a293fc2c004-https___cdn.evbuc.com_images_598725339_267353766093_1_original.webp
+[2026-04-20T19:51:10.255Z] [107/156] 🔄 UPDATE id=270 slug="bonfire-night-in-the-cotswolds" category="Events & Festivals"
+[2026-04-20T19:51:12.347Z] [108/156] Uploaded image: ciren-xmas.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/c7517fef-2e0b-4706-b82d-d01e6df0e0a3-ciren-xmas.webp
+[2026-04-20T19:51:12.811Z] [108/156] 🔄 UPDATE id=271 slug="cirencester-christmas-market" category="Events & Festivals"
+[2026-04-20T19:51:18.774Z] [109/156] Uploaded image: GWIR-Night-Time-1500px.png → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/2e8859ee-bd3b-4252-8cb0-ba0f68286f7e-GWIR-Night-Time-1500px.webp
+[2026-04-20T19:51:19.174Z] [109/156] 🔄 UPDATE id=272 slug="ice-rink-opens" category="Events & Festivals"
+[2026-04-20T19:51:21.298Z] [110/156] Uploaded image: jacek-dylag-jo8C9bt3uo8-unsplash.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/a5a7e4d5-b0cf-4dfe-9e8b-29f7cbee7d2f-jacek-dylag-jo8C9bt3uo8-unsplash.webp
+[2026-04-20T19:51:21.693Z] [110/156] 🔄 UPDATE id=273 slug="outlet-shopping" category="Things to Do"
+[2026-04-20T19:51:25.564Z] [111/156] Uploaded image: robert-bye-9Is6e9qfCvY-unsplash.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/c33fed30-d280-406f-94a8-dbc3c88efb97-robert-bye-9Is6e9qfCvY-unsplash.webp
+[2026-04-20T19:51:25.970Z] [111/156] 🔄 UPDATE id=274 slug="walking-routes-in-the-cotswolds" category="General"
+[2026-04-20T19:51:28.092Z] [112/156] Uploaded image: kimberly-farmer-lUaaKCUANVI-unsplash.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/76eafe49-58cf-4647-8de0-47c8a2a5481e-kimberly-farmer-lUaaKCUANVI-unsplash.webp
+[2026-04-20T19:51:28.502Z] [112/156] 🔄 UPDATE id=275 slug="back-to-school-in-the-cotswolds" category="General"
+[2026-04-20T19:51:34.345Z] [113/156] Uploaded image: joydeep-sengupta-ItcFLng0Kwo-unsplash.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/947b14d3-e5ac-4e3b-8273-53c65a5e5a80-joydeep-sengupta-ItcFLng0Kwo-unsplash.webp
+[2026-04-20T19:51:34.746Z] [113/156] 🔄 UPDATE id=276 slug="autumn-in-the-cotswolds" category="General"
+[2026-04-20T19:51:36.872Z] [114/156] Uploaded image: newwaterpark.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/fb278c07-1b07-4834-bd16-761ecee33df8-newwaterpark.webp
+[2026-04-20T19:51:37.269Z] [114/156] 🔄 UPDATE id=277 slug="old-news-from-the-cotswold-water-park" category="Things to Do"
+[2026-04-20T19:51:40.445Z] [115/156] Uploaded image: badmington2024.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/800a6002-3661-4f7d-85b9-ece608f8ded7-badmington2024.webp
+[2026-04-20T19:51:40.853Z] [115/156] 🔄 UPDATE id=278 slug="badminton-horse-trials-2024" category="Events & Festivals"
+[2026-04-20T19:51:43.309Z] [116/156] Uploaded image: restaurant.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/3b11f2c3-321e-4f70-80ee-3a861e112616-restaurant.webp
+[2026-04-20T19:51:43.711Z] [116/156] 🔄 UPDATE id=279 slug="dining-in-the-cotswolds" category="Food & Drink"
+[2026-04-20T19:51:47.369Z] [117/156] Uploaded image: fishing.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/0780b616-2bce-4f07-bbbc-6ab49d6b4d8c-fishing.webp
+[2026-04-20T19:51:47.793Z] [117/156] 🔄 UPDATE id=280 slug="fishing-in-the-cotswolds" category="Things to Do"
+[2026-04-20T19:51:49.623Z] [118/156] Uploaded image: Bibury.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/3387cc14-b0de-4a9e-969a-ae0e3ebdaf1c-Bibury.webp
+[2026-04-20T19:51:50.019Z] [118/156] 🔄 UPDATE id=281 slug="beautiful-cotswold-towns" category="Guides & Inspiration"
+[2026-04-20T19:51:51.280Z] [119/156] Uploaded image: broadway-.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/ba05669e-fd0b-4841-9c00-982cfb64cd67-broadway-.webp
+[2026-04-20T19:51:51.714Z] [119/156] 🔄 UPDATE id=282 slug="famous-cotswold-landmarks" category="Guides & Inspiration"
+[2026-04-20T19:51:55.027Z] [120/156] Uploaded image: cotswolds.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/2f0ca954-aa06-4c36-aca0-b57db6dce519-cotswolds.webp
+[2026-04-20T19:51:55.459Z] [120/156] 🔄 UPDATE id=283 slug="why-should-you-visit-the-cotswolds" category="Things to Do"
+[2026-04-20T19:52:02.095Z] [121/156] Uploaded image: cotswold-water-park.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/a853b978-1979-4744-8cd7-f38ae7428191-cotswold-water-park.webp
+[2026-04-20T19:52:02.495Z] [121/156] 🔄 UPDATE id=284 slug="why-visit-the-cotswold-water-park" category="Things to Do"
+[2026-04-20T19:52:03.589Z] [122/156] Uploaded image: distillery.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/78a4d883-b2e6-4ee7-bbde-e50efe0ee0dd-distillery.webp
+[2026-04-20T19:52:03.985Z] [122/156] 🔄 UPDATE id=285 slug="cotswolds-distillery-comedy-festival" category="Events & Festivals"
+[2026-04-20T19:52:05.109Z] [123/156] Uploaded image: cotswold-show.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/d4559418-de11-4f3a-929f-db9a00cddb24-cotswold-show.webp
+[2026-04-20T19:52:05.509Z] [123/156] 🔄 UPDATE id=286 slug="the-cotswold-show" category="Events & Festivals"
+[2026-04-20T19:52:06.760Z] [124/156] Uploaded image: eynsham.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/b3ff90de-7d97-4205-aae8-27a3439b8004-eynsham.webp
+[2026-04-20T19:52:07.189Z] [124/156] 🔄 UPDATE id=287 slug="eynsham-carnival-2023" category="Events & Festivals"
+[2026-04-20T19:52:08.574Z] [125/156] Uploaded image: blenhiem-palace-prom.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/c7e8140c-22b7-40fd-83e9-cd397cb64e2d-blenhiem-palace-prom.webp
+[2026-04-20T19:52:08.967Z] [125/156] 🔄 UPDATE id=288 slug="blenheim-palace-battle-proms-concert" category="Events & Festivals"
+[2026-04-20T19:52:10.736Z] [126/156] Uploaded image: bledington.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/d4ed8ddf-c1f8-49c4-8346-4874b3f815fa-bledington.webp
+[2026-04-20T19:52:11.197Z] [126/156] 🔄 UPDATE id=289 slug="bledington-music-festival" category="Events & Festivals"
+[2026-04-20T19:52:12.706Z] [127/156] Uploaded image: beer.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/8c8af7ab-ed54-4d9f-98c4-e83c26454d89-beer.webp
+[2026-04-20T19:52:13.104Z] [127/156] 🔄 UPDATE id=290 slug="chadlington-beer-festival" category="Events & Festivals"
+[2026-04-20T19:52:15.336Z] [128/156] Uploaded image: wychwood.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/0a27ae86-0078-4d9c-832a-732a688d0ed0-wychwood.webp
+[2026-04-20T19:52:15.792Z] [128/156] 🔄 UPDATE id=291 slug="wychwood-festival" category="Events & Festivals"
+[2026-04-20T19:52:17.291Z] [129/156] Uploaded image: robertdovergames.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/cea8cf4a-f5e6-4918-9ad6-b9ee296edc61-robertdovergames.webp
+[2026-04-20T19:52:17.686Z] [129/156] 🔄 UPDATE id=292 slug="robert-dover-games" category="Events & Festivals"
+[2026-04-20T19:52:19.240Z] [130/156] Uploaded image: lechlade.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/685dc3eb-740e-484f-b0fc-3af8cb8788b5-lechlade.webp
+[2026-04-20T19:52:19.639Z] [130/156] 🔄 UPDATE id=293 slug="lechlade-music-festival-2023" category="Events & Festivals"
+[2026-04-20T19:52:21.267Z] [131/156] Uploaded image: Mousetrap.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/a8f73c0c-ad13-4b23-ac95-d95a52a1d53f-Mousetrap.webp
+[2026-04-20T19:52:21.663Z] [131/156] 🔄 UPDATE id=294 slug="the-mousetrap-at-the-everyman-theatre" category="Things to Do"
+[2026-04-20T19:52:23.609Z] [132/156] Uploaded image: Wildflowers.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/04e291a9-d433-4e86-9be3-d607a85b1561-Wildflowers.webp
+[2026-04-20T19:52:24.001Z] [132/156] 🔄 UPDATE id=295 slug="wildflower-walk" category="Walks & Nature"
+[2026-04-20T19:52:25.863Z] [133/156] Uploaded image: Jazz.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/f90e29b4-8c21-4bce-a97b-b545ecd79e0c-Jazz.webp
+[2026-04-20T19:52:26.295Z] [133/156] 🔄 UPDATE id=296 slug="cheltenham-jazz-festival" category="Events & Festivals"
+[2026-04-20T19:52:27.605Z] [134/156] Uploaded image: gold-cup.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/b18af5d3-f91f-470e-a461-05ea8cd6bed9-gold-cup.webp
+[2026-04-20T19:52:28.002Z] [134/156] 🔄 UPDATE id=297 slug="festival-at-cheltenham" category="Events & Festivals"
+[2026-04-20T19:52:30.241Z] [135/156] Uploaded image: slaughters.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/656f385b-3e89-4d24-8201-9495e10af348-slaughters.webp
+[2026-04-20T19:52:30.637Z] [135/156] 🔄 UPDATE id=298 slug="slaughters-united-cricket-club" category="Events & Festivals"
+[2026-04-20T19:52:32.178Z] [136/156] Uploaded image: The_Games__Cotswold_Olimpick_Games.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/74929cee-d4d5-4953-9fd8-c24b35b4057d-The_Games__Cotswold_Olimpick_Games.webp
+[2026-04-20T19:52:32.572Z] [136/156] 🔄 UPDATE id=299 slug="the-cotswold-olimpicks" category="General"
+[2026-04-20T19:52:33.865Z] [137/156] Uploaded image: Badminton_Horse_Trials-.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/c61fed22-670c-4eb3-8935-1a928aa22b99-Badminton_Horse_Trials-.webp
+[2026-04-20T19:52:35.155Z] [137/156] Uploaded image: cotswold.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/291839e7-5377-4596-b1b5-4e33270fb63d-cotswold.webp
+[2026-04-20T19:52:35.548Z] [137/156] 🔄 UPDATE id=300 slug="badminton-horse-trials" category="Events & Festivals"
+[2026-04-20T19:52:36.774Z] [138/156] Uploaded image: March-Hare-.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/0d5a42ea-5771-4b05-bdf6-cf7675333332-March-Hare-.webp
+[2026-04-20T19:52:37.175Z] [138/156] 🔄 UPDATE id=301 slug="march-hare-needle-felting-workshop" category="General"
+[2026-04-20T19:52:39.118Z] [139/156] Uploaded image: Open-Day-Poster-Landscape_v3-copy-1536x864-1-980x551.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/3334341e-ea35-4651-9e69-4a807cadb7f8-Open-Day-Poster-Landscape_v3-copy-1536x864-1-980x551.webp
+[2026-04-20T19:52:39.509Z] [139/156] 🔄 UPDATE id=302 slug="cotswold-lakes-trust-open-weekend" category="General"
+[2026-04-20T19:52:40.907Z] [140/156] Uploaded image: elvis.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/993dd692-16eb-4934-9a74-6d52cb4f0464-elvis.webp
+[2026-04-20T19:52:41.313Z] [140/156] 🔄 UPDATE id=303 slug="ashton-keynes-rural-cinema-elvis" category="Things to Do"
+[2026-04-20T19:52:43.178Z] [141/156] Uploaded image: Lechlade-Music-Festival-great-for-families.-Image-credit-Deborah-Coleman.jpg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/47b75a7b-71a1-4a06-a427-5888b924bad9-Lechlade-Music-Festival-great-for-families.-Image-credit-Deborah-Coleman.webp
+[2026-04-20T19:52:43.572Z] [141/156] 🔄 UPDATE id=304 slug="lechlade-music-festival" category="Events & Festivals"
+[2026-04-20T19:52:45.004Z] [142/156] Uploaded image: Mrs-Harris-Colour-002.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/4d6d1b3d-9c71-418c-ad7a-36aba7d10b51-Mrs-Harris-Colour-002.webp
+[2026-04-20T19:52:45.404Z] [142/156] 🔄 UPDATE id=305 slug="ashton-keynes-rural-cinema" category="Things to Do"
+[2026-04-20T19:52:48.409Z] [143/156] Uploaded image: 80-Days-Waterpark.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/e59dfaea-cfa7-4d17-9ebe-802f1b508d42-80-Days-Waterpark.webp
+[2026-04-20T19:52:48.804Z] [143/156] 🔄 UPDATE id=306 slug="around-the-world-in-80-days" category="General"
+[2026-04-20T19:52:50.482Z] [144/156] Uploaded image: Wedding-Fair.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/8a272b98-e690-4fc3-b23f-4204dff57015-Wedding-Fair.webp
+[2026-04-20T19:52:50.878Z] [144/156] 🔄 UPDATE id=307 slug="wedding-fair" category="Events & Festivals"
+[2026-04-20T19:52:52.271Z] [145/156] Uploaded image: cotswold-water-park-2023.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/82fe4dbc-bdbe-4241-b80a-72e38e7a5108-cotswold-water-park-2023.webp
+[2026-04-20T19:52:52.669Z] [145/156] 🔄 UPDATE id=308 slug="book-your-spring-and-summer-breaks" category="General"
+[2026-04-20T19:52:54.612Z] [146/156] Uploaded image: Rink.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/64d0a20e-1467-4a15-b1b5-220734390d9c-Rink.webp
+[2026-04-20T19:52:55.006Z] [146/156] 🔄 UPDATE id=309 slug="the-gateway-ice-rink" category="Events & Festivals"
+[2026-04-20T19:52:56.623Z] [147/156] Uploaded image: membership.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/360fe797-3d09-450b-87d3-7fd8c0a3340a-membership.webp
+[2026-04-20T19:52:57.034Z] [147/156] 🔄 UPDATE id=310 slug="cotswold-lakes-trust-membership" category="General"
+[2026-04-20T19:52:58.783Z] [148/156] Uploaded image: CLT-2022-Ball-1000px-e1667921538283.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/5b958417-b9ee-42c0-b873-18d4a3f536ae-CLT-2022-Ball-1000px-e1667921538283.webp
+[2026-04-20T19:52:59.176Z] [148/156] 🔄 UPDATE id=311 slug="cotswold-water-park-ball" category="Things to Do"
+[2026-04-20T19:53:01.334Z] [149/156] Uploaded image: tractor.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/08791163-f6e0-40b3-a7b7-4072c2f6d1c2-tractor.webp
+[2026-04-20T19:53:01.725Z] [149/156] 🔄 UPDATE id=312 slug="the-cotswold-water-park-christmas" category="Events & Festivals"
+[2026-04-20T19:53:03.404Z] [150/156] Uploaded image: gladiators.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/473b7524-e80c-47f1-b369-582877675662-gladiators.webp
+[2026-04-20T19:53:03.800Z] [150/156] 🔄 UPDATE id=313 slug="gladiators-a-cemetery-of-secrets" category="General"
+[2026-04-20T19:53:05.385Z] [151/156] Uploaded image: enchanted.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/ae3288bc-5635-4a4e-8d98-92d5c208e9df-enchanted.webp
+[2026-04-20T19:53:05.793Z] [151/156] 🔄 UPDATE id=314 slug="enchanted-christmas" category="Events & Festivals"
+[2026-04-20T19:53:07.725Z] [152/156] Uploaded image: xmas-market.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/7143f690-5979-45e3-afb8-406c6568cb7e-xmas-market.webp
+[2026-04-20T19:53:08.134Z] [152/156] 🔄 UPDATE id=315 slug="blenheim-palace-christmas-market" category="Events & Festivals"
+[2026-04-20T19:53:10.890Z] [153/156] Uploaded image: 10k-poster-jpeg-707x1024.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/5365cee3-ab48-4b75-80db-5050baf5fca8-10k-poster-jpeg-707x1024.webp
+[2026-04-20T19:53:11.282Z] [153/156] 🔄 UPDATE id=316 slug="cotswold-water-park-10k-run-at-cleveland-lakes-en" category="Things to Do"
+[2026-04-20T19:53:12.877Z] [154/156] Uploaded image: fireworks-c-nd300-shutterstock.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/0ff07f9e-2107-424c-8264-5721a123a2cd-fireworks-c-nd300-shutterstock.webp
+[2026-04-20T19:53:13.274Z] [154/156] 🔄 UPDATE id=317 slug="cheltenham-round-table-fireworks-extravaganza" category="General"
+[2026-04-20T19:53:15.145Z] [155/156] Uploaded image: eek.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/9187136f-16ff-433c-9b46-45fe07de96ae-eek.webp
+[2026-04-20T19:53:15.546Z] [155/156] 🔄 UPDATE id=318 slug="october-half-term" category="General"
+[2026-04-20T19:53:17.480Z] [156/156] Uploaded image: haloween.jpeg → https://pub-543ea0ea60674fffbc40f7ca17a21278.r2.dev/website/blog-image/95/large/3be220d3-ae9e-4332-be8b-8ec0fb85e27b-haloween.webp
+[2026-04-20T19:53:17.880Z] [156/156] 🔄 UPDATE id=319 slug="halloween-trail" category="Events & Festivals"
