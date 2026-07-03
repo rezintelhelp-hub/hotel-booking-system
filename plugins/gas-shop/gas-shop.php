@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.5.3
+ * Version: 1.5.4
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -402,7 +402,7 @@ class GAS_Shop {
 
         get_header();
         echo $this->base_css();
-        echo '<style>.gas-shop-single{max-width:900px;margin:0 auto;padding:120px 20px 40px}.gas-shop-single-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}@media(max-width:768px){.gas-shop-single-grid{grid-template-columns:1fr}}</style>';
+        echo '<style>.gas-shop-single{max-width:1200px;margin:0 auto;padding:120px 20px 40px}.gas-shop-single-grid{display:grid;grid-template-columns:minmax(240px,380px) 1fr;gap:40px;align-items:start}.gas-shop-single-grid p,.gas-shop-single-grid li{line-height:1.7}@media(max-width:900px){.gas-shop-single-grid{grid-template-columns:1fr}}</style>';
         echo '<div class="gas-shop-single">';
         echo '<a href="'.esc_url(home_url('/shop/')).'" class="gas-shop-back">&larr; Back to Shop</a>';
         echo '<div class="gas-shop-single-grid">';
