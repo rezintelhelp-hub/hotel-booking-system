@@ -930,6 +930,41 @@ jQuery(document).ready(function($) {
                     if ($anchor.length) $anchor.before(banner);
                     else $('body').prepend(banner);
                 }
+
+                // Eligible-rooms filter — hide room cards whose data-room-id
+                // isn't in the upsell's eligible_room_ids list. Empty / null
+                // means "any room applies" (no filter). Rooms grid can render
+                // AFTER this fires (per-room availability check is async), so
+                // stash the set on window + apply on any card that shows up
+                // later via a MutationObserver.
+                if (Array.isArray(u.eligible_room_ids) && u.eligible_room_ids.length > 0) {
+                    window._gasAddonEligibleRoomIds = new Set(u.eligible_room_ids.map(function(x){ return parseInt(x, 10); }));
+                    var applyRoomFilter = function() {
+                        var set = window._gasAddonEligibleRoomIds;
+                        if (!set) return;
+                        $('.gas-room-card, .gas-room-row').each(function() {
+                            var $r = $(this);
+                            var rid = parseInt($r.data('room-id'), 10);
+                            if (Number.isNaN(rid)) return;
+                            if (!set.has(rid)) {
+                                $r.hide().addClass('gas-addon-filtered');
+                            } else {
+                                $r.removeClass('gas-addon-filtered');
+                            }
+                        });
+                    };
+                    applyRoomFilter();
+                    // Fire again as cards stream in — per-room availability
+                    // check may append cards after the initial DOMContentLoaded.
+                    var $observeRoot = $('.gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget').first();
+                    if ($observeRoot.length && window.MutationObserver) {
+                        var mo = new MutationObserver(function() { applyRoomFilter(); });
+                        mo.observe($observeRoot[0], { childList: true, subtree: true });
+                        // Stop observing after 10s — plenty of time for the
+                        // grid to settle without paying attention forever.
+                        setTimeout(function() { try { mo.disconnect(); } catch(_) {} }, 10000);
+                    }
+                }
             }
         });
     })();
