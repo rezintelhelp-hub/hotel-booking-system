@@ -2979,13 +2979,23 @@ jQuery(document).ready(function($) {
     function loadAvailabilityCalendar(unitId, date) {
         var year = date.getFullYear();
         var month = date.getMonth();
-        
-        // Get data for 2 months - add 1 day to include last day (API uses date < to)
-        var firstDay = new Date(year, month, 1);
-        var lastDayMonth2 = new Date(year, month + 2, 1); // First day of month after, so < catches last day
-        
-        var from = firstDay.toISOString().split('T')[0];
-        var to = lastDayMonth2.toISOString().split('T')[0];
+
+        // Build local YMD strings without going through toISOString — Date
+        // objects for local midnight shift by a day when serialised as UTC
+        // in positive-offset timezones (BST, CET, etc), which shifted every
+        // fetch range one day earlier and made the last day of the RIGHT
+        // (next) month render red on first load. Tracey Cotswold 2026-07-03.
+        var toYMD = function(y, m, d) {
+            return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+        };
+        // API uses `date < to` (exclusive), so `to` = first of the month
+        // AFTER next month. month+2 can wrap to next year.
+        var lastMonth = month + 2;
+        var lastYear = year;
+        if (lastMonth > 11) { lastMonth -= 12; lastYear += 1; }
+
+        var from = toYMD(year, month, 1);
+        var to = toYMD(lastYear, lastMonth, 1);
         
         $.ajax({
             url: gasBooking.apiUrl + '/api/public/availability/' + unitId + '?from=' + from + '&to=' + to,
