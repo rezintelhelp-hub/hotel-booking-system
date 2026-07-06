@@ -3805,6 +3805,17 @@ function developer_developer_custom_css() {
         }';
     }
         
+    // Always hide the light logo variant by default. When a transparent
+    // header + hero is in play, the block below re-enables it over the
+    // hero and hides the dark default. Emitting this base rule
+    // unconditionally prevents the two-logos-stacked bug on sites where
+    // both a dark AND a light logo are uploaded but header transparency
+    // is OFF (Oasis Corralejo, 2026-07-06).
+    echo '
+        .developer-logo-light {
+            display: none;
+        }';
+
     // Transparent header on homepage and sub-pages with hero sections
     if ($header_transparent) {
         $trans_opacity = $api['header_transparent_opacity'] ?? '35';
