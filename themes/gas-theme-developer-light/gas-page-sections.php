@@ -609,7 +609,8 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-testimonials" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#f8fafc'; ?>;">
                     <div style="max-width: 1100px; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
-                        <div class="gas-ps-testimonials-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
+                        <?php $t_count = count($items); $t_cols = min($t_count, 4); // was auto-fill/minmax which left a solo testimonial floating at 320px on a 1100px container. Now 1 = 100% width, 2 = 50%, 3 = 33.33%, 4 = 25%, 5+ = wrap at 4 (2026-07-06 — Cleveland About). Mobile still stacks at 768px via the media block below. ?>
+                        <div class="gas-ps-testimonials-grid" style="display: grid; grid-template-columns: repeat(<?php echo $t_cols; ?>, 1fr); gap: 24px;">
                             <?php foreach ($items as $item) : ?>
                                 <div style="background: #fff; padding: 24px; border-radius: <?php echo esc_attr($card_radius); ?>px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
                                     <?php $t_text = gas_ps_field($item, 'text', $lang); if (!empty($t_text)) : ?><p style="font-size: 1rem; line-height: 1.6; color: #475569; font-style: italic; margin: 0 0 16px;">"<?php echo esc_html($t_text); ?>"</p><?php endif; ?>
