@@ -2874,6 +2874,7 @@ function developer_get_api_settings() {
         'hero_video_url' => $website_hero['video-url'] ?? null,
         'hero_mobile_image' => $website_hero['mobile-image-url'] ?? null,
         'hero_overlay_color' => $website_hero['overlay-color'] ?? null,
+        'hero_under_band_bg' => $website_hero['under-band-bg'] ?? '',
         'hero_overlay_opacity' => $website_hero['overlay'] ?? $website_hero['opacity'] ?? null,
         'hero_height' => $website_hero['height'] ?? null,
         'hero_title_color' => $website_hero['title-color'] ?? null,

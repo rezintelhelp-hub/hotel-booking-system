@@ -331,10 +331,16 @@ $homepage_sections = array(); // position => html
 <!-- Bottom-anchored hero search (Dwellfort / Pro Builder pattern). The
      hero section ends above; we drop the wrapper as a sibling and pull it
      up with negative top margin so it sits over the hero's bottom edge.
-     Offset slider re-purposed here as the overlap amount (default -60). -->
+     Offset slider re-purposed here as the overlap amount (default -60).
+     Wrapped in .developer-hero-under-band so the operator can set a
+     colour for the strip between hero and the next section (2026-07-06 —
+     Cleveland B&B request). Empty value = transparent = no visible strip. -->
 <?php $bottom_overlap = intval($search_offset) !== 0 ? intval($search_offset) : -60; ?>
+<?php $under_band_bg = trim((string)($api['hero_under_band_bg'] ?? '')); ?>
+<div class="developer-hero-under-band"<?php if ($under_band_bg !== '') echo ' style="background: ' . esc_attr($under_band_bg) . ';"'; ?>>
 <div class="developer-search-bottom-shell" style="position:relative; z-index:10; margin: <?php echo intval($bottom_overlap); ?>px auto 0; max-width:<?php echo esc_attr($search_max_width); ?>px; padding: 0 16px;">
     <?php echo $search_markup; ?>
+</div>
 </div>
 <style>
 .developer-hero { overflow: visible !important; padding-bottom: <?php echo max(40, abs(intval($bottom_overlap)) + 20); ?>px !important; }
