@@ -3079,6 +3079,7 @@ function developer_get_api_settings() {
         'featured_subtitle' => developer_get_ml_value($website_featured, 'subtitle', $lang),
         'featured_mode' => $website_featured['mode'] ?? 'all',
         'featured_count' => $website_featured['count'] ?? '3',
+        'featured_show_all' => $website_featured['show-all'] ?? false,
         'featured_ids' => $website_featured['ids'] ?? '',
         'featured_columns' => $website_featured['columns'] ?? '3',
         'featured_layout_style' => $website_featured['layout-style'] ?? 'grid',

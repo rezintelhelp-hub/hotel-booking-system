@@ -94,6 +94,10 @@ $intro_btn_text_color = $api['intro_btn_text_color'] ?? get_theme_mod('developer
 $featured_enabled = $api['featured_enabled'] ?? get_theme_mod('developer_featured_enabled', true);
 $featured_mode = $api['featured_mode'] ?? get_theme_mod('developer_featured_mode', 'all');
 $featured_count = $api['featured_count'] ?? get_theme_mod('developer_featured_count', '3');
+// When true, omit the limit parameter from the [gas_rooms] shortcode so
+// every ticked room renders. Set via the "Show all ticked rooms" checkbox
+// in Web Builder's Featured display settings.
+$featured_show_all = !empty($api['featured_show_all']) && $api['featured_show_all'] !== 'false' && $api['featured_show_all'] !== '0';
 $featured_ids = $api['featured_ids'] ?? get_theme_mod('developer_featured_ids', '');
 $featured_columns = $api['featured_columns'] ?? get_theme_mod('developer_featured_columns', 'auto');
 $featured_layout_style = $api['featured_layout_style'] ?? get_theme_mod('developer_featured_layout_style', 'auto');
@@ -502,8 +506,10 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
             if ($featured_mode === 'random') {
                 $shortcode .= ' random="true"';
             }
-            $shortcode .= ' limit="' . esc_attr($featured_count) . '"';
-            
+            if (!$featured_show_all) {
+                $shortcode .= ' limit="' . esc_attr($featured_count) . '"';
+            }
+
             $shortcode .= ']';
             echo do_shortcode($shortcode);
         else : ?>
