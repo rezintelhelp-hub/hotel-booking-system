@@ -1099,7 +1099,11 @@ if ($cta_enabled) :
 
 <?php
 // --- Image Row Sections (1-4) ---
-// Each can hold 1-3 images with optional title and button
+// Each can hold up to 4 items with optional image, title, text, button.
+// Loop is inner-capped at 4 per row (was 3 — 2026-07-06 for operators
+// needing a 4-item layout). Existing 3-item sites are unaffected: the
+// item-inclusion check below (`if ($img || $title || $text || $btn_text)`)
+// skips empty slots so grid columns still auto-size to filled count.
 $ir_css_emitted = false; // tracks whether the responsive @media block has been written this page
 for ($ir = 1; $ir <= 4; $ir++) {
     $ir_prefix = 'image_row_' . $ir . '_';
@@ -1110,7 +1114,7 @@ for ($ir = 1; $ir <= 4; $ir++) {
     $ir_bg = $api[$ir_prefix . 'bg'] ?? '#ffffff';
     $ir_align = $api[$ir_prefix . 'text_align'] ?? 'center';
     $ir_items = array();
-    for ($j = 1; $j <= 3; $j++) {
+    for ($j = 1; $j <= 4; $j++) {
         $img = $api[$ir_prefix . 'image_' . $j] ?? '';
         $title = $api[$ir_prefix . 'title_' . $j] ?? '';
         $text = $api[$ir_prefix . 'text_' . $j] ?? '';
