@@ -93,6 +93,8 @@ $cta_link_raw = $api_settings['cta_link'] ?? get_theme_mod('developer_header_cta
 $cta_is_external = preg_match('#^https?://#i', $cta_link_raw);
 $cta_link = $cta_is_external ? $cta_link_raw : home_url($cta_link_raw);
 $cta_target = $cta_is_external ? ' target="_blank" rel="noopener noreferrer"' : '';
+// Only render the CTA if the operator actually filled in text + a real link (not just whitespace or a bare slash)
+$cta_enabled = trim($cta_text) !== '' && trim($cta_link_raw, "/ \t\n\r") !== '';
 
 // Get logo from API, fallback to theme_mod, then WP custom logo
 // If API explicitly sets empty string, respect it (logo was removed)
@@ -244,7 +246,9 @@ foreach ($custom_pages as $cp) {
     $cp_is_enabled = ($cp_enabled_raw === true || $cp_enabled_raw === 'true' || $cp_enabled_raw === '1' || $cp_enabled_raw === 'on');
     if (!$cp_is_enabled) continue;
     $cp_visibility = $cp_settings['visibility'] ?? $cp['visibility'] ?? 'menu';
-    if ($cp_visibility === 'hidden') continue;
+    // 'footer' visibility keeps the page reachable at /slug/ (or its external URL)
+    // but omits it from header nav — footer.php picks it up in its Quick Links loop.
+    if ($cp_visibility === 'hidden' || $cp_visibility === 'footer') continue;
     // Read menu-order from per-page settings (page-custom-{slug} section)
     $cp_order = $cp_settings['menu-order'] ?? $cp['menu_order'] ?? 10;
     $cp_parent = $cp_settings['parent'] ?? $cp['parent'] ?? '';
@@ -451,7 +455,7 @@ function developer_output_logo($api_logo_image, $site_name, $api_logo_light_imag
                     $right_items = array_slice($menu_items, $half);
                     developer_output_nav_items($right_items);
                     ?>
-                    <a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a>
+                    <?php if ($cta_enabled) : ?><a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                     <?php echo developer_language_switcher(); ?>
                </nav>
 
@@ -478,7 +482,7 @@ function developer_output_logo($api_logo_image, $site_name, $api_logo_light_imag
                 <nav class="developer-nav developer-nav-stacked">
                     <?php developer_output_nav_items($menu_items); ?>
                     <?php if (!$menu_has_cta) : ?>
-                    <a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a>
+                    <?php if ($cta_enabled) : ?><a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                     <?php endif; ?>
                     <?php echo developer_language_switcher(); ?>
                 </nav>
@@ -500,7 +504,7 @@ function developer_output_logo($api_logo_image, $site_name, $api_logo_light_imag
                 <nav class="developer-nav">
                     <?php developer_output_nav_items($menu_items); ?>
                     <?php if (!$menu_has_cta) : ?>
-                    <a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a>
+                    <?php if ($cta_enabled) : ?><a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                     <?php endif; ?>
                     <?php echo developer_language_switcher(); ?>
                 </nav>

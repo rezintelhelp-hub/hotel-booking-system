@@ -100,6 +100,45 @@ foreach ($footer_pages as $pg) {
     }
 }
 
+// Custom pages saved with visibility='footer' — mirrors the header.php loop
+// at line 235+ so the external-URL / slug / enabled / menu-order semantics
+// are identical. Only difference: header skips these, footer includes them.
+$footer_custom_pages = $api_settings['custom_pages'] ?? array();
+$footer_custom_page_settings = $api_settings['custom_page_settings'] ?? array();
+foreach ($footer_custom_pages as $fcp) {
+    $fcp_slug = $fcp['slug'] ?? '';
+    if (empty($fcp_slug)) continue;
+    $fcp_settings = $footer_custom_page_settings[$fcp_slug] ?? array();
+    $fcp_enabled_raw = $fcp_settings['enabled'] ?? true;
+    $fcp_is_enabled = ($fcp_enabled_raw === true || $fcp_enabled_raw === 'true' || $fcp_enabled_raw === '1' || $fcp_enabled_raw === 'on');
+    if (!$fcp_is_enabled) continue;
+    $fcp_visibility = $fcp_settings['visibility'] ?? $fcp['visibility'] ?? 'menu';
+    if ($fcp_visibility !== 'footer') continue;
+    $fcp_order = $fcp_settings['menu-order'] ?? $fcp['menu_order'] ?? 10;
+    $fcp_title = function_exists('developer_get_ml_value')
+        ? developer_get_ml_value($fcp_settings, 'menu_title', null)
+        : '';
+    if (empty($fcp_title)) {
+        $fcp_title = $fcp_settings['menu-title-en'] ?? $fcp['title'] ?? ucfirst($fcp_slug);
+    }
+    $fcp_external = trim((string)(
+        $fcp_settings['external-url'] ?? $fcp_settings['external_url']
+        ?? $fcp['external_url'] ?? $fcp['external-url'] ?? ''
+    ));
+    if ($fcp_external !== '') {
+        $fcp_url = preg_match('#^https?://#i', $fcp_external)
+            ? $fcp_external
+            : home_url(($fcp_external[0] === '/') ? $fcp_external : '/' . $fcp_external);
+    } else {
+        $fcp_url = home_url('/' . $fcp_slug . '/');
+    }
+    $quick_links[] = array(
+        'label' => $fcp_title,
+        'url'   => $fcp_url,
+        'order' => $fcp_order,
+    );
+}
+
 usort($quick_links, function($a, $b) { return intval($a['order'] ?? 99) - intval($b['order'] ?? 99); });
 
 // Legal links (with API multilingual override) — support external URLs
