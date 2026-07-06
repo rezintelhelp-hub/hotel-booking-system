@@ -125,17 +125,31 @@ foreach ($footer_custom_pages as $fcp) {
         $fcp_settings['external-url'] ?? $fcp_settings['external_url']
         ?? $fcp['external_url'] ?? $fcp['external-url'] ?? ''
     ));
+    // Render logic in this file wraps $link['url'] with home_url() UNLESS
+    // $link['external'] is truthy. So for an operator-supplied external
+    // URL we store the absolute URL AND flag external=true — that also
+    // gives us target="_blank" + rel="noopener noreferrer" in the render.
+    // For a slug-only page (no external URL), store the /slug/ path and
+    // let the render wrap with home_url as usual. Same shape as
+    // legal_links at line 111-112.
     if ($fcp_external !== '') {
-        $fcp_url = preg_match('#^https?://#i', $fcp_external)
-            ? $fcp_external
-            : home_url(($fcp_external[0] === '/') ? $fcp_external : '/' . $fcp_external);
+        if (preg_match('#^https?://#i', $fcp_external)) {
+            $fcp_url = $fcp_external;
+            $fcp_is_external_link = true;
+        } else {
+            // Relative external — join to site root, treat as internal
+            $fcp_url = ($fcp_external[0] === '/') ? $fcp_external : '/' . $fcp_external;
+            $fcp_is_external_link = false;
+        }
     } else {
-        $fcp_url = home_url('/' . $fcp_slug . '/');
+        $fcp_url = '/' . $fcp_slug . '/';
+        $fcp_is_external_link = false;
     }
     $quick_links[] = array(
-        'label' => $fcp_title,
-        'url'   => $fcp_url,
-        'order' => $fcp_order,
+        'label'    => $fcp_title,
+        'url'      => $fcp_url,
+        'order'    => $fcp_order,
+        'external' => $fcp_is_external_link,
     );
 }
 
