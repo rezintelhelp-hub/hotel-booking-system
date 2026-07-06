@@ -387,7 +387,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                         <?php $cards_subtitle = gas_ps_field($section, 'subheading', $lang) ?: gas_ps_field($section, 'subtitle', $lang); if ($cards_subtitle) : ?>
                             <p style="color: #64748b; text-align: center; margin: 0 0 24px; font-size: 1rem; line-height: 1.6; max-width: 700px; margin-left: auto; margin-right: auto;"><?php echo esc_html($cards_subtitle); ?></p>
                         <?php endif; ?>
-                        <?php $card_count = count($cards); $card_cols = $card_count <= 2 ? $card_count : 3; ?>
+                        <?php $card_count = count($cards); $card_cols = min($card_count, 4); // was capped at 3 — 4-card layouts (Cleveland About Location/Bedrooms/Dining/Parking) wrapped to 3+1 (2026-07-06). Now 4 stays on one row; 5+ wraps at 4 cols. ?>
                         <div class="gas-ps-cards-grid" style="display: grid; grid-template-columns: repeat(<?php echo $card_cols; ?>, 1fr); gap: 24px;">
                             <?php foreach ($cards as $card) : ?>
                                 <div style="background: #fff; border-radius: <?php echo esc_attr($card_radius); ?>px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
