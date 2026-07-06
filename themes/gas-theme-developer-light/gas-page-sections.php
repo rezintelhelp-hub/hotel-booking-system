@@ -85,17 +85,35 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     $section_types = array_column($sections, 'type');
     $has_hero_section = in_array('hero', $section_types) || in_array('hero_slider', $section_types);
 
+    // Header spacer — the theme header is fixed/sticky, so subpages without a
+    // hero need 120px of push-down or the top of the first section tucks
+    // under the menu (fixed by commit 14a08221). Previously emitted with no
+    // background, which showed as a plain white strip the operator couldn't
+    // change from Web Builder (Cleveland About report 2026-07-06). Now the
+    // spacer inherits the first non-hero section's background so it visually
+    // joins that section — no visible strip, no new UI required.
+    $__ps_spacer_bg = function ($secs) {
+        foreach ($secs as $s) {
+            $t = $s['type'] ?? '';
+            if ($t === 'hero' || $t === 'hero_slider') continue;
+            if (!empty($s['background_color'])) return $s['background_color'];
+            // Match the theme's default section bg (cards/testimonials fall
+            // back to #f8fafc when bg_col empty — line 384/609 below).
+            return '#f8fafc';
+        }
+        return '#f8fafc';
+    };
+
     if (!$hero_enabled_ps) {
         // Hero disabled — drop any hero sections from the list, but STILL emit
-        // the fixed-header spacer. Without it, page content tucks under the
-        // sticky menu header (regression from commit 14a08221 — every client
-        // page with hero-off had its top cut off).
+        // the fixed-header spacer.
         $sections = array_filter($sections, function($s) { return !in_array($s['type'] ?? '', array('hero', 'hero_slider')); });
         $sections = array_values($sections);
-        echo '<div style="padding-top: 120px;"></div>';
+        echo '<div style="padding-top: 120px; background: ' . esc_attr($__ps_spacer_bg($sections)) . ';"></div>';
     } elseif (!$has_hero_section) {
-        // No hero section in builder — just add spacing for fixed header
-        echo '<div style="padding-top: 120px;"></div>';
+        // No hero section in builder — spacing for fixed header + match first
+        // section's bg so no white strip appears.
+        echo '<div style="padding-top: 120px; background: ' . esc_attr($__ps_spacer_bg($sections)) . ';"></div>';
     }
 
     // Render each section
