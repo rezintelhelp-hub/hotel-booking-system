@@ -26,6 +26,39 @@ const BACKOFF_BASE_MS  = 30_000;       // first retry waits 30s, doubles
 
 const CHANGE_TYPES = ['availability', 'rate', 'restriction', 'booking_create', 'booking_cancel'];
 
+// Channex customer.country must be ISO 2-letter. Full-name strings
+// like "United Kingdom" cause 403 Forbidden on booking_create. Small
+// inline map — covers every country a GAS property has today plus the
+// common Europe / EN-market ones. If an unknown name comes in we
+// return null and the caller can fall back further up the chain.
+const _COUNTRY_ISO2 = {
+  'GB': 'GB', 'UK': 'GB', 'GBR': 'GB',
+  'UNITED KINGDOM': 'GB', 'GREAT BRITAIN': 'GB', 'ENGLAND': 'GB',
+  'SCOTLAND': 'GB', 'WALES': 'GB', 'NORTHERN IRELAND': 'GB',
+  'IE': 'IE', 'IRELAND': 'IE', 'IRL': 'IE',
+  'FR': 'FR', 'FRANCE': 'FR', 'FRA': 'FR',
+  'DE': 'DE', 'GERMANY': 'DE', 'DEUTSCHLAND': 'DE', 'DEU': 'DE',
+  'ES': 'ES', 'SPAIN': 'ES', 'ESPANA': 'ES', 'ESP': 'ES',
+  'IT': 'IT', 'ITALY': 'IT', 'ITALIA': 'IT', 'ITA': 'IT',
+  'NL': 'NL', 'NETHERLANDS': 'NL', 'HOLLAND': 'NL', 'NLD': 'NL',
+  'BE': 'BE', 'BELGIUM': 'BE', 'BEL': 'BE',
+  'PT': 'PT', 'PORTUGAL': 'PT', 'PRT': 'PT',
+  'CH': 'CH', 'SWITZERLAND': 'CH', 'SUISSE': 'CH', 'CHE': 'CH',
+  'AT': 'AT', 'AUSTRIA': 'AT', 'OSTERREICH': 'AT', 'AUT': 'AT',
+  'US': 'US', 'USA': 'US', 'UNITED STATES': 'US',
+  'UNITED STATES OF AMERICA': 'US',
+  'CA': 'CA', 'CANADA': 'CA', 'CAN': 'CA',
+  'AU': 'AU', 'AUSTRALIA': 'AU', 'AUS': 'AU',
+  'NZ': 'NZ', 'NEW ZEALAND': 'NZ', 'NZL': 'NZ'
+};
+function _toIso2Country(input) {
+  if (!input) return null;
+  const key = String(input).trim().toUpperCase();
+  if (_COUNTRY_ISO2[key]) return _COUNTRY_ISO2[key];
+  if (key.length === 2 && /^[A-Z]{2}$/.test(key)) return key;
+  return null;
+}
+
 async function ensureSchema(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS gas_channex_outbox (
@@ -522,13 +555,12 @@ async function enqueueBookingPush(pool, gasBookingId, action) {
       phone: bk.guest_phone || '',
       address: bk.guest_address || '.',
       city: bk.guest_city || '.',
-      // Fall back to the property's own country so we never send an
-      // empty string — Channex sometimes rejects empty customer.country
-      // with 403 Forbidden even though it's not technically an auth
-      // error. Steve report 2026-07-07 on 331637 (Charles House Windsor,
-      // country=GB). Property country pulled by joining properties on
-      // the booking; if that's null too, default to GB.
-      country: bk.guest_country || bk.property_country || 'GB'
+      // Channex requires customer.country as an ISO 2-letter code
+      // ("GB", not "United Kingdom"). Full-name strings get rejected
+      // with 403 Forbidden on booking_create — verified 2026-07-07
+      // on GAS-331757 (payload had country: "United Kingdom" from
+      // Charles House's property row and came back 403).
+      country: _toIso2Country(bk.guest_country) || _toIso2Country(bk.property_country) || 'GB'
     }
   };
 
