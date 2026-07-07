@@ -478,6 +478,29 @@ async function enqueueBookingPush(pool, gasBookingId, action) {
   const m = await getChannexMapping(pool, bk.bookable_unit_id);
   if (!m) return false;
 
+  // Skip enqueue if the connection has zero channels attached — Channex's
+  // POST /bookings returns 403 Forbidden on any property with no OTA
+  // channels (BookingButton / BDC / Airbnb / Expedia / etc.), and the
+  // failed rows have historically wedged the outbox worker. Charles House
+  // Windsor exposed this 2026-07-07 — 6 booking_create rows sat in
+  // 'processing' for hours because every retry hit the same 403.
+  //
+  // gas_sync_channels is populated by the Channex-side channel setup flow
+  // (POST /api/admin/channex/:connectionId/save-bdc, /airbnb/link, etc.).
+  // Operators that wire channels directly in Channex's UI without going
+  // through GAS should run the connection's channels-sync endpoint to
+  // populate gas_sync_channels before creating bookings.
+  try {
+    const chQ = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM gas_sync_channels WHERE connection_id = $1`,
+      [m.connection_id]
+    );
+    if (!chQ.rows[0] || chQ.rows[0].n === 0) {
+      console.log(`[channex-outbox] enqueueBookingPush: skipping ${action} for booking ${gasBookingId} — connection ${m.connection_id} has no channels attached (POST /bookings would 403)`);
+      return false;
+    }
+  } catch (_) { /* table may not exist yet in dev — fall through */ }
+
   // Find a rate plan that matches the booking currency on the same room.
   // Per-currency rate plans were introduced in the price-fix commit so
   // this gracefully ignores wrong-currency plans (e.g. orphan GBP plans).
