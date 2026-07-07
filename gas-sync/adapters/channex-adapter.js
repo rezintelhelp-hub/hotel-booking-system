@@ -967,11 +967,7 @@ class ChannexAdapter {
         notes: payload.notes || ''
       }
     };
-    // Channex uses /bookings/booking (singular resource suffix) for create.
-    // /bookings alone is the LIST endpoint and returns 403 on POST — that
-    // was the mystery 403 all through 2026-07-07. Docstring above always
-    // said the right path; the code path never matched it.
-    return this.request('/bookings/booking', 'POST', body);
+    return this.request('/bookings', 'POST', body);
   }
 
   /**
