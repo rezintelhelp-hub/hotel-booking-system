@@ -433,8 +433,11 @@ async function enqueueBookingPush(pool, gasBookingId, action) {
            b.guest_address, b.guest_city, b.guest_country, b.guest_postcode,
            b.num_adults, b.num_children, b.num_infants, b.grand_total,
            b.currency, b.status, b.channex_booking_id,
-           b.property_id
-    FROM bookings b WHERE b.id = $1
+           b.property_id,
+           p.country AS property_country
+    FROM bookings b
+    LEFT JOIN properties p ON p.id = b.property_id
+    WHERE b.id = $1
   `, [gasBookingId]);
   if (!b.rows[0]) return false;
   const bk = b.rows[0];
@@ -513,13 +516,19 @@ async function enqueueBookingPush(pool, gasBookingId, action) {
       amount: String(bk.grand_total || 0)
     }],
     customer: {
-      name: bk.guest_first_name || '',
-      surname: bk.guest_last_name || '',
+      name: bk.guest_first_name || 'Guest',
+      surname: bk.guest_last_name || '.',
       mail: bk.guest_email || '',
       phone: bk.guest_phone || '',
-      address: bk.guest_address || '',
-      city: bk.guest_city || '',
-      country: bk.guest_country || ''
+      address: bk.guest_address || '.',
+      city: bk.guest_city || '.',
+      // Fall back to the property's own country so we never send an
+      // empty string — Channex sometimes rejects empty customer.country
+      // with 403 Forbidden even though it's not technically an auth
+      // error. Steve report 2026-07-07 on 331637 (Charles House Windsor,
+      // country=GB). Property country pulled by joining properties on
+      // the booking; if that's null too, default to GB.
+      country: bk.guest_country || bk.property_country || 'GB'
     }
   };
 
