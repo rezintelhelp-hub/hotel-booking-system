@@ -1562,6 +1562,47 @@ class ChannexAdapter {
   async getLiveFeedEvent(eventId) {
     return this.request(`/live_feed/${eventId}`);
   }
+
+  // =====================================================
+  // STRIPE TOKENIZATION APP
+  //
+  // Charles House Windsor pilot 2026-07-08. Channex holds OTA cards
+  // (BDC / Expedia / Airbnb) in their PCI vault; this app lets the PMS
+  // ask Channex for a Stripe token whenever it wants to charge. Two
+  // token types: `stripe_token` (legacy Charge API) and
+  // `stripe_payment_method` (modern PaymentIntent, prefer this).
+  // =====================================================
+
+  /**
+   * Install the stripe_tokenization app on a Channex property. Barbara /
+   * the client also has to connect a Stripe account to their Channex user
+   * profile via OAuth before tokens can be minted — no API for that step,
+   * it happens in Channex's UI.
+   *
+   * POST /api/v1/applications/install
+   */
+  async installApplication(propertyId, applicationCode) {
+    return this.request('/applications/install', 'POST', {
+      application_installation: {
+        property_id: propertyId,
+        application_code: applicationCode,
+      },
+    });
+  }
+
+  /**
+   * Ask Channex for a Stripe token for a specific booking's card. Type
+   * defaults to 'payment_method' — the modern PaymentIntent shape — so
+   * GAS can attach it to a PaymentIntent + confirm without hitting the
+   * legacy Charge API.
+   *
+   * POST /api/v1/bookings/:channex_booking_id/stripe_payment_method
+   * POST /api/v1/bookings/:channex_booking_id/stripe_token
+   */
+  async getBookingStripeToken(channexBookingId, type = 'payment_method') {
+    const path = type === 'token' ? 'stripe_token' : 'stripe_payment_method';
+    return this.request(`/bookings/${channexBookingId}/${path}`, 'POST');
+  }
 }
 
 // =====================================================
