@@ -1389,6 +1389,20 @@ class ChannexAdapter {
   }
 
   /**
+   * GET /api/v1/channels?filter[property_id]=X — list every channel
+   * currently attached to a Channex property. Used to reconcile the
+   * GAS-side gas_sync_channels list against Channex when an operator
+   * (or Channex support) has attached a channel outside the GAS wizard
+   * (e.g. Expedia set up via the Channex dashboard directly).
+   *
+   * Channex JSON:API convention — response shape is { data: [ { id,
+   * attributes: { title, channel, is_active, settings, ... } } ] }.
+   */
+  async listChannelsForProperty(channexPropertyId) {
+    return this.request(`/channels?filter[property_id]=${encodeURIComponent(channexPropertyId)}`);
+  }
+
+  /**
    * GET /api/v1/channels/{id}/execute/{action} — invoke an OTA-specific
    * action. Most useful: `load_future_reservations` to pull all upcoming
    * bookings from the OTA into Channex's booking pipeline.
