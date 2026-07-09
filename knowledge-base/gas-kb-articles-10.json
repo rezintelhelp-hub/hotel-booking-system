@@ -1,0 +1,42 @@
+[
+  {
+    "title": "Connecting Expedia to GAS (via Channex)",
+    "category": "Channel Managers",
+    "keywords": [
+      "Expedia",
+      "Channex",
+      "connect Expedia",
+      "OTA setup",
+      "Expedia Collect",
+      "Hotel Collect",
+      "Sync channels from Channex",
+      "Expedia payment collection",
+      "Expedia setup",
+      "add Expedia",
+      "Expedia GAS"
+    ],
+    "status": "published",
+    "summary": "Expedia is not connected through the GAS wizard. Channex support wires it up on their side, then you click Sync channels from Channex in GAS to pull it into your channel list. Then set who collects the card — Expedia Collect on their side and OTA collects on ours, or Hotel Collect + We collect via Stripe.",
+    "content": "## Overview\n\nGAS ↔ Channex ↔ Expedia. Availability + rates flow out from GAS through Channex to Expedia. Bookings flow back the same way.\n\nThe GAS Connect Channel wizard only builds Booking.com connections. **Expedia is set up by Channex support on their side** — you can't add it yourself in the wizard.\n\n## Step 1 — Ask Channex to attach Expedia\n\nEmail Channex support (evan@channex.io) with:\n\n- Your Channex account / property name\n- Your Expedia hotel ID (Expedia Extranet → Account → your ID)\n- Which rate plans on your side you want mapped to which rate plans on Expedia\n\nChannex creates the channel on their end and confirms when it's live.\n\n## Step 2 — Sync the channel into GAS\n\nOnce Channex tells you Expedia is live:\n\n1. In GAS: **Channel Managers** → your Channex connection → **+ Connect Channel** (opens the wizard modal).\n2. At the bottom of the wizard home, click **🔄 Sync channels from Channex**.\n3. Expedia appears in your channel list.\n\nThis reads the live list of channels attached to your Channex property and pulls them into GAS. Safe to re-run — it only adds/updates, never deletes.\n\n## Step 3 — Set who takes the card (in GAS)\n\nOn the Expedia row in your GAS channel list, click **Payments**:\n\n- **OTA collects** — Expedia charges the guest and pays you out monthly. You never touch the card. This is what most operators pick.\n- **We take it via our Stripe** — Expedia sends the guest's card details, GAS tokenises the card into your own Stripe, you charge and refund from there.\n\nIf you pick \"We take it via our Stripe\", your Stripe account must be connected first (GAS will show a Connect Stripe button if it isn't).\n\n## Step 4 — Match the setting on Expedia's side\n\nExpedia has the same choice, and both sides must match:\n\n| Expedia side | GAS side |\n|--------------|----------|\n| **Expedia Collect** (Expedia charges the guest, pays you monthly) | **OTA collects** |\n| **Hotel Collect** (Expedia sends card details, you charge at check-in) | **We take it via our Stripe** |\n\nSet this in **Expedia Extranet** → Rooms & Rates → Payment Options. If they don't match, guests will either be double-charged or not charged at all.\n\n**Easiest for most hotels: Expedia Collect + OTA collects in GAS.** No card handling, no PCI, no charging headaches — just a monthly bank payout.\n\n## Changing later\n\nYou can flip the GAS Payments toggle at any time on each channel's row. Remember to change Expedia's setting to match, or bookings will go wrong."
+  },
+  {
+    "title": "Setting who takes the card per OTA channel",
+    "category": "Payments",
+    "keywords": [
+      "OTA collects",
+      "We collect via Stripe",
+      "payment collection",
+      "who takes the card",
+      "payment_collection",
+      "channel payment",
+      "channel Payments button",
+      "OTA vs hotel collect",
+      "virtual card",
+      "guest card",
+      "tokenise card"
+    ],
+    "status": "published",
+    "summary": "Every OTA channel connected via Channex has a Payments button in GAS. Pick whether the OTA charges the guest and pays you out (OTA collects) or the guest's card is tokenised into your Stripe (We collect via Stripe). This must match the setting on the OTA's side.",
+    "content": "## Where to set it\n\n**Channel Managers → Channex connection → + Connect Channel → click Payments on the channel row.**\n\nEach channel (Booking.com, Expedia, Hotels.com, etc.) has its own setting — you can mix and match.\n\n## The two options\n\n### OTA collects\n\nThe OTA (Booking.com, Expedia, etc.) takes the guest's card. They charge, they handle refunds, they pay you out on a schedule (usually monthly). GAS and your Stripe never touch the card.\n\n**Pros**: no PCI compliance, no chargeback handling, simple bookkeeping.\n**Cons**: you wait for the OTA payout schedule; you can't take upsells or extras on the same card.\n\n### We collect via Stripe\n\nThe OTA sends the guest's card details as part of the booking. GAS tokenises the card into your Stripe account (via Channex's tokenisation). You charge and refund via Stripe like any direct booking.\n\n**Requires**: your Stripe account must be connected to GAS. If it isn't, the option is greyed out and a Connect Stripe button appears.\n\n**Pros**: money hits your bank fast; you can charge extras, incidentals, damage; unified refunds.\n**Cons**: PCI paperwork; you handle chargebacks.\n\n## Important: match the OTA's side\n\nThe setting in GAS must match what the OTA is configured to do. If GAS says \"we collect\" but the OTA is set to charge the guest itself, the guest will be double-charged.\n\n| Booking.com | Expedia | Airbnb |\n|---|---|---|\n| Payments by Booking.com = OTA collects | Expedia Collect = OTA collects | Airbnb always OTA collects (no other option) |\n| Direct hotel payments = We collect via Stripe | Hotel Collect = We collect via Stripe | — |\n\nAlways check both sides when you set up a new channel.\n\n## Default\n\nNew channels default to **OTA collects**. If you don't set it and the OTA does its own charging, everything just works.\n\n## Changing later\n\nSame Payments button — flip the radio and hit Save. Applies to future bookings. Existing bookings aren't reprocessed."
+  }
+]
