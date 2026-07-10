@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.65
+ * Version: 4.2.66
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.65');
+define('GAS_BOOKING_VERSION', '4.2.66');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4406,7 +4406,12 @@ class GAS_Booking {
                 add_action('wp_head', function() use ($head_html) { echo $head_html; }, 5);
             }
             get_header();
-            echo '<main class="gas-spark-blocks-wrap">';
+            // Wrapper adds top padding to clear the theme's fixed/sticky
+            // header banner (varies by theme; 6rem is a safe default for
+            // gas-theme-developer-* and gas-theme-burger). No max-width so
+            // Rich Text / Cover blocks span the full viewport; each
+            // .spark-section inside applies its own 960px inner container.
+            echo '<main class="gas-spark-blocks-wrap" style="padding-top:6rem;padding-bottom:2rem;">';
             echo $api['blocks_html'];
             echo '</main>';
             get_footer();
