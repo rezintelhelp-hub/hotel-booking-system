@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.64
+ * Version: 4.2.65
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.64');
+define('GAS_BOOKING_VERSION', '4.2.65');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4374,11 +4374,14 @@ class GAS_Booking {
 
         // Render the Spark
         status_header(200);
-        $this->gas_spark_render_page($data['spark'], $data['cta'] ?? null);
+        // Third arg carries top-level API fields (blocks_html + blocks_head
+        // for the section-based renderer). Backwards compatible — the classic
+        // render path ignores it entirely.
+        $this->gas_spark_render_page($data['spark'], $data['cta'] ?? null, $data);
         exit;
     }
 
-    private function gas_spark_render_page($spark, $cta) {
+    private function gas_spark_render_page($spark, $cta, $api = array()) {
         $title = $spark['title'] ?? '';
         $subtitle = $spark['subtitle'] ?? '';
         $body = $spark['body'] ?? '';
@@ -4387,6 +4390,28 @@ class GAS_Booking {
         $layout = $spark['layout'] ?? 'hero_text_button';
         $meta_title = $spark['meta_title'] ?: $title;
         $meta_desc = $spark['meta_description'] ?: $subtitle;
+
+        // Section-based Sparks (Steve / 2026-07-10). If the API returned
+        // pre-rendered blocks_html + blocks_head, use them AS the page body
+        // and skip the classic hero/body/CTA render entirely. get_header()
+        // and get_footer() still fire so the account's brand (theme header,
+        // logo, footer) wraps the sections — Steve: "brand is essential".
+        // Legacy Sparks (no blocks_html) fall through to the existing path
+        // below untouched.
+        if (!empty($api['blocks_html'])) {
+            // Set page title for the theme + inject SEO/JSON-LD tags into wp_head.
+            add_filter('pre_get_document_title', function() use ($meta_title) { return $meta_title; });
+            $head_html = $api['blocks_head'] ?? '';
+            if ($head_html) {
+                add_action('wp_head', function() use ($head_html) { echo $head_html; }, 5);
+            }
+            get_header();
+            echo '<main class="gas-spark-blocks-wrap">';
+            echo $api['blocks_html'];
+            echo '</main>';
+            get_footer();
+            return;
+        }
 
         // Resolve CTA button
         $cta_html = '';
