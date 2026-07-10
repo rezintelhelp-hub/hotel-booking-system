@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.67
+ * Version: 4.2.68
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.67');
+define('GAS_BOOKING_VERSION', '4.2.68');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4399,18 +4399,31 @@ class GAS_Booking {
         // slug so the helper resolves it without any extra plumbing.
         // Zero rendering happens here beyond get_header()/get_footer() —
         // brand + section render live in the theme, exactly like sub-pages.
-        if (!empty($spark['blocks']) && is_array($spark['blocks']) && function_exists('gas_render_page_sections')) {
-            add_filter('pre_get_document_title', function() use ($meta_title) { return $meta_title; });
-            // Theme primary colour — same fallback the theme uses.
-            $primary_color = '#2563eb';
-            if (function_exists('developer_get_api_settings')) {
-                $__api_settings = developer_get_api_settings();
-                if (!empty($__api_settings['primary_color'])) $primary_color = $__api_settings['primary_color'];
+        if (!empty($spark['blocks']) && is_array($spark['blocks'])) {
+            // The theme's gas-page-sections.php is normally require_once'd
+            // by page.php / template-about.php — NOT by functions.php — so
+            // the render helper isn't defined at template_redirect time.
+            // Pull it in here so we can call it. Falls through to classic
+            // render if the theme doesn't ship the helper at all (e.g. old
+            // theme still in use somewhere).
+            if (!function_exists('gas_render_page_sections')) {
+                $theme_ps = get_stylesheet_directory() . '/gas-page-sections.php';
+                if (file_exists($theme_ps)) {
+                    require_once $theme_ps;
+                }
             }
-            get_header();
-            gas_render_page_sections($spark['slug'], $primary_color);
-            get_footer();
-            return;
+            if (function_exists('gas_render_page_sections')) {
+                add_filter('pre_get_document_title', function() use ($meta_title) { return $meta_title; });
+                $primary_color = '#2563eb';
+                if (function_exists('developer_get_api_settings')) {
+                    $__api_settings = developer_get_api_settings();
+                    if (!empty($__api_settings['primary_color'])) $primary_color = $__api_settings['primary_color'];
+                }
+                get_header();
+                gas_render_page_sections($spark['slug'], $primary_color);
+                get_footer();
+                return;
+            }
         }
 
         // Resolve CTA button
