@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.66
+ * Version: 4.2.67
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.66');
+define('GAS_BOOKING_VERSION', '4.2.67');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4391,29 +4391,24 @@ class GAS_Booking {
         $meta_title = $spark['meta_title'] ?: $title;
         $meta_desc = $spark['meta_description'] ?: $subtitle;
 
-        // Section-based Sparks (Steve / 2026-07-10). If the API returned
-        // pre-rendered blocks_html + blocks_head, use them AS the page body
-        // and skip the classic hero/body/CTA render entirely. get_header()
-        // and get_footer() still fire so the account's brand (theme header,
-        // logo, footer) wraps the sections — Steve: "brand is essential".
-        // Legacy Sparks (no blocks_html) fall through to the existing path
-        // below untouched.
-        if (!empty($api['blocks_html'])) {
-            // Set page title for the theme + inject SEO/JSON-LD tags into wp_head.
+        // Section-based Sparks (Steve / 2026-07-10). If the Spark has any
+        // sections saved via the Section Builder, defer entirely to the
+        // theme's own gas_render_page_sections() helper — the same one
+        // About + Custom Pages already use. The page-sections API endpoint
+        // (extended server-side) serves sparks.blocks under the spark's
+        // slug so the helper resolves it without any extra plumbing.
+        // Zero rendering happens here beyond get_header()/get_footer() —
+        // brand + section render live in the theme, exactly like sub-pages.
+        if (!empty($spark['blocks']) && is_array($spark['blocks']) && function_exists('gas_render_page_sections')) {
             add_filter('pre_get_document_title', function() use ($meta_title) { return $meta_title; });
-            $head_html = $api['blocks_head'] ?? '';
-            if ($head_html) {
-                add_action('wp_head', function() use ($head_html) { echo $head_html; }, 5);
+            // Theme primary colour — same fallback the theme uses.
+            $primary_color = '#2563eb';
+            if (function_exists('developer_get_api_settings')) {
+                $__api_settings = developer_get_api_settings();
+                if (!empty($__api_settings['primary_color'])) $primary_color = $__api_settings['primary_color'];
             }
             get_header();
-            // Wrapper adds top padding to clear the theme's fixed/sticky
-            // header banner (varies by theme; 6rem is a safe default for
-            // gas-theme-developer-* and gas-theme-burger). No max-width so
-            // Rich Text / Cover blocks span the full viewport; each
-            // .spark-section inside applies its own 960px inner container.
-            echo '<main class="gas-spark-blocks-wrap" style="padding-top:6rem;padding-bottom:2rem;">';
-            echo $api['blocks_html'];
-            echo '</main>';
+            gas_render_page_sections($spark['slug'], $primary_color);
             get_footer();
             return;
         }
