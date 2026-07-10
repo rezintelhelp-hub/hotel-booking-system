@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.68
+ * Version: 4.2.69
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.68');
+define('GAS_BOOKING_VERSION', '4.2.69');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4420,7 +4420,21 @@ class GAS_Booking {
                     if (!empty($__api_settings['primary_color'])) $primary_color = $__api_settings['primary_color'];
                 }
                 get_header();
+                // The theme's helper emits a 120px header spacer above the
+                // first section when there's no Hero — designed for fixed-
+                // header sub-pages. For Sparks the theme header renders in
+                // normal flow at template_redirect time, so that spacer
+                // shows up as an unwanted gap (Steve report 2026-07-10).
+                // Buffer + strip the specific spacer div before echoing.
+                ob_start();
                 gas_render_page_sections($spark['slug'], $primary_color);
+                $__gas_ps_out = ob_get_clean();
+                $__gas_ps_out = preg_replace(
+                    '/<div style="padding-top:\s*120px;\s*background:[^"]*"><\/div>\s*/i',
+                    '',
+                    $__gas_ps_out
+                );
+                echo $__gas_ps_out;
                 get_footer();
                 return;
             }
