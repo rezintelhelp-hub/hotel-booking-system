@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.77
+ * Version: 4.2.78
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -1406,7 +1406,11 @@ jQuery(document).ready(function($) {
     GASCart.updateDisplay();
     window.GASCart = GASCart;
     
-    // Short format (no decimals) for compact displays
+    // Compact format for card displays. Drops decimals ONLY when the
+    // amount is a whole number ($99, $200); shows cents when they exist
+    // ($15.99, $12.50) so operators don't see their $15.99 upsell round
+    // to "$16" in the extras grid. Steve 2026-07-11 — Fireside price
+    // was rendering as $16 next to a $15.99 summary line.
     function formatPriceShort(amount, currencyCode) {
         // Always use the WordPress currency setting over channel manager currency
         currencyCode = currencyCode || gasBooking.currency;
@@ -1422,7 +1426,8 @@ jQuery(document).ready(function($) {
         };
         var symbol = symbols[currencyCode] || (currencyCode && currencyCode.length <= 4 ? currencyCode + ' ' : '') || '';
         var num = parseFloat(amount) || 0;
-        return symbol + Math.round(num).toLocaleString();
+        var hasCents = Math.abs(num - Math.round(num)) > 0.005;
+        return symbol + (hasCents ? num.toFixed(2) : Math.round(num).toLocaleString());
     }
     
     // For a date-bound upsell (e.g. a tour mirrored from a shop product), compute the
