@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.56
+ * Version: 4.2.74
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -955,14 +955,20 @@ jQuery(document).ready(function($) {
                     };
                     applyRoomFilter();
                     // Fire again as cards stream in — per-room availability
-                    // check may append cards after the initial DOMContentLoaded.
-                    var $observeRoot = $('.gas-rooms-grid, .gas-rooms-wrapper, .gas-room-widget').first();
-                    if ($observeRoot.length && window.MutationObserver) {
+                    // check may append cards after the initial DOMContentLoaded,
+                    // and hitting Search on /book-now/ actually removes and
+                    // re-adds the whole card list. Observe body so we catch
+                    // the grid being created OR replaced, not just the first
+                    // grid instance. Keep observing until the guest leaves
+                    // the page — Steve 2026-07-11 reported the filter died
+                    // after the previous 10s timeout when he took longer to
+                    // pick a date.
+                    if (window.MutationObserver) {
                         var mo = new MutationObserver(function() { applyRoomFilter(); });
-                        mo.observe($observeRoot[0], { childList: true, subtree: true });
-                        // Stop observing after 10s — plenty of time for the
-                        // grid to settle without paying attention forever.
-                        setTimeout(function() { try { mo.disconnect(); } catch(_) {} }, 10000);
+                        mo.observe(document.body, { childList: true, subtree: true });
+                        // Kept alive for the page lifetime. Cheap — the
+                        // callback is a couple of DOM queries with an early
+                        // exit when the room-id set is unset.
                     }
                 }
             }
