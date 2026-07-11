@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.82
+ * Version: 4.2.83
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -6492,8 +6492,8 @@ jQuery(document).ready(function($) {
                                 html += '<div class="gas-upsell-info">';
                                 html += '<div class="gas-upsell-name">' + upsell.name + '</div>';
                                 if (upsell.description) {
-                                    html += '<div class="gas-upsell-desc gas-upsell-desc-clamp">' + upsell.description + '</div>';
-                                    html += '<button type="button" class="gas-upsell-desc-more" onclick="event.stopPropagation()">More info ▾</button>';
+                                    html += '<div class="gas-upsell-desc gas-upsell-desc-clamp" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px;color:#64748b;line-height:1.45;margin:4px 0 0;">' + upsell.description + '</div>';
+                                    html += '<button type="button" class="gas-upsell-desc-more" onclick="event.stopPropagation()" style="display:inline-block;margin-top:6px;padding:4px 10px;background:#f3f4f6;color:#6d28d9;font-size:12px;font-weight:600;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-family:inherit;">More info ▾</button>';
                                 }
                                 html += '<div class="gas-upsell-price">' + upsellPriceCardHtml(upsell, ug.currency, formatPrice) + '</div>';
                                 // Date-bound upsell — single dropdown to pick the date for all tickets.
@@ -8274,8 +8274,27 @@ jQuery(document).ready(function($) {
                 if ($desc[0].scrollHeight <= $desc[0].clientHeight + 1) { $more.hide(); return; }
                 $more.on('click', function(e) {
                     e.stopPropagation();
-                    var clamped = $desc.toggleClass('gas-upsell-desc-clamp').hasClass('gas-upsell-desc-clamp');
-                    $more.text(clamped ? 'More info ▾' : 'Show less ▴');
+                    var isClamped = $desc.hasClass('gas-upsell-desc-clamp');
+                    if (isClamped) {
+                        // Expanding — strip the clamp class AND override the
+                        // inline clamp styles the render put there so the
+                        // description flows to its full height. Steve
+                        // 2026-07-11 — inline styles were fighting the class
+                        // toggle so the description couldn't expand.
+                        $desc.removeClass('gas-upsell-desc-clamp');
+                        $desc[0].style.webkitLineClamp = 'unset';
+                        $desc[0].style.lineClamp = 'unset';
+                        $desc[0].style.display = 'block';
+                        $desc[0].style.maxHeight = 'none';
+                    } else {
+                        // Re-clamping — restore the two-line box.
+                        $desc.addClass('gas-upsell-desc-clamp');
+                        $desc[0].style.display = '-webkit-box';
+                        $desc[0].style.webkitLineClamp = '2';
+                        $desc[0].style.lineClamp = '2';
+                        $desc[0].style.maxHeight = '';
+                    }
+                    $more.text(isClamped ? 'Show less ▴' : 'More info ▾');
                 });
             });
         }
