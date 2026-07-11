@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.5.5
+ * Version: 1.5.6
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -451,7 +451,15 @@ class GAS_Shop {
         if (!$isGift && (float)$p['price'] > 0) {
             echo '<div class="gas-shop-card-price" style="font-size:1.5rem;margin-bottom:20px">'.$curr.' '.$price.'</div>';
         }
-        if ($desc) echo '<div style="color:'.$c['text_secondary'].';line-height:1.8;margin-bottom:24px">'.wp_kses_post(nl2br($desc)).'</div>';
+        // Section-Builder blocks pre-rendered by the Node API (blocks_html
+        // field) override the plain description on the landing. Falls back
+        // to the classic description otherwise. Marie / Lehmann fireside
+        // promo 2026-07-11.
+        if (!empty($p['blocks_html'])) {
+            echo '<div class="gas-shop-blocks">'.$p['blocks_html'].'</div>';
+        } elseif ($desc) {
+            echo '<div style="color:'.$c['text_secondary'].';line-height:1.8;margin-bottom:24px">'.wp_kses_post(nl2br($desc)).'</div>';
+        }
 
         // Stock indicator
         if ($p['stock_tracking']) {
