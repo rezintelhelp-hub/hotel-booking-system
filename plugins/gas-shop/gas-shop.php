@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.5.7
+ * Version: 1.5.8
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -513,10 +513,6 @@ class GAS_Shop {
         if (($p['product_type'] ?? '') === 'external' && !empty($p['external_url'])) {
             $btnLabel = esc_html($p['external_button_label'] ?? 'Buy Now');
             echo '<a href="'.esc_url($p['external_url']).'" target="_blank" rel="noopener" class="gas-shop-btn">'.$btnLabel.' &rarr;</a>';
-        } elseif ($isBookingAddonBookable) {
-            $bookingUrl = rtrim($p['booking_url'], '/').'/?prefill_upsells='.urlencode($p['linked_upsell_id']);
-            echo '<a href="'.esc_url($bookingUrl).'" class="gas-shop-btn" id="gas-book-addon">Book with a room &rarr;</a>';
-            echo '<p style="margin:12px 0 0;color:'.$c['text_secondary'].';font-size:0.9rem">Pick a room on the next page. This add-on rides through checkout with your stay.</p>';
         } elseif ($isEventBookable) {
             // Push the buyer to the booking page. The page reads ?event=<slug>
             // and shows the "You're booking the {Event Name}" banner above the
@@ -593,23 +589,47 @@ class GAS_Shop {
         } else {
             // Landing-page options (Marie / Lehmann 2026-07-11) — offer flags
             // set on the product decide which CTAs render on the public shop
-            // page. Standalone = Add to Cart (default); book_with_room = a
-            // second CTA linking to the booking flow with this product
-            // pre-selected via ?linked_product=<id>; add_to_stay = a small
-            // link for returning guests to attach via /portal/. Defaults keep
-            // legacy behaviour when the flags are not yet set.
-            $offerBuyStandalone = !isset($p['offer_buy_standalone']) || $p['offer_buy_standalone'] !== false;
-            $offerBookWithRoom  = !empty($p['offer_book_with_room']);
+            // page. Type-specific defaults apply when the flags are still at
+            // their SQL defaults so legacy products keep rendering the way
+            // they did:
+            //   * booking_addon → Book with a room primary; Add to Cart off
+            //   * everything else → Add to Cart primary; Book with a room off
+            //   * Add to my stay hint on by default everywhere (harmless).
+            $isBookingAddonType = ($p['product_type'] ?? '') === 'booking_addon';
+            $offerBuyStandalone = isset($p['offer_buy_standalone'])
+                ? $p['offer_buy_standalone'] !== false
+                : !$isBookingAddonType;
+            $offerBookWithRoom  = isset($p['offer_book_with_room'])
+                ? !empty($p['offer_book_with_room'])
+                : $isBookingAddonType;
             $offerAddToStay     = !isset($p['offer_add_to_stay']) || $p['offer_add_to_stay'] !== false;
             $disabled = ($p['stock_tracking'] && intval($p['stock_quantity'] ?? 0) <= 0) ? ' disabled style="opacity:.5;cursor:not-allowed"' : '';
+            $rendered = 0;
             if ($offerBuyStandalone) {
                 echo '<button class="gas-shop-btn" id="gas-add-to-cart"'.$disabled.' onclick=\'gasShopAddToCart('.$product_json.')\'>Add to Cart</button>';
                 echo '<a href="'.esc_url(home_url('/shop/cart/')).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';margin-left:12px" id="gas-shop-go-cart">View Cart</a>';
+                $rendered++;
             }
             if ($offerBookWithRoom) {
-                $bookUrl = home_url('/book-now/').'?linked_product='.intval($p['id']);
-                $margin = $offerBuyStandalone ? 'margin-left:12px;' : '';
-                echo '<a href="'.esc_url($bookUrl).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';'.$margin.'">Book a room with this &rarr;</a>';
+                // Booking Add-on with a linked upsell + booking_url pre-fills
+                // via ?prefill_upsells=<upsell_id>. Everything else uses
+                // /book-now/?linked_product=<product_id> to signal the
+                // booking widget.
+                if ($isBookingAddonType && !empty($p['booking_url']) && !empty($p['linked_upsell_id'])) {
+                    $bookUrl = rtrim($p['booking_url'], '/').'/?prefill_upsells='.urlencode($p['linked_upsell_id']);
+                } else {
+                    $bookUrl = home_url('/book-now/').'?linked_product='.intval($p['id']);
+                }
+                $margin = $rendered > 0 ? 'margin-left:12px;' : '';
+                // Style as primary when it's the only CTA; outline when
+                // paired with Add to Cart so the visual hierarchy reads
+                // "primary + alternative".
+                if ($rendered === 0) {
+                    echo '<a href="'.esc_url($bookUrl).'" class="gas-shop-btn" id="gas-book-addon">Book a room with this &rarr;</a>';
+                } else {
+                    echo '<a href="'.esc_url($bookUrl).'" class="gas-shop-btn" id="gas-book-addon" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';'.$margin.'">Book a room with this &rarr;</a>';
+                }
+                $rendered++;
             }
             if ($offerAddToStay) {
                 echo '<p style="margin:14px 0 0;color:'.$c['text_secondary'].';font-size:0.88rem;">Already staying with us? <a href="'.esc_url(home_url('/portal/')).'" style="color:'.$c['accent'].';font-weight:600;">Sign in to add this to your booking &rarr;</a></p>';
