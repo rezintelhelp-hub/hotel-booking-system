@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.79
+ * Version: 4.2.80
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -3955,13 +3955,15 @@ jQuery(document).ready(function($) {
 
         // Long descriptions get clamped to ~2 lines with a "More info"
         // toggle so the extras grid stays scannable (Steve 2026-07-11 —
-        // Fireside and Extra Guest descriptions were dominating the panel).
+        // Fireside + Extra Guest descriptions were dominating the panel).
+        // Uses -webkit-line-clamp which handles the clamp reliably across
+        // Chrome / Safari / Firefox (line-clamp: 2 with box-orient:vertical).
         // Anything <=140 chars renders inline as before.
         var descHtml = '';
         if (upsell.description) {
             if (upsell.description.length > 140) {
-                descHtml = '<div class="gas-upsell-description gas-upsell-desc-wrap" style="max-height:2.9em;overflow:hidden;position:relative;">' + upsell.description + '</div>' +
-                    '<button type="button" class="gas-upsell-more-btn" onclick="event.stopPropagation();var w=this.previousElementSibling;var expanded=w.style.maxHeight===\'none\';w.style.maxHeight=expanded?\'2.9em\':\'none\';this.textContent=expanded?\'More info ▾\':\'Show less ▴\';" style="background:transparent;border:0;color:#6d28d9;font-size:0.82rem;font-weight:600;cursor:pointer;padding:2px 0;margin-top:2px;">More info ▾</button>';
+                descHtml = '<div class="gas-upsell-description gas-upsell-desc-wrap" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + upsell.description + '</div>' +
+                    '<button type="button" class="gas-upsell-more-btn" onclick="event.stopPropagation();var w=this.previousElementSibling;var expanded=w.classList.toggle(\'gas-upsell-desc-open\');if(expanded){w.style.webkitLineClamp=\'unset\';w.style.display=\'block\';}else{w.style.webkitLineClamp=\'2\';w.style.display=\'-webkit-box\';}this.textContent=expanded?\'Show less ▴\':\'More info ▾\';" style="background:transparent;border:0;color:#6d28d9;font-size:0.82rem;font-weight:600;cursor:pointer;padding:2px 0;margin-top:2px;">More info ▾</button>';
             } else {
                 descHtml = '<div class="gas-upsell-description">' + upsell.description + '</div>';
             }
