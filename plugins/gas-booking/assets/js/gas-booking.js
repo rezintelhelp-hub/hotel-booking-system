@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.85
+ * Version: 4.2.86
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -8173,15 +8173,18 @@ jQuery(document).ready(function($) {
                 row += '<div class="gas-upsell-info">';
                 row += '<div class="gas-upsell-name">' + upsell.name + '</div>';
                 if (upsell.description) {
-                    // Full description hidden by default. "More info ▾" button
-                    // toggles the whole thing open. Steve 2026-07-11 — kept
-                    // trying variations of clamp / truncate; what he wants is
-                    // simplest: description not shown, button reveals it.
-                    var descFull = String(upsell.description);
-                    var safeDescAttr = descFull.replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
-                    var safeDescText = descFull.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-                    row += '<div class="gas-upsell-desc" data-full-text="' + safeDescAttr + '" style="display:none;font-size:13px;color:#64748b;line-height:1.5;margin:6px 0 0;">' + safeDescText + '</div>';
-                    row += '<button type="button" class="gas-upsell-desc-more" data-expanded="0" onclick="event.stopPropagation();var d=this.previousElementSibling;var e=this.dataset.expanded===\'1\';d.style.display=e?\'none\':\'block\';this.dataset.expanded=e?\'0\':\'1\';this.textContent=e?\'More info ▾\':\'Show less ▴\';" style="display:inline-block;margin-top:6px;padding:4px 10px;background:#f3f4f6;color:#6d28d9;font-size:12px;font-weight:600;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-family:inherit;">More info ▾</button>';
+                    // Description VISIBLE by default (short version) with
+                    // a More info button that swaps in the full text.
+                    // Steve 2026-07-11 — keep it dead simple, no CSS clamp,
+                    // just string swap on click.
+                    var _full = String(upsell.description);
+                    var _short = _full.length > 150 ? _full.substring(0, 150).replace(/\s+\S*$/, '').trim() + '…' : _full;
+                    var _esc = function(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
+                    var _hasMore = _full.length > 150;
+                    row += '<div class="gas-upsell-desc" data-short="' + _esc(_short) + '" data-full="' + _esc(_full) + '" style="font-size:13px;color:#64748b;line-height:1.5;margin:6px 0 0;">' + _esc(_short).replace(/&#39;/g, "'").replace(/&quot;/g, '"') + '</div>';
+                    if (_hasMore) {
+                        row += '<button type="button" class="gas-upsell-desc-more" data-state="short" onclick="event.stopPropagation();var d=this.previousElementSibling;var s=this.dataset.state;if(s===\'short\'){d.textContent=d.dataset.full;this.dataset.state=\'full\';this.textContent=\'Show less ▴\';}else{d.textContent=d.dataset.short;this.dataset.state=\'short\';this.textContent=\'More info ▾\';}" style="display:inline-block;margin-top:6px;padding:4px 10px;background:#f3f4f6;color:#6d28d9;font-size:12px;font-weight:600;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-family:inherit;">More info ▾</button>';
+                    }
                 }
                 if (validDates && validDates.length) {
                     var optsHtml2 = validDates.map(function(d){ return '<option value="' + d + '">' + formatUpsellDate(d) + '</option>'; }).join('');
