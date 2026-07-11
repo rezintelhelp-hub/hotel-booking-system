@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.5.6
+ * Version: 1.5.7
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -591,9 +591,29 @@ class GAS_Shop {
             echo '<div id="gas-gift-error" style="color:#ef4444;margin-top:10px;display:none;font-size:0.9rem"></div>';
             echo '</div>';
         } else {
+            // Landing-page options (Marie / Lehmann 2026-07-11) — offer flags
+            // set on the product decide which CTAs render on the public shop
+            // page. Standalone = Add to Cart (default); book_with_room = a
+            // second CTA linking to the booking flow with this product
+            // pre-selected via ?linked_product=<id>; add_to_stay = a small
+            // link for returning guests to attach via /portal/. Defaults keep
+            // legacy behaviour when the flags are not yet set.
+            $offerBuyStandalone = !isset($p['offer_buy_standalone']) || $p['offer_buy_standalone'] !== false;
+            $offerBookWithRoom  = !empty($p['offer_book_with_room']);
+            $offerAddToStay     = !isset($p['offer_add_to_stay']) || $p['offer_add_to_stay'] !== false;
             $disabled = ($p['stock_tracking'] && intval($p['stock_quantity'] ?? 0) <= 0) ? ' disabled style="opacity:.5;cursor:not-allowed"' : '';
-            echo '<button class="gas-shop-btn" id="gas-add-to-cart"'.$disabled.' onclick=\'gasShopAddToCart('.$product_json.')\'>Add to Cart</button>';
-            echo '<a href="'.esc_url(home_url('/shop/cart/')).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';margin-left:12px" id="gas-shop-go-cart">View Cart</a>';
+            if ($offerBuyStandalone) {
+                echo '<button class="gas-shop-btn" id="gas-add-to-cart"'.$disabled.' onclick=\'gasShopAddToCart('.$product_json.')\'>Add to Cart</button>';
+                echo '<a href="'.esc_url(home_url('/shop/cart/')).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';margin-left:12px" id="gas-shop-go-cart">View Cart</a>';
+            }
+            if ($offerBookWithRoom) {
+                $bookUrl = home_url('/book-now/').'?linked_product='.intval($p['id']);
+                $margin = $offerBuyStandalone ? 'margin-left:12px;' : '';
+                echo '<a href="'.esc_url($bookUrl).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';'.$margin.'">Book a room with this &rarr;</a>';
+            }
+            if ($offerAddToStay) {
+                echo '<p style="margin:14px 0 0;color:'.$c['text_secondary'].';font-size:0.88rem;">Already staying with us? <a href="'.esc_url(home_url('/portal/')).'" style="color:'.$c['accent'].';font-weight:600;">Sign in to add this to your booking &rarr;</a></p>';
+            }
         }
         echo '</div></div></div>';
 
