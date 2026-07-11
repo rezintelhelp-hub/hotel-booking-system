@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.72
+ * Version: 4.2.73
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -4396,6 +4396,22 @@ class GAS_Booking {
         // Marie 2026-07-11 — fireside Spark had a Buy CTA configured but
         // the button never rendered because the section-based branch
         // returned before this block ran. Moved up + injected into both.
+        //
+        // Colour + shape are pulled from the site's Web Builder styles so
+        // the Buy/Book button matches the brand rather than looking like
+        // a leftover template default. Falls back to primary_color, then
+        // to a safe neutral if the site hasn't been branded yet.
+        if (empty($api) && function_exists('developer_get_api_settings')) {
+            $api = developer_get_api_settings();
+        }
+        $btn_bg = $api['btn_primary_bg']
+               ?? $api['button_color']
+               ?? $api['primary_color']
+               ?? '#0f172a';
+        $btn_text_color = $api['btn_primary_text'] ?? '#ffffff';
+        $btn_radius = isset($api['btn_radius'])
+            ? (is_numeric($api['btn_radius']) ? $api['btn_radius'] . 'px' : $api['btn_radius'])
+            : '8px';
         $cta_html = '';
         if ($cta && !empty($cta['type'])) {
             $btn_text = $spark['cta_text'] ?: array(
@@ -4417,7 +4433,16 @@ class GAS_Booking {
             } elseif ($cta['type'] === 'lead_form' && !empty($cta['form'])) {
                 $cta_html = $this->gas_spark_render_lead_form($cta['form'], $btn_text);
             } elseif ($btn_url && $btn_text) {
-                $cta_html = '<a href="' . esc_url($btn_url) . '" class="gas-spark-cta" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); color: white; padding: 1rem 2.5rem; border-radius: 8px; font-weight: 700; font-size: 1.1rem; text-decoration: none; box-shadow: 0 4px 14px rgba(220,38,38,0.3); margin-top: 1.5rem;">' . esc_html($btn_text) . '</a>';
+                $cta_html = '<a href="' . esc_url($btn_url)
+                    . '" class="gas-spark-cta"'
+                    . ' style="display: inline-block; background: ' . esc_attr($btn_bg)
+                    . '; color: ' . esc_attr($btn_text_color)
+                    . '; padding: 1rem 2.5rem; border-radius: ' . esc_attr($btn_radius)
+                    . '; font-weight: 700; font-size: 1.05rem; text-decoration: none; box-shadow: 0 4px 14px rgba(0,0,0,0.12); margin-top: 1.5rem; transition: transform 0.15s ease, box-shadow 0.15s ease;"'
+                    . ' onmouseover="this.style.transform=\'translateY(-1px)\';this.style.boxShadow=\'0 6px 18px rgba(0,0,0,0.18)\';"'
+                    . ' onmouseout="this.style.transform=\'\';this.style.boxShadow=\'0 4px 14px rgba(0,0,0,0.12)\';">'
+                    . esc_html($btn_text)
+                    . '</a>';
             }
         }
 
