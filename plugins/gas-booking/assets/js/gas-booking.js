@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.75
+ * Version: 4.2.76
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -4733,7 +4733,11 @@ jQuery(document).ready(function($) {
         sortRooms($(this).val());
     });
 
-    // Filter button — preserve offer/property context from URL
+    // Filter button — preserve offer/property/upsell context from URL.
+    // Steve 2026-07-11 — the on-page date filter dropped prefill_upsells
+    // just like the widget search did, so the fireside room filter died
+    // on refine-search. Also preserved: linked_product / event / spark
+    // attribution — anything that gates or theme's the rooms grid.
     $(document).on('click', '.gas-filter-btn', function() {
         var checkin = $('.gas-filter-checkin').val();
         var checkout = $('.gas-filter-checkout').val();
@@ -4744,14 +4748,13 @@ jQuery(document).ready(function($) {
         if (checkout) params.push('checkout=' + checkout);
         if (guests) params.push('guests=' + guests);
 
-        // Preserve offer and property context from original URL
+        // Preserve context from original URL
         var currentParams = new URLSearchParams(window.location.search);
-        var offerId = currentParams.get('offer_id');
-        var propertyId = currentParams.get('property_id');
-        var unitId = currentParams.get('unit_id');
-        if (offerId) params.push('offer_id=' + offerId);
-        if (propertyId) params.push('property_id=' + propertyId);
-        if (unitId) params.push('unit_id=' + unitId);
+        var carry = ['offer_id', 'property_id', 'unit_id', 'prefill_upsells', 'linked_product', 'event', 'spark_ref', 'spark_session'];
+        carry.forEach(function(k) {
+            var v = currentParams.get(k);
+            if (v) params.push(k + '=' + encodeURIComponent(v));
+        });
 
         var url = window.location.pathname;
         if (params.length > 0) {
