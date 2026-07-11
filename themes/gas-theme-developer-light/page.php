@@ -147,6 +147,8 @@ if (in_array($page_slug, array('about', 'about-us', 'our-story'))) {
     $special_page = 'attractions';
 } elseif (in_array($page_slug, array('gallery', 'photos', 'images'))) {
     $special_page = 'gallery';
+} elseif (in_array($page_slug, array('portal', 'guest-portal', 'my-stay'))) {
+    $special_page = 'portal';
 } elseif (in_array($page_slug, array('properties', 'apartments'))) {
     $special_page = 'properties';
 }
