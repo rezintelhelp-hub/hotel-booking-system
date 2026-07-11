@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.73
+ * Version: 4.2.74
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -4401,17 +4401,31 @@ class GAS_Booking {
         // the Buy/Book button matches the brand rather than looking like
         // a leftover template default. Falls back to primary_color, then
         // to a safe neutral if the site hasn't been branded yet.
-        if (empty($api) && function_exists('developer_get_api_settings')) {
-            $api = developer_get_api_settings();
-        }
-        $btn_bg = $api['btn_primary_bg']
-               ?? $api['button_color']
-               ?? $api['primary_color']
+        //
+        // The $api arg passed into this function is the raw /site-config
+        // response, which nests styles under $api['website']['styles'].
+        // The flattened keys the theme reads (btn_primary_bg, primary_color,
+        // etc.) come from developer_get_api_settings(). Always resolve via
+        // that helper so the cascade sees the right shape.
+        $style_api = function_exists('developer_get_api_settings')
+            ? developer_get_api_settings()
+            : array();
+        // Belt-and-braces: peek at the nested raw response too in case the
+        // helper hasn't populated for whatever reason (dev site cache, etc.).
+        $raw_styles = ($api['website'] ?? [])['styles'] ?? [];
+        $btn_bg = $style_api['btn_primary_bg']
+               ?? $raw_styles['btn-primary-bg']
+               ?? $style_api['button_color']
+               ?? $style_api['primary_color']
+               ?? $raw_styles['primary-color']
                ?? '#0f172a';
-        $btn_text_color = $api['btn_primary_text'] ?? '#ffffff';
-        $btn_radius = isset($api['btn_radius'])
-            ? (is_numeric($api['btn_radius']) ? $api['btn_radius'] . 'px' : $api['btn_radius'])
-            : '8px';
+        $btn_text_color = $style_api['btn_primary_text']
+               ?? $raw_styles['btn-primary-text']
+               ?? '#ffffff';
+        $btn_radius_raw = $style_api['btn_radius']
+               ?? $raw_styles['btn-radius']
+               ?? '8';
+        $btn_radius = is_numeric($btn_radius_raw) ? ($btn_radius_raw . 'px') : $btn_radius_raw;
         $cta_html = '';
         if ($cta && !empty($cta['type'])) {
             $btn_text = $spark['cta_text'] ?: array(
