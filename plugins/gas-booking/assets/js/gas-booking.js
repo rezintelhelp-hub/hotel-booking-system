@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.76
+ * Version: 4.2.77
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -1762,7 +1762,17 @@ jQuery(document).ready(function($) {
                     altFormat: 'd M Y',
                     disableMobile: true,
                     disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
+                    onReady: function() {
+                        // Same gate the room-widget picker uses so a URL-
+                        // driven pre-fill (?checkin=X&checkout=Y from the
+                        // shop → Book flow) doesn't count as user action
+                        // and doesn't auto-open the checkout calendar.
+                        // Steve 2026-07-11 — the room page opened with the
+                        // calendar popping in the guest's face.
+                        setTimeout(function(){ window._gasPickerReady = true; }, 250);
+                    },
                     onChange: function(selectedDates, dateStr, instance) {
+                        if (!window._gasPickerReady) return;
                         if (selectedDates.length && $checkout.length) {
                             var nextDay = new Date(selectedDates[0]);
                             nextDay.setDate(nextDay.getDate() + 1);
@@ -1808,7 +1818,17 @@ jQuery(document).ready(function($) {
                     altFormat: 'd M Y',
                     disableMobile: true, // Use native picker on mobile for better UX
                     disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
+                    onReady: function() {
+                        // Same gate the room-widget picker uses so a URL-
+                        // driven pre-fill (?checkin=X&checkout=Y from the
+                        // shop → Book flow) doesn't count as user action
+                        // and doesn't auto-open the checkout calendar.
+                        // Steve 2026-07-11 — the room page opened with the
+                        // calendar popping in the guest's face.
+                        setTimeout(function(){ window._gasPickerReady = true; }, 250);
+                    },
                     onChange: function(selectedDates, dateStr, instance) {
+                        if (!window._gasPickerReady) return;
                         if (selectedDates.length && $checkout.length) {
                             var nextDay = new Date(selectedDates[0]);
                             nextDay.setDate(nextDay.getDate() + 1);
