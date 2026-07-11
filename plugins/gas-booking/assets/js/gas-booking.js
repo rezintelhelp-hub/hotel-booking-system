@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.74
+ * Version: 4.2.75
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -1965,10 +1965,19 @@ jQuery(document).ready(function($) {
         if (checkout) params.push('checkout=' + checkout);
         if (guests) params.push('guests=' + guests);
 
-        // Preserve offer/property context from current URL
+        // Preserve offer/property/upsell context from current URL. Without
+        // prefill_upsells the room filter set by the shop CTA (fireside etc.)
+        // dies on Search — Steve 2026-07-11 reported all rooms showing
+        // again after picking dates. event / linked_product likewise
+        // carry per-flow context that must survive Search.
         var curParams = new URLSearchParams(window.location.search);
         if (curParams.get('offer_id')) params.push('offer_id=' + curParams.get('offer_id'));
         if (curParams.get('property_id')) params.push('property_id=' + curParams.get('property_id'));
+        if (curParams.get('prefill_upsells')) params.push('prefill_upsells=' + encodeURIComponent(curParams.get('prefill_upsells')));
+        if (curParams.get('linked_product')) params.push('linked_product=' + encodeURIComponent(curParams.get('linked_product')));
+        if (curParams.get('event')) params.push('event=' + encodeURIComponent(curParams.get('event')));
+        if (curParams.get('spark_ref')) params.push('spark_ref=' + encodeURIComponent(curParams.get('spark_ref')));
+        if (curParams.get('spark_session')) params.push('spark_session=' + encodeURIComponent(curParams.get('spark_session')));
 
         var url = baseUrl;
         if (params.length > 0) {
