@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.80
+ * Version: 4.2.81
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -1554,6 +1554,13 @@ jQuery(document).ready(function($) {
         var isMobileDevice = window.innerWidth <= 768;
         
         if ($('.gas-checkin').length) {
+            // Per-instance "user has actually opened this picker" flag.
+            // Steve 2026-07-11 — the global _gasPickerReady was flipping
+            // true on any picker's onReady, so URL pre-fill on the room
+            // page could then trigger auto-open. Now we only auto-open
+            // the checkout picker if THIS picker's onOpen has fired
+            // (which only happens on real user interaction).
+            var _roomPickerUserOpened = false;
             flatpickr('.gas-checkin', {
                 dateFormat: 'Y-m-d',
                 minDate: 'today',
@@ -1565,14 +1572,12 @@ jQuery(document).ready(function($) {
                 // fetched in showEventBanner so non-matching weekdays/dates grey out.
                 disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
                 onChange: function(selectedDates, dateStr, instance) {
-                    // Auto-open the checkout picker AND switch to the
-                    // Availability tab — but only after the page is past its
-                    // initial pre-fill from URL params (?checkin/checkout).
-                    // _gasPickerReady is flipped true 250ms after onReady, so
-                    // page-load .setDate() calls don't trigger either behaviour.
-                    // Steve 2026-06-29: arriving on the page must NOT pop the
-                    // calendar or flip the tab; only real user interaction does.
-                    if (window._gasPickerReady) {
+                    // Only auto-open the checkout picker if THIS picker was
+                    // opened by the user first. Programmatic setDate() from
+                    // URL pre-fill fires onChange but never onOpen, so the
+                    // flag stays false and this branch is skipped. Steve
+                    // 2026-07-11 fix — global flag caused false positives.
+                    if (_roomPickerUserOpened) {
                         var checkoutInput = instance.element.closest('.gas-room-widget, .gas-booking-card')?.querySelector('.gas-checkout');
                         if (!checkoutInput) checkoutInput = document.querySelector('.gas-checkout');
 
@@ -1605,11 +1610,17 @@ jQuery(document).ready(function($) {
                     if (typeof refreshFlatpickrAvailability === 'function') {
                         refreshFlatpickrAvailability(instance);
                     }
-                    // Allow the page-load pre-fill to settle before treating
-                    // any onChange / onOpen as "real user interaction".
+                    // Keep the global flag for other pickers that still read it
+                    // (search + filter widgets got their own onReady gates in
+                    // an earlier commit). Local _roomPickerUserOpened is what
+                    // actually gates this picker's auto-open behaviour.
                     setTimeout(function() { window._gasPickerReady = true; }, 250);
                 },
                 onOpen: function(_, __, instance) {
+                    // Real user interaction — flag stays true from here on so
+                    // subsequent onChange fires auto-open the checkout picker
+                    // and flip the Availability tab.
+                    _roomPickerUserOpened = true;
                     // Refresh availability shading every reopen (without this,
                     // picking a check-in date and reopening the picker shows
                     // stale shading for the new month).
@@ -1617,10 +1628,10 @@ jQuery(document).ready(function($) {
                         setTimeout(function(){ refreshFlatpickrAvailability(instance); }, 30);
                     }
                     // User clicked the check-in input → switch to the
-                    // Availability tab. Gated by _gasPickerReady so the page-
-                    // load init doesn't trigger this (flatpickr can fire onOpen
-                    // briefly during init in some configurations).
-                    if (window._gasPickerReady) {
+                    // Availability tab. Guarded so the tab only flips when
+                    // the user actually opened this picker (not on any
+                    // programmatic focus).
+                    if (_roomPickerUserOpened) {
                         var availTab = document.querySelector('.gas-tab-btn[data-tab="availability"]');
                         if (availTab && !availTab.classList.contains('active')) availTab.click();
                     }
