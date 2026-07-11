@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.70
+ * Version: 4.2.71
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -10587,10 +10587,55 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 <button type="submit" style="width:100%;padding:0.85rem;border:0;border-radius:8px;background:#0f172a;color:#fff;font-weight:600;font-size:1rem;cursor:pointer;">Continue</button>
                 <p class="gas-portal-error" style="display:none;color:#dc2626;margin:0.75rem 0 0;font-size:0.9rem;"></p>
                 <p style="margin:1.25rem 0 0;text-align:center;font-size:0.85rem;color:#64748b;">
+                    <a href="#" onclick="event.preventDefault(); gasPortalShowDetailsEntry(this);" style="color:#0f172a;text-decoration:underline;">Don't have your reference? Look up by details</a>
+                </p>
+                <p style="margin:0.5rem 0 0;text-align:center;font-size:0.85rem;color:#64748b;">
                     Stayed with us before?
                     <a href="#" onclick="event.preventDefault(); gasPortalShowEmailEntry(this);" style="color:#0f172a;text-decoration:underline;">Sign in with email</a>
                 </p>
             </form>
+
+            <!-- Step 1c: Details lookup (arrival date + last name + mobile OR email).
+                 Steve / 2026-07-11 — solves the "which reference — GAS, OTA, Beds24?"
+                 confusion. Server rate-limits at 5/IP/15min so this can't be
+                 enumerated. Auth chain after match is identical to ref lookup. -->
+            <form class="gas-portal-step gas-portal-details-entry" style="display:none;" onsubmit="return gasPortalDetailsLookup(event, this);">
+                <h3 style="margin:0 0 0.5rem;font-size:1.1rem;">Find your booking</h3>
+                <p style="margin:0 0 1rem;color:#64748b;font-size:0.9rem;">Enter your arrival date, last name, and either your mobile OR the email your host has on file.</p>
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.4rem;font-size:0.9rem;">Arrival date</label>
+                    <input type="date" name="arrival_date" required style="width:100%;padding:0.7rem;border:1px solid #d1d5db;border-radius:8px;font-size:1rem;">
+                </div>
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.4rem;font-size:0.9rem;">Last name on booking</label>
+                    <input type="text" name="last_name" required autocomplete="family-name" style="width:100%;padding:0.7rem;border:1px solid #d1d5db;border-radius:8px;font-size:1rem;">
+                </div>
+                <div style="margin-bottom:0.6rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.4rem;font-size:0.9rem;">Mobile number <span style="color:#94a3b8;font-weight:normal;font-size:0.82rem;">(any format)</span></label>
+                    <input type="tel" name="mobile" autocomplete="tel" placeholder="+44 7911 123456" style="width:100%;padding:0.7rem;border:1px solid #d1d5db;border-radius:8px;font-size:1rem;">
+                </div>
+                <p style="margin:0 0 0.6rem;font-size:0.85rem;color:#94a3b8;text-align:center;">or</p>
+                <div style="margin-bottom:1.5rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.4rem;font-size:0.9rem;">Email</label>
+                    <input type="email" name="email" autocomplete="email" placeholder="you@example.com" style="width:100%;padding:0.7rem;border:1px solid #d1d5db;border-radius:8px;font-size:1rem;">
+                </div>
+                <button type="submit" style="width:100%;padding:0.85rem;border:0;border-radius:8px;background:#0f172a;color:#fff;font-weight:600;font-size:1rem;cursor:pointer;">Find my booking</button>
+                <p class="gas-portal-error" style="display:none;color:#dc2626;margin:0.75rem 0 0;font-size:0.9rem;"></p>
+                <p style="margin:1rem 0 0;text-align:center;font-size:0.85rem;color:#64748b;">
+                    <a href="#" onclick="event.preventDefault(); gasPortalShowLookup(this);" style="color:#0f172a;text-decoration:underline;">← Sign in with booking reference instead</a>
+                </p>
+            </form>
+
+            <!-- Step 1d: Multiple bookings match — pick which stay (rare, e.g.
+                 repeat guest with two nearby stays). -->
+            <div class="gas-portal-step gas-portal-details-options" style="display:none;">
+                <h3 style="margin:0 0 0.5rem;font-size:1.1rem;">We found more than one booking</h3>
+                <p style="margin:0 0 1rem;color:#64748b;font-size:0.9rem;">Pick the one you'd like to open.</p>
+                <div class="gas-portal-details-options-list" style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1rem;"></div>
+                <p style="text-align:center;font-size:0.85rem;color:#64748b;">
+                    <a href="#" onclick="event.preventDefault(); gasPortalShowDetailsEntry(this);" style="color:#0f172a;text-decoration:underline;">← Search again</a>
+                </p>
+            </div>
 
             <!-- Step 1b: Returning guest entry (email) -->
             <form class="gas-portal-step gas-portal-email-entry" style="display:none;" onsubmit="return gasPortalEmailSignin(event, this);">
@@ -10799,6 +10844,83 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             window.gasPortalShowLookup = function(el) {
                 var root = el.closest('.gas-portal');
                 showStep(root, '.gas-portal-lookup');
+            };
+            // Details lookup (arrival date + last name + mobile OR email)
+            // — Steve / 2026-07-11 fallback for guests who don't know
+            // which booking ref to use.
+            window.gasPortalShowDetailsEntry = function(el) {
+                var root = el.closest('.gas-portal');
+                showStep(root, '.gas-portal-details-entry');
+            };
+            window.gasPortalDetailsLookup = function(ev, form) {
+                ev.preventDefault();
+                setError(form, '');
+                var root = $root(form);
+                var apiUrl = root.dataset.apiUrl;
+                var mobile = (form.mobile.value || '').trim();
+                var email  = (form.email.value  || '').trim();
+                if (!mobile && !email) {
+                    setError(form, 'Enter either your mobile number or your email.');
+                    return false;
+                }
+                var body = {
+                    arrival_date: form.arrival_date.value,
+                    last_name:    form.last_name.value.trim(),
+                    mobile:       mobile || undefined,
+                    email:        email  || undefined
+                };
+                fetch(apiUrl + '/api/public/portal/lookup-by-details', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) { setError(form, data.error || 'Lookup failed.'); return; }
+                    // Repeat guest with two nearby stays — show the picker.
+                    if (data.multiple && Array.isArray(data.options)) {
+                        var listEl = root.querySelector('.gas-portal-details-options-list');
+                        listEl.innerHTML = '';
+                        data.options.forEach(function(opt){
+                            var btn = document.createElement('button');
+                            btn.type = 'button';
+                            btn.style.cssText = 'width:100%;text-align:left;padding:0.75rem 1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-family:inherit;font-size:0.9rem;';
+                            btn.innerHTML = '<strong>' + (opt.first_name_initial || '') + ' ' + (form.last_name.value.trim() || '') + '</strong>'
+                                + '<div style="margin-top:0.2rem;color:#64748b;font-size:0.82rem;">Arriving ' + (opt.arrival_date || '')
+                                + (opt.email_hint ? ' · ' + opt.email_hint : '')
+                                + (opt.phone_hint ? ' · ' + opt.phone_hint : '') + '</div>';
+                            btn.addEventListener('click', function(){
+                                // Fill the classic lookup form with this booking's ref and
+                                // proceed via the normal auth path (magic link / SMS).
+                                var refInput = root.querySelector('.gas-portal-lookup input[name=booking_ref]');
+                                var lnInput  = root.querySelector('.gas-portal-lookup input[name=last_name]');
+                                if (refInput) refInput.value = String(opt.id);
+                                if (lnInput)  lnInput.value  = form.last_name.value.trim();
+                                showStep(root, '.gas-portal-lookup');
+                                root.querySelector('.gas-portal-lookup').requestSubmit();
+                            });
+                            listEl.appendChild(btn);
+                        });
+                        showStep(root, '.gas-portal-details-options');
+                        return;
+                    }
+                    // Single match — feed the returned booking_id and last_name into
+                    // the challenge flow, same as the classic lookup would.
+                    STATE.bookingRef = String(data.booking_id);
+                    STATE.lastName   = form.last_name.value.trim();
+                    STATE.authMethod = data.auth_method;
+                    STATE.bookingId  = data.booking_id;
+                    if (data.auth_method === 'phone_last3') {
+                        var hintEl = root.querySelector('.gas-portal-phone-hint');
+                        if (hintEl) hintEl.textContent = data.phone_hint || '';
+                        showStep(root, '.gas-portal-phone-challenge');
+                    } else if (data.auth_method === 'email_magic_link') {
+                        var eh = root.querySelector('.gas-portal-email-hint');
+                        if (eh) eh.textContent = data.email_hint || '';
+                        showStep(root, '.gas-portal-email-challenge');
+                    } else {
+                        setError(form, data.message || 'We could not verify this booking. Please contact your host.');
+                    }
+                }).catch(function(err){ setError(form, 'Network error: ' + err.message); });
+                return false;
             };
 
             window.gasPortalEmailSignin = function(ev, form) {
