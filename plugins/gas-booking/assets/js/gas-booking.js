@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.86
+ * Version: 4.2.87
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -6501,8 +6501,17 @@ jQuery(document).ready(function($) {
                                 html += '<div class="gas-upsell-info">';
                                 html += '<div class="gas-upsell-name">' + upsell.name + '</div>';
                                 if (upsell.description) {
-                                    html += '<div class="gas-upsell-desc gas-upsell-desc-clamp" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px;color:#64748b;line-height:1.45;margin:4px 0 0;">' + upsell.description + '</div>';
-                                    html += '<button type="button" class="gas-upsell-desc-more" onclick="event.stopPropagation()" style="display:inline-block;margin-top:6px;padding:4px 10px;background:#f3f4f6;color:#6d28d9;font-size:12px;font-weight:600;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-family:inherit;">More info ▾</button>';
+                                    // Steve 2026-07-11 — mirror the same
+                                    // string-swap approach as the standard
+                                    // checkout render so this group path also
+                                    // has a visible More info button.
+                                    var _full2 = String(upsell.description);
+                                    var _short2 = _full2.length > 150 ? _full2.substring(0, 150).replace(/\s+\S*$/, '').trim() + '…' : _full2;
+                                    var _esc2 = function(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
+                                    html += '<div class="gas-upsell-desc" data-short="' + _esc2(_short2) + '" data-full="' + _esc2(_full2) + '" style="font-size:13px;color:#64748b;line-height:1.5;margin:4px 0 0;">' + _short2 + '</div>';
+                                    if (_full2.length > 150) {
+                                        html += '<button type="button" class="gas-upsell-desc-more" data-state="short" onclick="event.stopPropagation();var d=this.previousElementSibling;var s=this.dataset.state;if(s===\'short\'){d.textContent=d.dataset.full;this.dataset.state=\'full\';this.textContent=\'Show less ▴\';}else{d.textContent=d.dataset.short;this.dataset.state=\'short\';this.textContent=\'More info ▾\';}" style="display:inline-block;margin-top:6px;padding:4px 10px;background:#f3f4f6;color:#6d28d9;font-size:12px;font-weight:600;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-family:inherit;">More info ▾</button>';
+                                    }
                                 }
                                 html += '<div class="gas-upsell-price">' + upsellPriceCardHtml(upsell, ug.currency, formatPrice) + '</div>';
                                 // Date-bound upsell — single dropdown to pick the date for all tickets.
@@ -8287,6 +8296,11 @@ jQuery(document).ready(function($) {
                 var $more = $(this);
                 if ($more.data('gas-init')) return;
                 $more.data('gas-init', '1');
+                // New string-swap buttons have their own inline onclick +
+                // data-state attribute (Steve 2026-07-11). Skip them —
+                // this legacy handler was hiding them because the short
+                // description doesn't overflow.
+                if (this.dataset && this.dataset.state) return;
                 var $desc = $more.prev('.gas-upsell-desc');
                 if (!$desc.length) return;
                 // Hide when content fits within the clamp (no overflow → toggle pointless).
