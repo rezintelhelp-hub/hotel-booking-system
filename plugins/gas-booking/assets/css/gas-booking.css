@@ -2086,10 +2086,12 @@
     margin: 4px 0 0;
 }
 .gas-upsell-desc-clamp {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    max-height: 2.9em;
 }
 .gas-upsell-desc-more {
     display: inline-block;
