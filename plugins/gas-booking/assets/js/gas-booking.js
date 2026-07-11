@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.81
+ * Version: 4.2.82
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -6493,7 +6493,7 @@ jQuery(document).ready(function($) {
                                 html += '<div class="gas-upsell-name">' + upsell.name + '</div>';
                                 if (upsell.description) {
                                     html += '<div class="gas-upsell-desc gas-upsell-desc-clamp">' + upsell.description + '</div>';
-                                    html += '<a class="gas-upsell-desc-more" onclick="event.stopPropagation()">more</a>';
+                                    html += '<button type="button" class="gas-upsell-desc-more" onclick="event.stopPropagation()">More info ▾</button>';
                                 }
                                 html += '<div class="gas-upsell-price">' + upsellPriceCardHtml(upsell, ug.currency, formatPrice) + '</div>';
                                 // Date-bound upsell — single dropdown to pick the date for all tickets.
@@ -8165,7 +8165,7 @@ jQuery(document).ready(function($) {
                 row += '<div class="gas-upsell-name">' + upsell.name + '</div>';
                 if (upsell.description) {
                     row += '<div class="gas-upsell-desc gas-upsell-desc-clamp">' + upsell.description + '</div>';
-                    row += '<a class="gas-upsell-desc-more" onclick="event.stopPropagation()">more</a>';
+                    row += '<button type="button" class="gas-upsell-desc-more" onclick="event.stopPropagation()">More info ▾</button>';
                 }
                 if (validDates && validDates.length) {
                     var optsHtml2 = validDates.map(function(d){ return '<option value="' + d + '">' + formatUpsellDate(d) + '</option>'; }).join('');
@@ -8275,7 +8275,7 @@ jQuery(document).ready(function($) {
                 $more.on('click', function(e) {
                     e.stopPropagation();
                     var clamped = $desc.toggleClass('gas-upsell-desc-clamp').hasClass('gas-upsell-desc-clamp');
-                    $more.text(clamped ? 'more' : 'less');
+                    $more.text(clamped ? 'More info ▾' : 'Show less ▴');
                 });
             });
         }

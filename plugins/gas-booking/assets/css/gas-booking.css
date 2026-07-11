@@ -2095,15 +2095,21 @@
 }
 .gas-upsell-desc-more {
     display: inline-block;
-    margin-top: 4px;
+    margin-top: 6px;
+    padding: 4px 10px;
+    background: #f3f4f6;
     color: #6d28d9;
     font-size: 12px;
     font-weight: 600;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
     cursor: pointer;
     text-decoration: none;
-    padding: 2px 0;
+    font-family: inherit;
+    line-height: 1.4;
+    transition: background 0.15s ease;
 }
-.gas-upsell-desc-more:hover { text-decoration: underline; }
+.gas-upsell-desc-more:hover { background: #ede9fe; border-color: #ddd6fe; }
 
 .gas-upsell-price {
     font-weight: 700;
