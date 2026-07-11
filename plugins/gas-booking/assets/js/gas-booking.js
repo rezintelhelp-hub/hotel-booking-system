@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.83
+ * Version: 4.2.84
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -3964,17 +3964,26 @@ jQuery(document).ready(function($) {
             qtyControls = '<span class="gas-upsell-qty-value" style="display:none;">0</span>';
         }
 
-        // Long descriptions get clamped to ~2 lines with a "More info"
-        // toggle so the extras grid stays scannable (Steve 2026-07-11 —
-        // Fireside + Extra Guest descriptions were dominating the panel).
-        // Uses -webkit-line-clamp which handles the clamp reliably across
-        // Chrome / Safari / Firefox (line-clamp: 2 with box-orient:vertical).
-        // Anything <=140 chars renders inline as before.
+        // Long descriptions truncated to a first sentence / N chars with a
+        // "More info" toggle that reveals the full text below the button.
+        // Steve 2026-07-11 — went through CSS -webkit-line-clamp variants
+        // that either didn't apply or were being overridden. This
+        // approach truncates the STRING in JavaScript so nothing in CSS
+        // land can defeat it, and the button swaps in the full text via
+        // innerText when clicked.
         var descHtml = '';
         if (upsell.description) {
-            if (upsell.description.length > 140) {
-                descHtml = '<div class="gas-upsell-description gas-upsell-desc-wrap" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + upsell.description + '</div>' +
-                    '<button type="button" class="gas-upsell-more-btn" onclick="event.stopPropagation();var w=this.previousElementSibling;var expanded=w.classList.toggle(\'gas-upsell-desc-open\');if(expanded){w.style.webkitLineClamp=\'unset\';w.style.display=\'block\';}else{w.style.webkitLineClamp=\'2\';w.style.display=\'-webkit-box\';}this.textContent=expanded?\'Show less ▴\':\'More info ▾\';" style="background:transparent;border:0;color:#6d28d9;font-size:0.82rem;font-weight:600;cursor:pointer;padding:2px 0;margin-top:2px;">More info ▾</button>';
+            var fullText = String(upsell.description);
+            if (fullText.length > 140) {
+                var snippetEnd = 140;
+                var firstStop = fullText.indexOf('. ');
+                if (firstStop >= 60 && firstStop <= 180) snippetEnd = firstStop + 1;
+                var snippet = fullText.slice(0, snippetEnd).replace(/\s+$/, '') + '…';
+                var safeFullAttr = fullText.replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+                var safeSnippet = snippet.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+                var safeFullText = fullText.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+                descHtml = '<div class="gas-upsell-description" data-full="' + safeFullAttr + '" data-snippet="' + safeSnippet.replace(/"/g, '&quot;') + '">' + safeSnippet + '</div>' +
+                    '<button type="button" class="gas-upsell-more-btn" data-expanded="0" onclick="event.stopPropagation();var d=this.previousElementSibling;var e=this.dataset.expanded===\'1\';if(e){d.textContent=d.dataset.snippet;this.dataset.expanded=\'0\';this.textContent=\'More info ▾\';}else{d.textContent=d.dataset.full;this.dataset.expanded=\'1\';this.textContent=\'Show less ▴\';}" style="display:inline-block;margin-top:6px;padding:4px 10px;background:#f3f4f6;color:#6d28d9;font-size:12px;font-weight:600;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-family:inherit;">More info ▾</button>';
             } else {
                 descHtml = '<div class="gas-upsell-description">' + upsell.description + '</div>';
             }
