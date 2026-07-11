@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.71
+ * Version: 4.2.72
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -4391,6 +4391,36 @@ class GAS_Booking {
         $meta_title = $spark['meta_title'] ?: $title;
         $meta_desc = $spark['meta_description'] ?: $subtitle;
 
+        // Resolve CTA button — computed early so it's available in BOTH
+        // render paths (section-based Sparks and classic Sparks). Steve /
+        // Marie 2026-07-11 — fireside Spark had a Buy CTA configured but
+        // the button never rendered because the section-based branch
+        // returned before this block ran. Moved up + injected into both.
+        $cta_html = '';
+        if ($cta && !empty($cta['type'])) {
+            $btn_text = $spark['cta_text'] ?: array(
+                'offer' => 'Book this offer',
+                'shop_product' => 'Buy now',
+                'room' => 'Check availability',
+                'external_url' => 'Learn more',
+                'lead_form' => 'Submit',
+                'form_embed' => ''
+            )[$cta['type']];
+            $btn_url = '';
+            if ($cta['type'] === 'offer') $btn_url = $cta['book_url'] ?? '';
+            elseif ($cta['type'] === 'shop_product') $btn_url = $cta['buy_url'] ?? '';
+            elseif ($cta['type'] === 'room') $btn_url = $cta['book_url'] ?? '';
+            elseif ($cta['type'] === 'external_url') $btn_url = $cta['url'] ?? '';
+
+            if ($cta['type'] === 'form_embed' && !empty($cta['html'])) {
+                $cta_html = '<div class="gas-spark-form" style="margin: 2rem auto; max-width: 600px;">' . $cta['html'] . '</div>';
+            } elseif ($cta['type'] === 'lead_form' && !empty($cta['form'])) {
+                $cta_html = $this->gas_spark_render_lead_form($cta['form'], $btn_text);
+            } elseif ($btn_url && $btn_text) {
+                $cta_html = '<a href="' . esc_url($btn_url) . '" class="gas-spark-cta" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); color: white; padding: 1rem 2.5rem; border-radius: 8px; font-weight: 700; font-size: 1.1rem; text-decoration: none; box-shadow: 0 4px 14px rgba(220,38,38,0.3); margin-top: 1.5rem;">' . esc_html($btn_text) . '</a>';
+            }
+        }
+
         // Section-based Sparks (Steve / 2026-07-10). If the Spark has any
         // sections saved via the Section Builder, defer entirely to the
         // theme's own gas_render_page_sections() helper — the same one
@@ -4421,34 +4451,14 @@ class GAS_Booking {
                 }
                 get_header();
                 gas_render_page_sections($spark['slug'], $primary_color);
+                // CTA button below the section stack. Wrapped in a centred
+                // container so it doesn't stretch the full width and clashes
+                // with the theme's own section rendering.
+                if (!empty($cta_html)) {
+                    echo '<div class="gas-spark-cta-wrap" style="padding: 32px 24px 48px; text-align: center; background: #ffffff;">' . $cta_html . '</div>';
+                }
                 get_footer();
                 return;
-            }
-        }
-
-        // Resolve CTA button
-        $cta_html = '';
-        if ($cta && !empty($cta['type'])) {
-            $btn_text = $spark['cta_text'] ?: array(
-                'offer' => 'Book this offer',
-                'shop_product' => 'Buy now',
-                'room' => 'Check availability',
-                'external_url' => 'Learn more',
-                'lead_form' => 'Submit',
-                'form_embed' => ''
-            )[$cta['type']];
-            $btn_url = '';
-            if ($cta['type'] === 'offer') $btn_url = $cta['book_url'] ?? '';
-            elseif ($cta['type'] === 'shop_product') $btn_url = $cta['buy_url'] ?? '';
-            elseif ($cta['type'] === 'room') $btn_url = $cta['book_url'] ?? '';
-            elseif ($cta['type'] === 'external_url') $btn_url = $cta['url'] ?? '';
-
-            if ($cta['type'] === 'form_embed' && !empty($cta['html'])) {
-                $cta_html = '<div class="gas-spark-form" style="margin: 2rem auto; max-width: 600px;">' . $cta['html'] . '</div>';
-            } elseif ($cta['type'] === 'lead_form' && !empty($cta['form'])) {
-                $cta_html = $this->gas_spark_render_lead_form($cta['form'], $btn_text);
-            } elseif ($btn_url && $btn_text) {
-                $cta_html = '<a href="' . esc_url($btn_url) . '" class="gas-spark-cta" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); color: white; padding: 1rem 2.5rem; border-radius: 8px; font-weight: 700; font-size: 1.1rem; text-decoration: none; box-shadow: 0 4px 14px rgba(220,38,38,0.3); margin-top: 1.5rem;">' . esc_html($btn_text) . '</a>';
             }
         }
 
