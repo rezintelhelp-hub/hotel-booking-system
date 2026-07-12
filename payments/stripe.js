@@ -105,4 +105,63 @@ module.exports = {
       brand: charge?.payment_method_details?.card?.brand || null,
     };
   },
+
+  // Save a card without charging — used by /api/admin/bookings/:id/attach-card
+  // (operator adds a card to an existing booking after the fact) and by the
+  // guest-facing capture-card page. Creates a Customer, confirms a SetupIntent
+  // against the passed payment_method, and returns the IDs the caller writes
+  // onto the booking so the balance-due auto-charge cron can pick it up.
+  //
+  // opts: { token: payment_method_id, buyer_email, description, metadata }
+  async storeCardOnly(cfg, opts /*, helpers */) {
+    const stripe = Stripe(cfg.secret_key);
+    // Reuse existing customer if the caller passed one; otherwise create.
+    let customerId = opts.customer_id || null;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: opts.buyer_email || undefined,
+        description: opts.description || undefined,
+        metadata: opts.metadata || {},
+      });
+      customerId = customer.id;
+    }
+    // Attach the payment method to the customer so it survives the SetupIntent.
+    // If it's already attached (e.g. re-run), Stripe throws — swallow that.
+    try {
+      await stripe.paymentMethods.attach(opts.token, { customer: customerId });
+    } catch (e) {
+      if (!/already been attached/i.test(e.message || '')) throw e;
+    }
+    const si = await stripe.setupIntents.create({
+      customer: customerId,
+      payment_method: opts.token,
+      confirm: true,
+      usage: 'off_session',
+      description: opts.description,
+      metadata: opts.metadata || {},
+      payment_method_types: ['card'],
+    });
+    if (si.status !== 'succeeded' && si.status !== 'requires_action') {
+      const err = new Error(`Stripe SetupIntent not succeeded: status=${si.status}`);
+      err.code = 'NOT_SUCCEEDED';
+      err.setup_intent_id = si.id;
+      err.client_secret = si.client_secret;
+      err.status = si.status;
+      throw err;
+    }
+    // Look up card details from the payment method for UI display.
+    const pm = await stripe.paymentMethods.retrieve(opts.token).catch(() => null);
+    return {
+      provider: 'stripe',
+      provider_payment_id: null,            // no charge
+      customer_id: customerId,
+      payment_method_id: opts.token,
+      setup_intent_id: si.id,
+      status: si.status,
+      last4: pm?.card?.last4 || null,
+      brand: pm?.card?.brand || null,
+      exp_month: pm?.card?.exp_month || null,
+      exp_year: pm?.card?.exp_year || null,
+    };
+  },
 };
