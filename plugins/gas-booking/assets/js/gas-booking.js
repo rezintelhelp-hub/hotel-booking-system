@@ -3074,13 +3074,40 @@ jQuery(document).ready(function($) {
                 method: 'GET', cache: false,
                 success: function(resp) {
                     var unavail = [];
+                    var cutoff = [];
                     (resp && resp.availability || []).forEach(function(row) {
                         if (row.is_available === false || row.is_blocked === true || row.has_booking === true) {
                             unavail.push(row.date);
                         }
+                        // Server-authoritative cutoff flag — property min-lead-time
+                        // + same-day cutoff. Shaded like unavail + hard-disabled
+                        // via flatpickr's disable callback so the guest can't
+                        // click through.
+                        if (row.cutoff_blocked === true) cutoff.push(row.date);
                     });
-                    _flatpickrAvailCache[key] = unavail;
-                    shade(unavail);
+                    // Merge cutoff into unavail for shading — guest sees the same
+                    // greyed-out look. Track cutoff separately on window so the
+                    // disable callback (and any newly-inited pickers) can hard-
+                    // block them.
+                    var merged = unavail.slice();
+                    cutoff.forEach(function(iso) { if (merged.indexOf(iso) < 0) merged.push(iso); });
+                    _flatpickrAvailCache[key] = merged;
+                    window._gasCutoffBlockedDates = window._gasCutoffBlockedDates || {};
+                    cutoff.forEach(function(iso) { window._gasCutoffBlockedDates[iso] = true; });
+                    // Push the merged disable callback onto every picker so
+                    // cells are also unclickable (not just visually shaded).
+                    document.querySelectorAll('.gas-checkin, .gas-checkout, .gas-checkin-date, .gas-checkout-date, .gas-search-checkin, .gas-search-checkout, .gas-filter-checkin, .gas-filter-checkout').forEach(function(el) {
+                        if (!el || !el._flatpickr) return;
+                        el._flatpickr.set('disable', [
+                            function(date) {
+                                var iso2 = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+                                if (window._gasCutoffBlockedDates && window._gasCutoffBlockedDates[iso2]) return true;
+                                if (typeof window._gasEventDateDisable === 'function' && window._gasEventDateDisable(date)) return true;
+                                return false;
+                            }
+                        ]);
+                    });
+                    shade(merged);
                 }
             });
         } catch (e) { /* non-fatal */ }
