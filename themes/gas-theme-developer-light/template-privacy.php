@@ -73,6 +73,23 @@ if (empty($page_title)) {
 $updated_date = $wp['updated'] ?? ($legacy['updated_date'] ?? '');
 $effective_date = $wp['effective'] ?? ($legacy['effective_date'] ?? '');
 
+// Casa Magnolia 2026-07-12 — same paste-carries-inline-styles fix as terms.
+// Strip inline style/font attributes from custom-mode HTML so every section
+// inherits the theme's typography. Function-exists guard in case both terms
+// and privacy templates are loaded in the same request (they shouldn't be
+// but the guard is cheap insurance).
+if (!function_exists('gas_privacy_strip_inline_styles')) {
+    function gas_privacy_strip_inline_styles($html) {
+        if ($html === '' || $html === null) return '';
+        $html = preg_replace('/\s+style\s*=\s*"[^"]*"/i', '', $html);
+        $html = preg_replace("/\s+style\s*=\s*'[^']*'/i", '', $html);
+        $html = preg_replace('/<\/?font\b[^>]*>/i', '', $html);
+        $html = preg_replace('/\s+class\s*=\s*"[^"]*"/i', '', $html);
+        $html = preg_replace('/\s+lang\s*=\s*"[^"]*"/i', '', $html);
+        return $html;
+    }
+}
+
 // Build displayable sections array — always auto-generate
 $all_sections = [];
 
@@ -713,7 +730,7 @@ $use_api = true;
                     <?php if (!empty($section['content'])) : ?>
                     <div class="developer-privacy-text">
                         <?php if (!empty($section['html'])) {
-                            echo $section['content'];
+                            echo gas_privacy_strip_inline_styles($section['content']);
                         } else {
                             echo wpautop(esc_html($section['content']));
                         } ?>
@@ -788,5 +805,49 @@ endif;
        // typography now lives in style.css under the 'Long-form pages'
        // section, shared with template-terms.php. Inline overrides here
        // would defeat that single source of truth. ?>
+
+<style>
+/* Casa Magnolia 2026-07-12 — even after PHP strips inline style attribs,
+   some pasted content ships wrapped in <blockquote>, <div>, or <span> that
+   carry their own default browser margins. Force every child of
+   .developer-privacy-text to inherit the theme's typography so all sections
+   render identically regardless of paste source. */
+.developer-privacy-text,
+.developer-privacy-text * {
+    font-family: inherit !important;
+    color: #475569 !important;
+    background: transparent !important;
+}
+.developer-privacy-text p,
+.developer-privacy-text div,
+.developer-privacy-text span,
+.developer-privacy-text blockquote {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    text-indent: 0 !important;
+    font-size: 1rem !important;
+    line-height: 1.8 !important;
+}
+.developer-privacy-text h3,
+.developer-privacy-text h4 {
+    color: #1e293b !important;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+.developer-privacy-text ul,
+.developer-privacy-text ol {
+    padding-left: 1.5rem !important;
+    margin-left: 0 !important;
+}
+.developer-privacy-text li {
+    line-height: 1.8;
+    font-size: 1rem;
+    margin-bottom: 0.4rem;
+}
+.developer-privacy-text strong,
+.developer-privacy-text b {
+    color: #1e293b !important;
+}
+</style>
 
 <?php get_footer(); ?>

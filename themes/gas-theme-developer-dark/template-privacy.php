@@ -73,6 +73,21 @@ if (empty($page_title)) {
 $updated_date = $wp['updated'] ?? ($legacy['updated_date'] ?? '');
 $effective_date = $wp['effective'] ?? ($legacy['effective_date'] ?? '');
 
+// Casa Magnolia 2026-07-12 — strip inline style/font attribs from custom-mode
+// HTML so every section inherits the theme's typography. Same shape as the
+// light theme's stripper. Function-exists guard is cheap insurance.
+if (!function_exists('gas_privacy_strip_inline_styles')) {
+    function gas_privacy_strip_inline_styles($html) {
+        if ($html === '' || $html === null) return '';
+        $html = preg_replace('/\s+style\s*=\s*"[^"]*"/i', '', $html);
+        $html = preg_replace("/\s+style\s*=\s*'[^']*'/i", '', $html);
+        $html = preg_replace('/<\/?font\b[^>]*>/i', '', $html);
+        $html = preg_replace('/\s+class\s*=\s*"[^"]*"/i', '', $html);
+        $html = preg_replace('/\s+lang\s*=\s*"[^"]*"/i', '', $html);
+        return $html;
+    }
+}
+
 // Build displayable sections array — always auto-generate
 $all_sections = [];
 
@@ -713,7 +728,7 @@ $use_api = true;
                     <?php if (!empty($section['content'])) : ?>
                     <div class="developer-privacy-text">
                         <?php if (!empty($section['html'])) {
-                            echo $section['content'];
+                            echo gas_privacy_strip_inline_styles($section['content']);
                         } else {
                             echo wpautop(esc_html($section['content']));
                         } ?>
@@ -817,6 +832,41 @@ endif;
 .developer-privacy-text a {
     color: var(--color-primary, #2563eb);
     text-decoration: underline;
+}
+/* Casa Magnolia 2026-07-12 — even after PHP strips inline style attribs,
+   pasted content ships wrapped in <blockquote>, <div>, <span> that carry
+   their own margins. Force every child of .developer-privacy-text to
+   inherit theme typography so all sections render identically. */
+.developer-privacy-text,
+.developer-privacy-text * {
+    font-family: inherit !important;
+    color: #475569 !important;
+    background: transparent !important;
+}
+.developer-privacy-text p,
+.developer-privacy-text div,
+.developer-privacy-text span,
+.developer-privacy-text blockquote {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    text-indent: 0 !important;
+    font-size: 1rem !important;
+    line-height: 1.8 !important;
+}
+.developer-privacy-text h3,
+.developer-privacy-text h4 {
+    color: #1e293b !important;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+.developer-privacy-text ol,
+.developer-privacy-text ul {
+    padding-left: 1.5rem !important;
+    margin-left: 0 !important;
+}
+.developer-privacy-text strong,
+.developer-privacy-text b {
+    color: #1e293b !important;
 }
 </style>
 

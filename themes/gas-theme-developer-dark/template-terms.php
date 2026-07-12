@@ -84,6 +84,25 @@ function gas_format_text($text) {
     return wpautop(esc_html(trim($text)));
 }
 
+// Casa Magnolia 2026-07-12 — pasted rich content (Word / Google Docs) drags
+// its own inline style attribs / font tags with it, so some sections rendered
+// indented and in a different font from the rest of the page. Strip inline
+// styling from custom-mode content BEFORE it's rendered so every section
+// inherits the theme's typography. Applied to any section flagged as 'html'
+// custom content (auto-generated gas-format-text output is already clean).
+function gas_terms_strip_inline_styles($html) {
+    if ($html === '' || $html === null) return '';
+    // Strip inline style="…" and legacy font tags — these are the two main
+    // vectors carrying non-theme fonts / colours / margins from Word paste.
+    $html = preg_replace('/\s+style\s*=\s*"[^"]*"/i', '', $html);
+    $html = preg_replace("/\s+style\s*=\s*'[^']*'/i", '', $html);
+    $html = preg_replace('/<\/?font\b[^>]*>/i', '', $html);
+    // Empty class/lang attribs left behind — tidy for good measure.
+    $html = preg_replace('/\s+class\s*=\s*"[^"]*"/i', '', $html);
+    $html = preg_replace('/\s+lang\s*=\s*"[^"]*"/i', '', $html);
+    return $html;
+}
+
 if ($terms_source === 'gas-account') {
     // Translations for auto-generated terms sections
     $tt_all = [
@@ -197,7 +216,7 @@ if ($terms_source === 'gas-account') {
                     <?php if (!empty($section['title'])) : ?><h2><?php echo esc_html($section['title']); ?></h2><?php endif; ?>
                     <div class="developer-terms-text">
                         <?php if (!empty($section['html'])) {
-                            echo $section['content'];
+                            echo gas_terms_strip_inline_styles($section['content']);
                         } else {
                             echo gas_format_text($section['content']);
                         } ?>
@@ -273,6 +292,48 @@ endif;
 }
 .developer-terms-text p:last-child {
     margin-bottom: 0;
+}
+/* Casa Magnolia 2026-07-12 — belt for the inline-style stripper (braces).
+   Even after PHP strips style attribs, some pasted content ships wrapped in
+   <blockquote>, <div>, or <span> that carry their own default margins. Force
+   every element inside .developer-terms-text to inherit the theme's
+   typography so all sections look identical. Lists get their padding back
+   explicitly so bullets still render inside the frame. */
+.developer-terms-text,
+.developer-terms-text * {
+    font-family: inherit !important;
+    color: #475569 !important;
+    background: transparent !important;
+}
+.developer-terms-text p,
+.developer-terms-text div,
+.developer-terms-text span,
+.developer-terms-text blockquote {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    text-indent: 0 !important;
+    font-size: 1rem !important;
+    line-height: 1.8 !important;
+}
+.developer-terms-text h3,
+.developer-terms-text h4 {
+    color: #1e293b !important;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+.developer-terms-text ul,
+.developer-terms-text ol {
+    padding-left: 1.5rem !important;
+    margin-left: 0 !important;
+}
+.developer-terms-text li {
+    line-height: 1.8;
+    font-size: 1rem;
+    margin-bottom: 0.4rem;
+}
+.developer-terms-text strong,
+.developer-terms-text b {
+    color: #1e293b !important;
 }
 </style>
 
