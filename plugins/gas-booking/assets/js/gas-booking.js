@@ -1048,6 +1048,68 @@ jQuery(document).ready(function($) {
             if (r.validUntil) el._flatpickr.set('maxDate', r.validUntil);
         });
     }
+
+    // Property booking cutoffs — Phase 2 (Steve / Barbara 2026-07-12).
+    // Fetches the account-wide effective cutoffs and tightens minDate on
+    // every flatpickr instance so the guest never picks a date the server
+    // would reject. Server pre-computes min_arrival_date (YYYY-MM-DD) so
+    // we don't need any tz math on the client.
+    //
+    // Check-in pickers get the raw minDate. Check-out pickers get minDate+1
+    // (they always need at least one night after check-in). If the user
+    // has already opened a check-in date, the existing per-picker
+    // tightening in the checkin onChange still overrides — we only tighten
+    // FLOOR here, we never loosen a picker that's been constrained by a
+    // later selection.
+    function applyBookingCutoffsToPickers() {
+        var c = window._gasBookingCutoffs;
+        if (!c || !c.minDate) return;
+        var minCheckin = c.minDate;
+        var minCheckout = new Date(c.minDate.getTime());
+        minCheckout.setDate(minCheckout.getDate() + 1);
+        document.querySelectorAll('.gas-checkin, .gas-checkin-date, .gas-search-checkin, .gas-filter-checkin').forEach(function(el) {
+            if (!el._flatpickr) return;
+            var current = el._flatpickr.config.minDate;
+            if (!current || new Date(current) < minCheckin) el._flatpickr.set('minDate', minCheckin);
+        });
+        document.querySelectorAll('.gas-checkout, .gas-checkout-date, .gas-search-checkout, .gas-filter-checkout').forEach(function(el) {
+            if (!el._flatpickr) return;
+            var current = el._flatpickr.config.minDate;
+            if (!current || new Date(current) < minCheckout) el._flatpickr.set('minDate', minCheckout);
+        });
+    }
+    // Kick off the fetch as soon as we know the account. Cache on window
+    // so applyBookingCutoffsToPickers() (called after each picker init +
+    // once on fetch resolve) can read it whichever order things fire.
+    (function fetchBookingCutoffs() {
+        if (typeof gasBooking === 'undefined' || !gasBooking.apiUrl || !gasBooking.clientId) return;
+        try {
+            $.ajax({
+                url: gasBooking.apiUrl + '/api/public/booking-cutoffs',
+                method: 'GET',
+                data: { account_id: gasBooking.clientId },
+                success: function(resp) {
+                    if (!resp || !resp.success || !resp.min_arrival_date) return;
+                    // Parse YYYY-MM-DD as local midnight so flatpickr's day
+                    // comparison lines up with the calendar cell.
+                    var p = String(resp.min_arrival_date).split('-').map(function(x){ return parseInt(x, 10); });
+                    if (p.length !== 3 || p.some(isNaN)) return;
+                    var minLocal = new Date(p[0], p[1] - 1, p[2]);
+                    // Only surface a cutoff if it's later than "today" —
+                    // otherwise flatpickr's built-in minDate:'today' already
+                    // covers it and we don't want to force a reset.
+                    var todayMs = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
+                    if (minLocal.getTime() <= todayMs) return;
+                    window._gasBookingCutoffs = {
+                        minDate: minLocal,
+                        minHours: parseInt(resp.min_advance_hours, 10) || 0,
+                        cutoffTime: resp.same_day_cutoff_time || null
+                    };
+                    applyBookingCutoffsToPickers();
+                }
+            });
+        } catch (e) { /* non-fatal — server-side reject is still authoritative */ }
+    })();
     
     // Override with PHP-provided language if available
     if (typeof gasBooking !== 'undefined' && gasBooking.currentLanguage) {
