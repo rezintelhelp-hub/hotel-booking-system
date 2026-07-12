@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.74
+ * Version: 4.2.88
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.87');
+define('GAS_BOOKING_VERSION', '4.2.88');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -562,13 +562,22 @@ class GAS_Booking {
             // who adds an item to the cart hits a 404. Backfilled across all
             // 40 existing multisite clients on 2026-06-17 via WP-CLI; this
             // entry makes future sites auto-create on first sync.
+            //
+            // force_create + skip_menu — Barbara / Charles House 2026-07-12:
+            // her guest hit 404 because Web Builder Menu was never populated
+            // for the site, so page-cart had no 'enabled' field and the loop
+            // skipped it entirely. Cart is a SYSTEM page (multi-room bookings
+            // won't work without it), not an operator choice — so force it
+            // to exist on every sync, and keep it out of the visible nav.
             'page-cart' => array(
                 'slug' => 'cart',
                 'default_title' => 'Cart',
                 'shortcode' => '[gas_cart]',
                 'default_menu_order' => 99,
                 'parent_slug' => null,
-                'template' => ''
+                'template' => '',
+                'force_create' => true,
+                'skip_menu' => true
             ),
         );
         
@@ -604,9 +613,15 @@ class GAS_Booking {
             error_log("GAS Booking: Processing {$section_key} - enabled: " . ($is_enabled ? 'yes' : ($is_explicitly_disabled ? 'no' : 'not set')) . ", title: {$page_title}, menu_order: {$menu_order}, parent: " . ($parent_slug ?: 'none'));
             
             // Only sync if enabled field is explicitly set
-            // This prevents removing pages that weren't configured in GAS Admin yet
-            if ($has_enabled_field) {
-                $this->sync_single_page($config['slug'], $page_title, $config['shortcode'], $is_enabled, $menu_id, $menu_order, $parent_slug, $config['template'] ?? '');
+            // This prevents removing pages that weren't configured in GAS Admin yet.
+            // EXCEPT for pages marked force_create — system pages like /cart/ that
+            // must exist for the booking flow to work regardless of Web Builder Menu
+            // configuration.
+            $forced = !empty($config['force_create']);
+            if ($has_enabled_field || $forced) {
+                $effective_enabled = $forced ? true : $is_enabled;
+                $skip_menu_for_page = !empty($config['skip_menu']);
+                $this->sync_single_page($config['slug'], $page_title, $config['shortcode'], $effective_enabled, $menu_id, $menu_order, $parent_slug, $config['template'] ?? '', $skip_menu_for_page);
             } else {
                 error_log("GAS Booking: Skipping {$section_key} - no enabled field set, leaving as-is");
             }
