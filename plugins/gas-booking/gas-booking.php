@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.91
+ * Version: 4.2.98
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.91');
+define('GAS_BOOKING_VERSION', '4.2.98');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8888,6 +8888,23 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         </div>
                     </div>
                     
+                    <?php
+                    // Resolve site logo for the confirmation banner. Prefer
+                    // WordPress standard custom_logo (set by burger theme +
+                    // client-facing themes), fall back to the URL synced
+                    // from Web Builder header settings, then to nothing.
+                    $conf_logo_url = '';
+                    $conf_logo_id  = get_theme_mod('custom_logo');
+                    if ($conf_logo_id) {
+                        $conf_logo_src = wp_get_attachment_image_src($conf_logo_id, 'medium');
+                        if ($conf_logo_src && !empty($conf_logo_src[0])) {
+                            $conf_logo_url = $conf_logo_src[0];
+                        }
+                    }
+                    if (empty($conf_logo_url)) {
+                        $conf_logo_url = get_option('gas_custom_logo_url', '');
+                    }
+                    ?>
                     <!-- Confirmation (shown after booking) -->
                     <div class="gas-checkout-confirmation" style="display:none;">
                         <div class="gas-confirmation-overlay">
@@ -8897,8 +8914,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <h2 class="gas-confirmation-title">Booking Confirmed!</h2>
                                     <p class="gas-confirmation-subtitle">Thank you for your reservation</p>
                                 </div>
-                                
+
                                 <div class="gas-confirmation-card">
+                                    <?php if (!empty($conf_logo_url)): ?>
+                                    <div class="gas-conf-brand-banner">
+                                        <img src="<?php echo esc_url($conf_logo_url); ?>" alt="" class="gas-conf-brand-logo">
+                                    </div>
+                                    <?php endif; ?>
                                     <div class="gas-confirmation-ref-box">
                                         <span class="gas-ref-label">Booking Reference</span>
                                         <span class="gas-booking-ref"></span>
@@ -9205,7 +9227,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         @keyframes scaleIn { from { transform: scale(0); } to { transform: scale(1); } }
         .gas-confirmation-title { font-size: 32px; font-weight: 700; color: #1e293b; margin: 0 0 8px 0; }
         .gas-confirmation-subtitle { font-size: 18px; color: #64748b; margin: 0; }
-        .gas-confirmation-card { background: <?php echo esc_attr($summary_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 32px; width: 100%; max-width: 480px; text-align: left; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+        .gas-confirmation-card { background: <?php echo esc_attr($summary_bg); ?>; border-radius: <?php echo esc_attr($card_radius); ?>px; padding: 32px; width: 100%; max-width: 480px; text-align: left; box-shadow: 0 10px 40px rgba(0,0,0,0.1); overflow: hidden; }
+        .gas-conf-brand-banner { background: <?php echo esc_attr($button_color); ?>; margin: -32px -32px 24px; padding: 22px 24px; text-align: center; border-radius: <?php echo esc_attr($card_radius); ?>px <?php echo esc_attr($card_radius); ?>px 0 0; }
+        .gas-conf-brand-logo { max-height: 60px; width: auto; max-width: 240px; object-fit: contain; display: inline-block; }
         .gas-confirmation-ref-box { background: <?php echo esc_attr($button_color); ?>14; border: 2px solid <?php echo esc_attr($button_color); ?>; border-radius: <?php echo intval($btn_radius); ?>px; padding: 20px; text-align: center; margin-bottom: 24px; }
         .gas-ref-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: <?php echo esc_attr($button_color); ?>; margin-bottom: 4px; }
         .gas-booking-ref { font-size: 28px; font-weight: 700; color: <?php echo esc_attr($button_color); ?>; word-break: break-all; }

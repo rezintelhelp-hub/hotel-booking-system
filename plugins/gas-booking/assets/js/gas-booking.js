@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.87
+ * Version: 4.2.98
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -49,6 +49,38 @@ jQuery(document).ready(function($) {
             if (btn) btn.remove();
         } catch (e) {}
     }
+    // After a successful checkout, nudge the guest back to /cart/ if any
+    // items are still in gas_cart_v1 — that means they had a split-cart
+    // with multiple stays and only paid for one. Injected onto the
+    // confirmation panel so it's the first thing they see after the ✓.
+    function gasShowRemainingStaysNudge() {
+        try {
+            var raw = localStorage.getItem(GAS_CART_KEY);
+            if (!raw) return;
+            var cart = JSON.parse(raw);
+            var items = cart && Array.isArray(cart.items) ? cart.items : [];
+            if (!items.length) return;
+            // Count remaining unique stays.
+            var stayKeys = {};
+            items.forEach(function(i) {
+                var k = (i.checkin || '') + '|' + (i.checkout || '');
+                stayKeys[k] = true;
+            });
+            var remaining = Object.keys(stayKeys).length;
+            if (remaining < 1) return;
+            var $conf = jQuery('.gas-checkout-confirmation').first();
+            if (!$conf.length) return;
+            $conf.find('.gas-cart-remaining-stays').remove();
+            var stayWord = remaining === 1 ? '1 more stay' : (remaining + ' more stays');
+            var html =
+                '<div class="gas-cart-remaining-stays" style="margin:16px auto 24px;padding:16px 20px;background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;color:#78350f;font-size:0.95rem;line-height:1.5;text-align:center;max-width:520px;">' +
+                    '<strong>You have ' + stayWord + ' in your basket.</strong><br>' +
+                    '<a href="/cart/" style="display:inline-block;margin-top:10px;padding:10px 18px;background:#d97706;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Return to cart to complete ' + (remaining === 1 ? 'it' : 'them') + ' →</a>' +
+                '</div>';
+            $conf.find('.gas-confirmation-page, .gas-confirmation-card').first().prepend(html);
+        } catch (e) {}
+    }
+    window.gasShowRemainingStaysNudge = gasShowRemainingStaysNudge;
     // Build the URL that opens /checkout/?cart_only=1 — the SAME checkout
     // surface the room flow uses, just in cart-only mode (rooms picker
     // skipped, inline Stripe Elements payment). PHP gas_checkout_shortcode
@@ -201,11 +233,39 @@ jQuery(document).ready(function($) {
             }
         } catch (e) {}
     }, 0);
+    // Split-cart / stay grouping. Items in gas_cart_v1 are stored flat,
+    // but the cart page groups them by (checkin, checkout) at render time
+    // and gives each stay its own Continue button. When the guest hits
+    // Continue on one stay we stash that stay's dates as the "active
+    // stay". On payment success the confirmation flow calls
+    // clearActiveStay(), which wipes ONLY the paid items and leaves the
+    // other stays intact for a follow-up checkout. If no marker is set
+    // (single-stay case or legacy caller) the behaviour falls back to
+    // clearing the whole cart, so nothing else changes.
+    var GAS_ACTIVE_STAY_KEY = 'gas_cart_active_stay';
+    function gasCartMarkStayActive(stay) {
+        try { localStorage.setItem(GAS_ACTIVE_STAY_KEY, JSON.stringify(stay || null)); } catch (e) {}
+    }
+    function gasCartClearActiveStay() {
+        var active = null;
+        try { active = JSON.parse(localStorage.getItem(GAS_ACTIVE_STAY_KEY) || 'null'); } catch (e) {}
+        try { localStorage.removeItem(GAS_ACTIVE_STAY_KEY); } catch (e) {}
+        if (!active || !active.checkin || !active.checkout) return gasCartClear();
+        var cart = gasCartRead();
+        if (!cart || !Array.isArray(cart.items)) return gasCartClear();
+        cart.items = cart.items.filter(function(i) {
+            return !(i.checkin === active.checkin && i.checkout === active.checkout);
+        });
+        if (!cart.items.length) return gasCartClear();
+        gasCartWrite(cart);
+    }
     window.gasCart = {
-        read:        gasCartRead,
-        write:       gasCartWrite,
-        clear:       gasCartClear,
-        checkoutUrl: gasCartCheckoutUrl,
+        read:            gasCartRead,
+        write:           gasCartWrite,
+        clear:           gasCartClear,
+        markStayActive:  gasCartMarkStayActive,
+        clearActiveStay: gasCartClearActiveStay,
+        checkoutUrl:     gasCartCheckoutUrl,
         addItem: function(item) {
             var cart = gasCartRead() || { items: [], created_at: Date.now() };
             if (!Array.isArray(cart.items)) cart.items = [];
@@ -217,6 +277,50 @@ jQuery(document).ready(function($) {
             // Dorm produce two cart rows and trigger the multi-room
             // group-booking flow at checkout.
             if (item.type === 'room') {
+                var overlapsDates = function(i) {
+                    if (!i.checkin || !i.checkout || !item.checkin || !item.checkout) return true;
+                    return i.checkin < item.checkout && i.checkout > item.checkin;
+                };
+                // Exclusive Hire mutex — unit_role='exclusive_hire' rents
+                // the whole property, so it must never share a cart with
+                // another room on overlapping dates.
+                if (item.unit_role === 'exclusive_hire') {
+                    var conflict = cart.items.find(function(i) {
+                        return i.type === 'room'
+                            && String(i.id) !== String(item.id)
+                            && overlapsDates(i);
+                    });
+                    if (conflict) {
+                        try { alert('Exclusive Hire books the whole property. Please remove the other rooms from your basket first.'); } catch (e) {}
+                        return { rejected: true, reason: 'exclusive_hire_blocked' };
+                    }
+                } else {
+                    var exConflict = cart.items.find(function(i) {
+                        return i.type === 'room'
+                            && i.unit_role === 'exclusive_hire'
+                            && overlapsDates(i);
+                    });
+                    if (exConflict) {
+                        try { alert('You already have Exclusive Hire in your basket for those nights. Remove it to book individual rooms.'); } catch (e) {}
+                        return { rejected: true, reason: 'blocked_by_exclusive_hire' };
+                    }
+                }
+                // Physical inventory guard. bookable_units.quantity is the
+                // number of interchangeable units under this listing —
+                // 1 for a private wheelchair room, N for an N-bed dorm.
+                // Reject a push that would exceed inventory for any
+                // overlapping night. Non-overlapping dates always OK.
+                var inv = parseInt(item.inventory_qty) || 1;
+                var overlaps = cart.items.filter(function(i) {
+                    return i.type === 'room' && String(i.id) === String(item.id) && overlapsDates(i);
+                });
+                if (overlaps.length >= inv) {
+                    var msg = inv === 1
+                        ? 'This room is already in your basket for those nights.'
+                        : 'All available units of this room are already in your basket for those nights.';
+                    try { alert(msg); } catch (e) {}
+                    return { rejected: true, reason: 'inventory' };
+                }
                 cart.items.push(item);
             } else {
                 var match = cart.items.find(function(i) {
@@ -322,6 +426,43 @@ jQuery(document).ready(function($) {
         function fmt(c) {
             return c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'USD' ? '$' : (c + ' ');
         }
+        // Country → BCP-47 locale for date formatting. Property address
+        // country from /api/public/property/:id decides what the checkin
+        // / checkout strings look like — UK property gets DD/MM/YYYY,
+        // US gets MM/DD/YYYY, DE gets DD.MM.YYYY, etc. Falls back to the
+        // module-level dateLocale (site language) if fetch fails.
+        var COUNTRY_TO_LOCALE = {
+            US:'en-US', GB:'en-GB', IE:'en-IE', AU:'en-AU', NZ:'en-NZ', CA:'en-CA',
+            DE:'de-DE', AT:'de-AT', CH:'de-CH', LI:'de-LI',
+            FR:'fr-FR', BE:'fr-BE', LU:'fr-LU', MC:'fr-MC',
+            ES:'es-ES', MX:'es-MX', AR:'es-AR', CL:'es-CL', CO:'es-CO', PE:'es-PE',
+            IT:'it-IT', SM:'it-IT', VA:'it-IT',
+            NL:'nl-NL', PT:'pt-PT', BR:'pt-BR',
+            JP:'ja-JP', KR:'ko-KR', CN:'zh-CN', HK:'zh-HK', TW:'zh-TW',
+            PL:'pl-PL', CZ:'cs-CZ', SK:'sk-SK', HU:'hu-HU',
+            SE:'sv-SE', NO:'nb-NO', DK:'da-DK', FI:'fi-FI', IS:'is-IS',
+            GR:'el-GR', TR:'tr-TR', RU:'ru-RU', UA:'uk-UA', RO:'ro-RO', BG:'bg-BG', HR:'hr-HR'
+        };
+        var cartDateLocale = null;
+        var cartLocaleFetched = false;
+        function fetchCartLocaleThenRedraw(propertyId) {
+            if (cartLocaleFetched || !propertyId) return;
+            cartLocaleFetched = true;
+            fetch(apiUrl + '/api/public/property/' + encodeURIComponent(propertyId), { credentials: 'omit' })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    var cc = ((d && (d.country || d.country_code)) || '').toString().toUpperCase();
+                    cartDateLocale = COUNTRY_TO_LOCALE[cc] || dateLocale;
+                    draw();
+                })
+                .catch(function() { cartDateLocale = dateLocale; draw(); });
+        }
+        function fmtCartDate(iso) {
+            if (!iso) return '';
+            var d = new Date(iso);
+            if (isNaN(d)) return iso;
+            return d.toLocaleDateString(cartDateLocale || dateLocale, { day: 'numeric', month: 'short', year: 'numeric' });
+        }
         // Per-pageload cache of the live max for each item, keyed by the
         // item's (type, id, checkin, checkout). Set on first availability
         // fetch; reused on every draw() so the badge can be re-rendered
@@ -384,31 +525,85 @@ jQuery(document).ready(function($) {
             }
             $page.find('.gas-cart-empty').hide();
             $page.find('.gas-cart-footer').show();
-            var total = 0;
+            // Kick off the country lookup on first draw. When it resolves,
+            // draw() is called again with cartDateLocale populated.
+            var propertyId = (cart && cart.property_id) || (items[0] && items[0].property_id) || null;
+            if (!cartLocaleFetched) fetchCartLocaleThenRedraw(propertyId);
+            // Group items into stays by (checkin, checkout). Each stay is
+            // its own visible "cart" with its own Continue button. Rows
+            // preserve their ORIGINAL flat index in data-idx so the
+            // qty-plus / qty-minus / remove handlers work unchanged.
+            var stays = [];
+            var stayByKey = {};
             items.forEach(function(item, i) {
+                var key = (item.checkin || '') + '|' + (item.checkout || '');
+                if (!stayByKey[key]) {
+                    stayByKey[key] = { checkin: item.checkin || '', checkout: item.checkout || '', items: [] };
+                    stays.push(stayByKey[key]);
+                }
+                stayByKey[key].items.push({ item: item, idx: i });
+            });
+            var multiStay = stays.length >= 2;
+            if (multiStay) {
+                $items.append(
+                    '<div class="gas-cart-multistay-notice" style="margin-bottom:14px;padding:12px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e3a8a;font-size:0.9rem;line-height:1.5;">' +
+                        '<strong>ℹ️ You have ' + stays.length + ' separate stays with different dates.</strong> ' +
+                        'Each one is booked and paid for independently — after paying for one, you\'ll come back here to complete the next.' +
+                    '</div>'
+                );
+            }
+            function renderRowHtml(row) {
+                var item = row.item, i = row.idx;
                 var qty = item.qty || 1;
                 var price = item.price || 0;
                 var lineTotal = qty * price;
-                total += lineTotal;
                 var sub = '';
-                if (item.checkin && item.checkout) sub = item.checkin + ' → ' + item.checkout;
-                var html =
-                    '<div class="gas-cart-row" data-idx="' + i + '" style="display:flex;align-items:center;gap:10px;padding:14px 0;border-top:1px solid #e2e8f0;">' +
-                      '<div style="flex:1;min-width:0;">' +
-                        '<div style="font-weight:600;color:#0f172a;font-size:1rem;">' + (item.label || (item.type + ' ' + item.id)) + '</div>' +
-                        (sub ? '<div style="font-size:0.85rem;color:#64748b;margin-top:2px;">' + sub + '</div>' : '') +
-                      '</div>' +
-                      '<div style="display:inline-flex;align-items:center;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;">' +
-                        '<button type="button" class="gas-cart-qty-minus" aria-label="Decrease" style="width:30px;height:30px;border:none;background:#f8fafc;cursor:pointer;font-weight:700;">−</button>' +
-                        '<span style="min-width:28px;text-align:center;font-weight:600;font-size:0.95rem;">' + qty + '</span>' +
-                        '<button type="button" class="gas-cart-qty-plus" aria-label="Increase" style="width:30px;height:30px;border:none;background:#f8fafc;cursor:pointer;font-weight:700;">+</button>' +
-                      '</div>' +
-                      '<span style="min-width:72px;text-align:right;font-weight:700;color:#0f172a;font-size:1rem;">' + sym + lineTotal.toFixed(2) + '</span>' +
-                      '<button type="button" class="gas-cart-remove" aria-label="Remove" style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:1.3rem;line-height:1;padding:0 4px;">×</button>' +
-                    '</div>';
-                $items.append(html);
+                if (item.checkin && item.checkout) sub = fmtCartDate(item.checkin) + ' → ' + fmtCartDate(item.checkout);
+                return '<div class="gas-cart-row" data-idx="' + i + '" style="display:flex;align-items:center;gap:10px;padding:14px 0;border-top:1px solid #e2e8f0;">' +
+                          '<div style="flex:1;min-width:0;">' +
+                            '<div style="font-weight:600;color:#0f172a;font-size:1rem;">' + (item.label || (item.type + ' ' + item.id)) + '</div>' +
+                            (sub ? '<div style="font-size:0.85rem;color:#64748b;margin-top:2px;">' + sub + '</div>' : '') +
+                          '</div>' +
+                          '<div style="display:inline-flex;align-items:center;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;">' +
+                            '<button type="button" class="gas-cart-qty-minus" aria-label="Decrease" style="width:30px;height:30px;border:none;background:#f8fafc;cursor:pointer;font-weight:700;">−</button>' +
+                            '<span style="min-width:28px;text-align:center;font-weight:600;font-size:0.95rem;">' + qty + '</span>' +
+                            '<button type="button" class="gas-cart-qty-plus" aria-label="Increase" style="width:30px;height:30px;border:none;background:#f8fafc;cursor:pointer;font-weight:700;">+</button>' +
+                          '</div>' +
+                          '<span style="min-width:72px;text-align:right;font-weight:700;color:#0f172a;font-size:1rem;">' + sym + lineTotal.toFixed(2) + '</span>' +
+                          '<button type="button" class="gas-cart-remove" aria-label="Remove" style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:1.3rem;line-height:1;padding:0 4px;">×</button>' +
+                        '</div>';
+            }
+            var total = 0;
+            stays.forEach(function(stay, stayIdx) {
+                var stayTotal = stay.items.reduce(function(s, r) { return s + ((r.item.qty || 1) * (r.item.price || 0)); }, 0);
+                total += stayTotal;
+                if (multiStay) {
+                    var headerDates = (stay.checkin && stay.checkout)
+                        ? fmtCartDate(stay.checkin) + ' → ' + fmtCartDate(stay.checkout)
+                        : 'Extras';
+                    var stayCiAttr = (stay.checkin || '').replace(/"/g, '');
+                    var stayCoAttr = (stay.checkout || '').replace(/"/g, '');
+                    var html = '<div class="gas-cart-stay" data-checkin="' + stayCiAttr + '" data-checkout="' + stayCoAttr + '" style="margin-top:' + (stayIdx ? '18px' : '0') + ';padding:14px;border:1px solid #e2e8f0;border-radius:10px;background:#fafafa;">' +
+                        '<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:6px;">' +
+                            '<div style="font-weight:700;font-size:1rem;color:#0f172a;">Stay ' + (stayIdx + 1) + ' · ' + headerDates + '</div>' +
+                            '<div style="font-weight:700;color:#0f172a;">' + sym + stayTotal.toFixed(2) + '</div>' +
+                        '</div>' +
+                        '<div class="gas-cart-stay-rows">' + stay.items.map(renderRowHtml).join('') + '</div>' +
+                        '<button type="button" class="gas-cart-stay-continue" data-checkin="' + stayCiAttr + '" data-checkout="' + stayCoAttr + '" style="display:block;width:100%;margin-top:12px;padding:12px;background:' + btnColor + ';color:#fff;border:none;border-radius:8px;font-size:0.95rem;font-weight:600;cursor:pointer;">Continue — ' + headerDates + '</button>' +
+                        '</div>';
+                    $items.append(html);
+                } else {
+                    stay.items.forEach(function(row) { $items.append(renderRowHtml(row)); });
+                }
             });
             $page.find('.gas-cart-total').text(sym + total.toFixed(2));
+            // Footer Continue button: single-stay carts use it as today,
+            // multi-stay carts hide it (per-stay buttons handle checkout).
+            if (multiStay) {
+                $page.find('.gas-cart-checkout-btn').hide().prop('disabled', false).css('opacity', '').css('cursor', '');
+            } else {
+                $page.find('.gas-cart-checkout-btn').show();
+            }
             // Add-room link forwards dates so /book-now/ lands on the same
             // window. Use the LAST item added, not the first — the guest is
             // most likely extending their most recent action (e.g. just
@@ -461,31 +656,44 @@ jQuery(document).ready(function($) {
                 return true;
             }
             var anyUnavailable = false;
+            var unavailableByStay = {};   // (ci|co) → true if any item in that stay is sold out
             var pending = items.length;
             if (pending === 0) return;
+            function onItemChecked(item, i, stillOk) {
+                if (!stillOk) {
+                    anyUnavailable = true;
+                    unavailableByStay[(item.checkin || '') + '|' + (item.checkout || '')] = true;
+                }
+                pending--;
+                if (pending !== 0) return;
+                if (anyUnavailable) {
+                    $page.find('.gas-cart-checkout-btn').prop('disabled', true).css('opacity', '0.5').css('cursor', 'not-allowed').attr('title', 'Remove unavailable items before continuing');
+                }
+                // In multi-stay mode also disable each stay's own Continue
+                // button when any of its rows is unavailable.
+                if (multiStay) {
+                    $page.find('.gas-cart-stay-continue').each(function() {
+                        var $b = $(this);
+                        var key = ($b.data('checkin') || '') + '|' + ($b.data('checkout') || '');
+                        if (unavailableByStay[key]) {
+                            $b.prop('disabled', true).css('opacity', '0.5').css('cursor', 'not-allowed').attr('title', 'Remove unavailable items in this stay before continuing');
+                        }
+                    });
+                }
+            }
             items.forEach(function(item, i) {
                 var key = availKey(item);
                 if (availMaxByKey.hasOwnProperty(key)) {
-                    // Cached from a prior draw — just re-render the badge
-                    // with the current qty.
                     var cachedMax = availMaxByKey[key];
                     var stillOk = renderAvailBadge(item, i, cachedMax, '');
-                    if (!stillOk) anyUnavailable = true;
-                    pending--;
-                    if (pending === 0 && anyUnavailable) {
-                        $page.find('.gas-cart-checkout-btn').prop('disabled', true).css('opacity', '0.5').css('cursor', 'not-allowed').attr('title', 'Remove unavailable items before continuing');
-                    }
+                    onItemChecked(item, i, stillOk);
                     return;
                 }
                 checkItemAvailability(item).then(function(r) {
                     var max = r.ok ? (r.max == null ? Infinity : r.max) : 0;
                     availMaxByKey[key] = max;
                     var stillOk = renderAvailBadge(item, i, max, r.msg);
-                    if (!stillOk) anyUnavailable = true;
-                    pending--;
-                    if (pending === 0 && anyUnavailable) {
-                        $page.find('.gas-cart-checkout-btn').prop('disabled', true).css('opacity', '0.5').css('cursor', 'not-allowed').attr('title', 'Remove unavailable items before continuing');
-                    }
+                    onItemChecked(item, i, stillOk);
                 });
             });
         }
@@ -516,42 +724,40 @@ jQuery(document).ready(function($) {
             window.gasCart.write(cart);
             draw();
         });
-        $page.on('click', '.gas-cart-checkout-btn', function() {
-            var cart = (window.gasCart && window.gasCart.read()) || null;
-            var items = (cart && Array.isArray(cart.items)) ? cart.items : [];
-            // Smart routing:
-            //   2+ rooms   → existing group-booking checkout (?group=1).
-            //               Reuses the proven multi-room UI + the
-            //               /api/public/create-group-booking server flow,
-            //               which already handles N rooms with shared lead
-            //               guest, single Stripe payment, and pool-model
-            //               inventory (via the bookings INSERT trigger).
-            //   1 room     → standard single-room checkout, upsells pre-
-            //               ticked at Extras step.
-            //   No rooms   → cart-only flow (?from_cart=1).
+        // Dispatch one stay's items (or the whole cart when it's a single
+        // stay) into the existing checkout flow — group, single-room, or
+        // cart-only. Callers pass the subset of items for the stay being
+        // checked out. Downstream server/checkout code is unchanged; it
+        // sees a normal same-dates cart. markStayActive stashes the dates
+        // so the post-payment cleanup only removes the paid stay from
+        // gas_cart_v1, leaving other stays intact.
+        function dispatchCheckoutFor(items, cartCurrency) {
+            if (!items || !items.length) return;
             var rooms = items.filter(function(i) { return i.type === 'room'; });
             var upsells = items.filter(function(i) { return i.type === 'upsell'; });
-            // Total room qty across all rows — handles both "2 separate
-            // dorm-bed rows" and "1 row with qty 2" the same way (multi-
-            // room = 2+ beds either way).
+            var stayCi = (rooms[0] && rooms[0].checkin)  || (upsells[0] && upsells[0].checkin)  || '';
+            var stayCo = (rooms[0] && rooms[0].checkout) || (upsells[0] && upsells[0].checkout) || '';
+            if (stayCi && stayCo && window.gasCart) {
+                window.gasCart.markStayActive({ checkin: stayCi, checkout: stayCo });
+            }
             var totalRoomQty = rooms.reduce(function(s, r) { return s + (r.qty || 1); }, 0);
+            //   2+ rooms → group-booking checkout (?group=1)
+            //   1 room   → single-room checkout, upsells pre-ticked
+            //   0 rooms  → cart-only flow (?from_cart=1)
             if (totalRoomQty >= 2) {
-                // Group flow requires all rooms share dates. Refuse with a
-                // clear message rather than silently picking one set.
+                // Split-cart rendering guarantees same dates within a stay;
+                // this check is a defensive assertion.
                 var firstCi = rooms[0].checkin, firstCo = rooms[0].checkout;
                 var datesMatch = rooms.every(function(r) {
                     return r.checkin === firstCi && r.checkout === firstCo;
                 });
                 if (!datesMatch) {
-                    alert('All rooms in your cart must share the same check-in and check-out dates. Please update the cart before continuing.');
+                    alert('All rooms in this stay must share the same check-in and check-out dates.');
                     return;
                 }
-                // Bridge new cart → legacy gas_cart format the group
-                // checkout reads from localStorage[gas_cart]. Unroll any
-                // room row with qty>1 into N separate legacy entries so
-                // the group flow renders N rooms and submits N booking
-                // rows. Pool model handles the per-bed inventory decrement
-                // via the bookings INSERT trigger.
+                // Bridge new cart → legacy gas_cart the group checkout
+                // reads. Unroll qty>1 rows into N legacy entries so the
+                // group flow submits N booking rows.
                 var legacyCart = [];
                 rooms.forEach(function(r) {
                     var qty = r.qty || 1;
@@ -563,7 +769,7 @@ jQuery(document).ready(function($) {
                             checkin:    r.checkin,
                             checkout:   r.checkout,
                             totalPrice: r.price || 0,
-                            currency:   r.currency || cart.currency || 'GBP',
+                            currency:   r.currency || cartCurrency || 'GBP',
                             propertyId: r.property_id,
                             guests:     r.guests || 1,
                             adults:     r.adults || 1,
@@ -573,15 +779,6 @@ jQuery(document).ready(function($) {
                     }
                 });
                 try { localStorage.setItem('gas_cart', JSON.stringify(legacyCart)); } catch (e) {}
-                // Group flow already handles upsells end-to-end: the
-                // /api/public/client/:clientId/upsells endpoint returns
-                // bike storage (via upsells.linked_shop_product_id), the
-                // Extras step renders the card, ?prefill_upsells= pre-
-                // ticks it, recalcGroupDeposit rolls the price into the
-                // group total, and create-group-booking auto-allocates the
-                // companion cabinet on submit. Forward the cart's upsell
-                // IDs (and qty when there's exactly one) the same way the
-                // single-room path does.
                 var groupUrl = checkoutUrl;
                 var sepG = groupUrl.indexOf('?') === -1 ? '?' : '&';
                 groupUrl += sepG + 'group=1';
@@ -617,6 +814,23 @@ jQuery(document).ready(function($) {
             }
             var sep2 = checkoutUrl.indexOf('?') === -1 ? '?' : '&';
             window.location.href = checkoutUrl + sep2 + 'from_cart=1';
+        }
+        $page.on('click', '.gas-cart-checkout-btn', function() {
+            var cart = (window.gasCart && window.gasCart.read()) || null;
+            var items = (cart && Array.isArray(cart.items)) ? cart.items : [];
+            dispatchCheckoutFor(items, cart && cart.currency);
+        });
+        $page.on('click', '.gas-cart-stay-continue', function() {
+            var $btn = $(this);
+            if ($btn.prop('disabled')) return;
+            var ci = $btn.data('checkin') || '';
+            var co = $btn.data('checkout') || '';
+            var cart = (window.gasCart && window.gasCart.read()) || null;
+            var items = (cart && Array.isArray(cart.items)) ? cart.items : [];
+            var subset = items.filter(function(i) {
+                return (i.checkin || '') === ci && (i.checkout || '') === co;
+            });
+            dispatchCheckoutFor(subset, cart && cart.currency);
         });
         $page.on('click', '.gas-cart-clear-all', function(e) {
             e.preventDefault();
@@ -2119,6 +2333,16 @@ jQuery(document).ready(function($) {
                         if (response.unit.payment_account_id) {
                             $('.gas-room-widget').data('payment-account-id', response.unit.payment_account_id);
                         }
+                        // Physical inventory count — used by gasCart.addItem
+                        // to block over-adding a unique-inventory room
+                        // (e.g. quantity=1 wheelchair room) for the same
+                        // nights. Pool dorms with quantity=N still allow
+                        // up to N adds for the same nights.
+                        $('.gas-room-widget').data('quantity', parseInt(response.unit.quantity) || 1);
+                        // unit_role='exclusive_hire' → whole-property rental,
+                        // mutually exclusive with other rooms on overlapping
+                        // dates. gasCart.addItem enforces the mutex.
+                        $('.gas-room-widget').data('unit-role', response.unit.unit_role || '');
                         // Pre-load reviews to determine if tab should be shown
                         preloadReviewsCheck(unitId);
                     });
@@ -4287,10 +4511,12 @@ jQuery(document).ready(function($) {
         // Single cart — same shape as the bike-storage write. Type 'room'
         // lets the cart + checkout tell the two apart.
         if (window.gasCart && window.gasCart.addItem) {
-            window.gasCart.addItem({
+            var addResult = window.gasCart.addItem({
                 type: 'room',
                 id: $roomWidget.data('unit-id'),
                 qty: 1,
+                inventory_qty: parseInt($roomWidget.data('quantity')) || 1,
+                unit_role: $roomWidget.data('unit-role') || '',
                 price: totalPrice,
                 price_per_night: perNight,
                 nights: nights,
@@ -4303,6 +4529,7 @@ jQuery(document).ready(function($) {
                 property_id: $roomWidget.data('property-id'),
                 currency: resolveCurrency($roomWidget.data('currency'))
             });
+            if (addResult && addResult.rejected) return;
         }
         window.location.href = '/cart/';
     });
@@ -4737,16 +4964,17 @@ jQuery(document).ready(function($) {
         // Load offers and update room card prices
         loadOffersForRoomCards();
 
-        // Apply per-account default sort (e.g. Hebden = price-high). The
-        // server writes it onto #gas-rooms-container; we mirror it to the
-        // dropdown and run sortRooms() after the price fetch settles so
-        // cards have their real data-price values.
+        // Apply per-account default sort. The server writes it onto
+        // #gas-rooms-container; we mirror it to the dropdown and run
+        // sortRooms() after the price fetch settles so cards have their
+        // real data-price values. Always run sortRooms (even in
+        // 'default' mode) so the data-pin-to-end guard fires and whole-
+        // property listings like Exclusive Hire drop to the bottom
+        // instead of appearing at the top of the raw DOM order.
         var $cont = $('#gas-rooms-container');
-        var defaultSort = $cont.data('default-sort');
-        if (defaultSort && defaultSort !== 'default') {
-            $('.gas-sort-select').val(defaultSort);
-            setTimeout(function() { sortRooms(defaultSort); }, 1500);
-        }
+        var defaultSort = $cont.data('default-sort') || 'default';
+        $('.gas-sort-select').val(defaultSort);
+        setTimeout(function() { sortRooms(defaultSort); }, 1500);
     });
     
     // Load offers for all room cards and update display
@@ -5417,12 +5645,14 @@ jQuery(document).ready(function($) {
                                             $payBtn.prop('disabled', false).text(origText);
                                         } else {
                                             // 3DS passed — server webhook will finish.
-                                            if (window.gasCart) window.gasCart.clear();
+                                            // Only clear the stay we paid for; other stays
+                                            // (split-cart) stay in gas_cart_v1 for follow-up.
+                                            if (window.gasCart) window.gasCart.clearActiveStay();
                                             window.location.href = '/checkout/?paid=1';
                                         }
                                     });
                                 } else if (r && r.paid) {
-                                    if (window.gasCart) window.gasCart.clear();
+                                    if (window.gasCart) window.gasCart.clearActiveStay();
                                     window.location.href = '/checkout/?paid=1';
                                 } else {
                                     $('#gas-card-errors, .gas-card-errors').text((r && r.error) || 'Payment failed.').show();
@@ -6390,20 +6620,23 @@ jQuery(document).ready(function($) {
                                 // else fall through to show final confirmation
                             }
 
-                            // All payments complete - clear cart and show final
-                            // confirmation. gas_cart_v1 is the canonical key
-                            // (line ~24); gas_cart is the legacy bridge written
-                            // at line ~575 just before group checkout starts.
-                            // Old code only cleared the bridge, so the real
-                            // cart persisted and the badge stayed at "2" after
-                            // a successful sale (Steve, Hebden, 2026-06-24).
-                            try { if (window.gasCart) window.gasCart.clear(); } catch (e) {}
+                            // All payments complete — clear the paid stay from
+                            // gas_cart_v1 and show final confirmation. If the
+                            // guest split their cart across multiple stays we
+                            // only remove items matching the active stay's
+                            // dates so the other stays survive. gas_cart is
+                            // the legacy bridge written just before group
+                            // checkout — always wiped. Old code cleared only
+                            // the bridge so the real cart persisted and the
+                            // badge stayed at "2" (Steve, Hebden, 2026-06-24).
+                            try { if (window.gasCart) window.gasCart.clearActiveStay(); } catch (e) {}
                             localStorage.removeItem('gas_cart');
                             
                             // Show confirmation
                             $('.gas-checkout-step-content').hide();
                             $('.gas-checkout-confirmation').show();
-                            
+                            try { gasShowRemainingStaysNudge(); } catch (e) {}
+
                             // Reset confirmation elements
                             $('.gas-conf-rooms-list').empty().hide();
                             $('.gas-conf-extras-list').empty().hide();
@@ -9478,6 +9711,7 @@ jQuery(document).ready(function($) {
                         // by triggering its post-book flow with the same shape.
                         $('.gas-checkout-main > *').hide();
                         $('.gas-checkout-confirmation').show();
+                        try { gasShowRemainingStaysNudge(); } catch (e) {}
                         $('.gas-booking-ref').text(response.booking_id || (response.booking && response.booking.id) || 'Confirmed');
                         $('.gas-guest-email').text(formData.guest_email);
                         $('.gas-conf-total').text(formatPrice(checkoutData.grandTotal, checkoutData.currency));
@@ -9773,10 +10007,10 @@ jQuery(document).ready(function($) {
             } catch (e) { /* non-fatal — consent capture is best-effort */ }
 
             localStorage.removeItem('gas_hostvana_bookingId');
-            // Cart's done — clear it so the floating header button vanishes
-            // and the next visit starts fresh. Handles bike-storage standalone
-            // (Flow A → /book-now/) and any future cart-driven flows.
-            try { if (window.gasCart) window.gasCart.clear(); } catch (e) {}
+            // Cart's done for the stay that was just paid. Split-cart:
+            // only the paid stay's items are removed; other stays remain
+            // in gas_cart_v1 for the guest's next checkout.
+            try { if (window.gasCart) window.gasCart.clearActiveStay(); } catch (e) {}
 
             // Fire conversion events to whichever analytics platforms the site
             // has loaded. The gtag/fbq scripts are injected by gas-booking.php's
@@ -9818,6 +10052,7 @@ jQuery(document).ready(function($) {
 
             $('.gas-checkout-main > *').hide();
             $('.gas-checkout-confirmation').show();
+            try { gasShowRemainingStaysNudge(); } catch (e) {}
             $('.gas-conf-rooms-list').empty().hide();
             $('.gas-conf-extras-list').empty().hide();
             $('.gas-conf-room-name').show();
@@ -10012,7 +10247,8 @@ jQuery(document).ready(function($) {
                         // Show confirmation
                         $('.gas-checkout-main > *').hide();
                         $('.gas-checkout-confirmation').show();
-                        
+                        try { gasShowRemainingStaysNudge(); } catch (e) {}
+
                         // Reset confirmation elements
                         $('.gas-conf-rooms-list').empty().hide();
                         $('.gas-conf-extras-list').empty().hide();
