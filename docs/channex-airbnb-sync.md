@@ -185,7 +185,7 @@ Semantics: `min_advance_hours` uses **day-based** counting — 24 blocks today o
 
 - **Webhook auto-registration on channel activation** — task #49 in the pending queue. Currently operator has to click "Register webhook" manually per connection. Automating this closes one class of "wait why isn't Channex sending?" incidents.
 - **Airbnb Advance Notice setting** — a listing-level Airbnb rule that can independently close the first N days from today. Not visible from Channex. If a client reports "Airbnb shows closed but Channex is fine", check this in Airbnb host UI (`Availability → Trip length → Advance notice`).
-- **Channex pink cell UI convention** — undocumented from Channex's side. Empirically: appears to indicate "cell has been API-modified". Cosmetic only; values are correct.
+- **Channex pink cell UI convention** — Channex support (2026-07-13) confirmed: pink = `stop_sell` is active on the rate plan for that cell. NOT cosmetic. If cells show pink and shouldn't, our restriction-clear window on the reconciliation heal needs to reach that far ahead. Currently 45 days; extend to 90 (matching availability window) if operators report pink cells beyond 45 days out.
 - **Standard vs Standard2 rate plans** — if `_ensureStandardRatePlans` runs twice and the local INSERT fails between calls, Channex auto-suffixes the second create to "Standard2". Local mapping points at Standard2 but Airbnb may still be on Standard. Manual re-link in Channex UI, or delete the orphan and re-run the linker.
 
 ---
