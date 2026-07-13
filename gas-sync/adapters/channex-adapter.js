@@ -172,16 +172,28 @@ class ChannexAdapter {
           attempt++;
           continue;
         }
-        // Final error mapping consistent with handleError
+        // Final error mapping consistent with handleError. When Channex
+        // returns 422/500 without the standard errors.{title,details}
+        // envelope, fall back to the raw body so operators can see what
+        // Channex actually said (e.g. Expedia validation errors that ship
+        // as { error: "..." } instead of { errors: { title } }).
         const body = response.data;
         const code = body?.errors?.code || 'UNKNOWN';
-        const title = body?.errors?.title || ('HTTP ' + status);
-        const details = body?.errors?.details;
+        const title = body?.errors?.title
+          || body?.error
+          || body?.message
+          || (typeof body === 'string' ? body.slice(0, 200) : ('HTTP ' + status));
+        const details = body?.errors?.details || body;
         if (status === 401) {
           console.error(`[Channex] 401 on ${method} ${endpoint}`, { body, sentData: data });
           return { success: false, status, error: 'Authentication failed', code: 'AUTH_FAILED', details: body };
         }
         if (status === 429) return { success: false, status, error: 'Rate limit exceeded', code: 'RATE_LIMIT' };
+        // Log the raw body for 422/4xx/5xx so we have a server-side trail
+        // for support tickets even when the operator only shares the UI text.
+        if (status >= 400) {
+          console.warn(`[Channex] ${status} on ${method} ${endpoint}`, { body, sentData: data });
+        }
         if (status === 422) return { success: false, status, error: title, code: 'VALIDATION', details };
         return { success: false, status, error: title, code: status || code, details };
       } catch (err) {
