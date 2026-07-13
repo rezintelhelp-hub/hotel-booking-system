@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.90
+ * Version: 4.2.91
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.90');
+define('GAS_BOOKING_VERSION', '4.2.91');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5871,8 +5871,22 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         // Randomize if requested
         if ($random) {
             shuffle($rooms);
+        } else if (!empty($room_ids)) {
+            // Steve/Barbara 2026-07-13 — when a specific room_ids list is
+            // provided (from deployed_sites.room_ids, drag-ordered on the
+            // Manage Rooms modal), honour the ARRAY ORDER as the display
+            // order. Rooms not in the list drop to the end. Operators get
+            // predictable rendering that matches what they set on the site.
+            $order_idx = array_flip(array_values(array_map('intval', $room_ids)));
+            usort($rooms, function($a, $b) use ($order_idx) {
+                $ai = isset($order_idx[$a['id']]) ? $order_idx[$a['id']] : PHP_INT_MAX;
+                $bi = isset($order_idx[$b['id']]) ? $order_idx[$b['id']] : PHP_INT_MAX;
+                return $ai - $bi;
+            });
         } else {
-            // Sort rooms: available (has price) first, then price-on-request
+            // Fallback (no explicit room_ids order — bare [gas_rooms]
+            // shortcode etc.): today's price-ascending, has-price-first sort
+            // so nothing existing breaks.
             usort($rooms, function($a, $b) {
                 $price_a = floatval($a['price'] ?? $a['base_price'] ?? 0);
                 $price_b = floatval($b['price'] ?? $b['base_price'] ?? 0);
