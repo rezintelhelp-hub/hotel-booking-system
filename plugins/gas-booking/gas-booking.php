@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.2.98
+ * Version: 4.2.99
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.2.98');
+define('GAS_BOOKING_VERSION', '4.2.99');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7047,14 +7047,42 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             <?php endif; ?>
             <?php if ($show_guest_filter) : ?>
             <div class="gas-filter-field">
-                <label><?php echo esc_html($t_booking['guests'] ?? 'Guests'); ?></label>
+                <label><?php echo esc_html($t_filters['room_size'] ?? 'Room size'); ?></label>
                 <select class="gas-filter-guests">
-                    <?php 
+                    <?php
                     $max_guests_dropdown = intval($this->get_max_guests_setting());
                     $guest_singular = $t_booking['guest'] ?? 'Guest';
                     $guest_plural = $t_booking['guests'] ?? 'Guests';
-                    for ($i = 1; $i <= $max_guests_dropdown; $i++) : ?>
-                        <option value="<?php echo $i; ?>" <?php selected($guests, $i); ?>><?php echo $i; ?> <?php echo $i > 1 ? $guest_plural : $guest_singular; ?></option>
+                    // Compute cheapest room fitting each capacity so the
+                    // dropdown shows a 'from' price and the client stops
+                    // asking why the base price doesn't reprice per guest
+                    // count. Uses the same $rooms array the grid renders
+                    // from — one pass.
+                    $min_price_for_capacity = array();
+                    foreach ($rooms as $_r) {
+                        $_r_cap = intval($_r['max_guests'] ?? $_r['max_adults'] ?? 0);
+                        $_r_price = floatval($_r['price'] ?? 0);
+                        if ($_r_cap < 1 || $_r_price <= 0) continue;
+                        for ($_c = 1; $_c <= $_r_cap; $_c++) {
+                            if (!isset($min_price_for_capacity[$_c]) || $_r_price < $min_price_for_capacity[$_c]) {
+                                $min_price_for_capacity[$_c] = $_r_price;
+                            }
+                        }
+                    }
+                    $from_label = $t_filters['from'] ?? 'from';
+                    for ($i = 1; $i <= $max_guests_dropdown; $i++) :
+                        $guest_word = $i > 1 ? $guest_plural : $guest_singular;
+                        $from_price = isset($min_price_for_capacity[$i]) ? $min_price_for_capacity[$i] : null;
+                        $from_bit = '';
+                        if ($from_price !== null) {
+                            $cur_sym = get_option('gas_currency_symbol', '');
+                            if (!$cur_sym && !empty($rooms)) {
+                                $cur_sym = $this->get_currency_symbol($this->resolve_currency($rooms[0]['currency'] ?? ''));
+                            }
+                            $from_bit = ' — ' . esc_html($from_label) . ' ' . esc_html($cur_sym) . esc_html(number_format($from_price, 0));
+                        }
+                    ?>
+                        <option value="<?php echo $i; ?>" <?php selected($guests, $i); ?>><?php echo $i; ?> <?php echo esc_html($guest_word) . $from_bit; ?></option>
                     <?php endfor; ?>
                 </select>
             </div>
