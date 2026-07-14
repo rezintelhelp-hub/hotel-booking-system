@@ -4798,10 +4798,15 @@ jQuery(document).ready(function($) {
                             // "total" was misleading after we switched from grand_total. The
                             // full breakdown appears on the room detail / checkout.
                             var priceHtml = formatPriceShort(totalPrice, roomCurrency);
+                            // Preserve the 'Prices from' hint under the price
+                            // so guests understand the amount is a from-price,
+                            // not a fixed rate. Matches the PHP-side render
+                            // in gas-booking.php. Barbara / Hebden 2026-07-14.
+                            priceHtml += '<span class="gas-price-from-label" style="display:block;font-size:0.75rem;color:#64748b;font-weight:400;margin-top:2px;">' + t('booking', 'prices_from', 'Prices from') + '</span>';
                             if ($room.hasClass('has-offers') && pricingTier === 'standard') {
                                 priceHtml += '<div class="gas-offers-badge">🏷️ Offers available*</div>';
                             }
-                            
+
                             $room.find('.gas-room-price, .gas-room-row-price').html(priceHtml);
                             $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '', 'pointer-events': ''}).text(t('booking', 'view_book', 'View & Book'));
 

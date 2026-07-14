@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.00
+ * Version: 4.3.02
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.00');
+define('GAS_BOOKING_VERSION', '4.3.02');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7306,9 +7306,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                             : floatval($room['price'] ?? 0);
                                         ?>
                                         <?php if ($show_listing_price && $carousel_from > 0) : ?>
-                                            <span class="gas-price-from-label">Accommodation from</span>
                                             <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($carousel_from, 0)); ?></span>
                                             <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
+                                            <span class="gas-price-from-label" style="display:block;font-size:0.75rem;color:#64748b;font-weight:400;margin-top:2px;"><?php echo esc_html($t_booking['prices_from'] ?? 'Prices from'); ?></span>
                                         <?php endif; ?>
                                     </div>
                                     <a href="<?php echo esc_url($room_url); ?>" class="gas-view-btn"><?php echo esc_html($view_book_text); ?></a>
