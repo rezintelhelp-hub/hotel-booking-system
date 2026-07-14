@@ -1600,10 +1600,15 @@ class ChannexAdapter {
   // =====================================================
 
   /**
-   * Install the stripe_tokenization app on a Channex property. Barbara /
-   * the client also has to connect a Stripe account to their Channex user
-   * profile via OAuth before tokens can be minted — no API for that step,
-   * it happens in Channex's UI.
+   * Install the stripe_tokenization app on a Channex property. The Stripe
+   * account this ties into is the PMS-owner's (Steve's platform Stripe) —
+   * NOT the client's. Channex only ever sees one Stripe: the PMS-owner's,
+   * connected once at the top-level Channex account. All OTA cards are
+   * tokenised into that account. Clients (Barbara etc.) then connect their
+   * own Stripe to GAS via Stripe Connect OAuth — GAS moves the token from
+   * the platform account to the client's connected account (see
+   * server.js webhook handler around stripe.paymentMethods.create with
+   * stripeAccount option). Confirmed by Evan @ Channex 2026-07-14.
    *
    * POST /api/v1/applications/install
    */
