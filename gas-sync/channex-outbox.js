@@ -325,11 +325,15 @@ async function markBatchFailure(pool, batch, errorMsg, code) {
     const attempts = r.attempts + 1;
     const giveUp = attempts >= MAX_ATTEMPTS;
     const backoff = BACKOFF_BASE_MS * Math.pow(2, attempts - 1);
+    // $4 was `NOW() + ($4 || ' milliseconds')::interval` with a JS Number,
+    // which Postgres couldn't type-deduce for the `||` string concat — errored
+    // "inconsistent types deduced for parameter $2" (misleadingly) and left
+    // 100 rows stuck in 'processing' state. Compute the interval unambiguously.
     await pool.query(`
       UPDATE gas_channex_outbox
-         SET status = $2,
+         SET status = $2::varchar,
              attempts = $3,
-             next_try_at = NOW() + ($4 || ' milliseconds')::interval,
+             next_try_at = NOW() + ($4::bigint * INTERVAL '1 millisecond'),
              last_error = $5,
              processed_at = CASE WHEN $2 = 'failed' THEN NOW() ELSE processed_at END
        WHERE id = $1
