@@ -1031,6 +1031,69 @@ class ChannexAdapter {
   }
 
   // =====================================================
+  // OTA GUEST MESSAGING
+  // =====================================================
+
+  /**
+   * Send an OTA-native message on a booking's in-thread channel. For an
+   * Airbnb booking this lands in the guest's Airbnb app inbox (where they
+   * actually read); Booking.com similar. Bypasses the proxy-email chain
+   * (airbnb-xxx@guest.airbnb.com) which is unreliable — Airbnb silently
+   * drops or delays operator emails routed that way.
+   *
+   * Called from the workflow engine's channex_ota_message step
+   * (server.js:127544). Signature matches the beds24-adapter equivalent
+   * so the workflow branch selecting between them is symmetric.
+   *
+   * Channex endpoint (public API):
+   *   POST /api/v1/booking_messages
+   *   { booking_message: { booking_id: <channex uuid>, message: "..." } }
+   *
+   * Returns the standard adapter response shape: { success, id?, error? }.
+   * On failure the workflow logs the reason to workflow_runs.error so
+   * the operator can see whether Channex rejected the payload, the
+   * booking has no channel to message, etc.
+   */
+  async sendMessage(channexBookingId, { content }) {
+    if (!channexBookingId) return { success: false, error: 'no channex_booking_id on booking' };
+    if (!content || !String(content).trim()) return { success: false, error: 'empty message content' };
+    const body = {
+      booking_message: {
+        booking_id: String(channexBookingId),
+        message: String(content),
+        // 'author' is Channex's field for who sent the message. 'supplier'
+        // = property/PMS (us); Channex routes it out to the OTA thread.
+        // Some Channex accounts require this, others infer from auth —
+        // sending both is safe.
+        author: 'supplier',
+        is_incoming: false
+      }
+    };
+    const res = await this.request('/booking_messages', 'POST', body);
+    if (res.success) {
+      const id = res.data?.id || res.data?.attributes?.id || res.raw?.data?.id || null;
+      return { success: true, id, raw: res.raw };
+    }
+    return { success: false, error: res.error || 'Channex rejected message', code: res.code, details: res.details };
+  }
+
+  /**
+   * Fetch inbound + outbound OTA messages on a booking. For the operator's
+   * unified inbox view (Contacts → Communications timeline). Returns them
+   * in Channex order (newest first typically).
+   */
+  async getBookingMessages(channexBookingId, options = {}) {
+    if (!channexBookingId) return { success: false, error: 'no channex_booking_id' };
+    const params = {
+      'filter[booking_id]': String(channexBookingId),
+      'pagination[limit]': options.limit || 100,
+    };
+    const res = await this.request('/booking_messages', 'GET', null, { params });
+    if (!res.success) return res;
+    return { success: true, data: res.data || [], meta: res.meta };
+  }
+
+  // =====================================================
   // WEBHOOKS
   // =====================================================
 
