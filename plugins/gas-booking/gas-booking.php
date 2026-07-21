@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.02
+ * Version: 4.3.03
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.02');
+define('GAS_BOOKING_VERSION', '4.3.03');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -10791,6 +10791,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
 
                 <div class="gas-portal-current-booking" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem;"></div>
 
+                <!-- Balance & Payments — populated by gasPortalLoadBalance(). Hidden until data lands. -->
+                <div class="gas-portal-balance" style="display:none;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem;"></div>
+
                 <!-- Access Code card — door PIN / key code, gated by info_complete + paid + arrival reached -->
                 <div class="gas-portal-access-code" style="display:none;border-radius:12px;padding:1.25rem;margin-bottom:1.25rem;"></div>
 
@@ -11074,10 +11077,274 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     gasPortalRenderDashboard(root, data);
                     gasPortalLoadTravellers(root);
                     gasPortalLoadExtras(root);
+                    gasPortalLoadBalance(root);
                 }).catch(function(err){
                     root.querySelector('.gas-portal-current-booking').innerHTML = '<p style="color:#c00">Failed to load: ' + err.message + '</p>';
                 });
             }
+
+            // Balance & Payments — fetches totals + ledger + provider configs.
+            // Auto-called from gasPortalLoadDashboard; the pay form only appears
+            // when there IS outstanding balance AND a provider is configured.
+            function gasPortalLoadBalance(root) {
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+                var card = root.querySelector('.gas-portal-balance');
+                if (!card || !token) return;
+                fetch(apiUrl + '/api/public/portal/balance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token })
+                }).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) { card.style.display = 'none'; return; }
+                    gasPortalRenderBalance(root, data);
+                }).catch(function(){ card.style.display = 'none'; });
+            }
+
+            function gasPortalRenderBalance(root, data) {
+                var card = root.querySelector('.gas-portal-balance');
+                if (!card) return;
+                card.style.display = '';
+                var cur = data.currency || 'GBP';
+                var total = Number(data.total || 0);
+                var paid = Number(data.paid || 0);
+                var outstanding = Number(data.outstanding || 0);
+                var pcfg = data.provider_configs || {};
+                var providers = [];
+                if (pcfg.stripe && pcfg.stripe.publishable_key) providers.push('stripe');
+                if (pcfg.square && pcfg.square.application_id) providers.push('square');
+
+                // Ledger
+                var ledgerRows = (data.ledger || []).slice(0, 8).map(function(t){
+                    var when = t.completed_at || t.created_at;
+                    var d = when ? new Date(when).toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' }) : '';
+                    var amt = fmtMoney(t.amount, t.currency || cur);
+                    var isRefund = t.transaction_type === 'refund';
+                    var label = t.description || t.transaction_type || 'Payment';
+                    return '<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid #f1f5f9;font-size:0.85rem;">'
+                        + '<div><div style="color:#0f172a;">' + String(label).replace(/</g, '&lt;') + '</div>'
+                        + '<div style="color:#64748b;font-size:0.75rem;">' + d + (t.payment_gateway ? ' · ' + t.payment_gateway : '') + '</div></div>'
+                        + '<div style="color:' + (isRefund ? '#dc2626' : '#059669') + ';font-weight:600;">' + (isRefund ? '−' : '') + amt + '</div>'
+                        + '</div>';
+                }).join('');
+
+                // Header + summary tiles
+                var header = '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.75rem;">'
+                    + '<h3 style="margin:0;font-size:1.1rem;">Balance &amp; payments</h3>'
+                    + '<span style="color:#64748b;font-size:0.8rem;">' + cur + '</span></div>';
+
+                var tiles = '<div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:0.5rem;margin-bottom:1rem;">'
+                    + '<div style="background:#f8fafc;padding:0.75rem;border-radius:8px;text-align:center;">'
+                    + '<div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Total</div>'
+                    + '<div style="font-size:1.05rem;font-weight:600;color:#0f172a;margin-top:0.15rem;">' + fmtMoney(total, cur) + '</div></div>'
+                    + '<div style="background:#f0fdf4;padding:0.75rem;border-radius:8px;text-align:center;">'
+                    + '<div style="font-size:0.7rem;color:#166534;text-transform:uppercase;letter-spacing:0.05em;">Paid</div>'
+                    + '<div style="font-size:1.05rem;font-weight:600;color:#166534;margin-top:0.15rem;">' + fmtMoney(paid, cur) + '</div></div>'
+                    + '<div style="background:' + (outstanding > 0 ? '#fef3c7' : '#f0fdf4') + ';padding:0.75rem;border-radius:8px;text-align:center;">'
+                    + '<div style="font-size:0.7rem;color:' + (outstanding > 0 ? '#92400e' : '#166534') + ';text-transform:uppercase;letter-spacing:0.05em;">Outstanding</div>'
+                    + '<div style="font-size:1.05rem;font-weight:600;color:' + (outstanding > 0 ? '#92400e' : '#166534') + ';margin-top:0.15rem;">' + fmtMoney(outstanding, cur) + '</div></div>'
+                    + '</div>';
+
+                // Pay form — only when there's balance AND a provider AND we can charge
+                var payBlock = '';
+                if (outstanding > 0 && providers.length > 0) {
+                    payBlock = '<div class="gas-portal-pay-block" style="border:1px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:1rem;background:#fafafa;">'
+                        + '<div style="font-size:0.95rem;font-weight:600;margin-bottom:0.5rem;">Pay now</div>'
+                        + '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end;margin-bottom:0.75rem;">'
+                        + '<div style="flex:1;min-width:120px;">'
+                        + '<label style="font-size:0.8rem;color:#64748b;display:block;margin-bottom:0.25rem;">Amount (' + cur + ')</label>'
+                        + '<input type="number" class="gas-portal-pay-amount" min="0.01" max="' + outstanding + '" step="0.01" value="' + outstanding.toFixed(2) + '" style="width:100%;padding:0.55rem;border:1px solid #d1d5db;border-radius:6px;font-size:1rem;">'
+                        + '</div>'
+                        + '<button type="button" onclick="gasPortalPaySetFull(this)" style="padding:0.55rem 0.8rem;border:1px solid #d1d5db;background:#fff;border-radius:6px;cursor:pointer;font-size:0.8rem;">Pay full balance</button>'
+                        + '</div>'
+                        + '<div class="gas-portal-pay-status" style="display:none;font-size:0.85rem;margin-bottom:0.5rem;"></div>'
+                        + '<div class="gas-portal-pay-providers">'
+                        + providers.map(function(p){
+                            return '<button type="button" data-provider="' + p + '" onclick="gasPortalPayStart(this)" style="display:block;width:100%;margin-bottom:0.5rem;padding:0.7rem;background:' + (p==='stripe'?'#635bff':'#006aff') + ';color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:0.95rem;font-weight:600;">'
+                                + 'Pay by card &middot; ' + (p==='stripe'?'Stripe':'Square') + '</button>';
+                        }).join('')
+                        + '</div>'
+                        + '<div class="gas-portal-pay-mount" style="margin-top:0.75rem;"></div>'
+                        + '</div>';
+                } else if (outstanding <= 0 && total > 0) {
+                    payBlock = '<div style="padding:0.75rem;border-radius:8px;background:#f0fdf4;color:#166534;font-size:0.9rem;margin-bottom:1rem;">✓ This booking is fully paid.</div>';
+                } else if (outstanding > 0 && providers.length === 0) {
+                    payBlock = '<div style="padding:0.75rem;border-radius:8px;background:#fef2f2;color:#991b1b;font-size:0.85rem;margin-bottom:1rem;">Online payment isn\'t set up for this property yet. Please contact your host.</div>';
+                }
+
+                var ledgerBlock = ledgerRows
+                    ? '<div style="margin-top:0.5rem;"><div style="font-size:0.8rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem;">History</div>' + ledgerRows + '</div>'
+                    : '';
+
+                card.innerHTML = header + tiles + payBlock + ledgerBlock;
+                card.dataset.stripePk = (pcfg.stripe && pcfg.stripe.publishable_key) || '';
+                card.dataset.squareAppId = (pcfg.square && pcfg.square.application_id) || '';
+                card.dataset.squareLocationId = (pcfg.square && pcfg.square.location_id) || '';
+                card.dataset.squareEnv = (pcfg.square && pcfg.square.environment) || 'sandbox';
+            }
+
+            window.gasPortalPaySetFull = function(btn) {
+                var card = btn.closest('.gas-portal-balance');
+                var input = card.querySelector('.gas-portal-pay-amount');
+                if (input) input.value = input.max;
+            };
+
+            function _gasPortalLoadScript(src) {
+                return new Promise(function(resolve, reject){
+                    if (document.querySelector('script[data-gas-pay-sdk="' + src + '"]')) return resolve();
+                    var s = document.createElement('script');
+                    s.src = src; s.dataset.gasPaySdk = src;
+                    s.onload = function(){ resolve(); };
+                    s.onerror = function(){ reject(new Error('Failed to load ' + src)); };
+                    document.head.appendChild(s);
+                });
+            }
+
+            function _gasPortalSetPayStatus(root, msg, tone) {
+                var el = root.querySelector('.gas-portal-pay-status');
+                if (!el) return;
+                el.textContent = msg || '';
+                el.style.display = msg ? '' : 'none';
+                el.style.color = tone === 'error' ? '#dc2626' : (tone === 'ok' ? '#166534' : '#64748b');
+            }
+
+            window.gasPortalPayStart = function(btn) {
+                var card = btn.closest('.gas-portal-balance');
+                var root = $root(card);
+                var provider = btn.dataset.provider;
+                var amtInput = card.querySelector('.gas-portal-pay-amount');
+                var amt = parseFloat(amtInput.value);
+                if (!Number.isFinite(amt) || amt <= 0) {
+                    _gasPortalSetPayStatus(root, 'Enter an amount to pay.', 'error');
+                    return;
+                }
+                var max = parseFloat(amtInput.max);
+                if (amt > max + 0.01) {
+                    _gasPortalSetPayStatus(root, 'Amount is more than outstanding.', 'error');
+                    return;
+                }
+                _gasPortalSetPayStatus(root, 'Loading secure payment form…', '');
+                if (provider === 'stripe') gasPortalPayStripe(root, card, amt);
+                else if (provider === 'square') gasPortalPaySquare(root, card, amt);
+            };
+
+            function gasPortalPayStripe(root, card, amt) {
+                var pk = card.dataset.stripePk;
+                if (!pk) { _gasPortalSetPayStatus(root, 'Stripe is not configured for this property.', 'error'); return; }
+                _gasPortalLoadScript('https://js.stripe.com/v3/').then(function(){
+                    var mount = card.querySelector('.gas-portal-pay-mount');
+                    mount.innerHTML = '<div class="gas-portal-stripe-el" style="padding:0.75rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;"></div>'
+                        + '<button type="button" onclick="gasPortalSubmitStripe(this)" style="margin-top:0.75rem;padding:0.7rem 1rem;background:#059669;color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:0.95rem;font-weight:600;width:100%;">Confirm '
+                        + fmtMoney(amt, (card.dataset.currency||'')) + '</button>';
+                    var stripe = Stripe(pk);
+                    var elements = stripe.elements();
+                    var cardEl = elements.create('card');
+                    cardEl.mount(mount.querySelector('.gas-portal-stripe-el'));
+                    mount._gasStripe = { stripe: stripe, cardEl: cardEl, amt: amt };
+                    _gasPortalSetPayStatus(root, '', '');
+                }).catch(function(err){ _gasPortalSetPayStatus(root, err.message, 'error'); });
+            }
+
+            window.gasPortalSubmitStripe = function(btn) {
+                var card = btn.closest('.gas-portal-balance');
+                var root = $root(card);
+                var mount = card.querySelector('.gas-portal-pay-mount');
+                var ctx = mount && mount._gasStripe;
+                if (!ctx) return;
+                btn.disabled = true; btn.textContent = 'Processing…';
+                _gasPortalSetPayStatus(root, 'Confirming payment…', '');
+                ctx.stripe.createPaymentMethod({ type: 'card', card: ctx.cardEl }).then(function(res){
+                    if (res.error) throw new Error(res.error.message);
+                    var apiUrl = root.dataset.apiUrl;
+                    var token = sessionStorage.getItem('gas_portal_token');
+                    return fetch(apiUrl + '/api/public/portal/pay', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            token: token, provider: 'stripe', amount: ctx.amt,
+                            stripe_payment_method_id: res.paymentMethod.id
+                        })
+                    }).then(function(r){ return r.json(); });
+                }).then(function(data){
+                    if (data && data.requires_action && data.client_secret) {
+                        _gasPortalSetPayStatus(root, 'Verifying with your bank…', '');
+                        return ctx.stripe.confirmCardPayment(data.client_secret).then(function(conf){
+                            if (conf.error) throw new Error(conf.error.message);
+                            // Re-submit to server so it can INSERT the ledger row now the PI is confirmed.
+                            var apiUrl = root.dataset.apiUrl;
+                            var token = sessionStorage.getItem('gas_portal_token');
+                            return fetch(apiUrl + '/api/public/portal/pay', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    token: token, provider: 'stripe', amount: ctx.amt,
+                                    stripe_payment_method_id: conf.paymentIntent.payment_method
+                                })
+                            }).then(function(r){ return r.json(); });
+                        });
+                    }
+                    return data;
+                }).then(function(data){
+                    if (!data || !data.success) throw new Error((data && data.error) || 'Payment failed.');
+                    _gasPortalSetPayStatus(root, '✓ Paid ' + fmtMoney(data.amount, data.currency) + '. Refreshing…', 'ok');
+                    setTimeout(function(){ gasPortalLoadBalance(root); }, 1500);
+                }).catch(function(err){
+                    btn.disabled = false; btn.textContent = 'Try again';
+                    _gasPortalSetPayStatus(root, err.message, 'error');
+                });
+            };
+
+            function gasPortalPaySquare(root, card, amt) {
+                var appId = card.dataset.squareAppId;
+                var locId = card.dataset.squareLocationId;
+                var env = card.dataset.squareEnv;
+                if (!appId || !locId) { _gasPortalSetPayStatus(root, 'Square is not configured for this property.', 'error'); return; }
+                var sdkUrl = (env === 'production')
+                    ? 'https://web.squarecdn.com/v1/square.js'
+                    : 'https://sandbox.web.squarecdn.com/v1/square.js';
+                _gasPortalLoadScript(sdkUrl).then(function(){
+                    var mount = card.querySelector('.gas-portal-pay-mount');
+                    mount.innerHTML = '<div class="gas-portal-square-el" style="padding:0.5rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;min-height:56px;"></div>'
+                        + '<button type="button" onclick="gasPortalSubmitSquare(this)" style="margin-top:0.75rem;padding:0.7rem 1rem;background:#059669;color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:0.95rem;font-weight:600;width:100%;">Confirm '
+                        + fmtMoney(amt, '') + '</button>';
+                    var payments = window.Square.payments(appId, locId);
+                    payments.card().then(function(cardEl){
+                        cardEl.attach(mount.querySelector('.gas-portal-square-el'));
+                        mount._gasSquare = { payments: payments, card: cardEl, amt: amt };
+                        _gasPortalSetPayStatus(root, '', '');
+                    });
+                }).catch(function(err){ _gasPortalSetPayStatus(root, err.message, 'error'); });
+            }
+
+            window.gasPortalSubmitSquare = function(btn) {
+                var card = btn.closest('.gas-portal-balance');
+                var root = $root(card);
+                var mount = card.querySelector('.gas-portal-pay-mount');
+                var ctx = mount && mount._gasSquare;
+                if (!ctx) return;
+                btn.disabled = true; btn.textContent = 'Processing…';
+                _gasPortalSetPayStatus(root, 'Confirming payment…', '');
+                ctx.card.tokenize().then(function(res){
+                    if (res.status !== 'OK') throw new Error(res.errors && res.errors[0] ? res.errors[0].message : 'Card entry failed.');
+                    var apiUrl = root.dataset.apiUrl;
+                    var token = sessionStorage.getItem('gas_portal_token');
+                    return fetch(apiUrl + '/api/public/portal/pay', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            token: token, provider: 'square', amount: ctx.amt,
+                            square_source_id: res.token
+                        })
+                    }).then(function(r){ return r.json(); });
+                }).then(function(data){
+                    if (!data || !data.success) throw new Error((data && data.error) || 'Payment failed.');
+                    _gasPortalSetPayStatus(root, '✓ Paid ' + fmtMoney(data.amount, data.currency) + '. Refreshing…', 'ok');
+                    setTimeout(function(){ gasPortalLoadBalance(root); }, 1500);
+                }).catch(function(err){
+                    btn.disabled = false; btn.textContent = 'Try again';
+                    _gasPortalSetPayStatus(root, err.message, 'error');
+                });
+            };
 
             function gasPortalRenderDashboard(root, data) {
                 var b = data.booking || {};
@@ -11496,9 +11763,39 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
 
             // Auto-restore session on page load: if we have a token, go straight
             // to dashboard. Removes the "have to sign in every refresh" annoyance.
+            // Also handles ?invite=<token> deep-links from the admin "invite to
+            // pay" email — trades the invite for a session, strips it from the
+            // URL, and lands on the dashboard.
             (function autoRestore(){
                 var root = document.querySelector('.gas-portal');
                 if (!root) return;
+                var apiUrl = root.dataset.apiUrl;
+                var params = new URLSearchParams(window.location.search);
+                var invite = params.get('invite');
+                if (invite) {
+                    fetch(apiUrl + '/api/public/portal/lookup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ invite: invite })
+                    }).then(function(r){ return r.json(); }).then(function(data){
+                        if (data && data.success && data.token) {
+                            try { sessionStorage.setItem('gas_portal_token', data.token); } catch(e){}
+                            // Strip the invite from the URL so a refresh doesn't
+                            // replay the (still-valid but now-consumed) invite.
+                            try {
+                                params.delete('invite');
+                                var qs = params.toString();
+                                history.replaceState({}, '', window.location.pathname + (qs ? ('?' + qs) : '') + window.location.hash);
+                            } catch(e){}
+                            gasPortalLoadDashboard(root);
+                        } else if (sessionStorage.getItem('gas_portal_token')) {
+                            gasPortalLoadDashboard(root);
+                        }
+                    }).catch(function(){
+                        if (sessionStorage.getItem('gas_portal_token')) gasPortalLoadDashboard(root);
+                    });
+                    return;
+                }
                 if (sessionStorage.getItem('gas_portal_token')) gasPortalLoadDashboard(root);
             })();
         })();
