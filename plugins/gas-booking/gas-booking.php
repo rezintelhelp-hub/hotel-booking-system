@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.05
+ * Version: 4.3.06
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.05');
+define('GAS_BOOKING_VERSION', '4.3.06');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4040,11 +4040,21 @@ class GAS_Booking {
         $fonts = $this->get_font_settings();
         $buttons = $this->get_button_settings();
         
+        // 2026-07-22 Steve — the plugin's own font variables were shadowing
+        // the theme's Web Builder font selection. Selectors like [class*=\"gas-\"]
+        // applied var(--gas-body-font) to every shortcode container including
+        // blog / attractions / offers / portal, so setting Cinzel in Web
+        // Builder → Styles → Body Font never took effect on any GAS-rendered
+        // page. Fix: chain to the theme's CSS variables via the CSS custom-
+        // property fallback syntax. If the developer theme has set
+        // --developer-font / --developer-font-display, that value wins;
+        // otherwise fall back to the plugin's own font_settings (matters
+        // for clients on non-developer themes).
         $font_css = "
 <style id=\"gas-booking-fonts\">
 :root {
-    --gas-heading-font: {$fonts['heading_family']};
-    --gas-body-font: {$fonts['body_family']};
+    --gas-heading-font: var(--developer-font-display, {$fonts['heading_family']});
+    --gas-body-font: var(--developer-font, {$fonts['body_family']});
     --gas-btn-bg: {$buttons['btn_bg']};
     --gas-btn-text: {$buttons['btn_text']};
     --gas-btn-radius: {$buttons['btn_radius']}px;
