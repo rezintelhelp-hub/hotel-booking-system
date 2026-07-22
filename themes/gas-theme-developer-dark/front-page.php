@@ -354,6 +354,13 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
     $wrap_media_image = $api['wrap_media_image_url'] ?? '';
     $wrap_media_url = $api['wrap_media_url'] ?? '';
     $wrap_card_enabled = $api['wrap_card_enabled'] ?? false;
+    // 2026-07-22 — heading layout: inline / top-left / top-center / top-right.
+    $wrap_heading_layout = $api['wrap_heading_layout'] ?? 'inline';
+    if (!in_array($wrap_heading_layout, ['inline', 'top-left', 'top-center', 'top-right'], true)) {
+        $wrap_heading_layout = 'inline';
+    }
+    $wrap_heading_align = ($wrap_heading_layout === 'top-center') ? 'center'
+                        : (($wrap_heading_layout === 'top-right')  ? 'right' : 'left');
     $embed_url = '';
     if ($wrap_media_type === 'video' && $wrap_media_url) {
         if (preg_match('~(?:youtu\.be/|youtube\.com/(?:watch\?v=|embed/|v/|shorts/))([A-Za-z0-9_-]{11})~', $wrap_media_url, $m)) {
@@ -365,6 +372,10 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
 ?>
 <section class="developer-section developer-wrap" style="background: <?php echo esc_attr($wrap_bg); ?>; color: <?php echo esc_attr($wrap_text_color); ?>;">
     <div class="developer-container">
+        <?php // Top-heading layouts: emit h2 above the wrap block, full-width. ?>
+        <?php if ($wrap_heading_layout !== 'inline' && $wrap_title) : ?>
+            <h2 style="margin: 0 0 1.5rem; text-align: <?php echo esc_attr($wrap_heading_align); ?>; color: <?php echo esc_attr($wrap_text_color); ?>;"><?php echo esc_html($wrap_title); ?></h2>
+        <?php endif; ?>
         <div class="developer-wrap-content" style="overflow: hidden;">
             <?php
             $has_media = ($wrap_media_type === 'video' && $embed_url) || ($wrap_media_type === 'image' && $wrap_media_image);
@@ -402,7 +413,8 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
-            <?php if ($wrap_title) : ?>
+            <?php // Inline layout: heading floats next to the media (current behaviour). ?>
+            <?php if ($wrap_heading_layout === 'inline' && $wrap_title) : ?>
                 <h2 style="margin: 0 0 1rem; color: <?php echo esc_attr($wrap_text_color); ?>;"><?php echo esc_html($wrap_title); ?></h2>
             <?php endif; ?>
             <div class="developer-wrap-text" style="font-size: 1.05rem; line-height: 1.8;">

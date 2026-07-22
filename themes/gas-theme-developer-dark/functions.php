@@ -2914,6 +2914,10 @@ function developer_get_api_settings() {
         'wrap_media_image_url' => $website_wrap['media-image-url'] ?? '',
         'wrap_media_position' => $website_wrap['media-position'] ?? 'right',
         'wrap_media_width' => $website_wrap['media-width'] ?? '40',
+        // 2026-07-22 Steve — heading layout: 'inline' (default, next to media)
+        // or 'top-left' / 'top-center' / 'top-right' (heading full-width above,
+        // media + text below with the existing wrap behaviour).
+        'wrap_heading_layout' => $website_wrap['heading-layout'] ?? 'inline',
         'wrap_card_enabled' => $website_wrap['card-enabled'] ?? false,
         'wrap_card_title' => developer_get_ml_value($website_wrap, 'card_title', $lang),
         'wrap_card_text' => developer_get_ml_value($website_wrap, 'card_text', $lang),
