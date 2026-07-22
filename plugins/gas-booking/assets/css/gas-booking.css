@@ -27,7 +27,11 @@
    Base Reset & Typography
    ========================================================================== */
 .gas-room-widget {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    /* 2026-07-22 Steve — was hardcoded to a system stack, overriding
+       whatever the theme set on <body>. Web Builder heading/body font
+       selections never reached the booking widget. `inherit` lets it
+       pick up the theme's --developer-font cascade. */
+    font-family: inherit;
     color: var(--gas-text);
     line-height: 1.6;
     max-width: 1400px;

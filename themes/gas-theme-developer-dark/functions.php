@@ -3361,7 +3361,42 @@ function developer_developer_custom_css() {
         body {
             font-size: ' . esc_attr($body_text_size) . 'px;
         }
-        
+
+        /* 2026-07-22 Steve — long-standing bug: heading/body font from Web
+           Builder wasn\'t reaching every page or the booking widget.
+           Adding explicit inherit for form fields + explicit font on the
+           booking-widget selectors. See -light theme for full documentation. */
+        input, select, textarea, button {
+            font-family: inherit;
+        }
+        .gas-room-widget,
+        .gas-search,
+        .gas-search-widget,
+        .gas-booking,
+        .gas-booking-form,
+        .gas-cart,
+        .gas-checkout,
+        .gas-portal,
+        .gas-offers,
+        .gas-blog,
+        .gas-attractions,
+        .gas-contact,
+        .gas-rooms {
+            font-family: var(--developer-font);
+        }
+        .gas-room-widget h1, .gas-room-widget h2, .gas-room-widget h3,
+        .gas-search h1, .gas-search h2, .gas-search h3,
+        .gas-booking h1, .gas-booking h2, .gas-booking h3,
+        .gas-checkout h1, .gas-checkout h2, .gas-checkout h3,
+        .gas-portal h1, .gas-portal h2, .gas-portal h3,
+        .gas-offers h1, .gas-offers h2, .gas-offers h3,
+        .gas-blog h1, .gas-blog h2, .gas-blog h3,
+        .gas-attractions h1, .gas-attractions h2, .gas-attractions h3,
+        .gas-contact h1, .gas-contact h2, .gas-contact h3,
+        .gas-rooms h1, .gas-rooms h2, .gas-rooms h3 {
+            font-family: var(--developer-font-display);
+        }
+
         .developer-page-header h1,
         .developer-page-hero h1,
         .developer-hero h1,
