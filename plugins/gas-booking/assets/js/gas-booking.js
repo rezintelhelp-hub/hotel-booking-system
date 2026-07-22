@@ -3263,9 +3263,23 @@ jQuery(document).ready(function($) {
             if (!unitId || !instance || !instance.currentYear) return;
             var year = instance.currentYear;
             var month = instance.currentMonth;
-            // Pull 2 months so the next-month cell row stays accurate.
-            var from = year + '-' + String(month + 1).padStart(2, '0') + '-01';
+            // 2026-07-22 Steve (Canto de Luz report) — was fetching from 1st of
+            // the current month to end of next month. But flatpickr's calendar
+            // painting for a month includes the trailing days of the previous
+            // month (e.g. Jul 26–31 showing in the first row of the August view)
+            // AND the leading days of month+2 (e.g. Oct 1–6 in the last row of
+            // September). Those leaked cells never got availability data — the
+            // shader hit "not in unavail list" → painted them green. Guest saw
+            // "July 27 open" on a fully-blocked-July property.
+            //
+            // Fix: pad 7 days back on 'from' + 7 days forward on 'to' so every
+            // cell flatpickr actually renders is covered by the fetch. 7 is a
+            // safe over-shoot (flatpickr shows at most 6 leaked days per side).
+            var startDate = new Date(year, month, 1);
+            startDate.setDate(startDate.getDate() - 7);
+            var from = startDate.getFullYear() + '-' + String(startDate.getMonth() + 1).padStart(2, '0') + '-' + String(startDate.getDate()).padStart(2, '0');
             var endDate = new Date(year, month + 2, 0);
+            endDate.setDate(endDate.getDate() + 7);
             var to = endDate.getFullYear() + '-' + String(endDate.getMonth() + 1).padStart(2, '0') + '-' + String(endDate.getDate()).padStart(2, '0');
             var key = unitId + ':' + from + ':' + to;
             function shade(unavail) {
