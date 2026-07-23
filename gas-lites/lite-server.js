@@ -3685,28 +3685,35 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       const fpLocale = '${lang}' !== 'en' && flatpickr.l10ns['${lang}'] ? '${lang}' : 'default';
       
-      // Disable a candidate checkout date if the stay from the picked
-      // check-in to (checkout - 1) spans ANY unbookable night. Stops
-      // guests from selecting a checkout that silently fails at pricing.
-      // Falls open (returns false = keep selectable) when we don't have
-      // availability data covering the full span — availability array is
-      // only ~60 days from today, so distant-future checkins still work
-      // and the /api/pricing endpoint is the safety net for those.
+      // Shared date-string helper (local YYYY-MM-DD) + row lookup.
+      function _dstr(d) {
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      }
+      function _availRow(dstr) {
+        return availability.find(function(a) { return String(a.date).split('T')[0] === dstr; });
+      }
+      function _isBookableRow(row) {
+        return row && row.available && row.price && parseFloat(row.price) > 0;
+      }
+      function _checkinIsInvalid(candidate) {
+        var d = new Date(candidate); d.setHours(0,0,0,0);
+        var row = _availRow(_dstr(d));
+        if (!row) return false;
+        return !_isBookableRow(row);
+      }
       function _checkoutIsInvalid(candidate) {
         var checkinVal = document.getElementById('checkin').value;
         if (!checkinVal) return false;
         var checkinDate = new Date(checkinVal + 'T00:00:00');
-        var candDate = new Date(candidate);
-        candDate.setHours(0,0,0,0);
+        var candDate = new Date(candidate); candDate.setHours(0,0,0,0);
         if (candDate <= checkinDate) return true;
         var cursor = new Date(checkinDate);
         var haveDataForAll = true;
         var anyBlocked = false;
         while (cursor < candDate) {
-          var dstr = cursor.getFullYear() + '-' + String(cursor.getMonth()+1).padStart(2,'0') + '-' + String(cursor.getDate()).padStart(2,'0');
-          var row = availability.find(function(a) { return String(a.date).split('T')[0] === dstr; });
+          var row = _availRow(_dstr(cursor));
           if (!row) { haveDataForAll = false; break; }
-          if (!row.available || !row.price || parseFloat(row.price) <= 0) { anyBlocked = true; break; }
+          if (!_isBookableRow(row)) { anyBlocked = true; break; }
           cursor.setDate(cursor.getDate() + 1);
         }
         return haveDataForAll && anyBlocked;
@@ -3718,14 +3725,12 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         altFormat: 'd M Y',
         minDate: 'today',
         locale: fpLocale,
+        disable: [_checkinIsInvalid],
         onChange: function(selectedDates, dateStr) {
           if (selectedDates[0]) {
             const nextDay = new Date(selectedDates[0]);
             nextDay.setDate(nextDay.getDate() + 1);
             checkoutPicker.set('minDate', nextDay);
-            // Re-evaluate the checkout disable rule for the new check-in
-            // — dates that span a block relative to the new arrival are
-            // now correctly greyed out.
             checkoutPicker.redraw();
             setTimeout(() => checkoutPicker.open(), 100);
           }
