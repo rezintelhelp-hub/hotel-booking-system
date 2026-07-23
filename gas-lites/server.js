@@ -3280,6 +3280,14 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .calendar-day.today { border: 2px solid var(--accent); }
     .calendar-day:hover:not(.empty):not(.unavailable) { background: #bbf7d0; }
     .calendar-day .price { font-size: 9px; opacity: 0.8; }
+    /* Flatpickr cells tinted to match the Availability calendar palette.
+       Adds a green/red background based on the SSR availability array so
+       the picker visually agrees with the calendar below. No selection
+       behaviour change — cells stay clickable. */
+    .flatpickr-day.fp-avail:not(.flatpickr-disabled):not(.selected) { background: #dcfce7; color: #166534; border-color: #dcfce7; }
+    .flatpickr-day.fp-avail:not(.flatpickr-disabled):hover { background: #bbf7d0; border-color: #bbf7d0; }
+    .flatpickr-day.fp-unavail:not(.flatpickr-disabled):not(.selected) { background: #ffe4e6; color: #9f1239; border-color: #ffe4e6; }
+    .flatpickr-day.fp-unavail:not(.flatpickr-disabled):hover { background: #fecaca; border-color: #fecaca; }
     .calendar-legend { display: flex; gap: 16px; margin-top: 16px; font-size: 12px; color: #64748b; }
     .legend-item { display: flex; align-items: center; gap: 6px; }
     .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
@@ -3971,12 +3979,33 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       const fpLocale = '${lang}' !== 'en' && flatpickr.l10ns['${lang}'] ? '${lang}' : 'default';
       
+      // Tint each rendered flatpickr day cell to match the Availability
+      // calendar palette. Reads the SSR availability array (only ~60d
+      // ahead) so dates beyond that window get no tint but stay clickable.
+      // Purely visual — does NOT disable anything. Guests can still pick
+      // any date; the pricing endpoint remains the final validator.
+      function _tintDayCell(dateObj, dateStr, fpInstance, dayElem) {
+        try {
+          if (!dayElem || !dayElem.dateObj) return;
+          var d = dayElem.dateObj;
+          var dstr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+          var row = availability.find(function(a) { return String(a.date).split('T')[0] === dstr; });
+          if (!row) return;
+          if (row.available && row.price && parseFloat(row.price) > 0) {
+            dayElem.classList.add('fp-avail');
+          } else {
+            dayElem.classList.add('fp-unavail');
+          }
+        } catch (_) { /* never let a render error crash the picker */ }
+      }
+
       const checkinPicker = flatpickr('#checkin', {
         dateFormat: 'Y-m-d',
         altInput: true,
         altFormat: 'd M Y',
         minDate: 'today',
         locale: fpLocale,
+        onDayCreate: _tintDayCell,
         onChange: function(selectedDates, dateStr) {
           if (selectedDates[0]) {
             const nextDay = new Date(selectedDates[0]);
@@ -3986,13 +4015,14 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           }
         }
       });
-      
+
       const checkoutPicker = flatpickr('#checkout', {
         dateFormat: 'Y-m-d',
         altInput: true,
         altFormat: 'd M Y',
         minDate: tomorrow,
         locale: fpLocale,
+        onDayCreate: _tintDayCell,
         onChange: function(selectedDates, dateStr) {
           if (selectedDates[0] && document.getElementById('checkin').value) {
             fetchPricing();
