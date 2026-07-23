@@ -3912,12 +3912,11 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           cls += ' empty';
         } else if (avail) {
           // Available only if inventory AND price both exist.
-          // Field is is_available in the SQL result — avail.available
-          // was always undefined, which made bookable=false on every date
-          // and hid every price chip on the calendar. Also honour
-          // is_blocked so a blocked-but-priced date shows as unavailable
-          // (matches the /api/pricing endpoint own check).
-          var bookable = avail.is_available && !avail.is_blocked && avail.price && parseFloat(avail.price) > 0;
+          // NOTE: avail.available is the SSR-transformed alias built at
+          // line ~3108 (is_available !== false && !is_blocked). Do NOT
+          // change to is_available/is_blocked — those fields are stripped
+          // by the transform and would always be undefined here.
+          var bookable = avail.available && avail.price && parseFloat(avail.price) > 0;
           cls += bookable ? ' available' : ' unavailable';
           if (bookable) priceStr = '<div class="price">' + currency + Math.round(avail.price) + '</div>';
         }
