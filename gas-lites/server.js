@@ -4225,8 +4225,14 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day);
-        const dateStr = date.toISOString().split('T')[0];
-        const avail = availability.find(a => a.date && a.date.split('T')[0] === dateStr);
+        // Local YYYY-MM-DD — NOT date.toISOString() which returns UTC.
+        // In UTC+ timezones (e.g. France), local midnight 24 Jul is
+        // 22:00 UTC on 23 Jul so toISOString gave the previous day and
+        // the calendar showed one day's availability shifted onto the
+        // next cell. Local getters match the picker's onDayCreate tint
+        // exactly, so the calendar and picker now agree.
+        const dateStr = date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
+        const avail = availability.find(a => a.date && String(a.date).split('T')[0] === dateStr);
         const isToday = date.getTime() === today.getTime();
         const isPast = date < today;
         
