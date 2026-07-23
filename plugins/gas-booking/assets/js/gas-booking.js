@@ -7456,6 +7456,9 @@ jQuery(document).ready(function($) {
                 case 'refund_60': return '100% refund up to 60 days before arrival';
                 case 'refund_30': return '100% refund up to 30 days before arrival';
                 case 'refund_14': return '100% refund up to 14 days before arrival';
+                case 'deposit_kept_30': return 'Deposit non-refundable · balance refundable if cancelled 30+ days before arrival';
+                case 'deposit_kept_60': return 'Deposit non-refundable · balance refundable if cancelled 60+ days before arrival';
+                case 'deposit_kept_90': return 'Deposit non-refundable · balance refundable if cancelled 90+ days before arrival';
                 case 'non_refundable': return 'Non-refundable';
                 default: return '';
             }
