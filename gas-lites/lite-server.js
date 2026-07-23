@@ -3685,6 +3685,33 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       const fpLocale = '${lang}' !== 'en' && flatpickr.l10ns['${lang}'] ? '${lang}' : 'default';
       
+      // Disable a candidate checkout date if the stay from the picked
+      // check-in to (checkout - 1) spans ANY unbookable night. Stops
+      // guests from selecting a checkout that silently fails at pricing.
+      // Falls open (returns false = keep selectable) when we don't have
+      // availability data covering the full span — availability array is
+      // only ~60 days from today, so distant-future checkins still work
+      // and the /api/pricing endpoint is the safety net for those.
+      function _checkoutIsInvalid(candidate) {
+        var checkinVal = document.getElementById('checkin').value;
+        if (!checkinVal) return false;
+        var checkinDate = new Date(checkinVal + 'T00:00:00');
+        var candDate = new Date(candidate);
+        candDate.setHours(0,0,0,0);
+        if (candDate <= checkinDate) return true;
+        var cursor = new Date(checkinDate);
+        var haveDataForAll = true;
+        var anyBlocked = false;
+        while (cursor < candDate) {
+          var dstr = cursor.getFullYear() + '-' + String(cursor.getMonth()+1).padStart(2,'0') + '-' + String(cursor.getDate()).padStart(2,'0');
+          var row = availability.find(function(a) { return String(a.date).split('T')[0] === dstr; });
+          if (!row) { haveDataForAll = false; break; }
+          if (!row.available || !row.price || parseFloat(row.price) <= 0) { anyBlocked = true; break; }
+          cursor.setDate(cursor.getDate() + 1);
+        }
+        return haveDataForAll && anyBlocked;
+      }
+
       const checkinPicker = flatpickr('#checkin', {
         dateFormat: 'Y-m-d',
         altInput: true,
@@ -3696,17 +3723,22 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             const nextDay = new Date(selectedDates[0]);
             nextDay.setDate(nextDay.getDate() + 1);
             checkoutPicker.set('minDate', nextDay);
+            // Re-evaluate the checkout disable rule for the new check-in
+            // — dates that span a block relative to the new arrival are
+            // now correctly greyed out.
+            checkoutPicker.redraw();
             setTimeout(() => checkoutPicker.open(), 100);
           }
         }
       });
-      
+
       const checkoutPicker = flatpickr('#checkout', {
         dateFormat: 'Y-m-d',
         altInput: true,
         altFormat: 'd M Y',
         minDate: tomorrow,
         locale: fpLocale,
+        disable: [_checkoutIsInvalid],
         onChange: function(selectedDates, dateStr) {
           if (selectedDates[0] && document.getElementById('checkin').value) {
             fetchPricing();
