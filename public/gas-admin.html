@@ -67186,17 +67186,47 @@ const promo = await fetch('/api/v1/offers/validate', {
             // If any row has a booking_ref matching 'GAS-<id>', wire the
             // whole row as a click-through to the booking modal so Steve
             // can spot-check manual entries and verify totals directly.
+            //
+            // Yellow highlight (needs_review=true): reserved for rows where
+            // Beds24's booking-level `price` disagrees with GAS's imported
+            // grand_total AND the operator hasn't reconciled it with an
+            // override yet. Clicking the row opens the booking so the
+            // override can be typed in; on next report run the row goes
+            // back to normal.
+            let needsReviewCount = 0;
             tbody.innerHTML = rows.map(row => {
                 const ref = row && row.booking_ref ? String(row.booking_ref) : '';
                 const m = ref.match(/^GAS-(\d+)$/);
                 const bookingId = m ? parseInt(m[1]) : null;
+                const needsReview = !!(row && row.needs_review);
+                const overrideActive = !!(row && row.override_active);
+                if (needsReview) needsReviewCount++;
+                const bgIdle       = needsReview ? '#fef9c3' : 'transparent';
+                const bgHover      = needsReview ? '#fde68a' : '#eef2ff';
+                const b24Price     = row && row.beds24_price != null ? parseFloat(row.beds24_price).toFixed(2) : null;
+                const reviewTip    = needsReview && b24Price ? ' — GAS ≠ Beds24 £' + b24Price + '. Click to override.' : '';
+                const okTip        = overrideActive ? ' — override active ✓' : '';
+                const titleAttr    = bookingId ? ('Open booking GAS-' + bookingId + reviewTip + okTip) : '';
                 const rowAttrs = bookingId
-                    ? ` style="border-bottom:1px solid #f1f5f9; cursor:pointer;" onclick="openBookingDetail(${bookingId})" onmouseover="this.style.background='#eef2ff'" onmouseout="this.style.background='transparent'" title="Open booking GAS-${bookingId}"`
+                    ? ` data-review="${needsReview ? '1' : '0'}" style="border-bottom:1px solid #f1f5f9; cursor:pointer; background:${bgIdle};" onclick="openBookingDetail(${bookingId})" onmouseover="this.style.background='${bgHover}'" onmouseout="this.style.background='${bgIdle}'" title="${titleAttr}"`
                     : ' style="border-bottom:1px solid #f1f5f9;"';
                 return '<tr' + rowAttrs + '>' +
                     report.columns.map(c => `<td style="padding:0.55rem 0.9rem; text-align:${c.align || 'left'}; font-variant-numeric:${c.format === 'currency' || c.format === 'integer' ? 'tabular-nums' : 'normal'};">${formatReportCell(row[c.key], c.format)}</td>`).join('') +
                 '</tr>';
             }).join('');
+            // Show a summary banner above the table when there are review flags
+            let banner = document.getElementById('reports-review-banner');
+            if (needsReviewCount > 0) {
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'reports-review-banner';
+                    tbody.parentElement.parentElement.insertBefore(banner, tbody.parentElement);
+                }
+                banner.style.cssText = 'padding:0.65rem 0.9rem; background:#fef9c3; border:1px solid #fde68a; border-radius:6px; margin:0 0 0.75rem 0; color:#92400e; font-size:0.9rem;';
+                banner.innerHTML = '⚠️ <strong>' + needsReviewCount + '</strong> booking' + (needsReviewCount === 1 ? '' : 's') + ' need review — GAS total disagrees with Beds24. Click any yellow row to open and set the override price. Rows go back to normal once you save.';
+            } else if (banner) {
+                banner.remove();
+            }
             // Summary row
             if (summary && Object.keys(summary).length) {
                 tfoot.innerHTML = '<tr style="background:#f8fafc; border-top:2px solid #e5e7eb; font-weight:600;">' +
@@ -70466,9 +70496,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                     overrideInput.value = b.reporting_price_override != null ? parseFloat(b.reporting_price_override).toFixed(2) : '';
                     if (overrideNoteInput) overrideNoteInput.value = b.reporting_price_override_note || '';
                     if (overrideMeta) {
+                        const grand = parseFloat(b.grand_total || b.total_price || 0);
+                        const b24 = b.beds24_price != null ? parseFloat(b.beds24_price) : null;
+                        const mismatch = b24 != null && Math.abs(grand - b24) > 5;
                         if (b.reporting_price_override != null && b.reporting_price_override_at) {
                             const when = new Date(b.reporting_price_override_at).toLocaleString();
                             overrideMeta.innerHTML = `✓ Override active: ${currency}${parseFloat(b.reporting_price_override).toFixed(2)} · set ${when}`;
+                        } else if (mismatch) {
+                            const suggestBtn = `<button type="button" onclick="document.getElementById('view-reporting-override').value='${b24.toFixed(2)}';" style="margin-left:0.5rem; padding:2px 8px; border:1px solid #f59e0b; background:#fef3c7; border-radius:4px; font-size:0.8rem; cursor:pointer;">Use Beds24 price ${currency}${b24.toFixed(2)}</button>`;
+                            overrideMeta.innerHTML = `⚠️ Beds24 says ${currency}${b24.toFixed(2)} — GAS has ${currency}${grand.toFixed(2)} (diff ${currency}${(grand - b24).toFixed(2)}). ${suggestBtn}`;
                         } else {
                             overrideMeta.innerHTML = 'Reports currently use the imported Total above.';
                         }

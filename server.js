@@ -3234,6 +3234,12 @@ async function runMigrations() {
       try { await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reporting_price_override_note TEXT`); } catch (e) { console.error('[migration] bookings.reporting_price_override_note skipped:', e.message); }
       try { await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reporting_price_override_at TIMESTAMPTZ`); } catch (e) { console.error('[migration] bookings.reporting_price_override_at skipped:', e.message); }
       try { await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reporting_price_override_by INT`); } catch (e) { console.error('[migration] bookings.reporting_price_override_by skipped:', e.message); }
+      // Beds24's authoritative booking price (bk.price on the /bookings
+      // API response). Used by Sales Ledger to flag rows for review when
+      // it disagrees with our imported grand_total by more than a small
+      // tolerance — those get highlighted yellow so the operator can
+      // decide whether to override. Populated by the importer.
+      try { await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS beds24_price NUMERIC(14,2)`); } catch (e) { console.error('[migration] bookings.beds24_price skipped:', e.message); }
       try { await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS default_access_code TEXT`); } catch (e) { console.error('[migration] bookable_units.default_access_code skipped:', e.message); }
       // Operator-controlled display order — populated via drag-and-drop
       // on the Rooms page (per property). NULLS render last so accounts
@@ -63705,7 +63711,7 @@ async function _processBeds24Booking(b, conn, roomMap, counters) {
         notes, comments, special_requests, reference, rate_description, language,
         master_booking_id, offer_id, guest_id,
         booking_time, modified_time, cancelled_time,
-        extras_total,
+        extras_total, beds24_price,
         created_at, updated_at
       ) VALUES (
         $1, $2, 1, $3, $52,
@@ -63721,7 +63727,7 @@ async function _processBeds24Booking(b, conn, roomMap, counters) {
         $41, $42, $43, $44, $45, $46,
         $47, $48, $53,
         $49, $50, $51,
-        $54,
+        $54, $55,
         NOW(), NOW()
       )
       ON CONFLICT (beds24_booking_id) DO UPDATE SET
@@ -63767,6 +63773,7 @@ async function _processBeds24Booking(b, conn, roomMap, counters) {
         modified_time = EXCLUDED.modified_time,
         cancelled_time = EXCLUDED.cancelled_time,
         extras_total = EXCLUDED.extras_total,
+        beds24_price = EXCLUDED.beds24_price,
         updated_at = NOW()
       RETURNING id, (xmax = 0) AS inserted
     `, [
@@ -63816,7 +63823,11 @@ async function _processBeds24Booking(b, conn, roomMap, counters) {
       isCancelled && b.cancelTime ? new Date(b.cancelTime) : null,
       individualUnitId,
       guestId,
-      extrasTotal  // $54 — sum of guest-facing upsell charge items (Towel Hire, Dogs, etc)
+      extrasTotal,  // $54 — sum of guest-facing upsell charge items (Towel Hire, Dogs, etc)
+      // $55 — Beds24's own booking-level price. Sales Ledger compares
+      // this to grand_total to flag rows where staff added duplicate
+      // charge lines (grand_total from invoiceItems sum ≠ Beds24 price).
+      Number.isFinite(parseFloat(b.price)) ? parseFloat(b.price) : null
     ]);
 
     const wasInserted = result.rows[0].inserted;
@@ -71500,7 +71511,12 @@ const REPORTS_REGISTRY = {
             -- 'Total' = full guest-facing amount (with override applied).
             GREATEST(0, COALESCE(b.reporting_price_override, b.total_amount, 0) - COALESCE(b.extras_total, 0))::numeric(14,2) AS total_amount,
             COALESCE(b.extras_total, 0)::numeric(14,2)                                          AS extras,
-            COALESCE(b.reporting_price_override, b.total_amount, 0)::numeric(14,2)              AS gross_total
+            COALESCE(b.reporting_price_override, b.total_amount, 0)::numeric(14,2)              AS gross_total,
+            b.beds24_price                                                                       AS beds24_price,
+            (b.reporting_price_override IS NOT NULL)                                             AS override_active,
+            (b.beds24_price IS NOT NULL
+               AND b.reporting_price_override IS NULL
+               AND ABS(COALESCE(b.grand_total, b.total_amount, 0) - b.beds24_price) > 5)         AS needs_review
           FROM bookings b
           JOIN properties p ON p.id = b.property_id
           LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
@@ -71514,7 +71530,7 @@ const REPORTS_REGISTRY = {
             ${roomFilter}
             ${scopeFilter}
             ${searchFilter}
-          ORDER BY b.arrival_date ASC, b.id ASC
+          ORDER BY needs_review DESC, b.arrival_date ASC, b.id ASC
           LIMIT 5000
         `,
         args,
@@ -72067,7 +72083,16 @@ const REPORTS_REGISTRY = {
               COALESCE(b.reporting_price_override, b.grand_total, b.total_amount, 0)::numeric(14,2) AS gross_total,
               COALESCE(b.commission_amount, 0)::numeric(14,2)                         AS platform_fee,
               tax.vat_amount                                                           AS structured_vat,
-              ${rateExpr}                                                              AS rate_pct
+              ${rateExpr}                                                              AS rate_pct,
+              b.beds24_price                                                           AS beds24_price,
+              (b.reporting_price_override IS NOT NULL)                                 AS override_active,
+              -- needs_review: Beds24 says one thing, GAS grand_total says
+              -- another, and the operator hasn't reconciled with an override
+              -- yet. Tolerance £5 to ignore rounding. Frontend highlights
+              -- yellow.
+              (b.beds24_price IS NOT NULL
+                 AND b.reporting_price_override IS NULL
+                 AND ABS(COALESCE(b.grand_total, b.total_amount, 0) - b.beds24_price) > 5) AS needs_review
             FROM bookings b
             JOIN properties p ON p.id = b.property_id
             JOIN accounts a ON a.id = p.account_id
@@ -72129,9 +72154,12 @@ const REPORTS_REGISTRY = {
                                                 THEN gross_total * (${stripeRate.toFixed(4)}::numeric / 100)
                                                 ELSE 0 END,
               2
-            )::numeric(14,2)                                                             AS net_after_fees
+            )::numeric(14,2)                                                             AS net_after_fees,
+            beds24_price,
+            override_active,
+            needs_review
           FROM per_booking
-          ORDER BY booked_on ASC, id ASC
+          ORDER BY needs_review DESC, booked_on ASC, id ASC
           LIMIT 20000
         `,
         args,
