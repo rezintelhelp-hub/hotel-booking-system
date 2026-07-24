@@ -71110,7 +71110,7 @@ const REPORTS_REGISTRY = {
         searchFilter = `AND (
           b.id::text = ${pn}
           OR b.beds24_booking_id::text = ${pn}
-          OR b.master_booking_id = ${pn}
+          OR b.master_booking_id::text = ${pn}
           OR b.guest_first_name ILIKE '%' || ${pn} || '%'
           OR b.guest_last_name  ILIKE '%' || ${pn} || '%'
           OR TRIM(COALESCE(b.guest_first_name,'') || ' ' || COALESCE(b.guest_last_name,'')) ILIKE '%' || ${pn} || '%'
@@ -71641,7 +71641,7 @@ const REPORTS_REGISTRY = {
         searchFilter = `AND (
           b.id::text = ${p}
           OR b.beds24_booking_id::text = ${p}
-          OR b.master_booking_id = ${p}
+          OR b.master_booking_id::text = ${p}
           OR b.guest_first_name ILIKE '%' || ${p} || '%'
           OR b.guest_last_name  ILIKE '%' || ${p} || '%'
           OR TRIM(COALESCE(b.guest_first_name,'') || ' ' || COALESCE(b.guest_last_name,'')) ILIKE '%' || ${p} || '%'
