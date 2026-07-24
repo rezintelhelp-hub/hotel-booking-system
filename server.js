@@ -71388,6 +71388,14 @@ const REPORTS_REGISTRY = {
       },
       { key: 'property_id', type: 'property_picker', required: false, label: 'Property' },
       { key: 'room_id',     type: 'room_picker',     required: false, label: 'Room' },
+      { key: 'room_scope', type: 'enum', required: false, label: 'Room scope',
+        default: 'all',
+        options: [
+          { value: 'all',          label: 'All rooms (default)' },
+          { value: 'standard',     label: 'Standard rooms only (exclude Exclusive Hire)' },
+          { value: 'exclusive',    label: 'Exclusive Hire only' },
+        ],
+      },
     ],
     columns: [
       { key: 'booking_ref',    label: 'Booking',  format: 'text' },
@@ -71427,6 +71435,17 @@ const REPORTS_REGISTRY = {
       if (params.room_id) {
         args.push(parseInt(params.room_id));
         roomFilter = `AND b.bookable_unit_id = $${args.length}`;
+      }
+      // Room-scope filter (same shape as sales-ledger): standard rooms
+      // reconcile against Beds24 CSV within pennies; Exclusive Hire is
+      // isolated for separate review because per-night duplicated invoice
+      // lines currently inflate its grand_total.
+      let scopeFilter = '';
+      const scope = params.room_scope || 'all';
+      if (scope === 'standard') {
+        scopeFilter = `AND COALESCE(bu.unit_role, 'room') <> 'exclusive_hire' AND COALESCE(bu.name, '') !~* 'exclusive hire|whole property|buyout|buy.out'`;
+      } else if (scope === 'exclusive') {
+        scopeFilter = `AND (COALESCE(bu.unit_role, 'room') = 'exclusive_hire' OR COALESCE(bu.name, '') ~* 'exclusive hire|whole property|buyout|buy.out')`;
       }
       let searchFilter = '';
       const searchRaw = params.booking_search ? String(params.booking_search).trim() : '';
@@ -71483,6 +71502,7 @@ const REPORTS_REGISTRY = {
             ${sourceFilter}
             ${propFilter}
             ${roomFilter}
+            ${scopeFilter}
             ${searchFilter}
           ORDER BY b.arrival_date ASC, b.id ASC
           LIMIT 5000
@@ -71901,6 +71921,14 @@ const REPORTS_REGISTRY = {
       },
       { key: 'property_id', type: 'property_picker', required: false, label: 'Property' },
       { key: 'room_id',     type: 'room_picker',     required: false, label: 'Room' },
+      { key: 'room_scope', type: 'enum', required: false, label: 'Room scope',
+        default: 'all',
+        options: [
+          { value: 'all',          label: 'All rooms (default)' },
+          { value: 'standard',     label: 'Standard rooms only (exclude Exclusive Hire)' },
+          { value: 'exclusive',    label: 'Exclusive Hire only' },
+        ],
+      },
     ],
     columns: [
       { key: 'booking_ref',    label: 'Booking',       format: 'text' },
@@ -71958,10 +71986,21 @@ const REPORTS_REGISTRY = {
         args.push(params.source);
         sourceFilter = `AND COALESCE(NULLIF(b.booking_source, ''), 'direct') = $${args.length}`;
       }
-      // Search: matches GAS ID (numeric), Beds24 booking id, guest first
-      // or last name (case-insensitive). Trimmed so trailing spaces don't
-      // silently return zero rows. When present, bypasses the date range
-      // so 'find GAS-457626' works even outside the picked window.
+      // Room-scope filter: separate Exclusive Hire (whole-property
+      // buyouts, where our importer's invoiceItems sum over-counts due
+      // to Beds24's duplicated per-night charge lines) from Standard
+      // per-room bookings. Detect by unit_role='exclusive_hire' OR by
+      // room name matching 'exclusive'/'whole property'/'buyout' as a
+      // fallback for accounts without unit_role populated. Standard
+      // scope reconciles to Beds24 CSV within pennies; Exclusive Hire
+      // scope isolates the problem bookings for separate review.
+      let scopeFilter = '';
+      const scope = params.room_scope || 'all';
+      if (scope === 'standard') {
+        scopeFilter = `AND COALESCE(bu.unit_role, 'room') <> 'exclusive_hire' AND COALESCE(bu.name, '') !~* 'exclusive hire|whole property|buyout|buy.out'`;
+      } else if (scope === 'exclusive') {
+        scopeFilter = `AND (COALESCE(bu.unit_role, 'room') = 'exclusive_hire' OR COALESCE(bu.name, '') ~* 'exclusive hire|whole property|buyout|buy.out')`;
+      }
       let searchFilter = '';
       const searchRaw = params.booking_search ? String(params.booking_search).trim() : '';
       if (searchRaw) {
@@ -72036,6 +72075,7 @@ const REPORTS_REGISTRY = {
               ${propFilter}
               ${roomFilter}
               ${sourceFilter}
+              ${scopeFilter}
               ${searchFilter}
           )
           SELECT
