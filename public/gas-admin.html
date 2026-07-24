@@ -67195,6 +67195,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             // override can be typed in; on next report run the row goes
             // back to normal.
             let needsReviewCount = 0;
+            let reviewedCount = 0;
             tbody.innerHTML = rows.map(row => {
                 const ref = row && row.booking_ref ? String(row.booking_ref) : '';
                 const m = ref.match(/^GAS-(\d+)$/);
@@ -67202,11 +67203,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const needsReview = !!(row && row.needs_review);
                 const overrideActive = !!(row && row.override_active);
                 if (needsReview) needsReviewCount++;
-                const bgIdle       = needsReview ? '#fef9c3' : 'transparent';
-                const bgHover      = needsReview ? '#fde68a' : '#eef2ff';
+                if (overrideActive) reviewedCount++;
+                // Row colour by state:
+                //   yellow (#fef9c3) → GAS ≠ Beds24, no override yet (needs review)
+                //   light blue (#dbeafe) → override has been set (reviewed + locked)
+                //   transparent → nothing to flag
+                const bgIdle       = needsReview ? '#fef9c3' : (overrideActive ? '#dbeafe' : 'transparent');
+                const bgHover      = needsReview ? '#fde68a' : (overrideActive ? '#bfdbfe' : '#eef2ff');
                 const b24Price     = row && row.beds24_price != null ? parseFloat(row.beds24_price).toFixed(2) : null;
                 const reviewTip    = needsReview && b24Price ? ' — GAS ≠ Beds24 £' + b24Price + '. Click to override.' : '';
-                const okTip        = overrideActive ? ' — override active ✓' : '';
+                const okTip        = overrideActive ? ' — override active ✓ (reviewed + locked)' : '';
                 const titleAttr    = bookingId ? ('Open booking GAS-' + bookingId + reviewTip + okTip) : '';
                 const rowAttrs = bookingId
                     ? ` data-review="${needsReview ? '1' : '0'}" style="border-bottom:1px solid #f1f5f9; cursor:pointer; background:${bgIdle};" onclick="openBookingDetail(${bookingId})" onmouseover="this.style.background='${bgHover}'" onmouseout="this.style.background='${bgIdle}'" title="${titleAttr}"`
@@ -67215,16 +67221,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                     report.columns.map(c => `<td style="padding:0.55rem 0.9rem; text-align:${c.align || 'left'}; font-variant-numeric:${c.format === 'currency' || c.format === 'integer' ? 'tabular-nums' : 'normal'};">${formatReportCell(row[c.key], c.format)}</td>`).join('') +
                 '</tr>';
             }).join('');
-            // Show a summary banner above the table when there are review flags
+            // Summary banner: yellow while rows still need review, blue-only
+            // once everything's been reconciled. Removed if neither state.
             let banner = document.getElementById('reports-review-banner');
-            if (needsReviewCount > 0) {
+            if (needsReviewCount > 0 || reviewedCount > 0) {
                 if (!banner) {
                     banner = document.createElement('div');
                     banner.id = 'reports-review-banner';
                     tbody.parentElement.parentElement.insertBefore(banner, tbody.parentElement);
                 }
-                banner.style.cssText = 'padding:0.65rem 0.9rem; background:#fef9c3; border:1px solid #fde68a; border-radius:6px; margin:0 0 0.75rem 0; color:#92400e; font-size:0.9rem;';
-                banner.innerHTML = '⚠️ <strong>' + needsReviewCount + '</strong> booking' + (needsReviewCount === 1 ? '' : 's') + ' need review — GAS total disagrees with Beds24. Click any yellow row to open and set the override price. Rows go back to normal once you save.';
+                if (needsReviewCount > 0) {
+                    banner.style.cssText = 'padding:0.65rem 0.9rem; background:#fef9c3; border:1px solid #fde68a; border-radius:6px; margin:0 0 0.75rem 0; color:#92400e; font-size:0.9rem;';
+                    const reviewedNote = reviewedCount > 0 ? ' · <span style="color:#1e40af;">' + reviewedCount + ' already reviewed ✓</span>' : '';
+                    banner.innerHTML = '⚠️ <strong>' + needsReviewCount + '</strong> booking' + (needsReviewCount === 1 ? '' : 's') + ' need review — GAS total disagrees with Beds24. Click any <span style="background:#fef9c3; padding:0 4px; border:1px solid #fde68a; border-radius:3px;">yellow</span> row to open and set the override. Rows turn <span style="background:#dbeafe; padding:0 4px; border:1px solid #bfdbfe; border-radius:3px;">blue</span> once saved.' + reviewedNote;
+                } else {
+                    banner.style.cssText = 'padding:0.65rem 0.9rem; background:#dbeafe; border:1px solid #bfdbfe; border-radius:6px; margin:0 0 0.75rem 0; color:#1e40af; font-size:0.9rem;';
+                    banner.innerHTML = '✓ All flagged bookings reviewed — <strong>' + reviewedCount + '</strong> row' + (reviewedCount === 1 ? '' : 's') + ' with locked overrides shown in blue.';
+                }
             } else if (banner) {
                 banner.remove();
             }
