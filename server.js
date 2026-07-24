@@ -71036,6 +71036,8 @@ const REPORTS_REGISTRY = {
     params: [
       { key: 'from',   type: 'date', required: true,  label: 'From (check-in)' },
       { key: 'to',     type: 'date', required: true,  label: 'To (check-in)' },
+      { key: 'booking_search', type: 'text', required: false, label: 'Search',
+        placeholder: 'GAS ID, Beds24 ID, or guest name (leave blank for all)' },
       { key: 'status', type: 'enum', required: false, label: 'Status',
         default: 'confirmed',
         options: [
@@ -71098,6 +71100,23 @@ const REPORTS_REGISTRY = {
         args.push(parseInt(params.room_id));
         roomFilter = `AND b.bookable_unit_id = $${args.length}`;
       }
+      let searchFilter = '';
+      let dateRangeSuppressed = false;
+      const searchRaw = params.booking_search ? String(params.booking_search).trim() : '';
+      if (searchRaw) {
+        const searchCore = searchRaw.replace(/^gas[-\s]*/i, '');
+        args.push(searchCore);
+        const pn = `$${args.length}`;
+        searchFilter = `AND (
+          b.id::text = ${pn}
+          OR b.beds24_booking_id::text = ${pn}
+          OR b.master_booking_id = ${pn}
+          OR b.guest_first_name ILIKE '%' || ${pn} || '%'
+          OR b.guest_last_name  ILIKE '%' || ${pn} || '%'
+          OR TRIM(COALESCE(b.guest_first_name,'') || ' ' || COALESCE(b.guest_last_name,'')) ILIKE '%' || ${pn} || '%'
+        )`;
+        dateRangeSuppressed = true;
+      }
       return {
         sql: `
           SELECT
@@ -71126,13 +71145,13 @@ const REPORTS_REGISTRY = {
           JOIN properties p ON p.id = b.property_id
           LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
           WHERE p.account_id = $1
-            AND b.arrival_date >= $2
-            AND b.arrival_date <  ($3::date + INTERVAL '1 day')
+            ${dateRangeSuppressed ? '' : 'AND b.arrival_date >= $2 AND b.arrival_date <  ($3::date + INTERVAL \'1 day\')'}
             AND b.parent_booking_id IS NULL   -- exclude companion child bookings (bike storage, dorm bed virtuals, upsell add-ons)
             ${statusFilter}
             ${sourceFilter}
             ${propFilter}
             ${roomFilter}
+            ${searchFilter}
           ORDER BY b.arrival_date ASC, b.id ASC
           LIMIT 5000
         `,
@@ -71525,6 +71544,8 @@ const REPORTS_REGISTRY = {
     params: [
       { key: 'from', type: 'date', required: true, label: 'From' },
       { key: 'to',   type: 'date', required: true, label: 'To' },
+      { key: 'booking_search', type: 'text', required: false, label: 'Search',
+        placeholder: 'GAS ID, Beds24 ID, or guest name (leave blank for all)' },
       { key: 'date_basis', type: 'enum', required: false, label: 'Date basis',
         default: 'booking_date',
         options: [
@@ -71605,6 +71626,28 @@ const REPORTS_REGISTRY = {
         args.push(params.source);
         sourceFilter = `AND COALESCE(NULLIF(b.booking_source, ''), 'direct') = $${args.length}`;
       }
+      // Search: matches GAS ID (numeric), Beds24 booking id, guest first
+      // or last name (case-insensitive). Trimmed so trailing spaces don't
+      // silently return zero rows. When present, bypasses the date range
+      // so 'find GAS-457626' works even outside the picked window.
+      let searchFilter = '';
+      let dateRangeSuppressed = false;
+      const searchRaw = params.booking_search ? String(params.booking_search).trim() : '';
+      if (searchRaw) {
+        // Strip a leading GAS- prefix so 'GAS-457626' matches id 457626.
+        const searchCore = searchRaw.replace(/^gas[-\s]*/i, '');
+        args.push(searchCore);
+        const p = `$${args.length}`;
+        searchFilter = `AND (
+          b.id::text = ${p}
+          OR b.beds24_booking_id::text = ${p}
+          OR b.master_booking_id = ${p}
+          OR b.guest_first_name ILIKE '%' || ${p} || '%'
+          OR b.guest_last_name  ILIKE '%' || ${p} || '%'
+          OR TRIM(COALESCE(b.guest_first_name,'') || ' ' || COALESCE(b.guest_last_name,'')) ILIKE '%' || ${p} || '%'
+        )`;
+        dateRangeSuppressed = true;
+      }
       return {
         sql: `
           WITH per_booking AS (
@@ -71649,13 +71692,13 @@ const REPORTS_REGISTRY = {
                LIMIT 1
             ) tax ON TRUE
             WHERE p.account_id = $1
-              AND ${basis} >= $2
-              AND ${basis} <  ($3::date + INTERVAL '1 day')
+              ${dateRangeSuppressed ? '' : `AND ${basis} >= $2 AND ${basis} <  ($3::date + INTERVAL '1 day')`}
               AND b.status = 'confirmed'
               AND b.parent_booking_id IS NULL
               ${propFilter}
               ${roomFilter}
               ${sourceFilter}
+              ${searchFilter}
           )
           SELECT
             'GAS-' || id                                                                 AS booking_ref,

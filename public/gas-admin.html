@@ -66939,6 +66939,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <select id="report-param-${p.key}" class="form-input" style="min-width:200px;"><option value="">All rooms</option></select>
                         </div>`;
                 }
+                if (p.type === 'text') {
+                    const placeholder = p.placeholder ? ' placeholder="' + p.placeholder.replace(/"/g, '&quot;') + '"' : '';
+                    return `
+                        <div>
+                            <label style="display:block; font-weight:500; margin-bottom:0.25rem; font-size:0.85rem;">${p.label || p.key}</label>
+                            <input type="text" id="report-param-${p.key}" class="form-input" style="min-width:180px;"${placeholder}>
+                        </div>`;
+                }
                 return '';
             }).join('');
             wrap.innerHTML = html;
