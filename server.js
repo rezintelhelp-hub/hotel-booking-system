@@ -67357,14 +67357,17 @@ app.post('/api/admin/client-sheets', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-// Admin: list registered channels.
+// Admin: list registered channels. Soft-deleted (is_active=false) rows
+// are hidden from the list by default so Remove actually clears them.
 app.get('/api/admin/client-sheets', async (req, res) => {
   const decoded = await requireMasterAdmin(req, res); if (!decoded) return;
   try {
     const accountId = req.query.account_id ? parseInt(req.query.account_id) : null;
+    const includeInactive = req.query.include_inactive === 'true';
+    const activeFilter = includeInactive ? '' : ' AND is_active = true';
     const r = accountId
-      ? await pool.query(`SELECT * FROM client_sheet_channels WHERE account_id = $1 ORDER BY id DESC`, [accountId])
-      : await pool.query(`SELECT * FROM client_sheet_channels ORDER BY account_id, id DESC`);
+      ? await pool.query(`SELECT * FROM client_sheet_channels WHERE account_id = $1${activeFilter} ORDER BY id DESC`, [accountId])
+      : await pool.query(`SELECT * FROM client_sheet_channels WHERE 1=1${activeFilter} ORDER BY account_id, id DESC`);
     res.json({ success: true, channels: r.rows, service_account_email: googleServiceAccountEmail });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
@@ -67381,12 +67384,15 @@ app.post('/api/admin/client-sheets/:id/sync', async (req, res) => {
   }
 });
 
-// Admin: deactivate (soft delete).
+// Admin: fully remove a channel. Hard-delete since the channel row is
+// just wiring — the imported inbox_messages have their own account_id
+// + metadata and stay intact even after the channel is removed.
 app.delete('/api/admin/client-sheets/:id', async (req, res) => {
   const decoded = await requireMasterAdmin(req, res); if (!decoded) return;
   try {
-    await pool.query(`UPDATE client_sheet_channels SET is_active = false, updated_at = NOW() WHERE id = $1`, [parseInt(req.params.id)]);
-    res.json({ success: true });
+    const id = parseInt(req.params.id);
+    await pool.query(`DELETE FROM client_sheet_channels WHERE id = $1`, [id]);
+    res.json({ success: true, removed: id });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
