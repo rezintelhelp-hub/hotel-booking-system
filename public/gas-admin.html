@@ -29140,6 +29140,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <span style="font-weight: 700; color: #1e293b;">Total</span>
                                     <span style="font-weight: 700; font-size: 1.25rem; color: #d97706;" id="view-total">0.00</span>
                                 </div>
+                                <!-- Reporting price override — sticky field the operator
+                                     sets when the imported Total is wrong (e.g. Ex Hire
+                                     bookings where Beds24 invoice-item duplication inflates
+                                     the number). Never touched by Beds24 re-syncs. Reports
+                                     use COALESCE(override, imported total). -->
+                                <div style="padding: 0.75rem 0; margin-top: 0.5rem; border-top: 1px dashed #fde68a;">
+                                    <label style="display:block; font-size:0.75rem; color:#78350f; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">📌 Reporting price override</label>
+                                    <div style="display:flex; gap:6px; align-items:center;">
+                                        <input type="number" step="0.01" min="0" id="view-reporting-override" placeholder="Leave blank for imported total" style="flex:1; padding:6px 10px; border:1px solid #e5e7eb; border-radius:6px; font-size:0.9rem;">
+                                        <button class="btn btn-small" onclick="saveReportingOverride()" style="background:#1e293b; color:#fff;">Save</button>
+                                        <button class="btn btn-small btn-secondary" onclick="clearReportingOverride()" title="Clear override, revert reports to imported total">Clear</button>
+                                    </div>
+                                    <input type="text" id="view-reporting-override-note" placeholder="Optional note (e.g. reconciled to Beds24 Charges Report)" style="width:100%; margin-top:6px; padding:6px 10px; border:1px solid #e5e7eb; border-radius:6px; font-size:0.85rem;">
+                                    <div id="view-reporting-override-meta" style="font-size:0.75rem; color:#78350f; margin-top:4px; min-height:1em;"></div>
+                                </div>
                                 <!-- Invoice number + PDF download for bookings that captured
                                      an invoice_html snapshot. Pre-2026-06-05 bookings render
                                      just the booking ID with the button disabled. -->
@@ -70440,6 +70455,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 // Total
                 document.getElementById('view-total').textContent = currency + parseFloat(b.grand_total || b.total_price || 0).toFixed(2);
+
+                // Reporting price override — populate from booking row.
+                // Sticky field; never touched by Beds24 re-syncs. Reports
+                // use COALESCE(reporting_price_override, grand_total).
+                const overrideInput = document.getElementById('view-reporting-override');
+                const overrideNoteInput = document.getElementById('view-reporting-override-note');
+                const overrideMeta = document.getElementById('view-reporting-override-meta');
+                if (overrideInput) {
+                    overrideInput.value = b.reporting_price_override != null ? parseFloat(b.reporting_price_override).toFixed(2) : '';
+                    if (overrideNoteInput) overrideNoteInput.value = b.reporting_price_override_note || '';
+                    if (overrideMeta) {
+                        if (b.reporting_price_override != null && b.reporting_price_override_at) {
+                            const when = new Date(b.reporting_price_override_at).toLocaleString();
+                            overrideMeta.innerHTML = `✓ Override active: ${currency}${parseFloat(b.reporting_price_override).toFixed(2)} · set ${when}`;
+                        } else {
+                            overrideMeta.innerHTML = 'Reports currently use the imported Total above.';
+                        }
+                    }
+                }
                 
                 // Payment summary — use the booking row's authoritative
                 // balance_amount (source of truth) instead of recomputing
@@ -70803,6 +70837,39 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Alias for clicking on booked dates in the calendar grid
         function openBookingDetail(id) {
             viewBooking(id);
+        }
+
+        // Reporting price override — sticky per-booking figure the operator
+        // sets when the imported grand_total is wrong. Never touched by
+        // Beds24 re-syncs. Reports COALESCE it in.
+        async function saveReportingOverride() {
+            if (!currentViewingBookingId) return;
+            const val = document.getElementById('view-reporting-override').value;
+            const note = document.getElementById('view-reporting-override-note').value;
+            const parsed = val === '' ? null : parseFloat(val);
+            if (val !== '' && (!Number.isFinite(parsed) || parsed < 0)) {
+                showNotification('Enter a non-negative number, or leave blank to clear.', 'error');
+                return;
+            }
+            try {
+                const r = await fetch('/api/admin/bookings/' + currentViewingBookingId + '/reporting-price-override', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ value: parsed, note: note || null })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    showNotification(parsed == null ? 'Override cleared' : 'Override saved: ' + parsed.toFixed(2), 'success');
+                    if (typeof viewBooking === 'function') viewBooking(currentViewingBookingId);
+                } else {
+                    showNotification('Save failed: ' + (d.error || 'unknown'), 'error');
+                }
+            } catch (e) { showNotification('Save error: ' + e.message, 'error'); }
+        }
+        async function clearReportingOverride() {
+            document.getElementById('view-reporting-override').value = '';
+            document.getElementById('view-reporting-override-note').value = '';
+            await saveReportingOverride();
         }
 
         // Manual "Sync now" — refresh the currently-open booking from Beds24.

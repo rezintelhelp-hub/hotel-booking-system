@@ -3224,6 +3224,16 @@ async function runMigrations() {
       // Kept separate from grand_total (room only) so accountants can see
       // accommodation vs ancillary revenue distinctly. Safe default 0.
       try { await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS extras_total NUMERIC(14,2) DEFAULT 0`); } catch (e) { console.error('[migration] bookings.extras_total skipped:', e.message); }
+      // Reporting-price override (sticky, never touched by Beds24 sync).
+      // Set by operator when the imported grand_total is wrong (e.g. Ex
+      // Hire bookings where Beds24's invoiceItems duplicate per-night
+      // lines and inflate the total). Reports use COALESCE(override,
+      // grand_total) so overridden rows use the true number while the
+      // Beds24 sync continues to update everything else on the row.
+      try { await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reporting_price_override NUMERIC(14,2)`); } catch (e) { console.error('[migration] bookings.reporting_price_override skipped:', e.message); }
+      try { await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reporting_price_override_note TEXT`); } catch (e) { console.error('[migration] bookings.reporting_price_override_note skipped:', e.message); }
+      try { await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reporting_price_override_at TIMESTAMPTZ`); } catch (e) { console.error('[migration] bookings.reporting_price_override_at skipped:', e.message); }
+      try { await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reporting_price_override_by INT`); } catch (e) { console.error('[migration] bookings.reporting_price_override_by skipped:', e.message); }
       try { await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS default_access_code TEXT`); } catch (e) { console.error('[migration] bookable_units.default_access_code skipped:', e.message); }
       // Operator-controlled display order — populated via drag-and-drop
       // on the Rooms page (per property). NULLS render last so accounts
@@ -71484,13 +71494,13 @@ const REPORTS_REGISTRY = {
             COALESCE(NULLIF(b.booking_source, ''), 'direct')                                    AS source,
             COALESCE(b.status, '—')                                                             AS status,
             COALESCE(b.currency, p.currency, '')                                                AS currency,
-            -- total_amount from Beds24 already includes extras (b.price is
-            -- the whole booking); 'Room' column shows room-only, 'Total'
-            -- column stays as the guest-facing invoice total. See Sales
-            -- Ledger for the same treatment.
-            GREATEST(0, COALESCE(b.total_amount, 0) - COALESCE(b.extras_total, 0))::numeric(14,2) AS total_amount,
+            -- Reporting override (bookings.reporting_price_override) wins
+            -- when set — sticky across Beds24 re-syncs. Falls back to
+            -- total_amount when blank. 'Room' = total minus extras;
+            -- 'Total' = full guest-facing amount (with override applied).
+            GREATEST(0, COALESCE(b.reporting_price_override, b.total_amount, 0) - COALESCE(b.extras_total, 0))::numeric(14,2) AS total_amount,
             COALESCE(b.extras_total, 0)::numeric(14,2)                                          AS extras,
-            COALESCE(b.total_amount, 0)::numeric(14,2)                                          AS gross_total
+            COALESCE(b.reporting_price_override, b.total_amount, 0)::numeric(14,2)              AS gross_total
           FROM bookings b
           JOIN properties p ON p.id = b.property_id
           LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
@@ -72047,13 +72057,14 @@ const REPORTS_REGISTRY = {
                 ELSE COALESCE(NULLIF(b.channel, ''), 'Direct')
               END                                                                      AS channel,
               COALESCE(b.currency, p.currency, '')                                     AS currency,
-              -- grand_total already includes any extras (b.price from Beds24
-              -- is the WHOLE booking total). 'gross' = room-only for the
-              -- Room column; 'gross_total' = grand_total, unchanged.
-              -- Extras are a subset for information.
-              GREATEST(0, COALESCE(b.grand_total, b.total_amount, 0) - COALESCE(b.extras_total, 0))::numeric(14,2) AS gross,
+              -- Reporting override (bookings.reporting_price_override) wins
+              -- if operator set it — sticky across Beds24 re-syncs. Falls
+              -- back to grand_total when blank. Then 'gross' = total minus
+              -- extras (room-only for the Room column) and 'gross_total'
+              -- = the full guest-facing amount.
+              GREATEST(0, COALESCE(b.reporting_price_override, b.grand_total, b.total_amount, 0) - COALESCE(b.extras_total, 0))::numeric(14,2) AS gross,
               COALESCE(b.extras_total, 0)::numeric(14,2)                              AS extras,
-              COALESCE(b.grand_total, b.total_amount, 0)::numeric(14,2)               AS gross_total,
+              COALESCE(b.reporting_price_override, b.grand_total, b.total_amount, 0)::numeric(14,2) AS gross_total,
               COALESCE(b.commission_amount, 0)::numeric(14,2)                         AS platform_fee,
               tax.vat_amount                                                           AS structured_vat,
               ${rateExpr}                                                              AS rate_pct
@@ -145388,6 +145399,48 @@ app.post('/api/admin/payments/stripe-csv-import', uploadFile.single('file'), asy
     });
   } catch (e) {
     console.error('[stripe-csv-import]', e);
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Set (or clear) the reporting-price override on a booking. The Beds24
+// sync ON CONFLICT DO UPDATE clause never touches these columns, so the
+// value is sticky across re-syncs. Reports read
+// COALESCE(reporting_price_override, grand_total).
+// Body: { value: number|null, note?: string }
+app.patch('/api/admin/bookings/:id/reporting-price-override', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res); if (!user) return;
+    const bookingId = parseInt(req.params.id);
+    if (!bookingId) return res.status(400).json({ success: false, error: 'Invalid booking id' });
+    const bkQ = await pool.query(
+      `SELECT b.id, p.account_id FROM bookings b JOIN properties p ON p.id = b.property_id WHERE b.id = $1`,
+      [bookingId]
+    );
+    if (!bkQ.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    if (user.role !== 'master_admin' && bkQ.rows[0].account_id !== (user.accountId || user.id)) {
+      return res.status(403).json({ success: false, error: 'Not your booking' });
+    }
+    const rawValue = req.body?.value;
+    const clearing = rawValue === null || rawValue === '' || rawValue === undefined;
+    const value = clearing ? null : parseFloat(rawValue);
+    if (!clearing && (!Number.isFinite(value) || value < 0)) {
+      return res.status(400).json({ success: false, error: 'value must be a non-negative number or null to clear' });
+    }
+    const note = req.body?.note ? String(req.body.note).slice(0, 500) : null;
+    await pool.query(
+      `UPDATE bookings
+          SET reporting_price_override = $1,
+              reporting_price_override_note = $2,
+              reporting_price_override_at = CASE WHEN $1 IS NULL THEN NULL ELSE NOW() END,
+              reporting_price_override_by = $3,
+              updated_at = NOW()
+        WHERE id = $4`,
+      [value, note, user.id || null, bookingId]
+    );
+    return res.json({ success: true, booking_id: bookingId, reporting_price_override: value, note });
+  } catch (e) {
+    console.error('[reporting-price-override]', e.message);
     return res.status(500).json({ success: false, error: e.message });
   }
 });
