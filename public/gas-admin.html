@@ -5590,6 +5590,7 @@
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
                             <button class="btn btn-outline" onclick="openPersonalChannelsModal()" title="Connect your Gmail / iCloud accounts to the GAS Inbox">⚙️ Personal Channels</button>
+                            <button class="btn btn-outline" onclick="openClientSheetsModal()" title="Register a client's Google Sheet as a request-tracking channel — rows sync into this inbox">📊 Client Sheets</button>
                             <button class="btn btn-secondary" onclick="loadMessagesInbox()">↻ Refresh</button>
                         </div>
                     </div>
@@ -5611,6 +5612,7 @@
                                 <option value="whatsapp">WhatsApp</option>
                                 <option value="email">Email</option>
                                 <option value="facebook">Facebook</option>
+                                <option value="google_sheets">📊 Sheets</option>
                             </select>
                         </div>
                         <input type="hidden" id="inbox-filter-direction" value="">
@@ -99995,6 +99997,150 @@ const promo = await fetch('/api/v1/offers/validate', {
             `;
             document.body.appendChild(modal);
             loadPersonalChannels();
+        }
+
+        // Client Sheets modal — register / list / sync Google Sheets that
+        // clients use as their request log. Each registered sheet becomes
+        // a source of inbox_messages under channel='google_sheets'.
+        async function openClientSheetsModal() {
+            const existing = document.getElementById('clientSheetsModal');
+            if (existing) existing.remove();
+            const modal = document.createElement('div');
+            modal.id = 'clientSheetsModal';
+            modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:10000;';
+            modal.innerHTML = `
+                <div style="background:white; border-radius:12px; padding:24px; width:820px; max-width:96vw; max-height:90vh; overflow-y:auto;">
+                    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:16px;">
+                        <div>
+                            <h3 style="margin:0 0 4px 0;">📊 Client Sheets (Requests)</h3>
+                            <p style="margin:0; color:#64748b; font-size:13px;">Register a client's Google Sheet as an inbox channel — rows flow into Messages, replies write back to the sheet.</p>
+                        </div>
+                        <button onclick="document.getElementById('clientSheetsModal').remove()" style="background:none; border:none; font-size:24px; cursor:pointer; color:#94a3b8;">×</button>
+                    </div>
+                    <div id="clientSheetsServiceEmail" style="background:#fef9c3; border:1px solid #eab308; border-radius:8px; padding:12px; margin-bottom:16px; font-size:13px;"></div>
+                    <div style="background:#f8fafc; border-radius:8px; padding:16px; margin-bottom:16px;">
+                        <h4 style="margin:0 0 12px 0; font-size:14px;">Register a new sheet</h4>
+                        <div style="display:grid; grid-template-columns: 1fr 200px 100px; gap:8px; align-items:end;">
+                            <div>
+                                <label style="display:block; font-size:12px; color:#64748b; margin-bottom:4px;">Sheet URL</label>
+                                <input id="cs-sheet-url" type="text" class="form-input" placeholder="https://docs.google.com/spreadsheets/d/....">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:12px; color:#64748b; margin-bottom:4px;">Account</label>
+                                <select id="cs-account-id" class="form-input"></select>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:12px; color:#64748b; margin-bottom:4px;">&nbsp;</label>
+                                <button class="btn" onclick="registerClientSheet()" style="width:100%;">Register</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:12px; color:#64748b; margin:8px 0 4px 0;">Nickname (optional)</label>
+                            <input id="cs-sheet-name" type="text" class="form-input" placeholder="e.g. Easylandlord Requests">
+                        </div>
+                        <div id="cs-result" style="margin-top:10px; font-size:13px;"></div>
+                    </div>
+                    <h4 style="margin:16px 0 8px 0; font-size:14px;">Registered sheets</h4>
+                    <div id="cs-list" style="font-size:13px;">Loading…</div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            await loadClientSheetsAccountsDropdown();
+            await loadClientSheetsList();
+        }
+
+        async function loadClientSheetsAccountsDropdown() {
+            const sel = document.getElementById('cs-account-id');
+            if (!sel) return;
+            try {
+                const r = await fetch('/api/admin/accounts', { headers: authHeaders() });
+                const d = await r.json();
+                const accounts = d.accounts || d || [];
+                sel.innerHTML = accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name || a.business_name || ('Account ' + a.id))} (#${a.id})</option>`).join('');
+            } catch (e) { console.warn('accounts load failed', e); }
+        }
+
+        async function loadClientSheetsList() {
+            const list = document.getElementById('cs-list');
+            const emailBox = document.getElementById('clientSheetsServiceEmail');
+            if (!list) return;
+            try {
+                const r = await fetch('/api/admin/client-sheets', { headers: authHeaders() });
+                const d = await r.json();
+                if (emailBox) {
+                    emailBox.innerHTML = d.service_account_email
+                        ? `<strong>Share the sheet with:</strong> <code style="background:#fff; padding:2px 6px; border-radius:3px;">${escapeHtml(d.service_account_email)}</code> as <strong>Editor</strong>. First sync fires when you register the URL.`
+                        : '⚠ Google service account not configured on server (GOOGLE_SERVICE_ACCOUNT env var). Sync will not work.';
+                }
+                const rows = d.channels || [];
+                if (rows.length === 0) { list.innerHTML = '<div style="color:#94a3b8; padding:10px;">No sheets registered yet.</div>'; return; }
+                list.innerHTML = rows.map(row => {
+                    const status = row.last_sync_status || '—';
+                    const statusColor = status === 'ok' ? '#16a34a' : (status === 'error' ? '#dc2626' : '#94a3b8');
+                    const lastSynced = row.last_synced_at ? new Date(row.last_synced_at).toLocaleString() : 'never';
+                    return `
+                        <div style="border:1px solid #e5e7eb; border-radius:6px; padding:12px; margin-bottom:8px; ${row.is_active ? '' : 'opacity:0.5;'}">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <div style="font-weight:600;">${escapeHtml(row.sheet_name || 'Sheet ' + row.id)} <span style="font-size:11px; color:#64748b;">· account ${row.account_id}</span></div>
+                                    <div style="font-size:12px; color:#64748b; margin-top:2px;"><code>${row.sheet_id}</code>${row.sheet_gid ? ' · gid ' + row.sheet_gid : ''} · <span style="color:${statusColor};">${status}</span> · last synced: ${lastSynced} · rows seen: ${row.rows_seen || 0}</div>
+                                    ${row.last_sync_error ? '<div style="font-size:12px; color:#dc2626; margin-top:4px;">' + escapeHtml(row.last_sync_error) + '</div>' : ''}
+                                </div>
+                                <div style="display:flex; gap:6px;">
+                                    <button class="btn btn-small btn-secondary" onclick="syncClientSheet(${row.id})">↻ Sync</button>
+                                    <button class="btn btn-small" style="background:#dc2626;" onclick="unregisterClientSheet(${row.id})">✕ Remove</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                list.innerHTML = '<div style="color:#dc2626;">Failed to load: ' + e.message + '</div>';
+            }
+        }
+
+        async function registerClientSheet() {
+            const url = document.getElementById('cs-sheet-url').value.trim();
+            const accountId = document.getElementById('cs-account-id').value;
+            const name = document.getElementById('cs-sheet-name').value.trim();
+            const result = document.getElementById('cs-result');
+            if (!url || !accountId) { result.innerHTML = '<span style="color:#dc2626;">Sheet URL + account required.</span>'; return; }
+            result.textContent = 'Registering + first sync…';
+            try {
+                const r = await fetch('/api/admin/client-sheets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ account_id: parseInt(accountId), sheet_url: url, sheet_name: name || null })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    result.innerHTML = `<span style="color:#16a34a;">✓ Registered. Imported: ${d.imported || 0} · Updated: ${d.updated || 0} · Skipped: ${d.skipped || 0}. Column map: ${JSON.stringify(d.columnMap || {})}</span>`;
+                    document.getElementById('cs-sheet-url').value = '';
+                    document.getElementById('cs-sheet-name').value = '';
+                    await loadClientSheetsList();
+                } else {
+                    result.innerHTML = `<span style="color:#dc2626;">${escapeHtml(d.error || 'unknown')}</span>${d.channel_id ? ' <span style="color:#94a3b8;">(channel #' + d.channel_id + ' saved — will retry on next cron)</span>' : ''}`;
+                    await loadClientSheetsList();
+                }
+            } catch (e) { result.innerHTML = '<span style="color:#dc2626;">' + e.message + '</span>'; }
+        }
+
+        async function syncClientSheet(id) {
+            try {
+                const r = await fetch('/api/admin/client-sheets/' + id + '/sync', { method: 'POST', headers: authHeaders() });
+                const d = await r.json();
+                if (d.success) showNotification('Synced — ' + (d.imported || 0) + ' new · ' + (d.updated || 0) + ' updated', 'success');
+                else showNotification('Sync failed: ' + d.error, 'error');
+                await loadClientSheetsList();
+            } catch (e) { showNotification('Sync error: ' + e.message, 'error'); }
+        }
+
+        async function unregisterClientSheet(id) {
+            if (!confirm('Remove this sheet from the inbox? Existing messages stay; no new rows will sync.')) return;
+            try {
+                await fetch('/api/admin/client-sheets/' + id, { method: 'DELETE', headers: authHeaders() });
+                await loadClientSheetsList();
+            } catch (e) { showNotification('Remove failed: ' + e.message, 'error'); }
         }
 
         async function loadPersonalChannels() {

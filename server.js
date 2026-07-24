@@ -204,6 +204,7 @@ let searchConsole = null;
 let analyticsAdmin = null;
 let analyticsData = null;
 let siteVerification = null;
+let sheetsApi = null;  // Google Sheets — client-request channel sync
 
 // Helper: extract plain string from a value that might be a multilingual object {"en":"..."} or a plain string
 // Used whenever frontend sends multilingual data to a VARCHAR column
@@ -295,7 +296,12 @@ function initGoogleAuth() {
         'https://www.googleapis.com/auth/webmasters',
         'https://www.googleapis.com/auth/analytics.readonly',
         'https://www.googleapis.com/auth/analytics.edit',
-        'https://www.googleapis.com/auth/siteverification'
+        'https://www.googleapis.com/auth/siteverification',
+        // Sheets read + write for the client-request sheet channels
+        // (client shares sheet with our service account email as Editor;
+        // GAS syncs their rows into inbox_messages and writes replies
+        // back into the 'Steve/Rezintel Reply' cell).
+        'https://www.googleapis.com/auth/spreadsheets'
       ]
     });
 
@@ -303,6 +309,7 @@ function initGoogleAuth() {
     analyticsAdmin = google.analyticsadmin({ version: 'v1beta', auth: googleAuth });
     analyticsData = google.analyticsdata({ version: 'v1beta', auth: googleAuth });
     siteVerification = google.siteVerification({ version: 'v1', auth: googleAuth });
+    sheetsApi = google.sheets({ version: 'v4', auth: googleAuth });
     
     console.log('✅ Google APIs initialized successfully');
     return true;
@@ -67061,12 +67068,19 @@ app.post('/api/admin/inbox/reply', async (req, res) => {
   const decoded = await requireMasterAdmin(req, res);
   if (!decoded) return;
   const { to, channel, text, accountId, inReplyToId } = req.body || {};
-  if (!to || !text) return res.json({ success: false, error: 'to + text required' });
+  if (!text) return res.json({ success: false, error: 'text required' });
   const ch = channel || 'whatsapp';
   try {
     let sendResult;
     if (ch === 'whatsapp') {
+      if (!to) return res.json({ success: false, error: 'to required for whatsapp' });
       sendResult = await sendWhatsAppMessage(pool, accountId || null, String(to), { type: 'text', text: { body: String(text) } });
+    } else if (ch === 'google_sheets') {
+      // Write reply into the client's sheet's reply column. inReplyToId
+      // identifies the inbox_messages row; metadata carries the
+      // sheet_channel_id + row_index so we know exactly where to write.
+      if (!inReplyToId) return res.json({ success: false, error: 'inReplyToId required for google_sheets replies' });
+      sendResult = await writeReplyToClientSheet(inReplyToId, String(text));
     } else {
       return res.json({ success: false, error: 'channel not yet supported: ' + ch });
     }
@@ -67087,6 +67101,314 @@ app.post('/api/admin/inbox/reply', async (req, res) => {
     res.json({ success: false, error: e.message });
   }
 });
+
+// =====================================================
+// CLIENT SHEET CHANNELS — Google Sheets as an inbox source
+// =====================================================
+// Each row = one Google Sheet a client uses to log requests. GAS
+// pulls it on a schedule and creates inbox_messages so the operator
+// sees everything in the unified Messages view. Replies from the
+// inbox get written back to the sheet so the client sees them in
+// their own workflow. Zero client behaviour change.
+//
+// Setup: client shares the sheet with our service account email as
+// Editor. Steve pastes the sheet URL + optional gid in GAS admin.
+// First sync auto-detects the column layout from the header row.
+//
+// Column detection: fuzzy match on header text — we look for
+// 'title', 'description'/'comment', 'date'/'created', 'category',
+// 'status', 'follow up', 'link1'/'link2', and 'reply' patterns.
+// Detected mapping is stored in column_map so future syncs skip
+// re-detection unless the header row changes.
+// =====================================================
+function _parseSheetUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (!m) return null;
+  const gidMatch = url.match(/[?#&]gid=([0-9]+)/);
+  return { sheetId: m[1], gid: gidMatch ? gidMatch[1] : null };
+}
+
+function _colLetter(index) {
+  // 0-indexed → A, B, C ... AA, AB
+  let s = ''; let n = index;
+  do { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; } while (n >= 0);
+  return s;
+}
+
+async function _resolveSheetTabName(sheetId, gid) {
+  const meta = await sheetsApi.spreadsheets.get({ spreadsheetId: sheetId });
+  const sheets = meta.data?.sheets || [];
+  if (!gid) return sheets[0]?.properties?.title || 'Sheet1';
+  const match = sheets.find(s => String(s.properties?.sheetId) === String(gid));
+  return match?.properties?.title || sheets[0]?.properties?.title || 'Sheet1';
+}
+
+function _detectColumnMap(headerRow) {
+  const map = {};
+  headerRow.forEach((cell, idx) => {
+    const h = String(cell || '').trim().toLowerCase();
+    if (!h) return;
+    const letter = _colLetter(idx);
+    if (/^title$/i.test(h) || /request/i.test(h)) map.title = letter;
+    else if (/^comment$|description|details/i.test(h)) map.description = letter;
+    else if (/date.*added|created|date$|submitted/i.test(h)) map.date = letter;
+    else if (/^by who$|submitted by|requested by|author/i.test(h)) map.submitted_by = letter;
+    else if (/type|category/i.test(h)) map.category = letter;
+    else if (/^status$/i.test(h)) map.status = letter;
+    else if (/follow[\s-]*up/i.test(h)) map.follow_up = letter;
+    else if (/^link\s*1$|^url$/i.test(h)) map.link1 = letter;
+    else if (/^link\s*2$/i.test(h)) map.link2 = letter;
+    else if (/reply|rezintel|steve/i.test(h)) map.reply = letter;
+    else if (/dustin|client|internal.*comment/i.test(h)) map.client_notes = letter;
+  });
+  return map;
+}
+
+// Sync one channel — pulls the sheet, upserts inbox_messages.
+async function syncClientSheetChannel(channelId) {
+  if (!sheetsApi) throw new Error('Google Sheets API not initialised (GOOGLE_SERVICE_ACCOUNT env var missing)');
+  const chRes = await pool.query(`SELECT * FROM client_sheet_channels WHERE id = $1`, [channelId]);
+  const ch = chRes.rows[0];
+  if (!ch) throw new Error('channel not found');
+  if (!ch.is_active) return { skipped: 'inactive' };
+
+  const tabName = await _resolveSheetTabName(ch.sheet_id, ch.sheet_gid);
+  // Pull the whole tab (up to 26 cols, 5000 rows — plenty for a request log)
+  const range = `${tabName}!A1:Z5000`;
+  const resp = await sheetsApi.spreadsheets.values.get({ spreadsheetId: ch.sheet_id, range });
+  const rows = resp.data?.values || [];
+  if (rows.length === 0) return { rows: 0, imported: 0 };
+
+  const headerIdx = Math.max(0, (ch.header_row || 1) - 1);
+  const headerRow = rows[headerIdx] || [];
+  const dataRows = rows.slice(headerIdx + 1);
+
+  // Auto-detect column map on first sync (or when it's empty)
+  let columnMap = (ch.column_map && Object.keys(ch.column_map).length > 0) ? ch.column_map : _detectColumnMap(headerRow);
+  const replyColumn = columnMap.reply || null;
+  if (!ch.column_map || Object.keys(ch.column_map).length === 0) {
+    await pool.query(
+      `UPDATE client_sheet_channels SET column_map = $1, reply_column = $2, updated_at = NOW() WHERE id = $3`,
+      [columnMap, replyColumn, channelId]
+    );
+  }
+
+  const colIdx = (letter) => letter ? letter.toUpperCase().charCodeAt(0) - 65 : -1;
+
+  let imported = 0, updated = 0, skipped = 0;
+  for (let ri = 0; ri < dataRows.length; ri++) {
+    const row = dataRows[ri];
+    const absRow = headerIdx + 2 + ri; // sheet row number (1-indexed, 1=header)
+    const title = row[colIdx(columnMap.title)] || '';
+    const description = row[colIdx(columnMap.description)] || '';
+    if (!title.trim() && !description.trim()) { skipped++; continue; }
+
+    const submittedBy = row[colIdx(columnMap.submitted_by)] || '';
+    const category = row[colIdx(columnMap.category)] || '';
+    const dateAdded = row[colIdx(columnMap.date)] || '';
+    const sheetStatus = row[colIdx(columnMap.status)] || '';
+    const followUp = row[colIdx(columnMap.follow_up)] || '';
+    const clientNotes = row[colIdx(columnMap.client_notes)] || '';
+    const link1 = row[colIdx(columnMap.link1)] || '';
+    const link2 = row[colIdx(columnMap.link2)] || '';
+    const existingReply = row[colIdx(columnMap.reply)] || '';
+
+    // Idempotency: composite hash of (title + dateAdded + submittedBy)
+    // — survives row re-ordering, doesn't require an ID column in the sheet.
+    const crypto = require('crypto');
+    const hash = crypto.createHash('md5').update(`${title}|${dateAdded}|${submittedBy}`).digest('hex').slice(0, 16);
+    const channelMessageId = `sheet-${ch.id}-${hash}`;
+
+    // Parse DD/MM/YYYY → Date, else fall back to sync time
+    let createdAt = new Date();
+    if (dateAdded) {
+      const m = String(dateAdded).match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+      if (m) {
+        const yr = parseInt(m[3]) < 100 ? 2000 + parseInt(m[3]) : parseInt(m[3]);
+        const parsed = new Date(yr, parseInt(m[2]) - 1, parseInt(m[1]));
+        if (!isNaN(parsed.getTime())) createdAt = parsed;
+      }
+    }
+
+    // Status mapping: sheet 'Done' → closed; 'Pending Dev' → in_progress;
+    // blank/other → unread (open). If we've replied and the sheet still
+    // shows blank/pending, we KEEP 'replied' on our side (source of truth
+    // for whether we've responded).
+    let status = 'unread';
+    const s = String(sheetStatus).trim().toLowerCase();
+    if (s === 'done' || s === 'closed' || s === 'resolved') status = 'closed';
+    else if (s.includes('pending') || s.includes('progress')) status = 'in_progress';
+
+    const links = [link1, link2].filter(Boolean);
+    const metadata = {
+      sheet_channel_id: ch.id,
+      sheet_id: ch.sheet_id,
+      sheet_gid: ch.sheet_gid,
+      sheet_tab: tabName,
+      sheet_row: absRow,
+      sheet_status: sheetStatus,
+      client_notes: clientNotes,
+      follow_up: followUp,
+      links,
+      existing_sheet_reply: existingReply,
+      column_map: columnMap
+    };
+
+    const upsert = await pool.query(`
+      INSERT INTO inbox_messages (
+        account_id, channel, channel_message_id, thread_id,
+        from_name, subject, body,
+        direction, status, category, created_at, metadata
+      ) VALUES ($1, 'google_sheets', $2, $2, $3, $4, $5, 'inbound', $6, $7, $8, $9)
+      ON CONFLICT DO NOTHING
+      RETURNING (xmax = 0) AS inserted
+    `, [ch.account_id, channelMessageId, submittedBy || null, title, description || null, status, category || null, createdAt, metadata]);
+
+    if (upsert.rows[0]?.inserted) imported++;
+    else {
+      // Update metadata + status on existing row (sheet content may have
+      // changed since first import: follow-up updated, links added,
+      // client set status to Done, etc.)
+      await pool.query(`
+        UPDATE inbox_messages SET
+          subject = $2, body = $3, metadata = $4,
+          category = COALESCE(NULLIF($5, ''), category),
+          status = CASE
+            WHEN replied_at IS NOT NULL THEN status  -- keep 'replied' if we responded
+            ELSE $6 END
+        WHERE channel_message_id = $1 AND channel = 'google_sheets'
+      `, [channelMessageId, title, description || null, metadata, category, status]);
+      updated++;
+    }
+  }
+
+  await pool.query(
+    `UPDATE client_sheet_channels SET last_synced_at = NOW(), last_sync_status = 'ok', last_sync_error = NULL, rows_seen = $2, updated_at = NOW() WHERE id = $1`,
+    [channelId, dataRows.length]
+  );
+  return { rows: dataRows.length, imported, updated, skipped, columnMap };
+}
+
+// Write a reply into the sheet's reply column for a given inbox_messages id.
+async function writeReplyToClientSheet(inboxMessageId, replyText) {
+  if (!sheetsApi) return { success: false, error: 'sheets api not initialised' };
+  const mr = await pool.query(`SELECT id, metadata, channel FROM inbox_messages WHERE id = $1`, [inboxMessageId]);
+  const msg = mr.rows[0];
+  if (!msg) return { success: false, error: 'message not found' };
+  if (msg.channel !== 'google_sheets') return { success: false, error: 'not a google_sheets message' };
+  const meta = msg.metadata || {};
+  const chId = meta.sheet_channel_id;
+  const sheetRow = meta.sheet_row;
+  if (!chId || !sheetRow) return { success: false, error: 'sheet_channel_id / sheet_row missing in metadata' };
+
+  const chRes = await pool.query(`SELECT * FROM client_sheet_channels WHERE id = $1`, [chId]);
+  const ch = chRes.rows[0];
+  if (!ch) return { success: false, error: 'channel deleted' };
+  const replyCol = ch.reply_column || (ch.column_map && ch.column_map.reply);
+  if (!replyCol) return { success: false, error: 'reply_column not configured on this sheet — cannot write back' };
+
+  const tabName = meta.sheet_tab || (await _resolveSheetTabName(ch.sheet_id, ch.sheet_gid));
+  // Append a timestamp so previous replies aren't lost when the operator
+  // sends a second reply on the same request.
+  const existing = String(meta.existing_sheet_reply || '').trim();
+  const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  const newVal = existing
+    ? `${existing}\n\n[${stamp}] ${replyText}`
+    : `[${stamp}] ${replyText}`;
+
+  await sheetsApi.spreadsheets.values.update({
+    spreadsheetId: ch.sheet_id,
+    range: `${tabName}!${replyCol}${sheetRow}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [[newVal]] }
+  });
+  // Update our cache of existing_sheet_reply so a subsequent reply
+  // appends to the right value.
+  const newMeta = { ...meta, existing_sheet_reply: newVal };
+  await pool.query(`UPDATE inbox_messages SET metadata = $1 WHERE id = $2`, [newMeta, inboxMessageId]);
+  return { success: true, messageId: `sheet-write-${Date.now()}` };
+}
+
+// Admin: register a client sheet as an inbox channel.
+app.post('/api/admin/client-sheets', async (req, res) => {
+  const decoded = await requireMasterAdmin(req, res); if (!decoded) return;
+  try {
+    const { account_id, sheet_url, sheet_name, header_row } = req.body || {};
+    if (!account_id || !sheet_url) return res.json({ success: false, error: 'account_id + sheet_url required' });
+    const parsed = _parseSheetUrl(sheet_url);
+    if (!parsed) return res.json({ success: false, error: 'Could not parse sheet URL (expected .../spreadsheets/d/<ID>/...)' });
+    const r = await pool.query(
+      `INSERT INTO client_sheet_channels (account_id, sheet_id, sheet_gid, sheet_name, header_row)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (account_id, sheet_id, sheet_gid) DO UPDATE SET sheet_name = EXCLUDED.sheet_name, is_active = true, updated_at = NOW()
+       RETURNING id`,
+      [parseInt(account_id), parsed.sheetId, parsed.gid || null, sheet_name || null, parseInt(header_row) || 1]
+    );
+    const channelId = r.rows[0].id;
+    // First sync fires immediately so the caller gets a real result.
+    try {
+      const syncResult = await syncClientSheetChannel(channelId);
+      return res.json({ success: true, channel_id: channelId, service_account_email: googleServiceAccountEmail, ...syncResult });
+    } catch (e) {
+      await pool.query(`UPDATE client_sheet_channels SET last_sync_status = 'error', last_sync_error = $2 WHERE id = $1`, [channelId, e.message]);
+      return res.json({ success: false, channel_id: channelId, service_account_email: googleServiceAccountEmail, error: 'Sync failed (usually means the sheet is not yet shared with the service account): ' + e.message });
+    }
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Admin: list registered channels.
+app.get('/api/admin/client-sheets', async (req, res) => {
+  const decoded = await requireMasterAdmin(req, res); if (!decoded) return;
+  try {
+    const accountId = req.query.account_id ? parseInt(req.query.account_id) : null;
+    const r = accountId
+      ? await pool.query(`SELECT * FROM client_sheet_channels WHERE account_id = $1 ORDER BY id DESC`, [accountId])
+      : await pool.query(`SELECT * FROM client_sheet_channels ORDER BY account_id, id DESC`);
+    res.json({ success: true, channels: r.rows, service_account_email: googleServiceAccountEmail });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Admin: manual sync trigger.
+app.post('/api/admin/client-sheets/:id/sync', async (req, res) => {
+  const decoded = await requireMasterAdmin(req, res); if (!decoded) return;
+  try {
+    const result = await syncClientSheetChannel(parseInt(req.params.id));
+    res.json({ success: true, ...result });
+  } catch (e) {
+    await pool.query(`UPDATE client_sheet_channels SET last_sync_status = 'error', last_sync_error = $2 WHERE id = $1`, [parseInt(req.params.id), e.message]).catch(() => {});
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Admin: deactivate (soft delete).
+app.delete('/api/admin/client-sheets/:id', async (req, res) => {
+  const decoded = await requireMasterAdmin(req, res); if (!decoded) return;
+  try {
+    await pool.query(`UPDATE client_sheet_channels SET is_active = false, updated_at = NOW() WHERE id = $1`, [parseInt(req.params.id)]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Nightly sync — every 15 min. First fire 5 min after boot.
+async function runClientSheetsSync() {
+  if (!sheetsApi) return;
+  try {
+    const rows = await pool.query(`SELECT id FROM client_sheet_channels WHERE is_active = true`);
+    if (rows.rows.length === 0) return;
+    console.log(`📊 [Sheets-Sync] Considering ${rows.rows.length} client sheet channels...`);
+    let ok = 0, err = 0;
+    for (const row of rows.rows) {
+      try { await syncClientSheetChannel(row.id); ok++; }
+      catch (e) { err++; console.error(`📊 [Sheets-Sync] channel ${row.id} failed:`, e.message); await pool.query(`UPDATE client_sheet_channels SET last_sync_status = 'error', last_sync_error = $2 WHERE id = $1`, [row.id, e.message]).catch(() => {}); }
+    }
+    console.log(`📊 [Sheets-Sync] Pass complete — ok=${ok} err=${err}`);
+  } catch (e) {
+    console.error('📊 [Sheets-Sync] fatal:', e.message);
+  }
+}
+setTimeout(() => { runClientSheetsSync(); }, 5 * 60 * 1000);
+setInterval(runClientSheetsSync, 15 * 60 * 1000);
 
 // Hostaway webhook handler
 app.post('/api/webhooks/hostaway', async (req, res) => {
@@ -141204,6 +141526,39 @@ app.listen(PORT, '0.0.0.0', async () => {
       )
     `).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_prospect_linkedin_aliases_url ON prospect_linkedin_aliases(LOWER(linkedin_url))`).catch(() => {});
+
+    // Client sheet channels — each row = one Google Sheet registered as
+    // a source of client requests (Karl @ Easylandlord, etc.). The cron
+    // pulls the sheet on a schedule and creates inbox_messages rows with
+    // channel='google_sheets' — surfacing in the same Messages view as
+    // WhatsApp / Email so the operator has one inbox. Replies from the
+    // inbox get written back into the sheet's reply column so the client
+    // sees them in their preferred surface without logging into GAS.
+    // Column mapping is discovered from the header row on first sync
+    // (fuzzy match) and stored so subsequent syncs don't have to guess.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS client_sheet_channels (
+          id                SERIAL PRIMARY KEY,
+          account_id        INTEGER NOT NULL,
+          sheet_id          TEXT NOT NULL,        -- Google Sheets doc id (parsed from URL)
+          sheet_gid         TEXT,                 -- specific tab; NULL = first tab
+          sheet_name        TEXT,                 -- friendly label (e.g. 'Easylandlord Requests')
+          header_row        INTEGER DEFAULT 1,    -- 1-indexed row where headers live
+          column_map        JSONB DEFAULT '{}',   -- { title: 'A', description: 'E', reply: 'G', ... }
+          reply_column      TEXT,                 -- e.g. 'G' — where our reply goes
+          last_synced_at    TIMESTAMP,
+          last_sync_status  TEXT,
+          last_sync_error   TEXT,
+          rows_seen         INTEGER DEFAULT 0,
+          is_active         BOOLEAN DEFAULT true,
+          created_at        TIMESTAMP DEFAULT NOW(),
+          updated_at        TIMESTAMP DEFAULT NOW(),
+          UNIQUE (account_id, sheet_id, sheet_gid)
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_client_sheet_channels_account ON client_sheet_channels(account_id) WHERE is_active = true`);
+    } catch (e) { console.error('[migration] client_sheet_channels skipped:', e.message); }
 
     // Per-master-user capture keys — the bookmarklet embeds one of these
     // so the capture endpoint can authenticate the POST coming in from a
