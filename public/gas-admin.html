@@ -29152,7 +29152,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <button class="btn btn-small" onclick="saveReportingOverride()" style="background:#1e293b; color:#fff;">Save</button>
                                         <button class="btn btn-small btn-secondary" onclick="clearReportingOverride()" title="Clear override, revert reports to imported total">Clear</button>
                                     </div>
-                                    <input type="text" id="view-reporting-override-note" placeholder="Optional note (e.g. reconciled to Beds24 Charges Report)" style="width:100%; margin-top:6px; padding:6px 10px; border:1px solid #e5e7eb; border-radius:6px; font-size:0.85rem;">
+                                    <label style="display:block; font-size:0.7rem; color:#78350f; margin-top:8px; margin-bottom:3px;">Why this override? (auditable — Jo/accountant sees this)</label>
+                                    <textarea id="view-reporting-override-note" rows="2" placeholder="e.g. Charged £1,900, guest refunded £300 5 months later, net £1,600. Beds24 price field returned £480 which is the first partial payment, not the real total." style="width:100%; padding:6px 10px; border:1px solid #e5e7eb; border-radius:6px; font-size:0.85rem; font-family:inherit; resize:vertical;"></textarea>
                                     <div id="view-reporting-override-meta" style="font-size:0.75rem; color:#78350f; margin-top:4px; min-height:1em;"></div>
                                 </div>
                                 <!-- Invoice number + PDF download for bookings that captured
@@ -70501,7 +70502,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const mismatch = b24 != null && Math.abs(grand - b24) > 5;
                         if (b.reporting_price_override != null && b.reporting_price_override_at) {
                             const when = new Date(b.reporting_price_override_at).toLocaleString();
-                            overrideMeta.innerHTML = `✓ Override active: ${currency}${parseFloat(b.reporting_price_override).toFixed(2)} · set ${when}`;
+                            const savedNote = b.reporting_price_override_note ? `<div style="margin-top:4px; padding:6px 8px; background:#fef9c3; border-left:3px solid #f59e0b; border-radius:3px; color:#78350f; white-space:pre-wrap;">📝 ${(b.reporting_price_override_note || '').replace(/</g, '&lt;')}</div>` : '';
+                            overrideMeta.innerHTML = `✓ Override active: ${currency}${parseFloat(b.reporting_price_override).toFixed(2)} · set ${when}${savedNote}`;
                         } else if (mismatch) {
                             const suggestBtn = `<button type="button" onclick="document.getElementById('view-reporting-override').value='${b24.toFixed(2)}';" style="margin-left:0.5rem; padding:2px 8px; border:1px solid #f59e0b; background:#fef3c7; border-radius:4px; font-size:0.8rem; cursor:pointer;">Use Beds24 price ${currency}${b24.toFixed(2)}</button>`;
                             overrideMeta.innerHTML = `⚠️ Beds24 says ${currency}${b24.toFixed(2)} — GAS has ${currency}${grand.toFixed(2)} (diff ${currency}${(grand - b24).toFixed(2)}). ${suggestBtn}`;
