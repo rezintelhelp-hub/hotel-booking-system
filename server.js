@@ -71101,7 +71101,6 @@ const REPORTS_REGISTRY = {
         roomFilter = `AND b.bookable_unit_id = $${args.length}`;
       }
       let searchFilter = '';
-      let dateRangeSuppressed = false;
       const searchRaw = params.booking_search ? String(params.booking_search).trim() : '';
       if (searchRaw) {
         const searchCore = searchRaw.replace(/^gas[-\s]*/i, '');
@@ -71115,7 +71114,11 @@ const REPORTS_REGISTRY = {
           OR b.guest_last_name  ILIKE '%' || ${pn} || '%'
           OR TRIM(COALESCE(b.guest_first_name,'') || ' ' || COALESCE(b.guest_last_name,'')) ILIKE '%' || ${pn} || '%'
         )`;
-        dateRangeSuppressed = true;
+        // Widen date range so search isn't accidentally bounded by
+        // the user's picked window. Kept as $2/$3 refs so Postgres
+        // can infer parameter types (see sales-ledger comment).
+        args[1] = '1900-01-01';
+        args[2] = '2100-12-31';
       }
       return {
         sql: `
@@ -71145,7 +71148,8 @@ const REPORTS_REGISTRY = {
           JOIN properties p ON p.id = b.property_id
           LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
           WHERE p.account_id = $1
-            ${dateRangeSuppressed ? '' : 'AND b.arrival_date >= $2 AND b.arrival_date <  ($3::date + INTERVAL \'1 day\')'}
+            AND b.arrival_date >= $2
+            AND b.arrival_date <  ($3::date + INTERVAL '1 day')
             AND b.parent_booking_id IS NULL   -- exclude companion child bookings (bike storage, dorm bed virtuals, upsell add-ons)
             ${statusFilter}
             ${sourceFilter}
@@ -71631,7 +71635,6 @@ const REPORTS_REGISTRY = {
       // silently return zero rows. When present, bypasses the date range
       // so 'find GAS-457626' works even outside the picked window.
       let searchFilter = '';
-      let dateRangeSuppressed = false;
       const searchRaw = params.booking_search ? String(params.booking_search).trim() : '';
       if (searchRaw) {
         // Strip a leading GAS- prefix so 'GAS-457626' matches id 457626.
@@ -71646,7 +71649,13 @@ const REPORTS_REGISTRY = {
           OR b.guest_last_name  ILIKE '%' || ${p} || '%'
           OR TRIM(COALESCE(b.guest_first_name,'') || ' ' || COALESCE(b.guest_last_name,'')) ILIKE '%' || ${p} || '%'
         )`;
-        dateRangeSuppressed = true;
+        // Widen the date range to effectively unlimited so the search
+        // isn't accidentally bounded by the user's picked window. Kept
+        // as $2/$3 references so Postgres can infer parameter types
+        // (dropping the clause entirely left $2/$3 unused and broke
+        // type inference with 'could not determine data type').
+        args[1] = '1900-01-01';
+        args[2] = '2100-12-31';
       }
       return {
         sql: `
@@ -71692,7 +71701,8 @@ const REPORTS_REGISTRY = {
                LIMIT 1
             ) tax ON TRUE
             WHERE p.account_id = $1
-              ${dateRangeSuppressed ? '' : `AND ${basis} >= $2 AND ${basis} <  ($3::date + INTERVAL '1 day')`}
+              AND ${basis} >= $2
+              AND ${basis} <  ($3::date + INTERVAL '1 day')
               AND b.status = 'confirmed'
               AND b.parent_booking_id IS NULL
               ${propFilter}
