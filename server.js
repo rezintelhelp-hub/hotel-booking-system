@@ -9773,6 +9773,26 @@ app.post('/api/admin/bookings/:id/resend-whatsapp', async (req, res) => {
   }
 });
 
+// Push GAS payment deltas back to Beds24 for a single booking. Wraps
+// syncBeds24PaymentItem (same helper the auto-charge cron + operator
+// charge buttons now use). Idempotent — a no-op when Beds24 is already
+// in sync. Used by the 2026-07-25 backfill for the ~148 confirmed
+// beds24-linked bookings that were paid off in GAS but never had the
+// balance push through (Robert Del Grande GAS-370497 pattern).
+app.post('/api/admin/bookings/:id/sync-beds24-payment', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const bookingId = parseInt(req.params.id, 10);
+    if (!bookingId) return res.status(400).json({ success: false, error: 'Invalid booking id' });
+    const result = await syncBeds24PaymentItem(bookingId);
+    res.json({ success: true, booking_id: bookingId, result });
+  } catch (e) {
+    console.error('[admin sync-beds24-payment]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.post('/api/admin/bookings/:id/refresh-beds24', async (req, res) => {
   try {
     const gasBookingId = parseInt(req.params.id);
