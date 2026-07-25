@@ -5841,7 +5841,11 @@ app.get('/api/gas-sync/property-by-gas-id/:gasPropertyId', async (req, res) => {
 app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res) => {
   try {
     const { syncPropertyId } = req.params;
-    const { days = 365, force = false, roomId: singleRoomId } = req.body;
+    // 2-year window (was 365). Matches runBeds24InventorySync (line
+    // 122405) and Channex extender. 365 was leaving rooms added recently
+    // with rates cutting off at 365 days — Cotswolds Coconuts, Lehmann's
+    // rooms, 36 accounts total on 2026-07-25 audit.
+    const { days = 730, force = false, roomId: singleRoomId } = req.body;
     
     let propResult = { rows: [] };
     
@@ -11139,7 +11143,7 @@ async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey
 app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req, res) => {
   try {
     const { connectionId } = req.params;
-    const { days = 365 } = req.body; // Default 365 days for full year coverage
+    const { days = 730 } = req.body; // Default 2 years — matches inventory sync + Cotswolds/Lehmann 2026-07-25 audit
     
     // Get connection
     const connResult = await pool.query(
@@ -122491,6 +122495,71 @@ async function runMarketplacePricingCron() {
 }
 setTimeout(runMarketplacePricingCron, 10 * 60 * 1000);        // 10 min after boot
 setInterval(runMarketplacePricingCron, 60 * 60 * 1000);       // hourly
+
+// =====================================================
+// DIRECT BEDS24 PRICING CRON — matches the marketplace one above but
+// hits the adapter_code='beds24' direct-connection accounts. Cotswolds,
+// Lehmann, IOU, all of Steve's operators on the direct integration.
+// Without this cron, direct-beds24 rate windows only ever get refreshed
+// when an operator clicks "Sync now" — which is why 36 accounts had
+// rooms cutting off around the 365-day mark on the 2026-07-25 audit.
+//
+// Runs every 6 hours (matches runBeds24InventorySync cadence). One
+// connection at a time with a 5s stagger so we never fan out enough to
+// trip Beds24's per-token rate limits. Per-connection call is the same
+// endpoint (sync-prices) the manual admin button uses; passing days=730
+// so the whole 2-year window gets refreshed each pass.
+// =====================================================
+async function runBeds24DirectPricingCron() {
+  try {
+    // Sort by staleness — oldest last_sync_at first, so laggards catch up.
+    // LIMIT 40 per pass keeps burst contained; the rest catch up next
+    // 6h cycle. In practice we have ~50 direct connections.
+    const conns = await pool.query(`
+      SELECT c.id, c.account_id, a.name AS account_name
+        FROM gas_sync_connections c
+        JOIN accounts a ON a.id = c.account_id
+       WHERE c.adapter_code = 'beds24'
+         AND c.sync_enabled = true
+         AND c.status = 'connected'
+       ORDER BY COALESCE(c.last_sync_at, '1970-01-01'::timestamp) ASC
+       LIMIT 40`);
+    if (conns.rows.length === 0) return;
+    console.log(`⏰ [Beds24 Direct Pricing Cron] ${conns.rows.length} connection(s) due`);
+    const port = process.env.PORT || 3001;
+    for (const c of conns.rows) {
+      try {
+        // Iterate all mapped properties on this connection so every property
+        // (not just the first) gets its rates refreshed.
+        const props = await pool.query(`
+          SELECT sp.id AS sync_property_id
+            FROM gas_sync_properties sp
+           WHERE sp.connection_id = $1
+             AND sp.gas_property_id IS NOT NULL`, [c.id]);
+        for (const p of props.rows) {
+          try {
+            await axios.post(
+              `http://localhost:${port}/api/gas-sync/properties/${p.sync_property_id}/sync-prices`,
+              { days: 730 },
+              { timeout: 10 * 60 * 1000 }
+            );
+          } catch (e) {
+            console.warn(`[Beds24 Direct Pricing Cron] acct ${c.account_id} (${c.account_name}) prop ${p.sync_property_id}: ${e.response?.data?.error || e.message}`);
+          }
+          await new Promise(r => setTimeout(r, 3000)); // 3s between properties
+        }
+      } catch (e) {
+        console.warn(`[Beds24 Direct Pricing Cron] connection ${c.id} (${c.account_name}) outer: ${e.message}`);
+      }
+      await new Promise(r => setTimeout(r, 5000)); // 5s between connections
+    }
+    console.log(`⏰ [Beds24 Direct Pricing Cron] pass complete`);
+  } catch (e) {
+    console.error('[Beds24 Direct Pricing Cron]', e.message);
+  }
+}
+setTimeout(runBeds24DirectPricingCron, 30 * 60 * 1000);      // 30 min after boot (let other syncs settle first)
+setInterval(runBeds24DirectPricingCron, 6 * 60 * 60 * 1000); // every 6 hours
 
 // =====================================================
 // CHANNEX BOOKINGS POLLER — Steve/Barbara 2026-07-12. The webhook path
