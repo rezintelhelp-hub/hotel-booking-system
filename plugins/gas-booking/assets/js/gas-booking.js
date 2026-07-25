@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.01
+ * Version: 4.3.02
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -3734,16 +3734,32 @@ jQuery(document).ready(function($) {
                     // Header = pure accommodation (matches the Pricing Grid
                     // standard rate × nights). Cleaning fee + extras are
                     // shown as separate line items in the breakdown.
-                    // Label the period line "Standard price" when offers
-                    // exist so guests understand the big number is the
-                    // base rate and the offers below may be higher/lower.
-                    // Lehmann 2026-07-25: users saw $225 headline and
-                    // Single Night Weekend $275 offer, thought Book Now
-                    // would charge $225.
-                    $('.gas-price-amount').text(formatPriceShort(accommodationTotal, currency));
+                    //
+                    // Auto-selected offer handling (Lehmann 2026-07-25):
+                    // When any offer.replaces_standard=true is auto-selected
+                    // and its price differs from the base rate, show the
+                    // OFFER price as the headline — otherwise the guest
+                    // sees "$225 / 1 night" then "Single Night Weekend
+                    // $275" below and thinks Book Now will charge $225.
+                    // With this fix the headline matches the Book Now
+                    // button. Also label the period line "Standard price"
+                    // when there ARE offers but the base rate is genuinely
+                    // the applicable rate, so guests understand offers
+                    // below may still change the number.
+                    var _headlinePrice = accommodationTotal;
+                    var _autoSelectedOffer = (Array.isArray(response.all_offers) ? response.all_offers : [])
+                        .find(function(o){ return o.replaces_standard && o.rate_plan_total != null; });
+                    if (_autoSelectedOffer && Math.abs(parseFloat(_autoSelectedOffer.rate_plan_total) - accommodationTotal) > 0.01) {
+                        _headlinePrice = parseFloat(_autoSelectedOffer.rate_plan_total);
+                    }
+                    $('.gas-price-amount').text(formatPriceShort(_headlinePrice, currency));
                     var _nightLabel = nights + ' ' + (nights > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night'));
                     var _hasOffers = Array.isArray(response.all_offers) && response.all_offers.length > 0;
-                    if (_hasOffers) _nightLabel += ' · ' + t('booking', 'standard_price', 'Standard price');
+                    // Only tack on "Standard price" when the headline is
+                    // still the base rate (no auto-selected offer took over).
+                    if (_hasOffers && _headlinePrice === accommodationTotal) {
+                        _nightLabel += ' · ' + t('booking', 'standard_price', 'Standard price');
+                    }
                     $('.gas-price-period').text(_nightLabel);
                     
                     // Show occupancy adjustment note if applicable
