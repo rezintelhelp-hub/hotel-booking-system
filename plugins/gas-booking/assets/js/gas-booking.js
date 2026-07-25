@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.2.99
+ * Version: 4.3.00
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -3992,6 +3992,23 @@ jQuery(document).ready(function($) {
             $roomWidget.data('selected-rate', 'offer-' + autoSelectedOfferIdx);
             $roomWidget.data('total-price', autoSelectedOfferTotal);
             $('.gas-total-price').text(formatPrice(autoSelectedOfferTotal, currency));
+            // Populate active-offer for the auto-selected card too — otherwise
+            // Book Now reads active-offer=null and drops offer_id from the
+            // checkout URL, so calculate-price on the checkout page falls
+            // back to the standard rate (Lehmann bug 2026-07-25: user picks
+            // Single Night Weekend $259, checkout charges standard $225).
+            // Manual clicks on the rate card already do this via the click
+            // handler; auto-select needs the same treatment.
+            var _autoOffer = offers[autoSelectedOfferIdx];
+            if (_autoOffer && _autoOffer.id) {
+                $roomWidget.data('active-offer', {
+                    id: _autoOffer.id,
+                    name: _autoOffer.name,
+                    discount_type: _autoOffer.discount_type,
+                    discount_value: _autoOffer.discount_value,
+                    hide_discount_badge: _autoOffer.hide_discount_badge
+                });
+            }
         } else {
             $roomWidget.data('offer-total', standardTotal); // Will update when offer selected
             $roomWidget.data('selected-rate', 'standard'); // Default to standard rate
