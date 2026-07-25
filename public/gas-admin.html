@@ -70912,6 +70912,61 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (d.success) {
                     showNotification(parsed == null ? 'Override cleared' : 'Override saved: ' + parsed.toFixed(2), 'success');
                     if (typeof viewBooking === 'function') viewBooking(currentViewingBookingId);
+                    // Instantly repaint the row in the report table behind the
+                    // modal so Steve can see progress without re-running the
+                    // report. Match by onclick="openBookingDetail(NNN)" —
+                    // that's how renderReportRows wires each TR to a booking.
+                    // Yellow→light-blue when override goes ON, light-blue→
+                    // transparent when it's cleared. Also nudges the banner
+                    // counts so the header text stays in sync.
+                    try {
+                        const tbody = document.getElementById('reports-generic-tbody');
+                        if (tbody) {
+                            const escapedId = String(currentViewingBookingId);
+                            const rows = tbody.querySelectorAll('tr[onclick*="openBookingDetail(' + escapedId + ')"]');
+                            rows.forEach(function(tr) {
+                                if (parsed == null) {
+                                    // Cleared — revert to plain row
+                                    tr.style.background = 'transparent';
+                                    tr.setAttribute('onmouseover', "this.style.background='#eef2ff'");
+                                    tr.setAttribute('onmouseout', "this.style.background='transparent'");
+                                    tr.setAttribute('data-review', '0');
+                                } else {
+                                    // Override saved — light blue (reviewed + locked)
+                                    tr.style.background = '#dbeafe';
+                                    tr.setAttribute('onmouseover', "this.style.background='#bfdbfe'");
+                                    tr.setAttribute('onmouseout', "this.style.background='#dbeafe'");
+                                    tr.setAttribute('data-review', '0');
+                                }
+                            });
+                            // Adjust the banner: this row was yellow → now
+                            // blue, so decrement needsReview and increment
+                            // reviewed. Read current values off the banner
+                            // strings; if we can't parse, skip — banner will
+                            // resync on next report run.
+                            const banner = document.getElementById('reports-review-banner');
+                            if (banner && parsed != null) {
+                                const nrMatch = banner.innerHTML.match(/<strong>(\d+)<\/strong>\s*booking/);
+                                const rvMatch = banner.innerHTML.match(/(\d+)\s*already reviewed/);
+                                const nrNow = nrMatch ? Math.max(0, parseInt(nrMatch[1]) - 1) : null;
+                                const rvNow = rvMatch ? parseInt(rvMatch[1]) + 1 : 1;
+                                if (nrNow != null) {
+                                    if (nrNow > 0) {
+                                        banner.innerHTML = banner.innerHTML
+                                            .replace(/<strong>\d+<\/strong>/, '<strong>' + nrNow + '</strong>')
+                                            .replace(/\d+ already reviewed/, rvNow + ' already reviewed');
+                                        if (!rvMatch) {
+                                            banner.innerHTML = banner.innerHTML.replace(/(\.)(\s*)$/, '$1 · <span style="color:#1e40af;">' + rvNow + ' already reviewed ✓</span>');
+                                        }
+                                    } else {
+                                        // All done — flip to blue banner
+                                        banner.style.cssText = 'padding:0.65rem 0.9rem; background:#dbeafe; border:1px solid #bfdbfe; border-radius:6px; margin:0 0 0.75rem 0; color:#1e40af; font-size:0.9rem;';
+                                        banner.innerHTML = '✓ All flagged bookings reviewed — <strong>' + rvNow + '</strong> row' + (rvNow === 1 ? '' : 's') + ' with locked overrides shown in blue.';
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) { /* non-fatal — row will repaint on next report run */ }
                 } else {
                     showNotification('Save failed: ' + (d.error || 'unknown'), 'error');
                 }
