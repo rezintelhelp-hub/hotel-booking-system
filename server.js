@@ -100160,7 +100160,16 @@ app.post('/api/public/calculate-price', async (req, res) => {
         // honoured on non-standard tiers; now also honoured for replaces_standard
         // so tiered guest-band pricing (e.g. £1200 up to 20 guests, £2400 for 21–40)
         // applies correctly.
-        const baseForDiscount = cmTotal || accommodationTotal;
+        //
+        // usedRatePlanPricing guard: if the R5b block above already computed
+        // accommodationTotal from the offer's per-rate-plan daily_prices
+        // (CM-imported Weekend Price / Single Night Weekend etc), that IS the
+        // authoritative number — using cmTotal here would wipe it out with the
+        // base rate. Lehmann case 2026-07-25: guest picked "Weekend Price
+        // £390", checkout charged £450 because cmTotal (450) beat the R5b
+        // result (390). Same for every cm-import offer with daily_prices
+        // across Lehmann, IOU, Atlantis, EasyLandlord etc.
+        const baseForDiscount = usedRatePlanPricing ? accommodationTotal : (cmTotal || accommodationTotal);
         if (offer.price_per_night) {
           // Flat rate, e.g. Exclusive Hire tiered offers
           useFixedPricePerNight = parseFloat(offer.price_per_night);
