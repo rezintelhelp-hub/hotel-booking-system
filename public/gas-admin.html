@@ -2182,6 +2182,44 @@
         .inbox-thread-msg.outbound { background:#f0f9ff; border-color:#bae6fd; }
         .inbox-reply-box { background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:16px; margin-top:16px; }
         .inbox-reply-box textarea { width:100%; min-height:120px; border:1px solid #d1d5db; border-radius:6px; padding:12px; font-size:14px; resize:vertical; box-sizing:border-box; }
+
+        /* Availability & Pricing — mobile stack.
+           Steve 2026-07-25: on mobile the filter/nav row was rendering inline and
+           the whole card bounced left-right because the min-width inputs
+           overflowed the viewport. Force column layout and full-width children
+           below 768px so nothing overflows and the nav controls sit under the
+           filter cleanly. Only touches THIS view — grid overflow-x on
+           #availability-grid-card is preserved so the actual calendar table
+           can still scroll horizontally as intended. */
+        @media (max-width: 768px) {
+            #availability > .card > div[style*="display: flex"] {
+                flex-direction: column !important;
+                align-items: stretch !important;
+            }
+            #availability > .card > div[style*="display: flex"] > div {
+                width: 100% !important;
+                margin-left: 0 !important;
+                flex-wrap: wrap !important;
+                justify-content: flex-start !important;
+            }
+            #availability > .card select,
+            #availability > .card input[type="text"],
+            #availability > .card input[type="date"] {
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                box-sizing: border-box !important;
+            }
+            /* Nav buttons row: keep buttons inline but let them wrap so
+               prev/next/today/refresh don't force horizontal scroll. */
+            #availability > .card button {
+                flex: 0 0 auto;
+            }
+            /* Legend row: wrap tighter so colour pickers stack neatly. */
+            #availability > div[style*="display: flex"][style*="flex-wrap: wrap"] {
+                gap: 0.5rem !important;
+            }
+        }
     </style>
     <script src="https://script.supademo.com/supademo.js" defer></script>
     <!-- Chart.js — used by the SEO Analytics performance dashboard.
