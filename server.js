@@ -145543,11 +145543,17 @@ app.patch('/api/admin/bookings/:id/reporting-price-override', async (req, res) =
       return res.status(400).json({ success: false, error: 'value must be a non-negative number or null to clear' });
     }
     const note = req.body?.note ? String(req.body.note).slice(0, 500) : null;
+    // Explicit ::numeric cast on $1 so node-pg can infer the type when
+    // the parameter is passed as JavaScript null. Without the cast,
+    // Postgres sees $1 used both as a NUMERIC column assignment AND
+    // inside `IS NULL` in the CASE, can't pick, throws "could not
+    // determine data type of parameter $1" on the very first save with
+    // a non-null value too (Steve, Hebden Ex Hire override 2026-07-25).
     await pool.query(
       `UPDATE bookings
-          SET reporting_price_override = $1,
+          SET reporting_price_override = $1::numeric,
               reporting_price_override_note = $2,
-              reporting_price_override_at = CASE WHEN $1 IS NULL THEN NULL ELSE NOW() END,
+              reporting_price_override_at = CASE WHEN $1::numeric IS NULL THEN NULL ELSE NOW() END,
               reporting_price_override_by = $3,
               updated_at = NOW()
         WHERE id = $4`,
