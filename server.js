@@ -99100,10 +99100,19 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       } catch (e) { console.warn('[event-unlock] lookup failed:', e.message); }
     }
 
+    // Price fallback order MUST match /api/public/calculate-price
+    // (line ~99354). Missing standard_price here meant a day with
+    // direct_price=NULL + cm_price=NULL still had a valid
+    // standard_price fallback the booking flow used, but the calendar
+    // returned dayPrice=null and rendered the day as blocked/grey.
+    // Cotswolds Coconuts Retreat 2027-04-11 was the canonical case
+    // (2026-07-25) — sync had never populated cm_price for that
+    // pivot day between two rate seasons, standard_price fallback
+    // said $205, so booking worked but calendar looked blocked.
     const availability = await pool.query(`
       SELECT
         date,
-        COALESCE(direct_price, cm_price, price) as price,
+        COALESCE(direct_price, cm_price, standard_price, price) as price,
         is_available,
         available,
         is_blocked,
