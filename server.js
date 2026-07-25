@@ -145328,6 +145328,15 @@ app.post('/api/admin/bookings/:id/charge-stripe-card', async (req, res) => {
       console.error('[charge-stripe-card] payment_transactions INSERT failed (charge already captured at Stripe):', logErr.message, { booking_id: bookingId, pi: pi.id });
     }
 
+    // Push the payment back to Beds24 so its invoice matches GAS. Same
+    // gap as the auto-charge cron — operator's "Charge card" button
+    // was leaving Beds24 with an outstanding balance forever. Fire-and-
+    // forget so a Beds24 API blip doesn't fail the response for a
+    // charge that already succeeded at Stripe.
+    if (typeof syncBeds24PaymentItem === 'function') {
+      setImmediate(() => syncBeds24PaymentItem(bookingId).catch(e => console.warn(`[charge-stripe-card beds24 sync] booking ${bookingId}: ${e.message}`)));
+    }
+
     res.json({
       success: true,
       charged_amount: chargeAmount,
@@ -145679,7 +145688,15 @@ app.post('/api/bookings/:id/charge-card', async (req, res) => {
     `, [bookingId]);
     
     console.log(`✅ [Enigma] Charged ${currency} ${amount} for booking ${bookingId} - ${booking.enigma_card_type} ****${booking.enigma_card_last_four}`);
-    
+
+    // Sync payment to Beds24 so its invoice matches. Same fire-and-forget
+    // pattern as the Stripe manual charge + auto-charge cron. Enigma
+    // charge succeeded at the gateway — a Beds24 push failure must not
+    // fail the response.
+    if (typeof syncBeds24PaymentItem === 'function') {
+      setImmediate(() => syncBeds24PaymentItem(bookingId).catch(e => console.warn(`[enigma charge-card beds24 sync] booking ${bookingId}: ${e.message}`)));
+    }
+
     res.json({
       success: true,
       message: `Successfully charged ${currency} ${amount}`,
@@ -151421,6 +151438,16 @@ async function processAutoChargePayments() {
                 }
 
                 console.log(`[AUTO-CHARGE] Successfully charged balance for booking ${booking.booking_id} - ${guestName} pi=${paymentIntent.id}`);
+
+                // Push the payment back to Beds24 so its invoice shows the
+                // balance as paid — otherwise the operator sees GAS=paid but
+                // Beds24 still shows the balance outstanding (Robert Del
+                // Grande GAS-370497 pattern, Steve 2026-07-25 audit).
+                // Fire-and-forget: Beds24 push failure must not fail the
+                // successful charge.
+                if (typeof syncBeds24PaymentItem === 'function') {
+                    setImmediate(() => syncBeds24PaymentItem(booking.booking_id).catch(e => console.warn(`[AUTO-CHARGE beds24 sync] booking ${booking.booking_id}: ${e.message}`)));
+                }
 
             } catch (chargeErr) {
                 console.error(`[AUTO-CHARGE] Failed to charge booking ${booking.booking_id}:`, chargeErr.message);
