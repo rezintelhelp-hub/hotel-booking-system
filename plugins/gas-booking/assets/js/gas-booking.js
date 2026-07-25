@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.00
+ * Version: 4.3.01
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -3734,8 +3734,17 @@ jQuery(document).ready(function($) {
                     // Header = pure accommodation (matches the Pricing Grid
                     // standard rate × nights). Cleaning fee + extras are
                     // shown as separate line items in the breakdown.
+                    // Label the period line "Standard price" when offers
+                    // exist so guests understand the big number is the
+                    // base rate and the offers below may be higher/lower.
+                    // Lehmann 2026-07-25: users saw $225 headline and
+                    // Single Night Weekend $275 offer, thought Book Now
+                    // would charge $225.
                     $('.gas-price-amount').text(formatPriceShort(accommodationTotal, currency));
-                    $('.gas-price-period').text(nights + ' ' + (nights > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night')));
+                    var _nightLabel = nights + ' ' + (nights > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night'));
+                    var _hasOffers = Array.isArray(response.all_offers) && response.all_offers.length > 0;
+                    if (_hasOffers) _nightLabel += ' · ' + t('booking', 'standard_price', 'Standard price');
+                    $('.gas-price-period').text(_nightLabel);
                     
                     // Show occupancy adjustment note if applicable
                     if (occupancyAdjustment !== 0) {
