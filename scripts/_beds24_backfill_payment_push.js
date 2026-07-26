@@ -28,7 +28,7 @@ const BASE = process.env.SYNC_BASE || 'https://admin.gas.travel';
   try {
     // 2. Candidate bookings — Cotswolds first, rest by paid-recency
     const cands = await p.query(`
-      SELECT DISTINCT b.id, p.account_id, a.name AS account_name,
+      SELECT b.id, p.account_id, a.name AS account_name,
              TRIM(COALESCE(b.guest_first_name,'')||' '||COALESCE(b.guest_last_name,'')) AS guest,
              MAX(pt.completed_at) AS last_paid
         FROM bookings b
