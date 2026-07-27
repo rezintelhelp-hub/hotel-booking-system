@@ -106649,6 +106649,38 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
 });
 
 // Get active offers for a client (for website display)
+// Distinct location values (city / district) across an account's active
+// properties — used by the [gas_search] widget on the homepage to
+// populate a location dropdown. Steve 2026-07-28: easystays.mt widget
+// had a plain text input with no autocomplete; replaced with a select
+// that pulls from properties.city (and district as a fallback) so the
+// dropdown only shows locations that actually exist in the operator's
+// database.
+app.get('/api/public/client/:clientId/locations', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=300'); // 5 min — dropdown changes slowly
+  try {
+    const { clientId } = req.params;
+    const q = await pool.query(`
+      SELECT DISTINCT TRIM(city) AS location
+        FROM properties
+       WHERE account_id = $1
+         AND city IS NOT NULL
+         AND TRIM(city) <> ''
+      UNION
+      SELECT DISTINCT TRIM(district) AS location
+        FROM properties
+       WHERE account_id = $1
+         AND district IS NOT NULL
+         AND TRIM(district) <> ''
+         AND (city IS NULL OR TRIM(city) = '')
+      ORDER BY location ASC`, [clientId]);
+    res.json({ success: true, locations: q.rows.map(r => r.location) });
+  } catch (e) {
+    console.error('[public locations]', e.message);
+    res.json({ success: false, error: e.message, locations: [] });
+  }
+});
+
 app.get('/api/public/client/:clientId/offers', async (req, res) => {
   // No browser/edge cache: operators toggle offer visibility live and
   // expect the change to reflect on the widget on the next page hit.

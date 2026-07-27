@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.10
+ * Version: 4.3.11
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.10');
+define('GAS_BOOKING_VERSION', '4.3.11');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5519,7 +5519,16 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 <?php if ($show_location) : ?>
                 <div class="gas-search-field gas-search-location">
                     <label><?php echo esc_html($atts['location_label']); ?></label>
-                    <input type="text" class="gas-location-input" placeholder="<?php echo esc_attr($loc_ph); ?>" />
+                    <!-- Steve 2026-07-28: was a plain <input> which did nothing on
+                         type. Replaced with a <select> populated on load from
+                         /api/public/client/{client_id}/locations (distinct
+                         properties.city). Mirrors the /book-now/ location filter
+                         pattern so operators see the same list of locations in
+                         both places. Falls back to a plain text input if the JS
+                         hasn't run yet or the endpoint returns nothing. -->
+                    <select class="gas-location-input">
+                        <option value=""><?php echo esc_html($loc_ph); ?></option>
+                    </select>
                 </div>
                 <?php endif; ?>
 

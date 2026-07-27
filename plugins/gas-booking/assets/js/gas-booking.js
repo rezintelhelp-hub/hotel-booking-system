@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.02
+ * Version: 4.3.03
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -13,6 +13,63 @@
  * @version 3.8.00
  */
 jQuery(document).ready(function($) {
+
+    // ─── GAS Search widget: location dropdown ────────────────────────────
+    // Populate every .gas-location-input <select> on the page with the
+    // account's distinct property locations. Only fires once even if
+    // multiple widgets render on the page (they share the same account).
+    // Steve 2026-07-28 (easystays.mt): search input was a plain text
+    // field that did nothing on type. Now a select populated from
+    // /api/public/client/:id/locations. Selecting one and hitting
+    // Search sends location=X to /book-now/ where gasBooking is wired
+    // (below) to pre-select the .gas-filter-location dropdown.
+    (function initSearchLocationDropdown() {
+        var $selects = $('select.gas-location-input');
+        if (!$selects.length) return;
+        if (!window.gasBooking || !gasBooking.clientId || !gasBooking.apiUrl) return;
+        $.ajax({
+            url: gasBooking.apiUrl + '/api/public/client/' + gasBooking.clientId + '/locations',
+            method: 'GET', dataType: 'json',
+            success: function(resp) {
+                if (!resp || !resp.success || !Array.isArray(resp.locations)) return;
+                var opts = resp.locations.map(function(loc) {
+                    return '<option value="' + String(loc).replace(/"/g, '&quot;') + '">' + String(loc).replace(/</g, '&lt;') + '</option>';
+                }).join('');
+                $selects.each(function() {
+                    // Preserve the first option (the placeholder) then append
+                    var $s = $(this);
+                    var $first = $s.find('option').first().clone();
+                    $s.empty().append($first).append(opts);
+                    // If URL has location=X already (came from a previous
+                    // search), pre-select it so the widget shows the last
+                    // choice.
+                    try {
+                        var pre = new URLSearchParams(window.location.search).get('location');
+                        if (pre) $s.val(pre);
+                    } catch (e) {}
+                });
+            }
+        });
+    })();
+
+    // ─── /book-now/ location filter: pre-apply from URL ──────────────────
+    // When the search widget submits with ?location=X, pre-select the
+    // book-now page's location dropdown and re-run filters so the guest
+    // lands on the filtered list without an extra click. Idempotent —
+    // no-op if the URL has no location param or the filter isn't on
+    // the current page.
+    (function applyLocationFromUrl() {
+        try {
+            var pre = new URLSearchParams(window.location.search).get('location');
+            if (!pre) return;
+            var sel = document.querySelector('.gas-filter-location');
+            if (!sel) return;
+            sel.value = pre;
+            if (typeof window.gasApplyFilters === 'function') {
+                window.gasApplyFilters();
+            }
+        } catch (e) { /* non-fatal */ }
+    })();
 
     // ─── GAS Cart ────────────────────────────────────────────────────────
     // Cross-page mini cart. Used by the bike-storage standalone widget
