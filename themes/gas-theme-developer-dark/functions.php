@@ -2740,6 +2740,7 @@ function developer_get_api_settings() {
         'cta_link' => $website_header['cta-link'] ?? '/book-now/',
         'cta_bg' => $website_header['cta-bg'] ?? null,
         'cta_text_color' => $website_header['cta-text-color'] ?? null,
+        'cta_style' => $website_header['cta-style'] ?? 'solid',
         // Header colors
         'header_bg' => $website_header['bg'] ?? $website_header['bg-color'] ?? null,
         'header_text' => $website_header['text-color'] ?? null,
@@ -3186,6 +3187,7 @@ function developer_developer_custom_css() {
     $header_logo = $api['header_logo'] ?? get_theme_mod('developer_header_logo_color', '#0f172a');
     $header_cta_bg = $api['cta_bg'] ?? get_theme_mod('developer_header_cta_bg', '#2563eb');
     $header_cta_text = $api['cta_text_color'] ?? get_theme_mod('developer_header_cta_text', '#ffffff');
+    $header_cta_style = $api['cta_style'] ?? 'solid';
     $header_font = $api['header_font'] ?? get_theme_mod('developer_header_font', 'inter');
     $header_font_size = $api['header_font_size'] ?? get_theme_mod('developer_header_font_size', '15');
     $header_font_weight = $api['header_font_weight'] ?? get_theme_mod('developer_header_font_weight', '500');
@@ -3448,12 +3450,23 @@ function developer_developer_custom_css() {
         }
         
         .developer-nav-cta {
+            ' . ($header_cta_style === 'outline' ? '
+            background: transparent !important;
+            color: ' . esc_attr($header_cta_bg) . ' !important;
+            border: 2px solid ' . esc_attr($header_cta_bg) . ' !important;
+            ' : '
             background: ' . esc_attr($header_cta_bg) . ' !important;
             color: ' . esc_attr($header_cta_text) . ' !important;
+            ') . '
         }
-        
+
         .developer-nav-cta:hover {
+            ' . ($header_cta_style === 'outline' ? '
+            background: ' . esc_attr($header_cta_bg) . ' !important;
+            color: ' . esc_attr($header_cta_text) . ' !important;
+            ' : '
             background: ' . esc_attr(developer_adjust_brightness($header_cta_bg, -20)) . ' !important;
+            ') . '
         }
         
         .developer-menu-toggle span {
