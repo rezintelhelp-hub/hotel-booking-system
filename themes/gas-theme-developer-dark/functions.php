@@ -3317,11 +3317,21 @@ function developer_developer_custom_css() {
             border-radius: ' . esc_attr($btn_radius) . 'px;
         }
         /* Button Size — Web Builder Styles section, three-tier select.
-           Applies to .developer-btn AND .gas-view-btn so size stays
-           consistent everywhere on the public site. */
+           Extended 2026-07-28 to every CTA button class on the public
+           site (theme + gas-booking plugin) so "Small" actually shrinks
+           buttons everywhere consistently. Excludes utility buttons
+           (copy / filter / tab) which have their own tight sizing. */
         .developer-btn,
+        .developer-nav-cta,
         .gas-view-btn,
-        .gas-row-view-btn {
+        .gas-row-view-btn,
+        .gas-book-btn,
+        .gas-add-to-cart-btn,
+        .gas-cart-checkout-btn,
+        .gas-search-button,
+        .gas-submit-btn,
+        .gas-offers-cta-btn,
+        .gas-widget-btn {
             padding: ' . esc_attr($bs['py']) . ' ' . esc_attr($bs['px']) . ' !important;
             font-size: ' . esc_attr($bs['font']) . ' !important;
         }
