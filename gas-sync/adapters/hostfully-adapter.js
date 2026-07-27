@@ -111,15 +111,6 @@ class HostfullyAdapter {
         config.params = options.params;
       }
 
-      // Debug: log outgoing POST to /leads so backfill runs surface the
-      // exact payload Hostfully receives when they reject with enum /
-      // missing-field errors. Remove once createLead is stable.
-      if (method === 'POST' && String(endpoint).startsWith('/leads')) {
-        try {
-          console.log(`[hostfully DEBUG] POST ${config.url}  body=${JSON.stringify(data)}`);
-        } catch (_) {}
-      }
-
       const response = await axios(config);
       
       // Track rate limit headers
@@ -882,34 +873,40 @@ class HostfullyAdapter {
    * Create a new lead/booking
    */
   async createLead(leadData) {
-    // Hostfully v3 accepts either checkInDate (YYYY-MM-DD) OR
-    // checkInDateTime (ISO 8601 with time). Steve backfill 2026-07-27
-    // was hitting "One of ['checkInDateTime', 'checkInDate'] is
-    // required" — turns out the v3 API wants the ISO-8601 datetime
-    // form specifically for leads (with a hotel-industry default of
-    // 3pm arrival / 11am checkout). Send checkInDateTime instead.
+    // Hostfully v3 schema — mirrors the GET /leads response shape:
+    //   checkInLocalDateTime / checkOutLocalDateTime (not checkInDate)
+    //   guestInformation nested object with adult/child/pet counts +
+    //   firstName/lastName/email/phone/countryCode inside — NOT a
+    //   separate top-level `guest` object and NOT top-level counts.
+    // Steve 2026-07-27: adapter had v2 shape (checkInDate, guest
+    // object, top-level adultCount) which Hostfully rejects with the
+    // misleading "checkInDateTime/checkInDate required" error — it's
+    // actually a generic "your payload doesn't match schema" fallback
+    // that misreports which field is bad.
     const toDT = (d, hh) => {
       if (!d) return null;
-      // Accept YYYY-MM-DD or full ISO; return YYYY-MM-DDTHH:mm:ss
       const dateOnly = String(d).slice(0, 10);
       return `${dateOnly}T${String(hh).padStart(2, '0')}:00:00`;
     };
     const payload = {
       propertyUid: leadData.propertyUid,
       agencyUid: this.agencyUid,
-      checkInDateTime: toDT(leadData.checkIn, 15),   // 3pm arrival default
-      checkOutDateTime: toDT(leadData.checkOut, 11), // 11am checkout default
-      adultCount: leadData.adults || 1,
-      childCount: leadData.children || 0,
-      petCount: leadData.pets || 0,
-      source: leadData.source || 'DIRECT',
-      status: leadData.status || 'BOOKING',
-      guest: {
+      checkInLocalDateTime: toDT(leadData.checkIn, 15),   // 3pm arrival default
+      checkOutLocalDateTime: toDT(leadData.checkOut, 11), // 11am checkout default
+      source: leadData.source || 'HOSTFULLY_API',
+      status: leadData.status || 'BOOKED',
+      type: leadData.type || 'BOOKING',
+      guestInformation: {
         firstName: leadData.guestFirstName || '',
         lastName: leadData.guestLastName || '',
         email: leadData.guestEmail || '',
-        phone: leadData.guestPhone || ''
-      }
+        phoneNumber: leadData.guestPhone || '',
+        adultCount: leadData.adults || 1,
+        childrenCount: leadData.children || 0,
+        infantCount: leadData.infants || 0,
+        petCount: leadData.pets || 0,
+      },
+      notes: leadData.notes || null,
     };
 
     if (leadData.totalPrice) {

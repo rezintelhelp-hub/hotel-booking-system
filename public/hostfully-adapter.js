@@ -835,28 +835,38 @@ class HostfullyAdapter {
    * Create a new lead/booking
    */
   async createLead(leadData) {
+    // Hostfully v3 schema — see gas-sync/adapters/hostfully-adapter.js
+    // for full commentary. Kept in sync with that copy.
+    const toDT = (d, hh) => {
+      if (!d) return null;
+      const dateOnly = String(d).slice(0, 10);
+      return `${dateOnly}T${String(hh).padStart(2, '0')}:00:00`;
+    };
     const payload = {
       propertyUid: leadData.propertyUid,
       agencyUid: this.agencyUid,
-      checkInDate: leadData.checkIn,
-      checkOutDate: leadData.checkOut,
-      adultCount: leadData.adults || 1,
-      childCount: leadData.children || 0,
-      petCount: leadData.pets || 0,
-      source: leadData.source || 'DIRECT',
-      status: leadData.status || 'BOOKING',
-      guest: {
+      checkInLocalDateTime: toDT(leadData.checkIn, 15),
+      checkOutLocalDateTime: toDT(leadData.checkOut, 11),
+      source: leadData.source || 'HOSTFULLY_API',
+      status: leadData.status || 'BOOKED',
+      type: leadData.type || 'BOOKING',
+      guestInformation: {
         firstName: leadData.guestFirstName || '',
         lastName: leadData.guestLastName || '',
         email: leadData.guestEmail || '',
-        phone: leadData.guestPhone || ''
-      }
+        phoneNumber: leadData.guestPhone || '',
+        adultCount: leadData.adults || 1,
+        childrenCount: leadData.children || 0,
+        infantCount: leadData.infants || 0,
+        petCount: leadData.pets || 0,
+      },
+      notes: leadData.notes || null,
     };
-    
+
     if (leadData.totalPrice) {
       payload.quoteAmount = leadData.totalPrice;
     }
-    
+
     const response = await this.request('/leads', 'POST', payload);
     
     if (!response.success) return response;
