@@ -3517,8 +3517,8 @@ function developer_developer_custom_css() {
     $header_bg = $api['header_bg'] ?? get_theme_mod('developer_header_bg_color', '#ffffff');
     $header_text = $api['header_text'] ?? get_theme_mod('developer_header_text_color', '#1e293b');
     $header_logo = $api['header_logo'] ?? get_theme_mod('developer_header_logo_color', '#0f172a');
-    $header_cta_bg = $api['cta_bg'] ?? get_theme_mod('developer_header_cta_bg', '#2563eb');
-    $header_cta_text = $api['cta_text_color'] ?? get_theme_mod('developer_header_cta_text', '#ffffff');
+    $header_cta_bg = developer_normalise_hex($api['cta_bg'] ?? get_theme_mod('developer_header_cta_bg', '#2563eb'));
+    $header_cta_text = developer_normalise_hex($api['cta_text_color'] ?? get_theme_mod('developer_header_cta_text', '#ffffff'));
     // Steve 2026-07-28: outline mode for the header CTA. 'solid' (default)
     // = filled background, 'outline' = transparent inside with border
     // in the CTA colour; hover flips to solid. Wired via new picker
@@ -4187,6 +4187,18 @@ function developer_get_current_page_key() {
 /**
  * Adjust color brightness
  */
+// Normalise a hex colour before emitting. Strips ALL leading '#' chars and
+// re-adds one so operators / bad admin-side data can't inject '##317587'
+// (produced silently by the WB colour picker sync on some browsers), which
+// then renders as invalid CSS and browsers ignore the whole rule.
+// Steve 2026-07-28 easystays.mt: outline CTA was invisible because the
+// stored value was '##317587'; heals + guards in one commit.
+function developer_normalise_hex($v) {
+    if (!is_string($v) || $v === '') return $v;
+    $v = ltrim($v, '#');
+    return $v === '' ? '' : ('#' . $v);
+}
+
 function developer_adjust_brightness($hex, $steps) {
     $hex = ltrim($hex, '#');
     $r = hexdec(substr($hex, 0, 2));
