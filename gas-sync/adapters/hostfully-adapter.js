@@ -873,11 +873,23 @@ class HostfullyAdapter {
    * Create a new lead/booking
    */
   async createLead(leadData) {
+    // Hostfully v3 accepts either checkInDate (YYYY-MM-DD) OR
+    // checkInDateTime (ISO 8601 with time). Steve backfill 2026-07-27
+    // was hitting "One of ['checkInDateTime', 'checkInDate'] is
+    // required" — turns out the v3 API wants the ISO-8601 datetime
+    // form specifically for leads (with a hotel-industry default of
+    // 3pm arrival / 11am checkout). Send checkInDateTime instead.
+    const toDT = (d, hh) => {
+      if (!d) return null;
+      // Accept YYYY-MM-DD or full ISO; return YYYY-MM-DDTHH:mm:ss
+      const dateOnly = String(d).slice(0, 10);
+      return `${dateOnly}T${String(hh).padStart(2, '0')}:00:00`;
+    };
     const payload = {
       propertyUid: leadData.propertyUid,
       agencyUid: this.agencyUid,
-      checkInDate: leadData.checkIn,
-      checkOutDate: leadData.checkOut,
+      checkInDateTime: toDT(leadData.checkIn, 15),   // 3pm arrival default
+      checkOutDateTime: toDT(leadData.checkOut, 11), // 11am checkout default
       adultCount: leadData.adults || 1,
       childCount: leadData.children || 0,
       petCount: leadData.pets || 0,
@@ -890,11 +902,11 @@ class HostfullyAdapter {
         phone: leadData.guestPhone || ''
       }
     };
-    
+
     if (leadData.totalPrice) {
       payload.quoteAmount = leadData.totalPrice;
     }
-    
+
     const response = await this.request('/leads', 'POST', payload);
     
     if (!response.success) return response;
