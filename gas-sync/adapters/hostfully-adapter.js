@@ -106,11 +106,20 @@ class HostfullyAdapter {
       if (data) {
         config.data = data;
       }
-      
+
       if (options.params) {
         config.params = options.params;
       }
-      
+
+      // Debug: log outgoing POST to /leads so backfill runs surface the
+      // exact payload Hostfully receives when they reject with enum /
+      // missing-field errors. Remove once createLead is stable.
+      if (method === 'POST' && String(endpoint).startsWith('/leads')) {
+        try {
+          console.log(`[hostfully DEBUG] POST ${config.url}  body=${JSON.stringify(data)}`);
+        } catch (_) {}
+      }
+
       const response = await axios(config);
       
       // Track rate limit headers
