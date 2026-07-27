@@ -3246,6 +3246,36 @@ async function runMigrations() {
       // api_reference + booking_source='hostfully'). Used by the
       // pushBookingToHostfully helper to short-circuit idempotently.
       try { await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostfully_lead_uid TEXT`); } catch (e) { console.error('[migration] bookings.hostfully_lead_uid skipped:', e.message); }
+      // Channex write-back health check + auto-heal. Steve 2026-07-28 lost
+      // $1000 on a double-booking because account 197's Channex connection
+      // (#341) sat with sync_enabled=false for 2 months — the safety cron
+      // silently skipped it and OTHER OTAs never got told the room was
+      // booked. Per CHANNEL_WRITEBACK policy every 'connected' Channex
+      // connection MUST have sync_enabled=true — otherwise the write-back
+      // dies without any error. This block re-enables any connection
+      // where status='connected' AND sync_enabled=false, and logs loudly
+      // so config drift never quietly kills a client's OTA safety net.
+      try {
+        const stale = await pool.query(`
+          SELECT id, account_id, external_account_name
+            FROM gas_sync_connections
+           WHERE adapter_code = 'channex'
+             AND status = 'connected'
+             AND sync_enabled = false
+        `);
+        for (const r of stale.rows) {
+          console.warn(`[channex-writeback-heal] connection #${r.id} account ${r.account_id} (${r.external_account_name || 'unnamed'}) was sync_enabled=false — re-enabling per CHANNEL_WRITEBACK policy`);
+        }
+        if (stale.rows.length) {
+          await pool.query(`
+            UPDATE gas_sync_connections
+               SET sync_enabled = true, updated_at = NOW()
+             WHERE adapter_code = 'channex'
+               AND status = 'connected'
+               AND sync_enabled = false
+          `);
+        }
+      } catch (e) { console.error('[migration] channex writeback heal skipped:', e.message); }
       try { await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS default_access_code TEXT`); } catch (e) { console.error('[migration] bookable_units.default_access_code skipped:', e.message); }
       // Operator-controlled display order — populated via drag-and-drop
       // on the Rooms page (per property). NULLS render last so accounts
@@ -95479,6 +95509,31 @@ async function processChannexBookingNotification(payload) {
         console.error('[Channex webhook] room_availability block failed', iso, blockErr.message);
       }
     }
+
+    // Push availability back to Channex so OTHER OTAs on the same
+    // property (Airbnb, Expedia, etc.) see the block immediately.
+    //
+    // Steve 2026-07-28 $1000 double-booking: this call was missing
+    // from the OTA-inbound path. The 2026-07-20 patch fixed the GAS
+    // internal calendar (the block above) but forgot the CM push-
+    // back — the safety cron caught SOME but ran 5-9 min behind, wide
+    // enough for another OTA to sell the same room.
+    //
+    // Fire-and-forget + immediate drain so the push happens within
+    // milliseconds instead of waiting for the next 60s cron tick.
+    // Idempotent — if the safety cron beats us to it, the second push
+    // is a no-op at Channex (same availability count).
+    if (gasBookingId) {
+      setImmediate(async () => {
+        try {
+          await mirrorBookingToChannex(gasBookingId, 'created');
+          const { drain } = require('./gas-sync/channex-outbox');
+          await drain(pool);
+        } catch (e) {
+          console.error('[Channex webhook mirror]', gasBookingId, e.message);
+        }
+      });
+    }
   }
 
   if (revisionId) await adapter.acknowledgeBookingRevision(revisionId).catch(e => console.warn('[Channex webhook] ack failed:', e.message));
@@ -132310,20 +132365,31 @@ async function mirrorBookingToChannex(bookingId, event = 'created') {
 // pushes.
 async function runChannexMirrorSafetyCron() {
   try {
+    // Look back 60 min (was 15) so a cron miss during a Railway
+    // redeploy / restart can't leave bookings unpushed. Idempotent —
+    // if the outbox row is already there, this cron won't re-enqueue.
+    //
+    // NOTE: sync_enabled filter DELIBERATELY REMOVED. Steve 2026-07-28
+    // $1000 loss: acct 197 sat with sync_enabled=false for 2 months
+    // and the safety cron silently skipped it. Per CHANNEL_WRITEBACK
+    // policy every 'connected' Channex connection MUST push availability
+    // — pausing writes for a live client is not a valid state. The
+    // startup heal block (server.js:3249) re-enables any drift, and
+    // this cron now runs regardless as belt+braces.
     const recent = await pool.query(`
       SELECT b.id, b.status
       FROM bookings b
       JOIN bookable_units bu ON bu.id = b.bookable_unit_id
       JOIN gas_sync_room_types gsrt ON gsrt.gas_room_id = bu.id
       JOIN gas_sync_connections gsc ON gsc.id = gsrt.connection_id
-      WHERE gsc.adapter_code = 'channex' AND gsc.sync_enabled = true
-        AND b.created_at >= NOW() - INTERVAL '15 minutes'
+      WHERE gsc.adapter_code = 'channex' AND gsc.status = 'connected'
+        AND b.created_at >= NOW() - INTERVAL '60 minutes'
         AND NOT EXISTS (
           SELECT 1 FROM gas_channex_outbox o
           WHERE o.channex_room_type_id = gsrt.external_id
             AND o.created_at >= b.created_at - INTERVAL '1 minute'
         )
-      LIMIT 50
+      LIMIT 100
     `);
     for (const row of recent.rows) {
       // Only fire 'created' — never re-push 'cancelled' from the cron.
@@ -132338,8 +132404,8 @@ async function runChannexMirrorSafetyCron() {
     console.error('[mirror-safety cron]', e.message);
   }
 }
-setTimeout(runChannexMirrorSafetyCron, 9 * 60 * 1000);     // 9 min after boot
-setInterval(runChannexMirrorSafetyCron, 5 * 60 * 1000);    // every 5 min
+setTimeout(runChannexMirrorSafetyCron, 60 * 1000);         // 60s after boot
+setInterval(runChannexMirrorSafetyCron, 60 * 1000);        // every 60s (was 5 min)
 
 // Master-only manual mirror — re-fire for a specific booking on demand.
 // Useful when a customer reports "OTA still shows available" or for
