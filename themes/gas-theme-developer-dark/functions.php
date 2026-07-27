@@ -3462,8 +3462,8 @@ function developer_developer_custom_css() {
         .developer-nav-cta {
             ' . ($header_cta_style === 'outline' ? '
             background: transparent !important;
-            color: ' . esc_attr($header_cta_bg) . ' !important;
-            border: 2px solid ' . esc_attr($header_cta_bg) . ' !important;
+            color: ' . esc_attr($header_cta_text) . ' !important;
+            border: 2px solid ' . esc_attr($header_cta_text) . ' !important;
             ' : '
             background: ' . esc_attr($header_cta_bg) . ' !important;
             color: ' . esc_attr($header_cta_text) . ' !important;
@@ -3474,6 +3474,7 @@ function developer_developer_custom_css() {
             ' . ($header_cta_style === 'outline' ? '
             background: ' . esc_attr($header_cta_bg) . ' !important;
             color: ' . esc_attr($header_cta_text) . ' !important;
+            border-color: ' . esc_attr($header_cta_bg) . ' !important;
             ' : '
             background: ' . esc_attr(developer_adjust_brightness($header_cta_bg, -20)) . ' !important;
             ') . '

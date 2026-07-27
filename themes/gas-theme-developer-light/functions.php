@@ -3812,9 +3812,13 @@ function developer_developer_custom_css() {
         
         .developer-nav-cta {
             ' . ($header_cta_style === 'outline' ? '
+            /* Outline mode: border + text use the CTA TEXT colour so operators
+               get a natural mental model (text colour = visible outline colour).
+               Steve 2026-07-28: was using cta_bg, felt backwards when he set
+               text to #ffffff expecting a white outline. */
             background: transparent !important;
-            color: ' . esc_attr($header_cta_bg) . ' !important;
-            border: 2px solid ' . esc_attr($header_cta_bg) . ' !important;
+            color: ' . esc_attr($header_cta_text) . ' !important;
+            border: 2px solid ' . esc_attr($header_cta_text) . ' !important;
             ' : '
             background: ' . esc_attr($header_cta_bg) . ' !important;
             color: ' . esc_attr($header_cta_text) . ' !important;
@@ -3823,8 +3827,11 @@ function developer_developer_custom_css() {
 
         .developer-nav-cta:hover {
             ' . ($header_cta_style === 'outline' ? '
+            /* Hover in outline mode: flip to solid — bg becomes cta_bg, text
+               stays the CTA text colour for readable contrast. */
             background: ' . esc_attr($header_cta_bg) . ' !important;
             color: ' . esc_attr($header_cta_text) . ' !important;
+            border-color: ' . esc_attr($header_cta_bg) . ' !important;
             ' : '
             background: ' . esc_attr(developer_adjust_brightness($header_cta_bg, -20)) . ' !important;
             ') . '

@@ -45501,6 +45501,18 @@ app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
       }
     }
 
+    // Colour normalisation: any incoming string value that looks like a
+    // corrupted hex ('##RRGGBB', '#RRGGBB#extra', etc) gets stripped to
+    // exactly '#RRGGBB' before storage. Belt to the client-side sanitiser's
+    // braces so no path can persist '##' pollution again (easystays
+    // 2026-07-28 cta-bg / underline-color kept getting double-hashed).
+    for (const [k, v] of Object.entries(settings || {})) {
+      if (typeof v === 'string' && /^#{1,}[0-9A-Fa-f]/.test(v)) {
+        const hex = v.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6);
+        if (hex.length === 6) settings[k] = '#' + hex;
+      }
+    }
+
     let mergedSettings = settings;
     if (existingResult.rows.length > 0 && existingResult.rows[0].settings) {
       const existing = existingResult.rows[0].settings;
