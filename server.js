@@ -63047,7 +63047,11 @@ async function pushBookingToHostfully(bookingId) {
       // is the correct label. Alternatives: HOSTFULLY_UI, DIRECT_HVMI,
       // DIRECT_AIRBNB, DIRECT_BOOKINGDOTCOM etc — all channel-specific.
       source: 'HOSTFULLY_API',
-      status: 'BOOKING',
+      // Status enum — Hostfully accepts NEW/CANCELLED/IGNORED/PENDING/
+      // BOOKED/SAMPLE/DUPLICATE/CLOSED/DECLINED/PENDING_APPROVED/BLOCKED/
+      // ON_HOLD. 'BOOKING' is rejected (Steve 2026-07-27 backfill run 2).
+      // 'BOOKED' is the confirmed-booking state we want.
+      status: 'BOOKED',
       guestFirstName: row.guest_first_name || '',
       guestLastName: row.guest_last_name || '',
       guestEmail: row.guest_email || '',
