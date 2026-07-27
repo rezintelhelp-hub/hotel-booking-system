@@ -3240,6 +3240,12 @@ async function runMigrations() {
       // tolerance — those get highlighted yellow so the operator can
       // decide whether to override. Populated by the importer.
       try { await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS beds24_price NUMERIC(14,2)`); } catch (e) { console.error('[migration] bookings.beds24_price skipped:', e.message); }
+      // Hostfully lead UID — populated when GAS successfully pushes a
+      // direct booking into Hostfully. Distinguishes "GAS created and
+      // pushed" from imported Hostfully bookings (which use
+      // api_reference + booking_source='hostfully'). Used by the
+      // pushBookingToHostfully helper to short-circuit idempotently.
+      try { await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostfully_lead_uid TEXT`); } catch (e) { console.error('[migration] bookings.hostfully_lead_uid skipped:', e.message); }
       try { await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS default_access_code TEXT`); } catch (e) { console.error('[migration] bookable_units.default_access_code skipped:', e.message); }
       // Operator-controlled display order — populated via drag-and-drop
       // on the Rooms page (per property). NULLS render last so accounts
@@ -9789,6 +9795,25 @@ app.post('/api/admin/bookings/:id/sync-beds24-payment', async (req, res) => {
     res.json({ success: true, booking_id: bookingId, result });
   } catch (e) {
     console.error('[admin sync-beds24-payment]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Push a booking to Hostfully via createLead. Master admin only.
+// Wraps pushBookingToHostfully — idempotent, short-circuits if the
+// booking already has hostfully_lead_uid or the property isn't
+// Hostfully-connected. Used by the 2026-07-27 backfill for direct
+// GAS bookings on Hostfully accounts that never got pushed.
+app.post('/api/admin/bookings/:id/push-hostfully', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const bookingId = parseInt(req.params.id, 10);
+    if (!bookingId) return res.status(400).json({ success: false, error: 'Invalid booking id' });
+    const result = await pushBookingToHostfully(bookingId);
+    res.json({ success: true, booking_id: bookingId, result });
+  } catch (e) {
+    console.error('[admin push-hostfully]', e.message);
     res.status(500).json({ success: false, error: e.message });
   }
 });
@@ -62959,6 +62984,88 @@ async function syncBeds24PaymentItem(bookingId) {
   }
 }
 
+// Idempotent: push a GAS-created direct booking to Hostfully as a lead
+// so the operator sees it in their Hostfully calendar. Steve 2026-07-27
+// (Lianne Buchanan / Togari Cottage GAS-487704) — GAS took a £19,626
+// direct booking that never showed in Hostfully because no code path
+// invoked HostfullyAdapter.createLead. This helper closes that gap.
+//
+// Short-circuits if:
+//   - booking already has hostfully_lead_uid populated
+//   - property has no gas_sync_properties row for a Hostfully connection
+//   - the Hostfully connection is disabled or errored
+async function pushBookingToHostfully(bookingId) {
+  try {
+    const b = await pool.query(
+      `SELECT b.id, b.hostfully_lead_uid, b.arrival_date, b.departure_date,
+              b.num_adults, b.num_children, b.num_infants, b.grand_total,
+              b.guest_first_name, b.guest_last_name, b.guest_email, b.guest_phone,
+              b.booking_source, b.property_id, p.account_id
+         FROM bookings b JOIN properties p ON p.id = b.property_id
+        WHERE b.id = $1`,
+      [bookingId]
+    );
+    const row = b.rows[0];
+    if (!row) return { skipped: 'booking-not-found' };
+    if (row.hostfully_lead_uid) return { skipped: 'already-pushed', hostfully_lead_uid: row.hostfully_lead_uid };
+
+    // Resolve Hostfully connection + this property's propertyUid
+    const conn = await pool.query(
+      `SELECT c.id, c.credentials, c.status, c.sync_enabled, sp.external_id AS property_uid
+         FROM gas_sync_connections c
+         JOIN gas_sync_properties sp ON sp.connection_id = c.id
+        WHERE c.account_id = $1 AND c.adapter_code = 'hostfully' AND sp.gas_property_id = $2
+        LIMIT 1`,
+      [row.account_id, row.property_id]
+    );
+    const c = conn.rows[0];
+    if (!c) return { skipped: 'no-hostfully-connection-for-property' };
+    if (c.status !== 'connected' || !c.sync_enabled) return { skipped: 'hostfully-not-active', status: c.status };
+
+    const creds = typeof c.credentials === 'string' ? JSON.parse(c.credentials || '{}') : (c.credentials || {});
+    if (!creds.apiKey) return { skipped: 'no-api-key' };
+
+    const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
+    const adapter = new HostfullyAdapter({ apiKey: creds.apiKey, agencyUid: creds.agencyUid });
+
+    // Hostfully expects YYYY-MM-DD; DB dates are TIMESTAMP. Slice off the
+    // ISO-string prefix; timezone offsets on the DB side don't matter
+    // because we booked against a calendar day, not an instant.
+    const ci = new Date(row.arrival_date).toISOString().slice(0, 10);
+    const co = new Date(row.departure_date).toISOString().slice(0, 10);
+
+    const resp = await adapter.createLead({
+      propertyUid: c.property_uid,
+      checkIn: ci,
+      checkOut: co,
+      adults: row.num_adults || 1,
+      children: row.num_children || 0,
+      pets: 0,
+      source: 'DIRECT',
+      status: 'BOOKING',
+      guestFirstName: row.guest_first_name || '',
+      guestLastName: row.guest_last_name || '',
+      guestEmail: row.guest_email || '',
+      guestPhone: row.guest_phone || '',
+      totalPrice: row.grand_total ? parseFloat(row.grand_total) : undefined,
+    });
+
+    if (!resp || !resp.success) {
+      console.warn(`[pushBookingToHostfully] booking=${bookingId} createLead failed:`, resp?.error || resp);
+      return { error: resp?.error || 'createLead-failed', response: resp };
+    }
+    const leadUid = resp.data?.uid || resp.data?.leadUid || resp.data?.id;
+    if (leadUid) {
+      await pool.query('UPDATE bookings SET hostfully_lead_uid = $1, updated_at = NOW() WHERE id = $2', [leadUid, bookingId]);
+    }
+    console.log(`[pushBookingToHostfully] booking=${bookingId} → hostfully=${leadUid || '(no uid in response)'}`);
+    return { success: true, hostfully_lead_uid: leadUid };
+  } catch (e) {
+    console.error(`[pushBookingToHostfully] booking=${bookingId} ERR:`, e.response?.data || e.message);
+    return { error: e.message };
+  }
+}
+
 // ==========================================================================
 // PROPERTY BOOKING CUTOFFS — ONE SOURCE OF TRUTH
 //
@@ -73796,6 +73903,15 @@ app.post('/api/admin/bookings', async (req, res) => {
         }
       })();
     }
+
+    // Hostfully push — same logic as /api/public/book. Helper is a no-op
+    // when there's no Hostfully connection for the property, so this is
+    // safe for every admin-created direct booking regardless of CM.
+    setImmediate(() => {
+      pushBookingToHostfully(booking.id).catch((e) =>
+        console.error(`[pushBookingToHostfully admin] uncaught for booking ${booking.id}:`, e.message)
+      );
+    });
 
     res.json({
       success: true,
@@ -103196,6 +103312,19 @@ app.post('/api/public/book', async (req, res) => {
         );
       });
     }
+
+    // ========== HOSTFULLY PUSH (fire-and-forget) ==========
+    // If the property is Hostfully-connected, create a lead so it shows
+    // in the operator's Hostfully calendar. GAS-487704 (Lianne Buchanan /
+    // Togari Cottage) surfaced the gap: direct bookings were living in
+    // GAS only. Helper is idempotent + short-circuits when there's no
+    // Hostfully connection, so this is safe on every /api/public/book
+    // call regardless of CM.
+    setImmediate(() => {
+      pushBookingToHostfully(newBooking.id).catch((e) =>
+        console.error(`[pushBookingToHostfully] uncaught for booking ${newBooking.id}:`, e.message)
+      );
+    });
 
     res.json({
       success: true,
