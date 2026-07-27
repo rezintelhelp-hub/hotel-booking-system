@@ -63041,7 +63041,12 @@ async function pushBookingToHostfully(bookingId) {
       adults: row.num_adults || 1,
       children: row.num_children || 0,
       pets: 0,
-      source: 'DIRECT',
+      // Hostfully's source enum is a fixed list — 'DIRECT' is rejected
+      // with "Wrong enum value" (Steve 2026-07-27 backfill run 1). Since
+      // we're creating leads via the Hostfully Public API, HOSTFULLY_API
+      // is the correct label. Alternatives: HOSTFULLY_UI, DIRECT_HVMI,
+      // DIRECT_AIRBNB, DIRECT_BOOKINGDOTCOM etc — all channel-specific.
+      source: 'HOSTFULLY_API',
       status: 'BOOKING',
       guestFirstName: row.guest_first_name || '',
       guestLastName: row.guest_last_name || '',
