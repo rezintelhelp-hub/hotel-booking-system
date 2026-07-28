@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.03
+ * Version: 4.3.04
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -3438,10 +3438,55 @@ jQuery(document).ready(function($) {
             dataType: 'json',
             success: function(response) {
                 var availability = response.calendar || [];
+                // Stage 3 of Steve's 2026-07-28 Hostfully fix: grab booking rules
+                // returned by the endpoint and stash them per-unit so both the
+                // mini-calendar and the flatpickr pickers can grey out invalid
+                // arrival days (Hostfully day-of-week checkin, lead time, etc.).
+                window._gasBookingRules = window._gasBookingRules || {};
+                window._gasBookingRules[unitId] = response.booking_rules || {};
                 renderCalendar(date, availability, 'current');
-                
                 var nextMonth = new Date(year, month + 1, 1);
                 renderCalendar(nextMonth, availability, 'next');
+                // Re-apply flatpickr disable now that rules are known.
+                if (typeof _gasApplyRulesToPickers === 'function') {
+                    _gasApplyRulesToPickers(unitId);
+                }
+            }
+        });
+    }
+
+    // Extend every flatpickr on the page with a disable callback that
+    // rejects dates violating this unit's Hostfully rules (check-in day
+    // of week + booking lead time). Non-Hostfully units: booking_rules
+    // will be empty, callback is a no-op.
+    function _gasApplyRulesToPickers(unitId) {
+        var rules = (window._gasBookingRules && window._gasBookingRules[unitId]) || {};
+        var checkInDays = Array.isArray(rules.check_in_days) ? rules.check_in_days : null;
+        var leadHours = parseInt(rules.booking_lead_hours, 10) || 0;
+        if (!checkInDays && !leadHours) return;   // nothing to enforce
+        var dowNames = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+        var now = Date.now();
+        document.querySelectorAll('.gas-checkin, .gas-checkin-date, .gas-search-checkin, .gas-filter-checkin').forEach(function(el) {
+            if (!el || !el._flatpickr) return;
+            var existing = el._flatpickr.config.disable || [];
+            var extraDisable = function(date) {
+                if (checkInDays && checkInDays.length > 0) {
+                    var dow = dowNames[date.getDay()];
+                    if (checkInDays.indexOf(dow) === -1) return true;
+                }
+                if (leadHours > 0) {
+                    var hoursUntil = (date.getTime() - now) / 3600000;
+                    if (hoursUntil < leadHours) return true;
+                }
+                return false;
+            };
+            // Wrap existing disable callbacks + add ours (flatpickr accepts an array).
+            if (!Array.isArray(existing)) existing = [existing];
+            // Avoid re-adding on repeated calls
+            if (!existing.__gasRulesApplied) {
+                existing.push(extraDisable);
+                existing.__gasRulesApplied = true;
+                el._flatpickr.set('disable', existing);
             }
         });
     }

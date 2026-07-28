@@ -99715,6 +99715,30 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       availableCount = Math.max(0, minLeft === Infinity ? 0 : minLeft);
     }
 
+    // Stage 3 of Steve's 2026-07-28 Hostfully fix: expose the per-room
+    // booking rules cached by syncHostfullyRoomRules so the booking widget
+    // can grey out invalid dates BEFORE the guest even clicks Book. Empty
+    // object when the room isn't Hostfully-mapped (widget then just uses
+    // the calendar array like it always has).
+    let bookingRules = {};
+    try {
+      const rq = await pool.query(`
+        SELECT rt.check_in_days, rt.booking_lead_hours, rt.min_stay_nights, rt.max_stay_nights
+          FROM gas_sync_room_types rt
+          JOIN gas_sync_connections c ON c.id = rt.connection_id
+         WHERE rt.gas_room_id = $1 AND c.adapter_code = 'hostfully' AND c.status = 'connected'
+         LIMIT 1`, [unitId]);
+      if (rq.rows[0]) {
+        const r = rq.rows[0];
+        bookingRules = {
+          check_in_days: r.check_in_days || null,       // e.g. ["SATURDAY","SUNDAY"] or null=any
+          booking_lead_hours: r.booking_lead_hours,     // integer, 0 = same-day OK
+          min_stay_nights: r.min_stay_nights,
+          max_stay_nights: r.max_stay_nights,
+        };
+      }
+    } catch (e) { /* non-fatal — leave bookingRules empty */ }
+
     res.json({
       success: true,
       unit_id: unitId,
@@ -99724,7 +99748,8 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       pool_aware: poolAware,
       total_price: totalPrice,
       nights: nightCount,
-      calendar: calendar
+      calendar: calendar,
+      booking_rules: bookingRules
     });
   } catch (error) {
     console.error('Public availability error:', error);
@@ -152984,6 +153009,140 @@ app.get('/api/admin/channex/writeback-health', async (req, res) => {
   }
 });
 
+// =====================================================
+// HOSTFULLY WRITE-BACK DAILY DIGEST — Stage 4 of 2026-07-28 fix.
+// Mirror of the Channex digest above. Per Hostfully-connected account,
+// last 24h: bookings created on Hostfully-mapped rooms, how many landed
+// hostfully_lead_uid stamped (= push succeeded), how many still NULL
+// (= push failed or is pending), + config-drift check (rules_synced_at
+// stale for >48h → cache isn't refreshing).
+// =====================================================
+async function buildHostfullyWriteBackHealth() {
+  const rows = await pool.query(`
+    WITH conns AS (
+      SELECT c.id AS connection_id, c.account_id, c.status, c.sync_enabled,
+             a.name AS account_name, c.external_account_name
+        FROM gas_sync_connections c
+        LEFT JOIN accounts a ON a.id = c.account_id
+       WHERE c.adapter_code = 'hostfully'
+    ),
+    bookings_24h AS (
+      SELECT c.connection_id,
+             COUNT(DISTINCT b.id)::int AS bookings_created,
+             COUNT(DISTINCT b.id) FILTER (WHERE b.hostfully_lead_uid IS NOT NULL)::int AS pushed_ok,
+             COUNT(DISTINCT b.id) FILTER (WHERE b.hostfully_lead_uid IS NULL)::int AS pushed_missing
+        FROM conns c
+        JOIN gas_sync_room_types rt ON rt.connection_id = c.connection_id
+        JOIN bookings b ON b.bookable_unit_id = rt.gas_room_id
+       WHERE b.created_at >= NOW() - INTERVAL '24 hours'
+         AND b.status = 'confirmed'
+       GROUP BY c.connection_id
+    ),
+    rules_freshness AS (
+      SELECT rt.connection_id,
+             COUNT(*)::int AS rooms_total,
+             COUNT(*) FILTER (WHERE rt.rules_synced_at IS NULL OR rt.rules_synced_at < NOW() - INTERVAL '48 hours')::int AS rooms_stale
+        FROM gas_sync_room_types rt
+        JOIN conns c ON c.connection_id = rt.connection_id
+       WHERE rt.external_id IS NOT NULL
+       GROUP BY rt.connection_id
+    )
+    SELECT c.*,
+           COALESCE(b.bookings_created, 0) AS bookings_created,
+           COALESCE(b.pushed_ok, 0) AS pushed_ok,
+           COALESCE(b.pushed_missing, 0) AS pushed_missing,
+           COALESCE(rf.rooms_total, 0) AS rooms_total,
+           COALESCE(rf.rooms_stale, 0) AS rooms_stale
+      FROM conns c
+      LEFT JOIN bookings_24h b ON b.connection_id = c.connection_id
+      LEFT JOIN rules_freshness rf ON rf.connection_id = c.connection_id
+     ORDER BY c.account_id
+  `);
+  const summary = { total_accounts: rows.rows.length, healthy: 0, config_drift: 0, has_missing: 0, has_stale_rules: 0 };
+  const accounts = rows.rows.map(r => {
+    const configDrift = r.status === 'connected' && !r.sync_enabled;
+    const hasMissing = r.pushed_missing > 0;
+    const hasStaleRules = r.rooms_stale > 0;
+    const healthy = !configDrift && !hasMissing && !hasStaleRules;
+    if (healthy) summary.healthy++;
+    if (configDrift) summary.config_drift++;
+    if (hasMissing) summary.has_missing++;
+    if (hasStaleRules) summary.has_stale_rules++;
+    return {
+      account_id: r.account_id, account_name: r.account_name || r.external_account_name || '?',
+      connection_id: r.connection_id, status: r.status, sync_enabled: r.sync_enabled,
+      bookings_created_24h: r.bookings_created,
+      pushed_ok: r.pushed_ok, pushed_missing: r.pushed_missing,
+      rooms_total: r.rooms_total, rooms_stale: r.rooms_stale,
+      healthy, config_drift: configDrift, has_missing: hasMissing, has_stale_rules: hasStaleRules,
+    };
+  });
+  return { summary, accounts, generated_at: new Date().toISOString() };
+}
+
+async function processHostfullyWriteBackDigest() {
+  try {
+    const health = await buildHostfullyWriteBackHealth();
+    if (health.summary.total_accounts === 0) return; // no Hostfully connections at all
+    const anyRed = health.summary.config_drift + health.summary.has_missing + health.summary.has_stale_rules > 0;
+    const emoji = anyRed ? '🔴' : '🟢';
+    const subject = `${emoji} Hostfully Write-Back Daily — ${health.summary.healthy}/${health.summary.total_accounts} healthy`;
+    const rowsHtml = health.accounts.map(a => {
+      const flag = a.healthy ? '🟢' : '🔴';
+      const issues = [
+        a.config_drift ? 'sync_enabled=false' : null,
+        a.has_missing ? `${a.pushed_missing} unpushed` : null,
+        a.has_stale_rules ? `${a.rooms_stale}/${a.rooms_total} rules stale >48h` : null,
+      ].filter(Boolean).join(', ') || '—';
+      return `<tr>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${flag}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${a.account_id}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${a.account_name}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${a.bookings_created_24h}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${a.pushed_ok}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;color:${a.pushed_missing ? '#dc2626' : '#111'};">${a.pushed_missing}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;color:${a.healthy ? '#059669' : '#dc2626'};">${issues}</td>
+      </tr>`;
+    }).join('');
+    const html = `<div style="font-family:Arial,sans-serif;max-width:900px;margin:0 auto;">
+      <h2 style="color:${anyRed ? '#dc2626' : '#059669'};">${emoji} Hostfully Write-Back Health — last 24h</h2>
+      <p><strong>${health.summary.healthy}</strong> of <strong>${health.summary.total_accounts}</strong> accounts healthy.</p>
+      ${anyRed ? '<p style="color:#dc2626;font-weight:bold;">🚨 Action required — see red rows below.</p>' : '<p style="color:#059669;">All Hostfully write-backs healthy.</p>'}
+      <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-top:1rem;">
+        <thead><tr style="background:#f8fafc;">
+          <th style="padding:8px 10px;text-align:left;">​</th>
+          <th style="padding:8px 10px;text-align:left;">Acct</th>
+          <th style="padding:8px 10px;text-align:left;">Name</th>
+          <th style="padding:8px 10px;text-align:right;">Bookings 24h</th>
+          <th style="padding:8px 10px;text-align:right;">Pushed OK</th>
+          <th style="padding:8px 10px;text-align:right;">Missing UID</th>
+          <th style="padding:8px 10px;text-align:left;">Issues</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <p style="color:#94a3b8;font-size:0.85rem;margin-top:1.5rem;">
+        On-demand JSON: <a href="https://admin.gas.travel/api/admin/hostfully/writeback-health">https://admin.gas.travel/api/admin/hostfully/writeback-health</a><br>
+        Generated ${health.generated_at}
+      </p>
+    </div>`;
+    await sendEmail({ to: ['rezintelhelp@gmail.com', 'development@gas.travel'], subject, html });
+    console.log(`[hostfully-writeback-digest] sent — ${health.summary.healthy}/${health.summary.total_accounts} healthy, redFlag=${anyRed}`);
+  } catch (e) {
+    console.error('[hostfully-writeback-digest]', e.message);
+  }
+}
+
+app.get('/api/admin/hostfully/writeback-health', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const health = await buildHostfullyWriteBackHealth();
+    res.json({ success: true, ...health });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 function fireDueCrons() {
     runCronIfDue('processBalanceChargeWarnings', 60 * 60, processBalanceChargeWarnings).catch(e => console.error('[CRON wrapper warnings]', e));
     runCronIfDue('processAutoChargePayments', 60 * 60, processAutoChargePayments).catch(e => console.error('[CRON wrapper auto-charge]', e));
@@ -152992,6 +153151,7 @@ function fireDueCrons() {
     runCronIfDue('processChannexOutbox', 60, processChannexOutbox).catch(e => console.error('[CRON wrapper channex-outbox]', e));
     runCronIfDue('processBeds24Outbox', 60, processBeds24Outbox).catch(e => console.error('[CRON wrapper beds24-outbox]', e));
     runCronIfDue('processChannexWriteBackDigest', 24 * 60 * 60, processChannexWriteBackDigest).catch(e => console.error('[CRON wrapper channex-digest]', e));
+    runCronIfDue('processHostfullyWriteBackDigest', 24 * 60 * 60, processHostfullyWriteBackDigest).catch(e => console.error('[CRON wrapper hostfully-digest]', e));
 }
 
 // First check 30 sec after startup — catches up on any cron that was due
