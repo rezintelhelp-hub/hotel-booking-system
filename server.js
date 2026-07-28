@@ -63862,6 +63862,11 @@ async function pushBookingRulesToChannex(propertyId) {
         const departableSet = hasDepartureRule ? new Set(checkOutDays.map(d => dowIdx[d])) : null;
 
         // Build values for the next 400 days. Group per rate plan.
+        // CRITICAL: only include a restriction field when we're actively
+        // setting a rule for it. Sending closed_to_arrival:false to every
+        // date would wipe operator/OTA-set per-date arrival blocks — Steve
+        // hit this 2026-07-28. Rule of thumb: never send a field to Channex
+        // unless GAS is the source of truth for that field on that date.
         const values = [];
         const startDate = new Date();
         startDate.setUTCHours(0, 0, 0, 0);
@@ -63869,21 +63874,27 @@ async function pushBookingRulesToChannex(propertyId) {
             const d = new Date(startDate.getTime() + i * 86400000);
             const dow = d.getUTCDay();
             const dateStr = d.toISOString().slice(0, 10);
-            const cta = arrivableSet ? !arrivableSet.has(dow) : false;
-            const ctd = departableSet ? !departableSet.has(dow) : false;
             for (const plan of plansR.rows) {
                 const row = {
                     property_id: plan.channex_property_id,
                     rate_plan_id: plan.rate_plan_id,
                     date: dateStr,
-                    closed_to_arrival: cta,
-                    closed_to_departure: ctd,
                 };
+                let touched = false;
+                if (hasArrivalRule) {
+                    row.closed_to_arrival = !arrivableSet.has(dow);
+                    touched = true;
+                }
+                if (hasDepartureRule) {
+                    row.closed_to_departure = !departableSet.has(dow);
+                    touched = true;
+                }
                 if (hasMinStay) {
                     row.min_stay_arrival = p.standard_min_stay;
                     row.min_stay_through = p.standard_min_stay;
+                    touched = true;
                 }
-                values.push(row);
+                if (touched) values.push(row);
             }
         }
 
