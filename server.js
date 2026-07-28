@@ -63143,6 +63143,133 @@ async function pushBookingToHostfully(bookingId) {
   }
 }
 
+// Lightweight pre-flight: does Hostfully have any rule that would reject
+// this booking? Returns {ok:true} to proceed, or {ok:false, reason:'...',
+// guest_message:'...'} to abort BEFORE we charge the card.
+// Steve 2026-07-28: prevents "guest charged, Hostfully rejects, orphaned
+// booking with double-booking risk" pattern that cost him $1000 earlier.
+//
+// Non-Hostfully rooms: no-op, returns {ok:true, skipped:true}.
+//
+// Checks in order of API cost (cheapest first):
+//   1. daysOfTheWeekToCheckInOn (from cached property rules)
+//   2. bookingLeadTime (hours in advance)
+//   3. minimumStay / maximumStay
+//   4. Existing leads on those dates (any BOOKED / BLOCKED / PENDING)
+// Any single failure short-circuits the rest.
+async function preflightHostfullyAvailability({ bookableUnitId, accountId, checkIn, checkOut }) {
+  try {
+    const conn = await pool.query(
+      `SELECT c.credentials, c.status, c.sync_enabled, rt.external_id AS sub_unit_uid
+         FROM gas_sync_connections c
+         JOIN gas_sync_room_types rt ON rt.connection_id = c.id
+        WHERE c.account_id = $1
+          AND c.adapter_code = 'hostfully'
+          AND rt.gas_room_id = $2
+        LIMIT 1`,
+      [accountId, bookableUnitId]
+    );
+    const cn = conn.rows[0];
+    // Not Hostfully-mapped → no-op, let the booking proceed normally
+    if (!cn || !cn.sub_unit_uid) return { ok: true, skipped: 'not-hostfully-mapped' };
+    if (cn.status !== 'connected' || !cn.sync_enabled) return { ok: true, skipped: 'hostfully-inactive' };
+
+    const creds = typeof cn.credentials === 'string' ? JSON.parse(cn.credentials || '{}') : (cn.credentials || {});
+    if (!creds.apiKey) return { ok: true, skipped: 'no-api-key' };
+    const headers = { 'X-HOSTFULLY-APIKEY': creds.apiKey };
+
+    const axios = require('axios');
+    // 1. Property rules (day-of-week, lead time, min/max stay). ~1s API call.
+    let propRules;
+    try {
+      const r = await axios.get(`https://platform.hostfully.com/api/v3/properties/${cn.sub_unit_uid}`, { headers, timeout: 10000 });
+      propRules = r.data?.property?.availability || {};
+    } catch (e) {
+      console.warn('[preflightHostfully] property fetch failed:', e.response?.status, e.message);
+      return { ok: true, skipped: 'rules-fetch-failed' }; // don't block guest on our API hiccup
+    }
+
+    // Days of the week — Hostfully uses ["MONDAY","TUESDAY",...] enum
+    const arrival = new Date(checkIn + 'T00:00:00');
+    const dowNames = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+    const arrivalDow = dowNames[arrival.getUTCDay()];
+    if (Array.isArray(propRules.daysOfTheWeekToCheckInOn) && propRules.daysOfTheWeekToCheckInOn.length > 0
+        && !propRules.daysOfTheWeekToCheckInOn.includes(arrivalDow)) {
+      return {
+        ok: false, reason: 'check-in-day-not-allowed',
+        guest_message: `Sorry — this property doesn't accept check-in on ${arrivalDow.charAt(0)+arrivalDow.slice(1).toLowerCase()}s. Please pick a different arrival day.`,
+      };
+    }
+
+    // Booking lead time (hours). Compare arrival vs now.
+    const leadHours = parseInt(propRules.bookingLeadTime, 10);
+    if (Number.isFinite(leadHours) && leadHours > 0) {
+      const hoursUntilArrival = (arrival.getTime() - Date.now()) / 3600000;
+      if (hoursUntilArrival < leadHours) {
+        return {
+          ok: false, reason: 'lead-time-not-met',
+          guest_message: `Sorry — this property requires bookings at least ${Math.ceil(leadHours/24)} day(s) in advance. Please pick a later arrival date.`,
+        };
+      }
+    }
+
+    // Nights count + min/max stay
+    const nights = Math.round((new Date(checkOut) - new Date(checkIn)) / 86400000);
+    const minStay = parseInt(propRules.minimumStay, 10);
+    if (Number.isFinite(minStay) && minStay > 0 && nights < minStay) {
+      return { ok: false, reason: 'below-minimum-stay',
+        guest_message: `Sorry — the minimum stay for this property is ${minStay} night(s).` };
+    }
+    const maxStay = parseInt(propRules.maximumStay, 10);
+    if (Number.isFinite(maxStay) && maxStay > 0 && nights > maxStay) {
+      return { ok: false, reason: 'above-maximum-stay',
+        guest_message: `Sorry — the maximum stay for this property is ${maxStay} night(s).` };
+    }
+
+    // 2. Existing leads overlapping the range. Any BOOKED/PENDING/BLOCKED blocks us.
+    // Filter to non-cancelled leads that overlap [checkIn, checkOut).
+    try {
+      const leadsResp = await axios.get('https://platform.hostfully.com/api/v3/leads', {
+        headers,
+        params: {
+          'filter[propertyUid]': cn.sub_unit_uid,
+          'filter[status][in]': 'BOOKED,PENDING,PENDING_APPROVED,BLOCKED,ON_HOLD',
+          'filter[checkInDate][gte]': new Date(new Date(checkIn).getTime() - 90*86400000).toISOString().slice(0,10),
+          'filter[checkOutDate][lte]': new Date(new Date(checkOut).getTime() + 90*86400000).toISOString().slice(0,10),
+          'page[size]': 100,
+        },
+        timeout: 10000,
+      });
+      const leads = leadsResp.data?._embedded?.leads || leadsResp.data?.data || leadsResp.data?.leads || [];
+      const ciMs = new Date(checkIn).getTime();
+      const coMs = new Date(checkOut).getTime();
+      for (const lead of leads) {
+        const l = lead.attributes || lead;
+        const lci = l.checkInLocalDateTime || l.checkInDate;
+        const lco = l.checkOutLocalDateTime || l.checkOutDate;
+        if (!lci || !lco) continue;
+        const lciMs = new Date(String(lci).slice(0,10)).getTime();
+        const lcoMs = new Date(String(lco).slice(0,10)).getTime();
+        // Overlap check: [a,b) overlaps [c,d) iff a<d and c<b
+        if (ciMs < lcoMs && lciMs < coMs) {
+          return { ok: false, reason: 'dates-already-booked',
+            guest_message: 'Sorry — these dates were just booked by someone else on another channel. Please pick different dates.' };
+        }
+      }
+    } catch (e) {
+      console.warn('[preflightHostfully] leads fetch failed:', e.response?.status, e.message);
+      // Don't block the guest on API hiccup — the createLead call in the
+      // fire-and-forget push at end of /api/public/book will catch overlaps
+      // the DB check missed.
+    }
+
+    return { ok: true };
+  } catch (e) {
+    console.error('[preflightHostfullyAvailability] ERR:', e.message);
+    return { ok: true, skipped: 'preflight-error' }; // fail-open — don't block guest on our bug
+  }
+}
+
 // ==========================================================================
 // PROPERTY BOOKING CUTOFFS — ONE SOURCE OF TRUTH
 //
@@ -101186,6 +101313,30 @@ app.post('/api/public/book', async (req, res) => {
     {
       const cutoffErr = await checkSameDayCutoff(pool, unit.rows[0].property_id, check_in);
       if (cutoffErr) return res.status(400).json({ success: false, ...cutoffErr });
+    }
+
+    // Hostfully pre-flight (Steve 2026-07-28). For Hostfully-connected rooms,
+    // check the room's Hostfully rules BEFORE we charge the card. Prevents the
+    // 'guest charged, Hostfully rejects, orphaned booking that OTAs could
+    // double-sell' pattern. No-op for rooms not mapped to Hostfully. Fail-open
+    // on our API errors — we don't want a Hostfully hiccup to block bookings
+    // on Hostfully-connected rooms unnecessarily; the fire-and-forget push at
+    // the end of this endpoint is the final backstop.
+    {
+      const preflight = await preflightHostfullyAvailability({
+        bookableUnitId: parseInt(unit_id, 10),
+        accountId: unit.rows[0].account_id,
+        checkIn: check_in,
+        checkOut: check_out,
+      });
+      if (!preflight.ok) {
+        console.log(`[public/book] Hostfully preflight rejected: ${preflight.reason} for unit=${unit_id} ${check_in}→${check_out}`);
+        return res.status(409).json({
+          success: false,
+          error: preflight.guest_message || 'These dates are not available.',
+          code: 'HOSTFULLY_PREFLIGHT_' + String(preflight.reason || 'unknown').toUpperCase().replace(/-/g, '_'),
+        });
+      }
     }
 
     // Payment-method server-side validation — Charles House / Barbara
