@@ -139845,6 +139845,52 @@ app.post('/api/whatsapp/embedded-signup/complete', async (req, res) => {
     }
 });
 
+// Platform default WABA — upsert (master-only). This is the row with
+// account_id IS NULL that catches inbound messages to GAS's own support
+// number (Steve's, in v1). Also used as fallback for lifecycle messages
+// when an account hasn't done Embedded Signup yet. Steve pastes his four
+// values from the Meta API Setup page + a random verify token he picked.
+app.post('/api/admin/whatsapp/platform-default', async (req, res) => {
+    try {
+        const user = await authenticateUser(req, res);
+        if (!user || user.role !== 'master_admin') return res.status(403).json({ error: 'master only' });
+        const { waba_id, phone_number_id, access_token, webhook_verify_token, display_name, app_id, app_secret } = req.body || {};
+        if (!waba_id || !phone_number_id || !access_token || !webhook_verify_token) {
+            return res.status(400).json({ error: 'waba_id, phone_number_id, access_token, webhook_verify_token all required' });
+        }
+        // account_id IS NULL is the platform default. There should only ever
+        // be ONE such row — if it already exists, update; otherwise insert.
+        const existing = await pool.query(`SELECT id FROM gas_whatsapp_configs WHERE account_id IS NULL LIMIT 1`);
+        let row;
+        if (existing.rows[0]) {
+            const upd = await pool.query(`
+                UPDATE gas_whatsapp_configs
+                   SET waba_id = $1, phone_number_id = $2, access_token = $3,
+                       webhook_verify_token = $4, display_name = COALESCE($5, display_name),
+                       app_id = COALESCE($6, app_id), app_secret = COALESCE($7, app_secret),
+                       is_active = true, updated_at = NOW()
+                 WHERE id = $8
+                RETURNING id, waba_id, phone_number_id, display_name, is_active
+            `, [waba_id, phone_number_id, access_token, webhook_verify_token, display_name || null, app_id || null, app_secret || null, existing.rows[0].id]);
+            row = upd.rows[0];
+        } else {
+            const ins = await pool.query(`
+                INSERT INTO gas_whatsapp_configs
+                    (account_id, waba_id, phone_number_id, access_token,
+                     webhook_verify_token, display_name, app_id, app_secret,
+                     is_active, notes, created_at, updated_at)
+                VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, true, 'Platform default — GAS support number', NOW(), NOW())
+                RETURNING id, waba_id, phone_number_id, display_name, is_active
+            `, [waba_id, phone_number_id, access_token, webhook_verify_token, display_name || 'GAS Travel', app_id || null, app_secret || null]);
+            row = ins.rows[0];
+        }
+        res.json({ success: true, config: row });
+    } catch (e) {
+        console.error('[whatsapp platform-default]', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // List WhatsApp configs visible to the caller. Master sees all rows;
 // account admin sees only their own. Used by the Settings UI to show
 // "Connected" state vs. "Connect WhatsApp" CTA.
