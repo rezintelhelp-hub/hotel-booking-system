@@ -59524,18 +59524,52 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const d = await r.json();
                 if (!d.success) return;
                 const p = d.property || {};
-                setDays('std-checkin-day', p.standard_check_in_days);
+                const hostfullyRooms = d.cms?.hostfully || [];
+
+                // Auto-pre-fill from Hostfully when GAS has NO saved rules yet
+                // AND Hostfully has some. Intersection across sub-units for
+                // check-in days (safest — only days ALL sub-units allow) and
+                // most-restrictive min/max stay. Once the operator saves, we
+                // stop pre-filling and honour GAS's saved values.
+                const gasIsEmpty = !p.standard_check_in_days && !p.standard_check_out_days
+                    && !p.standard_min_stay && !p.standard_max_stay && !p.standard_lead_hours;
+                let seedCheckIn = p.standard_check_in_days;
+                let seedMinStay = p.standard_min_stay;
+                let seedMaxStay = p.standard_max_stay;
+                let seedLeadHours = p.standard_lead_hours;
+                if (gasIsEmpty && hostfullyRooms.length > 0) {
+                    // Intersection of all sub-units' check-in day lists.
+                    // Missing/empty list on a sub-unit → treat as "all days" (contributes nothing).
+                    const hasAnyRestriction = hostfullyRooms.some(h => Array.isArray(h.check_in_days) && h.check_in_days.length > 0 && h.check_in_days.length < 7);
+                    if (hasAnyRestriction) {
+                        let acc = null;
+                        for (const h of hostfullyRooms) {
+                            if (!Array.isArray(h.check_in_days) || h.check_in_days.length === 0 || h.check_in_days.length === 7) continue;
+                            if (acc === null) { acc = new Set(h.check_in_days); continue; }
+                            acc = new Set([...acc].filter(x => h.check_in_days.includes(x)));
+                        }
+                        if (acc && acc.size > 0 && acc.size < 7) seedCheckIn = [...acc];
+                    }
+                    const minVals = hostfullyRooms.map(h => h.min_stay).filter(v => v > 0);
+                    if (minVals.length) seedMinStay = Math.max(...minVals);
+                    const maxVals = hostfullyRooms.map(h => h.max_stay).filter(v => v > 0);
+                    if (maxVals.length) seedMaxStay = Math.min(...maxVals);
+                    const leadVals = hostfullyRooms.map(h => h.lead_hours).filter(v => v > 0);
+                    if (leadVals.length) seedLeadHours = Math.max(...leadVals);
+                }
+
+                setDays('std-checkin-day', seedCheckIn);
                 setDays('std-checkout-day', p.standard_check_out_days);
-                document.getElementById('std-min-stay').value = p.standard_min_stay || '';
-                document.getElementById('std-max-stay').value = p.standard_max_stay || '';
-                document.getElementById('std-lead-hours').value = p.standard_lead_hours || '';
+                document.getElementById('std-min-stay').value = seedMinStay || '';
+                document.getElementById('std-max-stay').value = seedMaxStay || '';
+                document.getElementById('std-lead-hours').value = seedLeadHours || '';
 
                 const infoEl = document.getElementById('booking-rules-cms-info');
-                const hostfully = d.cms?.hostfully || [];
-                if (hostfully.length === 0) {
+                if (hostfullyRooms.length === 0) {
                     infoEl.style.display = 'none';
                 } else {
-                    const cmSummary = hostfully.map(h => {
+                    const seededHere = gasIsEmpty && hostfullyRooms.length > 0;
+                    const cmSummary = hostfullyRooms.map(h => {
                         const cin = Array.isArray(h.check_in_days) && h.check_in_days.length > 0 && h.check_in_days.length < 7
                             ? h.check_in_days.map(d => d.slice(0, 3)).join('/')
                             : 'any';
@@ -59544,7 +59578,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             : '';
                         return `${(h.room_name || 'Room').replace(/</g, '&lt;')}: check-in ${cin}${stay ? ' · ' + stay : ''}`;
                     }).join(' · ');
-                    infoEl.innerHTML = `<strong style="color:#0f766e;">Hostfully currently says:</strong> ${cmSummary} <span style="color:#94a3b8;">· live from Hostfully</span>`;
+                    const seededNote = seededHere ? ' <span style="color:#0f766e; font-weight:600;">✓ pre-filled below from Hostfully — review + save</span>' : '';
+                    infoEl.innerHTML = `<strong style="color:#0f766e;">Hostfully currently says:</strong> ${cmSummary} <span style="color:#94a3b8;">· live from Hostfully</span>${seededNote}`;
                     infoEl.style.display = 'block';
                 }
                 if (p.standard_rules_push_error) {
