@@ -139919,7 +139919,8 @@ app.post('/api/admin/channex/emergency-stop-sell', async (req, res) => {
 
         const plansR = await pool.query(`
             SELECT rp.external_id AS rate_plan_id, sp.external_id AS channex_property_id,
-                   c.credentials, c.id AS connection_id, rt.gas_room_id
+                   c.credentials, c.id AS connection_id, rt.gas_room_id,
+                   rt.external_id AS channex_room_type_id
               FROM gas_sync_rate_plans rp
               JOIN gas_sync_room_types rt ON rt.id = rp.sync_room_type_id
               JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
@@ -139968,7 +139969,41 @@ app.post('/api/admin/channex/emergency-stop-sell', async (req, res) => {
                     else { failed += slice.length; lastError = resp.error || 'unknown'; }
                 } catch (e) { failed += slice.length; lastError = e.message; }
             }
-            summary.push({ connection_id: connId, pushed, failed, plans: group.plans.length, last_error: lastError });
+            // Belt-and-braces — also push availability:0 (or restore) on
+            // every date for every room_type. stop_sell prevents new
+            // bookings but some OTAs display the availability count
+            // separately — Steve 2026-07-28 saw "1" on BDC even after
+            // stop_sell. Setting availability to 0 removes any doubt.
+            // On stop-sell: also push availability:0 so OTAs that display
+            // the count separately (BDC) show closed. On undo: DON'T touch
+            // availability — we don't know what the original count was,
+            // and pushing 1 might undercount a multi-unit room.
+            let availPushed = 0, availFailed = 0;
+            const roomTypesInGroup = [...new Set(group.plans.map(p => p.channex_room_type_id).filter(Boolean))];
+            if (!undo && roomTypesInGroup.length > 0) {
+                const availValues = [];
+                for (let i = 0; i < days; i++) {
+                    const d = new Date(startDate.getTime() + i * 86400000);
+                    const dateStr = d.toISOString().slice(0, 10);
+                    for (const rtId of roomTypesInGroup) {
+                        availValues.push({
+                            property_id: group.plans[0].channex_property_id,
+                            room_type_id: rtId,
+                            date: dateStr,
+                            availability: 0,
+                        });
+                    }
+                }
+                for (let i = 0; i < availValues.length; i += 500) {
+                    const slice = availValues.slice(i, i + 500);
+                    try {
+                        const resp = await adapter.request('/availability', 'POST', { values: slice });
+                        if (resp.success) availPushed += slice.length;
+                        else { availFailed += slice.length; lastError = resp.error || 'unknown'; }
+                    } catch (e) { availFailed += slice.length; lastError = e.message; }
+                }
+            }
+            summary.push({ connection_id: connId, restrictions_pushed: pushed, restrictions_failed: failed, availability_pushed: availPushed, availability_failed: availFailed, plans: group.plans.length, room_types: roomTypesInGroup.length, last_error: lastError });
         }
         res.json({ success: true, action: undo ? 'unblock' : 'stop-sell', days, summary });
     } catch (e) {
