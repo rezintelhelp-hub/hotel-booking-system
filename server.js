@@ -63042,7 +63042,7 @@ async function pushBookingToHostfully(bookingId) {
       `SELECT b.id, b.hostfully_lead_uid, b.arrival_date, b.departure_date,
               b.num_adults, b.num_children, b.num_infants, b.grand_total,
               b.guest_first_name, b.guest_last_name, b.guest_email, b.guest_phone,
-              b.booking_source, b.property_id, p.account_id
+              b.booking_source, b.property_id, b.bookable_unit_id, p.account_id
          FROM bookings b JOIN properties p ON p.id = b.property_id
         WHERE b.id = $1`,
       [bookingId]
@@ -63051,18 +63051,34 @@ async function pushBookingToHostfully(bookingId) {
     if (!row) return { skipped: 'booking-not-found' };
     if (row.hostfully_lead_uid) return { skipped: 'already-pushed', hostfully_lead_uid: row.hostfully_lead_uid };
 
-    // Resolve Hostfully connection + this property's propertyUid
+    // Resolve Hostfully connection + this ROOM's sub-unit UID (not the
+    // parent property UID).
+    //
+    // Steve 2026-07-28: original query joined gas_sync_properties which
+    // returned the PARENT container UID (e.g. 79ff7d3c for Togari
+    // Cottage container). But the actual bookable Hostfully listings
+    // are the SUB_UNIT children (winter / summer variants) — mapped
+    // in gas_sync_room_types per GAS bookable_unit. Pushing to the
+    // parent hit its 6-month seasonal block + 168-hour lead time
+    // and rejected every push. Query now joins room_types → gets the
+    // specific sub-unit UID for THIS booking's room.
     const conn = await pool.query(
-      `SELECT c.id, c.credentials, c.status, c.sync_enabled, sp.external_id AS property_uid
+      `SELECT c.id, c.credentials, c.status, c.sync_enabled,
+              rt.external_id AS sub_unit_uid,
+              sp.external_id AS parent_property_uid
          FROM gas_sync_connections c
-         JOIN gas_sync_properties sp ON sp.connection_id = c.id
-        WHERE c.account_id = $1 AND c.adapter_code = 'hostfully' AND sp.gas_property_id = $2
+         JOIN gas_sync_room_types rt ON rt.connection_id = c.id
+         JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+        WHERE c.account_id = $1
+          AND c.adapter_code = 'hostfully'
+          AND rt.gas_room_id = $2
         LIMIT 1`,
-      [row.account_id, row.property_id]
+      [row.account_id, row.bookable_unit_id]
     );
     const c = conn.rows[0];
-    if (!c) return { skipped: 'no-hostfully-connection-for-property' };
+    if (!c) return { skipped: 'no-hostfully-connection-for-room' };
     if (c.status !== 'connected' || !c.sync_enabled) return { skipped: 'hostfully-not-active', status: c.status };
+    if (!c.sub_unit_uid) return { skipped: 'no-sub-unit-uid-mapped' };
 
     const creds = typeof c.credentials === 'string' ? JSON.parse(c.credentials || '{}') : (c.credentials || {});
     if (!creds.apiKey) return { skipped: 'no-api-key' };
@@ -63077,7 +63093,7 @@ async function pushBookingToHostfully(bookingId) {
     const co = new Date(row.departure_date).toISOString().slice(0, 10);
 
     const resp = await adapter.createLead({
-      propertyUid: c.property_uid,
+      propertyUid: c.sub_unit_uid,   // ← the ROOM's Hostfully sub-unit, not the parent container
       checkIn: ci,
       checkOut: co,
       adults: row.num_adults || 1,
