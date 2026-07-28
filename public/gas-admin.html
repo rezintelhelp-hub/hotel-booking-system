@@ -100239,39 +100239,44 @@ const promo = await fetch('/api/v1/offers/validate', {
                 };
                 window.addEventListener('message', sessionListener);
 
-                window.FB.login(async (response) => {
+                // FB SDK rejects async callbacks with "Expression is of type
+                // asyncfunction, not function". Use a sync wrapper that hands
+                // off to an async IIFE so we can still await the fetch.
+                window.FB.login(function(response) {
                     window.removeEventListener('message', sessionListener);
-                    if (response?.authResponse?.code) {
-                        statusEl.textContent = 'Exchanging code + subscribing webhook…';
-                        try {
-                            const r = await fetch('/api/whatsapp/embedded-signup/complete', {
-                                method: 'POST',
-                                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    account_id: accountId,
-                                    code: response.authResponse.code,
-                                    waba_id: capturedSession.waba_id,
-                                    phone_number_id: capturedSession.phone_number_id,
-                                    business_id: capturedSession.business_id,
-                                    display_name: accountName
-                                })
-                            });
-                            const data = await r.json();
-                            if (data.success) {
-                                showNotification('✅ WhatsApp connected for ' + (accountName || ('account ' + accountId)));
-                                modal.remove();
-                            } else {
-                                statusEl.textContent = '❌ ' + (data.error || 'Connect failed');
+                    (async () => {
+                        if (response?.authResponse?.code) {
+                            statusEl.textContent = 'Exchanging code + subscribing webhook…';
+                            try {
+                                const r = await fetch('/api/whatsapp/embedded-signup/complete', {
+                                    method: 'POST',
+                                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        account_id: accountId,
+                                        code: response.authResponse.code,
+                                        waba_id: capturedSession.waba_id,
+                                        phone_number_id: capturedSession.phone_number_id,
+                                        business_id: capturedSession.business_id,
+                                        display_name: accountName
+                                    })
+                                });
+                                const data = await r.json();
+                                if (data.success) {
+                                    showNotification('✅ WhatsApp connected for ' + (accountName || ('account ' + accountId)));
+                                    modal.remove();
+                                } else {
+                                    statusEl.textContent = '❌ ' + (data.error || 'Connect failed');
+                                    launchBtn.disabled = false;
+                                }
+                            } catch (e) {
+                                statusEl.textContent = '❌ ' + e.message;
                                 launchBtn.disabled = false;
                             }
-                        } catch (e) {
-                            statusEl.textContent = '❌ ' + e.message;
+                        } else {
+                            statusEl.textContent = '❌ Meta did not return an auth code — user may have cancelled.';
                             launchBtn.disabled = false;
                         }
-                    } else {
-                        statusEl.textContent = '❌ Meta did not return an auth code — user may have cancelled.';
-                        launchBtn.disabled = false;
-                    }
+                    })();
                 }, {
                     config_id: cfg.config_id,
                     response_type: 'code',
