@@ -15013,7 +15013,8 @@ app.post('/api/admin/channex/connection/:connectionId/full-sync', async (req, re
     for (const r of roomRows.rows) roomBySyncId.set(r.sync_room_type_id, r);
 
     const priceRes = await pool.query(
-      `SELECT room_id, date::text AS date, standard_price
+      `SELECT room_id, date::text AS date, standard_price,
+              COALESCE(min_stay_override, min_stay) AS min_stay
          FROM room_availability
         WHERE room_id = ANY($1::int[])
           AND date >= $2::date AND date < $3::date
@@ -15022,7 +15023,25 @@ app.post('/api/admin/channex/connection/:connectionId/full-sync', async (req, re
       [gasRoomIds, startStr, endStr]
     );
     const priceMap = new Map();
-    for (const r of priceRes.rows) priceMap.set(`${r.room_id}|${r.date}`, parseFloat(r.standard_price));
+    const perDateMinStayMap = new Map();
+    for (const r of priceRes.rows) {
+      priceMap.set(`${r.room_id}|${r.date}`, parseFloat(r.standard_price));
+      if (r.min_stay > 0) perDateMinStayMap.set(`${r.room_id}|${r.date}`, parseInt(r.min_stay, 10));
+    }
+    // Property-level fallback — properties.standard_min_stay (set via the
+    // Standard Rate Display modal). GAS is the PMS: whatever we say goes.
+    // Applied when the per-date row has no min_stay of its own.
+    const propMinStayRes = await pool.query(
+      `SELECT standard_min_stay FROM properties WHERE id = $1`,
+      [gasPropertyId]
+    );
+    const propMinStay = parseInt(propMinStayRes.rows[0]?.standard_min_stay, 10);
+    const effectiveMinStay = (roomId, dateStr) => {
+      const perDate = perDateMinStayMap.get(`${roomId}|${dateStr}`);
+      if (perDate > 0) return perDate;
+      if (propMinStay > 0) return propMinStay;
+      return 1;
+    };
 
     const restrValues = [];
     let plansSkippedByCurrency = 0;
@@ -15057,13 +15076,14 @@ app.post('/api/admin/channex/connection/:connectionId/full-sync', async (req, re
           });
           continue;
         }
+        const minStay = effectiveMinStay(room.gas_room_id, dateStr);
         restrValues.push({
           property_id: propertyId,
           rate_plan_id: rp.channex_rate_plan_id,
           date: dateStr,
           rate: Math.round(price * 100),
-          min_stay_arrival: 1,
-          min_stay_through: 1,
+          min_stay_arrival: minStay,
+          min_stay_through: minStay,
           closed_to_arrival: false,
           closed_to_departure: false,
           stop_sell: false
@@ -69730,31 +69750,51 @@ async function mirrorOfferToChannex(pool, offer) {
       roomId
     ]);
 
-    // Push 500 days of discounted per-night prices. Read standard_price from
-    // room_availability and apply the offer's discount.
+    // Push 500 days of discounted per-night prices. Read standard_price
+    // + per-date min-stay override from room_availability, fall back to
+    // the offer's own min-stay setting, then property.standard_min_stay,
+    // then 1. GAS is the PMS — Channex mirrors what we say.
     const today = new Date(); today.setUTCHours(0, 0, 0, 0);
     const startStr = today.toISOString().slice(0, 10);
     const endStr = new Date(today.getTime() + 500 * 86400000).toISOString().slice(0, 10);
     const priceRes = await pool.query(`
-      SELECT date::text AS date, standard_price
+      SELECT date::text AS date, standard_price,
+             COALESCE(min_stay_override, min_stay) AS min_stay
         FROM room_availability
        WHERE room_id = $1
          AND date >= $2::date AND date < $3::date
          AND standard_price IS NOT NULL AND standard_price > 0
     `, [roomId, startStr, endStr]);
+    const offerMinStay = parseInt(offer.min_stay || offer.min_nights, 10);
+    const propPidRow = await pool.query(`
+      SELECT p.standard_min_stay FROM properties p
+       JOIN bookable_units bu ON bu.property_id = p.id
+       WHERE bu.id = $1 LIMIT 1
+    `, [roomId]).catch(() => ({ rows: [{}] }));
+    const propMinStay = parseInt(propPidRow.rows[0]?.standard_min_stay, 10);
+    const pickMinStay = (perDateVal) => {
+      const perDate = parseInt(perDateVal, 10);
+      if (perDate > 0) return perDate;
+      if (Number.isFinite(offerMinStay) && offerMinStay > 0) return offerMinStay;
+      if (Number.isFinite(propMinStay) && propMinStay > 0) return propMinStay;
+      return 1;
+    };
 
     if (priceRes.rows.length > 0) {
-      const restrValues = priceRes.rows.map(r => ({
-        property_id: mapping.channex_property_id,
-        rate_plan_id: channexRatePlanId,
-        date: r.date,
-        rate: Math.round(parseFloat(r.standard_price) * discountFactor * 100),
-        min_stay_arrival: 1,
-        min_stay_through: 1,
-        closed_to_arrival: false,
-        closed_to_departure: false,
-        stop_sell: false
-      }));
+      const restrValues = priceRes.rows.map(r => {
+        const minStay = pickMinStay(r.min_stay);
+        return {
+          property_id: mapping.channex_property_id,
+          rate_plan_id: channexRatePlanId,
+          date: r.date,
+          rate: Math.round(parseFloat(r.standard_price) * discountFactor * 100),
+          min_stay_arrival: minStay,
+          min_stay_through: minStay,
+          closed_to_arrival: false,
+          closed_to_departure: false,
+          stop_sell: false
+        };
+      });
       const resp = await adapter.request('/restrictions', 'POST', { values: restrValues });
       if (resp.success) {
         results.datesPushed += restrValues.length;
