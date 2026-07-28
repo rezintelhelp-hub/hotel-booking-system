@@ -15014,7 +15014,7 @@ app.post('/api/admin/channex/connection/:connectionId/full-sync', async (req, re
 
     const priceRes = await pool.query(
       `SELECT room_id, date::text AS date, standard_price,
-              COALESCE(min_stay_override, min_stay) AS min_stay
+              min_stay_override
          FROM room_availability
         WHERE room_id = ANY($1::int[])
           AND date >= $2::date AND date < $3::date
@@ -15026,11 +15026,18 @@ app.post('/api/admin/channex/connection/:connectionId/full-sync', async (req, re
     const perDateMinStayMap = new Map();
     for (const r of priceRes.rows) {
       priceMap.set(`${r.room_id}|${r.date}`, parseFloat(r.standard_price));
-      if (r.min_stay > 0) perDateMinStayMap.set(`${r.room_id}|${r.date}`, parseInt(r.min_stay, 10));
+      // ONLY explicit per-date overrides win over property-level rules.
+      // The bare min_stay column gets populated with 1 by the availability
+      // extender cron and would trump property rules if we used it here.
+      // Steve hit this 2026-07-28 — 2-night min-stay set in modal got
+      // pushed as 1 to Channex on next Full Sync.
+      if (r.min_stay_override != null && r.min_stay_override > 0) {
+        perDateMinStayMap.set(`${r.room_id}|${r.date}`, parseInt(r.min_stay_override, 10));
+      }
     }
     // Property-level fallback — properties.standard_min_stay (set via the
     // Standard Rate Display modal). GAS is the PMS: whatever we say goes.
-    // Applied when the per-date row has no min_stay of its own.
+    // Applied when the per-date row has no explicit override.
     const propMinStayRes = await pool.query(
       `SELECT standard_min_stay FROM properties WHERE id = $1`,
       [gasPropertyId]
@@ -139892,6 +139899,80 @@ app.post('/api/whatsapp/embedded-signup/complete', async (req, res) => {
         res.json({ success: true, config: upsert.rows[0] });
     } catch (e) {
         console.error('[WA-ESU] complete error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// EMERGENCY stop-sell — master-only. Sets stop_sell:true on every date
+// for the next N days for the given room IDs. Blocks all new OTA bookings
+// via Channex. Steve 2026-07-28 — used when the rules push wiped
+// availability blocks and BDC is about to accept bookings on dates that
+// should be closed. Read from operator's own Channex API key.
+app.post('/api/admin/channex/emergency-stop-sell', async (req, res) => {
+    try {
+        const user = await authenticateUser(req, res);
+        if (!user || user.role !== 'master_admin') return res.status(403).json({ error: 'master only' });
+        const roomIds = (req.body?.room_ids || []).map(r => parseInt(r, 10)).filter(Boolean);
+        const days = Math.min(parseInt(req.body?.days, 10) || 400, 730);
+        const undo = req.body?.undo === true; // when true, sets stop_sell:false to unblock
+        if (roomIds.length === 0) return res.status(400).json({ error: 'room_ids required' });
+
+        const plansR = await pool.query(`
+            SELECT rp.external_id AS rate_plan_id, sp.external_id AS channex_property_id,
+                   c.credentials, c.id AS connection_id, rt.gas_room_id
+              FROM gas_sync_rate_plans rp
+              JOIN gas_sync_room_types rt ON rt.id = rp.sync_room_type_id
+              JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+              JOIN gas_sync_connections c ON c.id = sp.connection_id
+             WHERE rt.gas_room_id = ANY($1::int[])
+               AND c.adapter_code = 'channex'
+               AND c.status = 'connected'
+               AND rp.external_id IS NOT NULL
+        `, [roomIds]);
+        if (plansR.rows.length === 0) return res.json({ success: false, error: 'no Channex rate plans mapped' });
+
+        const { ChannexAdapter } = require('./gas-sync/adapters/channex-adapter');
+        const byConn = {};
+        for (const r of plansR.rows) {
+            if (!byConn[r.connection_id]) byConn[r.connection_id] = { creds: r.credentials, plans: [] };
+            byConn[r.connection_id].plans.push(r);
+        }
+        const startDate = new Date();
+        startDate.setUTCHours(0, 0, 0, 0);
+        const summary = [];
+        for (const [connId, group] of Object.entries(byConn)) {
+            const creds = typeof group.creds === 'string' ? JSON.parse(group.creds) : (group.creds || {});
+            const apiKey = creds.apiKey || creds.v1ApiKey;
+            if (!apiKey) { summary.push({ connection_id: connId, error: 'no api key' }); continue; }
+            const adapter = new ChannexAdapter({ apiKey });
+            const values = [];
+            for (let i = 0; i < days; i++) {
+                const d = new Date(startDate.getTime() + i * 86400000);
+                const dateStr = d.toISOString().slice(0, 10);
+                for (const plan of group.plans) {
+                    values.push({
+                        property_id: plan.channex_property_id,
+                        rate_plan_id: plan.rate_plan_id,
+                        date: dateStr,
+                        stop_sell: !undo,
+                    });
+                }
+            }
+            // Chunk to 500 rows per request.
+            let pushed = 0, failed = 0, lastError = null;
+            for (let i = 0; i < values.length; i += 500) {
+                const slice = values.slice(i, i + 500);
+                try {
+                    const resp = await adapter.request('/restrictions', 'POST', { values: slice });
+                    if (resp.success) pushed += slice.length;
+                    else { failed += slice.length; lastError = resp.error || 'unknown'; }
+                } catch (e) { failed += slice.length; lastError = e.message; }
+            }
+            summary.push({ connection_id: connId, pushed, failed, plans: group.plans.length, last_error: lastError });
+        }
+        res.json({ success: true, action: undo ? 'unblock' : 'stop-sell', days, summary });
+    } catch (e) {
+        console.error('[channex/emergency-stop-sell]', e.message);
         res.status(500).json({ error: e.message });
     }
 });
