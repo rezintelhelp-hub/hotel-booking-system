@@ -59566,8 +59566,15 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                 const infoEl = document.getElementById('booking-rules-cms-info');
                 if (hostfullyRooms.length === 0) {
-                    infoEl.style.display = 'none';
+                    // No Hostfully mapping — make it loud so the operator
+                    // doesn't wonder why pre-fill didn't happen.
+                    infoEl.innerHTML = `<strong style="color:#92400e;">No connected CM found for this property.</strong> Set rules here and GAS enforces them on the widget + direct bookings. Connect a channel manager to also push these rules to the OTA side.`;
+                    infoEl.style.background = '#fef3c7';
+                    infoEl.style.borderColor = '#fde68a';
+                    infoEl.style.display = 'block';
                 } else {
+                    infoEl.style.background = '#fff';
+                    infoEl.style.borderColor = '#cbd5e1';
                     const seededHere = gasIsEmpty && hostfullyRooms.length > 0;
                     const cmSummary = hostfullyRooms.map(h => {
                         const cin = Array.isArray(h.check_in_days) && h.check_in_days.length > 0 && h.check_in_days.length < 7
