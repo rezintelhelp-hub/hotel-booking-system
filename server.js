@@ -54811,10 +54811,33 @@ app.get('/api/admin/properties/:id/booking-rules', async (req, res) => {
       rules_synced_at: r.rules_synced_at,
     }));
 
+    // Channex mapping detection — GAS is the PMS so we don't need to pull
+    // rules from Channex. Just tell the modal a Channex connection exists
+    // so it can show the green "Channex connected — rules push on save"
+    // banner instead of the amber "no CM found" one.
+    const channexR = await pool.query(`
+      SELECT COUNT(DISTINCT rp.external_id)::int AS rate_plans,
+             COUNT(DISTINCT sp.external_id)::int AS properties
+        FROM gas_sync_rate_plans rp
+        JOIN gas_sync_room_types rt ON rt.id = rp.sync_room_type_id
+        JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+        JOIN gas_sync_connections c ON c.id = sp.connection_id
+        JOIN bookable_units bu ON bu.id = rt.gas_room_id
+       WHERE bu.property_id = $1
+         AND c.adapter_code = 'channex'
+         AND c.status = 'connected'
+         AND rp.external_id IS NOT NULL
+    `, [propertyId]);
+    const channex = {
+      connected: (channexR.rows[0]?.rate_plans || 0) > 0,
+      rate_plans: channexR.rows[0]?.rate_plans || 0,
+      properties: channexR.rows[0]?.properties || 0,
+    };
+
     res.json({
       success: true,
       property: propR.rows[0],
-      cms: { hostfully }
+      cms: { hostfully, channex }
     });
   } catch (e) {
     console.error('[booking-rules GET]', e.message);
@@ -54875,8 +54898,11 @@ app.put('/api/admin/properties/:id/booking-rules', async (req, res) => {
     if (push_to_hostfully !== false) {
       hostfullyResult = await pushBookingRulesToHostfully(propertyId);
     }
+    // Channex writeback — GAS is the PMS so we always push, no pull needed.
+    // Idempotent + safely skipped when no Channex mapping exists.
+    const channexResult = await pushBookingRulesToChannex(propertyId);
 
-    res.json({ success: true, hostfully: hostfullyResult });
+    res.json({ success: true, hostfully: hostfullyResult, channex: channexResult });
   } catch (e) {
     console.error('[booking-rules PUT]', e.message);
     res.status(500).json({ success: false, error: e.message });
@@ -63760,6 +63786,126 @@ async function pushBookingRulesToHostfully(propertyId) {
         return { ok: failed === 0, pushed, failed };
     } catch (e) {
         console.error('[pushBookingRulesToHostfully]', e.message);
+        return { ok: false, error: e.message };
+    }
+}
+
+// Push GAS Standard Rate rules to Channex — per-date restrictions for the
+// next 400 days. Channex expresses "no Wed check-in" as closed_to_arrival:
+// true on every Wednesday, so we materialise the day-of-week rule into
+// per-date values. Includes min_stay_arrival where the GAS rule sets one.
+// Only sends the fields we're setting so existing rates/other restrictions
+// on the same date stay untouched. No pull required — GAS is the PMS,
+// Channex mirrors us (per Steve's payment_writeback_policy memory).
+async function pushBookingRulesToChannex(propertyId) {
+    try {
+        const propR = await pool.query(`
+            SELECT standard_check_in_days, standard_check_out_days,
+                   standard_min_stay
+              FROM properties WHERE id = $1
+        `, [propertyId]);
+        if (!propR.rows[0]) return { ok: false, error: 'property not found' };
+        const p = propR.rows[0];
+
+        // Find every Channex rate plan under this property via the mapping chain.
+        const plansR = await pool.query(`
+            SELECT rp.external_id AS rate_plan_id, sp.external_id AS channex_property_id
+              FROM gas_sync_rate_plans rp
+              JOIN gas_sync_room_types rt ON rt.id = rp.sync_room_type_id
+              JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+              JOIN gas_sync_connections c ON c.id = sp.connection_id
+              JOIN bookable_units bu ON bu.id = rt.gas_room_id
+             WHERE bu.property_id = $1
+               AND c.adapter_code = 'channex'
+               AND c.status = 'connected'
+               AND c.sync_enabled = true
+               AND rp.external_id IS NOT NULL
+               AND sp.external_id IS NOT NULL
+        `, [propertyId]);
+        if (plansR.rows.length === 0) return { ok: true, skipped: 'no-channex-mapping', pushed: 0 };
+
+        const checkInDays = Array.isArray(p.standard_check_in_days) ? p.standard_check_in_days
+            : (typeof p.standard_check_in_days === 'string' ? JSON.parse(p.standard_check_in_days || 'null') : null);
+        const checkOutDays = Array.isArray(p.standard_check_out_days) ? p.standard_check_out_days
+            : (typeof p.standard_check_out_days === 'string' ? JSON.parse(p.standard_check_out_days || 'null') : null);
+        const hasArrivalRule = Array.isArray(checkInDays) && checkInDays.length > 0 && checkInDays.length < 7;
+        const hasDepartureRule = Array.isArray(checkOutDays) && checkOutDays.length > 0 && checkOutDays.length < 7;
+        const hasMinStay = p.standard_min_stay > 0;
+
+        // If no restrictive rule is set, we still push cleanup values (all
+        // closed_to_arrival=false, min_stay_arrival=1) so a previously-set
+        // "no Wed check-in" gets cleared when the operator ticks Wed back on.
+        // That's important — otherwise Channex keeps enforcing an old rule.
+        const { ChannexAdapter } = require('./gas-sync/adapters/channex-adapter');
+        const dowIdx = { SUNDAY:0, MONDAY:1, TUESDAY:2, WEDNESDAY:3, THURSDAY:4, FRIDAY:5, SATURDAY:6 };
+        const arrivableSet = hasArrivalRule ? new Set(checkInDays.map(d => dowIdx[d])) : null;
+        const departableSet = hasDepartureRule ? new Set(checkOutDays.map(d => dowIdx[d])) : null;
+
+        // Build values for the next 400 days. Group per rate plan.
+        const values = [];
+        const startDate = new Date();
+        startDate.setUTCHours(0, 0, 0, 0);
+        for (let i = 0; i < 400; i++) {
+            const d = new Date(startDate.getTime() + i * 86400000);
+            const dow = d.getUTCDay();
+            const dateStr = d.toISOString().slice(0, 10);
+            const cta = arrivableSet ? !arrivableSet.has(dow) : false;
+            const ctd = departableSet ? !departableSet.has(dow) : false;
+            for (const plan of plansR.rows) {
+                const row = {
+                    property_id: plan.channex_property_id,
+                    rate_plan_id: plan.rate_plan_id,
+                    date: dateStr,
+                    closed_to_arrival: cta,
+                    closed_to_departure: ctd,
+                };
+                if (hasMinStay) {
+                    row.min_stay_arrival = p.standard_min_stay;
+                    row.min_stay_through = p.standard_min_stay;
+                }
+                values.push(row);
+            }
+        }
+
+        // Use the account's own Channex connection credentials, not the
+        // master key — one account's rules shouldn't leak across accounts.
+        const credR = await pool.query(`
+            SELECT DISTINCT c.credentials FROM gas_sync_connections c
+              JOIN gas_sync_properties sp ON sp.connection_id = c.id
+              JOIN gas_sync_room_types rt ON rt.sync_property_id = sp.id
+              JOIN bookable_units bu ON bu.id = rt.gas_room_id
+             WHERE bu.property_id = $1 AND c.adapter_code = 'channex'
+             LIMIT 1
+        `, [propertyId]);
+        const creds = credR.rows[0]?.credentials
+            ? (typeof credR.rows[0].credentials === 'string' ? JSON.parse(credR.rows[0].credentials) : credR.rows[0].credentials)
+            : {};
+        const apiKey = creds.apiKey || creds.v1ApiKey || process.env.CHANNEX_API_KEY;
+        if (!apiKey) return { ok: false, error: 'no Channex API key available' };
+        const adapter = new ChannexAdapter({ apiKey });
+
+        // Chunk to 500 per request — Channex's /restrictions endpoint accepts
+        // arrays but very large arrays occasionally time out.
+        const CHUNK = 500;
+        let pushed = 0, failed = 0, lastError = null;
+        for (let i = 0; i < values.length; i += CHUNK) {
+            const slice = values.slice(i, i + CHUNK);
+            try {
+                const resp = await adapter.request('/restrictions', 'POST', { values: slice });
+                if (resp.success) {
+                    pushed += slice.length;
+                } else {
+                    failed += slice.length;
+                    lastError = resp.error || 'unknown';
+                }
+            } catch (e) {
+                failed += slice.length;
+                lastError = e.message;
+            }
+        }
+        return { ok: failed === 0, pushed, failed, plans: plansR.rows.length, days: 400, error: lastError };
+    } catch (e) {
+        console.error('[pushBookingRulesToChannex]', e.message);
         return { ok: false, error: e.message };
     }
 }

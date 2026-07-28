@@ -59565,12 +59565,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.getElementById('std-lead-hours').value = seedLeadHours || '';
 
                 const infoEl = document.getElementById('booking-rules-cms-info');
-                if (hostfullyRooms.length === 0) {
-                    // No Hostfully mapping — make it loud so the operator
-                    // doesn't wonder why pre-fill didn't happen.
+                const channex = d.cms?.channex || { connected: false };
+                if (hostfullyRooms.length === 0 && !channex.connected) {
+                    // No CM mapping at all — amber warning.
                     infoEl.innerHTML = `<strong style="color:#92400e;">No connected CM found for this property.</strong> Set rules here and GAS enforces them on the widget + direct bookings. Connect a channel manager to also push these rules to the OTA side.`;
                     infoEl.style.background = '#fef3c7';
                     infoEl.style.borderColor = '#fde68a';
+                    infoEl.style.display = 'block';
+                } else if (hostfullyRooms.length === 0 && channex.connected) {
+                    // Channex-only — GAS is the PMS, no pull needed, push on save.
+                    infoEl.innerHTML = `<strong style="color:#166534;">🔗 Channex connected</strong> — GAS is the source of truth. On save, these rules push to Channex (${channex.rate_plans} rate plan${channex.rate_plans === 1 ? '' : 's'}) as per-date restrictions across 400 days.`;
+                    infoEl.style.background = '#f0fdf4';
+                    infoEl.style.borderColor = '#86efac';
                     infoEl.style.display = 'block';
                 } else {
                     infoEl.style.background = '#fff';
@@ -59688,7 +59694,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     standard_max_stay: parseNum(document.getElementById('std-max-stay').value),
                     standard_lead_hours: parseNum(document.getElementById('std-lead-hours').value),
                 };
-                let hostfullyMsg = '';
+                let cmMsg = '';
                 try {
                     const rr = await fetch(`/api/admin/properties/${propertyId}/booking-rules`, {
                         method: 'PUT',
@@ -59696,19 +59702,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                         body: JSON.stringify(rulesPayload)
                     });
                     const rd = await rr.json();
-                    if (rd.success && rd.hostfully) {
-                        if (rd.hostfully.pushed > 0) {
-                            hostfullyMsg = ` · Hostfully aligned (${rd.hostfully.pushed})`;
-                        } else if (rd.hostfully.skipped === 'no-hostfully-mapping') {
-                            hostfullyMsg = '';
-                        } else if (rd.hostfully.failed > 0) {
-                            hostfullyMsg = ` · ⚠ Hostfully push failed on ${rd.hostfully.failed}`;
-                        }
+                    if (rd.success) {
+                        if (rd.hostfully?.pushed > 0) cmMsg += ` · Hostfully aligned (${rd.hostfully.pushed})`;
+                        else if (rd.hostfully?.failed > 0) cmMsg += ` · ⚠ Hostfully failed on ${rd.hostfully.failed}`;
+                        if (rd.channex?.pushed > 0) cmMsg += ` · Channex aligned (${rd.channex.pushed} restrictions)`;
+                        else if (rd.channex?.failed > 0) cmMsg += ` · ⚠ Channex failed on ${rd.channex.failed}`;
                     }
                 } catch (e) {
-                    hostfullyMsg = ' · ⚠ Hostfully push errored';
+                    cmMsg = ' · ⚠ CM push errored';
                 }
-                showNotification('Standard Rate saved' + hostfullyMsg, hostfullyMsg.includes('⚠') ? 'warning' : 'success');
+                showNotification('Standard Rate saved' + cmMsg, cmMsg.includes('⚠') ? 'warning' : 'success');
                 closeModal('stdRateDisplayModal');
                 loadStandardRateDisplay(propertyId);
             } catch (e) {
