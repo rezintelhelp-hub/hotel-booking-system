@@ -139845,6 +139845,98 @@ app.post('/api/whatsapp/embedded-signup/complete', async (req, res) => {
     }
 });
 
+// Channex restrictions inspector — master-only diagnostic. Takes room IDs,
+// resolves their Channex rate plans, GETs current restrictions from Channex
+// for the next N days, and returns a per-date summary so we can spot when
+// GAS says 2-night min-stay but Channex still has 1. Read-only, no writes.
+app.get('/api/admin/channex/inspect-restrictions', async (req, res) => {
+    try {
+        const user = await authenticateUser(req, res);
+        if (!user || user.role !== 'master_admin') return res.status(403).json({ error: 'master only' });
+        const roomIds = String(req.query.room_ids || '').split(',').map(s => parseInt(s.trim(), 10)).filter(Boolean);
+        if (roomIds.length === 0) return res.status(400).json({ error: 'room_ids query param required (comma-separated int list)' });
+        const days = Math.min(parseInt(req.query.days, 10) || 14, 60);
+
+        // Resolve every Channex rate plan mapped under any of the given rooms.
+        const plansR = await pool.query(`
+            SELECT rp.external_id AS rate_plan_id, sp.external_id AS channex_property_id,
+                   rt.gas_room_id, bu.name AS room_name, bu.property_id AS gas_property_id,
+                   c.credentials, c.id AS connection_id
+              FROM gas_sync_rate_plans rp
+              JOIN gas_sync_room_types rt ON rt.id = rp.sync_room_type_id
+              JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+              JOIN gas_sync_connections c ON c.id = sp.connection_id
+              JOIN bookable_units bu ON bu.id = rt.gas_room_id
+             WHERE rt.gas_room_id = ANY($1::int[])
+               AND c.adapter_code = 'channex'
+               AND c.status = 'connected'
+               AND rp.external_id IS NOT NULL
+        `, [roomIds]);
+        if (plansR.rows.length === 0) return res.json({ success: false, error: 'no Channex rate plans mapped for those rooms' });
+
+        // Grab GAS-side saved rules per distinct property so we can compare.
+        const propIds = [...new Set(plansR.rows.map(r => r.gas_property_id))];
+        const gasRulesR = await pool.query(`
+            SELECT id, name, standard_check_in_days, standard_min_stay, standard_max_stay, standard_lead_hours,
+                   standard_rules_pushed_at
+              FROM properties WHERE id = ANY($1::int[])
+        `, [propIds]);
+        const gasRulesByProp = {};
+        for (const r of gasRulesR.rows) gasRulesByProp[r.id] = r;
+
+        const startDate = new Date();
+        startDate.setUTCHours(0, 0, 0, 0);
+        const startStr = startDate.toISOString().slice(0, 10);
+        const endStr = new Date(startDate.getTime() + days * 86400000).toISOString().slice(0, 10);
+
+        // Fetch from Channex per-connection so we hit the operator's actual API,
+        // not the platform master key. GET /restrictions?filter[rate_plan_id][]=..
+        const { ChannexAdapter } = require('./gas-sync/adapters/channex-adapter');
+        const byConn = {};
+        for (const r of plansR.rows) {
+            if (!byConn[r.connection_id]) byConn[r.connection_id] = { creds: r.credentials, plans: [] };
+            byConn[r.connection_id].plans.push(r);
+        }
+        const perPlan = [];
+        for (const [connId, group] of Object.entries(byConn)) {
+            const creds = typeof group.creds === 'string' ? JSON.parse(group.creds) : (group.creds || {});
+            const apiKey = creds.apiKey || creds.v1ApiKey;
+            if (!apiKey) { perPlan.push({ connection_id: connId, error: 'no api key' }); continue; }
+            const adapter = new ChannexAdapter({ apiKey });
+            for (const p of group.plans) {
+                try {
+                    const path = `/restrictions?filter[rate_plan_id]=${p.rate_plan_id}&filter[date][gte]=${startStr}&filter[date][lt]=${endStr}&limit=200`;
+                    const resp = await adapter.request(path, 'GET');
+                    const rows = resp?.data?.data || resp?.data || [];
+                    perPlan.push({
+                        room_id: p.gas_room_id,
+                        room_name: p.room_name,
+                        gas_property_id: p.gas_property_id,
+                        gas_saved_min_stay: gasRulesByProp[p.gas_property_id]?.standard_min_stay || null,
+                        gas_rules_pushed_at: gasRulesByProp[p.gas_property_id]?.standard_rules_pushed_at || null,
+                        channex_property_id: p.channex_property_id,
+                        rate_plan_id: p.rate_plan_id,
+                        channex_restrictions: rows.map(x => ({
+                            date: x.attributes?.date || x.date,
+                            min_stay_arrival: x.attributes?.min_stay_arrival ?? x.min_stay_arrival,
+                            min_stay_through: x.attributes?.min_stay_through ?? x.min_stay_through,
+                            closed_to_arrival: x.attributes?.closed_to_arrival ?? x.closed_to_arrival,
+                            closed_to_departure: x.attributes?.closed_to_departure ?? x.closed_to_departure,
+                            stop_sell: x.attributes?.stop_sell ?? x.stop_sell,
+                        })),
+                    });
+                } catch (e) {
+                    perPlan.push({ room_id: p.gas_room_id, rate_plan_id: p.rate_plan_id, error: e.message });
+                }
+            }
+        }
+        res.json({ success: true, days, results: perPlan });
+    } catch (e) {
+        console.error('[channex/inspect-restrictions]', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Widget config — CORS-open public endpoint. Returns the WhatsApp number
 // + branding for one account so the vanilla-JS widget on client sites
 // (or GAS Admin, or gas.travel) can deep-link to wa.me/{number}. Falls
