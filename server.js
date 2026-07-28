@@ -139903,6 +139903,59 @@ app.post('/api/whatsapp/embedded-signup/complete', async (req, res) => {
     }
 });
 
+// EMERGENCY: clear GAS-side standard rules on a property. Blanks the
+// standard_check_in_days / check_out_days / min_stay / max_stay / lead_hours
+// so no cron / push has reason to override manual Channex state. Read the
+// stamp fields too so we know exactly what got cleared. Master-only.
+app.post('/api/admin/properties/:id/clear-standard-rules', async (req, res) => {
+    try {
+        const user = await authenticateUser(req, res);
+        if (!user || user.role !== 'master_admin') return res.status(403).json({ error: 'master only' });
+        const propertyId = parseInt(req.params.id, 10);
+        const before = await pool.query(`SELECT standard_check_in_days, standard_check_out_days, standard_min_stay, standard_max_stay, standard_lead_hours FROM properties WHERE id = $1`, [propertyId]);
+        await pool.query(`
+            UPDATE properties
+               SET standard_check_in_days = NULL,
+                   standard_check_out_days = NULL,
+                   standard_min_stay = NULL,
+                   standard_max_stay = NULL,
+                   standard_lead_hours = NULL,
+                   standard_rules_pushed_at = NULL,
+                   standard_rules_push_error = NULL,
+                   updated_at = NOW()
+             WHERE id = $1
+        `, [propertyId]);
+        res.json({ success: true, property_id: propertyId, cleared: before.rows[0] });
+    } catch (e) {
+        console.error('[properties/clear-standard-rules]', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// EMERGENCY freeze — master-only. Toggles sync_enabled on every Channex
+// connection for the given account_id. When frozen, no cron (extender,
+// outbox, safety) pushes ARI to Channex — the operator's manual state
+// on Channex UI is preserved. Used to stop GAS overwriting a manual
+// stop-sell while we reconcile.
+app.post('/api/admin/channex/freeze-sync', async (req, res) => {
+    try {
+        const user = await authenticateUser(req, res);
+        if (!user || user.role !== 'master_admin') return res.status(403).json({ error: 'master only' });
+        const accountId = parseInt(req.body?.account_id, 10);
+        const enabled = req.body?.enabled === true; // false = freeze, true = thaw
+        if (!accountId) return res.status(400).json({ error: 'account_id required' });
+        const r = await pool.query(`
+            UPDATE gas_sync_connections SET sync_enabled = $1, updated_at = NOW()
+             WHERE account_id = $2 AND adapter_code = 'channex'
+            RETURNING id, sync_enabled
+        `, [enabled, accountId]);
+        res.json({ success: true, action: enabled ? 'thaw' : 'freeze', connections: r.rows });
+    } catch (e) {
+        console.error('[channex/freeze-sync]', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // EMERGENCY stop-sell — master-only. Sets stop_sell:true on every date
 // for the next N days for the given room IDs. Blocks all new OTA bookings
 // via Channex. Steve 2026-07-28 — used when the rules push wiped
