@@ -27917,8 +27917,44 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <option value="deposit_kept_60">Deposit non-refundable · balance refundable if cancelled 60+ days before arrival</option>
                             <option value="deposit_kept_90">Deposit non-refundable · balance refundable if cancelled 90+ days before arrival</option>
                             <option value="non_refundable">Non-refundable</option>
+                            <option value="custom">✏️ Bespoke — write your own terms</option>
                         </select>
+                        <!-- Bespoke terms form. Reveals when "custom" is selected;
+                             hidden otherwise. Steve 2026-07-28 (Barbara): pre-set
+                             options couldn't express "10 days notice, $25 fee always" — this
+                             lets operators write exactly the terms they use. Stored as JSONB
+                             on deposit_rules.refund_policy_custom; the free-text
+                             display_terms is what guests see on checkout + emails. -->
+                        <div id="refund-policy-custom-panel" style="display:none; margin-top: 0.75rem; padding: 0.75rem; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;">
+                            <label style="display:block; font-weight:600; font-size:0.85rem; color:#78350f; margin-bottom: 4px;">Notice period (days before arrival)</label>
+                            <input type="number" id="refund-custom-notice-days" min="0" max="365" step="1" value="10" class="form-input" style="width:120px; margin-bottom: 0.6rem;">
+
+                            <label style="display:block; font-weight:600; font-size:0.85rem; color:#78350f; margin-bottom: 4px;">Refund % if cancelled BEFORE the notice period</label>
+                            <input type="number" id="refund-custom-pct-before" min="0" max="100" step="1" value="100" class="form-input" style="width:120px; margin-bottom: 0.6rem;">
+
+                            <label style="display:block; font-weight:600; font-size:0.85rem; color:#78350f; margin-bottom: 4px;">Refund % if cancelled AFTER the notice period (within window)</label>
+                            <input type="number" id="refund-custom-pct-after" min="0" max="100" step="1" value="0" class="form-input" style="width:120px; margin-bottom: 0.6rem;">
+
+                            <label style="display:block; font-weight:600; font-size:0.85rem; color:#78350f; margin-bottom: 4px;">Fixed cancellation fee (always retained)</label>
+                            <input type="number" id="refund-custom-fee" min="0" step="0.01" value="0" class="form-input" style="width:120px; margin-bottom: 0.6rem;">
+
+                            <label style="display:block; font-weight:600; font-size:0.85rem; color:#78350f; margin-bottom: 4px;">Guest-facing terms (what shows on checkout + emails)</label>
+                            <textarea id="refund-custom-display-terms" rows="2" placeholder="e.g. Full refund minus $25 admin fee if cancelled 10+ days before arrival. Non-refundable within 10 days." class="form-input" style="width:100%; margin-bottom: 0.25rem; font-family: inherit;"></textarea>
+                            <small style="color:#92400e; font-size:0.75rem;">Guests see the terms above; the numeric fields let reports flag the correct amount to refund on cancellation.</small>
+                        </div>
                     </div>
+
+                    <script>
+                        // Toggle bespoke panel when the dropdown changes.
+                        (function wireCustomRefundPanel(){
+                            var sel = document.getElementById('refund-policy');
+                            var panel = document.getElementById('refund-policy-custom-panel');
+                            if (!sel || !panel) return;
+                            function sync(){ panel.style.display = sel.value === 'custom' ? 'block' : 'none'; }
+                            sel.addEventListener('change', sync);
+                            sync();
+                        })();
+                    </script>
 
                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem;">
                         <input type="checkbox" id="deposit-rule-active" checked style="width: 18px; height: 18px;">
@@ -75733,7 +75769,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                             ).join('')}
                                         </div>
                                         <div style="margin-top: 0.75rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                                            <div><strong style="color: #64748b; font-size: 0.85rem;">Refund Policy</strong><br>${getRefundPolicyDisplay(rule.refund_policy)}</div>
+                                            <div><strong style="color: #64748b; font-size: 0.85rem;">Refund Policy</strong><br>${getRefundPolicyDisplay(rule.refund_policy, rule.refund_policy_custom)}</div>
                                             <div><strong style="color: #64748b; font-size: 0.85rem;">Failed Charge Retry</strong><br>${rule.auto_charge_retry ? 'Yes (max ' + (rule.max_retry_attempts || 3) + ')' : 'No'}</div>
                                         </div>
                                     </div>
@@ -75757,7 +75793,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         </div>
                                         <div>
                                             <strong style="color: #64748b; font-size: 0.85rem;">Refund Policy</strong><br>
-                                            ${getRefundPolicyDisplay(rule.refund_policy)}
+                                            ${getRefundPolicyDisplay(rule.refund_policy, rule.refund_policy_custom)}
                                         </div>
                                         <div>
                                             <strong style="color: #64748b; font-size: 0.85rem;">Auto-charge Balance</strong><br>
@@ -75790,7 +75826,21 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
-        function getRefundPolicyDisplay(policy) {
+        function getRefundPolicyDisplay(policy, custom) {
+            // 'custom' takes an optional second arg — the JSONB blob saved
+            // on deposit_rules.refund_policy_custom. Prefer the operator's
+            // display_terms; fall back to a system-generated summary if none.
+            if (policy === 'custom') {
+                if (custom && custom.display_terms) return custom.display_terms;
+                if (custom) {
+                    const parts = [];
+                    if (custom.refund_pct_before != null) parts.push(`${custom.refund_pct_before}% refund if cancelled ${custom.notice_days}+ days before`);
+                    if (custom.refund_pct_after != null && custom.refund_pct_after !== custom.refund_pct_before) parts.push(`${custom.refund_pct_after}% refund within ${custom.notice_days} days`);
+                    if (custom.fixed_fee > 0) parts.push(`${parseFloat(custom.fixed_fee).toFixed(2)} cancellation fee retained`);
+                    return parts.join(' · ') || 'Bespoke policy';
+                }
+                return 'Bespoke policy';
+            }
             const map = {
                 'flexible': 'Flexible - Full refund up to 24h before check-in',
                 'moderate': 'Moderate - Full refund up to 5 days before',
@@ -76246,6 +76296,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('balance-due-days').value = rule.balance_due_days ?? 14;
                     document.getElementById('auto-charge-balance').checked = rule.auto_charge_balance || false;
                     document.getElementById('refund-policy').value = rule.refund_policy || 'flexible';
+                    // Populate bespoke panel if the rule has one saved.
+                    if (rule.refund_policy === 'custom' && rule.refund_policy_custom) {
+                        const rc = rule.refund_policy_custom;
+                        document.getElementById('refund-custom-notice-days').value = rc.notice_days != null ? rc.notice_days : 10;
+                        document.getElementById('refund-custom-pct-before').value = rc.refund_pct_before != null ? rc.refund_pct_before : 100;
+                        document.getElementById('refund-custom-pct-after').value = rc.refund_pct_after != null ? rc.refund_pct_after : 0;
+                        document.getElementById('refund-custom-fee').value = rc.fixed_fee != null ? rc.fixed_fee : 0;
+                        document.getElementById('refund-custom-display-terms').value = rc.display_terms || '';
+                    }
+                    // Fire the change so the panel toggles into view on custom
+                    document.getElementById('refund-policy').dispatchEvent(new Event('change'));
                     document.getElementById('deposit-rule-active').checked = rule.is_active !== false;
 
                     // Set schedule mode
@@ -76294,6 +76355,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                 is_active: document.getElementById('deposit-rule-active').checked,
                 schedule_mode: scheduleMode
             };
+
+            // Steve 2026-07-28 (Barbara bespoke policy): if the operator picked
+            // "custom" in the refund dropdown, pack the four numeric fields +
+            // guest-facing display terms into a JSONB blob the server stores
+            // on deposit_rules.refund_policy_custom. Reports + emails read the
+            // display_terms; the numeric fields let a future auto-refund calc
+            // decode the correct amount.
+            if (data.refund_policy === 'custom') {
+                data.refund_policy_custom = {
+                    notice_days: parseInt(document.getElementById('refund-custom-notice-days').value, 10) || 0,
+                    refund_pct_before: parseInt(document.getElementById('refund-custom-pct-before').value, 10) || 0,
+                    refund_pct_after: parseInt(document.getElementById('refund-custom-pct-after').value, 10) || 0,
+                    fixed_fee: parseFloat(document.getElementById('refund-custom-fee').value) || 0,
+                    display_terms: document.getElementById('refund-custom-display-terms').value.trim() || null,
+                };
+            }
 
             // Add payment schedule if in schedule mode
             if (scheduleMode === 'schedule') {

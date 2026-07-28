@@ -28425,6 +28425,7 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
             auto_charge_balance,
             auto_charge_days_before,
             refund_policy,
+            refund_policy_custom,
             valid_from,
             valid_until,
             min_nights,
@@ -28443,6 +28444,12 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
         await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS payment_schedule JSONB').catch(() => {});
         await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS auto_charge_retry BOOLEAN DEFAULT false').catch(() => {});
         await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS max_retry_attempts INTEGER DEFAULT 3').catch(() => {});
+        // Steve 2026-07-28 (Barbara): bespoke refund policy support. Structure:
+        //   { notice_days, refund_pct_before, refund_pct_after, fixed_fee, display_terms }
+        // Only meaningful when refund_policy = 'custom'; ignored otherwise.
+        // Reports + emails read display_terms; the numeric fields let a future
+        // auto-refund calc decode the correct amount.
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS refund_policy_custom JSONB').catch(() => {});
 
         // Validate payment_schedule if provided
         if (schedule_mode === 'schedule' && payment_schedule) {
@@ -28464,21 +28471,22 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
 
         const scheduleJson = payment_schedule ? JSON.stringify(payment_schedule) : null;
 
+        const customJson = (refund_policy === 'custom' && refund_policy_custom) ? JSON.stringify(refund_policy_custom) : null;
         const result = await pool.query(`
             INSERT INTO deposit_rules (
                 property_id, account_id, rule_name, rule_name_ml, deposit_type, deposit_percentage,
                 deposit_fixed_amount, balance_due_type, balance_due_days,
-                auto_charge_balance, auto_charge_days_before, refund_policy,
+                auto_charge_balance, auto_charge_days_before, refund_policy, refund_policy_custom,
                 valid_from, valid_until, min_nights, max_nights, is_active,
                 schedule_mode, payment_schedule, auto_charge_retry, max_retry_attempts
-            ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, $21)
+            ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17, $18, $19, $20::jsonb, $21, $22)
             RETURNING *
         `, [
             propertyId, accountId, rule_name || 'Default', ruleNameJson,
             deposit_type || 'percentage', deposit_percentage ?? 0,
             deposit_fixed_amount, balance_due_type || 'days_before',
             balance_due_days ?? 14, auto_charge_balance || false,
-            auto_charge_days_before ?? 14, refund_policy || 'flexible',
+            auto_charge_days_before ?? 14, refund_policy || 'flexible', customJson,
             valid_from || null, valid_until || null,
             min_nights || null, max_nights || null, is_active !== false,
             schedule_mode || 'basic', scheduleJson,
@@ -28506,6 +28514,7 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
             auto_charge_balance,
             auto_charge_days_before,
             refund_policy,
+            refund_policy_custom,
             valid_from,
             valid_until,
             min_nights,
@@ -28524,6 +28533,7 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
         await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS payment_schedule JSONB').catch(() => {});
         await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS auto_charge_retry BOOLEAN DEFAULT false').catch(() => {});
         await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS max_retry_attempts INTEGER DEFAULT 3').catch(() => {});
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS refund_policy_custom JSONB').catch(() => {});
 
         // Validate payment_schedule if provided
         if (schedule_mode === 'schedule' && payment_schedule) {
@@ -28538,6 +28548,11 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
 
         const scheduleJson = payment_schedule ? JSON.stringify(payment_schedule) : undefined;
 
+        // Refund policy custom: only meaningful when refund_policy = 'custom'.
+        // When switching AWAY from custom, clear the JSONB to avoid stale data.
+        const customJson = (refund_policy === 'custom' && refund_policy_custom)
+            ? JSON.stringify(refund_policy_custom)
+            : (refund_policy && refund_policy !== 'custom' ? null : undefined);
         const result = await pool.query(`
             UPDATE deposit_rules SET
                 rule_name = COALESCE($1, rule_name),
@@ -28550,6 +28565,7 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
                 auto_charge_balance = COALESCE($8, auto_charge_balance),
                 auto_charge_days_before = COALESCE($9, auto_charge_days_before),
                 refund_policy = COALESCE($10, refund_policy),
+                refund_policy_custom = CASE WHEN $21::text IS NULL THEN refund_policy_custom ELSE $21::jsonb END,
                 valid_from = $11,
                 valid_until = $12,
                 min_nights = $13,
@@ -28568,7 +28584,8 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
             auto_charge_days_before, refund_policy, valid_from, valid_until,
             min_nights, max_nights, is_active, ruleId,
             schedule_mode, scheduleJson,
-            auto_charge_retry, max_retry_attempts
+            auto_charge_retry, max_retry_attempts,
+            customJson === undefined ? null : customJson,
         ]);
         
         if (result.rows.length === 0) {
@@ -36961,6 +36978,37 @@ app.get('/api/admin/bookings/:id/claims', async (req, res) => {
   }
 });
 
+// Group-booking view — returns every booking that shares this booking's
+// booking_group_id. Runs the on-demand matcher first so a freshly-inserted
+// booking gets stamped without waiting for the cron. Empty members array
+// means this booking is not part of a group.
+app.get('/api/admin/bookings/:id/group', async (req, res) => {
+  try {
+    const bookingId = parseInt(req.params.id);
+    const ctx = await loadBookingForAdmin(req, bookingId);
+    if (!ctx.ok) return res.status(ctx.status).json({ success: false, error: ctx.error });
+    await linkBookingIntoGroup(bookingId);
+    const groupR = await pool.query(`SELECT booking_group_id FROM bookings WHERE id = $1`, [bookingId]);
+    const groupId = groupR.rows[0]?.booking_group_id;
+    if (!groupId) return res.json({ success: true, booking_group_id: null, members: [] });
+    const members = await pool.query(`
+      SELECT b.id, b.guest_first_name, b.guest_last_name,
+             b.guest_email, b.arrival_date, b.departure_date, b.grand_total,
+             b.balance_amount, b.currency, b.status, b.payment_status,
+             (b.stripe_payment_method_id IS NOT NULL OR b.enigma_card_token IS NOT NULL) AS card_on_file,
+             bu.name AS room_name
+        FROM bookings b
+        LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
+       WHERE b.booking_group_id = $1
+       ORDER BY b.arrival_date ASC, b.id ASC
+    `, [groupId]);
+    res.json({ success: true, booking_group_id: groupId, members: members.rows });
+  } catch (err) {
+    console.error('group booking error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.patch('/api/admin/claims/:id', async (req, res) => {
   try {
     const claimId = parseInt(req.params.id);
@@ -37895,6 +37943,106 @@ async function createCompanionBooking(client, {
     }
 
     return { booking: companionBooking, cm: cmResult };
+}
+
+// ---------------------------------------------------------------------------
+// GROUP BOOKING MATCHER — auto-link separate reservations by the same guest
+// on the same property with overlapping/adjacent dates. Covers the case
+// where the guest booked two rooms as two confirmations, or extended a
+// stay via a fresh booking, and we want the admin UI to treat them as
+// one party for balance-collection and messaging purposes.
+//
+// Writes to bookings.booking_group_id (UUID) — the same column the
+// existing viewBooking group-siblings badge already renders from (see
+// server.js:74527 + gas-admin.html:70359). group_booking_id (VARCHAR)
+// is a separate, older column used by the multi-room web-checkout flow;
+// left untouched.
+//
+// Idempotent + surgical: never overwrites a booking that already has a
+// booking_group_id. Match rule: same property_id AND same guest_email
+// (or same digit-only phone), AND arrival/departure within ±3 days.
+// ---------------------------------------------------------------------------
+async function linkBookingIntoGroup(bookingId) {
+    try {
+        const bR = await pool.query(`
+            SELECT id, property_id, booking_group_id,
+                   LOWER(NULLIF(TRIM(guest_email), '')) AS guest_email,
+                   NULLIF(REGEXP_REPLACE(COALESCE(guest_phone, ''), '\\D', '', 'g'), '') AS guest_phone_digits,
+                   arrival_date, departure_date, status
+              FROM bookings WHERE id = $1
+        `, [bookingId]);
+        const b = bR.rows[0];
+        if (!b) return null;
+        if (b.status === 'cancelled') return null;
+        if (b.booking_group_id) return b.booking_group_id;
+        if (!b.guest_email && !b.guest_phone_digits) return null;
+
+        const matches = await pool.query(`
+            SELECT id, booking_group_id, arrival_date, departure_date
+              FROM bookings
+             WHERE id <> $1
+               AND property_id = $2
+               AND COALESCE(status, '') <> 'cancelled'
+               AND (
+                    ($3::text IS NOT NULL AND LOWER(TRIM(guest_email)) = $3)
+                 OR ($4::text IS NOT NULL AND NULLIF(REGEXP_REPLACE(COALESCE(guest_phone, ''), '\\D', '', 'g'), '') = $4)
+               )
+               AND (
+                    arrival_date BETWEEN $5::date - INTERVAL '3 days' AND $6::date + INTERVAL '3 days'
+                 OR departure_date BETWEEN $5::date - INTERVAL '3 days' AND $6::date + INTERVAL '3 days'
+               )
+             LIMIT 20
+        `, [b.id, b.property_id, b.guest_email, b.guest_phone_digits, b.arrival_date, b.departure_date]);
+
+        if (matches.rows.length === 0) return null;
+
+        // Adopt the most common existing booking_group_id among matches;
+        // if none has one yet, mint a fresh UUID. Rows already in a different
+        // group stay in that group — we never re-write an existing linkage.
+        const existing = matches.rows.map(r => r.booking_group_id).filter(Boolean);
+        let groupId;
+        if (existing.length > 0) {
+            const counts = {};
+            for (const g of existing) counts[g] = (counts[g] || 0) + 1;
+            groupId = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+        } else {
+            groupId = crypto.randomUUID();
+        }
+
+        const idsToStamp = [b.id, ...matches.rows.filter(r => !r.booking_group_id).map(r => r.id)];
+        await pool.query(`
+            UPDATE bookings SET booking_group_id = $1, updated_at = NOW()
+             WHERE id = ANY($2::int[]) AND booking_group_id IS NULL
+        `, [groupId, idsToStamp]);
+
+        return groupId;
+    } catch (e) {
+        console.warn('[group-matcher]', bookingId, e.message);
+        return null;
+    }
+}
+
+// Cron sweep — every 10 min, scans recent (last 30d) un-grouped bookings
+// and pushes each through the matcher. Catches new inserts from every
+// path (public, admin, Beds24, Channex, Hostfully) without editing each
+// insert site.
+async function runBookingGroupMatcher() {
+    try {
+        const rows = await pool.query(`
+            SELECT id FROM bookings
+             WHERE booking_group_id IS NULL
+               AND created_at > NOW() - INTERVAL '30 days'
+               AND COALESCE(status, '') <> 'cancelled'
+               AND (guest_email IS NOT NULL OR guest_phone IS NOT NULL)
+             ORDER BY created_at DESC
+             LIMIT 500
+        `);
+        for (const row of rows.rows) {
+            await linkBookingIntoGroup(row.id);
+        }
+    } catch (e) {
+        console.warn('[group-matcher cron]', e.message);
+    }
 }
 
 // =====================================================
@@ -74334,7 +74482,14 @@ app.post('/api/admin/bookings/:id/communications/:commId/resend', async (req, re
 app.get('/api/bookings/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
+    // Run the group matcher on this booking before we read — so a party
+    // that just made a second reservation on the same property sees the
+    // group badge the first time an operator opens either row, without
+    // waiting for the 10-min cron. Idempotent + fire-through: awaited so
+    // the group_siblings query below sees the freshly-stamped column.
+    try { await linkBookingIntoGroup(parseInt(id)); } catch (_) { /* non-blocking */ }
+
     const result = await pool.query(`
       SELECT b.*,
              bu.name as unit_name,
@@ -131470,6 +131625,12 @@ setInterval(runAutoTagsCron, 60 * 60 * 1000);          // hourly
 // dedupes so no booking gets a duplicate email.
 setTimeout(() => { evaluateAllAutoMessageRules().catch(e => console.error('[autoMsg first run]', e.message)); }, 5 * 60 * 1000);
 setInterval(() => { evaluateAllAutoMessageRules().catch(e => console.error('[autoMsg cron]', e.message)); }, 15 * 60 * 1000);
+
+// Group-booking matcher — auto-link separate reservations by same guest on
+// same property with adjacent dates. Idempotent; never overwrites existing
+// group_booking_id. First run 3 min after boot then every 10 min.
+setTimeout(() => { runBookingGroupMatcher().catch(e => console.error('[group-matcher first run]', e.message)); }, 3 * 60 * 1000);
+setInterval(() => { runBookingGroupMatcher().catch(e => console.error('[group-matcher cron]', e.message)); }, 10 * 60 * 1000);
 
 // TTLock token refresh — every 6h. Tokens last 30 days; window is 24h
 // so an outage of up to a day still catches the renewal. Defined in the
