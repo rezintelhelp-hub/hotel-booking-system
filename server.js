@@ -63121,11 +63121,21 @@ async function pushBookingToHostfully(bookingId) {
       console.warn(`[pushBookingToHostfully] booking=${bookingId} createLead failed:`, resp?.error || resp);
       return { error: resp?.error || 'createLead-failed', response: resp };
     }
-    const leadUid = resp.data?.uid || resp.data?.leadUid || resp.data?.id;
+    // Hostfully v3 wraps successful responses as { data: { lead: { uid: ... } } }.
+    // Older paths returned data.uid / data.leadUid at the top. Try all
+    // reasonable shapes — GAS-508285 succeeded on the API but left
+    // hostfully_lead_uid=NULL because the earlier lookup missed the nested
+    // shape (Steve 2026-07-28).
+    const d = resp.data || {};
+    const leadUid =
+      d.uid || d.leadUid || d.id ||
+      d.lead?.uid || d.lead?.id ||
+      d.data?.uid || d.data?.lead?.uid ||
+      d.externalId || null;
     if (leadUid) {
       await pool.query('UPDATE bookings SET hostfully_lead_uid = $1, updated_at = NOW() WHERE id = $2', [leadUid, bookingId]);
     }
-    console.log(`[pushBookingToHostfully] booking=${bookingId} → hostfully=${leadUid || '(no uid in response)'}`);
+    console.log(`[pushBookingToHostfully] booking=${bookingId} → hostfully=${leadUid || '(no uid found in response — inspect response shape)'}`);
     return { success: true, hostfully_lead_uid: leadUid };
   } catch (e) {
     console.error(`[pushBookingToHostfully] booking=${bookingId} ERR:`, e.response?.data || e.message);
