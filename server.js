@@ -139845,6 +139845,69 @@ app.post('/api/whatsapp/embedded-signup/complete', async (req, res) => {
     }
 });
 
+// Widget config — CORS-open public endpoint. Returns the WhatsApp number
+// + branding for one account so the vanilla-JS widget on client sites
+// (or GAS Admin, or gas.travel) can deep-link to wa.me/{number}. Falls
+// back to the platform default (account_id=NULL) when the requested
+// account has no own WABA connected. Live-fetches display_phone_number
+// from Meta the first time we don't have it cached, then persists it
+// for future requests. Never exposes the access token or webhook secret.
+app.get('/api/public/whatsapp-widget/config', async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Cache-Control', 'public, max-age=60');
+    try {
+        const accountId = parseInt(req.query.account_id, 10);
+        // Try the requested account first, fall back to platform default.
+        // NULLS LAST orders 'account matches' before 'platform default'.
+        const r = await pool.query(`
+            SELECT id, account_id, waba_id, phone_number_id, display_name,
+                   display_phone_number, access_token
+              FROM gas_whatsapp_configs
+             WHERE is_active = true
+               AND (account_id = $1 OR account_id IS NULL)
+             ORDER BY account_id NULLS LAST
+             LIMIT 1
+        `, [Number.isFinite(accountId) ? accountId : null]);
+        const cfg = r.rows[0];
+        if (!cfg) return res.json({ success: false, error: 'no WhatsApp configured' });
+
+        let phone = cfg.display_phone_number;
+        if (!phone && cfg.phone_number_id && cfg.access_token) {
+            // Live-fetch from Meta once, then cache. Failure is silent —
+            // widget just doesn't render (safer than a broken deep link).
+            try {
+                const metaResp = await fetch(
+                    `https://graph.facebook.com/v25.0/${cfg.phone_number_id}?fields=display_phone_number`,
+                    { headers: { Authorization: `Bearer ${cfg.access_token}` } }
+                );
+                const metaJson = await metaResp.json();
+                if (metaJson.display_phone_number) {
+                    phone = metaJson.display_phone_number;
+                    await pool.query(
+                        `UPDATE gas_whatsapp_configs SET display_phone_number = $1, updated_at = NOW() WHERE id = $2`,
+                        [phone, cfg.id]
+                    ).catch(() => {});
+                }
+            } catch (e) {
+                console.warn('[whatsapp-widget/config] Meta lookup failed:', e.message);
+            }
+        }
+        if (!phone) return res.json({ success: false, error: 'no phone number available' });
+
+        // Strip everything except digits — wa.me only accepts pure digits.
+        const digits = String(phone).replace(/[^0-9]/g, '');
+        res.json({
+            success: true,
+            phone_number: digits,
+            display_name: cfg.display_name || 'Chat with us',
+            scope: cfg.account_id === accountId ? 'account' : 'platform-default',
+        });
+    } catch (e) {
+        console.error('[whatsapp-widget/config]', e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // Platform default WABA — upsert (master-only). This is the row with
 // account_id IS NULL that catches inbound messages to GAS's own support
 // number (Steve's, in v1). Also used as fallback for lifecycle messages
@@ -142789,6 +142852,11 @@ app.listen(PORT, '0.0.0.0', async () => {
     `).catch(e => console.error('[migration] gas_whatsapp_configs:', e.message));
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_cfg_account ON gas_whatsapp_configs(account_id) WHERE account_id IS NOT NULL`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_wa_cfg_verify_token ON gas_whatsapp_configs(webhook_verify_token)`).catch(() => {});
+    // E.164 digits-only phone (e.g. "15556431281") for the widget's
+    // wa.me/{number} deep-link. Populated from Meta's Graph API on
+    // first widget lookup (cached), or on ESU/platform-default upsert
+    // if the operator provides it. See /api/public/whatsapp-widget/config.
+    await pool.query(`ALTER TABLE gas_whatsapp_configs ADD COLUMN IF NOT EXISTS display_phone_number VARCHAR(30)`).catch(() => {});
 
     // Platform-level WhatsApp messages (received via Park Row's default
     // WABA before tenant attribution) need to store with account_id=NULL.
