@@ -100212,77 +100212,71 @@ const promo = await fetch('/api/v1/offers/validate', {
             const launchBtn = modal.querySelector('#wa-esu-launch');
             const statusEl = modal.querySelector('#wa-esu-status');
 
-            launchBtn.onclick = async () => {
+            launchBtn.onclick = () => {
                 launchBtn.disabled = true;
-                statusEl.textContent = 'Loading Facebook SDK…';
-                try {
-                    await _loadFbSdk(cfg.app_id);
-                } catch (e) {
-                    statusEl.textContent = '❌ ' + e.message;
+                statusEl.textContent = 'Opening Meta onboarding popup…';
+
+                // Meta's hosted Embedded Signup landing page — bypasses the
+                // FB JS SDK entirely (which needs a "Login with JS SDK" toggle
+                // that isn't reachable for apps with only the WhatsApp use
+                // case). Popup posts back to the opener window with
+                // WA_EMBEDDED_SIGNUP events containing waba_id + phone_number_id.
+                const extras = encodeURIComponent(JSON.stringify({ sessionInfoVersion: '3', version: 'v4' }));
+                const url = `https://business.facebook.com/messaging/whatsapp/onboard/?app_id=${encodeURIComponent(cfg.app_id)}&config_id=${encodeURIComponent(cfg.config_id)}&extras=${extras}`;
+                const popup = window.open(url, 'gas-wa-esu', 'width=600,height=760,left=' + (window.screenX + 100) + ',top=' + (window.screenY + 80));
+                if (!popup) {
+                    statusEl.textContent = '❌ Popup blocked — allow popups for admin.gas.travel and retry.';
                     launchBtn.disabled = false;
                     return;
                 }
-                statusEl.textContent = 'Opening Meta onboarding popup…';
 
-                // Meta's Embedded Signup callback — the SDK pushes session
-                // events to window for us. Capture phone_number_id + waba_id
-                // there because the FB.login response doesn't carry them.
                 let capturedSession = {};
-                const sessionListener = (event) => {
-                    if (event.origin !== 'https://www.facebook.com' && event.origin !== 'https://web.facebook.com') return;
+                const sessionListener = async (event) => {
+                    if (event.origin !== 'https://business.facebook.com' && event.origin !== 'https://www.facebook.com' && event.origin !== 'https://web.facebook.com') return;
                     try {
                         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-                        if (data?.type === 'WA_EMBEDDED_SIGNUP' && data?.event === 'FINISH' && data?.data) {
-                            capturedSession = data.data; // { phone_number_id, waba_id, business_id }
-                        }
-                    } catch (_) {}
-                };
-                window.addEventListener('message', sessionListener);
-
-                // FB SDK rejects async callbacks with "Expression is of type
-                // asyncfunction, not function". Use a sync wrapper that hands
-                // off to an async IIFE so we can still await the fetch.
-                window.FB.login(function(response) {
-                    window.removeEventListener('message', sessionListener);
-                    (async () => {
-                        if (response?.authResponse?.code) {
-                            statusEl.textContent = 'Exchanging code + subscribing webhook…';
+                        if (data?.type !== 'WA_EMBEDDED_SIGNUP') return;
+                        if (data.event === 'FINISH' && data.data) {
+                            capturedSession = data.data;
+                            statusEl.textContent = 'Exchanging + subscribing webhook…';
                             try {
                                 const r = await fetch('/api/whatsapp/embedded-signup/complete', {
                                     method: 'POST',
                                     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
                                         account_id: accountId,
-                                        code: response.authResponse.code,
+                                        code: capturedSession.code || null,  // hosted URL may or may not include a code
                                         waba_id: capturedSession.waba_id,
                                         phone_number_id: capturedSession.phone_number_id,
                                         business_id: capturedSession.business_id,
                                         display_name: accountName
                                     })
                                 });
-                                const data = await r.json();
-                                if (data.success) {
+                                const j = await r.json();
+                                if (j.success) {
                                     showNotification('✅ WhatsApp connected for ' + (accountName || ('account ' + accountId)));
+                                    window.removeEventListener('message', sessionListener);
                                     modal.remove();
                                 } else {
-                                    statusEl.textContent = '❌ ' + (data.error || 'Connect failed');
+                                    statusEl.textContent = '❌ ' + (j.error || 'Connect failed');
                                     launchBtn.disabled = false;
                                 }
                             } catch (e) {
                                 statusEl.textContent = '❌ ' + e.message;
                                 launchBtn.disabled = false;
                             }
-                        } else {
-                            statusEl.textContent = '❌ Meta did not return an auth code — user may have cancelled.';
+                        } else if (data.event === 'CANCEL') {
+                            statusEl.textContent = 'Cancelled at step: ' + (data.data?.current_step || 'unknown');
                             launchBtn.disabled = false;
+                            window.removeEventListener('message', sessionListener);
+                        } else if (data.event === 'ERROR') {
+                            statusEl.textContent = '❌ Meta error: ' + (data.data?.error_message || JSON.stringify(data.data));
+                            launchBtn.disabled = false;
+                            window.removeEventListener('message', sessionListener);
                         }
-                    })();
-                }, {
-                    config_id: cfg.config_id,
-                    response_type: 'code',
-                    override_default_response_type: true,
-                    extras: { setup: {}, featureType: 'whatsapp_embedded_signup' }
-                });
+                    } catch (_) {}
+                };
+                window.addEventListener('message', sessionListener);
             };
         }
 
