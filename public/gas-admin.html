@@ -29561,6 +29561,57 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <textarea id="std-rate-features" class="form-input" rows="4" placeholder="✓ Free cancellation&#10;✓ Free Wi-Fi&#10;✓ Breakfast included" style="width: 100%;"></textarea>
                     <small style="color: #94a3b8; display: block; margin-top: 0.25rem;">Each line becomes a bullet point on the rate card.</small>
                 </div>
+
+                <!-- Booking Rules — GAS source of truth. Widget + /api/public/book
+                     preflight enforce these on every channel. On save, the rules
+                     also get pushed to Hostfully (matching sub-units). Leave any
+                     day-of-week set to "all ticked" to mean "no restriction". -->
+                <div style="margin-top: 1.5rem; padding: 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+                        <h4 style="margin: 0; font-size: 0.95rem; color: #0f172a;">📅 Booking Rules</h4>
+                        <span style="font-size: 0.72rem; color: #64748b;">Applies to every channel — widget, direct, Beds24, Channex, Hostfully</span>
+                    </div>
+                    <div id="booking-rules-cms-info" style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; background: #fff; border: 1px dashed #cbd5e1; border-radius: 6px; display:none;"></div>
+
+                    <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem; font-weight: 600;">Allowed Check-in Days</label>
+                    <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkin-day" value="MONDAY" checked style="width:14px; height:14px;"> Mon</label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkin-day" value="TUESDAY" checked style="width:14px; height:14px;"> Tue</label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkin-day" value="WEDNESDAY" checked style="width:14px; height:14px;"> Wed</label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkin-day" value="THURSDAY" checked style="width:14px; height:14px;"> Thu</label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkin-day" value="FRIDAY" checked style="width:14px; height:14px;"> Fri</label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkin-day" value="SATURDAY" checked style="width:14px; height:14px;"> Sat</label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkin-day" value="SUNDAY" checked style="width:14px; height:14px;"> Sun</label>
+                    </div>
+
+                    <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem; font-weight: 600;">Allowed Check-out Days</label>
+                    <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkout-day" value="MONDAY" checked style="width:14px; height:14px;"> Mon</label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkout-day" value="TUESDAY" checked style="width:14px; height:14px;"> Tue</label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkout-day" value="WEDNESDAY" checked style="width:14px; height:14px;"> Wed</label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkout-day" value="THURSDAY" checked style="width:14px; height:14px;"> Thu</label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkout-day" value="FRIDAY" checked style="width:14px; height:14px;"> Fri</label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkout-day" value="SATURDAY" checked style="width:14px; height:14px;"> Sat</label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 0.75rem;"><input type="checkbox" class="std-checkout-day" value="SUNDAY" checked style="width:14px; height:14px;"> Sun</label>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;">
+                        <div>
+                            <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem; font-weight: 600;">Min Stay (nights)</label>
+                            <input type="number" id="std-min-stay" class="form-input" min="0" placeholder="1" style="padding: 0.5rem;">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem; font-weight: 600;">Max Stay (nights)</label>
+                            <input type="number" id="std-max-stay" class="form-input" min="0" placeholder="No limit" style="padding: 0.5rem;">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem; font-weight: 600;">Booking Lead (hours)</label>
+                            <input type="number" id="std-lead-hours" class="form-input" min="0" placeholder="0" style="padding: 0.5rem;">
+                        </div>
+                    </div>
+                    <div id="booking-rules-push-status" style="font-size: 0.72rem; margin-top: 0.5rem; display:none;"></div>
+                </div>
+
                 <div style="margin-top: 1.25rem; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                     <button class="btn btn-secondary" onclick="applyStandardRateDisplayToAll()" style="background: #f0fdf4; border-color: #86efac; color: #166534;">📋 Apply to All Properties</button>
                     <div style="display:flex; gap:0.5rem;">
@@ -59423,8 +59474,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         let _stdRateAccountId = null;
+        let _stdRatePropertyId = null;
         async function loadStandardRateDisplay(propertyId) {
             try {
+                _stdRatePropertyId = propertyId;
                 const r = await fetch(`/api/db/properties/${propertyId}`);
                 const d = await r.json();
                 const prop = d?.data || {};
@@ -59444,9 +59497,60 @@ const promo = await fetch('/api/v1/offers/validate', {
                         : featCount + ' feature' + (featCount === 1 ? '' : 's');
                     previewEl.textContent = `"${nm}" · ${featSummary}`;
                 }
+                // Booking rules — fetch saved + Hostfully-cached in one round-trip.
+                loadBookingRulesIntoModal(propertyId).catch(e => console.warn('[booking-rules load]', e));
             } catch (e) {
                 console.error('Error loading standard rate display:', e);
             }
+        }
+
+        // Populates the Booking Rules block from the dedicated endpoint —
+        // saved GAS values into the checkboxes/inputs, and Hostfully cached
+        // values into the divergence info line. Any day-of-week array left
+        // null/empty by the API renders as "all ticked" (= no restriction).
+        async function loadBookingRulesIntoModal(propertyId) {
+            const dayCodes = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
+            const setDays = (className, allowed) => {
+                const list = Array.isArray(allowed) && allowed.length > 0 && allowed.length < 7 ? allowed : null;
+                document.querySelectorAll('.' + className).forEach(cb => {
+                    cb.checked = list ? list.includes(cb.value) : true;
+                });
+            };
+            try {
+                const r = await fetch(`/api/admin/properties/${propertyId}/booking-rules`, { headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success) return;
+                const p = d.property || {};
+                setDays('std-checkin-day', p.standard_check_in_days);
+                setDays('std-checkout-day', p.standard_check_out_days);
+                document.getElementById('std-min-stay').value = p.standard_min_stay || '';
+                document.getElementById('std-max-stay').value = p.standard_max_stay || '';
+                document.getElementById('std-lead-hours').value = p.standard_lead_hours || '';
+
+                const infoEl = document.getElementById('booking-rules-cms-info');
+                const hostfully = d.cms?.hostfully || [];
+                if (hostfully.length === 0) {
+                    infoEl.style.display = 'none';
+                } else {
+                    const cmSummary = hostfully.map(h => {
+                        const cin = Array.isArray(h.check_in_days) && h.check_in_days.length > 0 && h.check_in_days.length < 7
+                            ? h.check_in_days.map(d => d.slice(0, 3)).join('/')
+                            : 'any';
+                        const stay = (h.min_stay || h.max_stay)
+                            ? `stay ${h.min_stay || '—'}–${h.max_stay || '∞'}n`
+                            : '';
+                        return `${(h.room_name || 'Room').replace(/</g, '&lt;')}: check-in ${cin}${stay ? ' · ' + stay : ''}`;
+                    }).join(' · ');
+                    infoEl.innerHTML = `<strong style="color:#0f766e;">Hostfully currently says:</strong> ${cmSummary}`;
+                    infoEl.style.display = 'block';
+                }
+                if (p.standard_rules_push_error) {
+                    const st = document.getElementById('booking-rules-push-status');
+                    st.style.display = 'block';
+                    st.style.color = '#b91c1c';
+                    st.textContent = '⚠ Last push had errors: ' + p.standard_rules_push_error;
+                }
+            } catch (e) { console.warn('[booking-rules load]', e); }
         }
 
         // Opens the modal. Inputs are already populated by loadStandardRateDisplay
@@ -59515,14 +59619,53 @@ const promo = await fetch('/api/v1/offers/validate', {
                     })
                 });
                 const d = await r.json();
-                if (d.success) {
-                    showNotification('Standard Rate display saved', 'success');
-                    closeModal('stdRateDisplayModal');
-                    // Refresh the preview line on the collapsed card
-                    loadStandardRateDisplay(propertyId);
-                } else {
+                if (!d.success) {
                     showNotification('Error: ' + (d.error || 'save failed'), 'error');
+                    return;
                 }
+                // Booking rules — save + push to Hostfully in one call. Runs after
+                // the display save so a rules-only failure doesn't roll back the
+                // display fields. Any failed CM push surfaces in the modal on
+                // next open via standard_rules_push_error.
+                const collectDays = (className) => {
+                    const boxes = Array.from(document.querySelectorAll('.' + className));
+                    const checked = boxes.filter(b => b.checked).map(b => b.value);
+                    return checked.length === 7 ? null : checked;  // all ticked = no restriction
+                };
+                const parseNum = v => {
+                    const n = parseInt(v, 10);
+                    return Number.isFinite(n) && n > 0 ? n : null;
+                };
+                const rulesPayload = {
+                    standard_check_in_days: collectDays('std-checkin-day'),
+                    standard_check_out_days: collectDays('std-checkout-day'),
+                    standard_min_stay: parseNum(document.getElementById('std-min-stay').value),
+                    standard_max_stay: parseNum(document.getElementById('std-max-stay').value),
+                    standard_lead_hours: parseNum(document.getElementById('std-lead-hours').value),
+                };
+                let hostfullyMsg = '';
+                try {
+                    const rr = await fetch(`/api/admin/properties/${propertyId}/booking-rules`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify(rulesPayload)
+                    });
+                    const rd = await rr.json();
+                    if (rd.success && rd.hostfully) {
+                        if (rd.hostfully.pushed > 0) {
+                            hostfullyMsg = ` · Hostfully aligned (${rd.hostfully.pushed})`;
+                        } else if (rd.hostfully.skipped === 'no-hostfully-mapping') {
+                            hostfullyMsg = '';
+                        } else if (rd.hostfully.failed > 0) {
+                            hostfullyMsg = ` · ⚠ Hostfully push failed on ${rd.hostfully.failed}`;
+                        }
+                    }
+                } catch (e) {
+                    hostfullyMsg = ' · ⚠ Hostfully push errored';
+                }
+                showNotification('Standard Rate saved' + hostfullyMsg, hostfullyMsg.includes('⚠') ? 'warning' : 'success');
+                closeModal('stdRateDisplayModal');
+                loadStandardRateDisplay(propertyId);
             } catch (e) {
                 showNotification('Error: ' + e.message, 'error');
             }

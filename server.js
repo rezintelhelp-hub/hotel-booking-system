@@ -19323,6 +19323,21 @@ app.get('/api/setup-accounts', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_rate_description TEXT`).catch(() => {});
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_rate_features JSONB`).catch(() => {});
 
+    // Standard Rate booking-restriction rules (2026-07-28). GAS is the source
+    // of truth for check-in/out days, min/max stay, lead time. Widget +
+    // preflightGasBookingRules enforce these for every CM (Beds24, Channex,
+    // Hostfully, direct). Save handler pushes to Hostfully via
+    // pushBookingRulesToHostfully and to Channex via pushBookingRulesToChannex.
+    // Day arrays follow Hostfully's enum shape: ["MONDAY","TUESDAY",...]. NULL
+    // or empty = no restriction (any day).
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_check_in_days JSONB`).catch(() => {});
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_check_out_days JSONB`).catch(() => {});
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_min_stay INT`).catch(() => {});
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_max_stay INT`).catch(() => {});
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_lead_hours INT`).catch(() => {});
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_rules_pushed_at TIMESTAMPTZ`).catch(() => {});
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_rules_push_error TEXT`).catch(() => {});
+
     // ────────────────────────────────────────────────────────────────
     // GAS hostel inventory model — Phase 1 schema
     // ────────────────────────────────────────────────────────────────
@@ -54720,6 +54735,115 @@ app.post('/api/admin/properties/standard-rate-display/apply-all', async (req, re
   }
 });
 
+// Booking rules — GET returns saved GAS rules + cached CM rules for the
+// divergence display. Modal calls this on open. Cached values come from
+// gas_sync_room_types (populated by syncHostfullyRoomRules every 6h).
+app.get('/api/admin/properties/:id/booking-rules', async (req, res) => {
+  try {
+    const propertyId = parseInt(req.params.id, 10);
+    const propR = await pool.query(`
+      SELECT id, name, standard_check_in_days, standard_check_out_days,
+             standard_min_stay, standard_max_stay, standard_lead_hours,
+             standard_rules_pushed_at, standard_rules_push_error
+        FROM properties WHERE id = $1
+    `, [propertyId]);
+    if (!propR.rows[0]) return res.json({ success: false, error: 'property not found' });
+
+    const hostfullyR = await pool.query(`
+      SELECT rt.external_id AS sub_unit_uid, rt.check_in_days,
+             rt.min_stay_nights, rt.max_stay_nights, rt.booking_lead_hours,
+             rt.rules_synced_at, bu.name AS room_name
+        FROM gas_sync_room_types rt
+        JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+        JOIN gas_sync_connections c ON c.id = sp.connection_id
+        JOIN bookable_units bu ON bu.id = rt.gas_room_id
+       WHERE bu.property_id = $1
+         AND c.adapter_code = 'hostfully'
+         AND c.status = 'connected'
+         AND rt.external_id IS NOT NULL
+    `, [propertyId]);
+    const hostfully = hostfullyR.rows.map(r => ({
+      sub_unit_uid: r.sub_unit_uid,
+      room_name: r.room_name,
+      check_in_days: r.check_in_days,
+      min_stay: r.min_stay_nights,
+      max_stay: r.max_stay_nights,
+      lead_hours: r.booking_lead_hours,
+      rules_synced_at: r.rules_synced_at,
+    }));
+
+    res.json({
+      success: true,
+      property: propR.rows[0],
+      cms: { hostfully }
+    });
+  } catch (e) {
+    console.error('[booking-rules GET]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// PUT — saves GAS rules and fires the Hostfully push in the same request
+// (awaited so the operator sees success/failure immediately in the modal).
+// Push failure does NOT roll back the DB save — GAS-side enforcement is
+// the important half; the CM push aligns as a follow-up. Error surfaces
+// via standard_rules_push_error for the next modal open.
+app.put('/api/admin/properties/:id/booking-rules', async (req, res) => {
+  try {
+    const propertyId = parseInt(req.params.id, 10);
+    const {
+      standard_check_in_days,
+      standard_check_out_days,
+      standard_min_stay,
+      standard_max_stay,
+      standard_lead_hours,
+      push_to_hostfully  // default true — modal sets false if operator wants GAS-only
+    } = req.body || {};
+
+    const normDays = (v) => {
+      if (!Array.isArray(v) || v.length === 0 || v.length === 7) return null;
+      const upper = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
+      const filtered = v.map(d => String(d).toUpperCase()).filter(d => upper.includes(d));
+      return filtered.length === 0 ? null : filtered;
+    };
+    const normInt = (v) => {
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+
+    const checkInDays = normDays(standard_check_in_days);
+    const checkOutDays = normDays(standard_check_out_days);
+    const minStay = normInt(standard_min_stay);
+    const maxStay = normInt(standard_max_stay);
+    const leadHours = normInt(standard_lead_hours);
+
+    await pool.query(`
+      UPDATE properties
+         SET standard_check_in_days = $1::jsonb,
+             standard_check_out_days = $2::jsonb,
+             standard_min_stay = $3,
+             standard_max_stay = $4,
+             standard_lead_hours = $5,
+             updated_at = NOW()
+       WHERE id = $6
+    `, [
+      checkInDays ? JSON.stringify(checkInDays) : null,
+      checkOutDays ? JSON.stringify(checkOutDays) : null,
+      minStay, maxStay, leadHours, propertyId
+    ]);
+
+    let hostfullyResult = null;
+    if (push_to_hostfully !== false) {
+      hostfullyResult = await pushBookingRulesToHostfully(propertyId);
+    }
+
+    res.json({ success: true, hostfully: hostfullyResult });
+  } catch (e) {
+    console.error('[booking-rules PUT]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Create property manually (admin)
 app.post('/api/admin/properties', async (req, res) => {
   try {
@@ -63448,6 +63572,157 @@ async function preflightHostfullyAvailability({ bookableUnitId, accountId, check
     console.error('[preflightHostfullyAvailability] ERR:', e.message);
     return { ok: true, skipped: 'preflight-error' }; // fail-open — don't block guest on our bug
   }
+}
+
+// ---------------------------------------------------------------------------
+// GAS BOOKING-RULES ENFORCEMENT (Standard Rate restrictions, 2026-07-28)
+// ---------------------------------------------------------------------------
+// GAS is the source of truth for check-in/out days, min/max stay, and
+// booking-lead hours per property. Enforced universally on every channel
+// (Beds24, Channex, Hostfully, direct) so a "no Wed check-in" rule set
+// via the Standard Rate Display modal blocks the widget regardless of
+// what the CM thinks. On save, pushBookingRulesToHostfully aligns the
+// Hostfully side so the CM's own guest-facing checkers also block.
+// ---------------------------------------------------------------------------
+async function preflightGasBookingRules(propertyId, checkIn, checkOut) {
+    try {
+        const r = await pool.query(`
+            SELECT standard_check_in_days, standard_check_out_days,
+                   standard_min_stay, standard_max_stay, standard_lead_hours
+              FROM properties WHERE id = $1
+        `, [propertyId]);
+        const rules = r.rows[0];
+        if (!rules) return { ok: true };
+
+        // Noon UTC anchor — avoids day-of-week drift when the server tz
+        // sits on a DST boundary. Booking dates are date-only strings.
+        const dowNames = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+        const arrival = new Date(String(checkIn).slice(0, 10) + 'T12:00:00Z');
+        const departure = new Date(String(checkOut).slice(0, 10) + 'T12:00:00Z');
+        const arrivalDow = dowNames[arrival.getUTCDay()];
+        const departureDow = dowNames[departure.getUTCDay()];
+        const nights = Math.round((departure - arrival) / 86400000);
+
+        const checkInDays = Array.isArray(rules.standard_check_in_days) ? rules.standard_check_in_days
+            : (typeof rules.standard_check_in_days === 'string' ? JSON.parse(rules.standard_check_in_days) : null);
+        const checkOutDays = Array.isArray(rules.standard_check_out_days) ? rules.standard_check_out_days
+            : (typeof rules.standard_check_out_days === 'string' ? JSON.parse(rules.standard_check_out_days) : null);
+
+        if (Array.isArray(checkInDays) && checkInDays.length > 0 && checkInDays.length < 7
+            && !checkInDays.includes(arrivalDow)) {
+            const pretty = arrivalDow.charAt(0) + arrivalDow.slice(1).toLowerCase();
+            return { ok: false, reason: 'gas-check-in-day-not-allowed',
+                guest_message: `Sorry — this property doesn't accept check-in on ${pretty}s. Please pick a different arrival day.` };
+        }
+        if (Array.isArray(checkOutDays) && checkOutDays.length > 0 && checkOutDays.length < 7
+            && !checkOutDays.includes(departureDow)) {
+            const pretty = departureDow.charAt(0) + departureDow.slice(1).toLowerCase();
+            return { ok: false, reason: 'gas-check-out-day-not-allowed',
+                guest_message: `Sorry — this property doesn't accept check-out on ${pretty}s. Please pick a different departure day.` };
+        }
+        if (rules.standard_min_stay > 0 && nights < rules.standard_min_stay) {
+            return { ok: false, reason: 'gas-below-minimum-stay',
+                guest_message: `Sorry — the minimum stay for this property is ${rules.standard_min_stay} night${rules.standard_min_stay === 1 ? '' : 's'}.` };
+        }
+        if (rules.standard_max_stay > 0 && nights > rules.standard_max_stay) {
+            return { ok: false, reason: 'gas-above-maximum-stay',
+                guest_message: `Sorry — the maximum stay for this property is ${rules.standard_max_stay} night${rules.standard_max_stay === 1 ? '' : 's'}.` };
+        }
+        if (rules.standard_lead_hours > 0) {
+            const hoursUntilArrival = (arrival.getTime() - Date.now()) / 3600000;
+            if (hoursUntilArrival < rules.standard_lead_hours) {
+                const days = Math.ceil(rules.standard_lead_hours / 24);
+                return { ok: false, reason: 'gas-lead-time-not-met',
+                    guest_message: `Sorry — this property requires bookings at least ${days} day${days === 1 ? '' : 's'} in advance.` };
+            }
+        }
+        return { ok: true };
+    } catch (e) {
+        console.error('[preflightGasBookingRules]', e.message);
+        return { ok: true }; // fail-open — don't block guest on our bug
+    }
+}
+
+// Push GAS Standard Rate rules to Hostfully — one PATCH per mapped sub-unit.
+// Idempotent + fire-and-forget-friendly. Refreshes the Hostfully rule cache
+// (gas_sync_room_types.check_in_days etc.) inline so preflight uses the
+// new values on the next request without waiting for the 6h sync.
+// Returns { ok, pushed, failed, skipped? } — never throws.
+async function pushBookingRulesToHostfully(propertyId) {
+    try {
+        const propR = await pool.query(`
+            SELECT standard_check_in_days, standard_check_out_days,
+                   standard_min_stay, standard_max_stay, standard_lead_hours
+              FROM properties WHERE id = $1
+        `, [propertyId]);
+        if (!propR.rows[0]) return { ok: false, error: 'property not found' };
+        const p = propR.rows[0];
+
+        const subs = await pool.query(`
+            SELECT rt.external_id AS sub_unit_uid, c.credentials, rt.id AS rt_id
+              FROM gas_sync_room_types rt
+              JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+              JOIN gas_sync_connections c ON c.id = sp.connection_id
+              JOIN bookable_units bu ON bu.id = rt.gas_room_id
+             WHERE bu.property_id = $1
+               AND c.adapter_code = 'hostfully'
+               AND c.status = 'connected'
+               AND c.sync_enabled = true
+               AND rt.external_id IS NOT NULL
+        `, [propertyId]);
+        if (subs.rows.length === 0) return { ok: true, skipped: 'no-hostfully-mapping', pushed: 0, failed: 0 };
+
+        const axios = require('axios');
+        const checkInDays = Array.isArray(p.standard_check_in_days) ? p.standard_check_in_days
+            : (typeof p.standard_check_in_days === 'string' ? JSON.parse(p.standard_check_in_days) : null);
+        const checkOutDays = Array.isArray(p.standard_check_out_days) ? p.standard_check_out_days
+            : (typeof p.standard_check_out_days === 'string' ? JSON.parse(p.standard_check_out_days) : null);
+
+        const availabilityPatch = {
+            daysOfTheWeekToCheckInOn: (Array.isArray(checkInDays) && checkInDays.length > 0 && checkInDays.length < 7) ? checkInDays : null,
+            daysOfTheWeekToCheckOutOn: (Array.isArray(checkOutDays) && checkOutDays.length > 0 && checkOutDays.length < 7) ? checkOutDays : null,
+            minimumStay: p.standard_min_stay > 0 ? p.standard_min_stay : null,
+            maximumStay: p.standard_max_stay > 0 ? p.standard_max_stay : null,
+            bookingLeadTime: p.standard_lead_hours > 0 ? p.standard_lead_hours : null,
+        };
+
+        let pushed = 0, failed = 0, lastError = null;
+        for (const s of subs.rows) {
+            try {
+                const creds = typeof s.credentials === 'string' ? JSON.parse(s.credentials || '{}') : (s.credentials || {});
+                if (!creds.apiKey) { failed++; continue; }
+                await axios.patch(
+                    `https://platform.hostfully.com/api/v3/properties/${s.sub_unit_uid}`,
+                    { property: { availability: availabilityPatch } },
+                    { headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey, 'Content-Type': 'application/json' }, timeout: 15000 }
+                );
+                pushed++;
+                await pool.query(`
+                    UPDATE gas_sync_room_types
+                       SET check_in_days = $1, min_stay_nights = $2, max_stay_nights = $3,
+                           booking_lead_hours = $4, rules_synced_at = NOW()
+                     WHERE id = $5
+                `, [
+                    availabilityPatch.daysOfTheWeekToCheckInOn ? JSON.stringify(availabilityPatch.daysOfTheWeekToCheckInOn) : null,
+                    availabilityPatch.minimumStay, availabilityPatch.maximumStay, availabilityPatch.bookingLeadTime,
+                    s.rt_id,
+                ]);
+            } catch (e) {
+                failed++;
+                lastError = e.response?.data ? JSON.stringify(e.response.data).slice(0, 400) : e.message;
+                console.warn('[pushBookingRulesToHostfully]', s.sub_unit_uid, 'failed:', e.response?.status, lastError);
+            }
+        }
+        await pool.query(`
+            UPDATE properties SET standard_rules_pushed_at = NOW(),
+                                  standard_rules_push_error = $1
+             WHERE id = $2
+        `, [failed > 0 ? `Hostfully: ${failed} of ${subs.rows.length} sub-units failed — ${lastError || 'unknown'}` : null, propertyId]);
+        return { ok: failed === 0, pushed, failed };
+    } catch (e) {
+        console.error('[pushBookingRulesToHostfully]', e.message);
+        return { ok: false, error: e.message };
+    }
 }
 
 // ==========================================================================
@@ -99870,28 +100145,69 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       availableCount = Math.max(0, minLeft === Infinity ? 0 : minLeft);
     }
 
-    // Stage 3 of Steve's 2026-07-28 Hostfully fix: expose the per-room
-    // booking rules cached by syncHostfullyRoomRules so the booking widget
-    // can grey out invalid dates BEFORE the guest even clicks Book. Empty
-    // object when the room isn't Hostfully-mapped (widget then just uses
-    // the calendar array like it always has).
+    // Stage 3 of Steve's 2026-07-28 Hostfully fix + GAS Standard-Rate rules:
+    // expose booking rules so the widget can grey out invalid dates BEFORE
+    // the guest clicks Book. Merges GAS property-level rules (Standard Rate
+    // Display modal — source of truth) with the Hostfully cached rules for
+    // this room (populated by syncHostfullyRoomRules). Rule = intersection:
+    // if either side says "no Wed check-in", widget disables Wednesdays.
     let bookingRules = {};
     try {
-      const rq = await pool.query(`
+      // GAS-side property rules (universal — apply on every channel).
+      const gasR = await pool.query(`
+        SELECT p.standard_check_in_days, p.standard_check_out_days,
+               p.standard_min_stay, p.standard_max_stay, p.standard_lead_hours
+          FROM properties p
+          JOIN bookable_units bu ON bu.property_id = p.id
+         WHERE bu.id = $1
+         LIMIT 1`, [unitId]);
+      const g = gasR.rows[0] || {};
+      const gasCheckInDays = Array.isArray(g.standard_check_in_days) ? g.standard_check_in_days
+        : (typeof g.standard_check_in_days === 'string' ? JSON.parse(g.standard_check_in_days) : null);
+      const gasCheckOutDays = Array.isArray(g.standard_check_out_days) ? g.standard_check_out_days
+        : (typeof g.standard_check_out_days === 'string' ? JSON.parse(g.standard_check_out_days) : null);
+
+      // Hostfully-cached rules for this specific room (if mapped).
+      const hR = await pool.query(`
         SELECT rt.check_in_days, rt.booking_lead_hours, rt.min_stay_nights, rt.max_stay_nights
           FROM gas_sync_room_types rt
           JOIN gas_sync_connections c ON c.id = rt.connection_id
          WHERE rt.gas_room_id = $1 AND c.adapter_code = 'hostfully' AND c.status = 'connected'
          LIMIT 1`, [unitId]);
-      if (rq.rows[0]) {
-        const r = rq.rows[0];
-        bookingRules = {
-          check_in_days: r.check_in_days || null,       // e.g. ["SATURDAY","SUNDAY"] or null=any
-          booking_lead_hours: r.booking_lead_hours,     // integer, 0 = same-day OK
-          min_stay_nights: r.min_stay_nights,
-          max_stay_nights: r.max_stay_nights,
-        };
-      }
+      const h = hR.rows[0] || {};
+      const hCheckIn = Array.isArray(h.check_in_days) ? h.check_in_days
+        : (typeof h.check_in_days === 'string' ? JSON.parse(h.check_in_days || 'null') : null);
+
+      // Intersection: if both sides declare an allow-list, only days in both stay.
+      // If only one side declares, that side's list wins. If neither, null (any day).
+      const intersect = (a, b) => {
+        if (!Array.isArray(a) || a.length === 0 || a.length === 7) return Array.isArray(b) ? b : null;
+        if (!Array.isArray(b) || b.length === 0 || b.length === 7) return a;
+        const bs = new Set(b);
+        return a.filter(x => bs.has(x));
+      };
+      const mostRestrictive = (a, b) => {
+        const an = parseInt(a, 10), bn = parseInt(b, 10);
+        if (Number.isFinite(an) && Number.isFinite(bn)) return Math.max(an, bn);
+        if (Number.isFinite(an)) return an;
+        if (Number.isFinite(bn)) return bn;
+        return null;
+      };
+      const leastRestrictive = (a, b) => {
+        const an = parseInt(a, 10), bn = parseInt(b, 10);
+        if (Number.isFinite(an) && an > 0 && Number.isFinite(bn) && bn > 0) return Math.min(an, bn);
+        if (Number.isFinite(an) && an > 0) return an;
+        if (Number.isFinite(bn) && bn > 0) return bn;
+        return null;
+      };
+
+      bookingRules = {
+        check_in_days: intersect(gasCheckInDays, hCheckIn),
+        check_out_days: gasCheckOutDays || null,
+        booking_lead_hours: mostRestrictive(g.standard_lead_hours, h.booking_lead_hours),
+        min_stay_nights: mostRestrictive(g.standard_min_stay, h.min_stay_nights),
+        max_stay_nights: leastRestrictive(g.standard_max_stay, h.max_stay_nights),
+      };
     } catch (e) { /* non-fatal — leave bookingRules empty */ }
 
     res.json({
@@ -101525,6 +101841,24 @@ app.post('/api/public/book', async (req, res) => {
     {
       const cutoffErr = await checkSameDayCutoff(pool, unit.rows[0].property_id, check_in);
       if (cutoffErr) return res.status(400).json({ success: false, ...cutoffErr });
+    }
+
+    // GAS Standard-Rate booking rules (Steve 2026-07-28). Runs BEFORE any
+    // CM-specific preflight so the same "no Wed check-in" rule blocks
+    // direct + Beds24 + Channex + Hostfully bookings identically. Rules
+    // set via the Standard Rate Display modal; pushed to Hostfully so the
+    // CM also enforces, but GAS enforces locally regardless. Skipped when
+    // the property has no rules set (fail-open).
+    {
+      const gasRules = await preflightGasBookingRules(unit.rows[0].property_id, check_in, check_out);
+      if (!gasRules.ok) {
+        console.log(`[public/book] GAS rules rejected: ${gasRules.reason} for unit=${unit_id} ${check_in}→${check_out}`);
+        return res.status(409).json({
+          success: false,
+          error: gasRules.guest_message || 'These dates are not available.',
+          code: String(gasRules.reason || 'gas-rule').toUpperCase().replace(/-/g, '_'),
+        });
+      }
     }
 
     // Hostfully pre-flight (Steve 2026-07-28). For Hostfully-connected rooms,
