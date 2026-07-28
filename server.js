@@ -54737,7 +54737,10 @@ app.post('/api/admin/properties/standard-rate-display/apply-all', async (req, re
 
 // Booking rules — GET returns saved GAS rules + cached CM rules for the
 // divergence display. Modal calls this on open. Cached values come from
-// gas_sync_room_types (populated by syncHostfullyRoomRules every 6h).
+// gas_sync_room_types (populated by syncHostfullyRoomRules every 6h);
+// ?refresh=1 forces a live re-fetch from Hostfully per sub-unit first so
+// the operator always sees current values — the 6h cache is only for
+// per-booking preflight cost saving, not human display.
 app.get('/api/admin/properties/:id/booking-rules', async (req, res) => {
   try {
     const propertyId = parseInt(req.params.id, 10);
@@ -54750,9 +54753,10 @@ app.get('/api/admin/properties/:id/booking-rules', async (req, res) => {
     if (!propR.rows[0]) return res.json({ success: false, error: 'property not found' });
 
     const hostfullyR = await pool.query(`
-      SELECT rt.external_id AS sub_unit_uid, rt.check_in_days,
-             rt.min_stay_nights, rt.max_stay_nights, rt.booking_lead_hours,
-             rt.rules_synced_at, bu.name AS room_name
+      SELECT rt.id AS rt_id, rt.external_id AS sub_unit_uid,
+             rt.check_in_days, rt.min_stay_nights, rt.max_stay_nights,
+             rt.booking_lead_hours, rt.rules_synced_at, bu.name AS room_name,
+             c.credentials
         FROM gas_sync_room_types rt
         JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
         JOIN gas_sync_connections c ON c.id = sp.connection_id
@@ -54762,6 +54766,41 @@ app.get('/api/admin/properties/:id/booking-rules', async (req, res) => {
          AND c.status = 'connected'
          AND rt.external_id IS NOT NULL
     `, [propertyId]);
+
+    // Live refresh from Hostfully — only when ?refresh=1. Awaited so the
+    // response reflects the fresh values. Failures leave the cache alone.
+    if (req.query.refresh === '1' && hostfullyR.rows.length > 0) {
+      const axios = require('axios');
+      await Promise.all(hostfullyR.rows.map(async (r) => {
+        try {
+          const creds = typeof r.credentials === 'string' ? JSON.parse(r.credentials || '{}') : (r.credentials || {});
+          if (!creds.apiKey) return;
+          const resp = await axios.get(`https://platform.hostfully.com/api/v3/properties/${r.sub_unit_uid}`, {
+            headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }, timeout: 12000,
+          });
+          const av = resp.data?.property?.availability || {};
+          const checkInDays = Array.isArray(av.daysOfTheWeekToCheckInOn) ? av.daysOfTheWeekToCheckInOn : null;
+          const minStay = Number.isFinite(parseInt(av.minimumStay, 10)) && parseInt(av.minimumStay, 10) > 0 ? parseInt(av.minimumStay, 10) : null;
+          const maxStay = Number.isFinite(parseInt(av.maximumStay, 10)) && parseInt(av.maximumStay, 10) > 0 ? parseInt(av.maximumStay, 10) : null;
+          const leadHours = Number.isFinite(parseInt(av.bookingLeadTime, 10)) ? parseInt(av.bookingLeadTime, 10) : null;
+          await pool.query(`
+            UPDATE gas_sync_room_types
+               SET check_in_days = $1, min_stay_nights = $2, max_stay_nights = $3,
+                   booking_lead_hours = $4, rules_synced_at = NOW()
+             WHERE id = $5
+          `, [checkInDays ? JSON.stringify(checkInDays) : null, minStay, maxStay, leadHours, r.rt_id]);
+          // Mutate the in-memory row so the response reflects the fresh values.
+          r.check_in_days = checkInDays;
+          r.min_stay_nights = minStay;
+          r.max_stay_nights = maxStay;
+          r.booking_lead_hours = leadHours;
+          r.rules_synced_at = new Date().toISOString();
+        } catch (e) {
+          console.warn('[booking-rules refresh] sub', r.sub_unit_uid, 'failed:', e.response?.status, e.message);
+        }
+      }));
+    }
+
     const hostfully = hostfullyR.rows.map(r => ({
       sub_unit_uid: r.sub_unit_uid,
       room_name: r.room_name,

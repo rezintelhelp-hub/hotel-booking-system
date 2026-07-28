@@ -59517,7 +59517,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
             };
             try {
-                const r = await fetch(`/api/admin/properties/${propertyId}/booking-rules`, { headers: authHeaders() });
+                // ?refresh=1 forces a live re-fetch from Hostfully so the
+                // divergence line always reflects what the CM says NOW,
+                // not what the 6h cache had from earlier today.
+                const r = await fetch(`/api/admin/properties/${propertyId}/booking-rules?refresh=1`, { headers: authHeaders() });
                 const d = await r.json();
                 if (!d.success) return;
                 const p = d.property || {};
@@ -59541,7 +59544,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             : '';
                         return `${(h.room_name || 'Room').replace(/</g, '&lt;')}: check-in ${cin}${stay ? ' · ' + stay : ''}`;
                     }).join(' · ');
-                    infoEl.innerHTML = `<strong style="color:#0f766e;">Hostfully currently says:</strong> ${cmSummary}`;
+                    infoEl.innerHTML = `<strong style="color:#0f766e;">Hostfully currently says:</strong> ${cmSummary} <span style="color:#94a3b8;">· live from Hostfully</span>`;
                     infoEl.style.display = 'block';
                 }
                 if (p.standard_rules_push_error) {
