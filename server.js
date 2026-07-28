@@ -4394,6 +4394,22 @@ async function runMigrations() {
     } catch (e) {
       console.log('ℹ️  gas_sync_room_types.price_linking:', e.message);
     }
+
+    // Hostfully per-room booking rules cache (Stage 2 of 2026-07-28 fix).
+    // Populated by syncHostfullyRoomRules on connection setup + hourly cron.
+    // Read by preflightHostfullyAvailability (skips the 2 API calls per booking
+    // when cache is fresh) and by /api/public/availability (so the booking
+    // widget can grey out invalid dates before the guest even clicks Book).
+    try {
+      await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS check_in_days JSONB`);        // e.g. ["SATURDAY","SUNDAY"] or null=any
+      await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS booking_lead_hours INTEGER`); // 0 = same-day OK
+      await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS min_stay_nights INTEGER`);
+      await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS max_stay_nights INTEGER`);
+      await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS rules_synced_at TIMESTAMPTZ`);
+      console.log('✅ gas_sync_room_types booking-rules cache columns ensured');
+    } catch (e) {
+      console.log('ℹ️  gas_sync_room_types rules cache:', e.message);
+    }
     
     // Add subdomain column to custom_site_requests
     try {
@@ -63159,8 +63175,14 @@ async function pushBookingToHostfully(bookingId) {
 // Any single failure short-circuits the rest.
 async function preflightHostfullyAvailability({ bookableUnitId, accountId, checkIn, checkOut }) {
   try {
+    // Read the cached rules (Stage 2 sync populates these) so the fast path
+    // avoids the ~1s Hostfully API call. Cache is refreshed every 6h by
+    // syncHostfullyRoomRules — if it's older than 24h we fall through to a
+    // live fetch so genuinely stale caches can't cause silent bad decisions.
     const conn = await pool.query(
-      `SELECT c.credentials, c.status, c.sync_enabled, rt.external_id AS sub_unit_uid
+      `SELECT c.credentials, c.status, c.sync_enabled, rt.external_id AS sub_unit_uid,
+              rt.check_in_days, rt.booking_lead_hours, rt.min_stay_nights, rt.max_stay_nights,
+              rt.rules_synced_at
          FROM gas_sync_connections c
          JOIN gas_sync_room_types rt ON rt.connection_id = c.id
         WHERE c.account_id = $1
@@ -63177,16 +63199,26 @@ async function preflightHostfullyAvailability({ bookableUnitId, accountId, check
     const creds = typeof cn.credentials === 'string' ? JSON.parse(cn.credentials || '{}') : (cn.credentials || {});
     if (!creds.apiKey) return { ok: true, skipped: 'no-api-key' };
     const headers = { 'X-HOSTFULLY-APIKEY': creds.apiKey };
-
     const axios = require('axios');
-    // 1. Property rules (day-of-week, lead time, min/max stay). ~1s API call.
+
+    // Cache-freshness check. < 24h old → use cache. Otherwise live-fetch.
+    const cacheAgeH = cn.rules_synced_at ? (Date.now() - new Date(cn.rules_synced_at).getTime()) / 3600000 : Infinity;
     let propRules;
-    try {
-      const r = await axios.get(`https://platform.hostfully.com/api/v3/properties/${cn.sub_unit_uid}`, { headers, timeout: 10000 });
-      propRules = r.data?.property?.availability || {};
-    } catch (e) {
-      console.warn('[preflightHostfully] property fetch failed:', e.response?.status, e.message);
-      return { ok: true, skipped: 'rules-fetch-failed' }; // don't block guest on our API hiccup
+    if (cacheAgeH < 24 && cn.rules_synced_at) {
+      propRules = {
+        daysOfTheWeekToCheckInOn: cn.check_in_days || null,
+        bookingLeadTime: cn.booking_lead_hours,
+        minimumStay: cn.min_stay_nights,
+        maximumStay: cn.max_stay_nights,
+      };
+    } else {
+      try {
+        const r = await axios.get(`https://platform.hostfully.com/api/v3/properties/${cn.sub_unit_uid}`, { headers, timeout: 10000 });
+        propRules = r.data?.property?.availability || {};
+      } catch (e) {
+        console.warn('[preflightHostfully] property fetch failed:', e.response?.status, e.message);
+        return { ok: true, skipped: 'rules-fetch-failed' };
+      }
     }
 
     // Days of the week — Hostfully uses ["MONDAY","TUESDAY",...] enum
@@ -132595,6 +132627,73 @@ async function runChannexMirrorSafetyCron() {
 }
 setTimeout(runChannexMirrorSafetyCron, 60 * 1000);         // 60s after boot
 setInterval(runChannexMirrorSafetyCron, 60 * 1000);        // every 60s (was 5 min)
+
+// =====================================================
+// HOSTFULLY BOOKING RULES SYNC — Stage 2 of 2026-07-28 fix.
+// Pulls per-room availability rules (day-of-week check-in, lead time,
+// min/max stay) from Hostfully and caches them on gas_sync_room_types.
+// preflightHostfullyAvailability reads the cache instead of hitting the
+// Hostfully API on every booking attempt — saves ~1s + one API call per
+// booking. Also feeds the widget so it can grey out invalid dates.
+//
+// Runs every 6 hours (rules change rarely). One-at-a-time with 2s stagger
+// between rooms to be gentle on the Hostfully rate limit (60/min).
+// =====================================================
+async function syncHostfullyRoomRules() {
+  try {
+    const rooms = await pool.query(`
+      SELECT rt.id, rt.external_id AS sub_unit_uid, c.credentials
+        FROM gas_sync_room_types rt
+        JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+        JOIN gas_sync_connections c ON c.id = sp.connection_id
+       WHERE c.adapter_code = 'hostfully'
+         AND c.status = 'connected'
+         AND c.sync_enabled = true
+         AND rt.external_id IS NOT NULL
+       ORDER BY COALESCE(rt.rules_synced_at, '1970-01-01'::timestamptz) ASC
+    `);
+    if (rooms.rows.length === 0) return;
+    console.log(`⏰ [Hostfully rules sync] ${rooms.rows.length} rooms to refresh`);
+
+    let ok = 0, failed = 0;
+    for (const r of rooms.rows) {
+      try {
+        const creds = typeof r.credentials === 'string' ? JSON.parse(r.credentials || '{}') : (r.credentials || {});
+        if (!creds.apiKey) continue;
+        const resp = await axios.get(`https://platform.hostfully.com/api/v3/properties/${r.sub_unit_uid}`, {
+          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey },
+          timeout: 15000,
+        });
+        const av = resp.data?.property?.availability || {};
+        await pool.query(`
+          UPDATE gas_sync_room_types
+             SET check_in_days = $1,
+                 booking_lead_hours = $2,
+                 min_stay_nights = $3,
+                 max_stay_nights = $4,
+                 rules_synced_at = NOW()
+           WHERE id = $5
+        `, [
+          Array.isArray(av.daysOfTheWeekToCheckInOn) ? JSON.stringify(av.daysOfTheWeekToCheckInOn) : null,
+          Number.isFinite(parseInt(av.bookingLeadTime, 10)) ? parseInt(av.bookingLeadTime, 10) : null,
+          Number.isFinite(parseInt(av.minimumStay, 10)) && parseInt(av.minimumStay, 10) > 0 ? parseInt(av.minimumStay, 10) : null,
+          Number.isFinite(parseInt(av.maximumStay, 10)) && parseInt(av.maximumStay, 10) > 0 ? parseInt(av.maximumStay, 10) : null,
+          r.id,
+        ]);
+        ok++;
+      } catch (e) {
+        failed++;
+        console.warn(`[Hostfully rules sync] rt ${r.id} (${r.sub_unit_uid}) failed:`, e.response?.status, e.message);
+      }
+      await new Promise(x => setTimeout(x, 2000)); // 2s stagger, well under Hostfully's 60/min
+    }
+    console.log(`⏰ [Hostfully rules sync] complete — ok=${ok} failed=${failed}`);
+  } catch (e) {
+    console.error('[Hostfully rules sync]', e.message);
+  }
+}
+setTimeout(syncHostfullyRoomRules, 5 * 60 * 1000);          // 5 min after boot
+setInterval(syncHostfullyRoomRules, 6 * 60 * 60 * 1000);    // every 6 hours
 
 // Master-only manual mirror — re-fire for a specific booking on demand.
 // Useful when a customer reports "OTA still shows available" or for
