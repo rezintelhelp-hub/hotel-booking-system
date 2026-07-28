@@ -81008,16 +81008,20 @@ app.post('/api/admin/availability', async (req, res) => {
       // in the range when the field is explicitly passed (null clears the
       // override and falls back to CM / property min_stay).
       if (min_stay_override !== undefined) {
+        const ms = (min_stay_override === null || min_stay_override === '') ? null : parseInt(min_stay_override, 10);
         await client.query(`
           INSERT INTO room_availability (room_id, date, min_stay_override, is_available)
           VALUES ($1, $2, $3, true)
           ON CONFLICT (room_id, date)
           DO UPDATE SET min_stay_override = $3, updated_at = NOW()
-        `, [room_id, dateStr, (min_stay_override === null || min_stay_override === '') ? null : parseInt(min_stay_override, 10)]);
+        `, [room_id, dateStr, ms]);
+        // Outbox worker (channex-outbox.js:287) reads minStayArrival +
+        // minStayThrough from the payload — sending just `minStay` was a
+        // silent no-op. Steve 2026-07-28.
         channexEvents.push({
           kind: 'restriction',
           date: dateStr,
-          payload: { date: dateStr, minStay: (min_stay_override === null || min_stay_override === '') ? null : parseInt(min_stay_override, 10) }
+          payload: { date: dateStr, minStayArrival: ms, minStayThrough: ms }
         });
       }
 

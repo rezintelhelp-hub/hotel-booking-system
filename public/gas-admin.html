@@ -57701,7 +57701,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // (Steve: 'prices need to be at the top'). Order: type header
                     // → Rate → Override → unit rows.
                     html += renderPriceRow(room, roomData, true);
-                    html += renderOverrideRow(room, roomData, true);
+                    // Override row dropped 2026-07-28 — Rate row already
+                    // surfaces the override (bold amber + strikethrough
+                    // rule price) and the m{N} min-stay badge. Dedicated
+                    // Override row was duplicating the same information.
                     units.forEach(u => {
                         html += renderRoomRow(room, u.unit_name, u.id, roomData, false, false, 1);
                     });
@@ -57719,7 +57722,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     html += `<td colspan="${dates.length}" style="background: #f8fafc; padding: 0; border-bottom: 1px solid #e5e7eb;"></td>`;
                     html += '</tr>';
                     html += renderPriceRow(room, roomData, true);
-                    html += renderOverrideRow(room, roomData, true);
+                    // Override row dropped 2026-07-28 — Rate row already
+                    // surfaces the override (bold amber + strikethrough
+                    // rule price) and the m{N} min-stay badge. Dedicated
+                    // Override row was duplicating the same information.
                     // Booking row — empty sticky-left + sync col, date cells
                     // show whichever booking landed on the room. Pass
                     // subRowText='' and isFirstRow=false so renderRoomRow
