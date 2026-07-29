@@ -12398,6 +12398,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-bookings', async (req, re
             grand_total = $17, total_amount = $17, accommodation_price = $18,
             subtotal = $17, tax_amount = $19, commission_amount = $20, currency = $21,
             guest_id = COALESCE($22, guest_id),
+            hostfully_lead_uid = COALESCE(hostfully_lead_uid, $23),
             updated_at = NOW()
           WHERE id = $16
         `, [
@@ -12407,7 +12408,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-bookings', async (req, re
           guest.address1 || '', guest.city || '', guest.zipCode || '',
           guest.countryCode || '', lead.notes || '', channelMap[lead.channel] || lead.channel || '',
           existing.rows[0].id,
-          grandTotal, accommodationPrice, taxAmount, commission, currency, guestId
+          grandTotal, accommodationPrice, taxAmount, commission, currency, guestId,
+          lead.uid
         ]);
         updated++;
       } else if (gasStatus !== 'cancelled') {
@@ -12419,7 +12421,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-bookings', async (req, re
             guest_address, guest_city, guest_postcode, guest_country_code,
             num_adults, num_children, num_infants,
             status, booking_source, channel, api_source, api_reference,
-            confirmation_code, notes, language, guest_id,
+            confirmation_code, notes, language, guest_id, hostfully_lead_uid,
             booking_time, created_at, updated_at
           ) VALUES (
             $1, $2, $3, $4, $5,
@@ -12428,7 +12430,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-bookings', async (req, re
             $11, $12, $13, $14,
             $15, $16, $17,
             $18, 'hostfully', $19, 'hostfully', $20,
-            $21, $22, $23, $29,
+            $21, $22, $23, $29, $20,
             $30, NOW(), NOW()
           )
         `, [
@@ -154140,6 +154142,9 @@ async function buildHostfullyWriteBackHealth() {
        WHERE c.adapter_code = 'hostfully'
     ),
     bookings_24h AS (
+      -- Only count bookings that ORIGINATED in GAS. Inbound bookings
+      -- (booking_source='hostfully') were created BY Hostfully and
+      -- synced INTO GAS — they don't need pushing back. Steve 2026-07-29.
       SELECT c.connection_id,
              COUNT(DISTINCT b.id)::int AS bookings_created,
              COUNT(DISTINCT b.id) FILTER (WHERE b.hostfully_lead_uid IS NOT NULL)::int AS pushed_ok,
@@ -154149,6 +154154,7 @@ async function buildHostfullyWriteBackHealth() {
         JOIN bookings b ON b.bookable_unit_id = rt.gas_room_id
        WHERE b.created_at >= NOW() - INTERVAL '24 hours'
          AND b.status = 'confirmed'
+         AND (b.booking_source IS NULL OR b.booking_source <> 'hostfully')
        GROUP BY c.connection_id
     ),
     rules_freshness AS (
