@@ -120685,10 +120685,13 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
         }
         
         if (category) {
-            // Case-insensitive matching and handle slug-style categories
-            const categoryPattern = category.replace(/-/g, '[- &]*');
-            query += ` AND LOWER(bp.category) ~* $${paramIndex}`;
-            params.push(categoryPattern.toLowerCase());
+            // Slug-based exact match — normalise DB category to the same
+            // slug shape as the incoming URL param. "General" → `general`,
+            // "General Blogs" → `general-blogs`, "Events & Concerts" →
+            // `events-concerts`. Prevents the earlier partial-regex from
+            // bleeding "general" into "general blogs" (Steve 2026-07-29).
+            query += ` AND LOWER(REGEXP_REPLACE(bp.category, '[^a-zA-Z0-9]+', '-', 'g')) = $${paramIndex}`;
+            params.push(category.toLowerCase().replace(/^-+|-+$/g, ''));
             paramIndex++;
         }
         
