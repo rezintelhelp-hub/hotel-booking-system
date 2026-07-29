@@ -21,7 +21,7 @@ Every time a new field is added to any endpoint in server.js, the
 corresponding Swagger example payload in public/api-docs.html MUST
 be updated in the same commit.
 
-This is non-negotiable — if Elevate or any partner cannot see a field
+This is non-negotiable — if a partner cannot see a field
 in the Swagger example they will not know it exists.
 
 Checklist before committing any server.js endpoint change:
@@ -31,20 +31,6 @@ Checklist before committing any server.js endpoint change:
 4. If a field was removed — is it removed from the Swagger too?
 
 Failure to update Swagger examples causes partner integration failures.
-
----
-
-## ELEVATE INTEGRATION — CHANGE MANAGEMENT
-
-Elevate (contact: Adi) must be notified BEFORE any changes to:
-- Any `/api/elevate/*` endpoint
-- Any `/api/partner/*` endpoint
-- Any webhook payload format
-- Any field name changes in the partner API
-
-Never remove or rename existing endpoints without a deprecation notice period.
-Always maintain backwards compatibility for Elevate's integration.
-Add new endpoints alongside old ones, never replace.
 
 ---
 
@@ -219,7 +205,6 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 
 | Name | Type | Notes |
 |------|------|-------|
-| Elevate Schweiz | Partner/Agency | account_id: 92, API key: gas_96f1f22c3103c0a504ed8ca0ee14661d08f0592d8597e40b |
 | Discover St. Charles | Client | Active site on multisite |
 | RocketStay | Client | Custom site, GAS Custom Light theme |
 | IOU Hebden Bridge Hostel | Client | account_id: 169, blog_id: 75, gas-theme-burger, Pro tier reference site |
@@ -451,21 +436,19 @@ Full field-by-field audit of every Web Builder section across UI → API → DB 
 
 ---
 
-## ELEVATE API ALIAS
+## PARTNER API ALIAS
 
-- `/api/elevate/*` is aliased to `/api/partner/*` via middleware at line 22177 of server.js
-- **Do NOT remove this alias** — Elevate's integration depends on it
-- The PDF documentation (`docs/Elevate-Partner-API-v7_8.pdf`) is correct — `/api/elevate/` paths work via this alias
-- The `/webhooks/elevate/` routes (lines 57572-57877) are a separate, older set of endpoints — not used by the current integration
+- `/api/elevate/*` is aliased to `/api/partner/*` via middleware in server.js (search for `/api/elevate/v1/*`). Legacy path kept for any future partner that inherits this URL convention — harmless if unused.
+- The old `/webhooks/elevate/` routes (~server.js:57572-57877) are unused by any live partner; safe to cut in a future sweep.
 
 ---
 
 ## SWAGGER / API DOCS
 
 - URL: https://admin.gas.travel/api/docs
-- Partner API key for testing (Elevate): `gas_96f1f22c3103c0a504ed8ca0ee14661d08f0592d8597e40b`
-- Provisioning keys (GAS-PROVISION-*) are NOT valid for partner endpoints
-- Elevate core endpoints: images, room update, pricing push, availability — all confirmed working
+- Publicly readable. Auth for `/api/partner/*` endpoints is `X-API-Key` header, keyed to `accounts.api_key` on a partner-role account.
+- Provisioning keys (GAS-PROVISION-*) are NOT valid for partner endpoints.
+- To onboard a new partner: create an account with `role='agency_admin'`, generate an `api_key`, share the key privately, and add them to the CURRENT PARTNERS & CLIENTS table above.
 
 ---
 
