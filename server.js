@@ -63338,7 +63338,22 @@ function getBeds24BookingHeaders(beds24PropId, accessToken) {
 // already present in Beds24) reduce the threshold accordingly. Zero-diff
 // short-circuits before any write.
 async function syncBeds24PaymentItem(bookingId) {
+  // Postgres advisory lock on bookingId serialises concurrent calls for
+  // the same booking so the delta-read-then-push flow can't race with
+  // itself and create duplicate 'Payment via Stripe' lines on Beds24.
+  // Steve 2026-07-29 — Cotswolds saw ~48 bookings with 2 identical push
+  // lines when a backfill and a webhook fired within the same second.
+  // Cross-booking concurrency is unaffected — the lock is keyed by ID.
+  // The second concurrent call reads Beds24's post-first-push state,
+  // computes diff=0, and no-ops naturally — no data loss.
+  const lockClient = await pool.connect();
+  let lockAcquired = false;
   try {
+    const lockRes = await lockClient.query('SELECT pg_try_advisory_lock($1::bigint) AS locked', [bookingId]);
+    lockAcquired = lockRes.rows[0]?.locked === true;
+    if (!lockAcquired) {
+      return { skipped: 'another-push-in-progress', bookingId };
+    }
     const b = await pool.query(
       `SELECT b.id, b.beds24_booking_id, b.bookable_unit_id, b.currency,
               p.account_id, p.beds24_property_id,
@@ -63405,6 +63420,11 @@ async function syncBeds24PaymentItem(bookingId) {
   } catch (e) {
     console.error(`[syncBeds24PaymentItem] booking=${bookingId} ERR:`, e.response?.data || e.message);
     return { error: e.message };
+  } finally {
+    if (lockAcquired) {
+      try { await lockClient.query('SELECT pg_advisory_unlock($1::bigint)', [bookingId]); } catch (_) { /* best-effort — session close releases lock anyway */ }
+    }
+    lockClient.release();
   }
 }
 
