@@ -96397,6 +96397,21 @@ async function processChannexBookingNotification(payload) {
   // the full total (guest owes at check-in unless another payment lands).
   const balanceAmount = otaPrepay.prepaid ? 0 : total;
 
+  // Notes = human-readable summary for the operator. Raw payload goes to
+  // bookings.raw_payload (JSONB) — separate from the guest-facing notes
+  // column. Steve 2026-07-29 — was dumping the 4000-char JSON into notes,
+  // which then filled the entire visible Notes field in the booking modal.
+  let notesSummary = 'Imported via Channex webhook ' + new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+  if (otaPrepay.prepaid) {
+    notesSummary += ` — prepaid by ${bookingSource.toUpperCase()}`;
+    if (otaPrepay.chargeAmount != null) notesSummary += `, guest charged ${attrs.currency||'EUR'} ${otaPrepay.chargeAmount.toFixed(2)}`;
+    if (otaPrepay.commission != null) notesSummary += `, commission ${attrs.currency||'EUR'} ${otaPrepay.commission.toFixed(2)}`;
+    if (otaPrepay.payoutAmount != null) notesSummary += `, payout ${attrs.currency||'EUR'} ${otaPrepay.payoutAmount.toFixed(2)}`;
+    if (otaPrepay.payoutMethod) notesSummary += ` via ${otaPrepay.payoutMethod}`;
+  }
+  let rawJson = null;
+  try { rawJson = rawMsg && rawMsg.trim().startsWith('{') ? JSON.parse(rawMsg) : { raw_text: rawMsg }; } catch (_) { rawJson = { raw_text: rawMsg }; }
+
   const upsert = await pool.query(`
     INSERT INTO bookings (
       property_id, bookable_unit_id, property_owner_id,
@@ -96408,13 +96423,13 @@ async function processChannexBookingNotification(payload) {
       accommodation_price, balance_amount,
       ota_prepaid, ota_commission_amount, ota_payout_amount, ota_charge_amount, ota_payout_method,
       status, payment_status, booking_source, api_source,
-      special_requests, notes,
+      special_requests, notes, raw_payload,
       created_at, updated_at, booking_time
     ) VALUES (
       $1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
       $16, $17, $18, $19, $19, $19, $25,
       $26, $27, $28, $29, $30,
-      $20, $21, $22, 'channex', $23, $24,
+      $20, $21, $22, 'channex', $23, $24, $31::jsonb,
       NOW(), NOW(), NOW()
     )
     ON CONFLICT (channex_booking_id) DO UPDATE SET
@@ -96436,6 +96451,8 @@ async function processChannexBookingNotification(payload) {
       guest_phone = COALESCE(NULLIF(EXCLUDED.guest_phone,''), bookings.guest_phone),
       guest_email = COALESCE(NULLIF(EXCLUDED.guest_email,''), bookings.guest_email),
       special_requests = EXCLUDED.special_requests,
+      notes = EXCLUDED.notes,
+      raw_payload = EXCLUDED.raw_payload,
       updated_at = NOW()
     RETURNING id
   `, [
@@ -96451,9 +96468,10 @@ async function processChannexBookingNotification(payload) {
     attrs.currency || 'EUR', subtotal, taxLines, total,
     status, paymentStatus, bookingSource,
     guestSpecialRequests,
-    'Imported via Channex webhook ' + new Date().toISOString() + (rawMsg ? '\n---raw---\n' + rawMsg.slice(0, 4000) : ''),
+    notesSummary,
     balanceAmount,
-    otaPrepay.prepaid, otaPrepay.commission, otaPrepay.payoutAmount, otaPrepay.chargeAmount, otaPrepay.payoutMethod
+    otaPrepay.prepaid, otaPrepay.commission, otaPrepay.payoutAmount, otaPrepay.chargeAmount, otaPrepay.payoutMethod,
+    JSON.stringify(rawJson)
   ]);
   const gasBookingId = upsert.rows[0]?.id;
   console.log('[Channex webhook] upserted booking', bookingId, '→ GAS booking id', gasBookingId);

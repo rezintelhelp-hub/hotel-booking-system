@@ -29275,6 +29275,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                         </div>
                         
+                        <!-- OTA Prepaid Details — only visible when bookings.ota_prepaid=true.
+                             Shows what the OTA collected, commission, payout amount + method
+                             so operators (Barbara/Tracey) can see the money story at a glance
+                             instead of trying to parse the raw payload dump. Populated in
+                             viewBooking() from b.ota_* columns. -->
+                        <div id="view-ota-details" style="display: none; margin-bottom: 1.5rem;"></div>
+
                         <!-- Card on File -->
                         <div id="view-card-on-file" style="display: none; margin-bottom: 1.5rem;"></div>
                         
@@ -70843,6 +70850,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                         pillEl.style.background = '#f3f4f6';
                         pillEl.style.color = '#374151';
                         pillEl.style.display = 'block';
+                    } else if (b.ota_prepaid) {
+                        // OTA-prepaid bookings: specific pill so operator knows
+                        // the OTA collected — no chase needed. Steve 2026-07-29.
+                        const otaLabel = (b.booking_source || 'OTA').toUpperCase().replace('BOOKING', 'BOOKING.COM');
+                        pillEl.textContent = '✓ PREPAID BY ' + otaLabel + ' · ' + currency + grand.toFixed(2);
+                        pillEl.style.background = '#cffafe';
+                        pillEl.style.color = '#155e75';
+                        pillEl.style.display = 'block';
+                        if (balanceLabelEl) balanceLabelEl.textContent = 'Balance';
+                        document.getElementById('view-balance-due').style.color = '#16a34a';
+                        document.getElementById('view-balance-due').textContent = currency + '0.00 ✓';
                     } else if (isFullyPaid) {
                         pillEl.textContent = '✓ FULLY PAID · ' + currency + grand.toFixed(2);
                         pillEl.style.background = '#dcfce7';
@@ -70894,6 +70912,33 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Load the Communications panel (async — doesn't block the rest
                 // of the modal from rendering)
                 loadBookingCommunications(b.id).catch(() => {});
+
+                // OTA Prepaid Details card — populated when bookings.ota_prepaid = true.
+                // Shows the money story an operator needs to see for BDC/Airbnb bookings:
+                // guest was charged X, OTA takes commission Y, you get payout Z via method M.
+                const otaEl = document.getElementById('view-ota-details');
+                if (otaEl) {
+                  if (b.ota_prepaid) {
+                    const otaLabel = (b.booking_source || 'OTA').toUpperCase().replace('BOOKING', 'BOOKING.COM');
+                    const cur = currency;
+                    const rows = [];
+                    if (b.ota_charge_amount != null) rows.push(`<div style="display:flex; justify-content:space-between;"><span style="color:#64748b;">Guest charged by ${otaLabel}</span><span style="font-weight:600;">${cur}${parseFloat(b.ota_charge_amount).toFixed(2)}</span></div>`);
+                    if (b.ota_commission_amount != null) rows.push(`<div style="display:flex; justify-content:space-between;"><span style="color:#64748b;">Commission to ${otaLabel}</span><span style="font-weight:600; color:#dc2626;">−${cur}${parseFloat(b.ota_commission_amount).toFixed(2)}</span></div>`);
+                    if (b.ota_payout_amount != null) rows.push(`<div style="display:flex; justify-content:space-between; padding-top:0.5rem; border-top:1px dashed #cbd5e1; margin-top:0.35rem;"><span style="font-weight:600; color:#0f766e;">Your payout</span><span style="font-weight:700; color:#0f766e;">${cur}${parseFloat(b.ota_payout_amount).toFixed(2)}${b.ota_payout_method ? ' via ' + b.ota_payout_method : ''}</span></div>`);
+                    otaEl.style.display = 'block';
+                    otaEl.innerHTML = `
+                      <div style="background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%); border: 1px solid #67e8f9; border-radius: 10px; padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+                          <span style="font-weight: 600; color: #155e75; font-size: 0.9rem;">💰 Prepaid by ${otaLabel}</span>
+                          <span style="font-size: 0.7rem; background: #cffafe; color: #0e7490; padding: 0.15rem 0.5rem; border-radius: 8px;">No action needed</span>
+                        </div>
+                        ${rows.join('')}
+                      </div>`;
+                  } else {
+                    otaEl.style.display = 'none';
+                    otaEl.innerHTML = '';
+                  }
+                }
 
                 // Card Guarantee / Card on File — Enigma path + Stripe path.
                 // Stripe: b.stripe_payment_method_id (present when a SetupIntent
@@ -70952,6 +70997,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                         // from the current view context.
                         const takeBtn = document.getElementById('edit-booking-take-payment-btn');
                         if (takeBtn) takeBtn.style.display = '';
+                    } else if (b.ota_prepaid) {
+                        // OTA-prepaid: hide the chase text entirely — the OTA
+                        // Details card above already explains the money flow.
+                        // No card needs to be attached; nothing to auto-charge.
+                        cardInfoEl.style.display = 'none';
+                        cardInfoEl.innerHTML = '';
+                        const takeBtn = document.getElementById('edit-booking-take-payment-btn');
+                        if (takeBtn) takeBtn.style.display = 'none';
                     } else {
                         // No card on file — offer both paths. Available on
                         // every property that has a Stripe config (the modal
@@ -70994,10 +71047,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('view-channex-row').style.display = 'none';
                 }
 
-                // Show Push to Beds24 button if room is connected
+                // Show Push to Beds24 button ONLY when Beds24 is the actual CM
+                // for this booking. Channex-origin bookings (b.channex_booking_id
+                // set) should NOT push to Beds24 — Beds24 isn't their CM, and
+                // pushing would create a phantom booking on the wrong system.
+                // Steve 2026-07-29: Ocio BDC-via-Channex booking was showing
+                // this button even though the account has no Beds24 mapping.
                 const pushBtn = document.getElementById('push-beds24-btn');
                 if (pushBtn) {
-                    pushBtn.style.display = (b.beds24_room_id || b.beds24_booking_id) ? 'flex' : 'none';
+                    const isChannexOrigin = !!b.channex_booking_id;
+                    const hasBeds24Mapping = !!(b.beds24_room_id || b.beds24_booking_id);
+                    pushBtn.style.display = (hasBeds24Mapping && !isChannexOrigin) ? 'flex' : 'none';
                 }
 
                 openModal('viewBookingModal');
