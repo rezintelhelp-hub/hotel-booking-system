@@ -96286,6 +96286,67 @@ async function processChannexBookingNotification(payload) {
   const rawMsg = String(attrs.raw_message || '');
   const paymentStatus = /PRE-PAID/i.test(rawMsg) || (attrs.meta?.payment_charge > 0) ? 'paid' : 'pending';
 
+  // Extract OTA prepay + commission metadata from the raw payload. BDC + Airbnb
+  // both put this in raw_message JSON but with different key paths. Populates
+  // bookings.ota_* columns so reports/UI can distinguish OTA-collected bookings
+  // from direct bookings (which need chase). Steve 2026-07-29 — Ocio booking
+  // GAS-517864 showed "UNPAID · 119 OWED" despite BDC having collected the
+  // €126.79 + already-scheduled BankTransfer payout of €101.15 (net of €17.85
+  // commission + fees).
+  let otaPrepay = { prepaid: false, commission: null, payoutAmount: null, chargeAmount: null, payoutMethod: null };
+  try {
+    let parsed = null;
+    if (rawMsg && rawMsg.trim().startsWith('{')) {
+      try { parsed = JSON.parse(rawMsg); } catch (_) { /* not JSON */ }
+    }
+    // Booking.com shape — nested under ResGlobalInfo
+    const rgi = parsed?.ResGlobalInfo;
+    if (rgi) {
+      const gp = rgi.DepositPayments?.GuaranteePayment;
+      const gtype = gp?.['@GuaranteeType'] || gp?.GuaranteeType;
+      if (gtype && /prepay/i.test(String(gtype))) {
+        otaPrepay.prepaid = true;
+        const amt = gp.AmountPercent || gp.amount || {};
+        const dp = parseInt(amt['@DecimalPlaces'] ?? amt.decimal_places ?? 2, 10);
+        const raw = parseFloat(amt['@Amount'] ?? amt.amount ?? 0);
+        if (raw > 0) otaPrepay.chargeAmount = raw / Math.pow(10, dp);
+        const desc = String(gp.Description || '');
+        const payoutMatch = desc.match(/Payout type:\s*([A-Za-z]+)/i);
+        if (payoutMatch) otaPrepay.payoutMethod = payoutMatch[1];
+      }
+      // Commission — payable to BDC (deducted from operator payout)
+      const commPayable = rgi.TotalCommissions?.CommissionPayableAmount;
+      if (commPayable) {
+        const dp = parseInt(commPayable.decimal_places ?? 2, 10);
+        const raw = parseFloat(commPayable.amount ?? 0);
+        if (raw > 0) otaPrepay.commission = raw / Math.pow(10, dp);
+      }
+      // Payout amount (hotel_view total) — what operator receives before
+      // commission deduction. total (grand_total above) is guest_view.
+      const hv = parsed?.RoomStays?.[0]?.RoomStay?.PriceDetails?.hotel_view?.total;
+      if (hv?.amount) {
+        const dp = parseInt(hv.decimal_places ?? 2, 10);
+        otaPrepay.payoutAmount = parseFloat(hv.amount) / Math.pow(10, dp);
+        if (otaPrepay.commission != null) otaPrepay.payoutAmount = Math.max(0, otaPrepay.payoutAmount - otaPrepay.commission);
+      }
+    }
+    // Airbnb shape — reservation root with different keys
+    const abnb = parsed?.reservation;
+    if (abnb) {
+      const listing = abnb.listing_base_price_accepted_amount || abnb.host_payout_amount || abnb.payout_price_accepted;
+      if (listing?.amount) otaPrepay.payoutAmount = parseFloat(listing.amount);
+      if (abnb.host_payout_currency || listing?.currency) otaPrepay.payoutMethod = 'Airbnb payout';
+      // Airbnb is always prepaid — they collect from guest, pay host on Day 2
+      if (bookingSource === 'airbnb' && paymentStatus === 'paid') otaPrepay.prepaid = true;
+    }
+    // Fallback — if PRE-PAID text detected but nothing structured, still mark
+    if (!otaPrepay.prepaid && /PRE-PAID/i.test(rawMsg)) otaPrepay.prepaid = true;
+    // Charge amount fallback — use grand_total if not extracted
+    if (otaPrepay.prepaid && otaPrepay.chargeAmount == null) otaPrepay.chargeAmount = total;
+  } catch (e) {
+    console.warn('[Channex webhook] OTA prepay extract failed:', e.message);
+  }
+
   // Steve 2026-07-12 — Ulrich Tiedemann's Airbnb booking came in with a
   // rich JSON payload in raw_message. My code was dumping the entire
   // payload into bookings.special_requests (a guest-facing field). Extract
@@ -96332,6 +96393,10 @@ async function processChannexBookingNotification(payload) {
     if (otaCode) guestEmail = `airbnb-${otaCode}@guest.airbnb.com`;
   }
 
+  // Balance amount — 0 for OTA-prepaid (they collected from guest), otherwise
+  // the full total (guest owes at check-in unless another payment lands).
+  const balanceAmount = otaPrepay.prepaid ? 0 : total;
+
   const upsert = await pool.query(`
     INSERT INTO bookings (
       property_id, bookable_unit_id, property_owner_id,
@@ -96340,13 +96405,16 @@ async function processChannexBookingNotification(payload) {
       arrival_date, departure_date,
       num_adults, num_children, num_infants,
       currency, subtotal, tax_amount, grand_total, total_amount,
-      accommodation_price,
+      accommodation_price, balance_amount,
+      ota_prepaid, ota_commission_amount, ota_payout_amount, ota_charge_amount, ota_payout_method,
       status, payment_status, booking_source, api_source,
       special_requests, notes,
       created_at, updated_at, booking_time
     ) VALUES (
       $1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-      $16, $17, $18, $19, $19, $19, $20, $21, $22, 'channex', $23, $24,
+      $16, $17, $18, $19, $19, $19, $25,
+      $26, $27, $28, $29, $30,
+      $20, $21, $22, 'channex', $23, $24,
       NOW(), NOW(), NOW()
     )
     ON CONFLICT (channex_booking_id) DO UPDATE SET
@@ -96359,6 +96427,12 @@ async function processChannexBookingNotification(payload) {
       grand_total = EXCLUDED.grand_total,
       total_amount = EXCLUDED.total_amount,
       accommodation_price = EXCLUDED.accommodation_price,
+      balance_amount = EXCLUDED.balance_amount,
+      ota_prepaid = EXCLUDED.ota_prepaid,
+      ota_commission_amount = COALESCE(EXCLUDED.ota_commission_amount, bookings.ota_commission_amount),
+      ota_payout_amount = COALESCE(EXCLUDED.ota_payout_amount, bookings.ota_payout_amount),
+      ota_charge_amount = COALESCE(EXCLUDED.ota_charge_amount, bookings.ota_charge_amount),
+      ota_payout_method = COALESCE(EXCLUDED.ota_payout_method, bookings.ota_payout_method),
       guest_phone = COALESCE(NULLIF(EXCLUDED.guest_phone,''), bookings.guest_phone),
       guest_email = COALESCE(NULLIF(EXCLUDED.guest_email,''), bookings.guest_email),
       special_requests = EXCLUDED.special_requests,
@@ -96377,10 +96451,40 @@ async function processChannexBookingNotification(payload) {
     attrs.currency || 'EUR', subtotal, taxLines, total,
     status, paymentStatus, bookingSource,
     guestSpecialRequests,
-    'Imported via Channex webhook ' + new Date().toISOString() + (rawMsg ? '\n---raw---\n' + rawMsg.slice(0, 4000) : '')
+    'Imported via Channex webhook ' + new Date().toISOString() + (rawMsg ? '\n---raw---\n' + rawMsg.slice(0, 4000) : ''),
+    balanceAmount,
+    otaPrepay.prepaid, otaPrepay.commission, otaPrepay.payoutAmount, otaPrepay.chargeAmount, otaPrepay.payoutMethod
   ]);
   const gasBookingId = upsert.rows[0]?.id;
   console.log('[Channex webhook] upserted booking', bookingId, '→ GAS booking id', gasBookingId);
+
+  // For OTA-prepaid bookings, record the payment on GAS's ledger so the
+  // Payment Summary card and reports agree with the top-level 'Paid' pill.
+  // Description encodes the OTA + payout method so the UI can render an
+  // OTA-specific "collected by X, payout via Y" line. Idempotent via
+  // ON CONFLICT (booking_id, gateway_transaction_id, transaction_type).
+  if (otaPrepay.prepaid && gasBookingId && total > 0) {
+    const txId = `channex_ota_b${bookingId}_prepay`;
+    const desc = `Prepaid by ${bookingSource.toUpperCase()}` +
+      (otaPrepay.payoutMethod ? ` — payout via ${otaPrepay.payoutMethod}` : '') +
+      (otaPrepay.commission != null ? ` (commission ${otaPrepay.commission})` : '');
+    try {
+      await pool.query(`
+        INSERT INTO payment_transactions
+          (booking_id, account_id, amount, currency, status, transaction_type,
+           payment_gateway, gateway_transaction_id, description, completed_at, created_at)
+        VALUES ($1, $2, $3, $4, 'succeeded', 'payment', 'channex_ota', $5, $6, NOW(), NOW())
+        ON CONFLICT (booking_id, gateway_transaction_id, transaction_type)
+          WHERE gateway_transaction_id IS NOT NULL
+          DO UPDATE SET
+            amount = EXCLUDED.amount,
+            description = EXCLUDED.description,
+            updated_at = NOW()
+      `, [gasBookingId, connRow.account_id, total, attrs.currency || 'EUR', txId, desc]);
+    } catch (e) {
+      console.warn('[Channex webhook] OTA prepay payment_transactions insert failed:', e.message);
+    }
+  }
 
   // Block room_availability for every night of the stay. Direct bookings do
   // this via /api/public/book (server.js:99867); OTA-inbound was silently
