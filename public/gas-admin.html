@@ -85557,6 +85557,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                     html += `<select id="${id}" class="form-input">${(f.options || []).map(o => `<option value="${o}" ${o === val ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
                 } else if (f.kind === 'checkbox') {
                     html += `<label style="display: flex; align-items: center; gap: 0.4rem;"><input type="checkbox" id="${id}" ${val ? 'checked' : ''}> <span style="font-size: 0.85rem;">Yes</span></label>`;
+                } else if (f.kind === 'room_multi_picker') {
+                    // Steve 2026-07-30 — added to the trigger-config
+                    // renderer so pre-arrival Actions can be scoped per
+                    // room. Reuses the same async populate + collect
+                    // pattern the step-config renderer already uses.
+                    const preselected = Array.isArray(val) ? val.map(String) : [];
+                    html += `<div id="${id}" class="form-input" data-selected="${preselected.join(',')}" style="padding: 0.6rem; background: #f8fafc;">Loading rooms…</div>`;
+                    html += `<div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.2rem;">Tick the rooms this Action applies to. Leave all unticked to apply to any room on the account.</div>`;
+                    setTimeout(() => _gasPopulateRoomMultiPicker(id, preselected), 0);
                 } else {
                     html += `<input type="text" id="${id}" class="form-input" value="${String(val).replace(/"/g, '&quot;')}">`;
                 }
@@ -85596,6 +85605,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                 }
                 else if (f.kind === 'checkbox') out[f.field] = !!el.checked;
+                else if (f.kind === 'room_multi_picker') {
+                    // Collect ticked room ids from the checkbox grid inside
+                    // the picker container. Mirrors the step-config collect
+                    // at gas-admin.html:84720 / 84817.
+                    const ids = Array.from(el.querySelectorAll('input[type=checkbox]:checked')).map(cb => parseInt(cb.value, 10)).filter(Boolean);
+                    out[f.field] = ids;
+                }
                 else out[f.field] = el.value;
             }
             return out;
