@@ -99420,7 +99420,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <td style="padding:0.7rem 1rem;"><span style="display:inline-block; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.75rem; background:${sc.bg}; color:${sc.fg}; text-transform:capitalize;">${m.assignment_status}</span></td>
                                     <td style="padding:0.7rem 1rem; color:#94a3b8; font-size:0.8rem;">${m.invited_at ? new Date(m.invited_at).toLocaleDateString() : ''}</td>
                                     <td style="padding:0.7rem 1rem; text-align:right; white-space:nowrap;">
-                                        <button onclick="sendTeamCredentials(${m.assignment_id})" style="background:${m.credentials_sent_at ? '#f1f5f9' : 'linear-gradient(135deg,#10b981 0%,#059669 100%)'}; color:${m.credentials_sent_at ? '#1e293b' : 'white'}; border:1px solid ${m.credentials_sent_at ? '#e5e7eb' : 'transparent'}; padding:0.35rem 0.75rem; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-right:0.25rem;" title="${m.credentials_sent_at ? 'Last sent ' + new Date(m.credentials_sent_at).toLocaleString() : 'Email login details to this user'}">${m.credentials_sent_at ? 'Resend' : '✉ Send credentials'}</button>
+                                        <button onclick="sendTeamCredentials(${m.assignment_id})" style="background:${m.credentials_sent_at ? '#f1f5f9' : 'linear-gradient(135deg,#10b981 0%,#059669 100%)'}; color:${m.credentials_sent_at ? '#1e293b' : 'white'}; border:1px solid ${m.credentials_sent_at ? '#e5e7eb' : 'transparent'}; padding:0.35rem 0.75rem; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-right:0.25rem;" title="${m.credentials_sent_at ? 'Last emailed ' + new Date(m.credentials_sent_at).toLocaleString() + ' — click to set a new password and email it' : 'Set a password and email their login details'}">🔑 Reset password</button>
                                         <button onclick="openEditTeamMemberModal(${m.assignment_id})" style="background:none; border:1px solid #e5e7eb; padding:0.35rem 0.75rem; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-right:0.25rem;">Edit</button>
                                         <button onclick="removeTeamMember(${m.assignment_id})" style="background:none; border:1px solid #fecaca; color:#dc2626; padding:0.35rem 0.75rem; border-radius:6px; cursor:pointer; font-size:0.8rem;">Remove</button>
                                     </td>
@@ -99675,11 +99675,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             const displayName = member.full_name || member.email;
             const already = member.credentials_sent_at;
             const confirmMsg = already
-                ? `Resend credentials to ${displayName}? This will set a NEW password and email it. The old password stops working immediately.`
-                : `Send credentials to ${displayName}? This sets the password we send in the email.`;
+                ? `Reset password for ${displayName}?\n\nWe'll generate (or you pick) a new password, save it, and email it to them. Their old password stops working immediately.\n\nUse Edit → Change password if you'd rather set a password without emailing.`
+                : `Set + send login for ${displayName}?\n\nWe'll generate (or you pick) a password, save it, and email their login details.`;
             if (!confirm(confirmMsg)) return;
             // Owner can optionally pick the new password; if blank we generate.
-            const password = prompt(`New temp password for ${displayName} (or leave blank to auto-generate a strong one):`, '');
+            const password = prompt(`New password for ${displayName} (leave blank to auto-generate a strong one):`, '');
             try {
                 const r = await fetch('/api/team/' + assignmentId + '/send-credentials', {
                     method: 'POST',
@@ -99781,6 +99781,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 ${renderTeamPropertyPicker(_teamPropertiesAvailable, scopeMode, assignment.property_ids || [], 'team-edit-scope-inner')}
                             </div>
                         </div>
+                        <div class="form-group" style="border-top:1px solid #e5e7eb; padding-top:1rem;">
+                            <label class="form-label">Change password <small style="color:#64748b;">(leave blank to keep current password)</small></label>
+                            <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem;">
+                                <input type="text" id="team-edit-password" class="form-input" placeholder="Type a new password, or click 🎲 Generate" style="font-family: ui-monospace, monospace; flex:1;" autocomplete="off">
+                                <button type="button" onclick="generateEditTeamPassword()" class="btn" style="background:#f1f5f9; color:#1e293b; white-space:nowrap;">🎲 Generate</button>
+                            </div>
+                            <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.85rem; color:#334155; cursor:pointer;">
+                                <input type="checkbox" id="team-edit-email-password" checked>
+                                Also email the new password to ${(assignment.full_name || 'this user').replace(/</g,'&lt;')}
+                            </label>
+                            <p style="margin:0.4rem 0 0; color:#64748b; font-size:0.8rem;">Untick to reset silently — you'll get the password in the confirmation dialog to deliver via WhatsApp/text/verbally.</p>
+                        </div>
                         <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
                             <button class="btn" onclick="document.getElementById('edit-team-modal').remove()" style="background:#f1f5f9; color:#1e293b;">Cancel</button>
                             <button class="btn" onclick="saveEditedTeamMember()" style="background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);">Save changes</button>
@@ -99807,6 +99819,17 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        // Generate a fresh temp password into the Edit modal's password field.
+        function generateEditTeamPassword() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+            const buf = new Uint8Array(12);
+            (window.crypto || window.msCrypto).getRandomValues(buf);
+            let pw = '';
+            for (let i = 0; i < 12; i++) pw += chars[buf[i] % chars.length];
+            const el = document.getElementById('team-edit-password');
+            if (el) el.value = pw;
+        }
+
         async function saveEditedTeamMember() {
             const modal = document.getElementById('edit-team-modal');
             if (!modal) return;
@@ -99825,16 +99848,51 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             const property_ids = collectTeamPropertyScope('team-edit-scope-inner');
             const isMaster = currentAccount && currentAccount.role === 'master_admin';
-            const scopeId = isMaster && typeof selectedAccountId !== 'undefined' && selectedAccountId ? selectedAccountId : null;
-            const url = '/api/team/' + assignmentId + (scopeId ? '?account_id=' + scopeId : '');
+            const isAgency = currentAccount && currentAccount.role === 'agency_admin';
+            const scopeId = (isMaster || isAgency) && typeof selectedAccountId !== 'undefined' && selectedAccountId ? selectedAccountId : null;
+            const scopeQs = scopeId ? '?account_id=' + scopeId : '';
+            // Password change is optional — only fired when the field has a value.
+            const newPassword = (document.getElementById('team-edit-password')?.value || '').trim();
+            const emailNewPassword = !!document.getElementById('team-edit-email-password')?.checked;
+            const memberName = (modal.querySelector('div[style*="font-weight:600"]')?.textContent || '').trim();
+            const memberEmail = (modal.querySelector('div[style*="color:#64748b"]')?.textContent || '').trim();
             try {
-                const r = await fetch(url, {
+                // 1. Save role / permissions / scope
+                const r = await fetch('/api/team/' + assignmentId + scopeQs, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ role, permissions, property_ids })
                 });
                 const d = await r.json();
                 if (!d.success) { showNotification('Save failed: ' + (d.error || 'unknown'), 'error'); return; }
+                // 2. If a password was entered, change it (and optionally email)
+                if (newPassword) {
+                    if (newPassword.length < 6) { showNotification('Password must be at least 6 characters', 'error'); return; }
+                    const pr = await fetch('/api/team/' + assignmentId + '/send-credentials' + scopeQs, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ password: newPassword, email: emailNewPassword })
+                    });
+                    const pd = await pr.json();
+                    if (!pd.success && !pd.email_sent) {
+                        // Role/access saved but password change failed — flag it
+                        showNotification('Access saved, but password change failed: ' + (pd.error || 'unknown'), 'error');
+                        modal.remove();
+                        await loadTeam();
+                        return;
+                    }
+                    modal.remove();
+                    // Always show the plaintext once so master can copy it.
+                    showCredentialsModal({
+                        name: memberName,
+                        email: memberEmail,
+                        password: pd.password,
+                        action: emailNewPassword ? 'Password reset — email sent' : 'Password reset — silent',
+                        emailSent: !!pd.email_sent
+                    });
+                    await loadTeam();
+                    return;
+                }
                 modal.remove();
                 await loadTeam();
                 showNotification('Team member updated', 'success');

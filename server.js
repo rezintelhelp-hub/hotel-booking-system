@@ -115117,38 +115117,48 @@ app.post('/api/team/:assignment_id/send-credentials', async (req, res) => {
     const bcrypt = require('bcryptjs');
     const passwordHash = await bcrypt.hash(plainPassword, 10);
 
+    // Whether to email the plaintext to the member. Default true (preserves
+    // pre-2026-07-30 behaviour); pass email:false for "reset password only,
+    // I'll deliver it via WhatsApp/text/verbally". credentials_sent_at is
+    // only stamped when we actually emailed — so a silent reset doesn't
+    // pretend the user was notified.
+    const shouldEmail = req.body?.email !== false;
+
     await pool.query(
-      `UPDATE team_members SET password_hash = $1, must_change_password = true, credentials_sent_at = NOW(), updated_at = NOW() WHERE id = $2`,
+      `UPDATE team_members SET password_hash = $1, must_change_password = true${shouldEmail ? ', credentials_sent_at = NOW()' : ''}, updated_at = NOW() WHERE id = $2`,
       [passwordHash, row.member_id]
     );
 
     const roleLabel = (TEAM_ROLES[row.role] && TEAM_ROLES[row.role].label) || row.role;
     const accountName = row.account_name || 'GAS';
     const loginUrl = process.env.GAS_ADMIN_URL || 'https://admin.gas.travel/';
-    const html = buildCredentialsEmail({
-      memberName: row.full_name || '',
-      memberEmail: row.email,
-      password: plainPassword,
-      roleLabel,
-      accountName,
-      loginUrl
-    });
-    const sendResult = await sendEmail({
-      to: row.email,
-      subject: `Welcome to ${accountName} on GAS`,
-      html,
-      accountId,
-      context: {
+    let sendResult = { success: true };
+    if (shouldEmail) {
+      const html = buildCredentialsEmail({
+        memberName: row.full_name || '',
+        memberEmail: row.email,
+        password: plainPassword,
+        roleLabel,
+        accountName,
+        loginUrl
+      });
+      sendResult = await sendEmail({
+        to: row.email,
+        subject: `Welcome to ${accountName} on GAS`,
+        html,
         accountId,
-        eventType: 'team_member_credentials',
-        autoCreateGuest: false,
-        metadata: { team_assignment_id: row.assignment_id, role: row.role }
-      }
-    });
+        context: {
+          accountId,
+          eventType: 'team_member_credentials',
+          autoCreateGuest: false,
+          metadata: { team_assignment_id: row.assignment_id, role: row.role }
+        }
+      });
+    }
 
     res.json({
-      success: sendResult.success !== false,
-      email_sent: sendResult.success !== false,
+      success: shouldEmail ? sendResult.success !== false : true,
+      email_sent: shouldEmail && sendResult.success !== false,
       sent_to: row.email,
       password: plainPassword,         // owner sees once
       error: sendResult.error || null
