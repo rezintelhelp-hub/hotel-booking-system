@@ -99220,6 +99220,159 @@ const promo = await fetch('/api/v1/offers/validate', {
         // =========================================================
         let _teamMembers = [];
         let _teamRoleCatalog = [];
+        // Capability catalog + per-account property list — populated lazily
+        // when a team modal opens. Cached across modal opens in a single
+        // session; re-fetched when master switches account picker.
+        let _teamCapabilities = [];
+        let _teamPropertiesAvailable = [];
+        let _teamPropertiesAccountId = null;  // which account _teamPropertiesAvailable was fetched for
+
+        // Human labels for capability areas — keeps the grid tidy.
+        const _TEAM_CAP_AREA_LABELS = {
+            bookings: 'Bookings',
+            guests: 'Guests / CRM',
+            inbox: 'Inbox',
+            properties: 'Properties & Rates',
+            payments: 'Payments',
+            website: 'Website',
+            marketing: 'Marketing',
+            shop: 'Shop',
+            reports: 'Reports',
+            integrations: 'Integrations',
+            team: 'Team management',
+            settings: 'Settings / Billing',
+        };
+
+        // Group capabilities by area for grid rendering.
+        function _teamGroupCaps(caps) {
+            const groups = {};
+            const order = [];
+            for (const cap of caps || []) {
+                const [area, verb] = cap.split(':');
+                if (!groups[area]) { groups[area] = []; order.push(area); }
+                groups[area].push({ cap, verb });
+            }
+            return { groups, order };
+        }
+
+        // Merge a role's default_permissions with per-user overrides. Overrides
+        // take precedence: true adds a non-default cap, false removes one.
+        function _teamMergePerms(defaults, overrides) {
+            const merged = { ...(defaults || {}) };
+            for (const [cap, val] of Object.entries(overrides || {})) {
+                if (val === true) merged[cap] = true;
+                else if (val === false) delete merged[cap];
+            }
+            return merged;
+        }
+
+        // Render the capability checkbox grid. `checked` is a {cap: true} map
+        // that pre-ticks boxes. `containerId` gives the parent element an id
+        // so the collector can find it. Owner role gets a banner instead.
+        function renderTeamCapabilityGrid(caps, checked, role, containerId) {
+            if (role === 'owner') {
+                return `<div id="${containerId}" style="padding:0.75rem; background:#eff6ff; border:1px solid #93c5fd; border-radius:8px; color:#1e40af; font-size:0.9rem;">
+                    Owners always have full access. Access checkboxes don't apply.
+                </div>`;
+            }
+            const { groups, order } = _teamGroupCaps(caps);
+            return `<div id="${containerId}" style="display:grid; gap:0.4rem;">
+                ${order.map(area => `
+                    <div style="display:grid; grid-template-columns: 140px 1fr; gap:0.5rem; align-items:center; padding:0.35rem 0; border-bottom:1px solid #f1f5f9;">
+                        <div style="font-weight:600; color:#475569; font-size:0.85rem;">${_TEAM_CAP_AREA_LABELS[area] || area}</div>
+                        <div style="display:flex; flex-wrap:wrap; gap:0.4rem 1rem;">
+                            ${groups[area].map(({cap, verb}) => `
+                                <label style="display:inline-flex; align-items:center; gap:0.3rem; font-size:0.85rem; color:#334155; cursor:pointer;">
+                                    <input type="checkbox" data-cap="${cap}" ${checked[cap] ? 'checked' : ''} style="margin:0;">
+                                    ${verb}
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>`;
+        }
+
+        // Render the property-scope picker. mode = 'all' | 'selected'.
+        // selectedIds is the list to pre-check when mode='selected'.
+        function renderTeamPropertyPicker(properties, mode, selectedIds, containerId) {
+            if (!properties || properties.length === 0) {
+                return `<div id="${containerId}" style="padding:0.75rem; background:#f1f5f9; border-radius:6px; color:#64748b; font-size:0.85rem;">
+                    No properties on this account yet. This member will have access to any properties added later.
+                </div>`;
+            }
+            const set = new Set((selectedIds || []).map(Number));
+            const scopeName = 'team-scope-mode-' + containerId;
+            return `
+                <div id="${containerId}" style="display:flex; flex-direction:column; gap:0.5rem;">
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                        <input type="radio" name="${scopeName}" value="all" ${mode !== 'selected' ? 'checked' : ''} onchange="toggleTeamScopeMode('${containerId}')">
+                        <span>All properties in this account (default)</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                        <input type="radio" name="${scopeName}" value="selected" ${mode === 'selected' ? 'checked' : ''} onchange="toggleTeamScopeMode('${containerId}')">
+                        <span>Only these properties:</span>
+                    </label>
+                    <div data-scope-list style="margin-left:1.5rem; display:${mode === 'selected' ? 'flex' : 'none'}; flex-direction:column; gap:0.3rem; max-height:180px; overflow-y:auto; padding:0.5rem; border:1px solid #e5e7eb; border-radius:6px; background:#f8fafc;">
+                        ${properties.map(p => `
+                            <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.85rem;">
+                                <input type="checkbox" data-property-id="${p.id}" ${set.has(p.id) ? 'checked' : ''}>
+                                <span>${(p.name||'').replace(/</g,'&lt;')} <span style="color:#94a3b8;">${p.city ? '· ' + p.city : ''}</span></span>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleTeamScopeMode(containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const mode = container.querySelector('input[type="radio"]:checked')?.value;
+            const list = container.querySelector('[data-scope-list]');
+            if (list) list.style.display = mode === 'selected' ? 'flex' : 'none';
+        }
+
+        // Collect the current grid state from the modal — returns a
+        // {cap: bool} object suitable for sending as `permissions` overrides.
+        function collectTeamCapabilityGrid(containerId) {
+            const container = document.getElementById(containerId);
+            const perms = {};
+            if (!container) return perms;
+            container.querySelectorAll('input[type="checkbox"][data-cap]').forEach(cb => {
+                perms[cb.dataset.cap] = cb.checked;
+            });
+            return perms;
+        }
+
+        // Collect property scope from the modal. Empty array = all properties.
+        function collectTeamPropertyScope(containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return [];
+            const mode = container.querySelector('input[type="radio"]:checked')?.value || 'all';
+            if (mode === 'all') return [];
+            const ids = [];
+            container.querySelectorAll('input[type="checkbox"][data-property-id]').forEach(cb => {
+                if (cb.checked) ids.push(parseInt(cb.dataset.propertyId));
+            });
+            return ids;
+        }
+
+        // Fetch the property list for an account and cache it. Re-fetches
+        // if the requested account differs from the last cached one.
+        async function loadTeamProperties(accountId) {
+            if (accountId === _teamPropertiesAccountId && _teamPropertiesAvailable.length) return _teamPropertiesAvailable;
+            try {
+                const url = accountId ? '/api/team/scope-options?account_id=' + accountId : '/api/team/scope-options';
+                const r = await fetch(url, { headers: authHeaders() });
+                const d = await r.json();
+                if (d.success) {
+                    _teamPropertiesAvailable = d.properties || [];
+                    _teamPropertiesAccountId = accountId;
+                }
+            } catch (e) { _teamPropertiesAvailable = []; }
+            return _teamPropertiesAvailable;
+        }
 
         async function loadTeam() {
             const wrap = document.getElementById('team-list');
@@ -99293,7 +99446,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <td style="padding:0.7rem 1rem; color:#94a3b8; font-size:0.8rem;">${m.invited_at ? new Date(m.invited_at).toLocaleDateString() : ''}</td>
                                     <td style="padding:0.7rem 1rem; text-align:right; white-space:nowrap;">
                                         <button onclick="sendTeamCredentials(${m.assignment_id})" style="background:${m.credentials_sent_at ? '#f1f5f9' : 'linear-gradient(135deg,#10b981 0%,#059669 100%)'}; color:${m.credentials_sent_at ? '#1e293b' : 'white'}; border:1px solid ${m.credentials_sent_at ? '#e5e7eb' : 'transparent'}; padding:0.35rem 0.75rem; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-right:0.25rem;" title="${m.credentials_sent_at ? 'Last sent ' + new Date(m.credentials_sent_at).toLocaleString() : 'Email login details to this user'}">${m.credentials_sent_at ? 'Resend' : '✉ Send credentials'}</button>
-                                        <button onclick="changeTeamMemberRole(${m.assignment_id})" style="background:none; border:1px solid #e5e7eb; padding:0.35rem 0.75rem; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-right:0.25rem;">Change role</button>
+                                        <button onclick="openEditTeamMemberModal(${m.assignment_id})" style="background:none; border:1px solid #e5e7eb; padding:0.35rem 0.75rem; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-right:0.25rem;">Edit</button>
                                         <button onclick="removeTeamMember(${m.assignment_id})" style="background:none; border:1px solid #fecaca; color:#dc2626; padding:0.35rem 0.75rem; border-radius:6px; cursor:pointer; font-size:0.8rem;">Remove</button>
                                     </td>
                                 </tr>
@@ -99305,19 +99458,28 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function openAddTeamMemberModal() {
-            // Make sure we have the role catalog before opening
-            if (_teamRoleCatalog.length === 0) {
+            // Make sure we have the role catalog + capabilities before opening
+            if (_teamRoleCatalog.length === 0 || _teamCapabilities.length === 0) {
                 try {
                     const r = await fetch('/api/team/roles', { headers: authHeaders() });
                     const d = await r.json();
-                    if (d.success) _teamRoleCatalog = d.roles;
+                    if (d.success) {
+                        _teamRoleCatalog = d.roles;
+                        _teamCapabilities = d.capabilities || [];
+                    }
                 } catch (e) {}
+            }
+            // For non-master users, fetch properties up-front so the scope
+            // picker is populated. Master picks the account first — properties
+            // load lazily via onchange on the account picker.
+            const isMaster = currentAccount && currentAccount.role === 'master_admin';
+            if (!isMaster) {
+                await loadTeamProperties(null);
             }
             // Master_admin must explicitly choose which account the new team
             // member belongs to. Without this they land on master's own
             // account_id=1 with role they picked, and login lands them on
             // your data — happened with Joanne on 2026-06-02.
-            const isMaster = currentAccount && currentAccount.role === 'master_admin';
             let accountPickerHtml = '';
             if (isMaster) {
                 try {
@@ -99335,7 +99497,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     accountPickerHtml = `
                         <div class="form-group" style="background:#eff6ff; border:1px solid #93c5fd; border-radius:8px; padding:1rem;">
                             <label class="form-label" style="color:#1e40af;">Adding this person to which account? <span style="color:#dc2626;">*</span></label>
-                            <select id="team-add-account-id" class="form-input">
+                            <select id="team-add-account-id" class="form-input" onchange="onTeamAddAccountChange()">
                                 <option value="">— Choose the account they'll be on —</option>
                                 ${opts}
                             </select>
@@ -99388,6 +99550,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <p id="team-add-role-hint" style="margin:0.5rem 0 0; color:#64748b; font-size:0.85rem; font-style:italic;"></p>
                         </div>
                         <div class="form-group">
+                            <label class="form-label">Access <small style="color:#64748b;">(role sets defaults — tick/untick to customise)</small></label>
+                            <div id="team-add-caps-wrap" style="padding:0.75rem; border:1px solid #e5e7eb; border-radius:8px; background:#fff;">
+                                <div style="padding:0.5rem; color:#94a3b8; font-size:0.85rem; text-align:center;">Pick a role to see access options.</div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Property scope</label>
+                            <div id="team-add-scope-wrap" style="padding:0.75rem; border:1px solid #e5e7eb; border-radius:8px; background:#fff;">
+                                <div style="padding:0.5rem; color:#94a3b8; font-size:0.85rem; text-align:center;">${isMaster ? 'Pick an account first.' : 'Loading properties…'}</div>
+                            </div>
+                        </div>
+                        <div class="form-group">
                             <label class="form-label">Initial password <small style="color:#64748b;">(leave blank to auto-generate one)</small></label>
                             <div style="display:flex; gap:0.5rem;">
                                 <input type="text" id="team-add-password" class="form-input" placeholder="Type a password, or click 🎲 Generate" style="font-family: ui-monospace, monospace; flex:1;">
@@ -99403,14 +99577,50 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
             `;
             document.body.appendChild(modal);
+            // For non-master users, populate the property picker now that the
+            // wrap div exists in the DOM. Master users wait until they pick
+            // an account (onTeamAddAccountChange fills it).
+            if (!isMaster) {
+                const wrap = document.getElementById('team-add-scope-wrap');
+                if (wrap) wrap.innerHTML = renderTeamPropertyPicker(_teamPropertiesAvailable, 'all', [], 'team-add-scope-inner');
+            }
+        }
+
+        // Master picked an account — fetch that account's properties and
+        // render the scope picker fresh.
+        async function onTeamAddAccountChange() {
+            const accId = parseInt(document.getElementById('team-add-account-id')?.value);
+            const wrap = document.getElementById('team-add-scope-wrap');
+            if (!wrap) return;
+            if (!accId) {
+                wrap.innerHTML = `<div style="padding:0.5rem; color:#94a3b8; font-size:0.85rem; text-align:center;">Pick an account first.</div>`;
+                return;
+            }
+            wrap.innerHTML = `<div style="padding:0.5rem; color:#94a3b8; font-size:0.85rem; text-align:center;">Loading properties…</div>`;
+            await loadTeamProperties(accId);
+            wrap.innerHTML = renderTeamPropertyPicker(_teamPropertiesAvailable, 'all', [], 'team-add-scope-inner');
         }
 
         function updateTeamRoleHint() {
             const slug = document.getElementById('team-add-role')?.value;
             const hint = document.getElementById('team-add-role-hint');
-            if (!slug || !hint) { if (hint) hint.textContent = ''; return; }
+            if (hint) hint.textContent = '';
+            const capsWrap = document.getElementById('team-add-caps-wrap');
+            if (!slug) {
+                if (capsWrap) capsWrap.innerHTML = `<div style="padding:0.5rem; color:#94a3b8; font-size:0.85rem; text-align:center;">Pick a role to see access options.</div>`;
+                return;
+            }
             const r = _teamRoleCatalog.find(r => r.slug === slug);
-            if (r) hint.textContent = r.description;
+            if (r && hint) hint.textContent = r.description;
+            // Re-render the capability grid with this role's defaults ticked.
+            // Any manual overrides the owner has already made are wiped —
+            // switching role is treated as "start fresh from this role's
+            // template". Simpler mental model than trying to preserve overrides
+            // across role changes.
+            if (capsWrap && r) {
+                const checked = r.default_permissions || {};
+                capsWrap.innerHTML = renderTeamCapabilityGrid(_teamCapabilities, checked, slug, 'team-add-caps-inner');
+            }
         }
 
         // Generate a 12-char password client-side and drop it in the field.
@@ -99442,6 +99652,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                 showNotification('Name, email and role are required', 'error');
                 return;
             }
+            // Collect access grid + property scope. For owner role, permissions
+            // stays empty (server bypasses gating entirely for owners).
+            const rolePerms = _teamRoleCatalog.find(r => r.slug === role)?.default_permissions || {};
+            const gridState = collectTeamCapabilityGrid('team-add-caps-inner');
+            // Compute overrides: only diffs from role default get sent.
+            const permissions = {};
+            const allCaps = new Set([...Object.keys(rolePerms), ..._teamCapabilities]);
+            for (const cap of allCaps) {
+                const defaulted = !!rolePerms[cap];
+                const checked = !!gridState[cap];
+                if (checked !== defaulted) permissions[cap] = checked;
+            }
+            const property_ids = collectTeamPropertyScope('team-add-scope-inner');
             try {
                 // Pass ?account_id on the URL when master picked one — the
                 // server's resolveTeamAccountId honours it for master only.
@@ -99449,7 +99672,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const r = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ full_name: name, email, phone, role, password })
+                    body: JSON.stringify({ full_name: name, email, phone, role, password, permissions, property_ids })
                 });
                 const d = await r.json();
                 if (!d.success) { showNotification('Add failed: ' + (d.error || 'unknown'), 'error'); return; }
@@ -99528,27 +99751,143 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) { showNotification('Send failed: ' + e.message, 'error'); }
         }
 
-        async function changeTeamMemberRole(assignmentId) {
-            const member = _teamMembers.find(m => m.assignment_id === assignmentId);
-            if (!member) return;
-            const internal = _teamRoleCatalog.filter(r => r.tier === 'internal').map(r => r.label + ' — ' + r.slug).join('\n');
-            const service  = _teamRoleCatalog.filter(r => r.tier === 'service').map(r => r.label + ' — ' + r.slug).join('\n');
-            const newRole = prompt(`Change role for ${member.full_name || member.email}.\n\nCurrent: ${member.role}\n\nValid roles:\n${internal}\n${service}\n\nEnter the role slug (e.g. 'manager', 'cleaner'):`, member.role);
-            if (!newRole || newRole === member.role) return;
-            if (!_teamRoleCatalog.find(r => r.slug === newRole)) {
-                showNotification('Unknown role: ' + newRole, 'error'); return;
+        // Edit existing team member — full modal with role, access grid and
+        // property scope. Fetches the current assignment (including merged
+        // effective_permissions) so the grid reflects what they have TODAY,
+        // not just the role defaults. Changing role in-modal reflows the grid
+        // to the new role's defaults (wipes overrides — same rule as Add).
+        async function openEditTeamMemberModal(assignmentId) {
+            // Ensure catalog is loaded
+            if (_teamRoleCatalog.length === 0 || _teamCapabilities.length === 0) {
+                try {
+                    const r = await fetch('/api/team/roles', { headers: authHeaders() });
+                    const d = await r.json();
+                    if (d.success) { _teamRoleCatalog = d.roles; _teamCapabilities = d.capabilities || []; }
+                } catch (e) {}
             }
+            // Load the assignment. Include account_id if master-scoped.
+            const isMaster = currentAccount && currentAccount.role === 'master_admin';
+            const scopeId = isMaster && typeof selectedAccountId !== 'undefined' && selectedAccountId ? selectedAccountId : null;
+            const qs = scopeId ? '?account_id=' + scopeId : '';
+            let assignment;
             try {
-                const r = await fetch('/api/team/' + assignmentId, {
+                const r = await fetch('/api/team/' + assignmentId + qs, { headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success) { showNotification('Load failed: ' + (d.error || 'unknown'), 'error'); return; }
+                assignment = d.assignment;
+            } catch (e) { showNotification('Load failed: ' + e.message, 'error'); return; }
+
+            // Load properties for the assignment's account
+            await loadTeamProperties(assignment.account_id);
+
+            const roleOpts = (() => {
+                const internal = _teamRoleCatalog.filter(r => r.tier === 'internal');
+                const service  = _teamRoleCatalog.filter(r => r.tier === 'service');
+                return `
+                    <optgroup label="Internal (employees)">
+                        ${internal.map(r => `<option value="${r.slug}" ${r.slug === assignment.role ? 'selected' : ''}>${r.label}</option>`).join('')}
+                    </optgroup>
+                    <optgroup label="Service (contractors)">
+                        ${service.map(r => `<option value="${r.slug}" ${r.slug === assignment.role ? 'selected' : ''}>${r.label}</option>`).join('')}
+                    </optgroup>
+                `;
+            })();
+
+            const scopeMode = (assignment.property_ids && assignment.property_ids.length) ? 'selected' : 'all';
+
+            const modal = document.createElement('div');
+            modal.id = 'edit-team-modal';
+            modal.className = 'modal';
+            modal.style.display = 'flex';
+            modal.dataset.assignmentId = assignmentId;
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width:560px; width:95%;">
+                    <div class="modal-header">
+                        <h2>Edit Team Member</h2>
+                        <span class="modal-close" onclick="document.getElementById('edit-team-modal').remove()">×</span>
+                    </div>
+                    <div style="padding:1.5rem;">
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem 1rem; margin-bottom:1rem;">
+                            <div style="font-weight:600; color:#1e293b;">${(assignment.full_name || '').replace(/</g,'&lt;') || '—'}</div>
+                            <div style="color:#64748b; font-size:0.85rem;">${(assignment.email || '').replace(/</g,'&lt;')}</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Role <span style="color:#dc2626;">*</span></label>
+                            <select id="team-edit-role" class="form-input" onchange="updateEditTeamRoleGrid()">
+                                ${roleOpts}
+                            </select>
+                            <p id="team-edit-role-hint" style="margin:0.5rem 0 0; color:#64748b; font-size:0.85rem; font-style:italic;"></p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Access <small style="color:#64748b;">(change role to reset · tick/untick to customise)</small></label>
+                            <div id="team-edit-caps-wrap" style="padding:0.75rem; border:1px solid #e5e7eb; border-radius:8px; background:#fff;">
+                                ${renderTeamCapabilityGrid(_teamCapabilities, assignment.effective_permissions || {}, assignment.role, 'team-edit-caps-inner')}
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Property scope</label>
+                            <div id="team-edit-scope-wrap" style="padding:0.75rem; border:1px solid #e5e7eb; border-radius:8px; background:#fff;">
+                                ${renderTeamPropertyPicker(_teamPropertiesAvailable, scopeMode, assignment.property_ids || [], 'team-edit-scope-inner')}
+                            </div>
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
+                            <button class="btn" onclick="document.getElementById('edit-team-modal').remove()" style="background:#f1f5f9; color:#1e293b;">Cancel</button>
+                            <button class="btn" onclick="saveEditedTeamMember()" style="background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);">Save changes</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            // Populate role hint for current role
+            const initialRole = _teamRoleCatalog.find(r => r.slug === assignment.role);
+            if (initialRole) document.getElementById('team-edit-role-hint').textContent = initialRole.description;
+        }
+
+        // Role changed in Edit modal — reset the grid to the new role's
+        // defaults (same rule as Add: role change wipes overrides).
+        function updateEditTeamRoleGrid() {
+            const slug = document.getElementById('team-edit-role')?.value;
+            const hint = document.getElementById('team-edit-role-hint');
+            const capsWrap = document.getElementById('team-edit-caps-wrap');
+            const r = _teamRoleCatalog.find(r => r.slug === slug);
+            if (hint) hint.textContent = r ? r.description : '';
+            if (capsWrap && r) {
+                capsWrap.innerHTML = renderTeamCapabilityGrid(_teamCapabilities, r.default_permissions || {}, slug, 'team-edit-caps-inner');
+            }
+        }
+
+        async function saveEditedTeamMember() {
+            const modal = document.getElementById('edit-team-modal');
+            if (!modal) return;
+            const assignmentId = parseInt(modal.dataset.assignmentId);
+            const role = document.getElementById('team-edit-role')?.value;
+            if (!role) { showNotification('Pick a role', 'error'); return; }
+            // Compute permission overrides same way as Add flow
+            const rolePerms = _teamRoleCatalog.find(r => r.slug === role)?.default_permissions || {};
+            const gridState = collectTeamCapabilityGrid('team-edit-caps-inner');
+            const permissions = {};
+            const allCaps = new Set([...Object.keys(rolePerms), ..._teamCapabilities]);
+            for (const cap of allCaps) {
+                const defaulted = !!rolePerms[cap];
+                const checked = !!gridState[cap];
+                if (checked !== defaulted) permissions[cap] = checked;
+            }
+            const property_ids = collectTeamPropertyScope('team-edit-scope-inner');
+            const isMaster = currentAccount && currentAccount.role === 'master_admin';
+            const scopeId = isMaster && typeof selectedAccountId !== 'undefined' && selectedAccountId ? selectedAccountId : null;
+            const url = '/api/team/' + assignmentId + (scopeId ? '?account_id=' + scopeId : '');
+            try {
+                const r = await fetch(url, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ role: newRole })
+                    body: JSON.stringify({ role, permissions, property_ids })
                 });
                 const d = await r.json();
-                if (!d.success) { showNotification('Update failed: ' + (d.error || 'unknown'), 'error'); return; }
+                if (!d.success) { showNotification('Save failed: ' + (d.error || 'unknown'), 'error'); return; }
+                modal.remove();
                 await loadTeam();
-                showNotification('Role updated', 'success');
-            } catch (e) { showNotification('Update failed: ' + e.message, 'error'); }
+                showNotification('Team member updated', 'success');
+            } catch (e) { showNotification('Save failed: ' + e.message, 'error'); }
         }
 
         async function removeTeamMember(assignmentId) {

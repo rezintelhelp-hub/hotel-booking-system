@@ -114914,6 +114914,23 @@ app.get('/api/team/roles', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
+// List of properties available for the resolved account. Used by the Add /
+// Edit Team Member modal to render the property-scope picker. master_admin
+// can pass ?account_id=N to see another account's list; clients are pinned
+// to their own account.
+app.get('/api/team/scope-options', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res); if (!user) return;
+    const accountId = resolveTeamAccountId(user, req);
+    if (!accountId) return res.status(400).json({ success: false, error: 'No account in scope' });
+    const p = await pool.query(
+      `SELECT id, name, city, country FROM properties WHERE account_id = $1 ORDER BY name`,
+      [accountId]
+    );
+    res.json({ success: true, properties: p.rows });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 app.get('/api/team', async (req, res) => {
   try {
     const user = await authenticateUser(req, res); if (!user) return;
