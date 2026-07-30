@@ -102632,6 +102632,58 @@ app.post('/api/public/book', async (req, res) => {
         // so genuine separate attempts get distinct keys.
         const idemKey = `book-${unit.rows[0].property_id}-${square_source_id}-${amountMinor}`.slice(0, 45);
 
+        // Save-card-on-file (Steve 2026-07-30). Square attaches the card to a
+        // Customer ONLY when the payment request includes a customer_id. Without
+        // it, payment.card_details.card.id comes back null and future auto-charge
+        // has nothing to charge against. Casa Magnolia B499860 was the trigger:
+        // deposit succeeded, but square_card_id + square_customer_id both NULL.
+        // Search-by-email first (dedup returning guests), fall back to create.
+        // Failures here MUST NOT block the deposit — we still take the money and
+        // proceed without saved card (matches pre-2026-07-30 behaviour so no
+        // regression risk on non-saveable card scenarios).
+        let squareCustomerId = null;
+        if (guest_email) {
+          try {
+            const searchResp = await fetch(`${sq.apiBase}/v2/customers/search`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+                'Square-Version': '2024-12-18',
+              },
+              body: JSON.stringify({
+                query: { filter: { email_address: { exact: guest_email } } },
+                limit: 1
+              })
+            });
+            const searchBody = await searchResp.json();
+            squareCustomerId = searchBody?.customers?.[0]?.id || null;
+            if (!squareCustomerId) {
+              const createResp = await fetch(`${sq.apiBase}/v2/customers`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                  'Square-Version': '2024-12-18',
+                },
+                body: JSON.stringify({
+                  idempotency_key: `gas-cust-${guest_email}`.slice(0, 45),
+                  given_name: guest_first_name || undefined,
+                  family_name: guest_last_name || undefined,
+                  email_address: guest_email,
+                  phone_number: guest_phone || undefined,
+                  note: `Auto-created by GAS at booking for property ${unit.rows[0].property_id}`
+                })
+              });
+              const createBody = await createResp.json();
+              squareCustomerId = createBody?.customer?.id || null;
+              if (!squareCustomerId) console.warn('[Square Server] Customer create returned no id:', JSON.stringify(createBody).slice(0, 200));
+            }
+          } catch (custErr) {
+            console.warn('[Square Server] Customer upsert failed (continuing without saved card):', custErr.message);
+          }
+        }
+
         const payResp = await fetch(`${sq.apiBase}/v2/payments`, {
           method: 'POST',
           headers: {
@@ -102647,6 +102699,9 @@ app.post('/api/public/book', async (req, res) => {
             autocomplete: true,
             verification_token: square_verification_token || undefined,
             buyer_email_address: guest_email,
+            // customer_id must be set for Square to attach the card to a saved
+            // customer (unlocks future off-session charges against card.id).
+            customer_id: squareCustomerId || undefined,
             note: `GAS booking — property ${unit.rows[0].property_id} ${check_in}→${check_out}`,
             reference_id: `gas-${unit.rows[0].property_id}-${Date.now()}`,
           }),
@@ -102974,6 +103029,18 @@ app.post('/api/public/book', async (req, res) => {
         newBooking.square_customer_id = square_customer_id || newBooking.square_customer_id;
         newBooking.square_card_id = square_card_id_captured || newBooking.square_card_id;
         newBooking.square_location_id = square_location_id_used || newBooking.square_location_id;
+        // Ledger row (Steve 2026-07-30). Stripe writes one at ~103328 but the
+        // Square block was missing it — Casa Magnolia B499860 had a real
+        // completed payment yet zero payment_transactions rows, so every
+        // report/reconciliation showed the booking as unpaid.
+        try {
+          await pool.query(`
+            INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, gateway_transaction_id, payment_gateway, completed_at, created_at)
+            VALUES ($1, 'deposit', $2, $3, 'completed', $4, 'square', NOW(), NOW())
+          `, [newBooking.id, deposit_amount, newBooking.currency || currency, square_payment_id]);
+        } catch (txErr) {
+          console.error('[Square Server] payment_transactions insert failed:', txErr.message);
+        }
       } catch (sqUpdateErr) {
         console.error(`[Square Server] Failed to persist payment ${square_payment_id} on booking ${newBooking.id}, refunding:`, sqUpdateErr.message);
         // Refund the Square payment so the guest isn't charged for a booking
