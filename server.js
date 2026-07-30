@@ -114859,6 +114859,19 @@ function hasCapability(userOrCtx, capability) {
   return eff[capability] === true;
 }
 
+// For endpoints that act on a specific team_assignment by id (GET/PUT/
+// DELETE/send-credentials), master_admin can access any assignment
+// regardless of what account they've "switched into" — the assignment id
+// is itself the authorization. Non-master users are still pinned to
+// their own account. Returns null for master when no explicit
+// ?account_id was passed → callers use `($2::int IS NULL OR ta.account_id = $2)`
+// to skip the filter.
+function resolveTeamAssignmentFilter(user, req) {
+  const q = parseInt(req.query.account_id || req.body?.account_id);
+  if (user.role === 'master_admin') return q || null;
+  return user.id || user.accountId;
+}
+
 // Resolve the effective account_id for a team request. master_admin can
 // pass ?account_id=N to manage another account's team; clients are pinned
 // to their own account.
@@ -115091,7 +115104,7 @@ app.post('/api/team', async (req, res) => {
 app.post('/api/team/:assignment_id/send-credentials', async (req, res) => {
   try {
     const user = await authenticateUser(req, res); if (!user) return;
-    const accountId = resolveTeamAccountId(user, req);
+    const accountFilter = resolveTeamAssignmentFilter(user, req);
     const id = parseInt(req.params.assignment_id);
     if (!id) return res.status(400).json({ success: false, error: 'Bad assignment id' });
 
@@ -115104,10 +115117,13 @@ app.post('/api/team/:assignment_id/send-credentials', async (req, res) => {
       FROM team_assignments ta
       JOIN team_members tm ON tm.id = ta.member_id
       LEFT JOIN accounts a ON a.id = ta.account_id
-      WHERE ta.id = $1 AND ta.account_id = $2 AND ta.status != 'deleted'
-    `, [id, accountId]);
+      WHERE ta.id = $1 AND ($2::int IS NULL OR ta.account_id = $2) AND ta.status != 'deleted'
+    `, [id, accountFilter]);
     if (lookup.rows.length === 0) return res.status(404).json({ success: false, error: 'Assignment not found' });
     const row = lookup.rows[0];
+    // accountId here is the assignment's actual account — used for the
+    // sendEmail's per-account branding, not for the access check.
+    const accountId = row.account_id;
 
     // Owner can either supply a new password or let us generate one.
     let plainPassword = (req.body?.password || '').trim();
@@ -115174,7 +115190,7 @@ app.post('/api/team/:assignment_id/send-credentials', async (req, res) => {
 app.get('/api/team/:assignment_id', async (req, res) => {
   try {
     const user = await authenticateUser(req, res); if (!user) return;
-    const accountId = resolveTeamAccountId(user, req);
+    const accountFilter = resolveTeamAssignmentFilter(user, req);
     const id = parseInt(req.params.assignment_id);
     if (!id) return res.status(400).json({ success: false, error: 'Bad assignment id' });
     const r = await pool.query(`
@@ -115187,8 +115203,8 @@ app.get('/api/team/:assignment_id', async (req, res) => {
         tm.status AS user_status
       FROM team_assignments ta
       JOIN team_members tm ON tm.id = ta.member_id
-      WHERE ta.id = $1 AND ta.account_id = $2 AND ta.status != 'deleted'
-    `, [id, accountId]);
+      WHERE ta.id = $1 AND ($2::int IS NULL OR ta.account_id = $2) AND ta.status != 'deleted'
+    `, [id, accountFilter]);
     if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Assignment not found' });
     const row = r.rows[0];
     row.effective_permissions = getEffectivePermissions(row.role, row.permissions);
@@ -115200,7 +115216,7 @@ app.get('/api/team/:assignment_id', async (req, res) => {
 app.put('/api/team/:assignment_id', async (req, res) => {
   try {
     const user = await authenticateUser(req, res); if (!user) return;
-    const accountId = resolveTeamAccountId(user, req);
+    const accountFilter = resolveTeamAssignmentFilter(user, req);
     const id = parseInt(req.params.assignment_id);
     if (!id) return res.status(400).json({ success: false, error: 'Bad assignment id' });
 
@@ -115217,7 +115233,7 @@ app.put('/api/team/:assignment_id', async (req, res) => {
     if (Object.keys(updatable).length === 0) return res.status(400).json({ success: false, error: 'Nothing to update' });
 
     const sets = [];
-    const args = [id, accountId];
+    const args = [id, accountFilter];
     for (const [k, v] of Object.entries(updatable)) {
       args.push(v);
       sets.push(`${k} = $${args.length}`);
@@ -115226,7 +115242,7 @@ app.put('/api/team/:assignment_id', async (req, res) => {
 
     const r = await pool.query(
       `UPDATE team_assignments SET ${sets.join(', ')}
-       WHERE id = $1 AND account_id = $2
+       WHERE id = $1 AND ($2::int IS NULL OR account_id = $2)
        RETURNING *`,
       args
     );
@@ -115238,14 +115254,14 @@ app.put('/api/team/:assignment_id', async (req, res) => {
 app.delete('/api/team/:assignment_id', async (req, res) => {
   try {
     const user = await authenticateUser(req, res); if (!user) return;
-    const accountId = resolveTeamAccountId(user, req);
+    const accountFilter = resolveTeamAssignmentFilter(user, req);
     const id = parseInt(req.params.assignment_id);
     if (!id) return res.status(400).json({ success: false, error: 'Bad assignment id' });
     // Soft delete — keep the audit trail rather than dropping the row.
     const r = await pool.query(
       `UPDATE team_assignments SET status = 'deleted', updated_at = NOW()
-       WHERE id = $1 AND account_id = $2 RETURNING id`,
-      [id, accountId]
+       WHERE id = $1 AND ($2::int IS NULL OR account_id = $2) RETURNING id`,
+      [id, accountFilter]
     );
     if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Assignment not found' });
     res.json({ success: true });
