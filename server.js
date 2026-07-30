@@ -130080,7 +130080,14 @@ const GAS_TRIGGER_EVENTS = [
       // link-heavy email only fires for direct bookings; OTAs get a
       // simpler variant Action with source_filter='ota_only'.
       { field: 'source_filter', label: 'Only fire for these bookings',
-        kind: 'select', options: ['all', 'direct_only', 'ota_only'], default: 'all' }
+        kind: 'select', options: ['all', 'direct_only', 'ota_only'], default: 'all' },
+      // Per-room scope. Steve 2026-07-30 — his gîtes account has 2 units
+      // per property with different key-collection instructions; needed
+      // one Action per gîte. Empty array = fires for any room on the
+      // account (backwards-compat: existing pre-arrival workflows keep
+      // firing across all rooms). Values are bookable_units.id.
+      { field: 'room_ids', label: 'Rooms this applies to (leave empty for any room)',
+        kind: 'room_multi_picker', default: [] }
     ],
     wired: true
   },
@@ -133506,6 +133513,11 @@ async function runGasRecipeBookingEventCron() {
       const DATE_CLAUSE = fireWithinWindow
         ? `AND DATE(b.arrival_date) BETWEEN CURRENT_DATE AND (CURRENT_DATE + $2::int)`
         : `AND DATE(b.arrival_date) = (CURRENT_DATE + $2::int)`;
+      // Per-room scope (Steve 2026-07-30). Empty array = any room —
+      // preserves existing pre-arrival workflows exactly. Non-empty =
+      // only fire for bookings on one of the listed bookable_units.
+      const roomIds = Array.isArray(cfg.room_ids) ? cfg.room_ids.map(Number).filter(Boolean) : [];
+      const ROOM_CLAUSE = roomIds.length ? ` AND b.bookable_unit_id = ANY($5::int[])` : '';
       const cand = await pool.query(`
         SELECT b.id AS booking_id, b.guest_email, b.guest_first_name, b.guest_last_name,
                (SELECT ds.id FROM deployed_sites ds
@@ -133523,7 +133535,10 @@ async function runGasRecipeBookingEventCron() {
           ${paidFilter}
           ${SOURCE_CLAUSE}
           ${SITE_FILTER.replace(/\$SITE/g, '$4')}
-      `, [wf.account_id, daysBefore, wf.id, wf.deployed_site_id]);
+          ${ROOM_CLAUSE}
+      `, roomIds.length
+          ? [wf.account_id, daysBefore, wf.id, wf.deployed_site_id, roomIds]
+          : [wf.account_id, daysBefore, wf.id, wf.deployed_site_id]);
       for (const row of cand.rows) {
         const contactId = await _resolveOrCreateContactForGuest(wf.account_id, row, row.booking_site_id || wf.deployed_site_id || null);
         if (contactId) await fireRecipeForContact({ workflowId: wf.id, contactId, bookingId: row.booking_id }).catch(e => console.warn('[booking.before_checkin]', e.message));
