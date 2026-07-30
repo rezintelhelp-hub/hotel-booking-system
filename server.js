@@ -114768,6 +114768,97 @@ const TEAM_ROLES = {
   cohost:      { label: 'Co-host',     tier: 'service',  description: 'Inbox + bookings (read + message). No pricing or payments.' },
 };
 
+// Capability catalog — the full set of granular permissions a team member
+// can be granted. Keys are `area:verb`. Owner has all implicitly; every
+// other role starts from its default bundle (see ROLE_DEFAULTS) and the
+// owner can tick/untick per user in the modal.
+const CAPABILITIES = [
+  'bookings:view', 'bookings:create', 'bookings:edit', 'bookings:cancel',
+  'guests:view', 'guests:edit',
+  'inbox:view', 'inbox:reply',
+  'properties:view', 'properties:edit',
+  'payments:view', 'payments:take', 'payments:refund',
+  'website:view', 'website:edit',
+  'marketing:view', 'marketing:edit',
+  'shop:view', 'shop:edit',
+  'reports:view',
+  'integrations:view', 'integrations:edit',
+  'team:view', 'team:manage',
+  'settings:view', 'settings:edit',
+];
+
+// Default permission bundle per role. Owner is a special case handled by
+// isOwnerRole() — never gate an owner. Everything else works off these
+// defaults, overridable per-user via team_assignments.permissions JSONB.
+const ROLE_DEFAULTS = {
+  owner:       Object.fromEntries(CAPABILITIES.map(c => [c, true])),
+  manager: {
+    'bookings:view': true, 'bookings:create': true, 'bookings:edit': true, 'bookings:cancel': true,
+    'guests:view': true, 'guests:edit': true,
+    'inbox:view': true, 'inbox:reply': true,
+    'properties:view': true, 'properties:edit': true,
+    'payments:view': true, 'payments:take': true, 'payments:refund': true,
+    'shop:view': true, 'shop:edit': true,
+    'marketing:view': true, 'marketing:edit': true,
+    'reports:view': true,
+    'integrations:view': true,
+  },
+  accountant: {
+    'bookings:view': true, 'guests:view': true, 'payments:view': true, 'shop:view': true, 'reports:view': true,
+  },
+  staff: {
+    'bookings:view': true, 'bookings:create': true, 'bookings:edit': true,
+    'guests:view': true, 'inbox:view': true, 'inbox:reply': true,
+    'payments:view': true, 'payments:take': true, 'shop:view': true,
+  },
+  readonly: {
+    'bookings:view': true, 'guests:view': true, 'inbox:view': true, 'properties:view': true,
+    'payments:view': true, 'website:view': true, 'marketing:view': true, 'shop:view': true, 'reports:view': true,
+  },
+  cleaner: {
+    'bookings:view': true, 'properties:view': true,
+  },
+  maintenance: {
+    'bookings:view': true, 'properties:view': true, 'inbox:view': true,
+  },
+  concierge: {
+    'bookings:view': true, 'bookings:edit': true, 'guests:view': true, 'inbox:view': true, 'inbox:reply': true,
+  },
+  cohost: {
+    'bookings:view': true, 'inbox:view': true, 'inbox:reply': true,
+  },
+};
+
+function isOwnerRole(role) { return role === 'owner'; }
+
+// Compute the effective capability set for a team member assignment. Owner
+// gets everything. Others merge role defaults with the per-user overrides
+// stored in team_assignments.permissions — override true adds a non-default
+// cap, false removes one that would otherwise come from the role.
+function getEffectivePermissions(role, permissionsOverride) {
+  if (isOwnerRole(role)) return Object.fromEntries(CAPABILITIES.map(c => [c, true]));
+  const defaults = ROLE_DEFAULTS[role] || {};
+  const overrides = (permissionsOverride && typeof permissionsOverride === 'object' && !Array.isArray(permissionsOverride)) ? permissionsOverride : {};
+  const merged = { ...defaults };
+  for (const [cap, val] of Object.entries(overrides)) {
+    if (val === true) merged[cap] = true;
+    else if (val === false) delete merged[cap];
+  }
+  return merged;
+}
+
+// Check whether a request context has a given capability. Team-member
+// contexts are gated by their effective permissions; legacy account-level
+// logins (currently the vast majority) pass through so no existing flow
+// breaks. Server-side gating switches on in Phase 4.
+function hasCapability(userOrCtx, capability) {
+  if (!userOrCtx) return false;
+  if (!userOrCtx.teamMemberContext) return true;
+  const { role, permissions } = userOrCtx.teamMemberContext;
+  const eff = getEffectivePermissions(role, permissions);
+  return eff[capability] === true;
+}
+
 // Resolve the effective account_id for a team request. master_admin can
 // pass ?account_id=N to manage another account's team; clients are pinned
 // to their own account.
@@ -114814,8 +114905,12 @@ function buildCredentialsEmail({ memberName, memberEmail, password, roleLabel, a
 app.get('/api/team/roles', async (req, res) => {
   try {
     const user = await authenticateUser(req, res); if (!user) return;
-    const roles = Object.entries(TEAM_ROLES).map(([slug, r]) => ({ slug, ...r }));
-    res.json({ success: true, roles });
+    const roles = Object.entries(TEAM_ROLES).map(([slug, r]) => ({
+      slug,
+      ...r,
+      default_permissions: ROLE_DEFAULTS[slug] || {}
+    }));
+    res.json({ success: true, roles, capabilities: CAPABILITIES });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
@@ -114866,6 +114961,10 @@ app.post('/api/team', async (req, res) => {
     const role = (req.body?.role || '').trim();
     const property_ids = Array.isArray(req.body?.property_ids) ? req.body.property_ids.map(Number).filter(Boolean) : [];
     const unit_ids = Array.isArray(req.body?.unit_ids) ? req.body.unit_ids.map(Number).filter(Boolean) : [];
+    // Per-user permission overrides on top of the role default bundle. Keys
+    // are CAPABILITIES entries; values are true (add) / false (remove from
+    // default). See getEffectivePermissions() for the merge semantics.
+    const permissions = (req.body?.permissions && typeof req.body.permissions === 'object' && !Array.isArray(req.body.permissions)) ? req.body.permissions : {};
 
     // Owner-set initial password (or generated). Hashed before storage; the
     // plaintext is returned ONCE in the response so the modal can show it
@@ -114930,18 +115029,18 @@ app.post('/api/team', async (req, res) => {
       if (existingDeleted.rows.length > 0) {
         a = await client.query(
           `UPDATE team_assignments
-           SET status = 'active', property_ids = $2, unit_ids = $3,
-               invited_by = $4, invited_at = NOW(), updated_at = NOW()
+           SET status = 'active', property_ids = $2, unit_ids = $3, permissions = $4::jsonb,
+               invited_by = $5, invited_at = NOW(), updated_at = NOW()
            WHERE id = $1
            RETURNING *`,
-          [existingDeleted.rows[0].id, property_ids, unit_ids, user.id || user.accountId]
+          [existingDeleted.rows[0].id, property_ids, unit_ids, JSON.stringify(permissions), user.id || user.accountId]
         );
       } else {
         a = await client.query(
-          `INSERT INTO team_assignments (member_id, account_id, role, property_ids, unit_ids, status, invited_by)
-           VALUES ($1, $2, $3, $4, $5, 'active', $6)
+          `INSERT INTO team_assignments (member_id, account_id, role, property_ids, unit_ids, permissions, status, invited_by)
+           VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'active', $7)
            RETURNING *`,
-          [memberRow.id, accountId, role, property_ids, unit_ids, user.id || user.accountId]
+          [memberRow.id, accountId, role, property_ids, unit_ids, JSON.stringify(permissions), user.id || user.accountId]
         );
       }
       await client.query('COMMIT');
@@ -115041,6 +115140,34 @@ app.post('/api/team/:assignment_id/send-credentials', async (req, res) => {
     console.error('[team send-credentials]', e.message);
     res.status(500).json({ success: false, error: e.message });
   }
+});
+
+// Load a single assignment with member details and the merged effective
+// permission set. Used by the Edit modal to pre-populate the checkbox grid.
+app.get('/api/team/:assignment_id', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res); if (!user) return;
+    const accountId = resolveTeamAccountId(user, req);
+    const id = parseInt(req.params.assignment_id);
+    if (!id) return res.status(400).json({ success: false, error: 'Bad assignment id' });
+    const r = await pool.query(`
+      SELECT
+        ta.id AS assignment_id, ta.member_id, ta.account_id, ta.role,
+        ta.property_ids, ta.unit_ids, ta.permissions,
+        ta.status AS assignment_status, ta.invited_at, ta.accepted_at, ta.invited_by,
+        tm.email, tm.full_name, tm.phone,
+        tm.last_login_at, tm.credentials_sent_at, tm.must_change_password,
+        tm.status AS user_status
+      FROM team_assignments ta
+      JOIN team_members tm ON tm.id = ta.member_id
+      WHERE ta.id = $1 AND ta.account_id = $2 AND ta.status != 'deleted'
+    `, [id, accountId]);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Assignment not found' });
+    const row = r.rows[0];
+    row.effective_permissions = getEffectivePermissions(row.role, row.permissions);
+    row.default_permissions = ROLE_DEFAULTS[row.role] || {};
+    res.json({ success: true, assignment: row, capabilities: CAPABILITIES });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.put('/api/team/:assignment_id', async (req, res) => {
