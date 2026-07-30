@@ -2341,10 +2341,6 @@
                         <span class="nav-icon"></span>
                         <span>My Account</span>
                     </a>
-                    <a class="nav-item" data-view="team" data-roles="master_admin,admin,submaster_admin,agency_admin" href="#" onclick="navClick(this, 'team'); return false;">
-                        <span class="nav-icon">👥</span>
-                        <span>Team</span>
-                    </a>
                     <a class="nav-item" data-view="accounts" data-roles="master_admin" href="#" onclick="navClick(this, 'accounts'); return false;">
                         <span class="nav-icon"></span>
                         <span>All Accounts</span>
@@ -3421,50 +3417,8 @@
                 </div>
             </div>
 
-            <!-- Team View — multi-user-per-account, Phase 1 -->
-            <div id="team" class="view">
-                <div class="header">
-                    <div class="header-top">
-                        <div>
-                            <h2>Team</h2>
-                            <p>Add the people who work with you on this account. Managers, accountants, cleaners, maintenance — each with the role that matches what they do. Login access for new users lands next.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="display:flex; justify-content:flex-end; margin-bottom:1rem;">
-                    <button class="btn" onclick="openAddTeamMemberModal()" style="background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);">+ Add Team Member</button>
-                </div>
-
-                <div id="team-list" class="card" style="padding:0;">
-                    <div style="padding:2rem; text-align:center; color:#94a3b8;">Loading team…</div>
-                </div>
-
-                <div id="team-roles-help" class="card" style="margin-top:1.5rem; padding:1.25rem;">
-                    <h3 style="margin:0 0 0.75rem; font-size:1rem;">Roles &amp; what each can do</h3>
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:0.75rem;">
-                        <div style="padding:0.75rem; background:#f0f9ff; border-radius:8px; border:1px solid #bae6fd;">
-                            <strong style="color:#075985;">Internal (employees)</strong>
-                            <ul style="margin:0.5rem 0 0; padding-left:1.25rem; font-size:0.85rem; color:#475569;">
-                                <li><strong>Owner</strong> — full access</li>
-                                <li><strong>Manager</strong> — bookings, calendar, reports, inbox (not billing)</li>
-                                <li><strong>Accountant</strong> — reports + payments (read-only)</li>
-                                <li><strong>Staff</strong> — bookings, calendar, inbox</li>
-                                <li><strong>Read-only</strong> — view everything, edit nothing</li>
-                            </ul>
-                        </div>
-                        <div style="padding:0.75rem; background:#f0fdf4; border-radius:8px; border:1px solid #bbf7d0;">
-                            <strong style="color:#166534;">Service (contractors)</strong>
-                            <ul style="margin:0.5rem 0 0; padding-left:1.25rem; font-size:0.85rem; color:#475569;">
-                                <li><strong>Cleaner</strong> — Today view, access codes, mark-done</li>
-                                <li><strong>Maintenance</strong> — tickets, photos, mark-done</li>
-                                <li><strong>Concierge</strong> — Today + inbox + check-in</li>
-                                <li><strong>Co-host</strong> — inbox + bookings (no payments)</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- Team View — moved into My Account (see the "Team Members" card
+                 there). Left this comment as a signpost for future greps. -->
 
             <!-- Agencies View -->
             <div id="prospects" class="view">
@@ -17485,6 +17439,27 @@
                         <p style="color:#64748b; font-size:0.85rem; margin:0.25rem 0 0;">Click a client to manage on their behalf. A blue banner stays at the top so you can return at any time.</p>
                     </div>
                     <div id="myAccountAgencyClientsList" style="padding: 0.5rem 0;"></div>
+                </div>
+
+                <!-- Team Members — moved from top-level Team view 2026-07-30.
+                     Scopes to whichever account the header switcher currently
+                     points at (master/agency), or to the logged-in user's own
+                     account (client owners). loadTeam() honours the same
+                     selectedAccountId scope as the old top-level view. -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <h3 class="card-title">👥 Team Members</h3>
+                            <p style="color:#64748b; font-size:0.85rem; margin:0.25rem 0 0;">Managers, accountants, cleaners, maintenance — anyone who needs their own login for this account.</p>
+                        </div>
+                        <button class="btn" onclick="openAddTeamMemberModal()" style="background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%); white-space:nowrap;">+ Add Team Member</button>
+                    </div>
+                    <div id="team-list" style="padding:0.5rem 0;">
+                        <div style="padding:2rem; text-align:center; color:#94a3b8;">Loading team…</div>
+                    </div>
+                    <div style="margin-top:1rem; padding:0.9rem 1rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:0.82rem; color:#475569;">
+                        <strong style="color:#334155;">Roles at a glance</strong> — Internal: Owner (all), Manager (ops, no billing), Accountant (reports + payments read-only), Staff (front-desk), Read-only. Service: Cleaner (today + access codes), Maintenance (tickets), Concierge (today + inbox + check-in), Co-host (inbox + bookings). Pick a role in the Add modal to see its default access; tick/untick to customise per person.
+                    </div>
                 </div>
 
                 <!-- Email Setup — branded sender domain via Mailgun -->
@@ -35042,7 +35017,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             // Load data for specific views
             if (viewName === 'dashboard') { loadDashboard().catch(() => {}); loadDashboardHealth(); }
-            if (viewName === 'my-account') loadMyAccount();
+            if (viewName === 'my-account') { loadMyAccount(); loadTeam(); }
             if (viewName === 'account-settings') loadAccountSettings();
             if (viewName === 'management-requests') loadManagementRequests();
             if (viewName === 'accounts') loadAccounts();
@@ -35095,7 +35070,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'marketing-tags') loadMarketingProperties();
             if (viewName === 'agent-distribution') initAgentDistribution();
             if (viewName === 'auto-messages') amInit();
-            if (viewName === 'team') loadTeam();
+            // 'team' view was retired 2026-07-30 — Team now lives inside My Account.
             if (viewName === 'turbine-connections') loadTurbineConnections();
             if (viewName === 'turbine-campaigns') loadTurbineCampaigns();
             if (viewName === 'turbine-generator') { loadTurbineConnections(); loadTurbinePosts(); }
@@ -99469,43 +99444,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                 } catch (e) {}
             }
-            // For non-master users, fetch properties up-front so the scope
-            // picker is populated. Master picks the account first — properties
-            // load lazily via onchange on the account picker.
+            // Resolve current scope: for master/agency, whichever account
+            // they've switched into via the header client selector; for
+            // clients, null (their own account). This is the account the
+            // new team member will be added to — no picker in the modal.
             const isMaster = currentAccount && currentAccount.role === 'master_admin';
-            if (!isMaster) {
-                await loadTeamProperties(null);
-            }
-            // Master_admin must explicitly choose which account the new team
-            // member belongs to. Without this they land on master's own
-            // account_id=1 with role they picked, and login lands them on
-            // your data — happened with Joanne on 2026-06-02.
-            let accountPickerHtml = '';
-            if (isMaster) {
-                try {
-                    const ar = await fetch('/api/admin/accounts', { headers: authHeaders() });
-                    const ad = await ar.json();
-                    const accounts = (ad.accounts || ad || []).slice();
-                    const labelOf = (a) => (
-                        (a.name && a.name.trim()) ||
-                        (a.business_name && a.business_name.trim()) ||
-                        a.email ||
-                        ('Account ' + a.id)
-                    );
-                    accounts.sort((a, b) => labelOf(a).toLowerCase().localeCompare(labelOf(b).toLowerCase()));
-                    const opts = accounts.map(a => `<option value="${a.id}">${labelOf(a)} (#${a.id})</option>`).join('');
-                    accountPickerHtml = `
-                        <div class="form-group" style="background:#eff6ff; border:1px solid #93c5fd; border-radius:8px; padding:1rem;">
-                            <label class="form-label" style="color:#1e40af;">Adding this person to which account? <span style="color:#dc2626;">*</span></label>
-                            <select id="team-add-account-id" class="form-input" onchange="onTeamAddAccountChange()">
-                                <option value="">— Choose the account they'll be on —</option>
-                                ${opts}
-                            </select>
-                            <p style="margin:0.4rem 0 0; color:#1e40af; font-size:0.85rem;">Master-admin only — they'll log in and see this account's data.</p>
-                        </div>
-                    `;
-                } catch (e) { accountPickerHtml = ''; }
-            }
+            const scopeAccountId = (isMaster || (currentAccount && currentAccount.role === 'agency_admin')) && typeof selectedAccountId !== 'undefined' && selectedAccountId ? selectedAccountId : null;
+            await loadTeamProperties(scopeAccountId);
+            // 2026-07-30: the master-only account picker was removed from the
+            // modal — master/agency scope into an account via the header
+            // client selector first, then add. This makes flow identical for
+            // owners and admins and prevents the "added to master's own team
+            // by mistake" incident (Joanne 2026-06-02) by having no picker at
+            // all in the modal. If somehow master opens the modal with no
+            // account in scope, we surface a warning strip instead.
+            const scopeBannerHtml = (isMaster && !scopeAccountId) ? `
+                <div class="form-group" style="background:#fef3c7; border:1px solid #fbbf24; border-radius:8px; padding:0.9rem 1rem; color:#92400e; font-size:0.9rem;">
+                    ⚠️ You're on your own master account. Switch into a client via the header account picker first, then add the team member from that account's My Account → Team.
+                </div>
+            ` : '';
 
             const internal = _teamRoleCatalog.filter(r => r.tier === 'internal');
             const service  = _teamRoleCatalog.filter(r => r.tier === 'service');
@@ -99528,7 +99485,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <span class="modal-close" onclick="document.getElementById('add-team-modal').remove()">×</span>
                     </div>
                     <div style="padding:1.5rem;">
-                        ${accountPickerHtml}
+                        ${scopeBannerHtml}
                         <div class="form-group">
                             <label class="form-label">Full name <span style="color:#dc2626;">*</span></label>
                             <input type="text" id="team-add-name" class="form-input" placeholder="e.g. Joanne Smith">
@@ -99577,28 +99534,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
             `;
             document.body.appendChild(modal);
-            // For non-master users, populate the property picker now that the
-            // wrap div exists in the DOM. Master users wait until they pick
-            // an account (onTeamAddAccountChange fills it).
-            if (!isMaster) {
-                const wrap = document.getElementById('team-add-scope-wrap');
-                if (wrap) wrap.innerHTML = renderTeamPropertyPicker(_teamPropertiesAvailable, 'all', [], 'team-add-scope-inner');
-            }
-        }
-
-        // Master picked an account — fetch that account's properties and
-        // render the scope picker fresh.
-        async function onTeamAddAccountChange() {
-            const accId = parseInt(document.getElementById('team-add-account-id')?.value);
+            // Populate the property scope picker for whatever account is in
+            // scope right now. If master hasn't switched into an account,
+            // _teamPropertiesAvailable is their own (empty for pure master) —
+            // the scope banner above tells them what to do.
             const wrap = document.getElementById('team-add-scope-wrap');
-            if (!wrap) return;
-            if (!accId) {
-                wrap.innerHTML = `<div style="padding:0.5rem; color:#94a3b8; font-size:0.85rem; text-align:center;">Pick an account first.</div>`;
-                return;
+            if (wrap) {
+                if (isMaster && !scopeAccountId) {
+                    wrap.innerHTML = `<div style="padding:0.5rem; color:#94a3b8; font-size:0.85rem; text-align:center;">Switch into a client account first.</div>`;
+                } else {
+                    wrap.innerHTML = renderTeamPropertyPicker(_teamPropertiesAvailable, 'all', [], 'team-add-scope-inner');
+                }
             }
-            wrap.innerHTML = `<div style="padding:0.5rem; color:#94a3b8; font-size:0.85rem; text-align:center;">Loading properties…</div>`;
-            await loadTeamProperties(accId);
-            wrap.innerHTML = renderTeamPropertyPicker(_teamPropertiesAvailable, 'all', [], 'team-add-scope-inner');
         }
 
         function updateTeamRoleHint() {
@@ -99641,11 +99588,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             const phone = document.getElementById('team-add-phone').value.trim();
             const role  = document.getElementById('team-add-role').value;
             const password = document.getElementById('team-add-password').value;  // may be empty — server will generate
-            // Master-admin must have picked which account to add to.
-            const accountIdEl = document.getElementById('team-add-account-id');
-            const account_id = accountIdEl ? parseInt(accountIdEl.value) : null;
-            if (accountIdEl && !account_id) {
-                showNotification('Pick which account to add them to first', 'error');
+            // Scope-first: the account we're adding to is whatever the header
+            // client selector is pointing at (selectedAccountId), or the user's
+            // own account if they're not master/agency. Server's resolver
+            // honours ?account_id= for master/agency only.
+            const isMaster = currentAccount && currentAccount.role === 'master_admin';
+            const isAgency = currentAccount && currentAccount.role === 'agency_admin';
+            const account_id = (isMaster || isAgency) && typeof selectedAccountId !== 'undefined' && selectedAccountId ? selectedAccountId : null;
+            if ((isMaster || isAgency) && !account_id) {
+                showNotification('Switch into a client account first (header account picker), then add the team member from that account.', 'error');
                 return;
             }
             if (!name || !email || !role) {
