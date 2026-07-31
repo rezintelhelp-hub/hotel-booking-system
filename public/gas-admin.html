@@ -26266,8 +26266,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <input type="tel" class="form-input" id="edit-booking-phone">
                         </div>
                     </div>
+                    <!-- Address (Steve 2026-07-31 — matches the Add Booking
+                         modal so operators can enter/correct address info
+                         for contracts + invoicing after the initial save). -->
+                    <div style="margin-top: 0.85rem; padding-top: 0.85rem; border-top: 1px dashed #e5e7eb;">
+                        <label style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem; display: block; font-weight: 500;">Address (for contract / invoicing)</label>
+                        <div style="display: grid; grid-template-columns: 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <input type="text" id="edit-booking-address" class="form-input" placeholder="Street address">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <input type="text" id="edit-booking-city" class="form-input" placeholder="City">
+                            <input type="text" id="edit-booking-state" class="form-input" placeholder="County / State / Region">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                            <input type="text" id="edit-booking-postcode" class="form-input" placeholder="Postcode / ZIP">
+                            <input type="text" id="edit-booking-country" class="form-input" placeholder="Country (e.g. GB, FR, US)">
+                        </div>
+                    </div>
                 </div>
-                
+
                 <!-- Stay Details -->
                 <div style="background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b;">Stay Details</h4>
@@ -71498,6 +71515,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.getElementById('edit-booking-ref').textContent = `#${booking.id}`;
                 
                 // Guest details
+                // Address fields (Steve 2026-07-31) — populate if present.
+                const _a = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+                _a('edit-booking-address', booking.guest_address);
+                _a('edit-booking-city', booking.guest_city);
+                _a('edit-booking-state', booking.guest_state);
+                _a('edit-booking-postcode', booking.guest_postcode);
+                _a('edit-booking-country', booking.guest_country);
                 document.getElementById('edit-booking-first-name').value = booking.guest_first_name || '';
                 document.getElementById('edit-booking-last-name').value = booking.guest_last_name || '';
                 document.getElementById('edit-booking-email').value = booking.guest_email || '';
@@ -72626,6 +72650,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     guest_last_name: document.getElementById('edit-booking-last-name').value,
                     guest_email: document.getElementById('edit-booking-email').value,
                     guest_phone: document.getElementById('edit-booking-phone').value,
+                    // Address fields (Steve 2026-07-31 — matches Add Booking).
+                    guest_address: document.getElementById('edit-booking-address')?.value || '',
+                    guest_city: document.getElementById('edit-booking-city')?.value || '',
+                    guest_state: document.getElementById('edit-booking-state')?.value || '',
+                    guest_postcode: document.getElementById('edit-booking-postcode')?.value || '',
+                    guest_country: document.getElementById('edit-booking-country')?.value || '',
                     bookable_unit_id: parseInt(document.getElementById('edit-booking-room').value) || null,
                     arrival_date: document.getElementById('edit-booking-checkin').value,
                     departure_date: document.getElementById('edit-booking-checkout').value,

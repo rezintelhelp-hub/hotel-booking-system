@@ -75310,6 +75310,9 @@ app.put('/api/bookings/:id', async (req, res) => {
     const { id } = req.params;
     const {
       guest_first_name, guest_last_name, guest_email, guest_phone,
+      // Address fields (Steve 2026-07-31 — Edit modal now collects them).
+      // All optional; empty string = COALESCE keeps existing value below.
+      guest_address, guest_city, guest_state, guest_postcode, guest_country,
       arrival_date, departure_date, num_adults, num_children,
       grand_total, deposit_amount, balance_amount,
       status, payment_status, notes, bookable_unit_id
@@ -75337,7 +75340,8 @@ app.put('/api/bookings/:id', async (req, res) => {
     
     await client.query('BEGIN');
     
-    // Update booking
+    // Update booking. Address fields use NULLIF-empty + COALESCE so an
+    // untouched Edit modal field doesn't wipe the stored value.
     await client.query(`
       UPDATE bookings SET
         guest_first_name = $1,
@@ -75356,6 +75360,11 @@ app.put('/api/bookings/:id', async (req, res) => {
         payment_status = $13,
         notes = $14,
         bookable_unit_id = COALESCE($16, bookable_unit_id),
+        guest_address = COALESCE(NULLIF($17, ''), guest_address),
+        guest_city = COALESCE(NULLIF($18, ''), guest_city),
+        guest_state = COALESCE(NULLIF($19, ''), guest_state),
+        guest_postcode = COALESCE(NULLIF($20, ''), guest_postcode),
+        guest_country = COALESCE(NULLIF($21, ''), guest_country),
         updated_at = NOW()
       WHERE id = $15
     `, [
@@ -75363,7 +75372,9 @@ app.put('/api/bookings/:id', async (req, res) => {
       arrival_date, departure_date, num_adults, num_children,
       grand_total, deposit_amount, balance_amount,
       status, payment_status, notes,
-      id, bookable_unit_id ? parseInt(bookable_unit_id) : null
+      id, bookable_unit_id ? parseInt(bookable_unit_id) : null,
+      guest_address || '', guest_city || '', guest_state || '',
+      guest_postcode || '', guest_country || ''
     ]);
     
     // Handle availability changes
