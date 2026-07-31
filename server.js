@@ -63369,19 +63369,30 @@ async function syncBeds24PaymentItem(bookingId) {
     const row = b.rows[0];
     if (!row || !row.beds24_booking_id || !row.account_id) return { skipped: 'no-beds24-id-or-account' };
 
-    // 1. GAS-side: sum of completed deposits/balances/captures (NOT auths, NOT pending)
-    const gasPaid = await pool.query(
-      `SELECT COALESCE(SUM(amount), 0) AS paid
+    // 1. GAS-side: fetch individual completed transactions (Stripe / Square /
+    //    etc.), each with its gateway_transaction_id. Steve 2026-07-31 —
+    //    was summing to a TOTAL and pushing the DIFF (gasTotal - beds24Total).
+    //    When the Beds24 read hiccupped (auth/race/network) and returned
+    //    empty invoiceItems, diff came out equal to the full gasTotal and
+    //    we pushed a phantom line for the entire booking (Rosa Emery
+    //    B319178 / b24=89282563 — 26 Jul backfill pushed £622.75 instead
+    //    of the £498.20 balance diff). Per-transaction 1:1 sync mirrors
+    //    what Stripe already does per charge: each real GAS payment maps
+    //    to exactly one Beds24 line, keyed by the pi_id in the description.
+    //    Idempotent without needing a correct read of the Beds24 side.
+    const gasTx = await pool.query(
+      `SELECT id, amount::numeric AS amount, gateway_transaction_id, payment_gateway, transaction_type
          FROM payment_transactions
         WHERE booking_id = $1
           AND transaction_type IN ('deposit','balance','charge','capture','payment')
-          AND status IN ('completed','succeeded')`,
+          AND status IN ('completed','succeeded')
+          AND amount::numeric > 0.005
+        ORDER BY created_at`,
       [bookingId]
     );
-    const gasPaidTotal = parseFloat(gasPaid.rows[0]?.paid || 0);
-    if (gasPaidTotal <= 0) return { skipped: 'no-gas-payments' };
+    if (gasTx.rows.length === 0) return { skipped: 'no-gas-payments' };
 
-    // 2. Beds24-side: refresh token, read existing invoiceItems, sum type='payment' amounts
+    // 2. Beds24-side: refresh token, read existing invoiceItems.
     let token;
     try { token = await getBeds24AccessTokenForAccount(pool, row.account_id); }
     catch (e) { return { skipped: 'no-beds24-token', error: e.message }; }
@@ -63395,28 +63406,55 @@ async function syncBeds24PaymentItem(bookingId) {
     const beds24Data = (readResp.data?.data || readResp.data?.bookings || [])[0];
     if (!beds24Data) return { skipped: 'beds24-no-booking' };
     const existingPayments = (beds24Data.invoiceItems || []).filter(i => i.type === 'payment');
-    const beds24PaidTotal = existingPayments.reduce((sum, i) => sum + (parseFloat(i.amount) || 0), 0);
 
-    // 3. Diff. Round to cents to dodge float noise; only push if at least 1 cent missing.
-    const diff = Math.round((gasPaidTotal - beds24PaidTotal) * 100) / 100;
-    if (diff < 0.01) return { skipped: 'in-sync', gas: gasPaidTotal, beds24: beds24PaidTotal };
-
-    // 4. Push the diff as a single payment invoiceItem using the same headers
-    //    pattern /api/public/book uses (master-key + :p suffix for Rezintel,
-    //    per-account OAuth otherwise).
+    // 3. For each GAS transaction, check Beds24 for a matching line via two
+    //    paths: (a) description contains the pi_id (definitive, catches
+    //    anything pushed by this helper going forward); (b) legacy match
+    //    by exact amount on a "Payment via Stripe" line (backwards compat
+    //    for pre-2026-07-31 pushes where pi_id wasn't in the description).
+    //    Anything unmatched gets pushed as a new line with the pi_id
+    //    embedded so future runs match definitively.
+    //    NEVER deletes anything — Steve rule 2026-07-31.
     const headers = getBeds24BookingHeaders(beds24PropId, token);
-    const payload = [{
-      id: parseInt(row.beds24_booking_id),
-      invoiceItems: [{
-        type: 'payment',
-        description: 'Payment via Stripe',
-        amount: diff
-      }]
-    }];
-    const resp = await axios.post('https://beds24.com/api/v2/bookings', payload, { headers });
-    const ok = Array.isArray(resp.data) && resp.data[0]?.success;
-    console.log(`[syncBeds24PaymentItem] booking=${bookingId} beds24=${row.beds24_booking_id} gas=${gasPaidTotal} beds24-prev=${beds24PaidTotal} pushed=${diff} ok=${ok}`);
-    return { pushed: diff, gas: gasPaidTotal, beds24_prev: beds24PaidTotal, success: ok };
+    const pushedLines = [];
+    const skippedLines = [];
+    const claimedBeds24Ids = new Set();
+    for (const tx of gasTx.rows) {
+      const amt = Math.round(parseFloat(tx.amount) * 100) / 100;
+      const piId = String(tx.gateway_transaction_id || '').trim();
+      // (a) definitive match by pi_id in description
+      let match = piId ? existingPayments.find(p =>
+        !claimedBeds24Ids.has(p.id) && (p.description || '').includes(piId)
+      ) : null;
+      // (b) legacy match: same amount, description mentions Stripe, not yet claimed
+      if (!match) {
+        match = existingPayments.find(p =>
+          !claimedBeds24Ids.has(p.id)
+          && Math.round((parseFloat(p.amount) || 0) * 100) / 100 === amt
+          && /stripe/i.test(p.description || '')
+        );
+      }
+      if (match) {
+        claimedBeds24Ids.add(match.id);
+        skippedLines.push({ tx: tx.id, matched_beds24_item: match.id, reason: piId && (match.description || '').includes(piId) ? 'by-pi' : 'by-amount-legacy' });
+        continue;
+      }
+      // No match — push new line with pi_id embedded for future idempotency.
+      const desc = piId ? `Payment via Stripe ${piId}` : 'Payment via Stripe';
+      try {
+        const payload = [{ id: parseInt(row.beds24_booking_id), invoiceItems: [{ type: 'payment', description: desc, amount: amt }] }];
+        const resp = await axios.post('https://beds24.com/api/v2/bookings', payload, { headers });
+        const ok = Array.isArray(resp.data) && resp.data[0]?.success;
+        const newId = resp.data?.[0]?.new?.invoiceItems?.[0]?.id;
+        if (newId) claimedBeds24Ids.add(newId);
+        pushedLines.push({ tx: tx.id, amount: amt, description: desc, beds24_item: newId || null, success: !!ok });
+      } catch (pushErr) {
+        pushedLines.push({ tx: tx.id, amount: amt, description: desc, error: pushErr.response?.data ? JSON.stringify(pushErr.response.data).slice(0,150) : pushErr.message, success: false });
+      }
+    }
+    const allOk = pushedLines.every(p => p.success !== false);
+    console.log(`[syncBeds24PaymentItem] booking=${bookingId} beds24=${row.beds24_booking_id} gas_tx=${gasTx.rows.length} pushed=${pushedLines.length} skipped=${skippedLines.length} ok=${allOk}`);
+    return { gas_tx_count: gasTx.rows.length, pushed: pushedLines, skipped: skippedLines, success: allOk };
   } catch (e) {
     console.error(`[syncBeds24PaymentItem] booking=${bookingId} ERR:`, e.response?.data || e.message);
     return { error: e.message };
