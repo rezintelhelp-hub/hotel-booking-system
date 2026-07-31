@@ -74446,14 +74446,26 @@ app.post('/api/admin/bookings', async (req, res) => {
           [room_id, check_in, check_out]
         );
         if (blockedRow.rows.length) {
-          await client.query('ROLLBACK');
-          const d = String(blockedRow.rows[0].date).slice(0, 10);
-          console.warn(`[admin booking] REJECT — room_availability closed on ${d} (unit ${room_id})`);
-          return res.json({
-            success: false,
-            error: `This unit is blocked on ${d}. Unblock it first or pick different dates.`,
-            unavailable_date: d
-          });
+          // Steve 2026-07-31 — operator can intentionally book on top of a
+          // block from the admin modal (block stays in place for OTAs; the
+          // booking serves the direct guest). Frontend passes
+          // allow_over_block: true when the user has clicked Save after
+          // seeing the yellow warning banner. Without that opt-in, keep
+          // the rejection so a naive API caller can't accidentally book
+          // over a block.
+          if (req.body.allow_over_block === true) {
+            const d = String(blockedRow.rows[0].date).slice(0, 10);
+            console.warn(`[admin booking] BLOCKED-OVERRIDE — unit ${room_id} booked on ${d} despite block (allow_over_block=true)`);
+          } else {
+            await client.query('ROLLBACK');
+            const d = String(blockedRow.rows[0].date).slice(0, 10);
+            console.warn(`[admin booking] REJECT — room_availability closed on ${d} (unit ${room_id})`);
+            return res.json({
+              success: false,
+              error: `This unit is blocked on ${d}. Unblock it first or pick different dates.`,
+              unavailable_date: d
+            });
+          }
         }
       }
     }

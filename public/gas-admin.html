@@ -70272,6 +70272,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                             provider,
                             booking_group_id: groupId,
                             applied_offer_id: appliedOfferId,
+                            // Steve 2026-07-31 — admin modal explicitly
+                            // allows booking over a blocked date (block
+                            // stays for OTAs, booking serves direct guest).
+                            allow_over_block: true,
                             ...tokenFields
                         })
                     });
@@ -70301,7 +70305,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             status: status,
                             notes: notes,
                             sync_to_cm: syncCM,
-                            applied_offer_id: appliedOfferId
+                            applied_offer_id: appliedOfferId,
+                            allow_over_block: true
                         })
                     });
                 }
@@ -70342,7 +70347,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     status: status,
                                     notes: notes ? `${notes}\n[Group booking — see room 1 for payment]` : '[Group booking — see room 1 for payment]',
                                     sync_to_cm: syncCM,
-                                    applied_offer_id: appliedOfferId
+                                    applied_offer_id: appliedOfferId,
+                                    allow_over_block: true
                                 })
                             });
                             const extraData = await extraResp.json();
