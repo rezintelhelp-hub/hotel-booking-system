@@ -69340,7 +69340,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         function _bookingCalTapDate(dateStr) {
             const rec = _bookingCal.monthData[dateStr];
             const state = _mobCalCellState(rec);
-            if (!state.selectable) return;
+            // Steve 2026-07-31 — admin Add Booking allows tapping blocked
+            // dates (see cell-render change at ~69554). Handler still refuses
+            // booked/nodata (real double-book) and past.
+            if (!state.selectable && state.status !== 'blocked') return;
             const today = _mobCalYMD(new Date());
             if (dateStr < today) return;
             _bookingCal.tapHint = null;
@@ -69363,13 +69366,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                 let ok = true;
                 while (d <= end) {
                     const s = _mobCalCellState(_bookingCal.monthData[_mobCalYMD(d)]);
-                    if (!s.selectable) { ok = false; break; }
+                    // Blocked nights are allowed in the range (operator can
+                    // overwrite a block with a real booking). Only booked /
+                    // nodata nights break the range.
+                    if (!s.selectable && s.status !== 'blocked') { ok = false; break; }
                     d.setDate(d.getDate() + 1);
                 }
                 if (ok) {
                     _bookingCal.selEnd = dateStr;
                 } else {
-                    _bookingCal.tapHint = 'That range crosses a booked or blocked night — pick a shorter last night, or a new check-in.';
+                    _bookingCal.tapHint = 'That range crosses a booked night — pick a shorter last night, or a new check-in.';
                 }
             }
             // Sync hidden inputs so saveNewBooking + card panel logic see them
