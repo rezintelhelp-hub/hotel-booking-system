@@ -28314,8 +28314,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <input type="tel" id="booking-phone" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
                             </div>
                         </div>
+                        <!-- Address (Steve 2026-07-31 — needed for the guest
+                             contract we generate for direct bookings). Backend
+                             POST /api/admin/bookings already accepts these
+                             fields (guest_address / _city / _state / _postcode
+                             / _country) — the UI just wasn't collecting them.
+                             All optional at this level; back-end still
+                             falls back to the property address if empty
+                             (Channex-side requires country for booking-create). -->
+                        <div style="margin-top: 0.85rem; padding-top: 0.85rem; border-top: 1px dashed #fde68a;">
+                            <label style="font-size: 0.8rem; color: #78350f; margin-bottom: 0.5rem; display: block; font-weight: 500;">Address (for contract / invoicing)</label>
+                            <div style="display: grid; grid-template-columns: 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <input type="text" id="booking-address" class="form-input" placeholder="Street address" style="padding: 0.55rem; border-radius: 8px;">
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <input type="text" id="booking-city" class="form-input" placeholder="City" style="padding: 0.55rem; border-radius: 8px;">
+                                <input type="text" id="booking-state" class="form-input" placeholder="County / State / Region" style="padding: 0.55rem; border-radius: 8px;">
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                <input type="text" id="booking-postcode" class="form-input" placeholder="Postcode / ZIP" style="padding: 0.55rem; border-radius: 8px;">
+                                <input type="text" id="booking-country" class="form-input" placeholder="Country (e.g. GB, FR, US)" style="padding: 0.55rem; border-radius: 8px;">
+                            </div>
+                        </div>
                     </div>
-                    
+
                     <!-- Payment & Status -->
                     <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
                         <label style="font-weight: 600; color: #5b21b6; margin-bottom: 0.75rem; display: block;">
@@ -70135,6 +70157,14 @@ const promo = await fetch('/api/v1/offers/validate', {
             const lastName = document.getElementById('booking-last-name').value;
             const email = document.getElementById('booking-email').value;
             const phone = document.getElementById('booking-phone').value;
+            // Address fields (Steve 2026-07-31) — optional; backend accepts
+            // them under guest_address / _city / _state / _postcode / _country
+            // and falls back to the property address if left blank.
+            const address = document.getElementById('booking-address')?.value || '';
+            const city = document.getElementById('booking-city')?.value || '';
+            const stateReg = document.getElementById('booking-state')?.value || '';
+            const postcode = document.getElementById('booking-postcode')?.value || '';
+            const country = document.getElementById('booking-country')?.value || '';
             const total = document.getElementById('booking-total').value;
             const paymentStatus = document.getElementById('booking-payment-status').value;
             const status = document.getElementById('booking-status').value;
@@ -70235,6 +70265,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             num_adults: adults, num_children: children,
                             guest_first_name: firstName, guest_last_name: lastName,
                             guest_email: email, guest_phone: phone,
+                            guest_address: address, guest_city: city, guest_state: stateReg,
+                            guest_postcode: postcode, guest_country: country,
                             total_price: total || 0,
                             notes, sync_to_cm: syncCM,
                             provider,
@@ -70259,6 +70291,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                             guest_last_name: lastName,
                             guest_email: email,
                             guest_phone: phone,
+                            guest_address: address,
+                            guest_city: city,
+                            guest_state: stateReg,
+                            guest_postcode: postcode,
+                            guest_country: country,
                             total_price: total || 0,
                             payment_status: paymentStatus,
                             status: status,
@@ -70295,6 +70332,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     guest_last_name: lastName,
                                     guest_email: email,
                                     guest_phone: phone,
+                                    guest_address: address,
+                                    guest_city: city,
+                                    guest_state: stateReg,
+                                    guest_postcode: postcode,
+                                    guest_country: country,
                                     total_price: 0,
                                     payment_status: paymentStatus,
                                     status: status,

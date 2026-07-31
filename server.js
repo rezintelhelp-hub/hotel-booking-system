@@ -74313,6 +74313,15 @@ app.post('/api/admin/bookings', async (req, res) => {
       num_adults, num_children,
       guest_first_name, guest_last_name,
       guest_email, guest_phone, total_price,
+      // Steve 2026-07-31 — admin modal now collects address fields for
+      // guest contracts. All optional; empty values fall back to property
+      // address so Channex booking_create still receives a country
+      // (rejects with 403 otherwise — see B331637 incident 2026-07-07).
+      guest_address: bodyGuestAddress,
+      guest_city: bodyGuestCity,
+      guest_state: bodyGuestState,
+      guest_postcode: bodyGuestPostcode,
+      guest_country: bodyGuestCountry,
       payment_status, status, notes, sync_to_cm,
       booking_group_id,
       applied_offer_id
@@ -74351,9 +74360,14 @@ app.post('/api/admin/bookings', async (req, res) => {
     // because the guest widget collects address/city/country. The admin
     // modal doesn't ask for them, so we back-fill from the property so
     // the outbox payload looks identical to a site booking.
-    const guestAddressFallback = property.address || '.';
-    const guestCityFallback = property.city || '.';
-    const guestCountryFallback = property.country || 'GB';
+    // Prefer what the operator typed in the modal; fall back to the
+    // property's own address so Channex-side booking_create still gets
+    // a valid country (see comment on the body destructure above).
+    const guestAddressFallback = (bodyGuestAddress && bodyGuestAddress.trim()) || property.address || '.';
+    const guestCityFallback = (bodyGuestCity && bodyGuestCity.trim()) || property.city || '.';
+    const guestCountryFallback = (bodyGuestCountry && bodyGuestCountry.trim()) || property.country || 'GB';
+    const guestStateVal = (bodyGuestState && bodyGuestState.trim()) || null;
+    const guestPostcodeVal = (bodyGuestPostcode && bodyGuestPostcode.trim()) || null;
 
     // Resolve deposit rule (refundable by default for admin-created — the
     // operator picked the dates so we treat as a normal direct booking).
@@ -74457,24 +74471,24 @@ app.post('/api/admin/bookings', async (req, res) => {
         arrival_date, departure_date,
         num_adults, num_children,
         guest_first_name, guest_last_name, guest_email, guest_phone,
-        guest_address, guest_city, guest_country,
+        guest_address, guest_city, guest_state, guest_postcode, guest_country,
         accommodation_price, subtotal, grand_total,
         payment_status, status, booking_source, currency, notes,
         deposit_rule_id, deposit_amount, balance_amount, balance_due_date,
         booking_group_id
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-              $13, $14, $15,
-              $16, $16, $16,
-              $17, $18, 'direct', $19, $20,
-              $21, $22, $23, $24, $25)
+              $13, $14, $15, $16, $17,
+              $18, $18, $18,
+              $19, $20, 'direct', $21, $22,
+              $23, $24, $25, $26, $27)
       RETURNING *
     `, [
       property_id, propertyOwnerId, room_id, listing_id || null,
       check_in, check_out,
       num_adults || 1, num_children || 0,
       guest_first_name, guest_last_name, guest_email, guest_phone || null,
-      guestAddressFallback, guestCityFallback, guestCountryFallback,
+      guestAddressFallback, guestCityFallback, guestStateVal, guestPostcodeVal, guestCountryFallback,
       totalAmount,
       payment_status || 'pending', status || 'confirmed', currency, notes || null,
       depositRule ? depositRule.id : null, depositAmount, balanceAmount, balanceDueDate,
