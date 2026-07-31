@@ -69544,7 +69544,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (inRange || isSelStart || isSelEnd) {
                     bg = '#4f46e5'; fg = '#ffffff'; border = '2px solid #3730a3';
                 }
-                const clickable = state.selectable && !isPast;
+                // Steve 2026-07-31 — admin Add Booking modal allows selecting
+                // blocked dates so operators can add a direct booking that
+                // coexists with an existing OTA-side block. The block record
+                // in room_availability.is_blocked stays as-is (Channex/Beds24
+                // continue to see those dates as unavailable — no accidental
+                // OTA re-opening). Warning surfaced in the selection summary.
+                // Not applicable to guest checkout (that uses different code).
+                const clickable = (state.selectable || state.status === 'blocked') && !isPast;
                 const onclick = clickable ? `onclick="_bookingCalTapDate('${dateStr}')"` : '';
                 let subText = '';
                 if (inRange || isSelStart || isSelEnd) subText = state.price != null ? `${cur}${state.price}` : '';
@@ -69576,10 +69583,31 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const lastD = new Date(lastNight + 'T00:00:00');
                 const nights = Math.round((lastD - startD) / 86400000) + 1;
                 const co = new Date(lastD.getTime() + 86400000);
-                selInfo.textContent = _bookingCal.selEnd
+                // Steve 2026-07-31 — count blocked nights inside the selected
+                // range and warn if any. The block stays in place (no OTA
+                // re-open) but operator should know they're booking on top.
+                let blockedNightsInRange = 0;
+                if (_bookingCal.selEnd) {
+                    for (let t = startD.getTime(); t <= lastD.getTime(); t += 86400000) {
+                        const dObj = new Date(t);
+                        const yyyy = dObj.getFullYear();
+                        const mm = String(dObj.getMonth() + 1).padStart(2, '0');
+                        const dd = String(dObj.getDate()).padStart(2, '0');
+                        const dStr = `${yyyy}-${mm}-${dd}`;
+                        const r = _bookingCal.monthData && _bookingCal.monthData[dStr];
+                        if (r && r.is_blocked === true) blockedNightsInRange++;
+                    }
+                }
+                const baseText = _bookingCal.selEnd
                     ? `${nights} night${nights>1?'s':''} — check-in ${_bookingCal.selStart} → check-out ${_mobCalYMD(co)}`
                     : `Check-in ${_bookingCal.selStart} — now tap the last night.`;
-                selInfo.style.color = '#334155';
+                if (blockedNightsInRange > 0) {
+                    selInfo.innerHTML = `${baseText}<br><span style="color:#b45309; font-weight:600;">⚠ ${blockedNightsInRange} night${blockedNightsInRange>1?'s':''} in this range are blocked from channels. Booking will be added; the block stays (OTAs remain closed).</span>`;
+                    selInfo.style.color = '#334155';
+                } else {
+                    selInfo.textContent = baseText;
+                    selInfo.style.color = '#334155';
+                }
             } else {
                 selInfo.textContent = 'Tap a check-in date, then tap the last night.';
                 selInfo.style.color = '#334155';
