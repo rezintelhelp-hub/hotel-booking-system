@@ -154519,6 +154519,213 @@ app.get('/api/admin/channex/writeback-health', async (req, res) => {
 });
 
 // =====================================================
+// SQUARE AUDIT — Steve 2026-07-31 (Casa Magnolia incident).
+// Proactive daily check for Square-related booking data issues that would
+// otherwise only surface when an operator (or their accountant) notices
+// weeks later. Same "Health Dashboard" pattern as the Channex + Hostfully
+// digests above.
+//
+// Categories checked (add more as new patterns surface):
+//   SQUARE_CARD_NOT_SAVED  — HIGH — future arrival, deposit taken, card NULL
+//   SQUARE_LEDGER_MISSING  — MED  — square_payment_id set, no payment_transactions row
+//   SQUARE_BALANCE_OVERDUE — HIGH — guest departed, balance still owed
+//   SQUARE_DUP_PAYMENT_ID  — CRIT — same square_payment_id on 2+ bookings
+//
+// accountId null = all Square-active accounts. accountId = <n> = one only.
+// =====================================================
+async function runSquareAudit(pool, accountId = null) {
+  const findings = [];
+  const accountClause = accountId
+    ? `AND pr.account_id = ${parseInt(accountId, 10)}`
+    : `AND a.square_status = 'active'`;
+
+  // 1. Card not saved on a future booking with balance owed
+  const q1 = await pool.query(`
+    SELECT b.id AS booking_id, b.guest_first_name, b.guest_last_name, b.guest_email,
+           b.arrival_date, b.grand_total, b.deposit_amount, b.currency,
+           pr.account_id, a.name AS account_name
+    FROM bookings b
+    JOIN properties pr ON pr.id = b.property_id
+    JOIN accounts a ON a.id = pr.account_id
+    WHERE b.payment_method = 'square'
+      AND b.square_payment_id IS NOT NULL
+      AND b.square_card_id IS NULL
+      AND b.arrival_date >= CURRENT_DATE
+      AND b.status IN ('confirmed','pending')
+      AND (COALESCE(b.grand_total::numeric,0) - COALESCE(b.deposit_amount::numeric,0)) > 0.01
+      ${accountClause}
+    ORDER BY b.arrival_date ASC
+  `);
+  for (const r of q1.rows) {
+    findings.push({
+      category: 'SQUARE_CARD_NOT_SAVED', severity: 'HIGH',
+      account_id: r.account_id, account_name: r.account_name,
+      booking_id: r.booking_id,
+      guest: `${r.guest_first_name || ''} ${r.guest_last_name || ''}`.trim(),
+      arrival: r.arrival_date.toISOString().slice(0,10),
+      currency: r.currency,
+      balance_owed: Number((parseFloat(r.grand_total) - parseFloat(r.deposit_amount)).toFixed(2)),
+      description: 'Deposit taken but card not saved on file. Auto-charge will fail on due date.',
+      action: 'Open booking → "📧 Send capture link to guest" (or take card at check-in).'
+    });
+  }
+
+  // 2. Ledger row missing for a completed Square payment
+  const q2 = await pool.query(`
+    SELECT b.id AS booking_id, b.guest_first_name, b.guest_last_name, b.arrival_date,
+           b.deposit_amount, b.square_payment_id, b.currency,
+           pr.account_id, a.name AS account_name
+    FROM bookings b
+    JOIN properties pr ON pr.id = b.property_id
+    JOIN accounts a ON a.id = pr.account_id
+    WHERE b.square_payment_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM payment_transactions pt
+        WHERE pt.booking_id = b.id AND pt.gateway_transaction_id = b.square_payment_id
+      )
+      ${accountClause}
+    ORDER BY b.arrival_date DESC
+  `);
+  for (const r of q2.rows) {
+    findings.push({
+      category: 'SQUARE_LEDGER_MISSING', severity: 'MEDIUM',
+      account_id: r.account_id, account_name: r.account_name,
+      booking_id: r.booking_id,
+      guest: `${r.guest_first_name || ''} ${r.guest_last_name || ''}`.trim(),
+      arrival: r.arrival_date ? r.arrival_date.toISOString().slice(0,10) : null,
+      square_payment_id: r.square_payment_id,
+      description: 'Square payment succeeded but no payment_transactions row exists — reports will show as unpaid.',
+      action: 'Backfill INSERT INTO payment_transactions using deposit_amount + square_payment_id.'
+    });
+  }
+
+  // 3. Past arrival with balance still owed on a Square booking
+  const q3 = await pool.query(`
+    SELECT b.id AS booking_id, b.guest_first_name, b.guest_last_name, b.arrival_date,
+           b.grand_total, b.deposit_amount, b.currency,
+           pr.account_id, a.name AS account_name
+    FROM bookings b
+    JOIN properties pr ON pr.id = b.property_id
+    JOIN accounts a ON a.id = pr.account_id
+    WHERE b.payment_method = 'square'
+      AND b.arrival_date < CURRENT_DATE
+      AND b.status IN ('confirmed','pending')
+      AND (COALESCE(b.grand_total::numeric,0) - COALESCE(b.deposit_amount::numeric,0)) > 0.01
+      ${accountClause}
+    ORDER BY b.arrival_date DESC
+  `);
+  for (const r of q3.rows) {
+    findings.push({
+      category: 'SQUARE_BALANCE_OVERDUE', severity: 'HIGH',
+      account_id: r.account_id, account_name: r.account_name,
+      booking_id: r.booking_id,
+      guest: `${r.guest_first_name || ''} ${r.guest_last_name || ''}`.trim(),
+      arrival: r.arrival_date.toISOString().slice(0,10),
+      currency: r.currency,
+      balance_owed: Number((parseFloat(r.grand_total) - parseFloat(r.deposit_amount)).toFixed(2)),
+      description: 'Guest has departed but balance still owed on the GAS record.',
+      action: 'Contact guest — may have paid outside GAS (bank transfer, in-person). Reconcile.'
+    });
+  }
+
+  // 4. Duplicate square_payment_id (any account — system-wide check)
+  const q4 = await pool.query(`
+    SELECT square_payment_id, array_agg(id ORDER BY id) AS booking_ids, COUNT(*)::int AS n
+    FROM bookings
+    WHERE square_payment_id IS NOT NULL
+    GROUP BY square_payment_id
+    HAVING COUNT(*) > 1
+  `);
+  for (const r of q4.rows) {
+    findings.push({
+      category: 'SQUARE_DUP_PAYMENT_ID', severity: 'CRITICAL',
+      booking_ids: r.booking_ids,
+      square_payment_id: r.square_payment_id,
+      description: `Square payment_id attributed to ${r.n} bookings — should be 1:1.`,
+      action: 'Investigate — likely a booking-creation race or webhook re-processing bug.'
+    });
+  }
+
+  return findings;
+}
+
+// On-demand: any logged-in user hits this for their own account; master
+// can pass ?account_id=N to check a specific one, or nothing for all.
+app.get('/api/admin/square/audit', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Not authenticated' });
+    const isMaster = decoded.role === 'master_admin';
+    const scopeId = isMaster
+      ? (req.query.account_id ? parseInt(req.query.account_id, 10) : null)
+      : (decoded.id || decoded.accountId);
+    const findings = await runSquareAudit(pool, scopeId);
+    // Summary counts by severity for the caller's convenience.
+    const summary = { total: findings.length, HIGH: 0, MEDIUM: 0, CRITICAL: 0 };
+    findings.forEach(f => { summary[f.severity] = (summary[f.severity] || 0) + 1; });
+    res.json({ success: true, checked_at: new Date().toISOString(), summary, findings });
+  } catch (e) {
+    console.error('[Square Audit]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Daily cron — runs full-estate audit + emails master when there ARE findings
+// (silent on clean runs — no zero-issue spam).
+async function runSquareAuditCron() {
+  try {
+    console.log('⏰ [Square Audit Cron] starting');
+    const findings = await runSquareAudit(pool, null);
+    if (findings.length === 0) {
+      console.log('⏰ [Square Audit Cron] clean — 0 findings');
+      return;
+    }
+    console.warn(`⚠ [Square Audit Cron] ${findings.length} findings:`);
+    findings.forEach(f => {
+      const bk = f.booking_id ? `B${f.booking_id}` : `[dup ${f.booking_ids?.join(',')}]`;
+      console.warn(`  [${f.severity}] ${f.category} — ${f.account_name || 'system'} ${bk} — ${f.description}`);
+    });
+    // Email digest to master. Only fires when findings > 0, so a clean estate
+    // is silent (no daily "0 issues" ping).
+    try {
+      const bySev = { CRITICAL: [], HIGH: [], MEDIUM: [] };
+      findings.forEach(f => (bySev[f.severity] || (bySev[f.severity] = [])).push(f));
+      const sevRow = s => bySev[s].length === 0 ? '' : `
+        <h3 style="margin-top:1.5rem;color:${s==='CRITICAL'?'#7c2d12':s==='HIGH'?'#991b1b':'#a16207'};">${s} · ${bySev[s].length}</h3>
+        <ul style="padding-left:1.2rem;">
+          ${bySev[s].map(f => `<li style="margin-bottom:0.5rem;">
+            <strong>${f.account_name || 'system'}</strong>${f.booking_id ? ` · B${f.booking_id}` : ''}${f.guest ? ` · ${f.guest}` : ''}${f.arrival ? ` · arrives ${f.arrival}` : ''}${f.balance_owed ? ` · ${f.currency || ''} ${f.balance_owed} owed` : ''}<br>
+            <span style="color:#475569;">${f.description}</span><br>
+            <span style="color:#64748b;font-size:0.9rem;">→ ${f.action}</span>
+          </li>`).join('')}
+        </ul>`;
+      const html = `
+        <div style="font-family:system-ui,sans-serif;max-width:640px;margin:0 auto;padding:1.5rem;color:#1e293b;">
+          <h2 style="margin:0 0 0.5rem;">Square audit — ${findings.length} finding${findings.length===1?'':'s'}</h2>
+          <p style="color:#475569;margin:0 0 1rem;">Run at ${new Date().toISOString()}. Silent on clean runs — this email fires only when action's needed.</p>
+          ${sevRow('CRITICAL')}
+          ${sevRow('HIGH')}
+          ${sevRow('MEDIUM')}
+          <p style="color:#94a3b8;font-size:0.85rem;margin-top:1.5rem;">
+            On-demand JSON: <a href="https://admin.gas.travel/api/admin/square/audit">https://admin.gas.travel/api/admin/square/audit</a>
+          </p>
+        </div>`;
+      await sendEmail({
+        to: ['rezintelhelp@gmail.com'],
+        subject: `Square audit — ${findings.length} finding${findings.length===1?'':'s'}`,
+        html
+      });
+    } catch (mailErr) {
+      console.error('[Square Audit Cron] email digest failed:', mailErr.message);
+    }
+  } catch (e) {
+    console.error('[Square Audit Cron]', e.message);
+  }
+}
+setTimeout(runSquareAuditCron, 5 * 60 * 1000);          // 5 min after boot — surfaces existing issues fast
+setInterval(runSquareAuditCron, 24 * 60 * 60 * 1000);   // daily thereafter
+
+// =====================================================
 // HOSTFULLY WRITE-BACK DAILY DIGEST — Stage 4 of 2026-07-28 fix.
 // Mirror of the Channex digest above. Per Hostfully-connected account,
 // last 24h: bookings created on Hostfully-mapped rooms, how many landed
