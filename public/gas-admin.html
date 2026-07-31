@@ -26350,6 +26350,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                      This booking is synced with <span id="edit-booking-sync-source"></span>. Changes will be pushed to the channel manager.
                 </div>
 
+                <!-- Extras — Steve 2026-07-31 (Rebecca Dean / Yvonne workflow gap fix).
+                     Post-booking add-ons: Travel Cot, late checkout, dinner, etc.
+                     Prefers the account's shop_products upsell list; falls back
+                     to a custom name+price. If a card is on file and operator
+                     ticks "charge now", card gets billed immediately via Stripe.
+                     Otherwise the extra sits as 'reserved' on the booking. -->
+                <div class="form-group" style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                        <label class="form-label" style="margin:0;">Extras &amp; Upsells</label>
+                        <button type="button" class="btn" onclick="openAddBookingExtraModal()" style="padding:0.4rem 0.75rem; font-size:0.85rem; background:linear-gradient(135deg,#0ea5e9 0%,#0284c7 100%);">+ Add Extra</button>
+                    </div>
+                    <div id="edit-booking-extras-list" style="min-height:36px; padding:0.5rem; background:#f8fafc; border-radius:6px; font-size:0.85rem; color:#64748b;">Loading…</div>
+                </div>
+
                 <!-- Payment Ops moved to View modal — Edit is field-edit only -->
             </div>
             <div class="modal-footer">
@@ -26357,6 +26371,68 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <button class="btn" onclick="saveBookingEdit()" id="save-booking-btn">💾 Save Changes</button>
             </div>
         </div>
+    </div>
+
+    <!-- Add Booking Extra sub-modal (opened from within Edit Booking modal) -->
+    <div id="add-booking-extra-modal" class="modal" style="display:none; z-index:1150;">
+      <div class="modal-content" style="max-width: 480px; border-radius:12px;">
+        <div class="modal-header" style="padding:1rem 1.25rem; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+          <h3 style="margin:0; font-size:1rem;">Add extra to booking</h3>
+          <button type="button" class="modal-close" onclick="closeAddBookingExtraModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:1rem 1.25rem;">
+          <div class="form-group">
+            <label class="form-label" style="font-size:0.85rem;">Source</label>
+            <div style="display:flex; gap:1rem;">
+              <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer;">
+                <input type="radio" name="add-extra-source" value="shop_product" checked onchange="switchAddExtraSource()"> From upsell list
+              </label>
+              <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer;">
+                <input type="radio" name="add-extra-source" value="custom" onchange="switchAddExtraSource()"> Custom (one-off)
+              </label>
+            </div>
+          </div>
+          <div class="form-group" id="add-extra-product-row">
+            <label class="form-label" style="font-size:0.85rem;">Upsell</label>
+            <select id="add-extra-product-select" class="form-input" onchange="onAddExtraProductPicked()">
+              <option value="">— Loading products…</option>
+            </select>
+            <div id="add-extra-product-empty" style="display:none; font-size:0.8rem; color:#64748b; margin-top:0.3rem;">
+              No upsell products configured for this account yet. Pick "Custom" or add products under Shop.
+            </div>
+          </div>
+          <div class="form-group" id="add-extra-name-row" style="display:none;">
+            <label class="form-label" style="font-size:0.85rem;">Item name *</label>
+            <input type="text" id="add-extra-name" class="form-input" placeholder="e.g. Travel Cot, Late Checkout">
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 100px; gap:0.75rem;">
+            <div class="form-group">
+              <label class="form-label" style="font-size:0.85rem;">Unit price *</label>
+              <input type="number" id="add-extra-price" class="form-input" step="0.01" min="0" placeholder="0.00">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size:0.85rem;">Qty</label>
+              <input type="number" id="add-extra-qty" class="form-input" value="1" min="1" step="1">
+            </div>
+          </div>
+          <div class="form-group" style="padding:0.6rem 0.75rem; background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px;">
+            <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer; font-size:0.85rem;">
+              <input type="checkbox" id="add-extra-charge-now" checked style="margin-top:0.2rem;">
+              <span>
+                <strong>Charge the card on file now</strong><br>
+                <span style="color:#64748b; font-size:0.78rem;">Untick to add as a reserved item to be collected later.</span>
+              </span>
+            </label>
+            <div id="add-extra-no-card-warning" style="display:none; margin-top:0.4rem; padding:0.4rem; background:#fef3c7; border-radius:4px; font-size:0.78rem; color:#92400e;">
+              ⚠ No saved card on this booking — charge-now not possible. Extra will be added as 'reserved'.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="padding:0.85rem 1.25rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem;">
+          <button type="button" class="btn btn-secondary" onclick="closeAddBookingExtraModal()">Cancel</button>
+          <button type="button" class="btn" onclick="saveNewBookingExtra()" style="background:linear-gradient(135deg,#0ea5e9 0%,#0284c7 100%);">Add Extra</button>
+        </div>
+      </div>
     </div>
 
     <!-- Phase 2: Refund modal -->
@@ -71426,6 +71502,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Note: Payment Ops UI lives on the VIEW modal now (canonical
                 // home). Edit is purely a field-edit form.
 
+                // Load booking_extras into the modal's extras panel. The
+                // "Charge card on file" toggle in the Add-Extra sub-modal
+                // depends on whether the booking has a stripe_payment_method_id
+                // so pass that flag through.
+                try {
+                    loadBookingExtras(booking.id, !!booking.stripe_payment_method_id);
+                } catch (e) { console.warn('[edit modal] loadBookingExtras:', e.message); }
+
             } catch (error) {
                 console.error('Error loading booking:', error);
                 alert('Error loading booking details');
@@ -71434,6 +71518,145 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function closeEditBookingModal() {
             document.getElementById('edit-booking-modal').style.display = 'none';
+        }
+
+        // ==========================================================
+        // Booking extras — operator add/list (Steve 2026-07-31).
+        // Populated when Edit Booking modal opens (call loadBookingExtras).
+        // Sub-modal for adding a new extra: from account's upsell list, or
+        // custom one-off. Options include immediate card-on-file charge.
+        // ==========================================================
+        let _currentExtraBookingId = null;
+        let _cachedShopProductsForAccount = { account_id: null, products: [] };
+        let _currentBookingHasStripeCard = false;
+
+        async function loadBookingExtras(bookingId, bookingHasStripeCard) {
+            _currentExtraBookingId = bookingId;
+            _currentBookingHasStripeCard = !!bookingHasStripeCard;
+            const wrap = document.getElementById('edit-booking-extras-list');
+            if (!wrap) return;
+            wrap.innerHTML = 'Loading…';
+            try {
+                const r = await fetch('/api/admin/bookings/' + bookingId + '/extras', { headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success) { wrap.innerHTML = 'Load failed: ' + (d.error || 'unknown'); return; }
+                if (!d.extras || d.extras.length === 0) {
+                    wrap.innerHTML = '<div style="color:#94a3b8;">No extras yet — click <strong>+ Add Extra</strong> above.</div>';
+                    return;
+                }
+                wrap.innerHTML = d.extras.map(e => {
+                    const total = (parseFloat(e.unit_price) * parseInt(e.qty)).toFixed(2);
+                    const statusColor = e.status === 'paid' ? '#059669' : (e.status === 'reserved' ? '#a16207' : '#64748b');
+                    return `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.4rem 0; border-bottom:1px solid #e5e7eb;">
+                            <div>
+                                <strong>${(e.name || '').replace(/[<>]/g,'')}</strong>
+                                <span style="color:#94a3b8; font-size:0.78rem;"> × ${e.qty}</span>
+                                <span style="display:inline-block; margin-left:0.5rem; padding:0.1rem 0.5rem; border-radius:10px; font-size:0.7rem; background:#f1f5f9; color:${statusColor};">${e.status}</span>
+                            </div>
+                            <div style="color:#334155; font-family:ui-monospace,monospace;">${e.currency} ${total}</div>
+                        </div>`;
+                }).join('');
+            } catch (e) {
+                wrap.innerHTML = 'Load failed: ' + e.message;
+            }
+        }
+
+        async function openAddBookingExtraModal() {
+            if (!_currentExtraBookingId) { showNotification('No booking loaded', 'error'); return; }
+            // Reset form
+            document.querySelector('input[name="add-extra-source"][value="shop_product"]').checked = true;
+            document.getElementById('add-extra-name').value = '';
+            document.getElementById('add-extra-price').value = '';
+            document.getElementById('add-extra-qty').value = '1';
+            document.getElementById('add-extra-charge-now').checked = _currentBookingHasStripeCard;
+            document.getElementById('add-extra-charge-now').disabled = !_currentBookingHasStripeCard;
+            document.getElementById('add-extra-no-card-warning').style.display = _currentBookingHasStripeCard ? 'none' : 'block';
+            // Load account's upsell products (cache per account across opens)
+            const accId = (typeof selectedAccountId !== 'undefined' && selectedAccountId) || (currentAccount && currentAccount.id) || null;
+            const sel = document.getElementById('add-extra-product-select');
+            const emptyMsg = document.getElementById('add-extra-product-empty');
+            if (_cachedShopProductsForAccount.account_id !== accId) {
+                sel.innerHTML = '<option value="">— Loading products…</option>';
+                try {
+                    const r = await fetch('/api/admin/shop/products' + (accId ? '?client_id=' + accId : ''), { headers: authHeaders() });
+                    const d = await r.json();
+                    const list = (d.products || []).filter(p => p.is_active !== false);
+                    _cachedShopProductsForAccount = { account_id: accId, products: list };
+                } catch (e) { _cachedShopProductsForAccount = { account_id: accId, products: [] }; }
+            }
+            const list = _cachedShopProductsForAccount.products;
+            if (list.length === 0) {
+                sel.innerHTML = '<option value="">(no products defined)</option>';
+                emptyMsg.style.display = 'block';
+                // Auto-switch to Custom source since there's nothing to pick
+                document.querySelector('input[name="add-extra-source"][value="custom"]').checked = true;
+            } else {
+                sel.innerHTML = '<option value="">— Pick from list —</option>' +
+                    list.map(p => `<option value="${p.id}" data-price="${p.price}" data-name="${(p.name||'').replace(/"/g,'&quot;')}" data-currency="${p.currency || ''}">${(p.name||'').replace(/</g,'&lt;')} — ${p.currency || ''} ${p.price}</option>`).join('');
+                emptyMsg.style.display = 'none';
+            }
+            switchAddExtraSource();
+            document.getElementById('add-booking-extra-modal').style.display = 'flex';
+        }
+
+        function closeAddBookingExtraModal() {
+            document.getElementById('add-booking-extra-modal').style.display = 'none';
+        }
+
+        function switchAddExtraSource() {
+            const src = document.querySelector('input[name="add-extra-source"]:checked')?.value;
+            document.getElementById('add-extra-product-row').style.display = (src === 'shop_product') ? '' : 'none';
+            document.getElementById('add-extra-name-row').style.display = (src === 'custom') ? '' : 'none';
+            if (src === 'shop_product') onAddExtraProductPicked();
+        }
+
+        function onAddExtraProductPicked() {
+            const sel = document.getElementById('add-extra-product-select');
+            const opt = sel.options[sel.selectedIndex];
+            if (opt && opt.value) {
+                document.getElementById('add-extra-price').value = opt.dataset.price || '';
+            }
+        }
+
+        async function saveNewBookingExtra() {
+            if (!_currentExtraBookingId) return;
+            const source = document.querySelector('input[name="add-extra-source"]:checked')?.value;
+            const price = parseFloat(document.getElementById('add-extra-price').value);
+            const qty = parseInt(document.getElementById('add-extra-qty').value, 10) || 1;
+            const chargeNow = !!document.getElementById('add-extra-charge-now').checked;
+            let source_id = null;
+            let name = '';
+            if (source === 'shop_product') {
+                const sel = document.getElementById('add-extra-product-select');
+                source_id = parseInt(sel.value, 10);
+                if (!source_id) { showNotification('Pick a product from the list', 'error'); return; }
+                name = sel.options[sel.selectedIndex].dataset.name || sel.options[sel.selectedIndex].textContent.split(' — ')[0];
+            } else {
+                name = (document.getElementById('add-extra-name').value || '').trim();
+                if (!name) { showNotification('Custom item needs a name', 'error'); return; }
+            }
+            if (!(price > 0)) { showNotification('Unit price must be > 0', 'error'); return; }
+            try {
+                const r = await fetch('/api/admin/bookings/' + _currentExtraBookingId + '/extras', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ source_type: source, source_id, name, unit_price: price, qty, charge_now: chargeNow })
+                });
+                const d = await r.json();
+                if (!d.success) { showNotification('Add failed: ' + (d.error || 'unknown'), 'error'); return; }
+                closeAddBookingExtraModal();
+                if (d.charged) {
+                    showNotification(`Added and charged ${d.currency} ${d.total_amount}`, 'success');
+                } else if (d.stripe_error) {
+                    showNotification(`Added, but charge failed: ${d.stripe_error}. Item marked reserved.`, 'warning');
+                } else {
+                    showNotification(`Added ${d.currency} ${d.total_amount} to booking (reserved — not charged)`, 'success');
+                }
+                await loadBookingExtras(_currentExtraBookingId, _currentBookingHasStripeCard);
+            } catch (e) {
+                showNotification('Add failed: ' + e.message, 'error');
+            }
         }
 
         // ========== Phase 2 Booking Payment Ops ==========

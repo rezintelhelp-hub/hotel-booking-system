@@ -114515,6 +114515,198 @@ if (btn) btn.addEventListener('click', async () => {
   }
 });
 
+// =====================================================
+// OPERATOR-SIDE ADD EXTRA — Steve 2026-07-31 (Rebecca Dean incident).
+// Yvonne (Cotswolds) was adding extras directly in Beds24 because GAS
+// had no operator UI for post-booking extras. The Beds24-side edit then
+// triggered a sync back that reset balance_amount, feeding the
+// auto-charge cron and triple-charging Rebecca £438. Building this
+// closes the operator's workflow gap in GAS so Beds24 stops being the
+// tool of last resort.
+//
+// GET  /api/admin/bookings/:id/extras   — list existing extras
+// POST /api/admin/bookings/:id/extras   — add one, optionally charge
+//   body: { source_type: 'shop_product'|'custom', source_id?, name,
+//           unit_price, qty, charge_now }
+// =====================================================
+
+app.get('/api/admin/bookings/:id/extras', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Not authenticated' });
+    const bookingId = parseInt(req.params.id, 10);
+    // Auth check: is caller master OR does the booking belong to their account?
+    const own = await pool.query(
+      `SELECT p.account_id FROM bookings b JOIN properties p ON p.id = b.property_id WHERE b.id = $1`,
+      [bookingId]
+    );
+    if (own.rows.length === 0) return res.status(404).json({ success: false, error: 'Booking not found' });
+    const isMaster = decoded.role === 'master_admin';
+    if (!isMaster && (decoded.accountId || decoded.id) !== own.rows[0].account_id) {
+      return res.status(403).json({ success: false, error: 'Not your account' });
+    }
+    const r = await pool.query(
+      `SELECT be.id, be.source_type, be.source_id, be.name, be.qty, be.unit_price, be.currency,
+              be.status, be.payment_transaction_id, be.notes, be.created_at,
+              pt.gateway_transaction_id AS payment_gateway_id,
+              pt.payment_gateway
+         FROM booking_extras be
+         LEFT JOIN payment_transactions pt ON pt.id = be.payment_transaction_id
+        WHERE be.booking_id = $1
+        ORDER BY be.created_at`,
+      [bookingId]
+    );
+    res.json({ success: true, extras: r.rows });
+  } catch (e) {
+    console.error('[admin extras GET]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/admin/bookings/:id/extras', express.json(), async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Not authenticated' });
+    const bookingId = parseInt(req.params.id, 10);
+    const { source_type, source_id, name, unit_price, qty, charge_now } = req.body || {};
+
+    // Validation
+    if (!['shop_product', 'custom'].includes(source_type)) {
+      return res.status(400).json({ success: false, error: "source_type must be 'shop_product' or 'custom'" });
+    }
+    if (!name || !String(name).trim()) return res.status(400).json({ success: false, error: 'Name required' });
+    const price = parseFloat(unit_price);
+    if (!(price > 0)) return res.status(400).json({ success: false, error: 'unit_price must be > 0' });
+    const quantity = Math.max(1, parseInt(qty || 1, 10));
+
+    // Load booking + Stripe key (mirrors the add-to-stay/confirm lookup shape)
+    const bR = await pool.query(`
+      SELECT b.id, b.stripe_payment_method_id, b.stripe_customer_id, b.stripe_payment_intent_id,
+             b.stripe_setup_intent_id, b.currency, b.grand_total, b.deposit_amount,
+             b.guest_email, b.guest_first_name, b.guest_last_name,
+             p.account_id, p.currency AS property_currency,
+             COALESCE(pc.credentials->>'secret_key', a.stripe_secret_key) AS stripe_secret_key,
+             pc.credentials AS payment_config_credentials
+        FROM bookings b
+        JOIN properties p ON p.id = b.property_id
+        JOIN accounts a ON a.id = p.account_id
+        LEFT JOIN payment_configurations pc ON (pc.property_id = b.property_id OR (pc.property_id IS NULL AND pc.account_id = p.account_id))
+                                            AND pc.provider = 'stripe' AND pc.is_enabled = true
+       WHERE b.id = $1`, [bookingId]);
+    if (bR.rows.length === 0) return res.status(404).json({ success: false, error: 'Booking not found' });
+    const b = bR.rows[0];
+
+    // Auth: master OR user's account matches booking's account
+    const isMaster = decoded.role === 'master_admin';
+    if (!isMaster && (decoded.accountId || decoded.id) !== b.account_id) {
+      return res.status(403).json({ success: false, error: 'Not your account' });
+    }
+
+    // If shop_product source, verify the product exists on this account
+    if (source_type === 'shop_product') {
+      if (!source_id) return res.status(400).json({ success: false, error: 'source_id required for shop_product' });
+      const pR = await pool.query(
+        `SELECT id FROM shop_products WHERE id = $1 AND account_id = $2 AND is_active = true`,
+        [parseInt(source_id, 10), b.account_id]
+      );
+      if (pR.rows.length === 0) return res.status(400).json({ success: false, error: 'Product not found on this account' });
+    }
+
+    const currency = String(b.currency || b.property_currency || 'USD').toUpperCase();
+    const totalAmount = Math.round(price * quantity * 100) / 100;
+
+    // 1. Insert booking_extras row up front so a Stripe timeout doesn't lose intent.
+    //    'pending' now; flipped to 'paid' on charge success, or 'reserved' if we're
+    //    not charging (goes onto balance instead).
+    const extraIns = await pool.query(
+      `INSERT INTO booking_extras
+         (booking_id, source_type, source_id, name, qty, unit_price, currency, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW(), NOW())
+       RETURNING id`,
+      [bookingId, source_type, source_id ? parseInt(source_id, 10) : null, String(name).trim(), quantity, price, currency]
+    );
+    const extraId = extraIns.rows[0].id;
+
+    // 2. Optional charge (mirrors add-to-stay/confirm flow at ~114584)
+    let charged = false;
+    let paymentTxId = null;
+    let stripeError = null;
+    if (charge_now && b.stripe_payment_method_id && b.stripe_secret_key) {
+      try {
+        const stripeClient = require('stripe')(b.stripe_secret_key);
+        const customerResult = await resolveStripeCustomerForBooking(stripeClient, b, pool);
+        const idempotencyKey = `admin-extra-${bookingId}-${extraId}`;
+        const intent = await stripeClient.paymentIntents.create({
+          amount: toStripeAmount(totalAmount, currency.toLowerCase()),
+          currency: currency.toLowerCase(),
+          customer: customerResult.customerId,
+          payment_method: b.stripe_payment_method_id,
+          confirm: true,
+          off_session: true,
+          description: `Extra: ${String(name).trim()} × ${quantity} — booking ${bookingId}`,
+          metadata: {
+            booking_id: String(bookingId),
+            account_id: String(b.account_id),
+            type: 'admin_added_extra',
+            extra_id: String(extraId)
+          }
+        }, { idempotencyKey });
+        if (intent.status === 'succeeded') {
+          charged = true;
+          const ptIns = await pool.query(
+            `INSERT INTO payment_transactions
+               (booking_id, account_id, transaction_type, amount, currency,
+                payment_gateway, gateway_transaction_id, status, description, created_at, completed_at)
+             VALUES ($1, $2, 'charge', $3, $4, 'stripe', $5, 'completed', $6, NOW(), NOW())
+             RETURNING id`,
+            [bookingId, b.account_id, totalAmount, currency, intent.id, `Extra: ${String(name).trim()} × ${quantity}`]
+          );
+          paymentTxId = ptIns.rows[0].id;
+          await pool.query(
+            `UPDATE booking_extras SET status = 'paid', payment_transaction_id = $1, updated_at = NOW() WHERE id = $2`,
+            [paymentTxId, extraId]
+          );
+        } else {
+          stripeError = `PaymentIntent status: ${intent.status}`;
+        }
+      } catch (e) {
+        stripeError = e.message;
+        console.error('[admin add-extra] stripe charge failed:', e.message);
+      }
+    }
+
+    // 3. If not charged (either wasn't requested, or failed), leave as 'reserved'
+    //    so operator can see it needs handling. Reserved doesn't touch balance_amount
+    //    — that's calculated separately via booking_extras summation in the UI.
+    if (!charged) {
+      await pool.query(
+        `UPDATE booking_extras SET status = 'reserved', updated_at = NOW() WHERE id = $1`,
+        [extraId]
+      );
+    }
+
+    // 4. Fire-and-forget Beds24 sync so the invoice reflects the payment
+    //    (only if we actually took money — no point syncing an unpaid reserved
+    //    extra to Beds24's payment lines).
+    if (charged && typeof syncBeds24PaymentItem === 'function') {
+      setImmediate(() => syncBeds24PaymentItem(bookingId).catch(e => console.warn('[admin add-extra] beds24 sync:', e.message)));
+    }
+
+    res.json({
+      success: true,
+      extra_id: extraId,
+      charged,
+      payment_tx_id: paymentTxId,
+      total_amount: totalAmount,
+      currency,
+      stripe_error: stripeError || undefined
+    });
+  } catch (e) {
+    console.error('[admin extras POST]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST — guest confirms the add. Inserts booking_extras + charges card on
 // file (via off_session PaymentIntent) if the booking has one, or
 // increments balance_amount for pay-at-property. Fire-and-forget the
