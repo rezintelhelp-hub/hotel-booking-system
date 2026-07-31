@@ -26350,19 +26350,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                      This booking is synced with <span id="edit-booking-sync-source"></span>. Changes will be pushed to the channel manager.
                 </div>
 
-                <!-- Extras — Steve 2026-07-31 (Rebecca Dean / Yvonne workflow gap fix).
-                     Post-booking add-ons: Travel Cot, late checkout, dinner, etc.
-                     Prefers the account's shop_products upsell list; falls back
-                     to a custom name+price. If a card is on file and operator
-                     ticks "charge now", card gets billed immediately via Stripe.
-                     Otherwise the extra sits as 'reserved' on the booking. -->
-                <div class="form-group" style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-                        <label class="form-label" style="margin:0;">Extras &amp; Upsells</label>
-                        <button type="button" class="btn" onclick="openAddBookingExtraModal()" style="padding:0.4rem 0.75rem; font-size:0.85rem; background:linear-gradient(135deg,#0ea5e9 0%,#0284c7 100%);">+ Add Extra</button>
-                    </div>
-                    <div id="edit-booking-extras-list" style="min-height:36px; padding:0.5rem; background:#f8fafc; border-radius:6px; font-size:0.85rem; color:#64748b;">Loading…</div>
-                </div>
+                <!-- Extras moved to View modal 2026-07-31 (correct home,
+                     lives next to Payment Ops next to + Add charge). -->
 
                 <!-- Payment Ops moved to View modal — Edit is field-edit only -->
             </div>
@@ -29229,7 +29218,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <h4 style="margin: 0 0 1rem 0; color: #374151; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem;">
                                 <span style="font-size: 1.1rem;"></span> Notes
                             </h4>
-                            <div style="background: #f8fafc; border-radius: 12px; padding: 1rem; color: #64748b; font-size: 0.9rem;" id="view-notes">
+                            <div style="background: #f8fafc; border-radius: 12px; padding: 1rem; color: #64748b; font-size: 0.9rem; white-space: pre-wrap; word-wrap: break-word; line-height: 1.5;" id="view-notes">
                                 No notes
                             </div>
                         </div>
@@ -29426,6 +29415,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <button type="button" class="btn" id="edit-booking-take-payment-btn" onclick="takePaymentNow()" style="font-size: 0.85rem; background:#059669; color:white; display:none;">💳 Take payment now</button>
                         <button type="button" class="btn btn-secondary" id="edit-booking-refund-btn" onclick="openRefundModal()" style="font-size: 0.85rem;">Refund</button>
                         <button type="button" class="btn btn-secondary" id="edit-booking-add-charge-btn" onclick="openAddChargeModal()" style="font-size: 0.85rem;">+ Add charge</button>
+                        <button type="button" class="btn btn-secondary" id="edit-booking-add-extra-btn" onclick="openAddBookingExtraModal()" style="font-size: 0.85rem;">+ Add Extra / Upsell</button>
                         <button type="button" class="btn btn-secondary" id="edit-booking-invite-pay-btn" onclick="openInvitePortalPaymentModal()" style="font-size: 0.85rem;">🔗 Invite to pay</button>
                         <button type="button" class="btn btn-secondary" id="edit-booking-block-btn" onclick="openBlockModal()" style="font-size: 0.85rem;">+ Block on card</button>
                         <button type="button" class="btn btn-secondary" id="edit-booking-capture-btn" onclick="openCaptureModal()" style="font-size: 0.85rem; display:none;">Capture hold</button>
@@ -71116,6 +71106,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Phase 2: load the Payment Ops ledger after the modal opens.
                 loadBookingPaymentLedger(b.id);
                 loadBookingExtras(b.id);
+                // State for the + Add Extra button in the Payment Ops row
+                // (Steve 2026-07-31 — openAddBookingExtraModal reads these).
+                _currentExtraBookingId = b.id;
+                _currentBookingHasStripeCard = !!b.stripe_payment_method_id;
                 loadBookingTravellers(b.id);
                 loadChargeAutomationPanel(b.id, b.chargeautomation_booking_id);
 
@@ -71502,14 +71496,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Note: Payment Ops UI lives on the VIEW modal now (canonical
                 // home). Edit is purely a field-edit form.
 
-                // Load booking_extras into the modal's extras panel. The
-                // "Charge card on file" toggle in the Add-Extra sub-modal
-                // depends on whether the booking has a stripe_payment_method_id
-                // so pass that flag through.
-                try {
-                    loadBookingExtras(booking.id, !!booking.stripe_payment_method_id);
-                } catch (e) { console.warn('[edit modal] loadBookingExtras:', e.message); }
-
             } catch (error) {
                 console.error('Error loading booking:', error);
                 alert('Error loading booking details');
@@ -71530,37 +71516,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         let _cachedShopProductsForAccount = { account_id: null, products: [] };
         let _currentBookingHasStripeCard = false;
 
-        async function loadBookingExtras(bookingId, bookingHasStripeCard) {
-            _currentExtraBookingId = bookingId;
-            _currentBookingHasStripeCard = !!bookingHasStripeCard;
-            const wrap = document.getElementById('edit-booking-extras-list');
-            if (!wrap) return;
-            wrap.innerHTML = 'Loading…';
-            try {
-                const r = await fetch('/api/admin/bookings/' + bookingId + '/extras', { headers: authHeaders() });
-                const d = await r.json();
-                if (!d.success) { wrap.innerHTML = 'Load failed: ' + (d.error || 'unknown'); return; }
-                if (!d.extras || d.extras.length === 0) {
-                    wrap.innerHTML = '<div style="color:#94a3b8;">No extras yet — click <strong>+ Add Extra</strong> above.</div>';
-                    return;
-                }
-                wrap.innerHTML = d.extras.map(e => {
-                    const total = (parseFloat(e.unit_price) * parseInt(e.qty)).toFixed(2);
-                    const statusColor = e.status === 'paid' ? '#059669' : (e.status === 'reserved' ? '#a16207' : '#64748b');
-                    return `
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.4rem 0; border-bottom:1px solid #e5e7eb;">
-                            <div>
-                                <strong>${(e.name || '').replace(/[<>]/g,'')}</strong>
-                                <span style="color:#94a3b8; font-size:0.78rem;"> × ${e.qty}</span>
-                                <span style="display:inline-block; margin-left:0.5rem; padding:0.1rem 0.5rem; border-radius:10px; font-size:0.7rem; background:#f1f5f9; color:${statusColor};">${e.status}</span>
-                            </div>
-                            <div style="color:#334155; font-family:ui-monospace,monospace;">${e.currency} ${total}</div>
-                        </div>`;
-                }).join('');
-            } catch (e) {
-                wrap.innerHTML = 'Load failed: ' + e.message;
-            }
-        }
+        // (loadBookingExtras is defined below at ~71735 — this used to be a
+        // duplicate. Removed 2026-07-31; the existing view-modal version is
+        // canonical. Module-level state _currentExtraBookingId gets set from
+        // viewBooking directly so openAddBookingExtraModal has what it needs.)
 
         async function openAddBookingExtraModal() {
             if (!_currentExtraBookingId) { showNotification('No booking loaded', 'error'); return; }
