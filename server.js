@@ -153412,6 +153412,46 @@ async function processAutoChargePayments() {
 
         for (const booking of result.rows) {
             try {
+                // Ledger-based idempotency check (Steve 2026-07-31 — B531014
+                // Rebecca Dean triple-charge incident). The date-scoped Stripe
+                // idempotency key below is ONLY safe within a single calendar
+                // day. If `balance_amount` gets reset > 0 by another actor
+                // (Beds24 sync, manual booking edit, another cron) after a
+                // successful auto-charge, the next day's cron sees the reset
+                // and fires again with a fresh idempotency key — creating a
+                // NEW real Stripe charge. WHERE clauses on balance_amount /
+                // payment_status alone can't protect against this because the
+                // reset happens BETWEEN cron runs.
+                //
+                // The payment_transactions ledger is the source of truth for
+                // "did this booking already receive an auto-charge?". Check
+                // it first; if we've already succeeded once, skip regardless
+                // of what booking.balance_amount currently says.
+                try {
+                    const prior = await pool.query(
+                        `SELECT id, gateway_transaction_id, amount, created_at
+                           FROM payment_transactions
+                          WHERE booking_id = $1
+                            AND payment_gateway = 'stripe'
+                            AND status IN ('completed','succeeded')
+                            AND transaction_type IN ('balance','payment')
+                            AND (description LIKE 'Auto-charge balance%' OR description LIKE 'Balance payment%')
+                          LIMIT 1`,
+                        [booking.booking_id]
+                    );
+                    if (prior.rows.length > 0) {
+                        const p = prior.rows[0];
+                        console.warn(`[AUTO-CHARGE] SKIP booking ${booking.booking_id} — already auto-charged (tx ${p.id} pi=${p.gateway_transaction_id} ${p.amount} ${p.created_at.toISOString()}). booking.balance_amount=${booking.balance_amount} looks stale — someone reset it.`);
+                        continue;
+                    }
+                } catch (idemErr) {
+                    // If the idempotency check itself fails, be paranoid and
+                    // skip — don't fall through to a charge attempt on a
+                    // possibly-already-charged booking.
+                    console.error(`[AUTO-CHARGE] Idempotency check failed for booking ${booking.booking_id}, skipping to be safe:`, idemErr.message);
+                    continue;
+                }
+
                 // Get Stripe key: payment_configurations > property > account > env
                 const stripeKey = booking.payment_config_credentials?.secret_key || booking.stripe_secret_key || process.env.STRIPE_SECRET_KEY;
                 if (!stripeKey) {
@@ -153431,7 +153471,8 @@ async function processAutoChargePayments() {
                 // Idempotency key: per booking per day. If the cron runs
                 // twice in one day (server restart inside the 24h window),
                 // Stripe returns the same PaymentIntent rather than charging
-                // the customer twice.
+                // the customer twice. Cross-day protection is the ledger
+                // check at the top of this loop iteration.
                 const idempotencyKey = `auto-charge-${booking.booking_id}-${new Date().toISOString().slice(0, 10)}`;
                 const paymentIntent = await stripeClient.paymentIntents.create({
                     amount: toStripeAmount(booking.balance_amount, chargeCurrency),
