@@ -155192,6 +155192,131 @@ app.get('/api/admin/comms/health', async (req, res) => {
   }
 });
 
+// =====================================================
+// OVERCHARGE AUDIT DIGEST — Steve 2026-08-02 (Janet Emery double-charge).
+// Nightly report of any booking where sum(successful stripe charges) >
+// grand_total. Matches Steve's model: "when the total is hit, nothing
+// more to charge" — anything above grand_total is a real overcharge to
+// the guest's card. Excludes bookings where refund_amount already covers
+// the excess (already refunded). Surfaces new victims within 24h instead
+// of waiting for the guest to complain.
+// =====================================================
+async function buildOverchargeAudit() {
+  const rows = await pool.query(`
+    WITH stripe_paid AS (
+      SELECT pt.booking_id,
+             SUM(pt.amount)::numeric AS paid,
+             COUNT(*)::int AS tx_count,
+             array_agg(pt.gateway_transaction_id ORDER BY pt.created_at) AS pi_ids,
+             array_agg(pt.transaction_type ORDER BY pt.created_at) AS tx_types,
+             MAX(pt.created_at) AS last_tx_at
+        FROM payment_transactions pt
+       WHERE pt.payment_gateway = 'stripe'
+         AND pt.status IN ('succeeded','completed')
+         AND pt.transaction_type IN ('deposit','balance','payment','charge','capture')
+       GROUP BY pt.booking_id
+    )
+    SELECT b.id, b.beds24_booking_id, b.guest_first_name, b.guest_last_name,
+           b.grand_total, b.currency, b.arrival_date, b.status, b.booking_source,
+           b.created_at, b.refund_amount,
+           p.account_id, a.name AS account_name,
+           s.paid, s.tx_count, s.pi_ids, s.tx_types, s.last_tx_at,
+           (s.paid - b.grand_total::numeric)::numeric AS overpaid
+      FROM bookings b
+      JOIN stripe_paid s ON s.booking_id = b.id
+      LEFT JOIN properties p ON p.id = b.property_id
+      LEFT JOIN accounts a ON a.id = p.account_id
+     WHERE s.paid > b.grand_total::numeric + 0.5
+       AND (b.refund_amount IS NULL OR b.refund_amount::numeric < (s.paid - b.grand_total::numeric))
+     ORDER BY (s.paid - b.grand_total::numeric) DESC
+     LIMIT 200
+  `);
+  const total_exposure_by_currency = {};
+  rows.rows.forEach(r => {
+    const c = r.currency || '?';
+    total_exposure_by_currency[c] = (total_exposure_by_currency[c] || 0) + parseFloat(r.overpaid);
+  });
+  return {
+    count: rows.rows.length,
+    total_exposure_by_currency,
+    bookings: rows.rows,
+    generated_at: new Date().toISOString()
+  };
+}
+
+async function processOverchargeAuditDigest() {
+  try {
+    const audit = await buildOverchargeAudit();
+    const anyRed = audit.count > 0;
+    const emoji = anyRed ? '🔴' : '🟢';
+    const exposureText = Object.entries(audit.total_exposure_by_currency)
+      .map(([c, v]) => `${c} ${v.toFixed(2)}`).join(', ') || 'none';
+    const subject = `${emoji} Overcharge Audit — ${audit.count} booking${audit.count === 1 ? '' : 's'} overpaid`;
+    const rowsHtml = audit.bookings.map(b => {
+      const overpaid = parseFloat(b.overpaid).toFixed(2);
+      const paid = parseFloat(b.paid).toFixed(2);
+      const gt = parseFloat(b.grand_total).toFixed(2);
+      const guest = `${b.guest_first_name || ''} ${b.guest_last_name || ''}`.trim();
+      const b24 = b.beds24_booking_id ? `b24=${b.beds24_booking_id}` : '';
+      const piList = (b.pi_ids || []).map(p => p || '?').join('<br>');
+      const txList = (b.tx_types || []).join(', ');
+      return `<tr>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">B${b.id}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${b.account_id} ${b.account_name || ''}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${guest}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${b24}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${b.currency}${gt}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${b.currency}${paid}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;color:#dc2626;font-weight:bold;">${b.currency}${overpaid}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${b.tx_count} tx (${txList})</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-family:ui-monospace,monospace;font-size:0.75rem;">${piList}</td>
+      </tr>`;
+    }).join('');
+    const html = `<div style="font-family:Arial,sans-serif;max-width:1100px;margin:0 auto;">
+      <h2 style="color:${anyRed ? '#dc2626' : '#059669'};">${emoji} Overcharge Audit</h2>
+      <p><strong>${audit.count}</strong> booking${audit.count === 1 ? '' : 's'} where sum(stripe charges) exceeds grand_total.</p>
+      <p><strong>Total exposure:</strong> ${exposureText}</p>
+      ${anyRed
+        ? '<p style="color:#dc2626;font-weight:bold;">🚨 Each row = real cash overcharged to the guest\'s card. Refund via Stripe, then GAS reconciles.</p>'
+        : '<p style="color:#059669;">No overcharges detected. All guest payments within grand_total.</p>'}
+      ${anyRed ? `<table style="width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:1rem;">
+        <thead><tr style="background:#f8fafc;">
+          <th style="padding:8px 10px;text-align:left;">GAS</th>
+          <th style="padding:8px 10px;text-align:left;">Account</th>
+          <th style="padding:8px 10px;text-align:left;">Guest</th>
+          <th style="padding:8px 10px;text-align:left;">Beds24</th>
+          <th style="padding:8px 10px;text-align:right;">Total</th>
+          <th style="padding:8px 10px;text-align:right;">Paid</th>
+          <th style="padding:8px 10px;text-align:right;">Overpaid</th>
+          <th style="padding:8px 10px;text-align:left;">TX</th>
+          <th style="padding:8px 10px;text-align:left;">Stripe pi_ids</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>` : ''}
+      <p style="color:#94a3b8;font-size:0.85rem;margin-top:1.5rem;">
+        On-demand JSON: <a href="https://admin.gas.travel/api/admin/overcharge/audit">https://admin.gas.travel/api/admin/overcharge/audit</a><br>
+        Rows exclude bookings where refund_amount already covers the excess.<br>
+        Generated ${audit.generated_at}
+      </p>
+    </div>`;
+    await sendEmail({ to: ['rezintelhelp@gmail.com', 'development@gas.travel'], subject, html });
+    console.log(`[overcharge-audit] sent — ${audit.count} overcharged bookings, exposure ${exposureText}`);
+  } catch (e) {
+    console.error('[overcharge-audit]', e.message);
+  }
+}
+
+app.get('/api/admin/overcharge/audit', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const audit = await buildOverchargeAudit();
+    res.json({ success: true, ...audit });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Workflow flip audit log — every is_active change captured by the upsert
 // endpoint since 2026-08-02. Read-only. Used by the Actions detail UI + the
 // Comms Health digest to surface silent regressions.
@@ -155577,6 +155702,7 @@ function fireDueCrons() {
     runCronIfDue('processChannexWriteBackDigest', 24 * 60 * 60, processChannexWriteBackDigest).catch(e => console.error('[CRON wrapper channex-digest]', e));
     runCronIfDue('processHostfullyWriteBackDigest', 24 * 60 * 60, processHostfullyWriteBackDigest).catch(e => console.error('[CRON wrapper hostfully-digest]', e));
     runCronIfDue('processCommsDigest', 24 * 60 * 60, processCommsDigest).catch(e => console.error('[CRON wrapper comms-digest]', e));
+    runCronIfDue('processOverchargeAuditDigest', 24 * 60 * 60, processOverchargeAuditDigest).catch(e => console.error('[CRON wrapper overcharge-audit]', e));
 }
 
 // First check 30 sec after startup — catches up on any cron that was due
