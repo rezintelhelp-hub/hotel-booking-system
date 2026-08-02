@@ -28085,7 +28085,40 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <label>Balance Due (days before check-in)</label>
                         <input type="number" id="bulk-balance-due-days" class="form-input" value="14" min="0">
                     </div>
-                    
+
+                    <!-- Payment Schedule Mode — Steve 2026-08-02.
+                         Previously bulk-apply always saved schedule_mode='basic'
+                         (server default), even if the operator had set up the
+                         other properties as a two-tier schedule via the
+                         individual editor. That created a config drift where
+                         some properties had "25% + 75% at 30d" and others just
+                         "25%". Now bulk-apply matches individual editor
+                         behaviour when Schedule mode is picked, using the
+                         same deposit % + balance-due-days fields above. -->
+                    <div class="form-group">
+                        <label>Payment Schedule</label>
+                        <div style="display: flex; gap: 1rem; margin-top: 0.4rem;">
+                            <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+                                <input type="radio" name="bulk-schedule-mode" value="basic" checked>
+                                <span>Basic — deposit at booking, balance due date on record</span>
+                            </label>
+                        </div>
+                        <div style="display: flex; gap: 1rem; margin-top: 0.4rem;">
+                            <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+                                <input type="radio" name="bulk-schedule-mode" value="schedule">
+                                <span>Schedule — deposit % at booking, remaining % due X days before arrival</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Auto-charge -->
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="bulk-auto-charge-balance" checked>
+                            <span>Automatically charge the balance when due</span>
+                        </label>
+                    </div>
+
                     <!-- Refund Policy -->
                     <div class="form-group">
                         <label>Refund Policy</label>
@@ -76734,8 +76767,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('bulk-deposit-fixed-amount').value = '';
             document.getElementById('bulk-balance-due-days').value = '14';
             document.getElementById('bulk-refund-policy').value = 'flexible';
+            const basicRadio = document.querySelector('input[name="bulk-schedule-mode"][value="basic"]');
+            if (basicRadio) basicRadio.checked = true;
+            const acb = document.getElementById('bulk-auto-charge-balance');
+            if (acb) acb.checked = true;
             toggleBulkDepositTypeFields();
-            
+
             openModal('bulkDepositRuleModal');
         }
         
@@ -76755,15 +76792,34 @@ const promo = await fetch('/api/v1/offers/validate', {
                 return;
             }
             
+            const balanceDueDays = (() => { const v = parseInt(document.getElementById('bulk-balance-due-days').value); return isNaN(v) ? 14 : v; })();
+            const depositPct = parseFloat(document.getElementById('bulk-deposit-percentage').value) ?? 0;
+            const scheduleMode = document.querySelector('input[name="bulk-schedule-mode"]:checked')?.value || 'basic';
+            const autoChargeBalance = !!document.getElementById('bulk-auto-charge-balance')?.checked;
+
             const data = {
                 rule_name: document.getElementById('bulk-deposit-rule-name').value,
                 deposit_type: document.getElementById('bulk-deposit-type').value,
-                deposit_percentage: parseFloat(document.getElementById('bulk-deposit-percentage').value) ?? 0,
+                deposit_percentage: depositPct,
                 deposit_fixed_amount: parseFloat(document.getElementById('bulk-deposit-fixed-amount').value) || null,
-                balance_due_days: (() => { const v = parseInt(document.getElementById('bulk-balance-due-days').value); return isNaN(v) ? 14 : v; })(),
+                balance_due_days: balanceDueDays,
                 refund_policy: document.getElementById('bulk-refund-policy').value,
-                is_active: true
+                is_active: true,
+                schedule_mode: scheduleMode,
+                auto_charge_balance: autoChargeBalance,
+                auto_charge_days_before: balanceDueDays
             };
+            // Schedule mode — turn the deposit % + balance-due-days into a
+            // two-tier payment_schedule (tier 1 at booking, tier 2 X days
+            // before arrival). Server validates total = 100%. Kept consistent
+            // with the individual editor so bulk-apply and per-property saves
+            // produce the same shape and later show identically in the UI.
+            if (scheduleMode === 'schedule' && data.deposit_type === 'percentage' && depositPct > 0 && depositPct < 100) {
+                data.payment_schedule = [
+                    { order: 1, percentage: depositPct, days_before: null },
+                    { order: 2, percentage: Math.round((100 - depositPct) * 100) / 100, days_before: balanceDueDays }
+                ];
+            }
             
             let successCount = 0;
             let failCount = 0;
