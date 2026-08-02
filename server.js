@@ -134513,7 +134513,7 @@ app.post('/api/admin/gas-recipes/upsert', async (req, res) => {
     // + trigger_type + trigger_config too so we can preserve them when the
     // caller (e.g. the ON/OFF toggle in the grid) only sends is_active and
     // doesn't want to touch the chain.
-    const existing = await pool.query(`SELECT id, name, icon, description, steps, trigger_type, trigger_config, linked_spark_id, deployed_site_id FROM workflows WHERE account_id = $1 AND source = 'gas' AND recipe_key = $2 LIMIT 1`, [account_id, recipe_key]);
+    const existing = await pool.query(`SELECT id, name, icon, description, steps, trigger_type, trigger_config, linked_spark_id, deployed_site_id, is_active FROM workflows WHERE account_id = $1 AND source = 'gas' AND recipe_key = $2 LIMIT 1`, [account_id, recipe_key]);
     const existingRow = existing.rows[0];
     const existingSteps = existingRow
       ? (typeof existingRow.steps === 'string' ? JSON.parse(existingRow.steps) : (existingRow.steps || []))
@@ -134568,6 +134568,18 @@ app.post('/api/admin/gas-recipes/upsert', async (req, res) => {
          : (existingRow ? existingRow.deployed_site_id : null));
 
     if (existingRow) {
+      // is_active: preserve existing value when caller didn't send one.
+      // Steve 2026-08-02 — every other field in this upsert falls back to
+      // existingRow when the caller omits it, but is_active previously did
+      // `!!is_active` which turned undefined into false. That silently
+      // deactivated Lehmann's wf42/wf43 at 16 Jul 15:00 UTC when Marie
+      // saved after a subject-line edit — zero welcome/upsell/door-code
+      // emails for 17 days before it was noticed. Same footgun would have
+      // hit Steve's own gîtes (wf47/48 = door codes) on the next save.
+      // Missing field must mean "leave as-is" for a booking-critical flag.
+      const finalIsActive = (is_active !== undefined)
+        ? !!is_active
+        : !!existingRow.is_active;
       await pool.query(`
         UPDATE workflows SET
           name = $2, icon = $3, description = $4, is_active = $5,
@@ -134577,7 +134589,7 @@ app.post('/api/admin/gas-recipes/upsert', async (req, res) => {
           deployed_site_id = $10,
           updated_at = NOW()
         WHERE id = $1
-      `, [existingRow.id, finalName, finalIcon, finalDescription, !!is_active, finalTriggerType, JSON.stringify(finalTrigger), JSON.stringify(finalSteps), finalSparkId, finalDeployedSiteId]);
+      `, [existingRow.id, finalName, finalIcon, finalDescription, finalIsActive, finalTriggerType, JSON.stringify(finalTrigger), JSON.stringify(finalSteps), finalSparkId, finalDeployedSiteId]);
       res.json({ success: true, id: existingRow.id, created: false });
     } else {
       const r = await pool.query(`
@@ -154833,6 +154845,209 @@ app.get('/api/admin/channex/writeback-health', async (req, res) => {
 });
 
 // =====================================================
+// COMMS HEALTH DIGEST — Steve 2026-08-02 (Lehmann silent workflow incident).
+// Lehmann's wf42/wf43 (welcome + upsell) silently flipped is_active=false at
+// 16 Jul 15:00 UTC on a Marie save — no comms fired for 17 days. Same
+// footgun would hit Steve's own gîtes (wf47/48 = door codes) on any careless
+// save. This digest catches silent regressions early: any account that took
+// bookings but sent no emails, any workflow_run failure, any guest comm
+// failure. Same daily-email pattern as the Channex + Hostfully digests.
+// =====================================================
+async function buildCommsHealth() {
+  // Only report on accounts that have at least one workflow OR sent comms in
+  // the last 30 days. Everyone else is silent by design and would just add
+  // noise to the digest.
+  const rows = await pool.query(`
+    WITH active_accts AS (
+      SELECT DISTINCT account_id FROM workflows
+      UNION
+      SELECT DISTINCT b.property_id AS account_id
+        FROM guest_communications gc
+        JOIN bookings b ON b.id = gc.booking_id
+       WHERE gc.created_at > NOW() - INTERVAL '30 days'
+    ),
+    accts AS (
+      SELECT a.id AS account_id, a.name AS account_name
+        FROM accounts a
+       WHERE a.id IN (
+         SELECT account_id FROM workflows
+         UNION
+         SELECT p.account_id
+           FROM guest_communications gc
+           JOIN bookings b ON b.id = gc.booking_id
+           JOIN properties p ON p.id = b.property_id
+          WHERE gc.created_at > NOW() - INTERVAL '30 days'
+       )
+    ),
+    wf_counts AS (
+      SELECT account_id,
+             COUNT(*)::int AS wf_total,
+             COUNT(*) FILTER (WHERE is_active = true)::int AS wf_active,
+             COUNT(*) FILTER (WHERE is_active = true AND trigger_type = 'booking.created')::int AS wf_active_booking_trg
+        FROM workflows GROUP BY account_id
+    ),
+    bookings_24h AS (
+      SELECT p.account_id, COUNT(*)::int AS bookings_created
+        FROM bookings b
+        JOIN properties p ON p.id = b.property_id
+       WHERE b.created_at >= NOW() - INTERVAL '24 hours'
+         AND b.status IN ('confirmed','pending')
+       GROUP BY p.account_id
+    ),
+    runs_24h AS (
+      SELECT account_id,
+             COUNT(*) FILTER (WHERE status = 'sent')::int AS runs_sent,
+             COUNT(*) FILTER (WHERE status = 'failed')::int AS runs_failed,
+             COUNT(*) FILTER (WHERE status = 'skipped')::int AS runs_skipped
+        FROM workflow_runs
+       WHERE created_at >= NOW() - INTERVAL '24 hours'
+       GROUP BY account_id
+    ),
+    comms_24h AS (
+      SELECT p.account_id,
+             COUNT(*) FILTER (WHERE gc.status = 'sent')::int AS comms_sent,
+             COUNT(*) FILTER (WHERE gc.status = 'failed')::int AS comms_failed
+        FROM guest_communications gc
+        LEFT JOIN bookings b ON b.id = gc.booking_id
+        LEFT JOIN properties p ON p.id = b.property_id
+       WHERE gc.created_at >= NOW() - INTERVAL '24 hours'
+         AND gc.direction = 'outbound'
+       GROUP BY p.account_id
+    )
+    SELECT a.account_id, a.account_name,
+           COALESCE(w.wf_total, 0)               AS wf_total,
+           COALESCE(w.wf_active, 0)              AS wf_active,
+           COALESCE(w.wf_active_booking_trg, 0)  AS wf_active_booking_trg,
+           COALESCE(b.bookings_created, 0)       AS bookings_created,
+           COALESCE(r.runs_sent, 0)              AS runs_sent,
+           COALESCE(r.runs_failed, 0)            AS runs_failed,
+           COALESCE(r.runs_skipped, 0)           AS runs_skipped,
+           COALESCE(c.comms_sent, 0)             AS comms_sent,
+           COALESCE(c.comms_failed, 0)           AS comms_failed
+      FROM accts a
+      LEFT JOIN wf_counts w  ON w.account_id = a.account_id
+      LEFT JOIN bookings_24h b ON b.account_id = a.account_id
+      LEFT JOIN runs_24h r   ON r.account_id = a.account_id
+      LEFT JOIN comms_24h c  ON c.account_id = a.account_id
+     ORDER BY a.account_id
+  `);
+
+  const summary = { total_accounts: rows.rows.length, healthy: 0,
+                    silent_with_bookings: 0, all_inactive: 0,
+                    has_failed_runs: 0, has_failed_sends: 0 };
+  const accounts = rows.rows.map(r => {
+    // Red flags. Order matters — most severe first for the digest badge.
+    // silent_with_bookings is the Lehmann incident shape exactly: bookings
+    // came in, we had workflows configured, but zero booking-triggered ones
+    // were active so nothing fired. all_inactive is the same shape without
+    // the "we took bookings today" filter (still worth flagging so you notice
+    // during a quiet week).
+    const hasWorkflows        = r.wf_total > 0;
+    const allInactive         = hasWorkflows && r.wf_active === 0;
+    const silentWithBookings  = r.bookings_created > 0 && r.wf_active_booking_trg === 0 && hasWorkflows;
+    const hasFailedRuns       = r.runs_failed > 0;
+    const hasFailedSends      = r.comms_failed > 0;
+    const anyRed = silentWithBookings || hasFailedRuns || hasFailedSends;
+    const healthy = !anyRed && !allInactive;
+    if (healthy) summary.healthy++;
+    if (silentWithBookings) summary.silent_with_bookings++;
+    if (allInactive) summary.all_inactive++;
+    if (hasFailedRuns) summary.has_failed_runs++;
+    if (hasFailedSends) summary.has_failed_sends++;
+    return {
+      account_id: r.account_id, account_name: r.account_name,
+      workflows_total: r.wf_total, workflows_active: r.wf_active, workflows_active_booking_triggered: r.wf_active_booking_trg,
+      bookings_created_24h: r.bookings_created,
+      runs_sent_24h: r.runs_sent, runs_failed_24h: r.runs_failed, runs_skipped_24h: r.runs_skipped,
+      comms_sent_24h: r.comms_sent, comms_failed_24h: r.comms_failed,
+      healthy, silent_with_bookings: silentWithBookings, all_inactive: allInactive,
+      has_failed_runs: hasFailedRuns, has_failed_sends: hasFailedSends,
+    };
+  });
+  return { summary, accounts, generated_at: new Date().toISOString() };
+}
+
+async function processCommsDigest() {
+  try {
+    const health = await buildCommsHealth();
+    const anyRed = health.summary.silent_with_bookings + health.summary.has_failed_runs + health.summary.has_failed_sends > 0;
+    const anyAmber = health.summary.all_inactive > 0;
+    const emoji = anyRed ? '🔴' : (anyAmber ? '🟡' : '🟢');
+    const subject = `${emoji} Comms Health Daily — ${health.summary.healthy}/${health.summary.total_accounts} healthy`;
+    const rowsHtml = health.accounts.map(a => {
+      const flag = a.silent_with_bookings || a.has_failed_runs || a.has_failed_sends ? '🔴'
+                 : a.all_inactive ? '🟡'
+                 : '🟢';
+      const issues = [
+        a.silent_with_bookings ? `${a.bookings_created_24h} bookings but no active booking-workflow` : null,
+        a.all_inactive          ? 'all workflows inactive' : null,
+        a.has_failed_runs       ? `${a.runs_failed_24h} run failures` : null,
+        a.has_failed_sends      ? `${a.comms_failed_24h} send failures` : null,
+      ].filter(Boolean).join(', ') || '—';
+      const colorFail = (n) => n > 0 ? '#dc2626' : '#111';
+      const colorGood = a.healthy ? '#059669' : '#dc2626';
+      return `<tr>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${flag}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${a.account_id}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${a.account_name || ''}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${a.bookings_created_24h}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${a.workflows_active}/${a.workflows_total}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${a.runs_sent_24h}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;color:${colorFail(a.runs_failed_24h)};">${a.runs_failed_24h}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${a.comms_sent_24h}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;color:${colorFail(a.comms_failed_24h)};">${a.comms_failed_24h}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;color:${colorGood};">${issues}</td>
+      </tr>`;
+    }).join('');
+    const html = `<div style="font-family:Arial,sans-serif;max-width:1000px;margin:0 auto;">
+      <h2 style="color:${anyRed ? '#dc2626' : (anyAmber ? '#b45309' : '#059669')};">${emoji} Comms Health — last 24h</h2>
+      <p><strong>${health.summary.healthy}</strong> of <strong>${health.summary.total_accounts}</strong> accounts healthy.
+         Silent-with-bookings: <strong>${health.summary.silent_with_bookings}</strong>.
+         All workflows inactive: <strong>${health.summary.all_inactive}</strong>.
+         Run failures: <strong>${health.summary.has_failed_runs}</strong>.
+         Send failures: <strong>${health.summary.has_failed_sends}</strong>.</p>
+      ${anyRed ? '<p style="color:#dc2626;font-weight:bold;">🚨 Action required — guests may not be receiving welcome / upsell / door-code emails. Check red rows.</p>'
+        : anyAmber ? '<p style="color:#b45309;">Amber rows have all workflows off — safe today but nothing will fire when bookings come in.</p>'
+        : '<p style="color:#059669;">All workflows firing cleanly. Nothing to do.</p>'}
+      <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-top:1rem;">
+        <thead><tr style="background:#f8fafc;">
+          <th style="padding:8px 10px;text-align:left;">​</th>
+          <th style="padding:8px 10px;text-align:left;">Acct</th>
+          <th style="padding:8px 10px;text-align:left;">Name</th>
+          <th style="padding:8px 10px;text-align:right;">Bookings 24h</th>
+          <th style="padding:8px 10px;text-align:right;">WFs Active/Total</th>
+          <th style="padding:8px 10px;text-align:right;">Runs Sent</th>
+          <th style="padding:8px 10px;text-align:right;">Runs Failed</th>
+          <th style="padding:8px 10px;text-align:right;">Comms Sent</th>
+          <th style="padding:8px 10px;text-align:right;">Comms Failed</th>
+          <th style="padding:8px 10px;text-align:left;">Issues</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <p style="color:#94a3b8;font-size:0.85rem;margin-top:1.5rem;">
+        On-demand JSON: <a href="https://admin.gas.travel/api/admin/comms/health">https://admin.gas.travel/api/admin/comms/health</a><br>
+        Generated ${health.generated_at}
+      </p>
+    </div>`;
+    await sendEmail({ to: ['rezintelhelp@gmail.com', 'development@gas.travel'], subject, html });
+    console.log(`[comms-digest] sent — ${health.summary.healthy}/${health.summary.total_accounts} healthy, redFlag=${anyRed}, amber=${anyAmber}`);
+  } catch (e) {
+    console.error('[comms-digest]', e.message);
+  }
+}
+
+app.get('/api/admin/comms/health', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const health = await buildCommsHealth();
+    res.json({ success: true, ...health });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// =====================================================
 // SQUARE AUDIT — Steve 2026-07-31 (Casa Magnolia incident).
 // Proactive daily check for Square-related booking data issues that would
 // otherwise only surface when an operator (or their accountant) notices
@@ -155186,6 +155401,7 @@ function fireDueCrons() {
     runCronIfDue('processBeds24Outbox', 60, processBeds24Outbox).catch(e => console.error('[CRON wrapper beds24-outbox]', e));
     runCronIfDue('processChannexWriteBackDigest', 24 * 60 * 60, processChannexWriteBackDigest).catch(e => console.error('[CRON wrapper channex-digest]', e));
     runCronIfDue('processHostfullyWriteBackDigest', 24 * 60 * 60, processHostfullyWriteBackDigest).catch(e => console.error('[CRON wrapper hostfully-digest]', e));
+    runCronIfDue('processCommsDigest', 24 * 60 * 60, processCommsDigest).catch(e => console.error('[CRON wrapper comms-digest]', e));
 }
 
 // First check 30 sec after startup — catches up on any cron that was due
