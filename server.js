@@ -141184,7 +141184,8 @@ app.get('/api/whatsapp/configs', async (req, res) => {
         if (user.role === 'master_admin') {
             rows = await pool.query(`
                 SELECT c.id, c.account_id, c.waba_id, c.phone_number_id,
-                       c.display_name, c.is_active, c.created_at, c.updated_at,
+                       c.display_name, c.display_phone_number, c.is_active,
+                       c.created_at, c.updated_at,
                        a.name as account_name, a.business_name as account_business
                 FROM gas_whatsapp_configs c
                 LEFT JOIN accounts a ON a.id = c.account_id
@@ -141193,7 +141194,7 @@ app.get('/api/whatsapp/configs', async (req, res) => {
             const callerAccountId = user.id || user.accountId;
             rows = await pool.query(`
                 SELECT id, account_id, waba_id, phone_number_id, display_name,
-                       is_active, created_at, updated_at
+                       display_phone_number, is_active, created_at, updated_at
                 FROM gas_whatsapp_configs
                 WHERE account_id = $1
                 ORDER BY id`, [callerAccountId]);

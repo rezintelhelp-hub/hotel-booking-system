@@ -5577,7 +5577,7 @@
                     <div class="header-top">
                         <div>
                             <h2>Messages</h2>
-                            <p>Unified messages across channels (WhatsApp, email, etc.). Master admin only.</p>
+                            <p>Unified messages across channels (WhatsApp, email, etc.).</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
                             <button class="btn btn-outline" onclick="openPersonalChannelsModal()" title="Connect your Gmail / iCloud accounts to the GAS Inbox">⚙️ Personal Channels</button>
@@ -5586,6 +5586,14 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- WhatsApp Connect card — Purpose 2 (client's own WABA).
+                     Hidden by default; renderWaConnectCard() on view show
+                     fetches /api/whatsapp/configs and populates state. Three
+                     states: not-connected (green Connect CTA), connected
+                     (grey pill + widget snippet button), master-admin
+                     (hidden — masters use per-account picker in wa-app view). -->
+                <div id="wa-connect-card" class="card" style="display:none; margin-bottom:1rem; background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%); border:1px solid #86efac;"></div>
 
                 <div class="card" style="margin-bottom: 1rem;">
                     <!-- Direction tabs (In / Out / Both / Triage) — header of the filter row -->
@@ -59265,10 +59273,79 @@ const promo = await fetch('/api/v1/offers/validate', {
             return false;
         }
 
+        // Render the WhatsApp Connect card at the top of the Messages
+        // view. Steve 2026-08-02 — Purpose 2 client-facing entry point.
+        // Non-master accounts see either "Connect your WhatsApp" or a
+        // "Connected as +XX ..." pill. Master admin is hidden — masters
+        // manage per-account WhatsApp from the wa-app view instead.
+        async function renderWaConnectCard() {
+            const card = document.getElementById('wa-connect-card');
+            if (!card) return;
+            const isMaster = (window.currentUser && window.currentUser.role === 'master_admin');
+            if (isMaster) { card.style.display = 'none'; return; }
+            const acctId = (window.currentUser && (window.currentUser.id || window.currentUser.accountId)) || null;
+            const acctName = (window.currentUser && window.currentUser.name) || '';
+            if (!acctId) { card.style.display = 'none'; return; }
+            try {
+                const r = await fetch('/api/whatsapp/configs', { headers: authHeaders() });
+                const d = await r.json();
+                const myConfig = Array.isArray(d.configs)
+                    ? d.configs.find(c => c.account_id === acctId && c.is_active)
+                    : null;
+                if (myConfig) {
+                    card.style.display = '';
+                    card.innerHTML = `
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+                            <div>
+                                <div style="font-weight:600; color:#065f46; margin-bottom:0.15rem;">💬 WhatsApp connected</div>
+                                <div style="font-size:0.85rem; color:#065f46;">Guests can message you via WhatsApp — replies land here. Display name: <strong>${(myConfig.display_name || 'WhatsApp').replace(/[<>"&]/g, '')}</strong></div>
+                            </div>
+                            <div style="display:flex; gap:0.5rem;">
+                                <button class="btn btn-secondary btn-small" onclick="copyWhatsAppWidget(${acctId})">📋 Get website widget</button>
+                            </div>
+                        </div>`;
+                } else {
+                    card.style.display = '';
+                    card.innerHTML = `
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+                            <div>
+                                <div style="font-weight:600; color:#065f46; margin-bottom:0.15rem;">💬 Add WhatsApp for your guests</div>
+                                <div style="font-size:0.85rem; color:#065f46;">Let guests message your own WhatsApp Business number. Replies land in this inbox. Pre-arrival, door codes, and balance reminders can auto-send. One-click Meta setup — no keys or Twilio.</div>
+                            </div>
+                            <button class="btn" style="background:#25d366; color:#fff; font-weight:600; white-space:nowrap;" onclick="openWhatsAppEmbeddedSignup(${acctId}, \`${(acctName || '').replace(/`/g, "'")}\`)">Connect WhatsApp →</button>
+                        </div>`;
+                }
+            } catch (e) {
+                // Fail silently — no card is better than a broken one.
+                card.style.display = 'none';
+                console.warn('renderWaConnectCard:', e.message);
+            }
+        }
+
+        // Copy a wa.me widget snippet the client drops on their booking
+        // site so guests can WhatsApp them directly. Uses their connected
+        // number. Fetched fresh each click so a re-connect flows through.
+        async function copyWhatsAppWidget(accountId) {
+            try {
+                const r = await fetch('/api/whatsapp/configs', { headers: authHeaders() });
+                const d = await r.json();
+                const cfg = Array.isArray(d.configs) ? d.configs.find(c => c.account_id === accountId) : null;
+                const phone = (cfg && cfg.display_phone_number ? String(cfg.display_phone_number).replace(/\D/g, '') : null);
+                if (!phone) { alert('No WhatsApp number found for this account yet.'); return; }
+                const snippet = `<a href="https://wa.me/${phone}?text=Hi%2C%20I%27d%20like%20to%20book%20a%20stay" target="_blank" rel="noopener" style="position:fixed;bottom:20px;right:20px;background:#25d366;color:#fff;padding:12px 20px;border-radius:28px;font:600 14px/1 -apple-system,sans-serif;text-decoration:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:9999;">💬 WhatsApp us</a>`;
+                await navigator.clipboard.writeText(snippet);
+                alert('Widget copied. Paste into your booking site\\'s HTML (before </body>).');
+            } catch (e) {
+                alert('Could not copy: ' + e.message);
+            }
+        }
+
         async function loadMessagesInbox() {
             const listEl = document.getElementById('inbox-messages-list');
             if (!listEl) return;
             listEl.innerHTML = '<p style="color:#64748b; text-align:center; padding:2rem;">Loading…</p>';
+            // Render the WhatsApp Connect card (client-facing Purpose 2 entry).
+            renderWaConnectCard();
             // Populate the dropdown options on first call (idempotent),
             // then sync to view-as account if applicable.
             await ensureInboxFilterOptions();
