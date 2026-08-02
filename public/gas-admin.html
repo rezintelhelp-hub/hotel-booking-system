@@ -3079,12 +3079,11 @@
                             </svg>
                         </div>
                         <h3>Marketing Generators</h3>
-                        <p>Blog, sparks, GAS CRM, auto messages, attractions, reviews and shop</p>
+                        <p>Blog, sparks, GAS CRM (guest journeys + Actions), attractions, reviews and shop</p>
                         <div class="category-links">
                             <span onclick="event.stopPropagation(); showView('app-blog')">Blog</span>
                             <span onclick="event.stopPropagation(); showView('app-sparks')">Sparks</span>
                             <span onclick="event.stopPropagation(); showView('app-contacts')">GAS CRM</span>
-                            <span onclick="event.stopPropagation(); showView('auto-messages')">Auto Messages</span>
                             <span onclick="event.stopPropagation(); showView('app-attractions')">Attractions</span>
                             <span onclick="event.stopPropagation(); showView('app-reviews')">Reviews</span>
                             <span onclick="event.stopPropagation(); showView('app-shop')">Shop</span>
@@ -71877,7 +71876,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const comms = d.communications || [];
                 if (!comms.length) {
                     el.innerHTML = `<div style="color:#94a3b8;"><em>No emails or messages sent yet for this booking.</em><br>
-                        <span style="font-size:0.8rem;">If a guest should have received something (confirmation, pre-arrival, door code), check Marketing Generators → Auto Messages that rules are configured + enabled for this account.</span></div>`;
+                        <span style="font-size:0.8rem;">If a guest should have received something (confirmation, pre-arrival, door code), check GAS CRM → 🔥 GAS Actions that the relevant workflow is enabled for this account.</span></div>`;
                     return;
                 }
                 el.innerHTML = comms.map(c => {

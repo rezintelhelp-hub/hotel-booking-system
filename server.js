@@ -19137,6 +19137,28 @@ app.get('/api/setup-accounts', async (req, res) => {
     await pool.query(`ALTER TABLE workflows ADD COLUMN IF NOT EXISTS deployed_site_id INTEGER REFERENCES deployed_sites(id) ON DELETE SET NULL`).catch(e => console.warn('[workflows.deployed_site_id migration]', e.message));
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_workflows_account_site ON workflows(account_id, deployed_site_id) WHERE is_active = true`).catch(() => {});
 
+    // workflow_status_history — audit trail of is_active flips.
+    // Steve 2026-08-02, after Lehmann wf42/wf43 silently flipped off at
+    // 16 Jul 15:00 UTC and nobody could tell who or what did it. Every
+    // future flip logs from/to state, actor if known, and the payload keys
+    // present at the time (helps distinguish deliberate toggle vs partial
+    // save regression). Door-code delivery on Steve's gîtes rides on this
+    // flag; blind flips can strand guests at the door.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS workflow_status_history (
+        id SERIAL PRIMARY KEY,
+        workflow_id INTEGER NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+        account_id INTEGER,
+        from_active BOOLEAN,
+        to_active BOOLEAN NOT NULL,
+        changed_by_account_id INTEGER,
+        source VARCHAR(60),
+        payload_fields TEXT,
+        changed_at TIMESTAMP DEFAULT NOW()
+      )
+    `).catch(e => console.warn('[workflow_status_history migration]', e.message));
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_wsh_workflow ON workflow_status_history(workflow_id, changed_at DESC)`).catch(() => {});
+
     // Composite Actions — operator-saved chains of atomic steps that show
     // up as a single drop-in card in the action picker.
     await pool.query(`CREATE TABLE IF NOT EXISTS action_templates (
@@ -134590,6 +134612,26 @@ app.post('/api/admin/gas-recipes/upsert', async (req, res) => {
           updated_at = NOW()
         WHERE id = $1
       `, [existingRow.id, finalName, finalIcon, finalDescription, finalIsActive, finalTriggerType, JSON.stringify(finalTrigger), JSON.stringify(finalSteps), finalSparkId, finalDeployedSiteId]);
+      // Audit — only log real transitions, not identical saves. Captures
+      // the caller (best-effort — endpoint has no hard auth today), whether
+      // is_active was in the payload at all (payload_fields), and what it
+      // moved from/to. Comms Health digest surfaces flips-to-off next day.
+      if (!!existingRow.is_active !== finalIsActive) {
+        try {
+          const auditor = await extractAccountFromToken(req).catch(() => null);
+          await pool.query(
+            `INSERT INTO workflow_status_history
+               (workflow_id, account_id, from_active, to_active,
+                changed_by_account_id, source, payload_fields)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [existingRow.id, account_id, !!existingRow.is_active, finalIsActive,
+             auditor?.id || null, 'gas-recipes/upsert',
+             JSON.stringify(Object.keys(req.body || {}))]
+          );
+        } catch (auditErr) {
+          console.error('[workflow audit]', existingRow.id, auditErr.message);
+        }
+      }
       res.json({ success: true, id: existingRow.id, created: false });
     } else {
       const r = await pool.query(`
@@ -154883,7 +154925,7 @@ async function buildCommsHealth() {
       SELECT account_id,
              COUNT(*)::int AS wf_total,
              COUNT(*) FILTER (WHERE is_active = true)::int AS wf_active,
-             COUNT(*) FILTER (WHERE is_active = true AND trigger_type = 'booking.created')::int AS wf_active_booking_trg
+             COUNT(*) FILTER (WHERE is_active = true AND trigger_type LIKE 'booking.%')::int AS wf_active_booking_trg
         FROM workflows GROUP BY account_id
     ),
     bookings_24h AS (
@@ -155042,6 +155084,36 @@ app.get('/api/admin/comms/health', async (req, res) => {
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const health = await buildCommsHealth();
     res.json({ success: true, ...health });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Workflow flip audit log — every is_active change captured by the upsert
+// endpoint since 2026-08-02. Read-only. Used by the Actions detail UI + the
+// Comms Health digest to surface silent regressions.
+app.get('/api/admin/workflows/:id/status-history', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const wfId = parseInt(req.params.id, 10);
+    if (!wfId) return res.status(400).json({ success: false, error: 'invalid workflow id' });
+    // Master admin sees everything; account users only their own workflows.
+    const own = decoded.role === 'master_admin'
+      ? { rows: [{ ok: true }] }
+      : await pool.query('SELECT 1 AS ok FROM workflows WHERE id = $1 AND account_id = $2', [wfId, decoded.id]);
+    if (!own.rows.length) return res.status(403).json({ success: false, error: 'forbidden' });
+    const history = await pool.query(
+      `SELECT h.id, h.workflow_id, h.account_id, h.from_active, h.to_active,
+              h.changed_by_account_id, h.source, h.payload_fields, h.changed_at,
+              a.name AS changed_by_name
+         FROM workflow_status_history h
+         LEFT JOIN accounts a ON a.id = h.changed_by_account_id
+        WHERE h.workflow_id = $1
+        ORDER BY h.changed_at DESC LIMIT 200`,
+      [wfId]
+    );
+    res.json({ success: true, workflow_id: wfId, history: history.rows });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
