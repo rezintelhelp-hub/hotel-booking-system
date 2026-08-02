@@ -74881,7 +74881,13 @@ app.post('/api/admin/bookings', async (req, res) => {
     // make the booking it takes a while to appear'. channex_queued is
     // no longer reported since it's async now; use the /channex-outbox-
     // status diagnostic if you need to know the state.
-    if (sync_to_cm) {
+    //
+    // Skip when the operator overrode a block (allow_over_block=true).
+    // Those dates are deliberately blocked in Channex — posting a booking
+    // on top gets 403'd (Jose Poullain B539597, 5 Rte Des Thermes,
+    // 2026-08-01). The block stays; the booking lives in GAS only. The
+    // availability push above still fires, keeping the block in sync.
+    if (sync_to_cm && !req.body.allow_over_block) {
       (async () => {
         try {
           const { enqueueBookingPush } = require('./gas-sync/channex-outbox');
