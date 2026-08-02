@@ -153674,6 +153674,15 @@ async function resolveStripeCustomerForBooking(stripeClient, booking, pool) {
 }
 
 async function processAutoChargePayments() {
+    // Emergency kill switch — Steve 2026-08-02. Set Railway env var
+    // AUTO_CHARGE_PAUSED=true to halt auto-charging estate-wide instantly.
+    // Use if a bug like the Janet Emery / Rebecca Dean shape is suspected
+    // and you need to pause charges while diagnosing. Unset the var (or set
+    // to anything other than 'true') to resume.
+    if (String(process.env.AUTO_CHARGE_PAUSED || '').toLowerCase() === 'true') {
+        console.warn('[AUTO-CHARGE] PAUSED via AUTO_CHARGE_PAUSED env var — skipping run');
+        return;
+    }
     console.log('[AUTO-CHARGE] Running balance payment check...');
     try {
         // Match bookings whose trigger date is today OR earlier. The original
