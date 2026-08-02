@@ -153755,7 +153755,9 @@ async function processAutoChargePayments() {
                 // it first; if we've already succeeded once, skip regardless
                 // of what booking.balance_amount currently says.
                 try {
-                    const prior = await pool.query(
+                    // (a) Prior auto-charge for THIS booking — Rebecca Dean shape
+                    //     (two successive auto-charge runs on different days).
+                    const priorAuto = await pool.query(
                         `SELECT id, gateway_transaction_id, amount, created_at
                            FROM payment_transactions
                           WHERE booking_id = $1
@@ -153766,9 +153768,33 @@ async function processAutoChargePayments() {
                           LIMIT 1`,
                         [booking.booking_id]
                     );
-                    if (prior.rows.length > 0) {
-                        const p = prior.rows[0];
+                    if (priorAuto.rows.length > 0) {
+                        const p = priorAuto.rows[0];
                         console.warn(`[AUTO-CHARGE] SKIP booking ${booking.booking_id} — already auto-charged (tx ${p.id} pi=${p.gateway_transaction_id} ${p.amount} ${p.created_at.toISOString()}). booking.balance_amount=${booking.balance_amount} looks stale — someone reset it.`);
+                        continue;
+                    }
+                    // (b) Ledger already covers the booking — Janet Emery shape
+                    //     (Steve 2026-08-02, B552760 Cotswolds Bear's Cabin). Guest
+                    //     was charged the FULL £581 at booking time as a "deposit"
+                    //     (empty description), then the auto-charge cron fired 30
+                    //     min later and charged £581 AGAIN — because path (a) only
+                    //     matches prior AUTO-CHARGES, not prior deposits. Broaden:
+                    //     sum every successful stripe payment on this booking. If
+                    //     the total already covers the grand_total (rounded to 1c),
+                    //     the booking is fully paid — never fire.
+                    const priorSumRes = await pool.query(
+                        `SELECT COALESCE(SUM(amount), 0)::numeric AS paid
+                           FROM payment_transactions
+                          WHERE booking_id = $1
+                            AND payment_gateway = 'stripe'
+                            AND status IN ('completed','succeeded')
+                            AND transaction_type IN ('deposit','balance','payment','charge','capture')`,
+                        [booking.booking_id]
+                    );
+                    const alreadyPaid = parseFloat(priorSumRes.rows[0]?.paid || 0);
+                    const grandTotal  = parseFloat(booking.grand_total || 0);
+                    if (grandTotal > 0 && alreadyPaid + 0.01 >= grandTotal) {
+                        console.warn(`[AUTO-CHARGE] SKIP booking ${booking.booking_id} — ledger shows ${alreadyPaid} already paid vs grand_total ${grandTotal}. booking.balance_amount=${booking.balance_amount} is stale. Not firing to avoid Janet Emery-shape double-charge.`);
                         continue;
                     }
                 } catch (idemErr) {
