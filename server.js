@@ -153846,6 +153846,34 @@ async function processAutoChargePayments() {
                         console.warn(`[AUTO-CHARGE] SKIP booking ${booking.booking_id} — ledger shows ${alreadyPaid} already paid vs grand_total ${grandTotal}. booking.balance_amount=${booking.balance_amount} is stale. Not firing to avoid Janet Emery-shape double-charge.`);
                         continue;
                     }
+                    // (c) Rapid-refire guard. If ANY successful stripe charge on
+                    //     this booking landed in the last 24 hours, refuse to
+                    //     fire. Steve 2026-08-02 — auto-charge is meant to fire
+                    //     N days BEFORE arrival (typically 14-30d), never on the
+                    //     same day the deposit was taken. When it does, something
+                    //     upstream (bad grand_total, corrupted balance_amount)
+                    //     has slipped past (a) and (b). This last belt trusts the
+                    //     observation "we charged this card in the last day" and
+                    //     stops the double-tap regardless of what the field values
+                    //     currently say. Matches Steve's mental model: 'when the
+                    //     total is hit, nothing more to charge' — we saw a charge,
+                    //     don't fire another same-day.
+                    const recentRes = await pool.query(
+                        `SELECT id, gateway_transaction_id, amount, created_at
+                           FROM payment_transactions
+                          WHERE booking_id = $1
+                            AND payment_gateway = 'stripe'
+                            AND status IN ('completed','succeeded')
+                            AND transaction_type IN ('deposit','balance','payment','charge','capture')
+                            AND created_at > NOW() - INTERVAL '24 hours'
+                          ORDER BY created_at DESC LIMIT 1`,
+                        [booking.booking_id]
+                    );
+                    if (recentRes.rows.length > 0) {
+                        const r = recentRes.rows[0];
+                        console.warn(`[AUTO-CHARGE] SKIP booking ${booking.booking_id} — stripe charge tx ${r.id} pi=${r.gateway_transaction_id} amount=${r.amount} fired ${r.created_at.toISOString()} (< 24h ago). Refusing to double-tap the same card same-day.`);
+                        continue;
+                    }
                 } catch (idemErr) {
                     // If the idempotency check itself fails, be paranoid and
                     // skip — don't fall through to a charge attempt on a
