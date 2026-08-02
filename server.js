@@ -64931,7 +64931,32 @@ async function _processBeds24Booking(b, conn, roomMap, counters) {
 
     // Payment receipts — write only type='payment' invoiceItems to the ledger
     let importedAnyPayment = false;
-    if (Array.isArray(b.invoiceItems)) {
+    // Skip payment imports entirely on GAS-native bookings. Steve
+    // 2026-08-02, after Janet Emery B552760 double-charge — operator added
+    // a "Towel Swap £20" as a paid invoiceItem in Beds24 on a
+    // rezintel-source direct booking. Beds24 sync imported it as a
+    // payment_transactions row, ledger balance recomputed, cron misfired
+    // £581 auto-charge on an already-paid booking. Policy: GAS is source
+    // of truth for extras / payments on GAS-originated bookings. Operators
+    // must add extras via GAS Admin (which then pushes to Beds24). Beds24
+    // is a one-way mirror for these bookings, not a bidirectional source.
+    // For genuinely OTA-originated bookings (booking_source not in the
+    // list below) we still import Beds24 payments — Beds24 IS the source
+    // of truth for those.
+    let gasNativeBooking = false;
+    try {
+      const srcRes = await pool.query(`SELECT booking_source FROM bookings WHERE id = $1`, [gasBookingId]);
+      const bookingSource = (srcRes.rows[0]?.booking_source || '').toLowerCase();
+      gasNativeBooking = ['direct','rezintel','admin','gas'].includes(bookingSource);
+      if (gasNativeBooking) {
+        console.log(`[Beds24 sync] SKIP invoiceItem payment import for GAS-native booking ${gasBookingId} (source=${bookingSource}) — extras must be added in GAS Admin, not Beds24`);
+      }
+    } catch (srcErr) {
+      // If we can't resolve booking_source, don't skip — default to legacy
+      // behaviour so OTA imports don't silently stall.
+      console.warn(`[Beds24 sync] booking_source lookup failed for ${gasBookingId}, importing invoiceItems as normal:`, srcErr.message);
+    }
+    if (!gasNativeBooking && Array.isArray(b.invoiceItems)) {
       for (const item of b.invoiceItems) {
         const itemType = String(item.type || '').toLowerCase();
         if (itemType !== 'payment') continue;
@@ -64947,7 +64972,10 @@ async function _processBeds24Booking(b, conn, roomMap, counters) {
         // 8 accounts by the time we noticed. Fully hidden in the Payment
         // Ops UI display filter, but the underlying rows kept accumulating.
         // This closes the tap so no new ones get created — for direct + all
-        // backfills.
+        // backfills. (Superseded above for GAS-native bookings by the
+        // gasNativeBooking guard — this remains defence-in-depth for the
+        // OTA-native path, where GAS's own pushes shouldn't re-import
+        // either.)
         const desc = String(item.description || '');
         if (/^(Deposit via GAS|Payment via GAS|Balance payment via Stripe|Payment via Stripe|Refund — |Refund \(via GAS\))/i.test(desc)) {
           continue;
