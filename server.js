@@ -64990,10 +64990,22 @@ async function _processBeds24Booking(b, conn, roomMap, counters) {
     // Reconcile booking-level paid/balance/status from authoritative ledger sum
     if (importedAnyPayment) {
       try {
+        // Steve 2026-08-02 (Janet Emery B552760 Cotswolds Bear's Cabin
+        // double-charge): the sum previously counted ONLY rows with
+        // transaction_type='payment', ignoring 'deposit' / 'balance' /
+        // 'charge' / 'capture' — exactly the types stripe writes for
+        // real charges. Janet's £581 stripe deposit was excluded, only
+        // the £20 beds24_import towel add-on counted, ledgerPaid=£20 →
+        // balance_amount got rewritten to £581, and the auto-charge
+        // cron then fired £581 AGAIN because the booking looked unpaid.
+        // Same shape hit anyone with a stripe deposit + a subsequent
+        // beds24 sync. Broaden to every money-in transaction type.
         const sumRes = await pool.query(
           `SELECT COALESCE(SUM(amount), 0)::numeric AS paid
            FROM payment_transactions
-           WHERE booking_id = $1 AND transaction_type = 'payment' AND status = 'succeeded'`,
+           WHERE booking_id = $1
+             AND transaction_type IN ('deposit','balance','payment','charge','capture')
+             AND status IN ('succeeded','completed')`,
           [gasBookingId]
         );
         const ledgerPaid = parseFloat(sumRes.rows[0].paid || 0);
