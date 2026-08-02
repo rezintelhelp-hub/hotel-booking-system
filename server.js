@@ -125048,11 +125048,18 @@ async function runAvailabilityHealForProperty(propertyId) {
       } catch (_) {}
       if (i < RESTRICT_WINDOW_DAYS) {
         try {
+          // Steve 2026-08-02 (Alexandre DEDIEU 1-night booking on 5 Rte
+          // des Thermes, 15 Aug — a date GAS had blocked). This restriction
+          // push previously hardcoded stopSell:false, so every ~5-min heal
+          // was OPENING blocked dates on Channex (undoing the availability
+          // count=0 push on the same tick). Booking.com then accepted the
+          // 1-night on the reopened date. Mirror isBlocked into stopSell
+          // so restriction + availability stay in sync.
           await enqueueRestrictionForRoom(pool, room.gas_room_id, {
             date: iso,
             closedToArrival: false,
             closedToDeparture: false,
-            stopSell: false
+            stopSell: !!isBlocked
           }, 'restriction');
           diag.restriction_clears++;
         } catch (_) {}
@@ -125243,16 +125250,19 @@ async function runAvailabilityBackfillHeal() {
             if (ok) { if (isBlocked) totalClosed++; else totalOpened++; }
           } catch (_) { /* non-fatal */ }
           try { await enqueueBeds24Avail(pool, room.gas_room_id, iso, count); } catch (_) {}
-          // Restriction clear on the first RESTRICT_WINDOW_DAYS. Any stale
-          // stop_sell / closed_to_arrival from the broken restriction path
-          // gets flipped off. No-op if the room isn't rate-plan-mapped.
+          // Restriction sync on the first RESTRICT_WINDOW_DAYS. Mirror
+          // isBlocked into stopSell so restrictions stay consistent with
+          // availability. Steve 2026-08-02 (Alexandre DEDIEU B555163
+          // slipped through as a 1-night booking on a GAS-blocked date
+          // because this used to hardcode stopSell:false and reopen
+          // blocked dates every 6h).
           if (i < RESTRICT_WINDOW_DAYS) {
             try {
               await enqueueRestrictionForRoom(pool, room.gas_room_id, {
                 date: iso,
                 closedToArrival: false,
                 closedToDeparture: false,
-                stopSell: false
+                stopSell: !!isBlocked
               }, 'restriction');
               totalRestrictClears++;
             } catch (_) { /* non-fatal */ }
@@ -125308,23 +125318,39 @@ async function runOneShotStopSellClear() {
         [p.property_id]
       );
       if (roomsQ.rows.length === 0) continue;
+      // Load blocked dates per room BEFORE pushing — Steve 2026-08-02.
+      // Original version pushed stopSell:false unconditionally, which on
+      // every Railway deploy reopened every date on every property for
+      // 365 days. That reversed our min-stay backfill and let Alexandre
+      // DEDIEU book a blocked date. Now mirror is_blocked into stopSell.
+      const roomIds = roomsQ.rows.map(r => r.gas_room_id);
+      const blockedQ = await pool.query(
+        `SELECT room_id, date::text AS date
+           FROM room_availability
+          WHERE room_id = ANY($1::int[])
+            AND is_blocked = true
+            AND date BETWEEN CURRENT_DATE AND (CURRENT_DATE + ($2 || ' days')::interval)::date`,
+        [roomIds, WINDOW_DAYS]
+      );
+      const blockedByKey = new Set(blockedQ.rows.map(b => `${b.room_id}|${String(b.date).slice(0,10)}`));
       for (const room of roomsQ.rows) {
         for (let i = 0; i < WINDOW_DAYS; i++) {
           const ms = todayMs + i * 86400000;
           const iso = new Date(ms).toISOString().slice(0, 10);
+          const isBlocked = blockedByKey.has(`${room.gas_room_id}|${iso}`);
           try {
             await enqueueRestrictionForRoom(pool, room.gas_room_id, {
               date: iso,
               closedToArrival: false,
               closedToDeparture: false,
-              stopSell: false
+              stopSell: isBlocked
             }, 'restriction');
             totalClears++;
           } catch (_) { /* non-fatal */ }
         }
       }
     }
-    console.log(`[one-shot stop_sell clear] enqueued ${totalClears} restriction clears across ${propsQ.rows.length} properties`);
+    console.log(`[one-shot stop_sell clear] enqueued ${totalClears} restriction rows across ${propsQ.rows.length} properties (blocked-aware)`);
   } catch (e) {
     console.error('[one-shot stop_sell clear] fatal:', e.message);
   }
