@@ -3141,6 +3141,16 @@
                         </div>
                         <h3>Messages <span id="dashboard-messages-badge" style="display:none; background:#ef4444; color:white; border-radius:10px; padding:1px 7px; font-size:0.7rem; margin-left:6px;"></span></h3>
                         <p>Guest, OTA and team conversations</p>
+                        <div class="category-links">
+                            <!-- Purpose 1 client-facing entry: WhatsApp direct
+                                 to GAS support on the platform number
+                                 +44 7782 230929. wa.me link works on desktop
+                                 (opens WhatsApp Web/desktop app) and mobile
+                                 (opens native WhatsApp). Pre-fills the msg
+                                 with the account name so we know who it is
+                                 without asking. -->
+                            <span onclick="event.stopPropagation(); const nm=(window.currentUser&&window.currentUser.name)||'GAS user'; window.open('https://wa.me/447782230929?text='+encodeURIComponent('Hi GAS — this is '+nm+', I need help with: '), '_blank');" style="color:#25d366;font-weight:600;">💬 Message GAS Support on WhatsApp</span>
+                        </div>
                     </div>
 
                     <!-- Guests card hidden 2026-07-17. Booking-derived guests now
