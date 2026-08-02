@@ -9179,7 +9179,17 @@ jQuery(document).ready(function($) {
                 if (checkoutData.depositRule) {
                     var rule = checkoutData.depositRule;
                     if (rule.schedule_mode === 'schedule' && rule.payment_schedule && Array.isArray(rule.payment_schedule)) {
-                        var checkIn = checkoutData.checkIn || checkoutData.items?.[0]?.checkIn;
+                        // Steve 2026-08-02 (GoSlopes prop 1107 Spruce Glen Townhome C
+                        // /checkout showed $481.22 deposit instead of $120.31): the
+                        // check-in date on the single-room checkout is stored as
+                        // checkoutData.checkin (lowercase, from data-checkin attr).
+                        // Prior code read checkoutData.checkIn (camelCase) → undefined
+                        // → arrival defaulted to today → daysUntil=0 → BOTH schedule
+                        // tiers looked "passed" and rolled up into a 100% booking
+                        // charge. Every schedule-mode rule on every property was
+                        // showing full total instead of the deposit portion. 16
+                        // other sites in this file already use .checkin correctly.
+                        var checkIn = checkoutData.checkin || checkoutData.items?.[0]?.checkIn;
                         var today = new Date();
                         var arrival = checkIn ? new Date(checkIn) : today;
                         var daysUntil = Math.floor((arrival - today) / 86400000);
@@ -9246,7 +9256,9 @@ jQuery(document).ready(function($) {
                 if (checkoutData.depositRule) {
                     var rule = checkoutData.depositRule;
                     if (rule.schedule_mode === 'schedule' && rule.payment_schedule && Array.isArray(rule.payment_schedule)) {
-                        var checkIn = checkoutData.checkIn || checkoutData.items?.[0]?.checkIn;
+                        // Same checkIn vs checkin case-mismatch bug as the Stripe
+                        // branch above — see note there for full context.
+                        var checkIn = checkoutData.checkin || checkoutData.items?.[0]?.checkIn;
                         var today = new Date();
                         var arrival = checkIn ? new Date(checkIn) : today;
                         var daysUntil = Math.floor((arrival - today) / 86400000);
