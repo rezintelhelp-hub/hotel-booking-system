@@ -59344,7 +59344,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (!phone) { alert('No WhatsApp number found for this account yet.'); return; }
                 const snippet = `<a href="https://wa.me/${phone}?text=Hi%2C%20I%27d%20like%20to%20book%20a%20stay" target="_blank" rel="noopener" style="position:fixed;bottom:20px;right:20px;background:#25d366;color:#fff;padding:12px 20px;border-radius:28px;font:600 14px/1 -apple-system,sans-serif;text-decoration:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:9999;">💬 WhatsApp us</a>`;
                 await navigator.clipboard.writeText(snippet);
-                alert('Widget copied. Paste into your booking site\\'s HTML (before </body>).');
+                alert("Widget copied. Paste into your booking site's HTML, just before the closing body tag.");
             } catch (e) {
                 alert('Could not copy: ' + e.message);
             }
