@@ -30542,39 +30542,64 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <h4 style="margin: 0; font-size: 0.95rem;"> Stripe API Keys</h4>
                         <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="font-size: 0.8rem; color: var(--accent);">
-                            Get keys from Stripe Dashboard 
+                            Get keys from Stripe Dashboard
                         </a>
                     </div>
-                    
+
                     <div id="stripe-keys-status" style="margin-bottom: 1rem; padding: 0.75rem; border-radius: 8px; display: none;">
                         <!-- Status will be shown here -->
                     </div>
-                    
-                    <div class="form-group" style="margin-bottom: 1rem;">
-                        <label class="form-label">Publishable Key</label>
-                        <input type="text" class="form-input" id="stripe-publishable-key" placeholder="pk_live_... or pk_test_...">
-                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">
-                            Starts with pk_live_ (production) or pk_test_ (testing)
+
+                    <!-- Use existing Stripe account — dropdown of Stripe accounts
+                         already known for this GAS account. Picking one clones
+                         its credentials server-side onto this property so the
+                         operator never has to re-paste keys. Steve 2026-08-02
+                         (Heron Hideaway) — 80 Cotswolds properties already
+                         share one Stripe key, adding a new property shouldn't
+                         require pasting the same key again. -->
+                    <div id="stripe-link-existing-wrap" class="form-group" style="margin-bottom: 1rem; padding: 0.75rem; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; display: none;">
+                        <label class="form-label" style="font-weight: 600;">Use existing Stripe account</label>
+                        <p style="font-size: 0.75rem; color: #4338ca; margin: 0 0 0.5rem 0;">
+                            One of these already-connected Stripe accounts can be linked to this property with a single click — no need to paste keys.
                         </p>
+                        <div style="display: flex; gap: 0.5rem; align-items: stretch;">
+                            <select id="stripe-link-existing-select" class="form-input" style="flex: 1;">
+                                <option value="">Select an existing Stripe account…</option>
+                            </select>
+                            <button type="button" class="btn" onclick="linkExistingStripe()" style="background: #4f46e5; color: white; white-space: nowrap;">Link to this property</button>
+                        </div>
                     </div>
-                    
-                    <div class="form-group" style="margin-bottom: 1rem;">
-                        <label class="form-label">Secret Key</label>
-                        <input type="password" class="form-input" id="stripe-secret-key" placeholder="sk_live_... or sk_test_...">
-                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">
-                            Starts with sk_live_ (production) or sk_test_ (testing)
-                        </p>
-                    </div>
-                    
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button type="button" class="btn btn-secondary" onclick="testStripeConnection()" style="font-size: 0.85rem;">
-                             Test Connection
-                        </button>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-left: auto; font-size: 0.85rem;">
-                            <input type="checkbox" id="stripe-test-mode" style="width: 16px; height: 16px;">
-                            Test Mode
-                        </label>
-                    </div>
+
+                    <details style="margin-bottom: 1rem;">
+                        <summary style="cursor: pointer; font-size: 0.85rem; color: #64748b; padding: 0.25rem 0;">Or add a new Stripe account (paste keys)</summary>
+                        <div style="margin-top: 0.75rem;">
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">Publishable Key</label>
+                                <input type="text" class="form-input" id="stripe-publishable-key" placeholder="pk_live_... or pk_test_...">
+                                <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">
+                                    Starts with pk_live_ (production) or pk_test_ (testing)
+                                </p>
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">Secret Key</label>
+                                <input type="password" class="form-input" id="stripe-secret-key" placeholder="sk_live_... or sk_test_...">
+                                <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">
+                                    Starts with sk_live_ (production) or sk_test_ (testing)
+                                </p>
+                            </div>
+
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button type="button" class="btn btn-secondary" onclick="testStripeConnection()" style="font-size: 0.85rem;">
+                                     Test Connection
+                                </button>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; margin-left: auto; font-size: 0.85rem;">
+                                    <input type="checkbox" id="stripe-test-mode" style="width: 16px; height: 16px;">
+                                    Test Mode
+                                </label>
+                            </div>
+                        </div>
+                    </details>
                 </div>
                 
                 <!-- Generate Setup Link (for property owners) -->
@@ -104166,11 +104191,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const propData = await propRes.json();
                 if (propData.success) {
                     document.getElementById('payment-settings-account-id').value = propData.data.account_id;
+                    // Populate "Use existing Stripe account" dropdown from any
+                    // Stripe configs already on this account. Hidden if none.
+                    await loadExistingStripeAccounts(propData.data.account_id, propertyId);
                 }
             } catch (e) {
                 console.error('Error getting property:', e);
             }
-            
+
             // Load existing payment configuration
             try {
                 const response = await fetch(`/api/properties/${propertyId}/payment-configuration`);
@@ -104571,7 +104599,61 @@ const promo = await fetch('/api/v1/offers/validate', {
                 showNotification('Error saving settings', 'error');
             }
         }
-        
+
+        // Populate the "Use existing Stripe account" dropdown with any Stripe
+        // accounts already known for this GAS account. Steve 2026-08-02 —
+        // Cotswolds has 80 property configs all using the same key; adding
+        // a new property (like Heron Hideaway) shouldn't require re-pasting.
+        async function loadExistingStripeAccounts(accountId, currentPropertyId) {
+            const wrap = document.getElementById('stripe-link-existing-wrap');
+            const sel  = document.getElementById('stripe-link-existing-select');
+            if (!wrap || !sel) return;
+            wrap.style.display = 'none';
+            sel.innerHTML = '<option value="">Select an existing Stripe account…</option>';
+            try {
+                const r = await fetch(`/api/admin/accounts/${accountId}/stripe-accounts`, { headers: authHeaders() });
+                const data = await r.json();
+                if (!data.success || !Array.isArray(data.accounts)) return;
+                // Filter out any Stripe account already attached to THIS
+                // property — no point offering to link what's already there.
+                const others = data.accounts.filter(a => !(a.property_ids || []).includes(parseInt(currentPropertyId, 10)));
+                if (others.length === 0) return;
+                others.forEach(a => {
+                    const opt = document.createElement('option');
+                    opt.value = a.source_config_id;
+                    const suffix = a.property_count > 0 ? ` — used by ${a.property_count} ${a.property_count === 1 ? 'property' : 'properties'}` : '';
+                    opt.textContent = `${a.label}${suffix}`;
+                    sel.appendChild(opt);
+                });
+                wrap.style.display = '';
+            } catch (e) {
+                console.warn('loadExistingStripeAccounts:', e.message);
+            }
+        }
+
+        async function linkExistingStripe() {
+            const sel = document.getElementById('stripe-link-existing-select');
+            const sourceId = sel && sel.value ? parseInt(sel.value, 10) : null;
+            if (!sourceId) { showNotification('Pick a Stripe account first', 'warning'); return; }
+            const propertyId = document.getElementById('payment-settings-property-id').value;
+            if (!propertyId) { showNotification('No property loaded', 'error'); return; }
+            try {
+                const r = await fetch(`/api/admin/properties/${propertyId}/payment/link-stripe`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ source_config_id: sourceId })
+                });
+                const data = await r.json();
+                if (!data.success) { showNotification('Link failed: ' + (data.error || 'unknown'), 'error'); return; }
+                showNotification('✓ Stripe account linked to this property', 'success');
+                // Refresh the modal so the "Connected" state renders correctly
+                const propName = document.getElementById('payment-settings-property-name').textContent;
+                await openPaymentSettings(parseInt(propertyId, 10), propName);
+            } catch (e) {
+                showNotification('Error: ' + e.message, 'error');
+            }
+        }
+
         async function disconnectStripe() {
             if (!confirm('Are you sure you want to disconnect Stripe for this property? This will remove the Stripe API keys.')) return;
             

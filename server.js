@@ -126065,6 +126065,117 @@ app.get('/api/admin/payment-accounts', async (req, res) => {
   }
 });
 
+// GET /api/admin/accounts/:accountId/stripe-accounts
+// List distinct Stripe accounts already connected on this GAS account —
+// grouped by publishable_key so the same key on many properties collapses
+// into one option. Powers the "Use existing Stripe account" dropdown in
+// the per-property Payment Settings modal (Steve 2026-08-02, Heron
+// Hideaway). Returns a `source_config_id` per unique Stripe account,
+// which the link endpoint below clones from — secret keys never leave
+// the server.
+app.get('/api/admin/accounts/:accountId/stripe-accounts', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const accountId = parseInt(req.params.accountId, 10);
+    if (!Number.isFinite(accountId)) return res.status(400).json({ success: false, error: 'invalid account id' });
+    // Master admin sees all; account users only their own account.
+    if (decoded.role !== 'master_admin' && decoded.id !== accountId) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const rows = await pool.query(
+      `SELECT pc.id, pc.name, pc.property_id, pc.credentials, pc.test_mode
+         FROM payment_configurations pc
+        WHERE pc.account_id = $1
+          AND pc.provider = 'stripe'
+          AND pc.is_enabled = true
+          AND (pc.credentials->>'publishable_key') IS NOT NULL
+        ORDER BY pc.id`,
+      [accountId]
+    );
+    // Group by publishable_key (fingerprint of a Stripe account).
+    // Return a stable representative source_config_id per group.
+    const groups = new Map();
+    for (const r of rows.rows) {
+      const pk = r.credentials?.publishable_key || '';
+      if (!pk) continue;
+      if (!groups.has(pk)) {
+        groups.set(pk, {
+          source_config_id: r.id,
+          publishable_key_mask: pk.slice(0, 12) + '…' + pk.slice(-4),
+          name: r.name || null,
+          test_mode: !!r.test_mode,
+          property_ids: [],
+        });
+      }
+      if (r.property_id != null) groups.get(pk).property_ids.push(r.property_id);
+    }
+    const accounts = Array.from(groups.values()).map(g => ({
+      source_config_id: g.source_config_id,
+      label: (g.name && g.name.trim()) ? g.name : `Stripe ${g.publishable_key_mask}${g.test_mode ? ' (test)' : ''}`,
+      publishable_key_mask: g.publishable_key_mask,
+      test_mode: g.test_mode,
+      property_count: g.property_ids.length,
+      property_ids: g.property_ids,
+    }));
+    res.json({ success: true, accounts });
+  } catch (e) {
+    console.error('[stripe-accounts list]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/admin/properties/:propertyId/payment/link-stripe
+// Clone an existing account-owned Stripe payment_configurations row onto
+// this property. Body: { source_config_id }. Never exposes secret keys
+// to the client; copy happens server-side.
+app.post('/api/admin/properties/:propertyId/payment/link-stripe', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const propertyId = parseInt(req.params.propertyId, 10);
+    const sourceId   = parseInt(req.body?.source_config_id, 10);
+    if (!Number.isFinite(propertyId) || !Number.isFinite(sourceId)) {
+      return res.status(400).json({ success: false, error: 'invalid property_id or source_config_id' });
+    }
+    // Resolve property → account
+    const propRow = await pool.query(`SELECT id, account_id FROM properties WHERE id = $1`, [propertyId]);
+    if (!propRow.rows.length) return res.status(404).json({ success: false, error: 'property not found' });
+    const accountId = propRow.rows[0].account_id;
+    if (decoded.role !== 'master_admin' && decoded.id !== accountId) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    // Fetch source config — must belong to the same account
+    const srcRow = await pool.query(
+      `SELECT id, account_id, provider, name, credentials, settings, test_mode
+         FROM payment_configurations
+        WHERE id = $1 AND provider = 'stripe' AND account_id = $2`,
+      [sourceId, accountId]
+    );
+    if (!srcRow.rows.length) return res.status(404).json({ success: false, error: 'source config not found on this account' });
+    const src = srcRow.rows[0];
+
+    // Upsert target row (delete any existing property-level stripe config
+    // first — one Stripe account per property; caller chose this one).
+    await pool.query(
+      `DELETE FROM payment_configurations WHERE account_id = $1 AND property_id = $2 AND provider = 'stripe'`,
+      [accountId, propertyId]
+    );
+    const ins = await pool.query(
+      `INSERT INTO payment_configurations
+         (account_id, property_id, provider, name, credentials, settings, is_enabled, is_default, test_mode)
+       VALUES ($1, $2, 'stripe', $3, $4::jsonb, $5::jsonb, true, true, $6)
+       RETURNING id`,
+      [accountId, propertyId, src.name || null,
+       JSON.stringify(src.credentials || {}), JSON.stringify(src.settings || {}), !!src.test_mode]
+    );
+    res.json({ success: true, id: ins.rows[0].id, linked_from: sourceId });
+  } catch (e) {
+    console.error('[link-stripe]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // GET /api/admin/payment-accounts/:id/properties
 app.get('/api/admin/payment-accounts/:id/properties', async (req, res) => {
   try {
