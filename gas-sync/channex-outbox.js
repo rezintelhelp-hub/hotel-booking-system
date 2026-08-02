@@ -435,6 +435,41 @@ async function enqueueRestrictionForRoom(pool, gasRoomId, payload, changeType = 
     `, [gasRoomId, m.connection_id]);
     ratePlanId = rp.rows[0]?.external_id || null;
   } catch (_) { /* table may not exist yet */ }
+
+  // Auto-populate min-stay when the caller didn't send one. Steve
+  // 2026-08-02 — B553459 (Petra Wiegers-Mattern, No 5 Rte des Thermes)
+  // landed as a 1-night Booking.com stay on a property with a 2-night
+  // minimum. Root cause: restriction outbox payloads had never carried
+  // min_stay, so Channex saw no constraint. Resolution model per Steve:
+  // per-date min_stay_override → property.standard_min_stay → 1. Room-
+  // level bookable_units.min_stay is deliberately ignored (Steve's
+  // stated design is property-standard + per-date override, no room tier).
+  // Only fires for change_type='restriction' + a date payload; rate-only
+  // pushes stay untouched.
+  const finalPayload = { ...payload };
+  if (changeType === 'restriction' && payload?.date
+      && (finalPayload.minStayArrival == null || finalPayload.minStayThrough == null)) {
+    try {
+      const resolved = await pool.query(`
+        SELECT COALESCE(ra.min_stay_override, p.standard_min_stay, 1)::int AS min_stay
+          FROM bookable_units bu
+          JOIN properties p ON p.id = bu.property_id
+     LEFT JOIN room_availability ra
+            ON ra.room_id = bu.id AND ra.date = $2::date
+         WHERE bu.id = $1
+         LIMIT 1
+      `, [gasRoomId, payload.date]);
+      const minStay = parseInt(resolved.rows[0]?.min_stay, 10) || 1;
+      if (finalPayload.minStayArrival == null) finalPayload.minStayArrival = minStay;
+      if (finalPayload.minStayThrough == null) finalPayload.minStayThrough = minStay;
+    } catch (e) {
+      // Non-fatal — fall through with whatever the caller sent. Better
+      // to push CTA/CTD/stopSell than to swallow the whole restriction
+      // because we couldn't compute min_stay.
+      console.warn(`[channex-outbox] min-stay auto-resolve failed for room ${gasRoomId} date ${payload.date}:`, e.message);
+    }
+  }
+
   await enqueue(pool, {
     account_id: m.account_id,
     connection_id: m.connection_id,
@@ -442,7 +477,7 @@ async function enqueueRestrictionForRoom(pool, gasRoomId, payload, changeType = 
     channex_room_type_id: m.channex_room_type_id,
     channex_rate_plan_id: ratePlanId,
     change_type: changeType,
-    payload,
+    payload: finalPayload,
   });
   return true;
 }
