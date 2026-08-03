@@ -2021,12 +2021,12 @@ jQuery(document).ready(function($) {
             var iv = setInterval(function() {
                 tries++;
                 if (!didIn) {
-                    document.querySelectorAll('.gas-checkin, .gas-search-checkin').forEach(function(el) {
+                    document.querySelectorAll('.gas-checkin, .gas-checkin-date, .gas-search-checkin, .gas-filter-checkin').forEach(function(el) {
                         if (el._flatpickr) { el._flatpickr.setDate(urlCheckIn, true); didIn = true; }
                     });
                 }
                 if (!didOut) {
-                    document.querySelectorAll('.gas-checkout, .gas-search-checkout').forEach(function(el) {
+                    document.querySelectorAll('.gas-checkout, .gas-checkout-date, .gas-search-checkout, .gas-filter-checkout').forEach(function(el) {
                         if (el._flatpickr) { el._flatpickr.setDate(urlCheckOut, true); didOut = true; }
                     });
                 }
