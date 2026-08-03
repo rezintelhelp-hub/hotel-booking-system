@@ -155432,11 +155432,11 @@ app.get('/api/admin/comms/health', async (req, res) => {
 async function contractsHydrateContext(pool, bookingId, contractInstance = null) {
   const b = await pool.query(`
     SELECT b.*, p.name AS prop_name, p.address AS prop_address,
-           p.city AS prop_city, p.country_code AS prop_country,
+           p.city AS prop_city, p.country AS prop_country,
            bu.name AS unit_name, bu.description AS unit_description,
            bu.max_guests AS unit_max_guests, bu.bedrooms AS unit_bedrooms,
-           bu.bathrooms AS unit_bathrooms, bu.size_value AS unit_size_value,
-           bu.size_unit AS unit_size_unit, bu.amenities AS unit_amenities,
+           bu.bathrooms AS unit_bathrooms, bu.size_sqm AS unit_size_sqm,
+           bu.amenities AS unit_amenities,
            p.account_id AS acc_id, a.name AS acc_name, a.email AS acc_email
       FROM bookings b
       LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
@@ -155515,7 +155515,7 @@ async function contractsHydrateContext(pool, bookingId, contractInstance = null)
       max_guests: bk.unit_max_guests || '',
       bedrooms: bk.unit_bedrooms || '',
       bathrooms: bk.unit_bathrooms || '',
-      size: bk.unit_size_value ? `${bk.unit_size_value} ${bk.unit_size_unit || 'm²'}` : '',
+      size: bk.unit_size_sqm ? `${bk.unit_size_sqm} m²` : '',
     },
     account: {
       name: bk.acc_name || '',
