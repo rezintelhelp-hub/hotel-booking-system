@@ -155793,9 +155793,20 @@ app.post('/api/admin/bookings/:id/send-contract', async (req, res) => {
     const guestName = [b.rows[0].guest_first_name, b.rows[0].guest_last_name].filter(Boolean).join(' ') || 'there';
     const isFr = template.language === 'fr';
 
+    // BCC the landlord on the outgoing "please sign" email so the operator
+    // has a record in their own inbox of what was sent and when — useful
+    // when a guest claims they never received the email. Owner email first
+    // (that's the actual bailleur), account email as fallback.
+    let landlordBcc = ctx?.landlord?.email || '';
+    if (!landlordBcc) {
+      const acc = await pool.query(`SELECT email FROM accounts WHERE id = $1`, [accountId]);
+      landlordBcc = acc.rows[0]?.email || '';
+    }
+
     try {
       await sendEmail({
         to: b.rows[0].guest_email,
+        bcc: landlordBcc || undefined,
         subject: isFr
           ? `Votre contrat de location — merci de le signer`
           : `Your rental contract — please sign`,
