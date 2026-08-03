@@ -60603,14 +60603,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                         else if (offer.min_guests) bands.push(`${offer.min_guests}+ guests`);
                         else if (offer.max_guests) bands.push(`up to ${offer.max_guests} guests`);
                         discountLabel = `Flat ${currencySymbol}${flatRate.toLocaleString()} / night${bands.length ? ' · ' + bands.join(', ') : ''}`;
-                    } else if (offer.discount_type === 'fixed_total') {
-                        // fixed_total — discount_value IS the flat stay total, not a discount.
-                        // Never render as "-€X from Standard" (Steve 2026-08-03 caught this on
-                        // Curist Package showing "-€785 from Standard" instead of "€785 total").
-                        const nightWord = (offer.min_nights === offer.max_nights && offer.min_nights)
-                            ? `for ${offer.min_nights} nights`
-                            : (offer.min_nights ? `for ${offer.min_nights}+ nights` : 'per stay');
-                        discountLabel = `Flat ${currencySymbol}${Math.abs(offer.discount_value).toLocaleString()} ${nightWord}`;
                     } else if (hasOffset) {
                         discountLabel = `${offsetPct >= 0 ? '+' : ''}${offsetPct}% from Standard`;
                     } else {

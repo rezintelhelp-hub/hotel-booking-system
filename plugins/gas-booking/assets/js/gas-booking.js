@@ -2054,16 +2054,7 @@ jQuery(document).ready(function($) {
 
                         var discountText = '';
                         if (offer.discount_type === 'percentage') discountText = Math.round(offer.discount_value) + '% OFF';
-                        else if (offer.discount_type === 'fixed_total') {
-                            // Steve 2026-08-03 — fixed_total is a flat stay price, not
-                            // a discount. Show it as "€785 for 21 nights" instead of
-                            // "-€785 OFF" (which reads as an absurdly large discount).
-                            var nightsPhrase = (offer.min_nights && offer.min_nights === offer.max_nights)
-                                ? 'for ' + offer.min_nights + ' nights'
-                                : (offer.min_nights ? 'for ' + offer.min_nights + '+ nights' : 'per stay');
-                            discountText = offer.discount_value + ' ' + nightsPhrase;
-                        }
-                        else if (offer.discount_type === 'fixed' || offer.discount_type === 'fixed_amount') discountText = offer.discount_value + ' OFF';
+                        else if (offer.discount_type === 'fixed') discountText = offer.discount_value + ' OFF';
 
                         var dateText = '';
                         if (offer.valid_from || offer.valid_until) {
