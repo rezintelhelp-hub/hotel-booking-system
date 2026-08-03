@@ -69944,15 +69944,6 @@ async function mirrorOfferToChannex(pool, offer) {
   const discountValue = parseFloat(offer.discount_value || 0);
   const discountFactor = (discountType === 'percentage') ? (1 - discountValue / 100) : 1;
 
-  // fixed_total offers (Steve 2026-08-03: cure package €785 for 21 nights)
-  // are direct-website-only. Channex rate plans can't cleanly express
-  // "€785 for exactly N nights" without per-length-of-stay pricing rules
-  // that BDC/Airbnb don't uniformly honour. Skip the mirror; the offer
-  // still applies on the site checkout.
-  if (discountType === 'fixed_total') {
-    return { plansCreated: 0, datesPushed: 0, errors: ['fixed_total offers are website-only — Channex mirror skipped'], website_only: true };
-  }
-
   const results = { plansCreated: 0, datesPushed: 0, errors: [] };
 
   for (const roomId of roomIds) {
@@ -101746,12 +101737,6 @@ app.post('/api/public/calculate-price', async (req, res) => {
           // Flat rate, e.g. Exclusive Hire tiered offers
           useFixedPricePerNight = parseFloat(offer.price_per_night);
           accommodationTotal = useFixedPricePerNight * nights;
-        } else if (offer.discount_type === 'fixed_total') {
-          // fixed_total — discount_value IS the accommodation total for
-          // the whole stay. Steve 2026-08-03 (cure package: 21 nights for
-          // €785 flat). Overrides nightly math entirely; extras and tax
-          // still stack on top per their own inclusive/exclusive flags.
-          accommodationTotal = parseFloat(offer.discount_value);
         } else if (offer.discount_type === 'percentage') {
           const offerTotal = baseForDiscount * (1 - offer.discount_value / 100);
           accommodationTotal = offerTotal;
@@ -101768,14 +101753,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
         };
       } else {
         // Standard tier - use percentage/fixed discount with visible badge
-        if (offer.discount_type === 'fixed_total') {
-          // fixed_total on standard tier — override accommodation to the
-          // flat total; zero the discount line. Same intent as the
-          // replaces_standard branch above; safer to handle explicitly.
-          const flat = parseFloat(offer.discount_value) || 0;
-          accommodationTotal = flat;
-          discount = 0;
-        } else if (offer.discount_type === 'percentage') {
+        if (offer.discount_type === 'percentage') {
           discount = accommodationTotal * (offer.discount_value / 100);
         } else {
           discount = parseFloat(offer.discount_value);
