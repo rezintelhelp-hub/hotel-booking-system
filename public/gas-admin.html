@@ -20274,6 +20274,22 @@
                             </div>
                         </div>
 
+                        <!-- Check-in day constraint (2026-08-03 — cure packages, Sat-only chalets).
+                             Applies to any accommodation-holding product. Empty = any day allowed. -->
+                        <div class="form-group" style="margin-bottom:1rem; padding:0.85rem 1rem; background:#f0f9ff; border-radius:8px; border:1px solid #bae6fd;">
+                            <label class="form-label" style="color:#0369a1;">🗓 Check-in day constraint <span style="font-size:0.75rem; color:#0369a1; font-weight:normal;">(empty = any day allowed — for accommodation products only)</span></label>
+                            <p style="font-size:0.8rem; color:#0c4a6e; margin:0 0 0.5rem;">Tick the days a guest can arrive. Cure packages typically start Sat/Sun; weekend rentals only Fri/Sat. Enforced at checkout.</p>
+                            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                                <label style="display:flex;align-items:center;gap:0.25rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="shop-product-checkin-day" value="0" style="width:14px;height:14px;">Sun</label>
+                                <label style="display:flex;align-items:center;gap:0.25rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="shop-product-checkin-day" value="1" style="width:14px;height:14px;">Mon</label>
+                                <label style="display:flex;align-items:center;gap:0.25rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="shop-product-checkin-day" value="2" style="width:14px;height:14px;">Tue</label>
+                                <label style="display:flex;align-items:center;gap:0.25rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="shop-product-checkin-day" value="3" style="width:14px;height:14px;">Wed</label>
+                                <label style="display:flex;align-items:center;gap:0.25rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="shop-product-checkin-day" value="4" style="width:14px;height:14px;">Thu</label>
+                                <label style="display:flex;align-items:center;gap:0.25rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="shop-product-checkin-day" value="5" style="width:14px;height:14px;">Fri</label>
+                                <label style="display:flex;align-items:center;gap:0.25rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="shop-product-checkin-day" value="6" style="width:14px;height:14px;">Sat</label>
+                            </div>
+                        </div>
+
                         <!-- Rental (daily) fields — pickup/return window + per-unit inventory.
                              Generic to any rentable kit: e-bikes, skis, kayaks, paddleboards,
                              parking slots, SUPs, boats. TTLock lock pairing per unit is
@@ -115000,6 +115016,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         document.getElementById('shop-product-min-notice').value = '';
         document.getElementById('shop-product-included-nights').value = '';
         document.querySelectorAll('input.shop-upsell-day').forEach(cb => cb.checked = false);
+        document.querySelectorAll('input.shop-product-checkin-day').forEach(cb => cb.checked = false);
         const upsellPropsBox = document.getElementById('shop-product-upsell-properties');
         if (upsellPropsBox) upsellPropsBox.innerHTML = '<span style="color:#94a3b8;font-size:0.85rem;">Tick the box above to choose properties.</span>';
 
@@ -115099,6 +115116,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('shop-product-included-nights').value = product.included_nights_per_unit != null ? product.included_nights_per_unit : '';
             const days = (product.available_days_of_week || '').split(',').map(s => s.trim()).filter(Boolean);
             document.querySelectorAll('input.shop-upsell-day').forEach(cb => { cb.checked = days.includes(cb.value); });
+            // Check-in day constraint — always visible, separate from upsell days
+            const checkinDays = (product.checkin_days_of_week || '').split(',').map(s => s.trim()).filter(Boolean);
+            document.querySelectorAll('input.shop-product-checkin-day').forEach(cb => { cb.checked = checkinDays.includes(cb.value); });
             if (isAsUpsell) {
                 const propIds = Array.isArray(product.upsell_property_ids) ? product.upsell_property_ids.map(Number) : [];
                 await loadShopUpsellPropertyCheckboxes(propIds, product.account_id);
@@ -115470,6 +115490,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         formData.append('available_as_upsell', asUpsell);
         const days = Array.from(document.querySelectorAll('input.shop-upsell-day:checked')).map(cb => cb.value).join(',');
         formData.append('available_days_of_week', days);
+        const checkinDays = Array.from(document.querySelectorAll('input.shop-product-checkin-day:checked')).map(cb => cb.value).join(',');
+        formData.append('checkin_days_of_week', checkinDays);
         formData.append('valid_from', document.getElementById('shop-product-valid-from').value || '');
         formData.append('valid_until', document.getElementById('shop-product-valid-until').value || '');
         formData.append('min_notice_hours', document.getElementById('shop-product-min-notice').value || '');

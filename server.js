@@ -144624,6 +144624,11 @@ app.listen(PORT, '0.0.0.0', async () => {
     //   - Tours are date-bound: requires_date=1, with available_days_of_week + valid_from/until.
     //   - The booking widget hides the upsell when the guest's stay doesn't intersect any valid date.
     await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS available_days_of_week VARCHAR(20)`); // CSV like "3,6"
+    // 2026-08-03 — check-in day constraint for accommodation-holding products
+    // (cure packages, weekend rentals, Sat-only chalet weeks). CSV of 0..6
+    // (0=Sun, 6=Sat) same shape as available_days_of_week. Empty/null = any
+    // day. Enforced in /api/public/shop/create-checkout-session.
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS checkin_days_of_week VARCHAR(20)`).catch(() => {});
     await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS valid_from DATE`);
     await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS valid_until DATE`);
     await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS available_as_upsell BOOLEAN DEFAULT false`);
@@ -149335,7 +149340,7 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
     const clientId = req.body.client_id || decoded.accountId || decoded.id;
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, event_block_rooms, event_held_room_ids, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, upsell_room_ids, upsell_amenity_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, event_block_rooms, event_held_room_ids, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, upsell_room_ids, upsell_amenity_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee, checkin_days_of_week } = req.body;
 
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Product name is required' });
     // Gift certificates carry no fixed price — buyer picks at checkout — so accept 0 here.
@@ -149398,8 +149403,8 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     }
 
     const result = await pool.query(`
-      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee, event_recurring, event_block_rooms, event_held_room_ids, upsell_room_ids, upsell_amenity_ids)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32::jsonb, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44)
+      INSERT INTO shop_products (account_id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, category, stock_quantity, stock_tracking, is_active, sort_order, product_type, event_start_date, event_end_date, event_duration_nights, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee, event_recurring, event_block_rooms, event_held_room_ids, upsell_room_ids, upsell_amenity_ids, checkin_days_of_week)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32::jsonb, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45)
       RETURNING *
     `, [
       clientId, name.trim(),
@@ -149441,7 +149446,8 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
       event_block_rooms === 'true' || event_block_rooms === true,
       heldRoomIdsArr,
       upsellRoomIdsArr,
-      upsellAmenityIdsArr
+      upsellAmenityIdsArr,
+      checkin_days_of_week || null
     ]);
 
     // Mirror to upsells table if owner ticked "Also offer as booking upsell".
@@ -149486,7 +149492,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
     const existing = await pool.query('SELECT * FROM shop_products WHERE id = $1 AND account_id = $2', [productId, clientId]);
     if (!existing.rows.length) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, event_block_rooms, event_held_room_ids, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, upsell_room_ids, upsell_amenity_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee } = req.body;
+    const { name, description, price, currency, category, stock_quantity, stock_tracking, is_active, sort_order, name_ml, description_ml, product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, event_block_rooms, event_held_room_ids, offers_accommodation, property_id, stripe_config_id, external_url, external_button_label, available_days_of_week, valid_from, valid_until, available_as_upsell, upsell_property_ids, upsell_room_ids, upsell_amenity_ids, min_notice_hours, included_nights_per_unit, gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months, tax_rate, tax_exempt, delivery_fee, checkin_days_of_week } = req.body;
 
     if (name && !name.trim()) return res.status(400).json({ success: false, error: 'Product name cannot be empty' });
     if (price !== undefined) {
@@ -149594,6 +149600,7 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
         event_held_room_ids = COALESCE($43, event_held_room_ids),
         upsell_room_ids = $44,
         upsell_amenity_ids = $45,
+        checkin_days_of_week = COALESCE($46, checkin_days_of_week),
         updated_at = NOW()
       WHERE id = $15 AND account_id = $16
       RETURNING *
@@ -149650,7 +149657,8 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
         return arr.length ? arr : null;
       })(),
       upsellRoomIdsArr,
-      upsellAmenityIdsArr
+      upsellAmenityIdsArr,
+      checkin_days_of_week !== undefined ? (checkin_days_of_week || null) : null
     ]);
 
     // Mirror to upsells table — create/update/delete the linked row based on the new state.
@@ -150898,6 +150906,23 @@ app.get('/api/public/client/:clientId/shop/products/:slug/room-options', async (
   }
 });
 
+// Validate an arrival date against a product's checkin_days_of_week CSV.
+// Returns { ok, error, dayName } — ok=true if unrestricted or day matches.
+// Days are 0..6, Sun..Sat, matching JS Date.getDay().
+function validateCheckinDay(product, dateStr) {
+  if (!product || !product.checkin_days_of_week) return { ok: true };
+  if (!dateStr) return { ok: true }; // no date supplied — nothing to validate
+  const allowed = String(product.checkin_days_of_week).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 0 && n <= 6);
+  if (!allowed.length) return { ok: true };
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return { ok: true };
+  const dow = d.getDay();
+  if (allowed.includes(dow)) return { ok: true };
+  const names = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const allowedNames = allowed.map(n => names[n]).join(' or ');
+  return { ok: false, error: `${product.name} requires check-in on ${allowedNames}. Selected date is a ${names[dow]}.` };
+}
+
 // POST /api/public/shop/create-checkout-session — create Stripe checkout + pending order
 app.post('/api/public/shop/create-checkout-session', async (req, res) => {
   const client = await pool.connect();
@@ -151103,9 +151128,17 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
       if (!eventProduct) return res.status(400).json({ success: false, error: 'No event product in cart that offers accommodation' });
 
       const roomId = parseInt(accommodation.room_id);
-      const accomCheckin = eventProduct.event_start_date ? new Date(eventProduct.event_start_date).toISOString().split('T')[0] : null;
-      const accomCheckout = eventProduct.event_end_date ? new Date(eventProduct.event_end_date).toISOString().split('T')[0] : null;
+      // For recurring events guests pick their own dates — use the accommodation
+      // payload. Fixed-date events fall back to the product's dates.
+      const accomCheckin = (accommodation.check_in && String(accommodation.check_in).trim())
+        || (eventProduct.event_start_date ? new Date(eventProduct.event_start_date).toISOString().split('T')[0] : null);
+      const accomCheckout = (accommodation.check_out && String(accommodation.check_out).trim())
+        || (eventProduct.event_end_date ? new Date(eventProduct.event_end_date).toISOString().split('T')[0] : null);
       if (!accomCheckin || !accomCheckout) return res.status(400).json({ success: false, error: 'Event dates not configured' });
+
+      // Check-in day constraint (e.g. Sat/Sun only for cure packages).
+      const dayCheck = validateCheckinDay(eventProduct, accomCheckin);
+      if (!dayCheck.ok) return res.status(400).json({ success: false, error: dayCheck.error });
 
       // Re-validate availability (race condition protection)
       const blocked = await client.query(
