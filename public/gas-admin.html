@@ -3018,6 +3018,7 @@
                             <span onclick="event.stopPropagation(); showView('availability')">Availability</span>
                             <span onclick="event.stopPropagation(); openBulkStripeModal()">Payment Setup</span>
                             <span onclick="event.stopPropagation(); showView('payment-accounts')">Payment Accounts</span>
+                            <span onclick="event.stopPropagation(); showView('property-owners')">Property Owners</span>
                         </div>
                     </div>
 
@@ -7106,6 +7107,26 @@
                  each, and add/remove properties without ever re-pasting
                  keys. The older Bulk Payment Setup modal still serves the
                  batch accepted_methods toggle workflow. -->
+            <!-- Property Owners — Steve 2026-08-03. First-class bailleur
+                 entities used by rental contracts. One operator can manage
+                 properties for multiple different owners; each has their
+                 own name, address, SIRET, IBAN. Property edit page picks
+                 owner from this list. -->
+            <div id="property-owners" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Property Owners</h2>
+                            <p>Legal owners (bailleurs) whose properties you manage. Contracts pull landlord + bank details from here.</p>
+                        </div>
+                        <button class="btn" onclick="openPropertyOwnerModal(null)" style="display:flex; align-items:center; gap:0.5rem;">+ New owner</button>
+                    </div>
+                </div>
+                <div id="property-owners-list" class="card" style="padding:0;">
+                    <div style="padding:2rem; text-align:center; color:#94a3b8;">Loading owners…</div>
+                </div>
+            </div>
+
             <div id="payment-accounts" class="view">
                 <div class="header">
                     <div class="header-top">
@@ -27825,6 +27846,92 @@ const promo = await fetch('/api/v1/offers/validate', {
     </div>
 
     <!-- Deposit Rule Modal -->
+    <!-- Property Owner modal — create or edit. Fields cover everything
+         the rental contract needs from the bailleur. -->
+    <div id="propertyOwnerModal" class="modal">
+        <div class="modal-content" style="max-width: 700px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #0369a1 0%, #075985 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0;">👤 <span id="property-owner-modal-title">New Owner</span></h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Legal owner (bailleur) for one or more properties</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('propertyOwnerModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem; max-height: 70vh; overflow-y: auto;">
+                <form id="property-owner-form" onsubmit="event.preventDefault(); savePropertyOwner();">
+                    <input type="hidden" id="property-owner-id">
+                    <input type="hidden" id="property-owner-account-id">
+
+                    <h4 style="margin: 0 0 0.75rem 0; color: #0369a1; font-size: 0.85rem; text-transform: uppercase;">Identity</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Name *</label>
+                            <input type="text" id="po-name" class="form-input" required placeholder="e.g. Stephen Driver">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Company (optional)</label>
+                            <input type="text" id="po-company" class="form-input" placeholder="e.g. Driver Ltd">
+                        </div>
+                    </div>
+
+                    <h4 style="margin: 1rem 0 0.75rem 0; color: #0369a1; font-size: 0.85rem; text-transform: uppercase;">Address</h4>
+                    <div class="form-group" style="margin-bottom: 0.75rem;">
+                        <label class="form-label">Street</label>
+                        <input type="text" id="po-address" class="form-input">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin: 0;"><label class="form-label">Postcode</label><input type="text" id="po-postcode" class="form-input"></div>
+                        <div class="form-group" style="margin: 0;"><label class="form-label">City</label><input type="text" id="po-city" class="form-input"></div>
+                        <div class="form-group" style="margin: 0;"><label class="form-label">Country</label><input type="text" id="po-country" class="form-input"></div>
+                    </div>
+
+                    <h4 style="margin: 1rem 0 0.75rem 0; color: #0369a1; font-size: 0.85rem; text-transform: uppercase;">Contact</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin: 0;"><label class="form-label">Phone</label><input type="text" id="po-phone" class="form-input"></div>
+                        <div class="form-group" style="margin: 0;"><label class="form-label">Email</label><input type="email" id="po-email" class="form-input"></div>
+                    </div>
+
+                    <h4 style="margin: 1rem 0 0.75rem 0; color: #0369a1; font-size: 0.85rem; text-transform: uppercase;">Legal (France — leave blank if N/A)</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin: 0;"><label class="form-label">SIRET</label><input type="text" id="po-siret" class="form-input" placeholder="14-digit business ID"></div>
+                        <div class="form-group" style="margin: 0;"><label class="form-label">N° enregistrement meublé</label><input type="text" id="po-tourist-let-reg" class="form-input" placeholder="13-char tourist-let registration"></div>
+                    </div>
+
+                    <h4 style="margin: 1rem 0 0.75rem 0; color: #0369a1; font-size: 0.85rem; text-transform: uppercase;">Bank details</h4>
+                    <div class="form-group" style="margin-bottom: 0.75rem;">
+                        <label class="form-label">Account name (titulaire)</label>
+                        <input type="text" id="po-bank-account-name" class="form-input">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin: 0;"><label class="form-label">IBAN</label><input type="text" id="po-iban" class="form-input" placeholder="FR76 …"></div>
+                        <div class="form-group" style="margin: 0;"><label class="form-label">BIC</label><input type="text" id="po-bic" class="form-input"></div>
+                    </div>
+
+                    <h4 style="margin: 1rem 0 0.75rem 0; color: #0369a1; font-size: 0.85rem; text-transform: uppercase;">Contract defaults</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin: 0;"><label class="form-label">Security deposit (€)</label><input type="number" step="0.01" id="po-security-deposit" class="form-input" placeholder="150"></div>
+                        <div class="form-group" style="margin: 0;"><label class="form-label">Cleaning fee (€)</label><input type="number" step="0.01" id="po-cleaning-fee" class="form-input" placeholder="35"></div>
+                        <div class="form-group" style="margin: 0;"><label class="form-label">Tourist tax €/adult/night</label><input type="number" step="0.01" id="po-tourist-tax" class="form-input" placeholder="0.50"></div>
+                    </div>
+
+                    <div class="form-group" style="margin: 1rem 0;">
+                        <label class="form-label">Notes (internal)</label>
+                        <textarea id="po-notes" class="form-input" rows="2"></textarea>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                        <input type="checkbox" id="po-is-active" checked style="width: 18px; height: 18px;">
+                        <label for="po-is-active" style="font-weight: 500;">Active</label>
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('propertyOwnerModal')">Cancel</button>
+                        <button type="submit" class="btn" style="background:#0369a1;">💾 Save owner</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div id="depositRuleModal" class="modal">
         <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
@@ -30012,6 +30119,26 @@ const promo = await fetch('/api/v1/offers/validate', {
                         ⚙️ Open Payment Setup
                     </button>
                     <small style="color: #64748b; display: block; margin-top: 0.5rem;">Manage Stripe keys and payment configuration via the Payment Setup panel</small>
+                </div>
+
+                <!-- Owner (bailleur) — Steve 2026-08-03. Ties the property to
+                     a first-class property_owners row. Owner data (name,
+                     IBAN, SIRET, etc.) flows into rental contracts as the
+                     legal bailleur. Operators managing properties for
+                     multiple different owners set each property to the
+                     correct owner. Solo-owner operators can skip this. -->
+                <div class="edit-section" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1rem; margin-bottom: 1rem;">
+                    <h4 style="margin: 0 0 1rem 0; color: #0369a1; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #bae6fd; padding-bottom: 0.5rem;">👤 Owner (bailleur) — for contracts</h4>
+                    <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                        <div style="flex: 1;">
+                            <label class="form-label">Legal owner of this property</label>
+                            <select id="edit-property-owner-id" class="form-input">
+                                <option value="">— No owner set (contract uses account fallback) —</option>
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="openPropertyOwnerModal(null)">+ New owner</button>
+                    </div>
+                    <small style="color: #0c4a6e; display: block; margin-top: 0.5rem;">Contract will show this owner's name as bailleur and their IBAN for deposit transfers. Manage owners in <a href="#" onclick="showView('property-owners'); return false;" style="color:#0369a1; font-weight:600;">Property Owners</a>.</small>
                 </div>
                 <!-- Hidden inputs to prevent JS errors on save -->
                 <input type="hidden" id="edit-property-stripe-name">
@@ -35205,6 +35332,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'agencies') loadAgencies();
             if (viewName === 'clients') loadClients();
             if (viewName === 'properties') loadProperties();
+            if (viewName === 'property-owners') loadPropertyOwners();
             if (viewName === 'rooms') loadRooms();
             if (viewName === 'images') loadImages();
             if (viewName === 'amenities') loadAmenities();
@@ -77925,6 +78053,9 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                     openModal('editPropertyModal');
                     loadChargeAutomationMapping(id);
+                    // Populate the Owner dropdown from this account's owners,
+                    // pre-selecting the property's current owner (if any).
+                    loadPropertyOwnerDropdown(prop.account_id, prop.owner_id);
                 }
             } catch (error) {
                 console.error('Error loading property:', error);
@@ -77996,6 +78127,185 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) { alert(e.message); }
         }
 
+        // Property Owners — Steve 2026-08-03. First-class bailleur entities
+        // (per-account list). Property edit page has an owner dropdown that
+        // populates from this. Owners admin view lists + CRUDs them.
+
+        // Populate the owner dropdown on the property edit modal from the
+        // account's property_owners rows. Called when the modal opens.
+        async function loadPropertyOwnerDropdown(accountId, currentOwnerId) {
+            const sel = document.getElementById('edit-property-owner-id');
+            if (!sel) return;
+            sel.innerHTML = '<option value="">— No owner set (contract uses account fallback) —</option>';
+            if (!accountId) return;
+            try {
+                const r = await fetch(`/api/admin/accounts/${accountId}/property-owners`, { headers: authHeaders() });
+                const d = await r.json();
+                if (d.success && Array.isArray(d.owners)) {
+                    d.owners.filter(o => o.is_active).forEach(o => {
+                        const opt = document.createElement('option');
+                        opt.value = o.id;
+                        opt.textContent = o.name + (o.company ? ` (${o.company})` : '') + (o.property_count > 0 ? ` — ${o.property_count} ${o.property_count === 1 ? 'property' : 'properties'}` : '');
+                        if (currentOwnerId != null && parseInt(currentOwnerId, 10) === o.id) opt.selected = true;
+                        sel.appendChild(opt);
+                    });
+                }
+            } catch (e) { console.warn('loadPropertyOwnerDropdown:', e.message); }
+        }
+
+        // Load the Property Owners admin view. Master picks an account via
+        // the top filter; account admins see only their own.
+        async function loadPropertyOwners() {
+            const listEl = document.getElementById('property-owners-list');
+            if (!listEl) return;
+            listEl.innerHTML = '<div style="padding:2rem; text-align:center; color:#94a3b8;">Loading owners…</div>';
+            const isMaster = (window.currentUser && window.currentUser.role === 'master_admin');
+            const accountId = isMaster
+                ? (selectedAccountId || (window.currentUser && window.currentUser.id) || null)
+                : (window.currentUser && (window.currentUser.id || window.currentUser.accountId));
+            if (!accountId) { listEl.innerHTML = '<div style="padding:2rem; text-align:center; color:#94a3b8;">Pick an account to see its owners.</div>'; return; }
+            try {
+                const r = await fetch(`/api/admin/accounts/${accountId}/property-owners`, { headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success) { listEl.innerHTML = `<div style="padding:2rem; color:#dc2626;">Error: ${d.error||'unknown'}</div>`; return; }
+                if (!d.owners.length) {
+                    listEl.innerHTML = `<div style="padding:2rem; text-align:center; color:#64748b;"><p>No owners yet.</p><button class="btn" onclick="openPropertyOwnerModal(null, ${accountId})">+ Create first owner</button></div>`;
+                    return;
+                }
+                let html = '<table style="width:100%; border-collapse:collapse;"><thead><tr style="background:#f8fafc; text-align:left;">'
+                    + '<th style="padding:10px;">Name</th><th style="padding:10px;">Email</th><th style="padding:10px;">IBAN</th><th style="padding:10px;">SIRET</th><th style="padding:10px;">Properties</th><th style="padding:10px;">Active</th><th style="padding:10px;"></th></tr></thead><tbody>';
+                d.owners.forEach(o => {
+                    const escName = String((o.name || '') + (o.company ? ' — ' + o.company : '')).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+                    html += `<tr style="border-top:1px solid #e5e7eb; ${o.is_active ? '' : 'opacity:0.5;'}">
+                        <td style="padding:10px;"><strong>${escName}</strong></td>
+                        <td style="padding:10px; font-size:0.85rem;">${(o.email||'').replace(/[<>&"]/g,'')}</td>
+                        <td style="padding:10px; font-size:0.75rem; font-family:ui-monospace,monospace;">${(o.iban||'').replace(/[<>&"]/g,'')}</td>
+                        <td style="padding:10px; font-size:0.75rem;">${(o.siret||'').replace(/[<>&"]/g,'')}</td>
+                        <td style="padding:10px; text-align:center;">${o.property_count || 0}</td>
+                        <td style="padding:10px;">${o.is_active ? '✓' : '—'}</td>
+                        <td style="padding:10px; text-align:right;">
+                            <button class="btn btn-small btn-secondary" onclick="openPropertyOwnerModal(${o.id})">Edit</button>
+                            <button class="btn btn-small" onclick="deletePropertyOwner(${o.id}, ${o.property_count || 0})" style="background:#dc2626; color:white;">Delete</button>
+                        </td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                listEl.innerHTML = html;
+            } catch (e) {
+                listEl.innerHTML = `<div style="padding:2rem; color:#dc2626;">Error: ${e.message}</div>`;
+            }
+        }
+
+        async function openPropertyOwnerModal(ownerId, accountIdOverride) {
+            // Reset form
+            const form = document.getElementById('property-owner-form'); if (form) form.reset();
+            document.getElementById('property-owner-id').value = '';
+            const isMaster = (window.currentUser && window.currentUser.role === 'master_admin');
+            const acctForCreate = accountIdOverride
+                || (isMaster ? (selectedAccountId || (window.currentUser && window.currentUser.id))
+                             : (window.currentUser && (window.currentUser.id || window.currentUser.accountId)));
+            document.getElementById('property-owner-account-id').value = acctForCreate || '';
+            document.getElementById('property-owner-modal-title').textContent = ownerId ? 'Edit Owner' : 'New Owner';
+            document.getElementById('po-is-active').checked = true;
+
+            if (ownerId) {
+                // Load existing
+                try {
+                    const acctId = document.getElementById('property-owner-account-id').value;
+                    const r = await fetch(`/api/admin/accounts/${acctId}/property-owners`, { headers: authHeaders() });
+                    const d = await r.json();
+                    const o = (d.owners || []).find(x => x.id === parseInt(ownerId, 10));
+                    if (!o) { alert('Owner not found'); return; }
+                    document.getElementById('property-owner-id').value = o.id;
+                    document.getElementById('property-owner-account-id').value = o.account_id;
+                    document.getElementById('po-name').value = o.name || '';
+                    document.getElementById('po-company').value = o.company || '';
+                    document.getElementById('po-address').value = o.address || '';
+                    document.getElementById('po-postcode').value = o.postcode || '';
+                    document.getElementById('po-city').value = o.city || '';
+                    document.getElementById('po-country').value = o.country || '';
+                    document.getElementById('po-phone').value = o.phone || '';
+                    document.getElementById('po-email').value = o.email || '';
+                    document.getElementById('po-siret').value = o.siret || '';
+                    document.getElementById('po-tourist-let-reg').value = o.tourist_let_reg || '';
+                    document.getElementById('po-bank-account-name').value = o.bank_account_name || '';
+                    document.getElementById('po-iban').value = o.iban || '';
+                    document.getElementById('po-bic').value = o.bic || '';
+                    document.getElementById('po-security-deposit').value = o.default_security_deposit != null ? o.default_security_deposit : '';
+                    document.getElementById('po-cleaning-fee').value = o.default_cleaning_fee != null ? o.default_cleaning_fee : '';
+                    document.getElementById('po-tourist-tax').value = o.default_tourist_tax_per_person_per_night != null ? o.default_tourist_tax_per_person_per_night : '';
+                    document.getElementById('po-notes').value = o.notes || '';
+                    document.getElementById('po-is-active').checked = o.is_active !== false;
+                } catch (e) { alert('Load failed: ' + e.message); return; }
+            }
+            openModal('propertyOwnerModal');
+        }
+
+        async function savePropertyOwner() {
+            const id = document.getElementById('property-owner-id').value;
+            const account_id = document.getElementById('property-owner-account-id').value;
+            const payload = {
+                id: id || undefined,
+                account_id: parseInt(account_id, 10),
+                name: document.getElementById('po-name').value.trim(),
+                company: document.getElementById('po-company').value.trim(),
+                address: document.getElementById('po-address').value.trim(),
+                postcode: document.getElementById('po-postcode').value.trim(),
+                city: document.getElementById('po-city').value.trim(),
+                country: document.getElementById('po-country').value.trim(),
+                phone: document.getElementById('po-phone').value.trim(),
+                email: document.getElementById('po-email').value.trim(),
+                siret: document.getElementById('po-siret').value.trim(),
+                tourist_let_reg: document.getElementById('po-tourist-let-reg').value.trim(),
+                bank_account_name: document.getElementById('po-bank-account-name').value.trim(),
+                iban: document.getElementById('po-iban').value.trim(),
+                bic: document.getElementById('po-bic').value.trim(),
+                default_security_deposit: document.getElementById('po-security-deposit').value || null,
+                default_cleaning_fee: document.getElementById('po-cleaning-fee').value || null,
+                default_tourist_tax_per_person_per_night: document.getElementById('po-tourist-tax').value || null,
+                notes: document.getElementById('po-notes').value.trim(),
+                is_active: document.getElementById('po-is-active').checked,
+            };
+            if (!payload.name) { alert('Name is required'); return; }
+            if (!payload.account_id) { alert('Account id missing — reopen the modal'); return; }
+            try {
+                const r = await fetch('/api/admin/property-owners', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify(payload),
+                });
+                const d = await r.json();
+                if (!d.success) { alert('Save failed: ' + (d.error || 'unknown')); return; }
+                closeModal('propertyOwnerModal');
+                // Refresh either the owners view OR the property-edit dropdown
+                if (typeof loadPropertyOwners === 'function' && document.getElementById('property-owners')?.classList.contains('active')) {
+                    loadPropertyOwners();
+                }
+                if (document.getElementById('editPropertyModal')?.style.display === 'flex' || document.getElementById('editPropertyModal')?.classList.contains('active')) {
+                    const propAcctId = payload.account_id;
+                    const currentOwnerId = document.getElementById('edit-property-owner-id').value;
+                    loadPropertyOwnerDropdown(propAcctId, d.owner.id || currentOwnerId);
+                    if (d.created) document.getElementById('edit-property-owner-id').value = d.owner.id;
+                }
+                if (typeof showNotification === 'function') showNotification(d.created ? '✓ Owner created' : '✓ Owner updated', 'success');
+            } catch (e) {
+                alert('Save error: ' + e.message);
+            }
+        }
+
+        async function deletePropertyOwner(ownerId, propCount) {
+            const msg = propCount > 0
+                ? `${propCount} property(ies) are linked to this owner. Delete will mark them inactive but not remove the row. Continue?`
+                : 'Delete this owner?';
+            if (!confirm(msg)) return;
+            try {
+                const r = await fetch(`/api/admin/property-owners/${ownerId}`, { method: 'DELETE', headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success) { alert('Delete failed: ' + (d.error || 'unknown')); return; }
+                loadPropertyOwners();
+            } catch (e) { alert('Delete error: ' + e.message); }
+        }
+
         async function saveProperty(e) {
             e.preventDefault();
             const id = document.getElementById('edit-property-id').value;
@@ -78051,9 +78361,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(data)
                 });
-                
+
                 const result = await response.json();
                 if (result.success) {
+                    // Owner link is stored via a dedicated endpoint (the
+                    // main properties PUT doesn't know about owner_id).
+                    try {
+                        const ownerSel = document.getElementById('edit-property-owner-id');
+                        const ownerVal = ownerSel ? ownerSel.value : '';
+                        await fetch(`/api/admin/properties/${id}/owner`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                            body: JSON.stringify({ owner_id: ownerVal === '' ? null : parseInt(ownerVal, 10) })
+                        });
+                    } catch (ownerErr) { console.warn('owner link save:', ownerErr.message); }
                     alert(' Property updated successfully!');
                     closeModal('editPropertyModal');
                     loadProperties();
