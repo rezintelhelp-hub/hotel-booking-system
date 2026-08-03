@@ -155831,6 +155831,21 @@ app.post('/api/admin/bookings/:id/send-contract', async (req, res) => {
       await sendEmail({
         to: b.rows[0].guest_email,
         bcc: landlordBcc || undefined,
+        accountId,
+        bookingId,
+        // Logs to guest_communications → shows in the Comms tab of the
+        // booking modal + the guest's CRM record.
+        context: {
+          accountId, bookingId,
+          eventType: 'contract_sent',
+          autoCreateGuest: true,
+          metadata: {
+            contract_id: ins.rows[0].id,
+            template_id: template.id,
+            sign_url: signUrl,
+            property: propSnippet,
+          },
+        },
         subject: isFr
           ? `Votre contrat de location${propSnippet ? ' — ' + propSnippet : ''} — merci de le signer`
           : `Your rental contract${propSnippet ? ' — ' + propSnippet : ''} — please sign`,
@@ -156244,10 +156259,29 @@ app.post('/contract/sign/:token/submit', async (req, res) => {
       const attachmentHtml = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;">${signedHtml}</body></html>`;
       const recipients = [c.guest_email, landlordEmail].filter(Boolean);
       for (const to of recipients) {
+        // Only pass booking context on the guest send so the sign event lands
+        // once in guest_communications (against the guest, not the landlord).
+        const isGuest = to === c.guest_email;
         await sendEmail({
           to,
           subject: 'Signed contract — copy for your records',
           html: `<p>The rental contract has been signed. A full copy is below.</p>${attachmentHtml}`,
+          ...(isGuest ? {
+            accountId: c.account_id, bookingId: c.booking_id,
+            context: {
+              accountId: c.account_id, bookingId: c.booking_id,
+              eventType: pmChosen === 'card' && depositStatusNext === 'paid'
+                ? 'contract_signed_deposit_paid'
+                : (pmChosen === 'bank' ? 'contract_signed_bank_pending' : 'contract_signed'),
+              autoCreateGuest: true,
+              metadata: {
+                contract_id: c.id, payment_method: pmChosen || null,
+                deposit_status: depositStatusNext,
+                deposit_amount: c.deposit_amount || null,
+                payment_intent_id: payment_intent_id || null,
+              },
+            },
+          } : {}),
         }).catch(e => console.warn('[contract signed email]', to, e.message));
       }
     } catch (mailErr) {
