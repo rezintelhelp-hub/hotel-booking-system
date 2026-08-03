@@ -55,7 +55,7 @@ const CONTRACT_HTML = `<style>
 
   <h3>OBJET DE LA LOCATION / THE LETTING</h3>
   <table>
-    <tr><th>Logement loué / Property let</th><td>{{property.name}}<br>{{property.address}}, {{property.city}}</td></tr>
+    <tr><th>Logement loué / Property let</th><td>{{property.name}}<br>{{property.address}}, {{property.city}}{{#room.public_url}}<br><a href="{{room.public_url}}" target="_blank" rel="noopener" style="color:#2563eb;">📷 Voir votre logement / View your accommodation</a>{{/room.public_url}}</td></tr>
     <tr><th>Type / Type</th><td>{{room.name}}</td></tr>
     <tr><th>Capacité max / Max occupancy</th><td>{{room.max_guests}} personnes / persons</td></tr>
     <tr><th>Arrivée / Check-in</th><td>{{booking.arrival_date}} — entre 15h00 et 18h00</td></tr>

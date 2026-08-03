@@ -19209,6 +19209,12 @@ app.get('/api/setup-accounts', async (req, res) => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ci_booking ON contract_instances(booking_id)`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ci_account_status ON contract_instances(account_id, status)`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ci_token ON contract_instances(sign_token)`).catch(() => {});
+    // 2026-08-03 — deposit payment method + status. Guest ticks card or bank
+    // on the sign page; server stamps the choice + tracks status transitions.
+    await pool.query(`ALTER TABLE contract_instances ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20)`).catch(() => {});
+    await pool.query(`ALTER TABLE contract_instances ADD COLUMN IF NOT EXISTS deposit_status VARCHAR(30) DEFAULT 'not_required'`).catch(() => {});
+    await pool.query(`ALTER TABLE contract_instances ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(10,2)`).catch(() => {});
+    await pool.query(`ALTER TABLE contract_instances ADD COLUMN IF NOT EXISTS deposit_currency VARCHAR(10)`).catch(() => {});
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS account_contract_settings (
@@ -155553,6 +155559,35 @@ async function contractsHydrateContext(pool, bookingId, contractInstance = null)
   const depositUrl = contractInstance?.sign_token
     ? `${baseUrl}/contract/pay/${contractInstance.sign_token}` : '';
 
+  // Public room URL — prefer the operator's own domain if they've set a
+  // custom_domain, else the auto-generated site_url. No dates or guests —
+  // info page only so the guest can't accidentally re-book on top of
+  // themselves. Falls back to empty if no deployed site.
+  let roomPublicUrl = '';
+  try {
+    const ds = await pool.query(
+      `SELECT custom_domain, site_url FROM deployed_sites
+        WHERE account_id = $1
+          AND (property_id = $2 OR property_ids @> to_jsonb($2::int))
+        ORDER BY id LIMIT 1`,
+      [bk.acc_id, bk.property_id]
+    );
+    let host = '';
+    if (ds.rows[0]) {
+      host = ds.rows[0].custom_domain || ds.rows[0].site_url || '';
+    }
+    if (!host) {
+      const anyDs = await pool.query(
+        `SELECT custom_domain, site_url FROM deployed_sites
+          WHERE account_id = $1 ORDER BY id LIMIT 1`, [bk.acc_id]);
+      if (anyDs.rows[0]) host = anyDs.rows[0].custom_domain || anyDs.rows[0].site_url || '';
+    }
+    if (host && bk.bookable_unit_id) {
+      const h = host.startsWith('http') ? host : `https://${host}`;
+      roomPublicUrl = `${h.replace(/\/$/, '')}/room/?unit_id=${bk.bookable_unit_id}`;
+    }
+  } catch (_) { /* soft-fail — link just won't render */ }
+
   return {
     booking: {
       id: bk.id,
@@ -155600,6 +155635,7 @@ async function contractsHydrateContext(pool, bookingId, contractInstance = null)
       bedrooms: bk.unit_bedrooms || '',
       bathrooms: bk.unit_bathrooms || '',
       size: bk.unit_size_sqm ? `${bk.unit_size_sqm} m²` : '',
+      public_url: roomPublicUrl,
     },
     account: {
       name: bk.acc_name || '',
@@ -155786,6 +155822,75 @@ app.post('/api/admin/bookings/:id/send-contract', async (req, res) => {
   }
 });
 
+// POST /contract/sign/:token/deposit-intent — creates a Stripe PaymentIntent
+// on the account's connected Stripe (direct charge via `stripeAccount`).
+// Public: token is the auth. Returns { client_secret, publishable_key,
+// stripe_account, amount, currency }. The sign page calls this once, then
+// stripe.confirmCardPayment() runs entirely client-side — no redirect.
+app.post('/contract/sign/:token/deposit-intent', async (req, res) => {
+  try {
+    const token = String(req.params.token || '').replace(/[^A-Fa-f0-9]/g, '');
+    if (!token) return res.status(400).json({ success: false, error: 'invalid token' });
+    const r = await pool.query(`SELECT * FROM contract_instances WHERE sign_token = $1`, [token]);
+    const c = r.rows[0];
+    if (!c) return res.status(404).json({ success: false, error: 'contract not found' });
+    if (c.signed_at) return res.status(400).json({ success: false, error: 'already signed' });
+    if (c.deposit_status === 'paid') return res.status(400).json({ success: false, error: 'deposit already paid' });
+
+    // Resolve deposit amount from owner > account_contract_settings, and
+    // currency from the booking. This matches the same fallback chain the
+    // template already uses so the guest sees exactly what's on the contract.
+    const bk = await pool.query(`
+      SELECT b.currency, b.deposit_amount, p.owner_id, p.account_id
+        FROM bookings b LEFT JOIN properties p ON p.id = b.property_id
+       WHERE b.id = $1`, [c.booking_id]);
+    if (!bk.rows[0]) return res.status(404).json({ success: false, error: 'booking not found' });
+    const currency = (bk.rows[0].currency || 'EUR').toLowerCase();
+
+    let depositAmount = null;
+    if (bk.rows[0].owner_id) {
+      const o = await pool.query(`SELECT default_security_deposit FROM property_owners WHERE id = $1 AND is_active = true`, [bk.rows[0].owner_id]);
+      depositAmount = o.rows[0]?.default_security_deposit ?? null;
+    }
+    if (depositAmount == null) {
+      const s = await pool.query(`SELECT default_security_deposit FROM account_contract_settings WHERE account_id = $1`, [bk.rows[0].account_id]);
+      depositAmount = s.rows[0]?.default_security_deposit ?? null;
+    }
+    depositAmount = parseFloat(depositAmount);
+    if (!depositAmount || depositAmount <= 0) return res.status(400).json({ success: false, error: 'no deposit configured' });
+
+    const acct = await pool.query(`SELECT stripe_account_id FROM accounts WHERE id = $1`, [c.account_id]);
+    const stripeAcct = acct.rows[0]?.stripe_account_id || null;
+    if (!stripeAcct) return res.status(400).json({ success: false, error: 'stripe not connected for this account' });
+
+    const intent = await stripe.paymentIntents.create({
+      amount: toStripeAmount(depositAmount, currency.toUpperCase()),
+      currency,
+      description: `Deposit — contract ${c.id} (booking ${c.booking_id})`,
+      metadata: { contract_id: c.id, booking_id: c.booking_id, kind: 'contract_deposit' },
+    }, { stripeAccount: stripeAcct });
+
+    await pool.query(
+      `UPDATE contract_instances
+          SET deposit_payment_intent_id = $1, deposit_amount = $2, deposit_currency = $3,
+              deposit_status = 'pending_card', updated_at = NOW()
+        WHERE id = $4`,
+      [intent.id, depositAmount, currency.toUpperCase(), c.id]);
+
+    res.json({
+      success: true,
+      client_secret: intent.client_secret,
+      publishable_key: process.env.STRIPE_PUBLISHABLE_KEY || '',
+      stripe_account: stripeAcct,
+      amount: depositAmount,
+      currency: currency.toUpperCase(),
+    });
+  } catch (e) {
+    console.error('[deposit-intent]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // GET /contract/sign/:token — public signing page. No auth. Renders
 // the filled HTML preview + signature pad + consent + payment button.
 app.get('/contract/sign/:token', async (req, res) => {
@@ -155799,12 +155904,39 @@ app.get('/contract/sign/:token', async (req, res) => {
     if (!c.opened_at) {
       await pool.query(`UPDATE contract_instances SET opened_at = NOW(), status = CASE WHEN status = 'sent' THEN 'opened' ELSE status END WHERE id = $1`, [c.id]).catch(() => {});
     }
+    // Resolve deposit amount + Stripe availability so the page can decide
+    // whether to show the card path at all. Owner-first fallback (matches
+    // the template rendering path).
+    const bkD = await pool.query(`SELECT b.currency, p.owner_id, p.account_id FROM bookings b LEFT JOIN properties p ON p.id = b.property_id WHERE b.id = $1`, [c.booking_id]);
+    let depositAmount = 0;
+    let currencySym = '€';
+    let currencyCode = 'EUR';
+    let stripeAvailable = false;
+    if (bkD.rows[0]) {
+      currencyCode = (bkD.rows[0].currency || 'EUR').toUpperCase();
+      currencySym = currencyCode === 'EUR' ? '€' : (currencyCode === 'GBP' ? '£' : (currencyCode === 'USD' ? '$' : currencyCode));
+      if (bkD.rows[0].owner_id) {
+        const oR = await pool.query(`SELECT default_security_deposit FROM property_owners WHERE id = $1 AND is_active = true`, [bkD.rows[0].owner_id]);
+        depositAmount = parseFloat(oR.rows[0]?.default_security_deposit || 0);
+      }
+      if (!depositAmount) {
+        const sR = await pool.query(`SELECT default_security_deposit FROM account_contract_settings WHERE account_id = $1`, [bkD.rows[0].account_id]);
+        depositAmount = parseFloat(sR.rows[0]?.default_security_deposit || 0);
+      }
+      const aR = await pool.query(`SELECT stripe_account_id FROM accounts WHERE id = $1`, [c.account_id]);
+      stripeAvailable = !!aR.rows[0]?.stripe_account_id;
+    }
+    const showDeposit = depositAmount > 0;
+    const showCard = showDeposit && stripeAvailable;
+    const depositLabel = depositAmount ? depositAmount.toFixed(2) + ' ' + currencySym : '';
+
     // Serve either the sign form OR (if already signed) a read-only view.
     const alreadySigned = !!c.signed_at;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Contract — sign</title>
+${showCard ? '<script src="https://js.stripe.com/v3/"></script>' : ''}
 <style>
   body { font-family: -apple-system, Segoe UI, Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 24px; color:#111; background:#f8fafc; }
   .card { background:white; border-radius:12px; padding:32px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom:16px; }
@@ -155817,6 +155949,10 @@ app.get('/contract/sign/:token', async (req, res) => {
   input[type=text] { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:6px; font-size:1rem; box-sizing:border-box; }
   label { display:block; margin: 12px 0 4px; font-weight:500; }
   .signed-banner { background: #d1fae5; border: 1px solid #86efac; padding: 12px 16px; border-radius:8px; color:#065f46; font-weight:600; margin-bottom:16px; }
+  .pay-choice { border: 1px solid #e5e7eb; border-radius:8px; padding:14px 16px; margin: 10px 0; cursor:pointer; background:#fafafa; }
+  .pay-choice.selected { border-color:#059669; background:#ecfdf5; }
+  .pay-choice input[type=radio] { margin-right: 10px; }
+  #card-element { padding: 12px; border:1px solid #d1d5db; border-radius:6px; background:white; }
 </style></head><body>
   ${alreadySigned ? `<div class="signed-banner">✓ This contract has been signed on ${new Date(c.signed_at).toLocaleString()}. A copy has been emailed to you.</div>` : ''}
   <div class="card contract-body">${c.filled_html}</div>
@@ -155835,7 +155971,28 @@ app.get('/contract/sign/:token', async (req, res) => {
     <label style="font-weight:normal; margin-top:16px;">
       <input type="checkbox" id="consent"> I agree to sign this contract electronically and confirm the details above are correct.
     </label>
-    <div style="margin-top:16px; text-align:right;">
+
+    ${showDeposit ? `
+    <h4 style="margin-top:24px; margin-bottom:8px;">Dépôt de garantie / Deposit — ${depositLabel}</h4>
+    ${showCard ? `
+    <label class="pay-choice selected" id="choice-card-lbl">
+      <input type="radio" name="pm" value="card" id="pm-card" checked>
+      💳 Régler par carte maintenant / Pay by card now
+    </label>` : `
+    <div style="padding:10px; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; font-size:0.85rem;">Card payment not yet available — please use bank transfer.</div>`}
+    <label class="pay-choice ${!showCard ? 'selected' : ''}" id="choice-bank-lbl">
+      <input type="radio" name="pm" value="bank" id="pm-bank" ${!showCard ? 'checked' : ''}>
+      🏦 Je paierai par virement bancaire / Pay by bank transfer
+    </label>
+    ${showCard ? `
+    <div id="card-wrap" style="margin-top:12px;">
+      <label for="card-element" style="font-weight:500;">Card details</label>
+      <div id="card-element"></div>
+      <div id="card-errors" style="color:#dc2626; margin-top:6px; font-size:0.85rem;"></div>
+    </div>` : ''}
+    ` : ''}
+
+    <div style="margin-top:20px; text-align:right;">
       <button class="btn" id="submitBtn" onclick="submitSig()" disabled>Sign contract</button>
     </div>
     <div id="msg" style="margin-top:12px; color:#dc2626; font-weight:600;"></div>
@@ -155859,16 +156016,61 @@ app.get('/contract/sign/:token', async (req, res) => {
     }
     document.getElementById('typedName').addEventListener('input', updateBtn);
     document.getElementById('consent').addEventListener('change', updateBtn);
+
+    // Payment method choice + Stripe Elements (only rendered when card path
+    // is available). Elements are lazily created — we don't hit Stripe.js
+    // until the guest has actually chosen the card option.
+    let stripe = null; let cardElement = null; let depositIntent = null;
+    const showCard = ${showCard ? 'true' : 'false'};
+    async function ensureStripeMounted() {
+      if (!showCard || cardElement) return;
+      const iResp = await fetch('/contract/sign/${token}/deposit-intent', { method: 'POST' });
+      const iJson = await iResp.json();
+      if (!iJson.success) throw new Error(iJson.error || 'could not init payment');
+      depositIntent = iJson;
+      stripe = Stripe(iJson.publishable_key, { stripeAccount: iJson.stripe_account });
+      const elements = stripe.elements();
+      cardElement = elements.create('card', { hidePostalCode: false });
+      cardElement.mount('#card-element');
+      cardElement.on('change', (ev) => {
+        document.getElementById('card-errors').textContent = ev.error ? ev.error.message : '';
+      });
+    }
+    function refreshPmUi() {
+      const cardChecked = document.getElementById('pm-card') && document.getElementById('pm-card').checked;
+      const bankChecked = document.getElementById('pm-bank') && document.getElementById('pm-bank').checked;
+      const cardLbl = document.getElementById('choice-card-lbl');
+      const bankLbl = document.getElementById('choice-bank-lbl');
+      if (cardLbl) cardLbl.classList.toggle('selected', !!cardChecked);
+      if (bankLbl) bankLbl.classList.toggle('selected', !!bankChecked);
+      const cardWrap = document.getElementById('card-wrap');
+      if (cardWrap) cardWrap.style.display = cardChecked ? '' : 'none';
+      if (cardChecked) ensureStripeMounted().catch(e => { document.getElementById('msg').textContent = 'Payment init failed: ' + e.message; });
+    }
+    ['pm-card','pm-bank'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', refreshPmUi); });
+    if (showCard) ensureStripeMounted().catch(() => {});
+
     async function submitSig() {
       const btn = document.getElementById('submitBtn'); const msg = document.getElementById('msg');
-      btn.disabled = true; btn.textContent = 'Signing…'; msg.textContent = '';
+      btn.disabled = true; btn.textContent = 'Working…'; msg.textContent = '';
       try {
+        const chosen = (document.querySelector('input[name=pm]:checked') || {}).value || null;
+        let paymentIntentId = null;
+        if (chosen === 'card') {
+          if (!depositIntent) await ensureStripeMounted();
+          const cardResult = await stripe.confirmCardPayment(depositIntent.client_secret, { payment_method: { card: cardElement } });
+          if (cardResult.error) throw new Error(cardResult.error.message);
+          if (cardResult.paymentIntent.status !== 'succeeded') throw new Error('Payment status: ' + cardResult.paymentIntent.status);
+          paymentIntentId = cardResult.paymentIntent.id;
+        }
         const r = await fetch('/contract/sign/${token}/submit', {
           method: 'POST', headers: {'Content-Type':'application/json'},
           body: JSON.stringify({
             signature_data_url: canvas.toDataURL('image/png'),
             typed_name: document.getElementById('typedName').value.trim(),
             consent: true,
+            payment_method: chosen,
+            payment_intent_id: paymentIntentId,
           }),
         });
         const j = await r.json();
@@ -155889,10 +156091,15 @@ app.get('/contract/sign/:token', async (req, res) => {
 
 // POST /contract/sign/:token/submit — captures signature + audit trail,
 // stamps signature into stored HTML, marks signed, emails both parties.
+// Body: { signature_data_url, typed_name, consent, payment_method?,
+//         payment_intent_id? }. payment_method='card' means the client
+// already confirmed the intent client-side — server verifies status is
+// 'succeeded' on the connected account before flagging deposit_paid.
+// payment_method='bank' just records intent; operator marks paid later.
 app.post('/contract/sign/:token/submit', async (req, res) => {
   try {
     const token = String(req.params.token || '').replace(/[^A-Fa-f0-9]/g, '');
-    const { signature_data_url, typed_name, consent } = req.body || {};
+    const { signature_data_url, typed_name, consent, payment_method, payment_intent_id } = req.body || {};
     if (!token || !signature_data_url || !typed_name || !consent) {
       return res.status(400).json({ success: false, error: 'signature, typed name, and consent required' });
     }
@@ -155903,6 +156110,31 @@ app.post('/contract/sign/:token/submit', async (req, res) => {
     if (!r.rows[0]) return res.status(404).json({ success: false, error: 'contract not found' });
     const c = r.rows[0];
     if (c.signed_at) return res.json({ success: true, already_signed: true, signed_at: c.signed_at });
+
+    // Deposit flow: verify the Stripe PaymentIntent on the connected account
+    // before marking paid. Bank path only requires the tick — operator confirms
+    // funds landed later via admin.
+    let depositStatusNext = c.deposit_status || 'not_required';
+    let depositPaidAt = null;
+    let pmChosen = null;
+    if (payment_method === 'card') {
+      if (!payment_intent_id) return res.status(400).json({ success: false, error: 'payment_intent_id required for card path' });
+      const acct = await pool.query(`SELECT stripe_account_id FROM accounts WHERE id = $1`, [c.account_id]);
+      const stripeAcct = acct.rows[0]?.stripe_account_id || null;
+      if (!stripeAcct) return res.status(400).json({ success: false, error: 'stripe not connected' });
+      try {
+        const pi = await stripe.paymentIntents.retrieve(payment_intent_id, { stripeAccount: stripeAcct });
+        if (pi.status !== 'succeeded') return res.status(400).json({ success: false, error: `payment not succeeded (status: ${pi.status})` });
+        depositStatusNext = 'paid';
+        depositPaidAt = new Date();
+        pmChosen = 'card';
+      } catch (piErr) {
+        return res.status(400).json({ success: false, error: `payment verification failed: ${piErr.message}` });
+      }
+    } else if (payment_method === 'bank') {
+      depositStatusNext = 'pending_bank';
+      pmChosen = 'bank';
+    }
 
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || null;
     const ua = req.headers['user-agent'] || null;
@@ -155923,7 +156155,23 @@ app.post('/contract/sign/:token/submit', async (req, res) => {
           <div style="margin-top:8px; font-size:0.75rem; color:#065f46; opacity:0.7;">This audit trail is stored immutably and can be reproduced on demand for legal evidence purposes (eIDAS Simple Electronic Signature).</div>
         </div>
       </div>`;
-    const signedHtml = c.filled_html + auditFooter;
+    // Append a deposit note into the signed HTML so the emailed copy shows
+    // which path the guest took (paid by card vs pay by bank later).
+    let depositNote = '';
+    if (pmChosen === 'card' && depositPaidAt) {
+      depositNote = `
+      <div style="margin-top:8px; padding:12px 16px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; font-family:Arial,sans-serif;">
+        <div style="font-weight:600; color:#1e3a8a;">💳 Deposit paid by card</div>
+        <div style="font-size:0.85rem; color:#1e3a8a;">Ref: ${String(payment_intent_id).replace(/[<>&"]/g, '')} · ${new Date().toISOString()}</div>
+      </div>`;
+    } else if (pmChosen === 'bank') {
+      depositNote = `
+      <div style="margin-top:8px; padding:12px 16px; background:#fefce8; border:1px solid #fde68a; border-radius:8px; font-family:Arial,sans-serif;">
+        <div style="font-weight:600; color:#78350f;">🏦 Deposit to be paid by bank transfer</div>
+        <div style="font-size:0.85rem; color:#78350f;">Please transfer the deposit to the bank details shown above quoting your surname + arrival date.</div>
+      </div>`;
+    }
+    const signedHtml = c.filled_html + auditFooter + depositNote;
 
     await pool.query(`
       UPDATE contract_instances
@@ -155934,9 +156182,12 @@ app.post('/contract/sign/:token/submit', async (req, res) => {
              signed_at = NOW(),
              status = 'signed',
              filled_html = $5,
+             payment_method = $7,
+             deposit_status = $8,
+             deposit_paid_at = $9,
              updated_at = NOW()
        WHERE id = $6`,
-      [signature_data_url, typed_name, ip, ua, signedHtml, c.id]);
+      [signature_data_url, typed_name, ip, ua, signedHtml, c.id, pmChosen, depositStatusNext, depositPaidAt]);
 
     // Email both landlord (via account) and guest with the signed contract HTML
     try {
