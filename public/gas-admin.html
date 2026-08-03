@@ -853,6 +853,13 @@
         .modal.active {
             display: flex;
         }
+        /* Nested-modal boost — Steve 2026-08-03. When opened from another
+           modal (e.g. Guest Info from Room Edit, Contract Preview from
+           Booking View), share the default z-index=1000 puts them BEHIND
+           the parent modal in DOM order. Bump so they overlay cleanly. */
+        #guestInfoModal, #contractPreviewModal, #propertyOwnerModal {
+            z-index: 1100;
+        }
 
         .modal-content {
             background: #ffffff;
@@ -27846,6 +27853,63 @@ const promo = await fetch('/api/v1/offers/validate', {
     </div>
 
     <!-- Deposit Rule Modal -->
+    <!-- Contract Preview + Send — Steve 2026-08-03. Operator opens on
+         a booking, picks a template, sees the fully-populated contract,
+         then hits Send to email the guest (or copy the sign URL to
+         WhatsApp it themselves). Uses /contract-preview (no DB write)
+         to render, then /send-contract to actually fire. -->
+    <div id="contractPreviewModal" class="modal">
+        <div class="modal-content" style="max-width: 960px; border-radius: 16px; max-height: 92vh; display:flex; flex-direction:column;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #0f766e 0%, #115e59 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.25rem 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0;">📄 Send Contract</h3>
+                    <p style="margin: 0.35rem 0 0 0; opacity: 0.9; font-size: 0.85rem;" id="contract-preview-subtitle">Review the populated contract, then send.</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('contractPreviewModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1rem 1.5rem; overflow:hidden; display:flex; flex-direction:column; flex:1; min-height: 0;">
+                <input type="hidden" id="contract-preview-booking-id">
+                <div style="display:flex; gap:0.75rem; align-items:end; padding-bottom:0.75rem; border-bottom:1px solid #e5e7eb;">
+                    <div style="flex:1;">
+                        <label class="form-label">Template</label>
+                        <select id="contract-preview-template" class="form-input" onchange="reloadContractPreview()"></select>
+                    </div>
+                    <div style="min-width:220px;">
+                        <label class="form-label">Guest email</label>
+                        <div id="contract-preview-guest-email" style="padding:0.6rem 0.75rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; font-size:0.85rem;">—</div>
+                    </div>
+                </div>
+                <div id="contract-preview-loading" style="padding:2rem; text-align:center; color:#94a3b8;">Loading templates…</div>
+                <iframe id="contract-preview-frame" style="display:none; flex:1; width:100%; border:1px solid #e5e7eb; border-radius:8px; margin-top:0.75rem; background:white;"></iframe>
+            </div>
+            <div style="padding: 0.75rem 1.5rem 1.25rem; border-top:1px solid #e5e7eb; display:flex; gap:0.75rem; justify-content:space-between; align-items:center;">
+                <div id="contract-preview-status" style="font-size:0.85rem; color:#64748b;"></div>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn btn-secondary" onclick="closeModal('contractPreviewModal')">Cancel</button>
+                    <button class="btn" style="background:#0f766e; color:white;" id="contract-send-btn" onclick="sendContractFromPreview()" disabled>Send to guest →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Guest Info image picker — Steve 2026-08-03. Reads the account's
+         existing property/room images from /api/admin/media-library and
+         lets the operator click one to add to the current field. -->
+    <div id="giImagePickerModal" class="modal">
+        <div class="modal-content" style="max-width:820px; border-radius:12px;">
+            <div class="modal-header" style="background:#0f766e; color:white; border-radius:12px 12px 0 0; padding:1rem 1.25rem;">
+                <h3 style="margin:0;">📷 Pick an image</h3>
+                <button class="modal-close" onclick="closeModal('giImagePickerModal')" style="color:white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding:1rem 1.25rem; max-height:65vh; overflow-y:auto;">
+                <input type="hidden" id="gi-image-picker-target-field">
+                <div id="gi-image-picker-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:0.5rem;">
+                    <div style="grid-column:1/-1; text-align:center; color:#94a3b8; padding:2rem;">Loading images…</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Guest Info Editor — Steve 2026-08-03. Shared shape on properties
          and bookable_units. Room-first fallback at render time. Powers
          contract property description + pre-arrival workflows + day-of
@@ -29659,6 +29723,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div style="padding: 1rem 1.5rem; background: #f1f5f9; border-top: 1px solid #e2e8f0; display: flex; gap: 0.75rem; flex-wrap: wrap;">
                     <button onclick="generateInvoice(currentViewingBookingId)" class="btn" style="background: #0ea5e9; font-size: 0.85rem;">Generate Invoice</button>
                     <button onclick="sendPaymentReceipt(currentViewingBookingId)" class="btn" style="background: #8b5cf6; font-size: 0.85rem;">Send Receipt</button>
+                    <button onclick="openContractPreview(currentViewingBookingId)" class="btn" style="background: #0f766e; font-size: 0.85rem;">📄 Send Contract</button>
                     <button onclick="cancelBooking(currentViewingBookingId)" class="btn" style="background: #ef4444; font-size: 0.85rem;">Cancel Booking</button>
                     <!-- Delete = hard-remove. Cancel = mark cancelled + free
                          the room but keeps the record. deleteBooking has a
@@ -78173,6 +78238,141 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) { alert(e.message); }
         }
 
+        // Guest Info image picker — Steve 2026-08-03. Reads existing
+        // property/room images from the media-library endpoint. Click a
+        // thumbnail → URL added to the currently-open Guest Info field.
+        async function openGiImagePicker(fieldKey) {
+            document.getElementById('gi-image-picker-target-field').value = fieldKey;
+            const grid = document.getElementById('gi-image-picker-grid');
+            grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#94a3b8; padding:2rem;">Loading images…</div>';
+            openModal('giImagePickerModal');
+            // Bring above the Guest Info modal (which is z-index 1100)
+            document.getElementById('giImagePickerModal').style.zIndex = 1200;
+            const isMaster = (window.currentUser && window.currentUser.role === 'master_admin');
+            const accountId = isMaster
+                ? (selectedAccountId || (window.currentUser && window.currentUser.id))
+                : (window.currentUser && (window.currentUser.id || window.currentUser.accountId));
+            if (!accountId) { grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#94a3b8; padding:2rem;">No account context.</div>'; return; }
+            try {
+                const r = await fetch(`/api/admin/media-library/property-images?account_id=${encodeURIComponent(accountId)}`, { headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success || !Array.isArray(d.images) || !d.images.length) {
+                    grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#94a3b8; padding:2rem;">No images uploaded on this account yet. Upload via the Images tab first.</div>';
+                    return;
+                }
+                grid.innerHTML = d.images.map(img => {
+                    const url = String(img.file_url || img.url || '').replace(/'/g, '&#39;');
+                    const alt = String(img.alt_text || img.room_name || img.property_name || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+                    return `<div style="border:1px solid #e5e7eb; border-radius:6px; overflow:hidden; cursor:pointer; background:white; transition:transform .1s;" onmouseover="this.style.transform='scale(1.03)';" onmouseout="this.style.transform='';" onclick="giPickImage('${url}')">
+                        <img src="${url}" alt="${alt}" style="width:100%; height:100px; object-fit:cover; display:block;">
+                        <div style="padding:0.3rem 0.4rem; font-size:0.7rem; color:#64748b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${alt || '(unnamed)'}</div>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                grid.innerHTML = `<div style="grid-column:1/-1; padding:2rem; color:#dc2626;">Error: ${e.message}</div>`;
+            }
+        }
+        function giPickImage(url) {
+            const fieldKey = document.getElementById('gi-image-picker-target-field').value;
+            if (!fieldKey) return;
+            giAddImage(fieldKey, url);
+            closeModal('giImagePickerModal');
+        }
+
+        // Contract Preview + Send — Steve 2026-08-03. Operator opens on a
+        // booking, picks a template, sees the fully-populated contract,
+        // then hits Send. Send emails the guest a unique sign URL. Operator
+        // can also copy the sign URL to WhatsApp it themselves.
+        let _contractPreviewTemplates = [];
+        let _contractPreviewAccountId = null;
+        async function openContractPreview(bookingId) {
+            document.getElementById('contract-preview-booking-id').value = bookingId;
+            document.getElementById('contract-preview-frame').style.display = 'none';
+            document.getElementById('contract-preview-loading').style.display = '';
+            document.getElementById('contract-preview-loading').textContent = 'Loading templates…';
+            document.getElementById('contract-preview-status').textContent = '';
+            document.getElementById('contract-send-btn').disabled = true;
+            document.getElementById('contract-preview-guest-email').textContent = '—';
+            openModal('contractPreviewModal');
+            // Resolve booking's account_id so we can scope the template picker
+            try {
+                const bkR = await fetch(`/api/db/bookings/${bookingId}`, { headers: authHeaders() });
+                const bkD = await bkR.json();
+                const acctId = bkD?.data?.property?.account_id
+                    || bkD?.data?.account_id
+                    || (window.currentUser && window.currentUser.id) || null;
+                _contractPreviewAccountId = acctId;
+                const tR = await fetch(`/api/admin/contracts/templates${acctId ? '?account_id=' + acctId : ''}`, { headers: authHeaders() });
+                const tD = await tR.json();
+                _contractPreviewTemplates = (tD.templates || []).filter(t => t.is_active);
+                const sel = document.getElementById('contract-preview-template');
+                sel.innerHTML = '';
+                if (!_contractPreviewTemplates.length) {
+                    document.getElementById('contract-preview-loading').innerHTML = '<em>No contract templates available for this account. <a href="#" onclick="showView(\'contract-templates\'); return false;">Create one →</a></em>';
+                    return;
+                }
+                _contractPreviewTemplates.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.id;
+                    opt.textContent = `${t.name}${t.language ? ' — ' + t.language.toUpperCase() : ''}`;
+                    sel.appendChild(opt);
+                });
+                reloadContractPreview();
+            } catch (e) {
+                document.getElementById('contract-preview-loading').textContent = 'Error: ' + e.message;
+            }
+        }
+
+        async function reloadContractPreview() {
+            const bookingId = document.getElementById('contract-preview-booking-id').value;
+            const templateId = document.getElementById('contract-preview-template').value;
+            if (!bookingId || !templateId) return;
+            document.getElementById('contract-preview-loading').style.display = '';
+            document.getElementById('contract-preview-loading').textContent = 'Rendering preview…';
+            document.getElementById('contract-preview-frame').style.display = 'none';
+            document.getElementById('contract-send-btn').disabled = true;
+            try {
+                const r = await fetch(`/api/admin/bookings/${bookingId}/contract-preview`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ template_id: parseInt(templateId, 10) }),
+                });
+                const d = await r.json();
+                if (!d.success) { document.getElementById('contract-preview-loading').textContent = 'Error: ' + (d.error || 'preview failed'); return; }
+                document.getElementById('contract-preview-guest-email').textContent = d.guest_email || '(no email — cannot send)';
+                const iframe = document.getElementById('contract-preview-frame');
+                iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:24px;background:#f8fafc;color:#111;}</style></head><body>${d.filled_html}</body></html>`;
+                iframe.style.display = 'block';
+                document.getElementById('contract-preview-loading').style.display = 'none';
+                document.getElementById('contract-send-btn').disabled = !d.guest_email;
+                if (!d.guest_email) document.getElementById('contract-preview-status').textContent = 'This booking has no guest email — add one before sending.';
+                else document.getElementById('contract-preview-status').textContent = '';
+            } catch (e) {
+                document.getElementById('contract-preview-loading').textContent = 'Error: ' + e.message;
+            }
+        }
+
+        async function sendContractFromPreview() {
+            const bookingId = document.getElementById('contract-preview-booking-id').value;
+            const templateId = document.getElementById('contract-preview-template').value;
+            const btn = document.getElementById('contract-send-btn');
+            btn.disabled = true; btn.textContent = 'Sending…';
+            try {
+                const r = await fetch(`/api/admin/bookings/${bookingId}/send-contract`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ template_id: parseInt(templateId, 10) }),
+                });
+                const d = await r.json();
+                if (!d.success) { alert('Send failed: ' + (d.error || 'unknown')); btn.disabled = false; btn.textContent = 'Send to guest →'; return; }
+                document.getElementById('contract-preview-status').innerHTML = `✓ Sent. Sign URL:<br><input type="text" readonly value="${d.sign_url}" style="width:100%; padding:0.35rem; font-size:0.75rem; margin-top:0.25rem;" onclick="this.select()"> <button class="btn btn-small" onclick="navigator.clipboard.writeText('${d.sign_url}'); this.textContent='✓ copied';" style="margin-top:0.25rem;">Copy for WhatsApp</button>`;
+                btn.textContent = '✓ Sent';
+            } catch (e) {
+                alert('Send error: ' + e.message);
+                btn.disabled = false; btn.textContent = 'Send to guest →';
+            }
+        }
+
         // Guest Info Editor — Steve 2026-08-03. Same UI on properties AND
         // rooms. Fields cover parking, entrance, key location, room access,
         // WiFi, check-in, check-out, house rules, local info, emergency.
@@ -78216,10 +78416,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div style="font-weight:600; margin-bottom:0.35rem;">${esc(fld.label)} <span style="color:#94a3b8; font-weight:normal; font-size:0.8rem;">— ${esc(fld.hint)}</span></div>
                 <textarea id="${wrapId}-text" class="form-input" rows="2" placeholder="…">${esc(val?.text)}</textarea>
                 <div id="${wrapId}-images" style="margin-top:0.5rem; min-height:2.25rem;" data-images='${JSON.stringify(imgs).replace(/'/g, "&#39;")}'>${imgList}</div>
-                <label style="display:inline-block; margin-top:0.4rem; font-size:0.8rem; color:#0369a1; cursor:pointer;">📷 Add image URL
-                    <input type="url" placeholder="https://…" style="margin-left:0.35rem; padding:0.25rem 0.5rem; font-size:0.8rem; border:1px solid #cbd5e1; border-radius:4px; width:280px;" onkeydown="if(event.key==='Enter'){event.preventDefault();giAddImage('${esc(fld.key)}', this.value); this.value='';}">
-                </label>
-                <small style="display:block; color:#94a3b8; font-size:0.7rem; margin-top:0.15rem;">Paste an image URL, press Enter. Or upload via the Images tab first, then paste the URL here.</small>
+                <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.4rem;">
+                    <button type="button" class="btn btn-small" style="background:#0d9488; color:white;" onclick="openGiImagePicker('${esc(fld.key)}')">📷 Pick from Images</button>
+                    <span style="color:#94a3b8; font-size:0.75rem;">or</span>
+                    <input type="url" placeholder="paste URL then Enter" style="flex:1; padding:0.25rem 0.5rem; font-size:0.8rem; border:1px solid #cbd5e1; border-radius:4px;" onkeydown="if(event.key==='Enter'){event.preventDefault();giAddImage('${esc(fld.key)}', this.value); this.value='';}">
+                </div>
             </div>`;
         }
 

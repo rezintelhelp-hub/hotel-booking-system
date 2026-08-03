@@ -155668,6 +155668,39 @@ function contractsRenderTemplate(html, ctx) {
   return out;
 }
 
+// POST /api/admin/bookings/:id/contract-preview — { template_id }
+// Returns the FILLED HTML for a booking + template pair without touching
+// the DB. Powers the operator preview modal before hitting Send.
+app.post('/api/admin/bookings/:id/contract-preview', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    const templateId = parseInt(req.body?.template_id, 10);
+    if (!bookingId || !templateId) return res.status(400).json({ success: false, error: 'booking_id + template_id required' });
+    const b = await pool.query(`SELECT b.id, b.guest_email, b.guest_first_name, b.guest_last_name, p.account_id FROM bookings b LEFT JOIN properties p ON p.id = b.property_id WHERE b.id = $1`, [bookingId]);
+    if (!b.rows[0]) return res.status(404).json({ success: false, error: 'booking not found' });
+    if (decoded.role !== 'master_admin' && decoded.id !== b.rows[0].account_id) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const t = await pool.query(`SELECT id, name, html_body, language FROM contract_templates WHERE id = $1 AND (account_id = $2 OR account_id IS NULL) AND is_active = true`, [templateId, b.rows[0].account_id]);
+    if (!t.rows[0]) return res.status(404).json({ success: false, error: 'template not found or not accessible for this account' });
+    const ctx = await contractsHydrateContext(pool, bookingId, { sign_token: 'PREVIEW' });
+    const filledHtml = contractsRenderTemplate(t.rows[0].html_body, ctx);
+    res.json({
+      success: true,
+      template_name: t.rows[0].name,
+      template_language: t.rows[0].language,
+      guest_email: b.rows[0].guest_email,
+      guest_name: [b.rows[0].guest_first_name, b.rows[0].guest_last_name].filter(Boolean).join(' '),
+      filled_html: filledHtml,
+    });
+  } catch (e) {
+    console.error('[contract-preview]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST /api/admin/bookings/:id/send-contract — { template_id }
 // Merges the template with booking + property + landlord data,
 // stores the filled HTML + a unique sign_token, emails the guest.
