@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.5.9
+ * Version: 1.6.0
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -621,8 +621,19 @@ class GAS_Shop {
                 echo '<label style="display:block;font-weight:600;color:#78350f;margin-bottom:6px;font-size:0.95rem">📅 Your arrival date <span style="color:#92400e;font-weight:normal;font-size:0.85rem">(check-in must be '.esc_html($allowedLabel).$nightsNote.')</span></label>';
                 echo '<input type="date" id="gas-shop-arrival-date" min="'.esc_attr(date('Y-m-d', strtotime('+1 day'))).'" style="width:100%;max-width:260px;padding:10px 12px;border:1px solid #f59e0b;border-radius:8px;font-size:1rem" onchange="gasShopValidateArrival('.$allowedDaysJs.')">';
                 echo '<div id="gas-shop-arrival-error" style="color:#dc2626;margin-top:6px;display:none;font-size:0.9rem;font-weight:500"></div>';
-                echo '<script>window.gasShopAllowedCheckinDays = '.$allowedDaysJs.';</script>';
+                echo '<script>window.gasShopAllowedCheckinDays = '.$allowedDaysJs.'; window.gasShopEventNights = '.$eventNights.'; window.gasShopProductId = '.intval($p['id']).';</script>';
                 echo '</div>';
+                // Green "Book This Package →" CTA. Bridges the shop and the
+                // booking widget: reads the picked date, computes checkout
+                // = arrival + event_duration_nights, drops the guest onto
+                // /book-now/ with check_in + check_out + linked_product URL
+                // params. The booking widget already handles these (JS ~2013
+                // in gas-booking.js). No pay step in shop — guest completes
+                // the booking on the widget for now (until per-channel
+                // visibility ships and this can go end-to-end in shop).
+                $bookUrlBase = esc_url(home_url('/book-now/'));
+                echo '<button class="gas-shop-btn" id="gas-shop-book-package" style="background:#059669;color:white;font-weight:600;padding:12px 24px;border:none;border-radius:8px;cursor:pointer;font-size:1rem;margin-bottom:12px" onclick="gasShopBookPackage(\''.$bookUrlBase.'\')">Book This Package →</button>';
+                echo '<div style="font-size:0.85rem;color:#64748b;margin-top:-6px;margin-bottom:14px">Choose your arrival above, then click to book on the property page.</div>';
             }
             if ($offerBuyStandalone) {
                 echo '<button class="gas-shop-btn" id="gas-add-to-cart"'.$disabled.' onclick=\'gasShopAddToCart('.$product_json.')\'>Add to Cart</button>';
@@ -744,6 +755,29 @@ function gasShopValidateArrival(allowed) {
   // Persist so it survives cart hops + reaches checkout POST.
   localStorage.setItem("gas_shop_arrival_date", input.value);
   return true;
+}
+
+// "Book This Package →" — bridges shop → booking widget. Reads the arrival
+// date from the picker, computes check_out = arrival + event_nights, appends
+// linked_product so the widget knows which shop product is driving this.
+function gasShopBookPackage(bookUrlBase) {
+  var input = document.getElementById("gas-shop-arrival-date");
+  var errEl = document.getElementById("gas-shop-arrival-error");
+  if (!input || !input.value) {
+    if (errEl) { errEl.textContent = "Please pick your arrival date first."; errEl.style.display = "block"; }
+    return;
+  }
+  if (window.gasShopAllowedCheckinDays && !gasShopValidateArrival(window.gasShopAllowedCheckinDays)) return;
+  var nights = parseInt(window.gasShopEventNights || 0, 10);
+  if (!nights || nights < 1) nights = 1;
+  var arrival = input.value;
+  var d = new Date(arrival);
+  d.setDate(d.getDate() + nights);
+  var checkout = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  var pid = window.gasShopProductId || 0;
+  var url = bookUrlBase + "?check_in=" + arrival + "&check_out=" + checkout;
+  if (pid) url += "&linked_product=" + pid;
+  window.location.href = url;
 }
 
 function gasShopAddToCart(product) {
