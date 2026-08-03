@@ -78605,13 +78605,14 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('po-is-active').checked = true;
 
             if (ownerId) {
-                // Load existing
+                // Load existing owner directly by id — no account context
+                // required (fixes "Account id missing" when master admin
+                // edits an owner without a selectedAccountId set).
                 try {
-                    const acctId = document.getElementById('property-owner-account-id').value;
-                    const r = await fetch(`/api/admin/accounts/${acctId}/property-owners`, { headers: authHeaders() });
+                    const r = await fetch(`/api/admin/property-owners/${ownerId}`, { headers: authHeaders() });
                     const d = await r.json();
-                    const o = (d.owners || []).find(x => x.id === parseInt(ownerId, 10));
-                    if (!o) { alert('Owner not found'); return; }
+                    if (!d.success || !d.owner) { alert('Owner not found'); return; }
+                    const o = d.owner;
                     document.getElementById('property-owner-id').value = o.id;
                     document.getElementById('property-owner-account-id').value = o.account_id;
                     document.getElementById('po-name').value = o.name || '';

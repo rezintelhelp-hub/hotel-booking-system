@@ -156042,6 +156042,31 @@ app.get('/api/admin/accounts/:accountId/property-owners', async (req, res) => {
   }
 });
 
+// GET /api/admin/property-owners/:id — single owner. Powers the edit
+// modal so master admin doesn't need an account context set first
+// (Steve 2026-08-03 — "Account id missing" alert on save was caused
+// by the client fetching the owner LIST scoped to a blank account id
+// on the edit path).
+app.get('/api/admin/property-owners/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const ownerId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(ownerId)) return res.status(400).json({ success: false, error: 'invalid id' });
+    const r = await pool.query(`
+      SELECT o.*, (SELECT COUNT(*)::int FROM properties p WHERE p.owner_id = o.id) AS property_count
+        FROM property_owners o WHERE o.id = $1`, [ownerId]);
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'owner not found' });
+    if (decoded.role !== 'master_admin' && r.rows[0].account_id !== decoded.id) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    res.json({ success: true, owner: r.rows[0] });
+  } catch (e) {
+    console.error('[property-owner get]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST /api/admin/property-owners — create OR update.
 // Body: { id? (for update), account_id, name, ...all owner fields }.
 app.post('/api/admin/property-owners', async (req, res) => {
