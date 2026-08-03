@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.6.0
+ * Version: 1.6.1
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -775,7 +775,10 @@ function gasShopBookPackage(bookUrlBase) {
   d.setDate(d.getDate() + nights);
   var checkout = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
   var pid = window.gasShopProductId || 0;
-  var url = bookUrlBase + "?check_in=" + arrival + "&check_out=" + checkout;
+  // No underscore — matches both the WP shortcode reader ($_GET["checkin"])
+  // and the booking widget JS (accepts checkin OR check_in). Underscored
+  // form silently loses the params on the room-detail page render.
+  var url = bookUrlBase + "?checkin=" + arrival + "&checkout=" + checkout;
   if (pid) url += "&linked_product=" + pid;
   window.location.href = url;
 }

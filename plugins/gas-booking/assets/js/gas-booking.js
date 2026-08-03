@@ -2023,11 +2023,13 @@ jQuery(document).ready(function($) {
                 if (!didIn) {
                     document.querySelectorAll('.gas-checkin, .gas-checkin-date, .gas-search-checkin, .gas-filter-checkin').forEach(function(el) {
                         if (el._flatpickr) { el._flatpickr.setDate(urlCheckIn, true); didIn = true; }
+                        else if (el.tagName === 'INPUT') { el.value = urlCheckIn; el.dispatchEvent(new Event('change', { bubbles: true })); didIn = true; }
                     });
                 }
                 if (!didOut) {
                     document.querySelectorAll('.gas-checkout, .gas-checkout-date, .gas-search-checkout, .gas-filter-checkout').forEach(function(el) {
                         if (el._flatpickr) { el._flatpickr.setDate(urlCheckOut, true); didOut = true; }
+                        else if (el.tagName === 'INPUT') { el.value = urlCheckOut; el.dispatchEvent(new Event('change', { bubbles: true })); didOut = true; }
                     });
                 }
                 if ((didIn && didOut) || tries > 40) clearInterval(iv); // 4s ceiling
