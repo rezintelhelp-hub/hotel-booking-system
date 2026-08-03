@@ -71764,6 +71764,93 @@ app.get('/api/admin/bookable-listings', async (req, res) => {
 // the property and returns per-day {freeRooms, minPrice, minStay}. A date
 // with no RA rows is treated as fully open (totalRooms free) — matching the
 // guest-side booking widget's open-by-default semantics.
+// GET /api/admin/units/:unitId/channel-visibility?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Returns explicit visibility overrides for a unit over a date range. Missing
+// rows = default visible; the client fills in the gaps. Used by the calendar
+// drill-down to show per-date per-channel toggle state.
+app.get('/api/admin/units/:unitId/channel-visibility', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const unitId = parseInt(req.params.unitId, 10);
+    if (!unitId) return res.status(400).json({ success: false, error: 'unit id required' });
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : null;
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : null;
+    if (!from || !to) return res.status(400).json({ success: false, error: 'from + to required (YYYY-MM-DD)' });
+    // Auth: unit must belong to the caller's account (or caller is master).
+    const own = await pool.query(`SELECT p.account_id FROM bookable_units bu LEFT JOIN properties p ON p.id = bu.property_id WHERE bu.id = $1`, [unitId]);
+    if (!own.rows[0]) return res.status(404).json({ success: false, error: 'unit not found' });
+    if (decoded.role !== 'master_admin' && own.rows[0].account_id !== decoded.id) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const r = await pool.query(
+      `SELECT bookable_unit_id, to_char(date, 'YYYY-MM-DD') AS date, channel, is_visible, updated_at
+         FROM unit_channel_daily_visibility
+        WHERE bookable_unit_id = $1 AND date >= $2 AND date <= $3
+        ORDER BY date, channel`, [unitId, from, to]);
+    res.json({ success: true, overrides: r.rows });
+  } catch (e) {
+    console.error('[channel-visibility get]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/admin/units/:unitId/channel-visibility — upsert one or many
+// overrides. Body: { entries: [{ date: 'YYYY-MM-DD', channel: 'channex',
+// is_visible: false }, ...] }. Fires the outbox for affected dates so the
+// change propagates to the OTA (fire-and-forget; failure is logged, not
+// blocking).
+app.post('/api/admin/units/:unitId/channel-visibility', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const unitId = parseInt(req.params.unitId, 10);
+    if (!unitId) return res.status(400).json({ success: false, error: 'unit id required' });
+    const own = await pool.query(`SELECT p.account_id FROM bookable_units bu LEFT JOIN properties p ON p.id = bu.property_id WHERE bu.id = $1`, [unitId]);
+    if (!own.rows[0]) return res.status(404).json({ success: false, error: 'unit not found' });
+    if (decoded.role !== 'master_admin' && own.rows[0].account_id !== decoded.id) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+    if (entries.length === 0) return res.status(400).json({ success: false, error: 'entries[] required' });
+    let saved = 0;
+    const channexTouchedDates = new Set();
+    for (const e of entries) {
+      if (!e || !/^\d{4}-\d{2}-\d{2}$/.test(e.date) || !e.channel) continue;
+      const channel = String(e.channel).slice(0, 30);
+      const isVisible = e.is_visible !== false;
+      await pool.query(
+        `INSERT INTO unit_channel_daily_visibility (bookable_unit_id, date, channel, is_visible, updated_at, updated_by)
+         VALUES ($1, $2, $3, $4, NOW(), $5)
+         ON CONFLICT (bookable_unit_id, date, channel) DO UPDATE
+           SET is_visible = EXCLUDED.is_visible,
+               updated_at = NOW(),
+               updated_by = EXCLUDED.updated_by`,
+        [unitId, e.date, channel, isVisible, decoded.id]);
+      saved++;
+      if (channel === 'channex') channexTouchedDates.add(e.date);
+    }
+    // Re-push Channex availability for every touched date so the toggle
+    // takes effect immediately, not just on the next natural booking-driven
+    // push. Fire-and-forget — failures logged, not blocking.
+    if (channexTouchedDates.size > 0) {
+      try {
+        const { recomputeAndEnqueueAvailabilityForRoom } = require('./gas-sync/channex-outbox');
+        for (const d of channexTouchedDates) {
+          recomputeAndEnqueueAvailabilityForRoom(pool, unitId, d)
+            .catch(err => console.warn('[channex re-push]', unitId, d, err.message));
+        }
+      } catch (wireErr) {
+        console.warn('[channex re-push wiring]', wireErr.message);
+      }
+    }
+    res.json({ success: true, saved });
+  } catch (e) {
+    console.error('[channel-visibility post]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.get('/api/admin/property/:id/availability-month', async (req, res) => {
   try {
     const propertyId = parseInt(req.params.id);
@@ -144621,6 +144708,26 @@ app.listen(PORT, '0.0.0.0', async () => {
     // reads this from the order view + creates the booking manually until
     // per-channel visibility ships and lets us go fully self-service.
     await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS arrival_date DATE`).catch(() => {});
+
+    // 2026-08-03 — per-channel per-date visibility overrides. Missing row =
+    // default visible. Only stores explicit overrides so the table stays
+    // tiny. Channex + Beds24 outbox builders LEFT JOIN and force
+    // available_units=0 when is_visible=false. Solves Steve's cure-package
+    // problem (block channels, sell direct) + generic high-demand mgmt.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS unit_channel_daily_visibility (
+        id SERIAL PRIMARY KEY,
+        bookable_unit_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
+        date DATE NOT NULL,
+        channel VARCHAR(30) NOT NULL,
+        is_visible BOOLEAN NOT NULL DEFAULT true,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        updated_by INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        UNIQUE (bookable_unit_id, date, channel)
+      )
+    `).catch(e => console.warn('[unit_channel_daily_visibility migration]', e.message));
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ucdv_unit_date ON unit_channel_daily_visibility(bookable_unit_id, date)`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ucdv_hidden ON unit_channel_daily_visibility(bookable_unit_id, date) WHERE is_visible = false`).catch(() => {});
 
     // Tour-as-upsell wiring (option A from the May 2026 design discussion):
     //   - Owner manages tours/experiences in the Shop area.

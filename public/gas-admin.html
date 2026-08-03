@@ -29843,6 +29843,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <div id="cell-edit-rate-plans-list" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
                 </div>
+                <!-- Channel visibility (2026-08-03) — per-date-per-channel
+                     toggles. Empty = default visible. Solves cure-package
+                     "keep channels dark, sell direct" + generic high-demand
+                     inventory holdback. -->
+                <div id="cell-edit-channels-section" style="margin-bottom:1.25rem; padding-top:1rem; border-top:1px solid #e2e8f0;">
+                    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:0.5rem;">
+                        <h4 style="margin:0; font-size:0.9rem; color:#1e293b; font-weight:600;">📡 Channel visibility</h4>
+                        <span style="font-size:0.75rem; color:#64748b;">toggle each channel on/off for this date</span>
+                    </div>
+                    <div id="cell-edit-channels-list" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+                </div>
                 <div style="display:flex; justify-content:space-between; gap:0.5rem; align-items:center; flex-wrap: wrap;">
                     <div style="display:flex; gap:0.5rem; flex-wrap: wrap;">
                         <button class="btn btn-secondary" onclick="cellEditOpenInOffers()" style="font-size: 0.85rem;">Open in Pricing &amp; Offers →</button>
@@ -58302,7 +58313,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('cell-edit-rate-plans-section').style.display = 'none';
             document.getElementById('cell-edit-rate-plans-list').innerHTML = '';
             document.getElementById('cell-edit-rate-plans-count').textContent = '';
+            // Reset channel visibility list to a spinner + load fresh
+            document.getElementById('cell-edit-channels-list').innerHTML = '<div style="color:#94a3b8; font-size:0.85rem;">Loading channel state…</div>';
             openModal('cellRateEditModal');
+            loadCellEditChannelVisibility(roomId, dateStr);
             // Load availability + rate plans in parallel — they're independent.
             try {
                 const [availRes, rpRes] = await Promise.all([
@@ -58419,7 +58433,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
                 const d = await r.json();
                 if (d.success) {
-                    showNotification('Rate saved', 'success');
+                    // Save channel visibility toggles too (if any changed from
+                    // their loaded state). Fires the Channex re-push server-side.
+                    await saveCellEditChannelVisibility(roomId, dateStr).catch(() => {});
+                    showNotification('Saved', 'success');
                     closeModal('cellRateEditModal');
                     if (typeof loadGridData === 'function') loadGridData();
                 } else {
@@ -58428,6 +58445,62 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) {
                 showNotification('Error: ' + e.message, 'error');
             }
+        }
+
+        // Per-cell channel visibility loader + saver.
+        // Renders a toggle per connected channel. Empty override row =
+        // default visible. Save only sends changes.
+        let _cellEditChannelState = {}; // { channel: { was:bool, next:bool } }
+        async function loadCellEditChannelVisibility(roomId, dateStr) {
+            _cellEditChannelState = {};
+            const wrap = document.getElementById('cell-edit-channels-list');
+            // For now the list of channels is hardcoded to those we support
+            // outbound overrides for. When more channels get wired we add
+            // them here. Direct is deliberately not in this list — GAS
+            // always sees direct availability regardless.
+            const channels = [{ key: 'channex', label: '📨 OTA channels (via Channex)', hint: 'Airbnb, Booking.com, Vrbo etc.' }];
+            try {
+                const r = await fetch(`/api/admin/units/${roomId}/channel-visibility?from=${dateStr}&to=${dateStr}`, { headers: authHeaders() });
+                const d = await r.json();
+                const overrides = (d && d.overrides) || [];
+                const rowsHtml = channels.map(c => {
+                    const row = overrides.find(o => o.channel === c.key);
+                    const isVisible = row ? !!row.is_visible : true; // default visible
+                    _cellEditChannelState[c.key] = { was: isVisible, next: isVisible };
+                    return `
+                    <label style="display:flex; align-items:center; gap:0.75rem; padding:0.6rem 0.75rem; border:1px solid #e2e8f0; border-radius:8px; background:${isVisible ? '#f0fdf4' : '#fef2f2'}; cursor:pointer;" id="cell-ch-row-${c.key}">
+                        <input type="checkbox" ${isVisible ? 'checked' : ''} onchange="_cellEditToggleChannel('${c.key}', this.checked)" style="width:18px; height:18px;">
+                        <div style="flex:1;">
+                            <div style="font-weight:600; color:${isVisible ? '#065f46' : '#7f1d1d'};">${c.label}</div>
+                            <div style="font-size:0.8rem; color:#64748b;">${c.hint}</div>
+                        </div>
+                        <span id="cell-ch-status-${c.key}" style="font-size:0.75rem; font-weight:600; color:${isVisible ? '#059669' : '#dc2626'};">${isVisible ? 'VISIBLE' : 'HIDDEN'}</span>
+                    </label>`;
+                }).join('');
+                wrap.innerHTML = rowsHtml;
+            } catch (e) {
+                wrap.innerHTML = '<div style="color:#dc2626; font-size:0.85rem;">Failed to load channel state: ' + e.message + '</div>';
+            }
+        }
+        function _cellEditToggleChannel(channel, checked) {
+            if (!_cellEditChannelState[channel]) _cellEditChannelState[channel] = { was: true, next: true };
+            _cellEditChannelState[channel].next = !!checked;
+            const row = document.getElementById('cell-ch-row-' + channel);
+            const status = document.getElementById('cell-ch-status-' + channel);
+            if (row) row.style.background = checked ? '#f0fdf4' : '#fef2f2';
+            if (status) { status.textContent = checked ? 'VISIBLE' : 'HIDDEN'; status.style.color = checked ? '#059669' : '#dc2626'; }
+        }
+        async function saveCellEditChannelVisibility(roomId, dateStr) {
+            const entries = [];
+            for (const [ch, s] of Object.entries(_cellEditChannelState)) {
+                if (s.was !== s.next) entries.push({ date: dateStr, channel: ch, is_visible: s.next });
+            }
+            if (entries.length === 0) return; // nothing changed
+            await fetch(`/api/admin/units/${roomId}/channel-visibility`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({ entries })
+            });
         }
 
         // Inline save from the Override row on the Availability Calendar.

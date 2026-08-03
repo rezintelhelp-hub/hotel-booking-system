@@ -395,17 +395,33 @@ async function getChannexMapping(pool, gasRoomId) {
 /**
  * Convenience: enqueue an availability change. No-op if the room isn't
  * mapped to a Channex-enabled connection.
+ *
+ * 2026-08-03 — respects per-date channel visibility overrides. If the
+ * operator has toggled Channex OFF for this (unit, date) in the availability
+ * calendar drill-down, we force count=0 regardless of computed availability.
+ * This is what powers "keep channels dark, sell direct" for cure packages
+ * and generic high-demand inventory holdback. See project_per_channel_daily_visibility.
  */
 async function enqueueAvailabilityForRoom(pool, gasRoomId, date, count) {
   const m = await getChannexMapping(pool, gasRoomId);
   if (!m) return false;
+  let finalCount = count;
+  try {
+    const vis = await pool.query(
+      `SELECT is_visible FROM unit_channel_daily_visibility
+        WHERE bookable_unit_id = $1 AND date = $2 AND channel = 'channex' LIMIT 1`,
+      [gasRoomId, date]);
+    if (vis.rows[0] && vis.rows[0].is_visible === false) {
+      finalCount = 0; // operator toggled Channex off for this date
+    }
+  } catch (_) { /* table may not exist in dev — fall through with computed count */ }
   await enqueue(pool, {
     account_id: m.account_id,
     connection_id: m.connection_id,
     channex_property_id: m.channex_property_id,
     channex_room_type_id: m.channex_room_type_id,
     change_type: 'availability',
-    payload: { date, count },
+    payload: { date, count: finalCount },
   });
   return true;
 }
@@ -662,6 +678,34 @@ async function enqueueBookingPush(pool, gasBookingId, action) {
   return true;
 }
 
+/**
+ * Recompute current availability for (unit, date) and enqueue a push. Used
+ * when the operator toggles per-channel visibility so channels reflect the
+ * change immediately (otherwise the JOIN inside enqueueAvailabilityForRoom
+ * only kicks in on the next natural push).
+ *
+ * Availability = bookable_units.total_units − overlapping guest bookings on
+ * that date. Blocks are counted as bookings. The visibility JOIN then forces
+ * count=0 if the operator has toggled Channex off, so calling this on a
+ * hidden date correctly ends up pushing 0.
+ */
+async function recomputeAndEnqueueAvailabilityForRoom(pool, gasRoomId, date) {
+  const totalR = await pool.query(
+    `SELECT COALESCE(NULLIF(total_units, 0), 1) AS total FROM bookable_units WHERE id = $1`,
+    [gasRoomId]);
+  if (!totalR.rows[0]) return false;
+  const total = parseInt(totalR.rows[0].total, 10) || 1;
+  const usedR = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM bookings
+      WHERE bookable_unit_id = $1
+        AND status IN ('confirmed','pending','blocked')
+        AND arrival_date <= $2 AND departure_date > $2`,
+    [gasRoomId, date]);
+  const used = usedR.rows[0]?.n || 0;
+  const available = Math.max(0, total - used);
+  return enqueueAvailabilityForRoom(pool, gasRoomId, date, available);
+}
+
 module.exports = {
   ensureSchema,
   enqueue,
@@ -670,6 +714,7 @@ module.exports = {
   stopChannexOutboxWorker,
   getChannexMapping,
   enqueueAvailabilityForRoom,
+  recomputeAndEnqueueAvailabilityForRoom,
   enqueueRestrictionForRoom,
   enqueueBookingPush,
   CHANGE_TYPES,
