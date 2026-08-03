@@ -26,14 +26,18 @@ function fmtMoney(amt, currency) {
   return `${parseFloat(amt).toFixed(2)} ${c}`;
 }
 function renderTemplate(html, ctx) {
-  return html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => {
+  const resolve = (path) => {
     let cur = ctx;
-    for (const seg of path.split('.')) {
-      if (cur == null) return '';
-      cur = cur[seg];
-    }
-    return cur == null ? '' : String(cur);
+    for (const seg of path.split('.')) { if (cur == null) return null; cur = cur[seg]; }
+    return cur;
+  };
+  let out = html.replace(/\{\{#\s*([\w.]+)\s*\}\}([\s\S]*?)\{\{\/\s*\1\s*\}\}/g, (_, path, inner) => {
+    const v = resolve(path);
+    const truthy = v != null && v !== '' && v !== false && v !== 0 && v !== '0';
+    return truthy ? inner : '';
   });
+  out = out.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => { const v = resolve(path); return v == null ? '' : String(v); });
+  return out;
 }
 
 (async () => {

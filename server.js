@@ -155551,18 +155551,32 @@ async function contractsHydrateContext(pool, bookingId, contractInstance = null)
 
 // Substitute {{path.to.value}} tokens in an HTML template with values
 // from a nested context object. Missing tokens render as empty string.
-// Also supports {{#if path}} … {{/if}} for optional blocks (naive).
+// Also supports {{#path.to.value}}…{{/path.to.value}} conditional blocks
+// (show inner content only when the path resolves to a truthy value).
+// Nested blocks not supported — keep templates flat.
 function contractsRenderTemplate(html, ctx) {
-  // Simple {{a.b.c}} substitution
-  return html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => {
-    const parts = path.split('.');
+  const resolve = (path) => {
     let cur = ctx;
-    for (const p of parts) {
-      if (cur == null) return '';
-      cur = cur[p];
+    for (const seg of path.split('.')) {
+      if (cur == null) return null;
+      cur = cur[seg];
     }
-    return cur == null ? '' : String(cur);
+    return cur;
+  };
+  // Pass 1 — conditional blocks {{#path}}…{{/path}}. Remove the block
+  // entirely if the path is falsy/empty; keep inner content otherwise.
+  const blockRe = /\{\{#\s*([\w.]+)\s*\}\}([\s\S]*?)\{\{\/\s*\1\s*\}\}/g;
+  let out = html.replace(blockRe, (_, path, inner) => {
+    const v = resolve(path);
+    const truthy = v != null && v !== '' && v !== false && v !== 0 && v !== '0';
+    return truthy ? inner : '';
   });
+  // Pass 2 — simple {{a.b.c}} substitution
+  out = out.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => {
+    const v = resolve(path);
+    return v == null ? '' : String(v);
+  });
+  return out;
 }
 
 // POST /api/admin/bookings/:id/send-contract — { template_id }
