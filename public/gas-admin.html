@@ -26702,6 +26702,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </label>
                     </div>
 
+                    <!-- Fixed-price package hint — Steve 2026-08-03. Offers
+                         module is for % or € off a nightly rate. If the
+                         operator wants a flat total for a specific stay
+                         length (cure package, weekly rate as a product,
+                         etc.), that's a Shop event-product, not an offer. -->
+                    <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:0.65rem 0.85rem; margin-bottom:0.75rem; font-size:0.85rem; color:#1e40af;">
+                        💡 Want a <strong>fixed-price package</strong> (e.g. "€785 for a 3-week cure")? Offers can only discount off the nightly rate.
+                        <a href="#" onclick="closeModal('addOfferModal'); showView('app-shop'); return false;" style="color:#1e40af; font-weight:600; text-decoration:underline;">Create it in the Shop →</a>
+                        as an event-product with a bundled room.
+                    </div>
+
                     <!-- Discount Section -->
                     <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
                         <label style="font-weight: 600; color: #166534; margin-bottom: 0.75rem; display: block;">
