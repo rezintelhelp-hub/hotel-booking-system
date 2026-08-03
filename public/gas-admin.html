@@ -26711,8 +26711,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <div>
                                 <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Type</label>
                                 <select id="offer-discount-type" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
-                                    <option value="percentage">Percentage (%)</option>
-                                    <option value="fixed_amount">Fixed Amount ($)</option>
+                                    <option value="percentage">Percentage off (%)</option>
+                                    <option value="fixed_amount">Fixed € off nightly</option>
+                                    <option value="fixed_total">Fixed € total for stay (website only)</option>
                                 </select>
                             </div>
                             <div>
@@ -66613,10 +66614,13 @@ const promo = await fetch('/api/v1/offers/validate', {
         function updateDiscountDisplay() {
             const type = document.getElementById('offer-discount-type').value;
             const suffix = document.getElementById('discount-suffix');
+            const valueLabel = document.querySelector('label[for="offer-discount-value"], #offer-discount-value')?.previousElementSibling;
             if (type === 'percentage') {
                 suffix.textContent = '%';
+            } else if (type === 'fixed_total') {
+                suffix.textContent = '€ total';
             } else {
-                suffix.textContent = '$';
+                suffix.textContent = '€';
             }
         }
         
