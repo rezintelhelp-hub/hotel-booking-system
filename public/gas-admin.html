@@ -27870,7 +27870,7 @@ const promo = await fetch('/api/v1/offers/validate', {
          WhatsApp it themselves). Uses /contract-preview (no DB write)
          to render, then /send-contract to actually fire. -->
     <div id="contractPreviewModal" class="modal">
-        <div class="modal-content" style="max-width: 960px; border-radius: 16px; max-height: 92vh; display:flex; flex-direction:column;">
+        <div class="modal-content" style="max-width: 1200px; width: 95vw; border-radius: 16px; height: 92vh; display:flex; flex-direction:column;">
             <div class="modal-header" style="background: linear-gradient(135deg, #0f766e 0%, #115e59 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.25rem 1.5rem;">
                 <div>
                     <h3 class="modal-title" style="margin: 0;">📄 Send Contract</h3>
@@ -27878,7 +27878,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
                 <button class="modal-close" onclick="closeModal('contractPreviewModal')" style="color: white;">&times;</button>
             </div>
-            <div class="modal-body" style="padding: 1rem 1.5rem; overflow:hidden; display:flex; flex-direction:column; flex:1; min-height: 0;">
+            <div class="modal-body" style="padding: 1rem 1.5rem; overflow:hidden; display:flex; flex-direction:column; flex:1 1 0; min-height: 0;">
                 <input type="hidden" id="contract-preview-booking-id">
                 <div style="display:flex; gap:0.75rem; align-items:end; padding-bottom:0.75rem; border-bottom:1px solid #e5e7eb;">
                     <div style="flex:1;">
@@ -27891,7 +27891,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
                 <div id="contract-preview-loading" style="padding:2rem; text-align:center; color:#94a3b8;">Loading templates…</div>
-                <iframe id="contract-preview-frame" style="display:none; flex:1; width:100%; border:1px solid #e5e7eb; border-radius:8px; margin-top:0.75rem; background:white;"></iframe>
+                <iframe id="contract-preview-frame" style="display:none; flex:1 1 0; min-height:400px; width:100%; border:1px solid #e5e7eb; border-radius:8px; margin-top:0.75rem; background:white;"></iframe>
             </div>
             <div style="padding: 0.75rem 1.5rem 1.25rem; border-top:1px solid #e5e7eb; display:flex; gap:0.75rem; justify-content:space-between; align-items:center;">
                 <div id="contract-preview-status" style="font-size:0.85rem; color:#64748b;"></div>
