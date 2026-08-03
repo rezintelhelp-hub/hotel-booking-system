@@ -20692,6 +20692,12 @@
                             </div>
                         </div>
 
+                        <!-- Arrival date banner — shown ONLY when the order has one (cure packages, weekend rentals) -->
+                        <div id="shop-order-arrival-banner" style="display:none; margin-bottom:1.5rem; padding:0.85rem 1rem; background:#fef3c7; border:1px solid #fde68a; border-radius:8px; color:#78350f;">
+                            <strong>📅 Guest arrival date: <span id="shop-order-arrival-date"></span></strong>
+                            <div style="font-size:0.85rem; margin-top:0.25rem; opacity:0.85;">Create the booking manually for this date, then link it from Bookings → Add Direct Booking.</div>
+                        </div>
+
                         <!-- Addresses -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
                             <div>
@@ -115656,6 +115662,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('shop-order-customer-phone').textContent = order.customer_phone || '-';
             document.getElementById('shop-order-date').textContent = new Date(order.created_at).toLocaleString();
             document.getElementById('shop-order-status').value = order.status;
+            // Arrival date banner — only shows when the guest picked one at checkout
+            const arrBanner = document.getElementById('shop-order-arrival-banner');
+            const arrCell = document.getElementById('shop-order-arrival-date');
+            if (order.arrival_date) {
+                arrCell.textContent = new Date(order.arrival_date).toLocaleDateString(undefined, { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+                arrBanner.style.display = '';
+            } else {
+                arrBanner.style.display = 'none';
+            }
             document.getElementById('shop-order-notes').textContent = order.notes || 'No notes';
 
             // Addresses

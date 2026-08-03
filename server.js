@@ -144616,6 +144616,11 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS booking_id INTEGER`);
     await pool.query(`ALTER TABLE shop_order_items ADD COLUMN IF NOT EXISTS accommodation_details JSONB`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS shop_order_id INTEGER`);
+    // 2026-08-03 — arrival date captured on shop checkout for products with
+    // checkin_days_of_week set (cure packages, weekend rentals). Operator
+    // reads this from the order view + creates the booking manually until
+    // per-channel visibility ships and lets us go fully self-service.
+    await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS arrival_date DATE`).catch(() => {});
 
     // Tour-as-upsell wiring (option A from the May 2026 design discussion):
     //   - Owner manages tours/experiences in the Shop area.
@@ -150743,7 +150748,8 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
               product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, event_block_rooms, event_held_room_ids, event_holds_status, offers_accommodation, property_id, external_url, external_button_label,
               gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months,
               tax_rate, tax_exempt, delivery_fee, linked_upsell_id, blocks,
-              offer_add_to_stay, offer_book_with_room, offer_buy_standalone
+              offer_add_to_stay, offer_book_with_room, offer_buy_standalone,
+              checkin_days_of_week
        FROM shop_products WHERE account_id = $1 AND slug = $2 AND is_active = true`,
       [clientId, slug]
     );
@@ -150927,10 +150933,19 @@ function validateCheckinDay(product, dateStr) {
 app.post('/api/public/shop/create-checkout-session', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { client_id, customer_name, customer_email, customer_phone, billing_address, delivery_address, accommodation, items, success_url, cancel_url, spark_ref, spark_session } = req.body;
+    const { client_id, customer_name, customer_email, customer_phone, billing_address, delivery_address, accommodation, items, success_url, cancel_url, spark_ref, spark_session, arrival_date } = req.body;
 
     if (!client_id || !customer_email || !items || !items.length) {
       return res.status(400).json({ success: false, error: 'Missing required fields (client_id, customer_email, items)' });
+    }
+
+    // Normalise arrival_date if supplied. YYYY-MM-DD only; anything else drops
+    // to null. Validation against each cart product's checkin_days constraint
+    // happens after the products are fetched below.
+    let arrivalDateNorm = null;
+    if (arrival_date && /^\d{4}-\d{2}-\d{2}$/.test(String(arrival_date))) {
+      const d = new Date(arrival_date);
+      if (!isNaN(d.getTime())) arrivalDateNorm = arrival_date;
     }
 
     // Check shop_enabled. Pull both shop_tax_* (legacy override) and total_tax_*
@@ -150950,6 +150965,16 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
     );
     const productsMap = {};
     productsResult.rows.forEach(p => { productsMap[p.id] = p; });
+
+    // Enforce check-in day constraint on every product in the cart that has
+    // one. If any product requires Sat/Sun and arrival_date is missing OR
+    // doesn't match, reject with the offending product's friendly message.
+    for (const p of productsResult.rows) {
+      if (!p.checkin_days_of_week) continue;
+      if (!arrivalDateNorm) return res.status(400).json({ success: false, error: `${p.name} requires an arrival date — please pick one before checkout.` });
+      const check = validateCheckinDay(p, arrivalDateNorm);
+      if (!check.ok) return res.status(400).json({ success: false, error: check.error });
+    }
 
     let subtotal = 0;
     let taxableSubtotal = 0;            // sum of items NOT marked tax_exempt
@@ -151262,10 +151287,10 @@ app.post('/api/public/shop/create-checkout-session', async (req, res) => {
     const sparkSessionForOrder = (spark_session || '').toString().slice(0, 63) || null;
 
     const orderResult = await client.query(`
-      INSERT INTO shop_orders (account_id, order_number, customer_email, customer_name, customer_phone, items, subtotal, tax, total, currency, status, payment_status, stripe_config_id_snapshot, delivery_fee, tax_label, delivery_label, billing_address, delivery_address, guest_id, spark_id, spark_session_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', 'unpaid', $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      INSERT INTO shop_orders (account_id, order_number, customer_email, customer_name, customer_phone, items, subtotal, tax, total, currency, status, payment_status, stripe_config_id_snapshot, delivery_fee, tax_label, delivery_label, billing_address, delivery_address, guest_id, spark_id, spark_session_id, arrival_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', 'unpaid', $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       RETURNING *
-    `, [client_id, orderNumber, customer_email, customer_name || null, customer_phone || null, JSON.stringify(validatedItems), subtotal, tax, grandTotal, currency.toUpperCase(), stripeConfig.id, deliveryFee, taxLabel, deliveryLabel, JSON.stringify(billing_address || {}), JSON.stringify(delivery_address || {}), recognisedGuestId, sparkIdForOrder, sparkSessionForOrder]);
+    `, [client_id, orderNumber, customer_email, customer_name || null, customer_phone || null, JSON.stringify(validatedItems), subtotal, tax, grandTotal, currency.toUpperCase(), stripeConfig.id, deliveryFee, taxLabel, deliveryLabel, JSON.stringify(billing_address || {}), JSON.stringify(delivery_address || {}), recognisedGuestId, sparkIdForOrder, sparkSessionForOrder, arrivalDateNorm]);
     const order = orderResult.rows[0];
 
     // Emit purchase_started so the funnel snapshot lights up the moment

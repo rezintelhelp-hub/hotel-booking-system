@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.5.8
+ * Version: 1.5.9
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -604,7 +604,26 @@ class GAS_Shop {
                 : $isBookingAddonType;
             $offerAddToStay     = !isset($p['offer_add_to_stay']) || $p['offer_add_to_stay'] !== false;
             $disabled = ($p['stock_tracking'] && intval($p['stock_quantity'] ?? 0) <= 0) ? ' disabled style="opacity:.5;cursor:not-allowed"' : '';
-            $rendered = 0;
+            // Arrival date picker — rendered when the product has a check-in
+            // constraint set. Persists the picked date to localStorage so it
+            // rides through the cart + checkout, then lands as arrival_date
+            // on the shop_order row. Client-side validation for allowed
+            // weekdays; server re-validates.
+            $checkinDaysCsv = trim((string)($p['checkin_days_of_week'] ?? ''));
+            if ($checkinDaysCsv !== '') {
+                $allowedDaysJs = wp_json_encode(array_values(array_filter(array_map('intval', explode(',', $checkinDaysCsv)), function($n){ return $n >= 0 && $n <= 6; })));
+                $dayNames = array('Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday');
+                $allowedShort = array_map(function($n) use ($dayNames) { return $dayNames[$n]; }, json_decode($allowedDaysJs, true));
+                $allowedLabel = implode(' or ', $allowedShort);
+                $eventNights = intval($p['event_duration_nights'] ?? 0);
+                $nightsNote = $eventNights > 0 ? ' &middot; '.$eventNights.' nights' : '';
+                echo '<div id="gas-shop-arrival-wrap" style="border:1px solid #fde68a;background:#fef3c7;border-radius:10px;padding:12px 14px;margin-bottom:14px">';
+                echo '<label style="display:block;font-weight:600;color:#78350f;margin-bottom:6px;font-size:0.95rem">📅 Your arrival date <span style="color:#92400e;font-weight:normal;font-size:0.85rem">(check-in must be '.esc_html($allowedLabel).$nightsNote.')</span></label>';
+                echo '<input type="date" id="gas-shop-arrival-date" min="'.esc_attr(date('Y-m-d', strtotime('+1 day'))).'" style="width:100%;max-width:260px;padding:10px 12px;border:1px solid #f59e0b;border-radius:8px;font-size:1rem" onchange="gasShopValidateArrival('.$allowedDaysJs.')">';
+                echo '<div id="gas-shop-arrival-error" style="color:#dc2626;margin-top:6px;display:none;font-size:0.9rem;font-weight:500"></div>';
+                echo '<script>window.gasShopAllowedCheckinDays = '.$allowedDaysJs.';</script>';
+                echo '</div>';
+            }
             if ($offerBuyStandalone) {
                 echo '<button class="gas-shop-btn" id="gas-add-to-cart"'.$disabled.' onclick=\'gasShopAddToCart('.$product_json.')\'>Add to Cart</button>';
                 echo '<a href="'.esc_url(home_url('/shop/cart/')).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';margin-left:12px" id="gas-shop-go-cart">View Cart</a>';
@@ -703,7 +722,42 @@ function gasShopAddGiftCert(product) {
   setTimeout(function(){ btn.textContent = "Add to Cart"; }, 1500);
 }
 
+// Arrival-date validator for products with a checkin_days_of_week constraint.
+// Reads the picked date from #gas-shop-arrival-date, checks day-of-week
+// against the allowed list, shows/hides the inline error. Returns true/false.
+function gasShopValidateArrival(allowed) {
+  var input = document.getElementById("gas-shop-arrival-date");
+  var err = document.getElementById("gas-shop-arrival-error");
+  if (!input || !err) return true;
+  if (!input.value) { err.style.display = "none"; return false; }
+  var d = new Date(input.value);
+  if (isNaN(d.getTime())) { err.style.display = "none"; return false; }
+  var dow = d.getDay();
+  if (allowed && allowed.length && allowed.indexOf(dow) === -1) {
+    var names = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    var allowedNames = allowed.map(function(n){return names[n];}).join(" or ");
+    err.textContent = "Please pick a " + allowedNames + ".";
+    err.style.display = "block";
+    return false;
+  }
+  err.style.display = "none";
+  // Persist so it survives cart hops + reaches checkout POST.
+  localStorage.setItem("gas_shop_arrival_date", input.value);
+  return true;
+}
+
 function gasShopAddToCart(product) {
+  // Re-validate arrival date if the product has a constraint. Block the add
+  // if empty or wrong day.
+  if (window.gasShopAllowedCheckinDays && window.gasShopAllowedCheckinDays.length) {
+    var input = document.getElementById("gas-shop-arrival-date");
+    if (!input || !input.value) {
+      var errEl = document.getElementById("gas-shop-arrival-error");
+      if (errEl) { errEl.textContent = "Please pick your arrival date first."; errEl.style.display = "block"; }
+      return;
+    }
+    if (!gasShopValidateArrival(window.gasShopAllowedCheckinDays)) return;
+  }
   var cart = JSON.parse(localStorage.getItem("gas_shop_cart") || "[]");
   var found = false;
   var maxQty = product.stock_tracking ? product.max_qty : 0;
@@ -1146,6 +1200,7 @@ function gasShopCheckout() {
       billing_address: { line1: addr1, line2: document.getElementById("gas-co-addr2").value.trim(), city: city, postcode: postcode, country: country },
       delivery_address: delAddr,
       accommodation: JSON.parse(localStorage.getItem("gas_shop_room") || "null"),
+      arrival_date: localStorage.getItem("gas_shop_arrival_date") || null,
       items: items,
       spark_ref: localStorage.getItem("gas_spark_ref") || null,
       spark_session: localStorage.getItem("gas_spark_session") || null,
@@ -1158,6 +1213,7 @@ function gasShopCheckout() {
     if (data.success && data.checkout_url) {
       localStorage.removeItem("gas_shop_cart");
       localStorage.removeItem("gas_shop_room");
+      localStorage.removeItem("gas_shop_arrival_date");
       // Clear Spark attribution — the ref has now been forwarded to the
       // server. Otherwise a future browse would tag the wrong Spark.
       localStorage.removeItem("gas_spark_ref");
