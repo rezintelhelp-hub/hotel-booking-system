@@ -155669,8 +155669,24 @@ async function contractsHydrateContext(pool, bookingId, contractInstance = null)
     },
     security_deposit: fmtMoney(settings.default_security_deposit),
     cleaning_fee: fmtMoney(settings.default_cleaning_fee),
+    // Taxe de séjour — rate + computed total for this booking. Tax is
+    // typically paid on arrival in cash, so it's shown separately and NOT
+    // rolled into grand_total. If Steve later moves this into the taxes
+    // module we swap the source here without touching the template.
     tourist_tax: settings.default_tourist_tax_per_person_per_night != null
       ? `${parseFloat(settings.default_tourist_tax_per_person_per_night).toFixed(2)} €` : '',
+    tourist_tax_total: (() => {
+      const rate = parseFloat(settings.default_tourist_tax_per_person_per_night);
+      const adults = parseInt(bk.num_adults, 10) || 0;
+      if (!rate || !adults || !nights) return '';
+      return `${(rate * adults * nights).toFixed(2)} €`;
+    })(),
+    tourist_tax_breakdown: (() => {
+      const rate = parseFloat(settings.default_tourist_tax_per_person_per_night);
+      const adults = parseInt(bk.num_adults, 10) || 0;
+      if (!rate || !adults || !nights) return '';
+      return `${adults} adulte${adults > 1 ? 's' : ''} × ${nights} nuit${nights > 1 ? 's' : ''} × ${rate.toFixed(2)} €`;
+    })(),
     // Guest info (parking, keys, wifi, check-in etc.) — room-first
     // fallback to property-level. Templates use {{guest_info.parking.text}}
     // etc. Same shape available to pre-arrival workflows so ONE edit in

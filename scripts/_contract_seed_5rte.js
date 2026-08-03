@@ -68,7 +68,7 @@ const CONTRACT_HTML = `<style>
     <tr><th>Acompte à verser à la réservation / Deposit payable on booking</th><td>{{booking.deposit_amount}}</td></tr>
     <tr><th>Solde à verser au plus tard le jour de l'arrivée / Balance payable no later than day of arrival</th><td>{{booking.balance_amount}}</td></tr>
     <tr><th>Dépôt de garantie / Security deposit (refunded after the stay)</th><td>{{security_deposit}}</td></tr>
-    <tr><th>Taxe de séjour / Tourist tax (per adult per night)</th><td>{{tourist_tax}}</td></tr>
+    <tr><th>Taxe de séjour / Tourist tax (payable on arrival)</th><td>{{tourist_tax_total}} <span style="color:#64748b; font-size:0.85em;">({{tourist_tax_breakdown}})</span></td></tr>
   </table>
 
   <h3>RÈGLEMENT / PAYMENT</h3>
