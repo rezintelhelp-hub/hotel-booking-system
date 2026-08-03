@@ -27846,6 +27846,38 @@ const promo = await fetch('/api/v1/offers/validate', {
     </div>
 
     <!-- Deposit Rule Modal -->
+    <!-- Guest Info Editor — Steve 2026-08-03. Shared shape on properties
+         and bookable_units. Room-first fallback at render time. Powers
+         contract property description + pre-arrival workflows + day-of
+         comms. Text + image URLs stored in a single JSONB per entity. -->
+    <div id="guestInfoModal" class="modal">
+        <div class="modal-content" style="max-width: 760px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.25rem 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0;">🗝️ Guest Info</h3>
+                    <p style="margin: 0.35rem 0 0 0; opacity: 0.9; font-size: 0.85rem;" id="guest-info-modal-subtitle">Parking, keys, WiFi and access instructions.</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('guestInfoModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.25rem 1.5rem; max-height: 75vh; overflow-y: auto;">
+                <input type="hidden" id="guest-info-entity-type"><!-- 'property' or 'room' -->
+                <input type="hidden" id="guest-info-entity-id">
+                <input type="hidden" id="guest-info-property-id"><!-- always set for GET fallback view -->
+
+                <div id="guest-info-fallback-note" style="display:none; padding:0.5rem 0.75rem; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; margin-bottom:0.75rem; font-size:0.8rem; color:#1e40af;">
+                    Fields left blank on this room will fall back to the property's value at render time.
+                </div>
+
+                <div id="guest-info-fields"></div>
+
+                <div style="display:flex; gap:1rem; justify-content:flex-end; margin-top:1.25rem; padding-top:1rem; border-top:1px solid #e5e7eb;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('guestInfoModal')">Cancel</button>
+                    <button type="button" class="btn" style="background:#0d9488;" onclick="saveGuestInfo()">💾 Save Guest Info</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Property Owner modal — create or edit. Fields cover everything
          the rental contract needs from the bailleur. -->
     <div id="propertyOwnerModal" class="modal">
@@ -30140,6 +30172,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <small style="color: #0c4a6e; display: block; margin-top: 0.5rem;">Contract will show this owner's name as bailleur and their IBAN for deposit transfers. Manage owners in <a href="#" onclick="showView('property-owners'); return false;" style="color:#0369a1; font-weight:600;">Property Owners</a>.</small>
                 </div>
+
+                <!-- Guest Info (property-level defaults) -->
+                <div class="edit-section" style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 12px; padding: 1rem; margin-bottom: 1rem;">
+                    <h4 style="margin: 0 0 0.6rem 0; color: #0f766e; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #99f6e4; padding-bottom: 0.5rem;">🗝️ Guest Info (parking, keys, WiFi, check-in)</h4>
+                    <p style="margin: 0 0 0.5rem 0; font-size: 0.85rem; color: #115e59;">Set defaults for the whole property. Each room can override on its own edit page. These fields flow into contracts + pre-arrival emails.</p>
+                    <button type="button" class="btn" style="background:#0d9488; color:white;" onclick="openGuestInfoEditor('property', document.getElementById('edit-property-id').value, document.getElementById('edit-property-id').value, document.getElementById('edit-property-name').value)">✏️ Edit property-level Guest Info</button>
+                </div>
                 <!-- Hidden inputs to prevent JS errors on save -->
                 <input type="hidden" id="edit-property-stripe-name">
                 <input type="hidden" id="edit-property-stripe-publishable">
@@ -31208,6 +31247,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <small style="display: block; color: #9a3412; font-size: 0.8rem; margin-top: 6px; line-height: 1.4;">
                         When enabled, GAS creates bookings for this room through the Rezintel V1 channel-partner endpoint instead of the V2 OAuth path. Stamps <code>apiSourceId 70</code> so Beds24 fires the Rezintel-channel webhook (e.g. for Hostvana). InvoiceItems are pushed back via V2 OAuth so the Beds24 dashboard still shows the full breakdown. Only enable for rooms whose property is enrolled with the Rezintel channel partner at Beds24's side.
                     </small>
+                </div>
+
+                <!-- Guest Info (room-level overrides; falls back to property) -->
+                <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 12px; padding: 1rem; margin-top: 1rem; margin-bottom: 0.5rem;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #0f766e; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🗝️ Guest Info (this room)</h4>
+                    <p style="margin: 0 0 0.5rem 0; font-size: 0.85rem; color: #115e59;">Room-specific parking, key location, access instructions. Leave a field blank to inherit the property-level default.</p>
+                    <button type="button" class="btn" style="background:#0d9488; color:white;" onclick="openGuestInfoEditor('room', document.getElementById('edit-room-id').value, document.getElementById('edit-room-property-id')?.value || null, document.getElementById('edit-room-name')?.value || '')">✏️ Edit room-level Guest Info</button>
                 </div>
 
                 <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem;">
@@ -78125,6 +78171,144 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (j.success) loadPropertyDocs(propertyId);
                 else alert(j.error || 'Delete failed');
             } catch (e) { alert(e.message); }
+        }
+
+        // Guest Info Editor — Steve 2026-08-03. Same UI on properties AND
+        // rooms. Fields cover parking, entrance, key location, room access,
+        // WiFi, check-in, check-out, house rules, local info, emergency.
+        // Text + image URLs stored as JSONB. Room-first fallback happens at
+        // render time (server helper contractsMergeGuestInfo).
+        const GI_FIELDS = [
+            { key: 'parking',       label: 'Parking',                type: 'text_img',  hint: 'Where to park, any restrictions.' },
+            { key: 'entrance',      label: 'Building entrance / main door', type: 'text_img', hint: 'Code, door location, opening hours.' },
+            { key: 'key_location',  label: 'Key location',           type: 'text_img',  hint: 'Lockbox spot + code, or where to collect.' },
+            { key: 'room_access',   label: 'Room access on arrival', type: 'text_img',  hint: 'Route from front door to the room / floor.' },
+            { key: 'wifi',          label: 'WiFi',                   type: 'wifi',      hint: 'SSID + password.' },
+            { key: 'check_in',      label: 'Check-in',               type: 'text_img',  hint: 'Time + instructions.' },
+            { key: 'check_out',     label: 'Check-out',              type: 'text_img',  hint: 'Time + instructions (where to leave keys).' },
+            { key: 'house_rules',   label: 'House rules',            type: 'text',      hint: 'No smoking, quiet hours, etc.' },
+            { key: 'local_info',    label: 'Local info',             type: 'text',      hint: 'Restaurants, shops, transport.' },
+            { key: 'emergency',     label: 'Emergency contacts',     type: 'text',      hint: 'Who to call if something breaks.' },
+        ];
+
+        function renderGuestInfoField(fld, val) {
+            const esc = (s) => String(s || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+            const wrapId = `gi-${fld.key}`;
+            if (fld.type === 'wifi') {
+                return `<div style="margin-bottom:1rem; padding:0.85rem; background:#f8fafc; border-radius:8px;">
+                    <div style="font-weight:600; margin-bottom:0.35rem;">${esc(fld.label)} <span style="color:#94a3b8; font-weight:normal; font-size:0.8rem;">— ${esc(fld.hint)}</span></div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                        <input type="text" id="${wrapId}-ssid" class="form-input" placeholder="Network name (SSID)" value="${esc(val?.ssid)}">
+                        <input type="text" id="${wrapId}-password" class="form-input" placeholder="Password" value="${esc(val?.password)}">
+                    </div>
+                </div>`;
+            }
+            if (fld.type === 'text') {
+                return `<div style="margin-bottom:1rem; padding:0.85rem; background:#f8fafc; border-radius:8px;">
+                    <div style="font-weight:600; margin-bottom:0.35rem;">${esc(fld.label)} <span style="color:#94a3b8; font-weight:normal; font-size:0.8rem;">— ${esc(fld.hint)}</span></div>
+                    <textarea id="${wrapId}-text" class="form-input" rows="2" placeholder="…">${esc(val?.text)}</textarea>
+                </div>`;
+            }
+            // text_img
+            const imgs = Array.isArray(val?.images) ? val.images : [];
+            const imgList = imgs.map((u, i) => `<div style="display:inline-flex; align-items:center; gap:0.35rem; background:white; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.5rem; margin:0.15rem;"><img src="${esc(u)}" style="height:32px; width:32px; object-fit:cover; border-radius:3px;"><span style="font-size:0.7rem; color:#64748b; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(u.split('/').pop())}</span><button type="button" onclick="giRemoveImage('${esc(fld.key)}', ${i})" style="background:none; border:none; color:#dc2626; cursor:pointer; font-size:0.9rem;">×</button></div>`).join('');
+            return `<div style="margin-bottom:1rem; padding:0.85rem; background:#f8fafc; border-radius:8px;">
+                <div style="font-weight:600; margin-bottom:0.35rem;">${esc(fld.label)} <span style="color:#94a3b8; font-weight:normal; font-size:0.8rem;">— ${esc(fld.hint)}</span></div>
+                <textarea id="${wrapId}-text" class="form-input" rows="2" placeholder="…">${esc(val?.text)}</textarea>
+                <div id="${wrapId}-images" style="margin-top:0.5rem; min-height:2.25rem;" data-images='${JSON.stringify(imgs).replace(/'/g, "&#39;")}'>${imgList}</div>
+                <label style="display:inline-block; margin-top:0.4rem; font-size:0.8rem; color:#0369a1; cursor:pointer;">📷 Add image URL
+                    <input type="url" placeholder="https://…" style="margin-left:0.35rem; padding:0.25rem 0.5rem; font-size:0.8rem; border:1px solid #cbd5e1; border-radius:4px; width:280px;" onkeydown="if(event.key==='Enter'){event.preventDefault();giAddImage('${esc(fld.key)}', this.value); this.value='';}">
+                </label>
+                <small style="display:block; color:#94a3b8; font-size:0.7rem; margin-top:0.15rem;">Paste an image URL, press Enter. Or upload via the Images tab first, then paste the URL here.</small>
+            </div>`;
+        }
+
+        function giReadImages(key) {
+            const el = document.getElementById(`gi-${key}-images`);
+            if (!el) return [];
+            try { return JSON.parse(el.dataset.images || '[]'); } catch { return []; }
+        }
+        function giWriteImages(key, arr) {
+            const el = document.getElementById(`gi-${key}-images`);
+            if (!el) return;
+            el.dataset.images = JSON.stringify(arr);
+            // Re-render list
+            const esc = (s) => String(s || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+            el.innerHTML = arr.map((u, i) => `<div style="display:inline-flex; align-items:center; gap:0.35rem; background:white; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.5rem; margin:0.15rem;"><img src="${esc(u)}" style="height:32px; width:32px; object-fit:cover; border-radius:3px;"><span style="font-size:0.7rem; color:#64748b; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(u.split('/').pop())}</span><button type="button" onclick="giRemoveImage('${esc(key)}', ${i})" style="background:none; border:none; color:#dc2626; cursor:pointer; font-size:0.9rem;">×</button></div>`).join('');
+        }
+        function giAddImage(key, url) {
+            const u = String(url || '').trim();
+            if (!u) return;
+            const arr = giReadImages(key);
+            arr.push(u);
+            giWriteImages(key, arr);
+        }
+        function giRemoveImage(key, idx) {
+            const arr = giReadImages(key);
+            arr.splice(idx, 1);
+            giWriteImages(key, arr);
+        }
+
+        async function openGuestInfoEditor(entityType, entityId, propertyId, entityLabel) {
+            document.getElementById('guest-info-entity-type').value = entityType;
+            document.getElementById('guest-info-entity-id').value = entityId;
+            document.getElementById('guest-info-property-id').value = propertyId || entityId;
+            document.getElementById('guest-info-modal-subtitle').textContent = entityType === 'room'
+                ? `For room: ${entityLabel || '(room)'} — leave a field blank to inherit from the property.`
+                : `Property-level defaults: ${entityLabel || '(property)'}.`;
+            document.getElementById('guest-info-fallback-note').style.display = entityType === 'room' ? '' : 'none';
+
+            // Load current values from server. Room reads use the room
+            // endpoint so we don't need the property_id up front.
+            let existing = null;
+            try {
+                const url = entityType === 'room'
+                    ? `/api/admin/rooms/${encodeURIComponent(entityId)}/guest-info`
+                    : `/api/admin/properties/${encodeURIComponent(entityId)}/guest-info`;
+                const r = await fetch(url, { headers: authHeaders() });
+                const d = await r.json();
+                existing = entityType === 'room' ? (d.room_guest_info || {}) : (d.property_guest_info || {});
+            } catch (e) { console.warn('guest-info load:', e.message); existing = {}; }
+
+            const html = GI_FIELDS.map(f => renderGuestInfoField(f, existing[f.key] || {})).join('');
+            document.getElementById('guest-info-fields').innerHTML = html;
+            openModal('guestInfoModal');
+        }
+
+        async function saveGuestInfo() {
+            const entityType = document.getElementById('guest-info-entity-type').value;
+            const entityId = document.getElementById('guest-info-entity-id').value;
+            const blob = {};
+            GI_FIELDS.forEach(f => {
+                if (f.type === 'wifi') {
+                    const ssid = document.getElementById(`gi-${f.key}-ssid`)?.value?.trim() || '';
+                    const password = document.getElementById(`gi-${f.key}-password`)?.value?.trim() || '';
+                    if (ssid || password) blob[f.key] = { ssid, password };
+                } else if (f.type === 'text') {
+                    const text = document.getElementById(`gi-${f.key}-text`)?.value?.trim() || '';
+                    if (text) blob[f.key] = { text };
+                } else {
+                    const text = document.getElementById(`gi-${f.key}-text`)?.value?.trim() || '';
+                    const images = giReadImages(f.key);
+                    if (text || images.length) blob[f.key] = { text, images };
+                }
+            });
+            const url = entityType === 'room'
+                ? `/api/admin/rooms/${entityId}/guest-info`
+                : `/api/admin/properties/${entityId}/guest-info`;
+            try {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ guest_info: blob }),
+                });
+                const d = await r.json();
+                if (!d.success) { alert('Save failed: ' + (d.error || 'unknown')); return; }
+                closeModal('guestInfoModal');
+                if (typeof showNotification === 'function') showNotification('✓ Guest Info saved', 'success');
+            } catch (e) {
+                alert('Save error: ' + e.message);
+            }
         }
 
         // Property Owners — Steve 2026-08-03. First-class bailleur entities

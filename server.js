@@ -19270,6 +19270,18 @@ app.get('/api/setup-accounts', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES property_owners(id) ON DELETE SET NULL`).catch(e => console.warn('[properties.owner_id migration]', e.message));
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_properties_owner ON properties(owner_id) WHERE owner_id IS NOT NULL`).catch(() => {});
 
+    // guest_info JSONB — Steve 2026-08-03. Shared shape on both
+    // properties and bookable_units. Room-level overrides property-level.
+    // Used by: rental contracts (bailleur description), pre-arrival
+    // workflows (emails/WhatsApp), day-of comms. Fields:
+    //   parking, entrance, key_location, room_access — { text, images:[] }
+    //   wifi                                          — { ssid, password }
+    //   check_in, check_out                           — { text, images:[] }
+    //   house_rules, local_info, emergency           — { text }
+    // Image URLs live in the JSON (uploaded via existing R2 pipeline).
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS guest_info JSONB`).catch(e => console.warn('[properties.guest_info]', e.message));
+    await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS guest_info JSONB`).catch(e => console.warn('[bookable_units.guest_info]', e.message));
+
     // Composite Actions — operator-saved chains of atomic steps that show
     // up as a single drop-in card in the action picker.
     await pool.query(`CREATE TABLE IF NOT EXISTS action_templates (
@@ -155470,10 +155482,11 @@ async function contractsHydrateContext(pool, bookingId, contractInstance = null)
   const b = await pool.query(`
     SELECT b.*, p.name AS prop_name, p.address AS prop_address,
            p.city AS prop_city, p.country AS prop_country, p.owner_id AS prop_owner_id,
+           p.guest_info AS prop_guest_info,
            bu.name AS unit_name, bu.description AS unit_description,
            bu.max_guests AS unit_max_guests, bu.bedrooms AS unit_bedrooms,
            bu.bathrooms AS unit_bathrooms, bu.size_sqm AS unit_size_sqm,
-           bu.amenities AS unit_amenities,
+           bu.amenities AS unit_amenities, bu.guest_info AS unit_guest_info,
            p.account_id AS acc_id, a.name AS acc_name, a.email AS acc_email
       FROM bookings b
       LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
@@ -155617,6 +155630,11 @@ async function contractsHydrateContext(pool, bookingId, contractInstance = null)
     cleaning_fee: fmtMoney(settings.default_cleaning_fee),
     tourist_tax: settings.default_tourist_tax_per_person_per_night != null
       ? `${parseFloat(settings.default_tourist_tax_per_person_per_night).toFixed(2)} €` : '',
+    // Guest info (parking, keys, wifi, check-in etc.) — room-first
+    // fallback to property-level. Templates use {{guest_info.parking.text}}
+    // etc. Same shape available to pre-arrival workflows so ONE edit in
+    // the Guest Info Editor updates the contract AND the pre-arrival email.
+    guest_info: contractsMergeGuestInfo(bk.prop_guest_info, bk.unit_guest_info),
   };
 }
 
@@ -156077,6 +156095,153 @@ app.delete('/api/admin/property-owners/:id', async (req, res) => {
     res.json({ success: true, hard_deleted: true });
   } catch (e) {
     console.error('[property-owner delete]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Guest Info — shared shape on properties + bookable_units. Room-first
+// fallback: for each field, use the room's value if non-empty, else the
+// property's. Powers pre-arrival comms, contract property description,
+// and any future "guest info sheet" export. Steve 2026-08-03.
+function contractsMergeGuestInfo(propertyGi, roomGi) {
+  const p = propertyGi || {};
+  const r = roomGi || {};
+  const pickTextImg = (key) => {
+    const rV = r[key] || {};
+    const pV = p[key] || {};
+    const text = (rV.text && String(rV.text).trim()) || (pV.text && String(pV.text).trim()) || '';
+    const images = (Array.isArray(rV.images) && rV.images.length ? rV.images : (Array.isArray(pV.images) ? pV.images : [])) || [];
+    return { text, images };
+  };
+  const pickText = (key) => {
+    const rV = r[key] || {};
+    const pV = p[key] || {};
+    return { text: (rV.text && String(rV.text).trim()) || (pV.text && String(pV.text).trim()) || '' };
+  };
+  const wifi = {
+    ssid: (r.wifi && r.wifi.ssid) || (p.wifi && p.wifi.ssid) || '',
+    password: (r.wifi && r.wifi.password) || (p.wifi && p.wifi.password) || '',
+  };
+  return {
+    parking: pickTextImg('parking'),
+    entrance: pickTextImg('entrance'),
+    key_location: pickTextImg('key_location'),
+    room_access: pickTextImg('room_access'),
+    wifi,
+    check_in: pickTextImg('check_in'),
+    check_out: pickTextImg('check_out'),
+    house_rules: pickText('house_rules'),
+    local_info: pickText('local_info'),
+    emergency: pickText('emergency'),
+  };
+}
+
+// POST /api/admin/properties/:id/guest-info — save the guest_info blob
+// on a property. Body: full JSON blob (client-owned shape). Overwrites.
+app.post('/api/admin/properties/:id/guest-info', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const propId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(propId)) return res.status(400).json({ success: false, error: 'invalid property id' });
+    const p1 = await pool.query(`SELECT account_id FROM properties WHERE id = $1`, [propId]);
+    if (!p1.rows[0]) return res.status(404).json({ success: false, error: 'property not found' });
+    if (decoded.role !== 'master_admin' && decoded.id !== p1.rows[0].account_id) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const gi = req.body?.guest_info ?? req.body ?? null;
+    await pool.query(`UPDATE properties SET guest_info = $1::jsonb, updated_at = NOW() WHERE id = $2`, [gi ? JSON.stringify(gi) : null, propId]);
+    res.json({ success: true, property_id: propId });
+  } catch (e) {
+    console.error('[property guest-info save]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /api/admin/rooms/:id/guest-info — returns the RESOLVED guest_info
+// (room over property) + the raw room + property JSON so the editor can
+// show which layer supplies each value.
+app.get('/api/admin/rooms/:id/guest-info', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const roomId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(roomId)) return res.status(400).json({ success: false, error: 'invalid room id' });
+    const q = await pool.query(`
+      SELECT bu.id AS room_id, bu.guest_info AS room_guest_info,
+             p.id AS property_id, p.guest_info AS property_guest_info,
+             p.account_id
+        FROM bookable_units bu
+        JOIN properties p ON p.id = bu.property_id
+       WHERE bu.id = $1`, [roomId]);
+    if (!q.rows[0]) return res.status(404).json({ success: false, error: 'room not found' });
+    if (decoded.role !== 'master_admin' && decoded.id !== q.rows[0].account_id) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    res.json({
+      success: true,
+      room_id: q.rows[0].room_id,
+      property_id: q.rows[0].property_id,
+      room_guest_info: q.rows[0].room_guest_info || null,
+      property_guest_info: q.rows[0].property_guest_info || null,
+      resolved: contractsMergeGuestInfo(q.rows[0].property_guest_info, q.rows[0].room_guest_info),
+    });
+  } catch (e) {
+    console.error('[room guest-info read]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/admin/rooms/:id/guest-info — same shape, on bookable_units.
+app.post('/api/admin/rooms/:id/guest-info', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const roomId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(roomId)) return res.status(400).json({ success: false, error: 'invalid room id' });
+    const q = await pool.query(`SELECT bu.id, p.account_id FROM bookable_units bu JOIN properties p ON p.id = bu.property_id WHERE bu.id = $1`, [roomId]);
+    if (!q.rows[0]) return res.status(404).json({ success: false, error: 'room not found' });
+    if (decoded.role !== 'master_admin' && decoded.id !== q.rows[0].account_id) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const gi = req.body?.guest_info ?? req.body ?? null;
+    await pool.query(`UPDATE bookable_units SET guest_info = $1::jsonb, updated_at = NOW() WHERE id = $2`, [gi ? JSON.stringify(gi) : null, roomId]);
+    res.json({ success: true, room_id: roomId });
+  } catch (e) {
+    console.error('[room guest-info save]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /api/admin/properties/:id/guest-info?room_id=…
+// Returns the RESOLVED guest_info (room-first fallback) plus the raw
+// property + room JSON so the editor UI can show which layer each value
+// currently comes from.
+app.get('/api/admin/properties/:id/guest-info', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const propId = parseInt(req.params.id, 10);
+    const roomId = req.query.room_id ? parseInt(req.query.room_id, 10) : null;
+    if (!Number.isFinite(propId)) return res.status(400).json({ success: false, error: 'invalid property id' });
+    const pR = await pool.query(`SELECT account_id, guest_info FROM properties WHERE id = $1`, [propId]);
+    if (!pR.rows[0]) return res.status(404).json({ success: false, error: 'property not found' });
+    if (decoded.role !== 'master_admin' && decoded.id !== pR.rows[0].account_id) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    let roomGi = null;
+    if (roomId) {
+      const rR = await pool.query(`SELECT guest_info FROM bookable_units WHERE id = $1 AND property_id = $2`, [roomId, propId]);
+      roomGi = rR.rows[0]?.guest_info || null;
+    }
+    res.json({
+      success: true,
+      property_guest_info: pR.rows[0].guest_info || null,
+      room_guest_info: roomGi,
+      resolved: contractsMergeGuestInfo(pR.rows[0].guest_info, roomGi),
+    });
+  } catch (e) {
+    console.error('[guest-info read]', e.message);
     res.status(500).json({ success: false, error: e.message });
   }
 });
