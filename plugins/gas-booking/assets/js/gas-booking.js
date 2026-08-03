@@ -2005,30 +2005,40 @@ jQuery(document).ready(function($) {
             });
         }
 
-        // Pre-fill dates and property from URL params (e.g. from offers page links,
-        // and from the bike-storage "add a room" Flow D redirect which uses the
-        // no-underscore checkin/checkout convention).
-        setTimeout(function() {
+        // Pre-fill dates and property from URL params (e.g. from offers page
+        // links, shop → "Book This Package" bridge, and the bike-storage "add
+        // a room" Flow D redirect). Flatpickr init lags DOM ready, so poll
+        // for _flatpickr on the target element and setDate once available.
+        // Steve 2026-08-03 — a bare setTimeout was firing before flatpickr
+        // instantiated on the shop → book bridge and leaving the calendar
+        // blank.
+        (function() {
             var pageUrlParams = new URLSearchParams(window.location.search);
             var urlCheckIn  = pageUrlParams.get('check_in')  || pageUrlParams.get('checkin');
             var urlCheckOut = pageUrlParams.get('check_out') || pageUrlParams.get('checkout');
-            var urlPropertyId = pageUrlParams.get('property_id');
+            var didIn = !urlCheckIn, didOut = !urlCheckOut;
+            var tries = 0;
+            var iv = setInterval(function() {
+                tries++;
+                if (!didIn) {
+                    document.querySelectorAll('.gas-checkin, .gas-search-checkin').forEach(function(el) {
+                        if (el._flatpickr) { el._flatpickr.setDate(urlCheckIn, true); didIn = true; }
+                    });
+                }
+                if (!didOut) {
+                    document.querySelectorAll('.gas-checkout, .gas-search-checkout').forEach(function(el) {
+                        if (el._flatpickr) { el._flatpickr.setDate(urlCheckOut, true); didOut = true; }
+                    });
+                }
+                if ((didIn && didOut) || tries > 40) clearInterval(iv); // 4s ceiling
+            }, 100);
+        })();
 
-            if (urlCheckIn) {
-                // Try all checkin pickers (room page + search widget)
-                document.querySelectorAll('.gas-checkin, .gas-search-checkin').forEach(function(el) {
-                    if (el._flatpickr) {
-                        el._flatpickr.setDate(urlCheckIn, true);
-                    }
-                });
-            }
-            if (urlCheckOut) {
-                document.querySelectorAll('.gas-checkout, .gas-search-checkout').forEach(function(el) {
-                    if (el._flatpickr) {
-                        el._flatpickr.setDate(urlCheckOut, true);
-                    }
-                });
-            }
+        // Legacy setTimeout kept for the rest of the URL-driven prefills
+        // (property, offer_id popup, event slug etc.).
+        setTimeout(function() {
+            var pageUrlParams = new URLSearchParams(window.location.search);
+            var urlPropertyId = pageUrlParams.get('property_id');
 
             // Pre-filter property dropdown from URL
             if (urlPropertyId) {
