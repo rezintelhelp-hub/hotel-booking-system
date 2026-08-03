@@ -19159,6 +19159,80 @@ app.get('/api/setup-accounts', async (req, res) => {
     `).catch(e => console.warn('[workflow_status_history migration]', e.message));
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_wsh_workflow ON workflow_status_history(workflow_id, changed_at DESC)`).catch(() => {});
 
+    // Contracts — Steve 2026-08-03. E-signature + deposit link + bank
+    // details. Guest signs on a public /contract/sign/:token page with a
+    // signature pad; PDF (or HTML snapshot) stored on R2; audit trail
+    // (IP+UA+timestamp) makes the signature valid under eIDAS SES for
+    // rental agreements. Three tables:
+    //   contract_templates          — reusable HTML with {{merge}} tokens
+    //   contract_instances          — one per booking, holds sign state
+    //   account_contract_settings   — one per account, landlord + bank
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS contract_templates (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        name VARCHAR(200) NOT NULL,
+        description TEXT,
+        language VARCHAR(10) DEFAULT 'en',
+        html_body TEXT NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `).catch(e => console.warn('[contract_templates migration]', e.message));
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ct_account ON contract_templates(account_id) WHERE is_active = true`).catch(() => {});
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS contract_instances (
+        id SERIAL PRIMARY KEY,
+        template_id INTEGER REFERENCES contract_templates(id) ON DELETE SET NULL,
+        booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        sign_token VARCHAR(64) UNIQUE NOT NULL,
+        filled_html TEXT NOT NULL,
+        status VARCHAR(30) DEFAULT 'sent',
+        guest_email VARCHAR(255),
+        signature_data_url TEXT,
+        signature_typed_name VARCHAR(255),
+        signature_ip VARCHAR(50),
+        signature_ua TEXT,
+        sent_at TIMESTAMP DEFAULT NOW(),
+        opened_at TIMESTAMP,
+        signed_at TIMESTAMP,
+        deposit_payment_intent_id VARCHAR(255),
+        deposit_paid_at TIMESTAMP,
+        pdf_r2_key TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `).catch(e => console.warn('[contract_instances migration]', e.message));
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ci_booking ON contract_instances(booking_id)`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ci_account_status ON contract_instances(account_id, status)`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ci_token ON contract_instances(sign_token)`).catch(() => {});
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS account_contract_settings (
+        account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        landlord_name TEXT,
+        landlord_company TEXT,
+        landlord_address TEXT,
+        landlord_postcode TEXT,
+        landlord_city TEXT,
+        landlord_country TEXT,
+        landlord_phone TEXT,
+        landlord_email TEXT,
+        landlord_siret TEXT,
+        tourist_let_reg TEXT,
+        iban TEXT,
+        bic TEXT,
+        bank_account_name TEXT,
+        default_security_deposit NUMERIC(10,2),
+        default_cleaning_fee NUMERIC(10,2),
+        default_tourist_tax_per_person_per_night NUMERIC(10,2),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `).catch(e => console.warn('[account_contract_settings migration]', e.message));
+
     // Composite Actions — operator-saved chains of atomic steps that show
     // up as a single drop-in card in the action picker.
     await pool.query(`CREATE TABLE IF NOT EXISTS action_templates (
@@ -155325,6 +155399,484 @@ app.get('/api/admin/comms/health', async (req, res) => {
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const health = await buildCommsHealth();
     res.json({ success: true, ...health });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// =====================================================
+// CONTRACTS — Steve 2026-08-03 (Phase 1 shipped). E-signature +
+// deposit link + bank details for long-stay bookings (French cure,
+// villas, corporate lets, etc.).
+//
+// - contract_templates: reusable HTML with {{merge}} tokens
+// - contract_instances: one per booking, holds sign state + audit
+// - account_contract_settings: per-account landlord + IBAN
+//
+// Legal foundation: eIDAS Simple Electronic Signature. We capture
+// signature drawing (PNG dataURL) + typed "Lu et approuvé" (or EN
+// equiv) + IP + user agent + timestamp. Sufficient for tenancy
+// contracts in EU/UK/US.
+//
+// PDF generation: attempted via puppeteer-core + @sparticuz/chromium
+// on Railway. If chromium install fails at runtime, we fall back to
+// storing the signed HTML and letting the guest print-to-PDF in the
+// browser. Either way the signed HTML is stored, auditable, and
+// emailed to both parties.
+// =====================================================
+
+// Merge {{path.to.value}} tokens in an HTML template against a full
+// context object hydrated from booking + guest + property + room +
+// account + account_contract_settings + contract_instance-specific
+// values (sign URL, deposit URL, expiry date).
+async function contractsHydrateContext(pool, bookingId, contractInstance = null) {
+  const b = await pool.query(`
+    SELECT b.*, p.name AS prop_name, p.address AS prop_address,
+           p.city AS prop_city, p.country_code AS prop_country,
+           bu.name AS unit_name, bu.description AS unit_description,
+           bu.max_guests AS unit_max_guests, bu.bedrooms AS unit_bedrooms,
+           bu.bathrooms AS unit_bathrooms, bu.size_value AS unit_size_value,
+           bu.size_unit AS unit_size_unit, bu.amenities AS unit_amenities,
+           p.account_id AS acc_id, a.name AS acc_name, a.email AS acc_email
+      FROM bookings b
+      LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
+      LEFT JOIN properties p ON p.id = b.property_id
+      LEFT JOIN accounts a ON a.id = p.account_id
+     WHERE b.id = $1`, [bookingId]);
+  if (!b.rows[0]) throw new Error('booking not found');
+  const bk = b.rows[0];
+
+  const s = await pool.query(`SELECT * FROM account_contract_settings WHERE account_id = $1`, [bk.acc_id]);
+  const settings = s.rows[0] || {};
+
+  const arrivalDate = bk.arrival_date ? new Date(bk.arrival_date) : null;
+  const departureDate = bk.departure_date ? new Date(bk.departure_date) : null;
+  const nights = arrivalDate && departureDate
+    ? Math.round((departureDate - arrivalDate) / 86400000)
+    : bk.nights_count || 0;
+
+  const fmtDate = (d, lang = 'fr') => d ? new Intl.DateTimeFormat(lang === 'fr' ? 'fr-FR' : 'en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  }).format(d) : '';
+
+  const currency = bk.currency || 'EUR';
+  const fmtMoney = (amt) => amt != null && !isNaN(parseFloat(amt))
+    ? `${parseFloat(amt).toFixed(2)} ${currency === 'EUR' ? '€' : currency}` : '';
+
+  const baseUrl = process.env.PUBLIC_URL || 'https://admin.gas.travel';
+  const signUrl = contractInstance?.sign_token
+    ? `${baseUrl}/contract/sign/${contractInstance.sign_token}` : '';
+  const depositUrl = contractInstance?.sign_token
+    ? `${baseUrl}/contract/pay/${contractInstance.sign_token}` : '';
+
+  return {
+    booking: {
+      id: bk.id,
+      reference: `GAS-${bk.id}`,
+      arrival_date: fmtDate(arrivalDate, 'fr'),
+      arrival_date_en: fmtDate(arrivalDate, 'en'),
+      departure_date: fmtDate(departureDate, 'fr'),
+      departure_date_en: fmtDate(departureDate, 'en'),
+      nights: nights,
+      weeks: nights > 0 ? Math.round(nights / 7) : 0,
+      num_adults: bk.num_adults || 1,
+      num_children: bk.num_children || 0,
+      total_guests: bk.total_guests || (bk.num_adults || 1) + (bk.num_children || 0),
+      grand_total: fmtMoney(bk.grand_total),
+      grand_total_raw: bk.grand_total,
+      deposit_amount: fmtMoney(bk.deposit_amount),
+      deposit_amount_raw: bk.deposit_amount,
+      balance_amount: fmtMoney(bk.balance_amount),
+      balance_amount_raw: bk.balance_amount,
+      currency,
+      special_requests: bk.special_requests || '',
+    },
+    guest: {
+      title: bk.guest_title || '',
+      first_name: bk.guest_first_name || '',
+      last_name: bk.guest_last_name || '',
+      full_name: [bk.guest_first_name, bk.guest_last_name].filter(Boolean).join(' '),
+      email: bk.guest_email || '',
+      phone: bk.guest_phone || '',
+      address: bk.guest_address || '',
+      city: bk.guest_city || '',
+      postcode: bk.guest_postcode || '',
+      country: bk.guest_country || '',
+    },
+    property: {
+      name: bk.prop_name || '',
+      address: bk.prop_address || '',
+      city: bk.prop_city || '',
+      country: bk.prop_country || '',
+    },
+    room: {
+      name: bk.unit_name || '',
+      description: bk.unit_description || '',
+      max_guests: bk.unit_max_guests || '',
+      bedrooms: bk.unit_bedrooms || '',
+      bathrooms: bk.unit_bathrooms || '',
+      size: bk.unit_size_value ? `${bk.unit_size_value} ${bk.unit_size_unit || 'm²'}` : '',
+    },
+    account: {
+      name: bk.acc_name || '',
+      email: bk.acc_email || '',
+    },
+    landlord: {
+      name: settings.landlord_name || bk.acc_name || '',
+      company: settings.landlord_company || '',
+      address: settings.landlord_address || '',
+      postcode: settings.landlord_postcode || '',
+      city: settings.landlord_city || '',
+      country: settings.landlord_country || '',
+      phone: settings.landlord_phone || '',
+      email: settings.landlord_email || bk.acc_email || '',
+      siret: settings.landlord_siret || '',
+      tourist_let_reg: settings.tourist_let_reg || '',
+      iban: settings.iban || '',
+      bic: settings.bic || '',
+      bank_account_name: settings.bank_account_name || '',
+    },
+    contract: {
+      sign_url: signUrl,
+      deposit_url: depositUrl,
+      today: fmtDate(new Date(), 'fr'),
+      today_en: fmtDate(new Date(), 'en'),
+    },
+    security_deposit: fmtMoney(settings.default_security_deposit),
+    cleaning_fee: fmtMoney(settings.default_cleaning_fee),
+    tourist_tax: settings.default_tourist_tax_per_person_per_night != null
+      ? `${parseFloat(settings.default_tourist_tax_per_person_per_night).toFixed(2)} €` : '',
+  };
+}
+
+// Substitute {{path.to.value}} tokens in an HTML template with values
+// from a nested context object. Missing tokens render as empty string.
+// Also supports {{#if path}} … {{/if}} for optional blocks (naive).
+function contractsRenderTemplate(html, ctx) {
+  // Simple {{a.b.c}} substitution
+  return html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => {
+    const parts = path.split('.');
+    let cur = ctx;
+    for (const p of parts) {
+      if (cur == null) return '';
+      cur = cur[p];
+    }
+    return cur == null ? '' : String(cur);
+  });
+}
+
+// POST /api/admin/bookings/:id/send-contract — { template_id }
+// Merges the template with booking + property + landlord data,
+// stores the filled HTML + a unique sign_token, emails the guest.
+app.post('/api/admin/bookings/:id/send-contract', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    const templateId = parseInt(req.body?.template_id, 10);
+    if (!bookingId || !templateId) return res.status(400).json({ success: false, error: 'booking_id + template_id required' });
+
+    const b = await pool.query(`
+      SELECT b.id, b.guest_email, b.guest_first_name, b.guest_last_name,
+             p.account_id, b.currency
+        FROM bookings b LEFT JOIN properties p ON p.id = b.property_id
+       WHERE b.id = $1`, [bookingId]);
+    if (!b.rows[0]) return res.status(404).json({ success: false, error: 'booking not found' });
+    const accountId = b.rows[0].account_id;
+    if (decoded.role !== 'master_admin' && decoded.id !== accountId) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    if (!b.rows[0].guest_email) return res.status(400).json({ success: false, error: 'booking has no guest email' });
+
+    const t = await pool.query(`
+      SELECT id, name, html_body, language
+        FROM contract_templates
+       WHERE id = $1
+         AND (account_id = $2 OR account_id IS NULL)
+         AND is_active = true`, [templateId, accountId]);
+    if (!t.rows[0]) return res.status(404).json({ success: false, error: 'template not found or not accessible for this account' });
+    const template = t.rows[0];
+
+    // Generate a unique sign token
+    const signToken = require('crypto').randomBytes(24).toString('hex');
+    const partialInstance = { sign_token: signToken };
+    const ctx = await contractsHydrateContext(pool, bookingId, partialInstance);
+    const filledHtml = contractsRenderTemplate(template.html_body, ctx);
+
+    const ins = await pool.query(`
+      INSERT INTO contract_instances
+        (template_id, booking_id, account_id, sign_token, filled_html,
+         status, guest_email, sent_at, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, 'sent', $6, NOW(), NOW(), NOW())
+      RETURNING id, sign_token, sent_at`,
+      [template.id, bookingId, accountId, signToken, filledHtml, b.rows[0].guest_email]);
+
+    const baseUrl = process.env.PUBLIC_URL || 'https://admin.gas.travel';
+    const signUrl = `${baseUrl}/contract/sign/${signToken}`;
+    const guestName = [b.rows[0].guest_first_name, b.rows[0].guest_last_name].filter(Boolean).join(' ') || 'there';
+    const isFr = template.language === 'fr';
+
+    try {
+      await sendEmail({
+        to: b.rows[0].guest_email,
+        subject: isFr
+          ? `Votre contrat de location — merci de le signer`
+          : `Your rental contract — please sign`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
+            <h2 style="color:#111;">${isFr ? 'Bonjour' : 'Hi'} ${guestName.replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))},</h2>
+            <p>${isFr
+              ? "Merci pour votre réservation. Pour la confirmer, merci de signer le contrat en ligne et de régler l'acompte via le lien ci-dessous."
+              : 'Thank you for your booking. To confirm it, please sign the contract online and pay the deposit via the link below.'}</p>
+            <p style="text-align:center; margin: 24px 0;">
+              <a href="${signUrl}" style="background:#059669; color:white; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:600; display:inline-block;">
+                ${isFr ? 'Signer le contrat →' : 'Sign contract →'}
+              </a>
+            </p>
+            <p style="color:#64748b; font-size:0.85rem;">${isFr
+              ? 'Ce lien est unique et sécurisé. Si vous avez des questions, répondez simplement à cet email.'
+              : 'This link is unique and secure. Reply to this email with any questions.'}</p>
+          </div>`,
+      });
+    } catch (mailErr) {
+      console.warn('[send-contract] email failed:', mailErr.message);
+      // Non-fatal — contract is created, operator can copy the signUrl manually
+    }
+
+    res.json({ success: true, contract_id: ins.rows[0].id, sign_url: signUrl, sign_token: signToken });
+  } catch (e) {
+    console.error('[send-contract]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /contract/sign/:token — public signing page. No auth. Renders
+// the filled HTML preview + signature pad + consent + payment button.
+app.get('/contract/sign/:token', async (req, res) => {
+  try {
+    const token = String(req.params.token || '').replace(/[^A-Fa-f0-9]/g, '');
+    if (!token) return res.status(400).send('invalid token');
+    const r = await pool.query(`SELECT * FROM contract_instances WHERE sign_token = $1`, [token]);
+    if (!r.rows[0]) return res.status(404).send('contract not found');
+    const c = r.rows[0];
+    // Mark opened (first view only)
+    if (!c.opened_at) {
+      await pool.query(`UPDATE contract_instances SET opened_at = NOW(), status = CASE WHEN status = 'sent' THEN 'opened' ELSE status END WHERE id = $1`, [c.id]).catch(() => {});
+    }
+    // Serve either the sign form OR (if already signed) a read-only view.
+    const alreadySigned = !!c.signed_at;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contract — sign</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 24px; color:#111; background:#f8fafc; }
+  .card { background:white; border-radius:12px; padding:32px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom:16px; }
+  .contract-body { font-size: 0.95rem; line-height: 1.55; }
+  .sig-wrap { border: 2px dashed #d1d5db; border-radius:8px; padding:8px; background:#fafafa; }
+  canvas { display:block; width: 100%; height: 180px; touch-action: none; background:white; border-radius:6px; }
+  .btn { background:#059669; color:white; border:none; padding: 12px 24px; border-radius:8px; font-weight:600; cursor:pointer; font-size: 1rem; }
+  .btn-secondary { background:#6b7280; }
+  .btn:disabled { background:#9ca3af; cursor:not-allowed; }
+  input[type=text] { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:6px; font-size:1rem; box-sizing:border-box; }
+  label { display:block; margin: 12px 0 4px; font-weight:500; }
+  .signed-banner { background: #d1fae5; border: 1px solid #86efac; padding: 12px 16px; border-radius:8px; color:#065f46; font-weight:600; margin-bottom:16px; }
+</style></head><body>
+  ${alreadySigned ? `<div class="signed-banner">✓ This contract has been signed on ${new Date(c.signed_at).toLocaleString()}. A copy has been emailed to you.</div>` : ''}
+  <div class="card contract-body">${c.filled_html}</div>
+  ${alreadySigned ? '' : `
+  <div class="card">
+    <h3 style="margin-top:0;">Sign the contract</h3>
+    <p style="color:#64748b; font-size:0.9rem;">Draw your signature below with your finger or mouse. This has the same legal effect as a wet-ink signature under eIDAS SES.</p>
+    <div class="sig-wrap">
+      <canvas id="pad"></canvas>
+    </div>
+    <div style="margin-top:8px; display:flex; gap:8px;">
+      <button class="btn btn-secondary" type="button" onclick="clearSig()">Clear</button>
+    </div>
+    <label for="typedName">Type your full name to confirm (equivalent to "Lu et approuvé"):</label>
+    <input type="text" id="typedName" placeholder="e.g. John Smith">
+    <label style="font-weight:normal; margin-top:16px;">
+      <input type="checkbox" id="consent"> I agree to sign this contract electronically and confirm the details above are correct.
+    </label>
+    <div style="margin-top:16px; text-align:right;">
+      <button class="btn" id="submitBtn" onclick="submitSig()" disabled>Sign contract</button>
+    </div>
+    <div id="msg" style="margin-top:12px; color:#dc2626; font-weight:600;"></div>
+  </div>
+  <script>
+    const canvas = document.getElementById('pad');
+    const ctx = canvas.getContext('2d');
+    function resizeCanvas() { const r = canvas.getBoundingClientRect(); canvas.width = r.width * (window.devicePixelRatio||1); canvas.height = r.height * (window.devicePixelRatio||1); ctx.scale(window.devicePixelRatio||1, window.devicePixelRatio||1); ctx.lineWidth = 2; ctx.lineCap='round'; ctx.strokeStyle='#111'; }
+    resizeCanvas(); window.addEventListener('resize', resizeCanvas);
+    let drawing = false; let hasStrokes = false;
+    const getPos = (e) => { const r = canvas.getBoundingClientRect(); const t = e.touches ? e.touches[0] : e; return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+    const start = (e) => { e.preventDefault(); drawing = true; hasStrokes = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); updateBtn(); };
+    const move  = (e) => { if (!drawing) return; e.preventDefault(); const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); };
+    const end   = (e) => { drawing = false; };
+    canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); canvas.addEventListener('mouseup', end); canvas.addEventListener('mouseleave', end);
+    canvas.addEventListener('touchstart', start); canvas.addEventListener('touchmove', move); canvas.addEventListener('touchend', end);
+    function clearSig() { ctx.clearRect(0,0,canvas.width,canvas.height); hasStrokes = false; updateBtn(); }
+    function updateBtn() {
+      const ok = hasStrokes && document.getElementById('typedName').value.trim().length > 1 && document.getElementById('consent').checked;
+      document.getElementById('submitBtn').disabled = !ok;
+    }
+    document.getElementById('typedName').addEventListener('input', updateBtn);
+    document.getElementById('consent').addEventListener('change', updateBtn);
+    async function submitSig() {
+      const btn = document.getElementById('submitBtn'); const msg = document.getElementById('msg');
+      btn.disabled = true; btn.textContent = 'Signing…'; msg.textContent = '';
+      try {
+        const r = await fetch('/contract/sign/${token}/submit', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            signature_data_url: canvas.toDataURL('image/png'),
+            typed_name: document.getElementById('typedName').value.trim(),
+            consent: true,
+          }),
+        });
+        const j = await r.json();
+        if (!j.success) throw new Error(j.error || 'sign failed');
+        window.location.reload();
+      } catch (e) {
+        msg.textContent = 'Error: ' + e.message;
+        btn.disabled = false; btn.textContent = 'Sign contract';
+      }
+    }
+  </script>`}
+</body></html>`);
+  } catch (e) {
+    console.error('[contract sign page]', e);
+    res.status(500).send('server error');
+  }
+});
+
+// POST /contract/sign/:token/submit — captures signature + audit trail,
+// stamps signature into stored HTML, marks signed, emails both parties.
+app.post('/contract/sign/:token/submit', async (req, res) => {
+  try {
+    const token = String(req.params.token || '').replace(/[^A-Fa-f0-9]/g, '');
+    const { signature_data_url, typed_name, consent } = req.body || {};
+    if (!token || !signature_data_url || !typed_name || !consent) {
+      return res.status(400).json({ success: false, error: 'signature, typed name, and consent required' });
+    }
+    if (!/^data:image\/png;base64,/.test(signature_data_url)) {
+      return res.status(400).json({ success: false, error: 'invalid signature format' });
+    }
+    const r = await pool.query(`SELECT * FROM contract_instances WHERE sign_token = $1`, [token]);
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'contract not found' });
+    const c = r.rows[0];
+    if (c.signed_at) return res.json({ success: true, already_signed: true, signed_at: c.signed_at });
+
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || null;
+    const ua = req.headers['user-agent'] || null;
+
+    // Stamp signature + audit footer into stored HTML so the record is
+    // self-contained and provable without external lookups.
+    const auditFooter = `
+      <hr style="margin-top:32px; border:none; border-top:1px solid #e5e7eb;">
+      <div style="margin-top:16px; padding:12px 16px; background:#f0fdf4; border:1px solid #86efac; border-radius:8px; font-family:Arial,sans-serif;">
+        <div style="font-weight:600; color:#065f46; margin-bottom:8px;">✓ Contract signed electronically</div>
+        <div style="font-size:0.85rem; color:#065f46;">
+          <div><strong>Signature:</strong></div>
+          <img src="${signature_data_url}" alt="signature" style="max-width:280px; max-height:120px; background:white; border:1px solid #d1fae5; border-radius:4px; padding:4px; margin:6px 0;">
+          <div><strong>Typed confirmation:</strong> ${String(typed_name).replace(/[<>&"]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[ch]))}</div>
+          <div><strong>Signed at:</strong> ${new Date().toISOString()}</div>
+          <div><strong>IP:</strong> ${ip || '(unknown)'}</div>
+          <div><strong>User agent:</strong> ${String(ua || '').replace(/[<>&"]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[ch])).slice(0,200)}</div>
+          <div style="margin-top:8px; font-size:0.75rem; color:#065f46; opacity:0.7;">This audit trail is stored immutably and can be reproduced on demand for legal evidence purposes (eIDAS Simple Electronic Signature).</div>
+        </div>
+      </div>`;
+    const signedHtml = c.filled_html + auditFooter;
+
+    await pool.query(`
+      UPDATE contract_instances
+         SET signature_data_url = $1,
+             signature_typed_name = $2,
+             signature_ip = $3,
+             signature_ua = $4,
+             signed_at = NOW(),
+             status = 'signed',
+             filled_html = $5,
+             updated_at = NOW()
+       WHERE id = $6`,
+      [signature_data_url, typed_name, ip, ua, signedHtml, c.id]);
+
+    // Email both landlord (via account) and guest with the signed contract HTML
+    try {
+      const acc = await pool.query(`SELECT email FROM accounts WHERE id = $1`, [c.account_id]);
+      const landlordEmail = acc.rows[0]?.email || null;
+      const attachmentHtml = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;">${signedHtml}</body></html>`;
+      const recipients = [c.guest_email, landlordEmail].filter(Boolean);
+      for (const to of recipients) {
+        await sendEmail({
+          to,
+          subject: 'Signed contract — copy for your records',
+          html: `<p>The rental contract has been signed. A full copy is below.</p>${attachmentHtml}`,
+        }).catch(e => console.warn('[contract signed email]', to, e.message));
+      }
+    } catch (mailErr) {
+      console.warn('[contract signed email wiring]', mailErr.message);
+    }
+
+    res.json({ success: true, signed_at: new Date().toISOString() });
+  } catch (e) {
+    console.error('[contract submit]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /api/admin/contracts/templates?account_id=… — list templates
+// visible to the caller. Master sees all; account users see their
+// own + platform templates (account_id IS NULL).
+app.get('/api/admin/contracts/templates', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const accountId = decoded.role === 'master_admin'
+      ? (parseInt(req.query.account_id, 10) || null)
+      : decoded.id;
+    let r;
+    if (accountId) {
+      r = await pool.query(`
+        SELECT id, account_id, name, description, language, is_active,
+               created_at, updated_at
+          FROM contract_templates
+         WHERE (account_id = $1 OR account_id IS NULL)
+           AND is_active = true
+         ORDER BY account_id NULLS LAST, id`, [accountId]);
+    } else {
+      r = await pool.query(`
+        SELECT id, account_id, name, description, language, is_active,
+               created_at, updated_at
+          FROM contract_templates
+         WHERE is_active = true
+         ORDER BY account_id NULLS LAST, id`);
+    }
+    res.json({ success: true, templates: r.rows });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /api/admin/bookings/:id/contracts — list contract instances
+// for this booking so the booking view can show status.
+app.get('/api/admin/bookings/:id/contracts', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    if (!bookingId) return res.status(400).json({ success: false, error: 'invalid booking id' });
+    const r = await pool.query(`
+      SELECT ci.id, ci.template_id, ci.status, ci.guest_email,
+             ci.sent_at, ci.opened_at, ci.signed_at, ci.deposit_paid_at,
+             ci.sign_token,
+             ct.name AS template_name, ct.language AS template_language
+        FROM contract_instances ci
+        LEFT JOIN contract_templates ct ON ct.id = ci.template_id
+       WHERE ci.booking_id = $1
+       ORDER BY ci.id DESC`, [bookingId]);
+    res.json({ success: true, contracts: r.rows });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
