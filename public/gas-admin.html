@@ -29745,6 +29745,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div id="edit-booking-extras-panel" style="margin-top: 1rem;"></div>
                 </div>
 
+                <!-- Contract status strip — hidden until a contract exists -->
+                <div id="booking-contract-status" style="display:none; padding: 0.75rem 1.5rem; background: #f8fafc; border-top: 1px solid #e2e8f0;"></div>
+
                 <!-- Other actions -->
                 <div style="padding: 1rem 1.5rem; background: #f1f5f9; border-top: 1px solid #e2e8f0; display: flex; gap: 0.75rem; flex-wrap: wrap;">
                     <button onclick="generateInvoice(currentViewingBookingId)" class="btn" style="background: #0ea5e9; font-size: 0.85rem;">Generate Invoice</button>
@@ -71620,6 +71623,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 _currentBookingHasStripeCard = !!b.stripe_payment_method_id;
                 loadBookingTravellers(b.id);
                 loadChargeAutomationPanel(b.id, b.chargeautomation_booking_id);
+                loadBookingContractStatus(b.id);
 
             } catch (error) {
                 console.error('Error loading booking:', error);
@@ -72214,6 +72218,64 @@ const promo = await fetch('/api/v1/offers/validate', {
         // read-only, so the panel only adds value when an operator needs to
         // hand-mark something paid (e.g. £30 dog fee collected in cash on
         // arrival) or cancel a single extra without cancelling the booking.
+        // Contract status strip on the view-booking modal. Shows the most
+        // recent contract for the booking: sent / opened / signed + card paid
+        // / signed + bank pending. On bank-pending, an operator can hit the
+        // "Mark bank transfer received" button which flips deposit_status to
+        // paid and (if the booking is still pending) confirms the booking.
+        async function loadBookingContractStatus(bookingId) {
+            const slot = document.getElementById('booking-contract-status');
+            if (!slot) return;
+            slot.style.display = 'none';
+            try {
+                const r = await fetch(`/api/admin/bookings/${bookingId}/contract-status`, { headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success || !d.contract) return;
+                const c = d.contract;
+                let colour = '#6b7280'; let icon = '📤'; let label = 'Contract sent';
+                let extra = '';
+                if (c.signed_at && c.deposit_status === 'paid') {
+                    colour = '#059669'; icon = '✅'; label = 'Contract signed & deposit paid';
+                    extra = c.deposit_amount ? ` — ${parseFloat(c.deposit_amount).toFixed(2)} ${c.deposit_currency || '€'} on ${new Date(c.deposit_paid_at || c.signed_at).toLocaleDateString()}` : '';
+                } else if (c.signed_at && c.deposit_status === 'pending_bank') {
+                    colour = '#d97706'; icon = '✍'; label = 'Contract signed — awaiting bank transfer';
+                    extra = c.deposit_amount ? ` — ${parseFloat(c.deposit_amount).toFixed(2)} ${c.deposit_currency || '€'} due` : '';
+                } else if (c.signed_at) {
+                    colour = '#059669'; icon = '✅'; label = 'Contract signed';
+                } else if (c.opened_at) {
+                    colour = '#0284c7'; icon = '👁'; label = 'Contract opened — awaiting signature';
+                }
+                const markPaidBtn = (c.signed_at && c.deposit_status === 'pending_bank')
+                    ? `<button class="btn btn-small" style="background:#059669; margin-left:auto;" onclick="markContractDepositPaid(${c.id})">Mark bank transfer received</button>`
+                    : '';
+                const signUrl = `https://admin.gas.travel/contract/sign/${c.sign_token}`;
+                slot.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:0.75rem; color:${colour};">
+                        <div style="font-size:1.1rem;">${icon}</div>
+                        <div style="flex:1;">
+                            <div style="font-weight:600;">${label}${extra}</div>
+                            <div style="font-size:0.8rem; color:#64748b; margin-top:2px;">
+                                Sign URL: <a href="${signUrl}" target="_blank" style="color:#0284c7;">${signUrl}</a>
+                            </div>
+                        </div>
+                        ${markPaidBtn}
+                    </div>`;
+                slot.style.display = '';
+            } catch (e) { /* soft-fail — badge just doesn't render */ }
+        }
+        async function markContractDepositPaid(contractId) {
+            if (!confirm('Confirm the bank transfer has landed for this contract?')) return;
+            try {
+                const r = await fetch(`/api/admin/contracts/${contractId}/mark-deposit-paid`, {
+                    method: 'POST', headers: authHeaders(),
+                });
+                const d = await r.json();
+                if (!d.success) { alert('Failed: ' + (d.error || 'unknown')); return; }
+                if (typeof showNotification === 'function') showNotification('✓ Deposit marked paid — booking confirmed', 'success');
+                loadBookingContractStatus(currentViewingBookingId);
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
         async function loadBookingExtras(bookingId) {
             const slot = document.getElementById('edit-booking-extras-panel');
             if (!slot) return;

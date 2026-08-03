@@ -156205,6 +156205,13 @@ app.post('/contract/sign/:token/submit', async (req, res) => {
        WHERE id = $6`,
       [signature_data_url, typed_name, ip, ua, signedHtml, c.id, pmChosen, depositStatusNext, depositPaidAt]);
 
+    // On card + paid, promote a pending booking to confirmed. Never touch
+    // other statuses ('blocked' / 'cancelled' etc.) — auto-flip is only safe
+    // for the pending → confirmed transition.
+    if (pmChosen === 'card' && depositStatusNext === 'paid') {
+      await pool.query(`UPDATE bookings SET status = 'confirmed', updated_at = NOW() WHERE id = $1 AND status = 'pending'`, [c.booking_id]).catch(e => console.warn('[contract submit booking status]', e.message));
+    }
+
     // Email both landlord (via account) and guest with the signed contract HTML
     try {
       const acc = await pool.query(`SELECT email FROM accounts WHERE id = $1`, [c.account_id]);
@@ -156225,6 +156232,54 @@ app.post('/contract/sign/:token/submit', async (req, res) => {
     res.json({ success: true, signed_at: new Date().toISOString() });
   } catch (e) {
     console.error('[contract submit]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /api/admin/bookings/:id/contract-status — latest contract instance for
+// this booking (or null). Used by the booking view modal badge.
+app.get('/api/admin/bookings/:id/contract-status', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    const r = await pool.query(`
+      SELECT ci.id, ci.sign_token, ci.status, ci.sent_at, ci.opened_at, ci.signed_at,
+             ci.deposit_status, ci.deposit_amount, ci.deposit_currency,
+             ci.deposit_paid_at, ci.payment_method, ci.account_id, ci.guest_email
+        FROM contract_instances ci
+       WHERE ci.booking_id = $1
+       ORDER BY ci.id DESC LIMIT 1`, [bookingId]);
+    const c = r.rows[0] || null;
+    if (c && decoded.role !== 'master_admin' && decoded.id !== c.account_id) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    res.json({ success: true, contract: c });
+  } catch (e) {
+    console.error('[contract-status]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/admin/contracts/:id/mark-deposit-paid — operator confirms the
+// bank transfer landed. Flips deposit_status=paid + promotes booking pending
+// → confirmed (same rule as card auto-flip: never touch other statuses).
+app.post('/api/admin/contracts/:id/mark-deposit-paid', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const contractId = parseInt(req.params.id, 10);
+    const r = await pool.query(`SELECT id, account_id, booking_id, deposit_status FROM contract_instances WHERE id = $1`, [contractId]);
+    const c = r.rows[0];
+    if (!c) return res.status(404).json({ success: false, error: 'contract not found' });
+    if (decoded.role !== 'master_admin' && decoded.id !== c.account_id) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    await pool.query(`UPDATE contract_instances SET deposit_status = 'paid', deposit_paid_at = COALESCE(deposit_paid_at, NOW()), updated_at = NOW() WHERE id = $1`, [contractId]);
+    await pool.query(`UPDATE bookings SET status = 'confirmed', updated_at = NOW() WHERE id = $1 AND status = 'pending'`, [c.booking_id]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[mark-deposit-paid]', e.message);
     res.status(500).json({ success: false, error: e.message });
   }
 });
