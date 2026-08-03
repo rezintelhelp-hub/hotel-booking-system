@@ -78640,10 +78640,19 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function savePropertyOwner() {
             const id = document.getElementById('property-owner-id').value;
-            const account_id = document.getElementById('property-owner-account-id').value;
+            // Read live at save time — the hidden field can be blank if the
+            // modal opened before currentAccount hydrated. Fall back through
+            // every plausible source; server also infers for non-master users.
+            let account_id = document.getElementById('property-owner-account-id').value;
+            if (!account_id) {
+                account_id = (typeof selectedAccountId !== 'undefined' && selectedAccountId)
+                    || (typeof currentAccount !== 'undefined' && currentAccount
+                        && (currentAccount.account_id || currentAccount.id))
+                    || '';
+            }
             const payload = {
                 id: id || undefined,
-                account_id: parseInt(account_id, 10),
+                account_id: parseInt(account_id, 10) || undefined,
                 name: document.getElementById('po-name').value.trim(),
                 company: document.getElementById('po-company').value.trim(),
                 address: document.getElementById('po-address').value.trim(),
@@ -78664,7 +78673,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 is_active: document.getElementById('po-is-active').checked,
             };
             if (!payload.name) { alert('Name is required'); return; }
-            if (!payload.account_id) { alert('Account id missing — reopen the modal'); return; }
+            // account_id may be undefined for non-master users — server infers
+            // from the JWT. Master admin still needs an account context.
             try {
                 const r = await fetch('/api/admin/property-owners', {
                     method: 'POST',

@@ -156079,7 +156079,15 @@ app.post('/api/admin/property-owners', async (req, res) => {
       default_security_deposit, default_cleaning_fee,
       default_tourist_tax_per_person_per_night, notes, is_active
     } = req.body || {};
-    const acctId = parseInt(account_id, 10);
+    // For UPDATE: infer acctId from the existing row so the client never has
+    // to know it. For CREATE: if the caller didn't send account_id and they
+    // aren't master, use their own account. Master must provide account_id.
+    let acctId = parseInt(account_id, 10);
+    if (id && !acctId) {
+      const existing = await pool.query(`SELECT account_id FROM property_owners WHERE id = $1`, [parseInt(id, 10)]);
+      if (existing.rows[0]) acctId = existing.rows[0].account_id;
+    }
+    if (!acctId && decoded.role !== 'master_admin') acctId = decoded.id;
     if (!acctId || !name) return res.status(400).json({ success: false, error: 'account_id and name required' });
     if (decoded.role !== 'master_admin' && decoded.id !== acctId) {
       return res.status(403).json({ success: false, error: 'forbidden' });
