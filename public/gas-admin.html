@@ -3157,7 +3157,7 @@
                                  (opens native WhatsApp). Pre-fills the msg
                                  with the account name so we know who it is
                                  without asking. -->
-                            <span onclick="event.stopPropagation(); const nm=(window.currentUser&&window.currentUser.name)||'GAS user'; window.open('https://wa.me/447782230929?text='+encodeURIComponent('Hi GAS — this is '+nm+', I need help with: '), '_blank');" style="color:#25d366;font-weight:600;">💬 Message GAS Support on WhatsApp</span>
+                            <span onclick="event.stopPropagation(); const nm=(currentAccount&&currentAccount.name)||'GAS user'; window.open('https://wa.me/447782230929?text='+encodeURIComponent('Hi GAS — this is '+nm+', I need help with: '), '_blank');" style="color:#25d366;font-weight:600;">💬 Message GAS Support on WhatsApp</span>
                         </div>
                     </div>
 
@@ -59541,10 +59541,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function renderWaConnectCard() {
             const card = document.getElementById('wa-connect-card');
             if (!card) return;
-            const isMaster = (window.currentUser && window.currentUser.role === 'master_admin');
+            const isMaster = (currentAccount && currentAccount.role === 'master_admin');
             if (isMaster) { card.style.display = 'none'; return; }
-            const acctId = (window.currentUser && (window.currentUser.id || window.currentUser.accountId)) || null;
-            const acctName = (window.currentUser && window.currentUser.name) || '';
+            const acctId = (currentAccount && (currentAccount.id || currentAccount.account_id)) || null;
+            const acctName = (currentAccount && currentAccount.name) || '';
             if (!acctId) { card.style.display = 'none'; return; }
             try {
                 const r = await fetch('/api/whatsapp/configs', { headers: authHeaders() });
@@ -78259,10 +78259,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             openModal('giImagePickerModal');
             // Bring above the Guest Info modal (which is z-index 1100)
             document.getElementById('giImagePickerModal').style.zIndex = 1200;
-            const isMaster = (window.currentUser && window.currentUser.role === 'master_admin');
+            const isMaster = (currentAccount && currentAccount.role === 'master_admin');
             const accountId = isMaster
-                ? (selectedAccountId || (window.currentUser && window.currentUser.id))
-                : (window.currentUser && (window.currentUser.id || window.currentUser.accountId));
+                ? (selectedAccountId || (currentAccount && currentAccount.id))
+                : (currentAccount && (currentAccount.id || currentAccount.account_id));
             if (!accountId) { grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#94a3b8; padding:2rem;">No account context.</div>'; return; }
             try {
                 const r = await fetch(`/api/admin/media-library/property-images?account_id=${encodeURIComponent(accountId)}`, { headers: authHeaders() });
@@ -78311,7 +78311,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const bkD = await bkR.json();
                 const acctId = bkD?.data?.property?.account_id
                     || bkD?.data?.account_id
-                    || (window.currentUser && window.currentUser.id) || null;
+                    || (currentAccount && currentAccount.id) || null;
                 _contractPreviewAccountId = acctId;
                 const tR = await fetch(`/api/admin/contracts/templates${acctId ? '?account_id=' + acctId : ''}`, { headers: authHeaders() });
                 const tD = await tR.json();
@@ -78555,10 +78555,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             const listEl = document.getElementById('property-owners-list');
             if (!listEl) return;
             listEl.innerHTML = '<div style="padding:2rem; text-align:center; color:#94a3b8;">Loading owners…</div>';
-            const isMaster = (window.currentUser && window.currentUser.role === 'master_admin');
+            const isMaster = (currentAccount && currentAccount.role === 'master_admin');
             const accountId = isMaster
-                ? (selectedAccountId || (window.currentUser && window.currentUser.id) || null)
-                : (window.currentUser && (window.currentUser.id || window.currentUser.accountId));
+                ? (selectedAccountId || (currentAccount && currentAccount.id) || null)
+                : (currentAccount && (currentAccount.id || currentAccount.account_id));
             if (!accountId) { listEl.innerHTML = '<div style="padding:2rem; text-align:center; color:#94a3b8;">Pick an account to see its owners.</div>'; return; }
             try {
                 const r = await fetch(`/api/admin/accounts/${accountId}/property-owners`, { headers: authHeaders() });
@@ -78596,10 +78596,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Reset form
             const form = document.getElementById('property-owner-form'); if (form) form.reset();
             document.getElementById('property-owner-id').value = '';
-            const isMaster = (window.currentUser && window.currentUser.role === 'master_admin');
+            const isMaster = (currentAccount && currentAccount.role === 'master_admin');
             const acctForCreate = accountIdOverride
-                || (isMaster ? (selectedAccountId || (window.currentUser && window.currentUser.id))
-                             : (window.currentUser && (window.currentUser.id || window.currentUser.accountId)));
+                || (isMaster ? (selectedAccountId || (currentAccount && currentAccount.id))
+                             : (currentAccount && (currentAccount.id || currentAccount.account_id)));
             document.getElementById('property-owner-account-id').value = acctForCreate || '';
             document.getElementById('property-owner-modal-title').textContent = ownerId ? 'Edit Owner' : 'New Owner';
             document.getElementById('po-is-active').checked = true;
