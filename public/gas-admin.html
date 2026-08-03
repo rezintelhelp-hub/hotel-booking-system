@@ -28030,7 +28030,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <label for="po-is-active" style="font-weight: 500;">Active</label>
                     </div>
 
-                    <div style="display: flex; gap: 1rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                    <h4 style="margin: 1rem 0 0.75rem 0; color: #0369a1; font-size: 0.85rem; text-transform: uppercase;">Signature</h4>
+                    <p style="font-size:0.85rem; color:#64748b; margin: 0 0 0.5rem 0;">Draw your signature once — it'll be stamped on every contract you send. Guests still add their own on top.</p>
+                    <input type="hidden" id="po-signature-data-url">
+                    <div style="border: 2px dashed #d1d5db; border-radius: 8px; padding: 8px; background: #fafafa;">
+                        <canvas id="po-sig-pad" style="display:block; width:100%; height:140px; touch-action:none; background:white; border-radius:6px;"></canvas>
+                    </div>
+                    <div id="po-sig-preview-wrap" style="display:none; margin-top:8px;">
+                        <div style="font-size:0.8rem; color:#64748b; margin-bottom:4px;">Current signature on file:</div>
+                        <img id="po-sig-preview" style="max-height:80px; background:white; border:1px solid #e5e7eb; border-radius:4px; padding:4px;">
+                    </div>
+                    <div style="margin-top:8px; display:flex; gap:8px;">
+                        <button type="button" class="btn btn-secondary btn-small" onclick="clearOwnerSignature()">Clear pad</button>
+                        <button type="button" class="btn btn-small" style="background:#dc2626;" onclick="removeOwnerSignature()">Remove signature</button>
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid #e5e7eb; margin-top: 1rem;">
                         <button type="button" class="btn btn-secondary" onclick="closeModal('propertyOwnerModal')">Cancel</button>
                         <button type="submit" class="btn" style="background:#0369a1;">💾 Save owner</button>
                     </div>
@@ -78633,9 +78648,54 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('po-tourist-tax').value = o.default_tourist_tax_per_person_per_night != null ? o.default_tourist_tax_per_person_per_night : '';
                     document.getElementById('po-notes').value = o.notes || '';
                     document.getElementById('po-is-active').checked = o.is_active !== false;
+                    // Signature — show current if present, hide preview if not
+                    document.getElementById('po-signature-data-url').value = o.signature_data_url || '';
+                    const sigPrev = document.getElementById('po-sig-preview');
+                    const sigPrevWrap = document.getElementById('po-sig-preview-wrap');
+                    if (o.signature_data_url) { sigPrev.src = o.signature_data_url; sigPrevWrap.style.display = ''; }
+                    else { sigPrevWrap.style.display = 'none'; }
                 } catch (e) { alert('Load failed: ' + e.message); return; }
+            } else {
+                document.getElementById('po-signature-data-url').value = '';
+                document.getElementById('po-sig-preview-wrap').style.display = 'none';
             }
             openModal('propertyOwnerModal');
+            // Init signature pad lazily on open — canvas isn't sized until visible
+            setTimeout(initOwnerSignaturePad, 60);
+        }
+
+        // Signature pad — mounts once per session, reset per modal open. Draws
+        // to a PNG data URL that gets sent alongside the owner payload.
+        let _poSigCtx = null; let _poSigDrawing = false; let _poSigHasStrokes = false;
+        function initOwnerSignaturePad() {
+            const canvas = document.getElementById('po-sig-pad');
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            _poSigCtx = canvas.getContext('2d');
+            _poSigCtx.scale(dpr, dpr);
+            _poSigCtx.lineWidth = 2; _poSigCtx.lineCap = 'round'; _poSigCtx.strokeStyle = '#111';
+            _poSigHasStrokes = false;
+            if (canvas._gasSigWired) return;
+            canvas._gasSigWired = true;
+            const getPos = (e) => { const r = canvas.getBoundingClientRect(); const t = e.touches ? e.touches[0] : e; return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+            const start = (e) => { e.preventDefault(); _poSigDrawing = true; _poSigHasStrokes = true; const p = getPos(e); _poSigCtx.beginPath(); _poSigCtx.moveTo(p.x, p.y); };
+            const move = (e) => { if (!_poSigDrawing) return; e.preventDefault(); const p = getPos(e); _poSigCtx.lineTo(p.x, p.y); _poSigCtx.stroke(); };
+            const end = () => { _poSigDrawing = false; };
+            canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); canvas.addEventListener('mouseup', end); canvas.addEventListener('mouseleave', end);
+            canvas.addEventListener('touchstart', start); canvas.addEventListener('touchmove', move); canvas.addEventListener('touchend', end);
+        }
+        function clearOwnerSignature() {
+            const canvas = document.getElementById('po-sig-pad');
+            if (canvas && _poSigCtx) { _poSigCtx.clearRect(0, 0, canvas.width, canvas.height); _poSigHasStrokes = false; }
+        }
+        function removeOwnerSignature() {
+            if (!confirm('Remove the saved signature? Contracts sent after this will have no landlord signature until you draw a new one.')) return;
+            document.getElementById('po-signature-data-url').value = '';
+            document.getElementById('po-sig-preview-wrap').style.display = 'none';
+            clearOwnerSignature();
         }
 
         async function savePropertyOwner() {
@@ -78671,6 +78731,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 default_tourist_tax_per_person_per_night: document.getElementById('po-tourist-tax').value || null,
                 notes: document.getElementById('po-notes').value.trim(),
                 is_active: document.getElementById('po-is-active').checked,
+                // Signature: if the pad has fresh strokes, capture PNG. Else
+                // pass the existing value (empty string = user hit Remove).
+                signature_data_url: (function () {
+                    const canvas = document.getElementById('po-sig-pad');
+                    if (_poSigHasStrokes && canvas) return canvas.toDataURL('image/png');
+                    return document.getElementById('po-signature-data-url').value;
+                })(),
             };
             if (!payload.name) { alert('Name is required'); return; }
             // account_id may be undefined for non-master users — server infers

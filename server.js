@@ -19215,6 +19215,10 @@ app.get('/api/setup-accounts', async (req, res) => {
     await pool.query(`ALTER TABLE contract_instances ADD COLUMN IF NOT EXISTS deposit_status VARCHAR(30) DEFAULT 'not_required'`).catch(() => {});
     await pool.query(`ALTER TABLE contract_instances ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(10,2)`).catch(() => {});
     await pool.query(`ALTER TABLE contract_instances ADD COLUMN IF NOT EXISTS deposit_currency VARCHAR(10)`).catch(() => {});
+    // Landlord signature — drawn once, stamped into every contract. Stored
+    // as PNG data URL on owner (primary) and account settings (fallback).
+    await pool.query(`ALTER TABLE property_owners ADD COLUMN IF NOT EXISTS signature_data_url TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE account_contract_settings ADD COLUMN IF NOT EXISTS signature_data_url TEXT`).catch(() => {});
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS account_contract_settings (
@@ -155655,6 +155659,7 @@ async function contractsHydrateContext(pool, bookingId, contractInstance = null)
       iban: settings.iban || '',
       bic: settings.bic || '',
       bank_account_name: settings.bank_account_name || '',
+      signature: (owner && owner.signature_data_url) || acct.signature_data_url || '',
     },
     contract: {
       sign_url: signUrl,
@@ -156328,8 +156333,13 @@ app.post('/api/admin/property-owners', async (req, res) => {
       id, account_id, name, company, address, postcode, city, country,
       phone, email, siret, tourist_let_reg, iban, bic, bank_account_name,
       default_security_deposit, default_cleaning_fee,
-      default_tourist_tax_per_person_per_night, notes, is_active
+      default_tourist_tax_per_person_per_night, notes, is_active,
+      signature_data_url,
     } = req.body || {};
+    // Signature must be a PNG data URL if provided. Silently drop anything
+    // that doesn't match — never store arbitrary blobs.
+    const sig = (typeof signature_data_url === 'string' && /^data:image\/png;base64,/.test(signature_data_url))
+      ? signature_data_url : (signature_data_url === '' ? '' : null);
     // For UPDATE: infer acctId from the existing row so the client never has
     // to know it. For CREATE: if the caller didn't send account_id and they
     // aren't master, use their own account. Master must provide account_id.
@@ -156358,14 +156368,16 @@ app.post('/api/admin/property-owners', async (req, res) => {
           iban = $12, bic = $13, bank_account_name = $14,
           default_security_deposit = $15, default_cleaning_fee = $16,
           default_tourist_tax_per_person_per_night = $17,
-          notes = $18, is_active = $19, updated_at = NOW()
+          notes = $18, is_active = $19,
+          signature_data_url = COALESCE($20, signature_data_url),
+          updated_at = NOW()
         WHERE id = $1 RETURNING *`,
         [ownerId, name, company||null, address||null, postcode||null, city||null, country||null,
          phone||null, email||null, siret||null, tourist_let_reg||null,
          iban||null, bic||null, bank_account_name||null,
          num(default_security_deposit), num(default_cleaning_fee),
          num(default_tourist_tax_per_person_per_night),
-         notes||null, is_active !== false]);
+         notes||null, is_active !== false, sig]);
       return res.json({ success: true, owner: upd.rows[0], updated: true });
     }
     const ins = await pool.query(`
@@ -156373,14 +156385,15 @@ app.post('/api/admin/property-owners', async (req, res) => {
         account_id, name, company, address, postcode, city, country,
         phone, email, siret, tourist_let_reg, iban, bic, bank_account_name,
         default_security_deposit, default_cleaning_fee,
-        default_tourist_tax_per_person_per_night, notes, is_active
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,COALESCE($19,true))
+        default_tourist_tax_per_person_per_night, notes, is_active,
+        signature_data_url
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,COALESCE($19,true),$20)
       RETURNING *`,
       [acctId, name, company||null, address||null, postcode||null, city||null, country||null,
        phone||null, email||null, siret||null, tourist_let_reg||null,
        iban||null, bic||null, bank_account_name||null,
        num(default_security_deposit), num(default_cleaning_fee),
-       num(default_tourist_tax_per_person_per_night), notes||null, is_active]);
+       num(default_tourist_tax_per_person_per_night), notes||null, is_active, sig]);
     res.json({ success: true, owner: ins.rows[0], created: true });
   } catch (e) {
     console.error('[property-owner upsert]', e.message);

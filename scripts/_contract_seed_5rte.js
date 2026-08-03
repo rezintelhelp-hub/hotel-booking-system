@@ -183,8 +183,9 @@ const CONTRACT_HTML = `<style>
       <strong>LE BAILLEUR / THE LANDLORD</strong>
       <div class="sig-box">
         {{landlord.name}}<br>
-        Fait à / Signed at: ______<br>
-        Le / Date: ______
+        {{#landlord.signature}}<img src="{{landlord.signature}}" alt="signature" style="max-height:70px; margin:6px 0; background:white;"><br>{{/landlord.signature}}
+        Fait à / Signed at: {{landlord.city}}<br>
+        Le / Date: {{contract.today}}
       </div>
     </div>
     <div>
