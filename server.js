@@ -155819,16 +155819,25 @@ app.post('/api/admin/bookings/:id/send-contract', async (req, res) => {
       landlordBcc = acc.rows[0]?.email || '';
     }
 
+    // Property snippet for subject + body — guest / operator can tell at a
+    // glance which booking this contract is for without opening it. Falls
+    // back to just the name if there's no city.
+    const propName = ctx?.property?.name || '';
+    const propCity = ctx?.property?.city || '';
+    const propSnippet = [propName, propCity].filter(Boolean).join(' — ');
+    const arrivalStr = ctx?.booking?.arrival_date || '';
+
     try {
       await sendEmail({
         to: b.rows[0].guest_email,
         bcc: landlordBcc || undefined,
         subject: isFr
-          ? `Votre contrat de location — merci de le signer`
-          : `Your rental contract — please sign`,
+          ? `Votre contrat de location${propSnippet ? ' — ' + propSnippet : ''} — merci de le signer`
+          : `Your rental contract${propSnippet ? ' — ' + propSnippet : ''} — please sign`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
             <h2 style="color:#111;">${isFr ? 'Bonjour' : 'Hi'} ${guestName.replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))},</h2>
+            ${propSnippet ? `<p style="background:#f8fafc; border-left:3px solid #059669; padding:10px 14px; margin:16px 0; color:#334155;"><strong>${propSnippet.replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}</strong>${arrivalStr ? '<br><span style="font-size:0.9em; color:#64748b;">' + (isFr ? 'Arrivée / Check-in : ' : 'Check-in: ') + arrivalStr.replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])) + '</span>' : ''}</p>` : ''}
             <p>${isFr
               ? "Merci pour votre réservation. Pour la confirmer, merci de signer le contrat en ligne et de régler l'acompte via le lien ci-dessous."
               : 'Thank you for your booking. To confirm it, please sign the contract online and pay the deposit via the link below.'}</p>
