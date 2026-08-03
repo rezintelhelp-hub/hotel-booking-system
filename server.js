@@ -19233,6 +19233,43 @@ app.get('/api/setup-accounts', async (req, res) => {
       )
     `).catch(e => console.warn('[account_contract_settings migration]', e.message));
 
+    // property_owners — Steve 2026-08-03. Operators (Julie et al.) manage
+    // properties on behalf of DIFFERENT actual property owners. The owner
+    // is the "bailleur" on the contract and their IBAN receives the
+    // deposit. First-class entity so it's edited once and referenced by
+    // any number of properties. Contract render falls back per-property
+    // fields → account_contract_settings if owner not set (solo-owner
+    // simple case still works).
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_owners (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        company TEXT,
+        address TEXT,
+        postcode TEXT,
+        city TEXT,
+        country TEXT,
+        phone TEXT,
+        email TEXT,
+        siret TEXT,
+        tourist_let_reg TEXT,
+        iban TEXT,
+        bic TEXT,
+        bank_account_name TEXT,
+        default_security_deposit NUMERIC(10,2),
+        default_cleaning_fee NUMERIC(10,2),
+        default_tourist_tax_per_person_per_night NUMERIC(10,2),
+        notes TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `).catch(e => console.warn('[property_owners migration]', e.message));
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_po_account ON property_owners(account_id) WHERE is_active = true`).catch(() => {});
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES property_owners(id) ON DELETE SET NULL`).catch(e => console.warn('[properties.owner_id migration]', e.message));
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_properties_owner ON properties(owner_id) WHERE owner_id IS NOT NULL`).catch(() => {});
+
     // Composite Actions — operator-saved chains of atomic steps that show
     // up as a single drop-in card in the action picker.
     await pool.query(`CREATE TABLE IF NOT EXISTS action_templates (
@@ -155432,7 +155469,7 @@ app.get('/api/admin/comms/health', async (req, res) => {
 async function contractsHydrateContext(pool, bookingId, contractInstance = null) {
   const b = await pool.query(`
     SELECT b.*, p.name AS prop_name, p.address AS prop_address,
-           p.city AS prop_city, p.country AS prop_country,
+           p.city AS prop_city, p.country AS prop_country, p.owner_id AS prop_owner_id,
            bu.name AS unit_name, bu.description AS unit_description,
            bu.max_guests AS unit_max_guests, bu.bedrooms AS unit_bedrooms,
            bu.bathrooms AS unit_bathrooms, bu.size_sqm AS unit_size_sqm,
@@ -155446,8 +155483,42 @@ async function contractsHydrateContext(pool, bookingId, contractInstance = null)
   if (!b.rows[0]) throw new Error('booking not found');
   const bk = b.rows[0];
 
-  const s = await pool.query(`SELECT * FROM account_contract_settings WHERE account_id = $1`, [bk.acc_id]);
-  const settings = s.rows[0] || {};
+  // Fallback chain for landlord fields — owner > account settings > empty.
+  // Owner is the "bailleur" for legal purposes; account settings only used
+  // when the operator hasn't set up owners yet (solo-owner case).
+  const acctS = await pool.query(`SELECT * FROM account_contract_settings WHERE account_id = $1`, [bk.acc_id]);
+  const acct = acctS.rows[0] || {};
+  let owner = null;
+  if (bk.prop_owner_id) {
+    const oR = await pool.query(`SELECT * FROM property_owners WHERE id = $1 AND is_active = true`, [bk.prop_owner_id]);
+    owner = oR.rows[0] || null;
+  }
+  const pick = (field) => (owner && owner[field] != null && owner[field] !== '' ? owner[field]
+                       : (acct[field] != null && acct[field] !== '' ? acct[field] : ''));
+  // Owner uses a leaner column set than account_contract_settings ("name"
+  // instead of "landlord_name"). Map to the same keys the template expects.
+  const settings = {
+    landlord_name: (owner && owner.name) || acct.landlord_name || '',
+    landlord_company: (owner && owner.company) || acct.landlord_company || '',
+    landlord_address: (owner && owner.address) || acct.landlord_address || '',
+    landlord_postcode: (owner && owner.postcode) || acct.landlord_postcode || '',
+    landlord_city: (owner && owner.city) || acct.landlord_city || '',
+    landlord_country: (owner && owner.country) || acct.landlord_country || '',
+    landlord_phone: (owner && owner.phone) || acct.landlord_phone || '',
+    landlord_email: (owner && owner.email) || acct.landlord_email || '',
+    landlord_siret: (owner && owner.siret) || acct.landlord_siret || '',
+    tourist_let_reg: (owner && owner.tourist_let_reg) || acct.tourist_let_reg || '',
+    iban: (owner && owner.iban) || acct.iban || '',
+    bic: (owner && owner.bic) || acct.bic || '',
+    bank_account_name: (owner && owner.bank_account_name) || acct.bank_account_name || '',
+    default_security_deposit: (owner && owner.default_security_deposit != null ? owner.default_security_deposit
+                              : acct.default_security_deposit),
+    default_cleaning_fee: (owner && owner.default_cleaning_fee != null ? owner.default_cleaning_fee
+                          : acct.default_cleaning_fee),
+    default_tourist_tax_per_person_per_night: (owner && owner.default_tourist_tax_per_person_per_night != null
+                                              ? owner.default_tourist_tax_per_person_per_night
+                                              : acct.default_tourist_tax_per_person_per_night),
+  };
 
   const arrivalDate = bk.arrival_date ? new Date(bk.arrival_date) : null;
   const departureDate = bk.departure_date ? new Date(bk.departure_date) : null;
@@ -155892,6 +155963,150 @@ app.get('/api/admin/bookings/:id/contracts', async (req, res) => {
        ORDER BY ci.id DESC`, [bookingId]);
     res.json({ success: true, contracts: r.rows });
   } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /api/admin/accounts/:accountId/property-owners
+// List all active property owners on this account. Powers the dropdown
+// on the property edit page + the standalone Owners admin list.
+app.get('/api/admin/accounts/:accountId/property-owners', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const accountId = parseInt(req.params.accountId, 10);
+    if (!Number.isFinite(accountId)) return res.status(400).json({ success: false, error: 'invalid account id' });
+    if (decoded.role !== 'master_admin' && decoded.id !== accountId) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const r = await pool.query(`
+      SELECT o.*, (SELECT COUNT(*)::int FROM properties p WHERE p.owner_id = o.id) AS property_count
+        FROM property_owners o
+       WHERE o.account_id = $1
+       ORDER BY o.is_active DESC, o.name`, [accountId]);
+    res.json({ success: true, owners: r.rows });
+  } catch (e) {
+    console.error('[property-owners list]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/admin/property-owners — create OR update.
+// Body: { id? (for update), account_id, name, ...all owner fields }.
+app.post('/api/admin/property-owners', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const {
+      id, account_id, name, company, address, postcode, city, country,
+      phone, email, siret, tourist_let_reg, iban, bic, bank_account_name,
+      default_security_deposit, default_cleaning_fee,
+      default_tourist_tax_per_person_per_night, notes, is_active
+    } = req.body || {};
+    const acctId = parseInt(account_id, 10);
+    if (!acctId || !name) return res.status(400).json({ success: false, error: 'account_id and name required' });
+    if (decoded.role !== 'master_admin' && decoded.id !== acctId) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const num = (v) => v == null || v === '' ? null : parseFloat(v);
+    if (id) {
+      const ownerId = parseInt(id, 10);
+      const own = await pool.query(`SELECT account_id FROM property_owners WHERE id = $1`, [ownerId]);
+      if (!own.rows[0]) return res.status(404).json({ success: false, error: 'owner not found' });
+      if (decoded.role !== 'master_admin' && own.rows[0].account_id !== decoded.id) {
+        return res.status(403).json({ success: false, error: 'forbidden' });
+      }
+      const upd = await pool.query(`
+        UPDATE property_owners SET
+          name = $2, company = $3, address = $4, postcode = $5, city = $6, country = $7,
+          phone = $8, email = $9, siret = $10, tourist_let_reg = $11,
+          iban = $12, bic = $13, bank_account_name = $14,
+          default_security_deposit = $15, default_cleaning_fee = $16,
+          default_tourist_tax_per_person_per_night = $17,
+          notes = $18, is_active = $19, updated_at = NOW()
+        WHERE id = $1 RETURNING *`,
+        [ownerId, name, company||null, address||null, postcode||null, city||null, country||null,
+         phone||null, email||null, siret||null, tourist_let_reg||null,
+         iban||null, bic||null, bank_account_name||null,
+         num(default_security_deposit), num(default_cleaning_fee),
+         num(default_tourist_tax_per_person_per_night),
+         notes||null, is_active !== false]);
+      return res.json({ success: true, owner: upd.rows[0], updated: true });
+    }
+    const ins = await pool.query(`
+      INSERT INTO property_owners (
+        account_id, name, company, address, postcode, city, country,
+        phone, email, siret, tourist_let_reg, iban, bic, bank_account_name,
+        default_security_deposit, default_cleaning_fee,
+        default_tourist_tax_per_person_per_night, notes, is_active
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,COALESCE($19,true))
+      RETURNING *`,
+      [acctId, name, company||null, address||null, postcode||null, city||null, country||null,
+       phone||null, email||null, siret||null, tourist_let_reg||null,
+       iban||null, bic||null, bank_account_name||null,
+       num(default_security_deposit), num(default_cleaning_fee),
+       num(default_tourist_tax_per_person_per_night), notes||null, is_active]);
+    res.json({ success: true, owner: ins.rows[0], created: true });
+  } catch (e) {
+    console.error('[property-owner upsert]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// DELETE /api/admin/property-owners/:id — soft delete (is_active=false).
+// Hard delete blocked if any property still references this owner; caller
+// must reassign properties first.
+app.delete('/api/admin/property-owners/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const ownerId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(ownerId)) return res.status(400).json({ success: false, error: 'invalid id' });
+    const own = await pool.query(`SELECT account_id FROM property_owners WHERE id = $1`, [ownerId]);
+    if (!own.rows[0]) return res.status(404).json({ success: false, error: 'owner not found' });
+    if (decoded.role !== 'master_admin' && own.rows[0].account_id !== decoded.id) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const inUse = await pool.query(`SELECT COUNT(*)::int AS n FROM properties WHERE owner_id = $1`, [ownerId]);
+    if (inUse.rows[0].n > 0) {
+      // Soft delete only — properties still linked
+      await pool.query(`UPDATE property_owners SET is_active = false, updated_at = NOW() WHERE id = $1`, [ownerId]);
+      return res.json({ success: true, soft_deleted: true, properties_still_linked: inUse.rows[0].n });
+    }
+    await pool.query(`DELETE FROM property_owners WHERE id = $1`, [ownerId]);
+    res.json({ success: true, hard_deleted: true });
+  } catch (e) {
+    console.error('[property-owner delete]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/admin/properties/:id/owner — link/unlink an owner to a property.
+// Body: { owner_id | null }. Master admin OR the account owner.
+app.post('/api/admin/properties/:id/owner', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const propId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(propId)) return res.status(400).json({ success: false, error: 'invalid property id' });
+    const ownerId = req.body?.owner_id != null ? parseInt(req.body.owner_id, 10) : null;
+    const p1 = await pool.query(`SELECT account_id FROM properties WHERE id = $1`, [propId]);
+    if (!p1.rows[0]) return res.status(404).json({ success: false, error: 'property not found' });
+    const accountId = p1.rows[0].account_id;
+    if (decoded.role !== 'master_admin' && decoded.id !== accountId) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    if (ownerId != null) {
+      const o = await pool.query(`SELECT account_id FROM property_owners WHERE id = $1`, [ownerId]);
+      if (!o.rows[0]) return res.status(404).json({ success: false, error: 'owner not found' });
+      if (o.rows[0].account_id !== accountId) {
+        return res.status(400).json({ success: false, error: 'owner belongs to a different account' });
+      }
+    }
+    await pool.query(`UPDATE properties SET owner_id = $1, updated_at = NOW() WHERE id = $2`, [ownerId, propId]);
+    res.json({ success: true, property_id: propId, owner_id: ownerId });
+  } catch (e) {
+    console.error('[property owner link]', e.message);
     res.status(500).json({ success: false, error: e.message });
   }
 });
