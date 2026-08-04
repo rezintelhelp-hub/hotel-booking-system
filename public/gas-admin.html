@@ -5476,11 +5476,6 @@
                             <input type="number" class="form-input" id="edit-discount" placeholder="10" style="width: 80px;">
                         </div>
                         <button class="btn" onclick="applyQuickEdit()">Apply</button>
-                        <!-- Bulk apply — dedicated modal so operators can't
-                             fire this accidentally. Steve 2026-08-04: dozens
-                             of blocked Sat/Sun dates need a bulk tool with
-                             live preview + confirm before write. -->
-                        <button class="btn" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);" onclick="openBulkApplyModal()">🌐 Bulk apply…</button>
                     </div>
                 </div>
 
@@ -29887,10 +29882,11 @@ const promo = await fetch('/api/v1/offers/validate', {
         </div>
     </div>
 
-    <!-- Bulk apply modal — 2026-08-04. Only writes when the operator hits
-         "Apply" and confirms. Preview count updates live as inputs change so
-         there's no surprise about scope. -->
-    <div id="bulkApplyModal" class="modal">
+    <!-- Bulk apply modal — SUPERSEDED 2026-08-04 by the extended
+         blockUnblockModal (same purpose, unified UX). Kept the JS handlers
+         below for now in case anything else calls them; safe to remove
+         after next session. -->
+    <div id="bulkApplyModal" class="modal" style="display:none !important;">
         <div class="modal-content" style="max-width: 640px; border-radius: 12px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; border-radius: 12px 12px 0 0; padding: 1.25rem 1.5rem; display:flex; justify-content:space-between; align-items:center;">
                 <div>
@@ -56972,7 +56968,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 modal.innerHTML = `
                     <div class="modal-content" style="max-width: 520px;">
                         <div class="modal-header" style="background: linear-gradient(135deg,#4f46e5,#4338ca); color:white; padding:1rem 1.25rem; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center;">
-                            <h3 style="margin:0; font-size:1.1rem;">🚫 Block / Unblock Dates</h3>
+                            <h3 style="margin:0; font-size:1.1rem;">🚫 Block / Unblock / Channel visibility</h3>
                             <button onclick="closeModal('blockUnblockModal')" style="background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">&times;</button>
                         </div>
                         <div style="padding:1.25rem;">
@@ -56999,15 +56995,35 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                             <div class="form-group">
                                 <label class="form-label" style="font-weight:600;">Action</label>
-                                <div style="display:flex; gap:1rem; padding:0.5rem 0;">
-                                    <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
-                                        <input type="radio" name="block-modal-action" value="block" checked>
-                                        <span>🚫 Block (stop sell)</span>
+                                <div style="display:flex; flex-direction:column; gap:0.5rem; padding:0.5rem 0;">
+                                    <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer;">
+                                        <input type="radio" name="block-modal-action" value="block" checked style="margin-top:3px;">
+                                        <span><strong>🚫 Block (stop sell)</strong> <span style="color:#64748b; font-size:0.85rem;">— nothing books, website + OTAs + direct all closed</span></span>
                                     </label>
-                                    <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
-                                        <input type="radio" name="block-modal-action" value="unblock">
-                                        <span>✅ Unblock (free date)</span>
+                                    <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer;">
+                                        <input type="radio" name="block-modal-action" value="unblock" style="margin-top:3px;">
+                                        <span><strong>✅ Unblock (free date)</strong> <span style="color:#64748b; font-size:0.85rem;">— everything can book again</span></span>
                                     </label>
+                                    <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer;">
+                                        <input type="radio" name="block-modal-action" value="website_only" style="margin-top:3px;">
+                                        <span><strong>🌐 Website-only</strong> <span style="color:#64748b; font-size:0.85rem;">— unblocks + hides from OTAs. Only website + direct book. Use for cure / high-demand.</span></span>
+                                    </label>
+                                    <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer;">
+                                        <input type="radio" name="block-modal-action" value="restore_otas" style="margin-top:3px;">
+                                        <span><strong>↺ Restore OTA visibility</strong> <span style="color:#64748b; font-size:0.85rem;">— removes the OTA-hide override. Leaves block/unblock state as-is.</span></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" style="font-weight:600;">Days of week <small style="color:#64748b; font-weight:normal;">(none ticked = every day)</small></label>
+                                <div style="display:flex; gap:0.35rem; flex-wrap:wrap; padding:0.25rem 0;">
+                                    <label style="display:flex;align-items:center;gap:0.25rem;padding:0.3rem 0.55rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="block-modal-dow" value="1">Mon</label>
+                                    <label style="display:flex;align-items:center;gap:0.25rem;padding:0.3rem 0.55rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="block-modal-dow" value="2">Tue</label>
+                                    <label style="display:flex;align-items:center;gap:0.25rem;padding:0.3rem 0.55rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="block-modal-dow" value="3">Wed</label>
+                                    <label style="display:flex;align-items:center;gap:0.25rem;padding:0.3rem 0.55rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="block-modal-dow" value="4">Thu</label>
+                                    <label style="display:flex;align-items:center;gap:0.25rem;padding:0.3rem 0.55rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="block-modal-dow" value="5">Fri</label>
+                                    <label style="display:flex;align-items:center;gap:0.25rem;padding:0.3rem 0.55rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="block-modal-dow" value="6">Sat</label>
+                                    <label style="display:flex;align-items:center;gap:0.25rem;padding:0.3rem 0.55rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;"><input type="checkbox" class="block-modal-dow" value="0">Sun</label>
                                 </div>
                             </div>
                             <p id="block-modal-status" style="margin:0.5rem 0 0; font-size:0.85rem; color:#64748b;"></p>
@@ -57054,6 +57070,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const fromDate = document.getElementById('block-modal-from').value;
             const toDate = document.getElementById('block-modal-to').value;
             const action = document.querySelector('input[name="block-modal-action"]:checked')?.value || 'block';
+            const weekdays = Array.from(document.querySelectorAll('.block-modal-dow:checked')).map(cb => parseInt(cb.value, 10));
             const statusEl = document.getElementById('block-modal-status');
             if (!roomIds.length || !fromDate || !toDate) {
                 statusEl.textContent = '⚠️ Tick at least one room and pick both dates.';
@@ -57065,35 +57082,43 @@ const promo = await fetch('/api/v1/offers/validate', {
                 statusEl.style.color = '#dc2626';
                 return;
             }
+            // Map the radio to (block, hide_otas) pair.
+            //   block: null  = don't touch is_blocked
+            //   hide_otas: null = don't touch OTA visibility override
+            let payloadBlock = null, payloadHide = null, actionLabel = '';
+            if (action === 'block')          { payloadBlock = true;  payloadHide = null;  actionLabel = 'Blocked'; }
+            else if (action === 'unblock')   { payloadBlock = false; payloadHide = null;  actionLabel = 'Unblocked'; }
+            else if (action === 'website_only') { payloadBlock = false; payloadHide = true;  actionLabel = 'Set website-only'; }
+            else if (action === 'restore_otas') { payloadBlock = null;  payloadHide = false; actionLabel = 'Restored OTA visibility'; }
             const orig = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '⏳ Applying…';
             try {
-                // Fire per-room POSTs in parallel — endpoint takes one room
-                // per call. Small parallel fan-out (≤ N rooms) so this stays
-                // fast even for a whole 20-room property.
+                // Fan out per room to the bulk-apply endpoint. Server handles
+                // block + OTA hide + weekday filter + Channex re-push in one
+                // atomic call per room.
                 const results = await Promise.all(roomIds.map(async roomId => {
                     try {
-                        const r = await fetch('/api/admin/availability', {
+                        const r = await fetch(`/api/admin/units/${roomId}/bulk-apply`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
-                                room_id: roomId,
-                                from_date: fromDate,
-                                to_date: toDate,
-                                status: action === 'block' ? 'blocked' : 'available'
+                                from: fromDate, to: toDate,
+                                weekdays: weekdays,
+                                block: payloadBlock, hide_otas: payloadHide
                             })
                         });
                         const d = await r.json();
-                        return { roomId, ok: !!d.success, error: d.error };
+                        return { roomId, ok: !!d.success, count: d.count || 0, error: d.error };
                     } catch (e) {
                         return { roomId, ok: false, error: e.message };
                     }
                 }));
                 const ok = results.filter(r => r.ok);
                 const failed = results.filter(r => !r.ok);
+                const totalDates = ok.reduce((s, r) => s + (r.count || 0), 0);
                 if (failed.length === 0) {
-                    showNotification(`${action === 'block' ? 'Blocked' : 'Unblocked'} ${ok.length} room${ok.length === 1 ? '' : 's'}`, 'success');
+                    showNotification(`${actionLabel}: ${totalDates} date${totalDates === 1 ? '' : 's'} across ${ok.length} room${ok.length === 1 ? '' : 's'}`, 'success');
                     closeModal('blockUnblockModal');
                 } else if (ok.length > 0) {
                     statusEl.style.color = '#b45309';
