@@ -103037,11 +103037,17 @@ app.post('/api/public/book', async (req, res) => {
         }
       } else {
         // Legacy multi-unit: reject only when overlap count reaches quantity.
+        // 2026-08-04 — 'inquiry' added to the exclusion list. Native enquiries
+        // (booking_source='enquiry', status='inquiry') are non-blocking by
+        // design; the availability READ endpoint already excludes them (see
+        // 79505). Without excluding here too, a live enquiry silently
+        // blocked new bookings while the site still displayed the dates as
+        // available (Ryan Aines / Mark Panetti Feb 12-15 2027 GoSlope).
         const overlapCount = await pool.query(
           `SELECT COUNT(*)::int AS n
              FROM bookings
             WHERE bookable_unit_id = $1
-              AND status NOT IN ('cancelled', 'no_show', 'declined', 'event_hold')
+              AND status NOT IN ('cancelled', 'no_show', 'declined', 'event_hold', 'inquiry')
               AND arrival_date < $3::date AND departure_date > $2::date`,
           [unit_id, check_in, check_out]
         );
