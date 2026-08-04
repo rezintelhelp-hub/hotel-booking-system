@@ -4906,7 +4906,10 @@ jQuery(document).ready(function($) {
                 $room.find('.gas-room-price, .gas-room-row-price').html('<span class="gas-checking">⏳ Checking...</span>');
                 $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#6366f1', 'pointer-events': 'none'}).text(t('booking', 'checking_availability', 'Checking availability...'));
                 
-                // Use calculate-price for accurate pricing with tier support
+                // Use calculate-price for accurate pricing with tier support.
+                // Also pass linked_product so shop→book bridge injects the
+                // fixed-price package into per-room "prices from" too.
+                var _lpCard = new URLSearchParams(window.location.search).get('linked_product');
                 $.ajax({
                     url: gasBooking.apiUrl + '/api/public/calculate-price',
                     method: 'POST',
@@ -4917,7 +4920,8 @@ jQuery(document).ready(function($) {
                         check_out: checkout,
                         guests: parseInt($('.gas-guests').val()) || 2,
                         pricing_tier: gasBooking.pricingTier || 'standard',
-                        lang: currentLanguage
+                        lang: currentLanguage,
+                        linked_product: _lpCard ? parseInt(_lpCard, 10) : undefined
                     }),
                     success: function(response) {
                         console.log('Price for room ' + unitId + ':', response);
@@ -4954,7 +4958,14 @@ jQuery(document).ready(function($) {
                                     if (offer.pricing_tier && offer.pricing_tier !== 'standard' && offer.pricing_tier !== pricingTier) return;
                                     var baseTotal = offer.replaces_standard ? cmTotal : accommodationTotal;
                                     var offerTotal;
-                                    if (offer.price_per_night) {
+                                    // rate_plan_total is authoritative when
+                                    // present (CM-imported + shop-linked
+                                    // fixed_total). Mirror the detail-page
+                                    // renderer so "Prices from" reflects the
+                                    // actual bookable rate. Steve 2026-08-04.
+                                    if (offer.rate_plan_total != null) {
+                                        offerTotal = parseFloat(offer.rate_plan_total);
+                                    } else if (offer.price_per_night) {
                                         offerTotal = parseFloat(offer.price_per_night) * nights;
                                     } else if (offer.discount_type === 'percentage') {
                                         offerTotal = baseTotal * (1 - parseFloat(offer.discount_value) / 100);
