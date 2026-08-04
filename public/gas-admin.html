@@ -57069,6 +57069,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                 draggable.style.transform = '';
             }
             openModal('blockUnblockModal');
+            // Modeless: let the calendar behind stay clickable + scrollable
+            // while this panel floats on top. Backdrop becomes transparent
+            // + pass-through; the modal-content itself still catches clicks
+            // via pointer-events: auto. Steve 2026-08-04 asked so he can
+            // pick date ranges by looking at the calendar underneath.
+            const modalEl = document.getElementById('blockUnblockModal');
+            if (modalEl) {
+                modalEl.style.background = 'transparent';
+                modalEl.style.pointerEvents = 'none';
+                const dm = document.getElementById('block-modal-draggable');
+                if (dm) {
+                    dm.style.pointerEvents = 'auto';
+                    dm.style.boxShadow = '0 10px 40px rgba(0,0,0,0.35)';
+                }
+            }
         }
 
         function blockModalToggleAll(state) {
