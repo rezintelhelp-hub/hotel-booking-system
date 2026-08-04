@@ -56518,21 +56518,33 @@ app.post('/api/db/book', async (req, res) => {
           console.warn('[Beds24] access token lookup failed, continuing to V1 fallback:', tokErr.message);
         }
         
-        // Build payments array for any collected payment
+        // Build payments array for any collected payment.
+        // 2026-08-04 — tag descriptions with the Stripe pi_id (when
+        // present) so the later syncBeds24PaymentItem sweep's "by-pi"
+        // match recognises this booking-creation push as the same payment
+        // and skips its own duplicate. Without this tag, the sync helper
+        // saw "Deposit via GAS" (no pi, no 'stripe' string), matched
+        // neither the by-pi nor legacy regex, and pushed a second
+        // "Payment via Stripe pi_..." line — Cotswolds Amy Harding
+        // B564313 £911 doubled to £1822 on Beds24 display side.
+        const _piTag = stripe_payment_intent_id ? ' ' + stripe_payment_intent_id : '';
         const payments = [];
         const depositAmt = parseFloat(deposit_amount || 0);
         if (depositAmt > 0) {
           // Deposit was collected (Stripe or other)
           payments.push({
-            description: 'Deposit via GAS',
+            description: 'Deposit via GAS' + _piTag,
             amount: depositAmt,
             status: 'received',
             date: new Date().toISOString().split('T')[0]
           });
         } else if (parseFloat(total_price) > 0 && payment_method !== 'no_payment' && payment_method !== 'card_guarantee') {
           // Full payment or bank transfer — record as paid
+          const _baseDesc = payment_method === 'bank_transfer'
+            ? 'Bank Transfer (GAS)'
+            : ('Payment via GAS' + _piTag);
           payments.push({
-            description: payment_method === 'bank_transfer' ? 'Bank Transfer (GAS)' : 'Payment via GAS',
+            description: _baseDesc,
             amount: parseFloat(total_price),
             status: payment_method === 'bank_transfer' ? 'pending' : 'received',
             date: new Date().toISOString().split('T')[0]
@@ -63581,12 +63593,18 @@ async function syncBeds24PaymentItem(bookingId) {
       let match = piId ? existingPayments.find(p =>
         !claimedBeds24Ids.has(p.id) && (p.description || '').includes(piId)
       ) : null;
-      // (b) legacy match: same amount, description mentions Stripe, not yet claimed
+      // (b) legacy match: same amount, description is one of ours (any
+      //     of the descriptions the booking-creation Beds24 push or an
+      //     older sync run may have written). Includes the un-tagged
+      //     "Deposit via GAS" / "Payment via GAS" / "Bank Transfer (GAS)"
+      //     that predate the pi_id tagging (Cotswolds Amy Harding fix
+      //     2026-08-04 — Beds24 double lines).
       if (!match) {
+        const legacyRe = /stripe|deposit via gas|payment via gas|bank transfer\s*\(gas\)|balance payment/i;
         match = existingPayments.find(p =>
           !claimedBeds24Ids.has(p.id)
           && Math.round((parseFloat(p.amount) || 0) * 100) / 100 === amt
-          && /stripe/i.test(p.description || '')
+          && legacyRe.test(p.description || '')
         );
       }
       if (match) {
@@ -63596,15 +63614,36 @@ async function syncBeds24PaymentItem(bookingId) {
       }
       // No match — push new line with pi_id embedded for future idempotency.
       const desc = piId ? `Payment via Stripe ${piId}` : 'Payment via Stripe';
-      try {
-        const payload = [{ id: parseInt(row.beds24_booking_id), invoiceItems: [{ type: 'payment', description: desc, amount: amt }] }];
-        const resp = await axios.post('https://beds24.com/api/v2/bookings', payload, { headers });
-        const ok = Array.isArray(resp.data) && resp.data[0]?.success;
-        const newId = resp.data?.[0]?.new?.invoiceItems?.[0]?.id;
-        if (newId) claimedBeds24Ids.add(newId);
-        pushedLines.push({ tx: tx.id, amount: amt, description: desc, beds24_item: newId || null, success: !!ok });
-      } catch (pushErr) {
-        pushedLines.push({ tx: tx.id, amount: amt, description: desc, error: pushErr.response?.data ? JSON.stringify(pushErr.response.data).slice(0,150) : pushErr.message, success: false });
+      // Retry with backoff on transient failures (429 rate limit, 5xx).
+      // 2026-08-04 — Cotswolds Amy Harding B564245 missed her £791 push
+      // because a single 429 dropped the setImmediate call silently. Now
+      // we try 3× with 2s / 5s / 10s waits before giving up.
+      const _sleep = (ms) => new Promise(r => setTimeout(r, ms));
+      let attempt = 0, lastErr = null, pushOk = false, newIdOut = null;
+      const backoff = [0, 2000, 5000, 10000];
+      while (attempt < backoff.length) {
+        if (backoff[attempt] > 0) await _sleep(backoff[attempt]);
+        try {
+          const payload = [{ id: parseInt(row.beds24_booking_id), invoiceItems: [{ type: 'payment', description: desc, amount: amt }] }];
+          const resp = await axios.post('https://beds24.com/api/v2/bookings', payload, { headers });
+          const ok = Array.isArray(resp.data) && resp.data[0]?.success;
+          const newId = resp.data?.[0]?.new?.invoiceItems?.[0]?.id;
+          if (ok) { pushOk = true; newIdOut = newId; break; }
+          lastErr = new Error('beds24 push returned success=false: ' + JSON.stringify(resp.data).slice(0, 200));
+        } catch (pushErr) {
+          lastErr = pushErr;
+          const st = pushErr.response?.status;
+          // Only retry on transient (429 / 5xx / network). 4xx (except 429)
+          // means the payload is bad — retrying won't help.
+          if (st && st !== 429 && st < 500) break;
+        }
+        attempt++;
+      }
+      if (pushOk) {
+        if (newIdOut) claimedBeds24Ids.add(newIdOut);
+        pushedLines.push({ tx: tx.id, amount: amt, description: desc, beds24_item: newIdOut || null, success: true, attempts: attempt + 1 });
+      } else {
+        pushedLines.push({ tx: tx.id, amount: amt, description: desc, error: lastErr?.response?.data ? JSON.stringify(lastErr.response.data).slice(0,150) : lastErr?.message, success: false, attempts: attempt });
       }
     }
     const allOk = pushedLines.every(p => p.success !== false);
