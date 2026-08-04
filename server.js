@@ -13805,32 +13805,22 @@ function _normaliseCountryToIso2(input) {
   return null;
 }
 
-// POST /api/admin/channex/:connectionId/sync-property-content — push a
-// GAS property's content (description, phone, timezone, address, images,
-// hotel/cancellation policies) up to its Channex counterpart. Idempotent,
-// only updates fields present on the GAS side. Used to onboard clients
-// for Google Hotel Search (Channex requires phone/timezone/description/
-// photos/policy fields before enabling the channel). Steve 2026-08-04.
-// Body: { gas_property_id }
-app.post('/api/admin/channex/:connectionId/sync-property-content', async (req, res) => {
+// Reusable helper: push a GAS property's content (description, phone,
+// timezone, address, photos, hotel/cancellation policies, facilities) to
+// its Channex counterpart. Called from the /sync-property-content endpoint
+// AND fire-and-forget from the property save flow so GAS remains the
+// single source of truth. Returns { success, ... } — never throws.
+async function pushGasPropertyContentToChannex(gasPropertyId, connectionId) {
   try {
-    const connectionId = parseInt(req.params.connectionId);
-    const { gas_property_id } = req.body;
-    if (!connectionId || !gas_property_id) {
-      return res.status(400).json({ success: false, error: 'connectionId + gas_property_id required' });
-    }
-    // Load GAS property + descriptions from various columns (JSONB _ml
-    // fields take priority; fall back to plain text). Extracts English
-    // from JSONB, since Channex only stores one description.
+    if (!gasPropertyId || !connectionId) return { success: false, error: 'gas_property_id + connectionId required' };
     const propRow = await pool.query(
       `SELECT id, name, address, city, country, postal_code, timezone, currency, phone,
               description, full_description, short_description, location_description,
               cancellation_policy, house_rules, check_in_time, check_out_time,
               facilities, account_id, latitude, longitude
-         FROM properties WHERE id = $1`, [gas_property_id]);
-    if (!propRow.rows[0]) return res.status(404).json({ success: false, error: 'GAS property not found' });
+         FROM properties WHERE id = $1`, [gasPropertyId]);
+    if (!propRow.rows[0]) return { success: false, error: 'GAS property not found' };
     const prop = propRow.rows[0];
-
     const pickText = (val) => {
       if (!val) return null;
       if (typeof val === 'string') return val.trim() || null;
@@ -13841,25 +13831,18 @@ app.post('/api/admin/channex/:connectionId/sync-property-content', async (req, r
                      || pickText(prop.description)
                      || pickText(prop.short_description)
                      || pickText(prop.location_description);
-
-    // Look up Channex property external_id
     const sp = await pool.query(
       `SELECT external_id FROM gas_sync_properties WHERE connection_id = $1 AND gas_property_id = $2 LIMIT 1`,
-      [connectionId, gas_property_id]);
-    if (!sp.rows[0]) return res.status(404).json({ success: false, error: 'Property not linked to Channex — push-property first' });
+      [connectionId, gasPropertyId]);
+    if (!sp.rows[0]) return { success: false, error: 'Property not linked to Channex — push-property first' };
     const channexPropertyId = sp.rows[0].external_id;
-
     const { SyncManager } = require('./gas-sync/adapters');
     const adapter = await new SyncManager(pool).getAdapterForConnection(connectionId);
-
     const countryIso2 = _normaliseCountryToIso2(prop.country) || 'GB';
-    // Build a compact hotel-policy blob from check-in/out times + house
-    // rules + cancellation policy. Channex accepts free text — clients see
-    // this on OTA listings + booking confirmations.
     const _polParts = [];
     if (prop.check_in_time)  _polParts.push(`Check-in from ${prop.check_in_time}`);
     if (prop.check_out_time) _polParts.push(`Check-out by ${prop.check_out_time}`);
-    if (prop.house_rules)    _polParts.push(String(prop.house_rules).trim());
+    if (prop.house_rules)    _polParts.push(pickText(prop.house_rules) || String(prop.house_rules).trim());
     if (prop.cancellation_policy) _polParts.push('Cancellation: ' + String(prop.cancellation_policy).trim());
     const hotelPolicyText = _polParts.filter(Boolean).join('\n\n') || null;
     const facilitiesArr = Array.isArray(prop.facilities) ? prop.facilities : [];
@@ -13877,13 +13860,11 @@ app.post('/api/admin/channex/:connectionId/sync-property-content', async (req, r
       facilities: facilitiesArr.length ? facilitiesArr : undefined,
     };
     const updRes = await adapter.updateProperty(channexPropertyId, updatePayload);
-
-    // Photos — property_images table for property-level shots.
     let photoRes = null;
     try {
       const imgs = await pool.query(
         `SELECT image_url FROM property_images WHERE property_id = $1 AND (is_hidden IS NULL OR is_hidden = false) ORDER BY sort_order NULLS LAST, id LIMIT 20`,
-        [gas_property_id]).catch(() => ({ rows: [] }));
+        [gasPropertyId]).catch(() => ({ rows: [] }));
       const urls = imgs.rows.map(r => r.image_url).filter(Boolean);
       if (urls.length > 0) {
         photoRes = await adapter.setPropertyPhotos(channexPropertyId, urls);
@@ -13893,18 +13874,51 @@ app.post('/api/admin/channex/:connectionId/sync-property-content', async (req, r
     } catch (photoErr) {
       photoRes = { success: false, error: photoErr.message };
     }
-
-    res.json({
+    return {
       success: !!updRes.success,
       channex_property_id: channexPropertyId,
       updated: updRes,
       photos: photoRes,
       description_source_present: !!description,
-    });
+    };
   } catch (e) {
-    console.error('[sync-property-content]', e.message);
-    res.status(500).json({ success: false, error: e.message });
+    console.error('[pushGasPropertyContentToChannex]', e.message);
+    return { success: false, error: e.message };
   }
+}
+
+// Convenience: find the account's Channex connection and push. Used by the
+// property-save auto-fire so callers don't need to know the connection id.
+async function autoPushPropertyContentIfChannexConnected(gasPropertyId) {
+  try {
+    const c = await pool.query(
+      `SELECT c.id FROM gas_sync_connections c
+        JOIN properties p ON p.account_id = c.account_id
+        WHERE p.id = $1
+          AND c.adapter_code IN ('channex','channex-marketplace')
+          AND COALESCE(c.status,'') <> 'deleted'
+        ORDER BY c.id DESC LIMIT 1`, [gasPropertyId]);
+    if (!c.rows[0]) return { success: true, skipped: 'no-channex-connection' };
+    const result = await pushGasPropertyContentToChannex(gasPropertyId, c.rows[0].id);
+    console.log(`[autoPushPropertyContent] property=${gasPropertyId} conn=${c.rows[0].id} success=${result.success}`);
+    return result;
+  } catch (e) {
+    console.warn('[autoPushPropertyContent] wiring failed:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// POST /api/admin/channex/:connectionId/sync-property-content — thin
+// wrapper around the reusable helper.
+app.post('/api/admin/channex/:connectionId/sync-property-content', async (req, res) => {
+  const connectionId = parseInt(req.params.connectionId);
+  const { gas_property_id } = req.body;
+  if (!connectionId || !gas_property_id) {
+    return res.status(400).json({ success: false, error: 'connectionId + gas_property_id required' });
+  }
+  const result = await pushGasPropertyContentToChannex(parseInt(gas_property_id, 10), connectionId);
+  const status = result.success ? 200 : (result.error === 'GAS property not found' ? 404 : 500);
+  res.status(status).json(result);
 });
 
 // POST /api/admin/channex/:connectionId/push-property — programmatically
@@ -55435,6 +55449,20 @@ app.put('/api/db/properties/:id', async (req, res) => {
       runBookingCutoffCloseOutForProperty(id).catch(err => {
         console.warn(`[property-cutoff-save] close-out for property ${id} failed:`, err && err.message);
       });
+    }
+
+    // Auto-push property content to Channex — GAS is the source of truth,
+    // Channex is the mirror. Only fires when a content field was actually
+    // in the request (avoids pointless pushes on non-content saves like
+    // owner-linking / show-on-portfolio toggle). Fire-and-forget so the
+    // save response isn't held up by Channex API latency. Steve 2026-08-04
+    // — replaces the manual "Push content to Channex" button for the
+    // common case; the button stays for on-demand re-sync.
+    const _contentFields = ['description', 'phone', 'timezone', 'check_in_time', 'check_out_time', 'house_rules', 'facilities', 'name', 'address', 'city', 'country', 'zip_code'];
+    if (_contentFields.some(k => req.body.hasOwnProperty(k))) {
+      setImmediate(() => autoPushPropertyContentIfChannexConnected(id).catch(err => {
+        console.warn(`[property-save channex auto-push] property ${id} failed:`, err && err.message);
+      }));
     }
 
     res.json({ success: true, data: result.rows[0] });
