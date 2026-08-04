@@ -154592,8 +154592,27 @@ async function processAutoChargePayments() {
                 // the customer twice. Cross-day protection is the ledger
                 // check at the top of this loop iteration.
                 const idempotencyKey = `auto-charge-${booking.booking_id}-${new Date().toISOString().slice(0, 10)}`;
+                // Compute the outstanding amount FROM THE LEDGER, not from
+                // booking.balance_amount. balance_amount is a snapshot taken
+                // at booking creation and never recalculates when extras or
+                // taxes get added later — Mornington Rose 2026-08-04, Paul
+                // Childerhose / Keith Hanlan / Simon Fisher all under-charged
+                // by £33.90 because MAT + HST were added to grand_total AFTER
+                // the deposit/balance split was set. grand_total minus the
+                // real paid sum is always the correct outstanding number.
+                // Cap at 0 so a stale balance_amount that's greater than
+                // (grand_total - paid) can never over-charge either.
+                const _outstanding = Math.max(
+                    0,
+                    Math.round((parseFloat(booking.grand_total || 0) - alreadyPaid) * 100) / 100
+                );
+                if (_outstanding <= 0.005) {
+                    console.log(`[AUTO-CHARGE] SKIP booking ${booking.booking_id} — outstanding £${_outstanding.toFixed(2)} (grand ${booking.grand_total} - paid ${alreadyPaid})`);
+                    continue;
+                }
+                console.log(`[AUTO-CHARGE] booking ${booking.booking_id} charging £${_outstanding.toFixed(2)} (grand ${booking.grand_total} - paid ${alreadyPaid}). Stored balance_amount was ${booking.balance_amount}${(Math.abs(_outstanding - parseFloat(booking.balance_amount || 0)) > 0.01 ? ' [STALE — using ledger-derived value]' : '')}`);
                 const paymentIntent = await stripeClient.paymentIntents.create({
-                    amount: toStripeAmount(booking.balance_amount, chargeCurrency),
+                    amount: toStripeAmount(_outstanding, chargeCurrency),
                     currency: chargeCurrency,
                     customer: stripeCustomerId,
                     payment_method: booking.stripe_payment_method_id,
