@@ -101112,8 +101112,8 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
 // Calculate price for dates (public) - supports offers, vouchers, upsells
 app.post('/api/public/calculate-price', async (req, res) => {
   try {
-    const { unit_id, check_in, check_out, guests, adults, children, voucher_code, upsells } = req.body;
-    
+    const { unit_id, check_in, check_out, guests, adults, children, voucher_code, upsells, linked_product } = req.body;
+
     if (!unit_id || !check_in || !check_out) {
       return res.json({ success: false, error: 'unit_id, check_in, and check_out required' });
     }
@@ -102527,6 +102527,43 @@ app.post('/api/public/calculate-price', async (req, res) => {
       let minLeft = Infinity;
       Object.values(poolDayMap).forEach(v => { if (v < minLeft) minLeft = v; });
       availableCount = minLeft === Infinity ? 0 : minLeft;
+    }
+
+    // Shop → book bridge: if the guest arrived via a shop product's
+    // "Book This Package →" button, inject the shop product as a fixed-total
+    // rate line so the widget offers it alongside Standard / Non-cancellable.
+    // Only surfaces when the picked nights matches the product's declared
+    // duration AND the room is on the product's property (or product has no
+    // property scope). Steve 2026-08-04. Fixed-price packages are shop-only
+    // per project_shop_fixed_price_packages_usp.md.
+    if (linked_product && Number.isFinite(parseInt(linked_product, 10))) {
+      try {
+        const spR = await pool.query(
+          `SELECT id, name, description, price, event_duration_nights, property_id, account_id, is_active
+             FROM shop_products WHERE id = $1 LIMIT 1`,
+          [parseInt(linked_product, 10)]);
+        const sp = spR.rows[0];
+        if (sp && sp.is_active && parseFloat(sp.price) > 0
+            && (!sp.event_duration_nights || parseInt(sp.event_duration_nights, 10) === nights)
+            && (!sp.property_id || parseInt(sp.property_id, 10) === parseInt(roomData.property_id, 10))) {
+          const shopTotal = Math.round(parseFloat(sp.price) * 100) / 100;
+          allOffers = allOffers || [];
+          allOffers.unshift({
+            id: `shop-${sp.id}`,
+            name: sp.name,
+            description: sp.description || `Package price for ${nights} nights.`,
+            discount_type: 'fixed_total',
+            discount_value: shopTotal,
+            hide_discount_badge: false,
+            replaces_standard: false,
+            source: 'shop_link',
+            rate_plan_total: shopTotal,
+            price_per_night: Math.round((shopTotal / nights) * 100) / 100,
+          });
+        }
+      } catch (spErr) {
+        console.warn('[calculate-price linked_product]', spErr.message);
+      }
     }
 
     res.json({

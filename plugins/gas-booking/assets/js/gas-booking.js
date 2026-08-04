@@ -3801,6 +3801,10 @@ jQuery(document).ready(function($) {
         var numChildren = parseInt(children) || parseInt($('.gas-children').val()) || 0;
         var totalGuests = numAdults + numChildren;
         
+        // Shop → book bridge: if we arrived via a shop product's
+        // "Book This Package →" button, pass linked_product so the server
+        // can inject the shop product as a fixed-total rate option.
+        var _lp = new URLSearchParams(window.location.search).get('linked_product');
         $.ajax({
             url: gasBooking.apiUrl + '/api/public/calculate-price',
             method: 'POST',
@@ -3816,7 +3820,8 @@ jQuery(document).ready(function($) {
                 voucher_code: voucherCode,
                 rate_type: selectedRate,
                 pricing_tier: gasBooking.pricingTier || 'standard',
-                lang: currentLanguage
+                lang: currentLanguage,
+                linked_product: _lp ? parseInt(_lp, 10) : undefined
             }),
             success: function(response) {
                 var currency = resolveCurrency($roomWidget.data('currency'));
