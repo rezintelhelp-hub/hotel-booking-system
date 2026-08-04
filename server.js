@@ -70098,13 +70098,16 @@ async function mirrorOfferToChannex(pool, offer) {
       roomId
     ]);
 
-    // Push 500 days of discounted per-night prices. Read standard_price
+    // Push 730 days of discounted per-night prices. Read standard_price
     // + per-date min-stay override from room_availability, fall back to
     // the offer's own min-stay setting, then property.standard_min_stay,
     // then 1. GAS is the PMS — Channex mirrors what we say.
+    // 2026-08-04 — bumped from 500 to 730 to match the availability-
+    // extender horizon; Expedia hides properties with < ~730 days of
+    // forward data (they treat it as a Purchase Window cap).
     const today = new Date(); today.setUTCHours(0, 0, 0, 0);
     const startStr = today.toISOString().slice(0, 10);
-    const endStr = new Date(today.getTime() + 500 * 86400000).toISOString().slice(0, 10);
+    const endStr = new Date(today.getTime() + 730 * 86400000).toISOString().slice(0, 10);
     const priceRes = await pool.query(`
       SELECT date::text AS date, standard_price,
              COALESCE(min_stay_override, min_stay) AS min_stay
@@ -126117,7 +126120,11 @@ setInterval(runBeds24AvailabilityHeal, 30 * 60 * 1000);
 // OTAs pick it up within seconds.
 // =====================================================
 async function runChannexAvailabilityExtender(options = {}) {
-  const HORIZON_DAYS = options.horizonDays || 500;
+  // 2026-08-04 — Charles House Expedia rejection: Expedia hides properties
+  // that only expose 500 days of forward availability (they read the push
+  // horizon as a "Purchase Window" cap). Extended to 730 days (2 years).
+  // Rolling cron still runs every 6h → today+730 stays fresh naturally.
+  const HORIZON_DAYS = options.horizonDays || 730;
   const SAMPLE_DAYS  = 60;   // days back used to detect the pattern
   const MIN_SAMPLE   = 14;   // rooms with less than this get skipped
   const accountFilter = options.accountId ? 'AND p.account_id = $1' : '';
