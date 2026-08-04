@@ -30474,13 +30474,38 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div id="force-reconcile-status" style="margin-top: 0.5rem; font-size: 0.8rem; color: #64748b;"></div>
                 </div>
 
+                <!-- Facilities — pushed to Channex → Google Hotel Search requires ≥1. -->
+                <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🛎️ Facilities</h4>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.5rem;">Tick what's on offer. Pushed to Channex + OTAs.</p>
+                    <div id="edit-property-facilities" style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+                        <!-- Populated by initPropertyFacilityCheckboxes(). Slugs kept in sync with common Channex taxonomy. -->
+                    </div>
+                </div>
+
+                <!-- House rules + Check-in/Check-out times — form the Channex "hotel_policy" block. -->
+                <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">📜 Hotel policy</h4>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:0.75rem;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label class="form-label">Check-in time</label>
+                            <input type="text" class="form-input" id="edit-property-checkin-time" placeholder="15:00">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label class="form-label">Check-out time</label>
+                            <input type="text" class="form-input" id="edit-property-checkout-time" placeholder="11:00">
+                        </div>
+                    </div>
+                    <label class="form-label">House rules</label>
+                    <textarea class="form-input" id="edit-property-house-rules" rows="4" placeholder="No smoking. No parties. Quiet hours 22:00–08:00. Pets by prior arrangement only." style="width: 100%; font-size:0.9rem;"></textarea>
+                </div>
+
                 <!-- Channex content push — description, phone, timezone, address,
-                     property images. Pre-req for Google Hotel Search onboarding
-                     (Channex requires those fields populated on their property
-                     before Google will pick up the listing). Steve 2026-08-04. -->
+                     property images, facilities, hotel policy. Pre-req for Google
+                     Hotel Search onboarding. Steve 2026-08-04. -->
                 <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
                     <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">📤 Push property content to Channex</h4>
-                    <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">Pushes description, phone, timezone, address, and property images to Channex. Required for Google Hotel Search / OTA content parity. Run after editing the fields above.</p>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">Pushes description, phone, timezone, address, property images, facilities, hotel policy, cancellation policy to Channex. Required for Google Hotel Search / OTA content parity. Run after editing the fields above.</p>
                     <button type="button" class="btn btn-secondary" onclick="pushPropertyContentToChannex()" style="font-size: 0.85rem; background: linear-gradient(135deg,#6366f1,#4338ca);">📤 Push content to Channex</button>
                 </div>
 
@@ -78595,6 +78620,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Phone + timezone
                     document.getElementById('edit-property-phone').value = prop.phone || '';
                     document.getElementById('edit-property-timezone').value = prop.timezone || '';
+                    // Hotel policy fields
+                    document.getElementById('edit-property-checkin-time').value = prop.check_in_time || '';
+                    document.getElementById('edit-property-checkout-time').value = prop.check_out_time || '';
+                    document.getElementById('edit-property-house-rules').value = prop.house_rules || '';
+                    // Facilities — 15 common ones, checkboxes. Slugs align with Channex taxonomy.
+                    const _FACILITY_OPTIONS = [
+                        ['wifi','WiFi'],['parking','Parking'],['breakfast','Breakfast'],
+                        ['air_conditioning','Air conditioning'],['kitchen','Kitchen'],
+                        ['tv','TV'],['pool','Pool'],['gym','Gym'],
+                        ['pet_friendly','Pet friendly'],['family_friendly','Family friendly'],
+                        ['restaurant','Restaurant'],['bar','Bar'],['spa','Spa'],
+                        ['shuttle','Airport shuttle'],['laundry','Laundry']
+                    ];
+                    const currentFacilities = Array.isArray(prop.facilities) ? prop.facilities : (prop.facilities ? [] : []);
+                    const facWrap = document.getElementById('edit-property-facilities');
+                    if (facWrap) {
+                        facWrap.innerHTML = _FACILITY_OPTIONS.map(([slug, label]) => {
+                            const on = currentFacilities.includes(slug);
+                            return `<label style="display:flex;align-items:center;gap:0.35rem;padding:0.3rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.82rem;"><input type="checkbox" class="edit-property-facility" value="${slug}" ${on ? 'checked' : ''}>${label}</label>`;
+                        }).join('');
+                    }
                     // Populate "Copy from Room" dropdown with the property's rooms
                     (async function () {
                         try {
@@ -79332,6 +79378,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 description: document.getElementById('edit-property-description')?.value?.trim() || null,
                 phone: document.getElementById('edit-property-phone')?.value?.trim() || null,
                 timezone: document.getElementById('edit-property-timezone')?.value?.trim() || null,
+                check_in_time: document.getElementById('edit-property-checkin-time')?.value?.trim() || null,
+                check_out_time: document.getElementById('edit-property-checkout-time')?.value?.trim() || null,
+                house_rules: document.getElementById('edit-property-house-rules')?.value?.trim() || null,
+                facilities: Array.from(document.querySelectorAll('.edit-property-facility:checked')).map(cb => cb.value),
                 display_name: displayNameEn,
                 show_on_portfolio: document.getElementById('edit-property-show-portfolio').checked,
                 portfolio_display: portfolioData,

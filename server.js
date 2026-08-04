@@ -7361,6 +7361,12 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS short_description TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS full_description TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS house_rules TEXT');
+    // 2026-08-04 — facilities as JSONB array of slugs (wifi, parking,
+    // breakfast, air_conditioning, kitchen, tv, pool, gym, pet_friendly,
+    // restaurant, bar, spa, shuttle, laundry, family_friendly). Pushed to
+    // Channex for the Google Hotel Search requirement.
+    await pool.query("ALTER TABLE properties ADD COLUMN IF NOT EXISTS facilities JSONB DEFAULT '[]'::jsonb").catch(() => {});
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS check_out_time VARCHAR(10)').catch(() => {});
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS cancellation_policy TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS terms_conditions TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS directions TEXT');
@@ -13819,7 +13825,8 @@ app.post('/api/admin/channex/:connectionId/sync-property-content', async (req, r
     const propRow = await pool.query(
       `SELECT id, name, address, city, country, postal_code, timezone, currency, phone,
               description, full_description, short_description, location_description,
-              cancellation_policy, account_id, latitude, longitude
+              cancellation_policy, house_rules, check_in_time, check_out_time,
+              facilities, account_id, latitude, longitude
          FROM properties WHERE id = $1`, [gas_property_id]);
     if (!propRow.rows[0]) return res.status(404).json({ success: false, error: 'GAS property not found' });
     const prop = propRow.rows[0];
@@ -13846,6 +13853,16 @@ app.post('/api/admin/channex/:connectionId/sync-property-content', async (req, r
     const adapter = await new SyncManager(pool).getAdapterForConnection(connectionId);
 
     const countryIso2 = _normaliseCountryToIso2(prop.country) || 'GB';
+    // Build a compact hotel-policy blob from check-in/out times + house
+    // rules + cancellation policy. Channex accepts free text — clients see
+    // this on OTA listings + booking confirmations.
+    const _polParts = [];
+    if (prop.check_in_time)  _polParts.push(`Check-in from ${prop.check_in_time}`);
+    if (prop.check_out_time) _polParts.push(`Check-out by ${prop.check_out_time}`);
+    if (prop.house_rules)    _polParts.push(String(prop.house_rules).trim());
+    if (prop.cancellation_policy) _polParts.push('Cancellation: ' + String(prop.cancellation_policy).trim());
+    const hotelPolicyText = _polParts.filter(Boolean).join('\n\n') || null;
+    const facilitiesArr = Array.isArray(prop.facilities) ? prop.facilities : [];
     const updatePayload = {
       title: prop.name || undefined,
       phone: prop.phone || undefined,
@@ -13856,7 +13873,8 @@ app.post('/api/admin/channex/:connectionId/sync-property-content', async (req, r
       zipCode: prop.postal_code || undefined,
       currency: prop.currency || undefined,
       description: description || undefined,
-      hotelPolicy: pickText(prop.cancellation_policy) || undefined,
+      hotelPolicy: hotelPolicyText || undefined,
+      facilities: facilitiesArr.length ? facilitiesArr : undefined,
     };
     const updRes = await adapter.updateProperty(channexPropertyId, updatePayload);
 
@@ -55277,7 +55295,9 @@ app.put('/api/db/properties/:id', async (req, res) => {
       // 2026-08-04 — property-level phone + timezone. Needed by the
       // GAS→Channex content push so Google Hotel Search accepts the
       // property (both are required Channex fields for that channel).
-      phone, timezone
+      phone, timezone,
+      // Hotel policy inputs + facilities (all pushed to Channex).
+      check_in_time, check_out_time, house_rules, facilities
     } = req.body;
 
     // If only account_id provided, do simple update
@@ -55331,8 +55351,12 @@ app.put('/api/db/properties/:id', async (req, res) => {
           standard_rate_features = COALESCE($20::jsonb, standard_rate_features),
           same_day_cutoff_time = CASE WHEN $24::bool THEN $22::time ELSE same_day_cutoff_time END,
           min_advance_hours    = CASE WHEN $25::bool THEN $23::integer ELSE min_advance_hours END,
-          phone    = COALESCE($26, phone),
-          timezone = COALESCE($27, timezone),
+          phone           = COALESCE($26, phone),
+          timezone        = COALESCE($27, timezone),
+          check_in_time   = COALESCE($28, check_in_time),
+          check_out_time  = COALESCE($29, check_out_time),
+          house_rules     = COALESCE($30, house_rules),
+          facilities      = COALESCE($31::jsonb, facilities),
           updated_at = NOW()
         WHERE id = $21
         RETURNING *`,
@@ -55353,7 +55377,11 @@ app.put('/api/db/properties/:id', async (req, res) => {
          req.body.hasOwnProperty('same_day_cutoff_time'),
          req.body.hasOwnProperty('min_advance_hours'),
          phone !== undefined ? (phone && String(phone).trim() ? String(phone).trim() : null) : null,
-         timezone !== undefined ? (timezone && String(timezone).trim() ? String(timezone).trim() : null) : null]
+         timezone !== undefined ? (timezone && String(timezone).trim() ? String(timezone).trim() : null) : null,
+         check_in_time !== undefined ? (check_in_time || null) : null,
+         check_out_time !== undefined ? (check_out_time || null) : null,
+         house_rules !== undefined ? (house_rules || null) : null,
+         facilities !== undefined ? JSON.stringify(Array.isArray(facilities) ? facilities : []) : null]
       );
     } catch (queryErr) {
       // Fallback if new columns don't exist yet (pre-migration)
