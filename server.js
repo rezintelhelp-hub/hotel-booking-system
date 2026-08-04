@@ -35317,61 +35317,97 @@ app.post('/api/public/payment-failed', async (req, res) => {
           console.error('[payment-failed] PERSIST FAILURE — no GAS audit row created:', persistErr.message);
         }
 
-        // Translations for the failed payment email
+        // Translations for the owner notification email. Two flavours: an
+        // ENQUIRY (guest explicitly picked "enquire") vs a genuine payment
+        // failure. Same body shape, different subject/heading/subheading/tip.
+        // Steve 2026-08-04 — until today all enquiries got the "Failed
+        // Payment" subject, which read as tech error rather than "someone's
+        // interested".
+        const isEnquiry = payment_type === 'enquiry';
         const emailT = {
             en: {
-                subject: `Failed Payment — ${guest_first_name} ${guest_last_name} tried to book ${unit.room_name}`,
-                heading: 'Failed Payment — Booking Opportunity',
-                subheading: 'A guest tried to book but payment failed. Contact them to complete the booking.',
+                subject: isEnquiry
+                    ? `New Enquiry — ${guest_first_name} ${guest_last_name} for ${unit.room_name}`
+                    : `Failed Payment — ${guest_first_name} ${guest_last_name} tried to book ${unit.room_name}`,
+                heading: isEnquiry ? 'New Enquiry — Booking Opportunity' : 'Failed Payment — Booking Opportunity',
+                subheading: isEnquiry
+                    ? 'A guest sent an enquiry for these dates. Reply to convert it into a booking.'
+                    : 'A guest tried to book but payment failed. Contact them to complete the booking.',
                 guestDetails: 'Guest Details', guest: 'Guest', email: 'Email', phone: 'Phone',
                 bookingDetails: 'Booking Details', property: 'Property', room: 'Room',
                 checkIn: 'Check-in', checkOut: 'Check-out', guests: 'Guests', total: 'Total',
-                paymentFailed: 'Payment Failed',
-                tip: 'Reply to this guest quickly before they book elsewhere. Offer them an alternative payment method such as bank transfer.',
+                paymentFailed: isEnquiry ? 'Enquiry' : 'Payment Failed',
+                tip: isEnquiry
+                    ? 'Reply to this enquiry quickly — the dates are NOT held; another guest can still book them.'
+                    : 'Reply to this guest quickly before they book elsewhere. Offer them an alternative payment method such as bank transfer.',
                 tipLabel: 'Tip'
             },
             de: {
-                subject: `Fehlgeschlagene Zahlung — ${guest_first_name} ${guest_last_name} wollte ${unit.room_name} buchen`,
-                heading: 'Fehlgeschlagene Zahlung — Buchungsanfrage',
-                subheading: 'Ein Gast hat versucht zu buchen, aber die Zahlung ist fehlgeschlagen. Kontaktieren Sie ihn, um die Buchung abzuschliessen.',
+                subject: isEnquiry
+                    ? `Neue Anfrage — ${guest_first_name} ${guest_last_name} fuer ${unit.room_name}`
+                    : `Fehlgeschlagene Zahlung — ${guest_first_name} ${guest_last_name} wollte ${unit.room_name} buchen`,
+                heading: isEnquiry ? 'Neue Anfrage — Buchungsmoeglichkeit' : 'Fehlgeschlagene Zahlung — Buchungsanfrage',
+                subheading: isEnquiry
+                    ? 'Ein Gast hat eine Anfrage fuer diese Daten gesendet. Antworten Sie, um sie in eine Buchung umzuwandeln.'
+                    : 'Ein Gast hat versucht zu buchen, aber die Zahlung ist fehlgeschlagen. Kontaktieren Sie ihn, um die Buchung abzuschliessen.',
                 guestDetails: 'Gastdaten', guest: 'Gast', email: 'E-Mail', phone: 'Telefon',
                 bookingDetails: 'Buchungsdetails', property: 'Unterkunft', room: 'Zimmer',
                 checkIn: 'Anreise', checkOut: 'Abreise', guests: 'Gaeste', total: 'Gesamt',
-                paymentFailed: 'Zahlung fehlgeschlagen',
-                tip: 'Antworten Sie diesem Gast schnell, bevor er woanders bucht. Bieten Sie eine alternative Zahlungsmethode wie Bankueberweisung an.',
+                paymentFailed: isEnquiry ? 'Anfrage' : 'Zahlung fehlgeschlagen',
+                tip: isEnquiry
+                    ? 'Antworten Sie schnell auf diese Anfrage — die Daten sind NICHT reserviert; ein anderer Gast kann sie noch buchen.'
+                    : 'Antworten Sie diesem Gast schnell, bevor er woanders bucht. Bieten Sie eine alternative Zahlungsmethode wie Bankueberweisung an.',
                 tipLabel: 'Tipp'
             },
             fr: {
-                subject: `Paiement echoue — ${guest_first_name} ${guest_last_name} a tente de reserver ${unit.room_name}`,
-                heading: 'Paiement echoue — Opportunite de reservation',
-                subheading: 'Un client a tente de reserver mais le paiement a echoue. Contactez-le pour finaliser la reservation.',
+                subject: isEnquiry
+                    ? `Nouvelle demande — ${guest_first_name} ${guest_last_name} pour ${unit.room_name}`
+                    : `Paiement echoue — ${guest_first_name} ${guest_last_name} a tente de reserver ${unit.room_name}`,
+                heading: isEnquiry ? 'Nouvelle demande — Opportunite de reservation' : 'Paiement echoue — Opportunite de reservation',
+                subheading: isEnquiry
+                    ? 'Un client a envoye une demande pour ces dates. Repondez pour la convertir en reservation.'
+                    : 'Un client a tente de reserver mais le paiement a echoue. Contactez-le pour finaliser la reservation.',
                 guestDetails: 'Coordonnees du client', guest: 'Client', email: 'E-mail', phone: 'Telephone',
                 bookingDetails: 'Details de la reservation', property: 'Propriete', room: 'Chambre',
                 checkIn: 'Arrivee', checkOut: 'Depart', guests: 'Voyageurs', total: 'Total',
-                paymentFailed: 'Paiement echoue',
-                tip: 'Repondez rapidement a ce client avant qu\'il reserve ailleurs. Proposez un mode de paiement alternatif comme le virement bancaire.',
+                paymentFailed: isEnquiry ? 'Demande' : 'Paiement echoue',
+                tip: isEnquiry
+                    ? 'Repondez rapidement a cette demande — les dates NE sont PAS reservees ; un autre client peut encore les prendre.'
+                    : 'Repondez rapidement a ce client avant qu\'il reserve ailleurs. Proposez un mode de paiement alternatif comme le virement bancaire.',
                 tipLabel: 'Conseil'
             },
             es: {
-                subject: `Pago fallido — ${guest_first_name} ${guest_last_name} intento reservar ${unit.room_name}`,
-                heading: 'Pago fallido — Oportunidad de reserva',
-                subheading: 'Un huesped intento reservar pero el pago fallo. Contactelo para completar la reserva.',
+                subject: isEnquiry
+                    ? `Nueva consulta — ${guest_first_name} ${guest_last_name} para ${unit.room_name}`
+                    : `Pago fallido — ${guest_first_name} ${guest_last_name} intento reservar ${unit.room_name}`,
+                heading: isEnquiry ? 'Nueva consulta — Oportunidad de reserva' : 'Pago fallido — Oportunidad de reserva',
+                subheading: isEnquiry
+                    ? 'Un huesped envio una consulta para estas fechas. Responda para convertirla en una reserva.'
+                    : 'Un huesped intento reservar pero el pago fallo. Contactelo para completar la reserva.',
                 guestDetails: 'Datos del huesped', guest: 'Huesped', email: 'Correo', phone: 'Telefono',
                 bookingDetails: 'Detalles de la reserva', property: 'Propiedad', room: 'Habitacion',
                 checkIn: 'Entrada', checkOut: 'Salida', guests: 'Huespedes', total: 'Total',
-                paymentFailed: 'Pago fallido',
-                tip: 'Responda a este huesped rapidamente antes de que reserve en otro lugar. Ofrezcale un metodo de pago alternativo como transferencia bancaria.',
+                paymentFailed: isEnquiry ? 'Consulta' : 'Pago fallido',
+                tip: isEnquiry
+                    ? 'Responda a esta consulta rapidamente — las fechas NO estan bloqueadas; otro huesped aun puede reservarlas.'
+                    : 'Responda a este huesped rapidamente antes de que reserve en otro lugar. Ofrezcale un metodo de pago alternativo como transferencia bancaria.',
                 tipLabel: 'Consejo'
             },
             nl: {
-                subject: `Betaling mislukt — ${guest_first_name} ${guest_last_name} probeerde ${unit.room_name} te boeken`,
-                heading: 'Betaling mislukt — Boekingskans',
-                subheading: 'Een gast probeerde te boeken maar de betaling is mislukt. Neem contact op om de boeking te voltooien.',
+                subject: isEnquiry
+                    ? `Nieuwe aanvraag — ${guest_first_name} ${guest_last_name} voor ${unit.room_name}`
+                    : `Betaling mislukt — ${guest_first_name} ${guest_last_name} probeerde ${unit.room_name} te boeken`,
+                heading: isEnquiry ? 'Nieuwe aanvraag — Boekingskans' : 'Betaling mislukt — Boekingskans',
+                subheading: isEnquiry
+                    ? 'Een gast stuurde een aanvraag voor deze data. Antwoord om er een boeking van te maken.'
+                    : 'Een gast probeerde te boeken maar de betaling is mislukt. Neem contact op om de boeking te voltooien.',
                 guestDetails: 'Gastgegevens', guest: 'Gast', email: 'E-mail', phone: 'Telefoon',
                 bookingDetails: 'Boekingsdetails', property: 'Accommodatie', room: 'Kamer',
                 checkIn: 'Inchecken', checkOut: 'Uitchecken', guests: 'Gasten', total: 'Totaal',
-                paymentFailed: 'Betaling mislukt',
-                tip: 'Reageer snel op deze gast voordat hij elders boekt. Bied een alternatieve betaalmethode aan zoals bankoverschrijving.',
+                paymentFailed: isEnquiry ? 'Aanvraag' : 'Betaling mislukt',
+                tip: isEnquiry
+                    ? 'Reageer snel op deze aanvraag — de data zijn NIET gereserveerd; een andere gast kan ze nog boeken.'
+                    : 'Reageer snel op deze gast voordat hij elders boekt. Bied een alternatieve betaalmethode aan zoals bankoverschrijving.',
                 tipLabel: 'Tip'
             }
         };
@@ -38459,7 +38495,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                     `SELECT id, arrival_date, departure_date, status
                        FROM bookings
                       WHERE bookable_unit_id = $1
-                        AND status NOT IN ('cancelled', 'no_show', 'declined', 'event_hold')
+                        AND status NOT IN ('cancelled', 'no_show', 'declined', 'event_hold', 'inquiry')
                         AND arrival_date < $3::date AND departure_date > $2::date
                       LIMIT 1`,
                     [roomId, checkin, checkout]
@@ -74889,7 +74925,7 @@ app.post('/api/admin/bookings', async (req, res) => {
           `SELECT id, arrival_date, departure_date, status
              FROM bookings
             WHERE bookable_unit_id = $1
-              AND status NOT IN ('cancelled', 'no_show', 'declined', 'event_hold')
+              AND status NOT IN ('cancelled', 'no_show', 'declined', 'event_hold', 'inquiry')
               AND arrival_date < $3::date AND departure_date > $2::date
             LIMIT 1`,
           [room_id, check_in, check_out]
