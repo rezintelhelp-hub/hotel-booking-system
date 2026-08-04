@@ -55273,7 +55273,11 @@ app.put('/api/db/properties/:id', async (req, res) => {
       district, state, zip_code, latitude, longitude, account_id, currency,
       display_name, show_on_portfolio, portfolio_display,
       standard_rate_name, standard_rate_description, standard_rate_features,
-      same_day_cutoff_time, min_advance_hours
+      same_day_cutoff_time, min_advance_hours,
+      // 2026-08-04 — property-level phone + timezone. Needed by the
+      // GAS→Channex content push so Google Hotel Search accepts the
+      // property (both are required Channex fields for that channel).
+      phone, timezone
     } = req.body;
 
     // If only account_id provided, do simple update
@@ -55327,6 +55331,8 @@ app.put('/api/db/properties/:id', async (req, res) => {
           standard_rate_features = COALESCE($20::jsonb, standard_rate_features),
           same_day_cutoff_time = CASE WHEN $24::bool THEN $22::time ELSE same_day_cutoff_time END,
           min_advance_hours    = CASE WHEN $25::bool THEN $23::integer ELSE min_advance_hours END,
+          phone    = COALESCE($26, phone),
+          timezone = COALESCE($27, timezone),
           updated_at = NOW()
         WHERE id = $21
         RETURNING *`,
@@ -55345,7 +55351,9 @@ app.put('/api/db/properties/:id', async (req, res) => {
          (same_day_cutoff_time && String(same_day_cutoff_time).trim()) || null,
          (min_advance_hours === null || min_advance_hours === '' || min_advance_hours === undefined) ? null : (parseInt(min_advance_hours, 10) || null),
          req.body.hasOwnProperty('same_day_cutoff_time'),
-         req.body.hasOwnProperty('min_advance_hours')]
+         req.body.hasOwnProperty('min_advance_hours'),
+         phone !== undefined ? (phone && String(phone).trim() ? String(phone).trim() : null) : null,
+         timezone !== undefined ? (timezone && String(timezone).trim() ? String(timezone).trim() : null) : null]
       );
     } catch (queryErr) {
       // Fallback if new columns don't exist yet (pre-migration)

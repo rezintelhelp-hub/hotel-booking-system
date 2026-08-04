@@ -30232,6 +30232,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </button>
                 </div>
                 
+                <!-- Property Description — used for OTA push (Channex → Google Hotel Search etc.).
+                     Steve 2026-08-04. Also acts as the source for the contract system.
+                     Copy-from-Room helper populates from any of the property's rooms so operator
+                     doesn't have to write from scratch when a room description already exists. -->
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">📝 Property Description</h4>
+                    <p style="font-size: 0.78rem; color: #64748b; margin: 0 0 0.5rem 0;">Full property pitch. Pushed to Channex → OTAs (Google Hotel Search, Booking.com, etc.) as the property-level description.</p>
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;">
+                        <label style="font-size: 0.85rem; color:#64748b;">Copy from room:</label>
+                        <select id="edit-property-copy-from-room" class="form-input" style="flex:1; padding: 0.35rem 0.5rem; font-size: 0.85rem;">
+                            <option value="">— pick a room —</option>
+                        </select>
+                        <button type="button" class="btn btn-small" style="background:#6366f1;" onclick="copyRoomDescToProperty()">Copy →</button>
+                    </div>
+                    <textarea class="form-input" id="edit-property-description" rows="6" placeholder="Charles House is a charming boutique B&amp;B in the heart of Windsor…" style="width: 100%; padding: 0.6rem; font-family: inherit; font-size: 0.9rem; resize: vertical;"></textarea>
+                </div>
+
                 <!-- Address Section -->
                 <div style="margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;"> Address & Location</h4>
@@ -30312,7 +30329,39 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                 </div>
-                
+
+                <!-- Contact Section (phone, email) — needed for Channex→Google Hotel Search push -->
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">📞 Contact</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" class="form-input" id="edit-property-phone" placeholder="+44 20 1234 5678">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Timezone</label>
+                            <select class="form-input" id="edit-property-timezone">
+                                <option value="">— pick a timezone —</option>
+                                <option value="Europe/London">Europe/London (UK)</option>
+                                <option value="Europe/Paris">Europe/Paris (FR/DE/ES)</option>
+                                <option value="Europe/Amsterdam">Europe/Amsterdam</option>
+                                <option value="Europe/Rome">Europe/Rome</option>
+                                <option value="Europe/Athens">Europe/Athens</option>
+                                <option value="America/New_York">America/New_York (US East)</option>
+                                <option value="America/Chicago">America/Chicago</option>
+                                <option value="America/Denver">America/Denver</option>
+                                <option value="America/Los_Angeles">America/Los_Angeles</option>
+                                <option value="America/Toronto">America/Toronto (CA East)</option>
+                                <option value="Australia/Sydney">Australia/Sydney</option>
+                                <option value="Australia/Melbourne">Australia/Melbourne</option>
+                                <option value="Pacific/Auckland">Pacific/Auckland</option>
+                                <option value="Asia/Tokyo">Asia/Tokyo</option>
+                                <option value="Asia/Dubai">Asia/Dubai</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Coordinates Section -->
                 <div style="margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;"> Map Coordinates</h4>
@@ -30423,6 +30472,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">If Airbnb/BDC shows dates as blocked when GAS says open (or vice versa), click this to force a full 90-day availability + restriction resync for this property to Channex + Beds24. Result shows exactly what landed in the outbox.</p>
                     <button type="button" class="btn btn-secondary" id="force-reconcile-btn" onclick="forceReconcileChannex()" style="font-size: 0.85rem;">🔄 Force reconcile now</button>
                     <div id="force-reconcile-status" style="margin-top: 0.5rem; font-size: 0.8rem; color: #64748b;"></div>
+                </div>
+
+                <!-- Channex content push — description, phone, timezone, address,
+                     property images. Pre-req for Google Hotel Search onboarding
+                     (Channex requires those fields populated on their property
+                     before Google will pick up the listing). Steve 2026-08-04. -->
+                <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">📤 Push property content to Channex</h4>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">Pushes description, phone, timezone, address, and property images to Channex. Required for Google Hotel Search / OTA content parity. Run after editing the fields above.</p>
+                    <button type="button" class="btn btn-secondary" onclick="pushPropertyContentToChannex()" style="font-size: 0.85rem; background: linear-gradient(135deg,#6366f1,#4338ca);">📤 Push content to Channex</button>
                 </div>
 
                 <!-- ChargeAutomation Property Mapping -->
@@ -78386,6 +78445,54 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        // Copy the selected room's full_description into the property
+        // description field. Strips HTML tags for a plain-text starting
+        // point — operator can then edit as needed. Steve 2026-08-04:
+        // "we have full room description in GAS" — reuse them at property
+        // level for the Channex/Google content push.
+        async function copyRoomDescToProperty() {
+            const roomId = document.getElementById('edit-property-copy-from-room').value;
+            if (!roomId) return alert('Pick a room first');
+            try {
+                const r = await fetch(`/api/db/bookable-units/${roomId}`, { headers: authHeaders() });
+                const d = await r.json();
+                const room = d?.data || d?.unit || d;
+                const _pick = (v) => (v && typeof v === 'object') ? (v.en || Object.values(v)[0] || '') : (v || '');
+                const raw = _pick(room?.full_description) || _pick(room?.description) || _pick(room?.short_description);
+                const plain = String(raw || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+                if (!plain) return alert('That room has no description text yet');
+                document.getElementById('edit-property-description').value = plain;
+                if (typeof showNotification === 'function') showNotification('Copied — review + tweak before saving', 'success');
+            } catch (e) { alert('Copy failed: ' + e.message); }
+        }
+
+        // Push the current property's content up to Channex (description,
+        // phone, timezone, address, images). Fires the sync-property-content
+        // endpoint. Requires the property to already be linked to Channex
+        // (push-property done first).
+        async function pushPropertyContentToChannex() {
+            const propId = document.getElementById('edit-property-id').value;
+            if (!propId) return alert('Save the property first');
+            if (!confirm('Push this property\'s content (description, phone, timezone, address, images) to Channex now?')) return;
+            try {
+                // Find the account's Channex connection id
+                const acctId = document.getElementById('edit-property-account-id')?.value || null;
+                const cr = await fetch(`/api/admin/sync-connections${acctId ? '?account_id=' + acctId : ''}`, { headers: authHeaders() });
+                const cd = await cr.json();
+                const conn = ((cd && cd.connections) || []).find(c => c.adapter_code === 'channex' || c.adapter_code === 'channex-marketplace');
+                if (!conn) return alert('No Channex connection for this account');
+                const r = await fetch(`/api/admin/channex/${conn.id}/sync-property-content`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ gas_property_id: parseInt(propId, 10) })
+                });
+                const d = await r.json();
+                if (!d.success) return alert('Push failed: ' + (d.error || 'unknown'));
+                if (typeof showNotification === 'function') showNotification('✓ Pushed to Channex — check Channex admin', 'success');
+                else alert('Pushed');
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
         async function updatePropertyCurrency(propertyId, currency) {
             try {
                 const response = await fetch(`/api/db/properties/${propertyId}`, {
@@ -78480,6 +78587,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-property-latitude').value = prop.latitude || '';
                     document.getElementById('edit-property-longitude').value = prop.longitude || '';
                     document.getElementById('edit-property-status').value = prop.status || 'active';
+                    // Description: pick from JSONB _ml (English) or plain-text fallback
+                    const _pickText = (v) => (v && typeof v === 'object') ? (v.en || Object.values(v)[0] || '') : (v || '');
+                    const _stripHtml = (s) => String(s || '').replace(/<[^>]+>/g, '').trim();
+                    const descRaw = _pickText(prop.full_description) || _pickText(prop.description) || _pickText(prop.short_description);
+                    document.getElementById('edit-property-description').value = _stripHtml(descRaw);
+                    // Phone + timezone
+                    document.getElementById('edit-property-phone').value = prop.phone || '';
+                    document.getElementById('edit-property-timezone').value = prop.timezone || '';
+                    // Populate "Copy from Room" dropdown with the property's rooms
+                    (async function () {
+                        try {
+                            const rr = await fetch(`/api/db/bookable-units?property_id=${prop.id}`, { headers: authHeaders() });
+                            const rd = await rr.json();
+                            const sel = document.getElementById('edit-property-copy-from-room');
+                            sel.innerHTML = '<option value="">— pick a room —</option>' +
+                                ((rd && rd.data) || []).map(r => `<option value="${r.id}">${(r.name||'Room '+r.id).replace(/</g,'&lt;')}</option>`).join('');
+                        } catch (_) {}
+                    })();
                     // Portfolio display fields (multilingual JSONB)
                     window.portfolioDisplayData = prop.portfolio_display || {};
                     // If old display_name exists but no portfolio display_name, migrate it
@@ -79202,6 +79327,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 latitude: document.getElementById('edit-property-latitude').value ? parseFloat(document.getElementById('edit-property-latitude').value) : null,
                 longitude: document.getElementById('edit-property-longitude').value ? parseFloat(document.getElementById('edit-property-longitude').value) : null,
                 status: document.getElementById('edit-property-status').value,
+                // Description + phone + timezone — needed for Channex→Google
+                // Hotel Search push. Steve 2026-08-04.
+                description: document.getElementById('edit-property-description')?.value?.trim() || null,
+                phone: document.getElementById('edit-property-phone')?.value?.trim() || null,
+                timezone: document.getElementById('edit-property-timezone')?.value?.trim() || null,
                 display_name: displayNameEn,
                 show_on_portfolio: document.getElementById('edit-property-show-portfolio').checked,
                 portfolio_display: portfolioData,
