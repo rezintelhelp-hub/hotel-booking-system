@@ -5476,6 +5476,11 @@
                             <input type="number" class="form-input" id="edit-discount" placeholder="10" style="width: 80px;">
                         </div>
                         <button class="btn" onclick="applyQuickEdit()">Apply</button>
+                        <!-- Bulk apply — dedicated modal so operators can't
+                             fire this accidentally. Steve 2026-08-04: dozens
+                             of blocked Sat/Sun dates need a bulk tool with
+                             live preview + confirm before write. -->
+                        <button class="btn" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);" onclick="openBulkApplyModal()">🌐 Bulk apply…</button>
                     </div>
                 </div>
 
@@ -29830,10 +29835,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <label style="display:block; font-weight:500; margin-bottom:0.25rem; font-size:0.9rem;">Min Stay Override (nights)</label>
                     <input type="number" min="1" id="cell-edit-minstay" class="form-input" placeholder="Blank = use CM / property default" style="width:100%;">
                 </div>
-                <div style="margin-bottom: 1.25rem;">
-                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                        <input type="checkbox" id="cell-edit-blocked" style="width: 18px; height: 18px;">
-                        <span style="font-weight: 500;">Block this date</span>
+                <!-- Two simple availability overrides for this date. Stack
+                     vertically so the difference between the two is obvious.
+                     Steve 2026-08-04 redesign: kill the "visibility" panel,
+                     replace with plain-English checkboxes. -->
+                <div style="margin-bottom: 1.25rem; padding: 0.85rem 1rem; background:#fafafa; border:1px solid #e2e8f0; border-radius:8px;">
+                    <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:12px;">
+                        <input type="checkbox" id="cell-edit-blocked" style="width: 18px; height: 18px; margin-top:2px;">
+                        <span>
+                            <span style="font-weight: 600; color:#111;">Block this date</span>
+                            <span style="display:block; font-size:0.8rem; color:#64748b; margin-top:2px;">Nothing books — website + OTAs + direct all closed.</span>
+                        </span>
+                    </label>
+                    <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+                        <input type="checkbox" id="cell-edit-hide-otas" style="width: 18px; height: 18px; margin-top:2px;">
+                        <span>
+                            <span style="font-weight: 600; color:#111;">Hide from OTA channels</span>
+                            <span style="display:block; font-size:0.8rem; color:#64748b; margin-top:2px;">Website + direct book normally. Airbnb, Booking.com, Vrbo see 0 units.</span>
+                        </span>
                     </label>
                 </div>
                 <div id="cell-edit-rate-plans-section" style="display:none; margin-bottom: 1.25rem; padding-top:1rem; border-top:1px solid #e2e8f0;">
@@ -29842,17 +29861,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <span id="cell-edit-rate-plans-count" style="font-size:0.75rem; color:#64748b;"></span>
                     </div>
                     <div id="cell-edit-rate-plans-list" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
-                </div>
-                <!-- Channel visibility (2026-08-03) — per-date-per-channel
-                     toggles. Empty = default visible. Solves cure-package
-                     "keep channels dark, sell direct" + generic high-demand
-                     inventory holdback. -->
-                <div id="cell-edit-channels-section" style="margin-bottom:1.25rem; padding-top:1rem; border-top:1px solid #e2e8f0;">
-                    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:0.5rem;">
-                        <h4 style="margin:0; font-size:0.9rem; color:#1e293b; font-weight:600;">📡 Channel visibility</h4>
-                        <span style="font-size:0.75rem; color:#64748b;">toggle each channel on/off for this date</span>
-                    </div>
-                    <div id="cell-edit-channels-list" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
                 </div>
                 <div style="display:flex; justify-content:space-between; gap:0.5rem; align-items:center; flex-wrap: wrap;">
                     <div style="display:flex; gap:0.5rem; flex-wrap: wrap;">
@@ -29874,6 +29882,77 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <button class="btn btn-secondary" onclick="closeModal('cellRateEditModal')">Cancel</button>
                         <button class="btn" onclick="cellEditSave()">💾 Save</button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk apply modal — 2026-08-04. Only writes when the operator hits
+         "Apply" and confirms. Preview count updates live as inputs change so
+         there's no surprise about scope. -->
+    <div id="bulkApplyModal" class="modal">
+        <div class="modal-content" style="max-width: 640px; border-radius: 12px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; border-radius: 12px 12px 0 0; padding: 1.25rem 1.5rem; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h3 style="margin:0;">🌐 Bulk apply availability</h3>
+                    <p style="margin:0.25rem 0 0; opacity:0.85; font-size:0.85rem;">Block dates and/or hide from OTAs across a date range.</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('bulkApplyModal')" style="color:white; font-size:1.5rem; background:none; border:none; cursor:pointer;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <div style="display:grid; grid-template-columns:1fr; gap:0.85rem;">
+                    <div>
+                        <label style="display:block; font-weight:600; margin-bottom:0.3rem; font-size:0.9rem;">Room</label>
+                        <select class="form-input" id="bulk-apply-room"><option value="">Select a room…</option></select>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                        <div>
+                            <label style="display:block; font-weight:600; margin-bottom:0.3rem; font-size:0.9rem;">From</label>
+                            <input type="date" class="form-input" id="bulk-apply-from" onchange="updateBulkApplyPreview()">
+                        </div>
+                        <div>
+                            <label style="display:block; font-weight:600; margin-bottom:0.3rem; font-size:0.9rem;">To</label>
+                            <input type="date" class="form-input" id="bulk-apply-to" onchange="updateBulkApplyPreview()">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight:600; margin-bottom:0.3rem; font-size:0.9rem;">Days of week <span style="font-weight:normal; color:#64748b; font-size:0.8rem;">(none ticked = every day)</span></label>
+                        <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                            <label style="display:flex;align-items:center;gap:0.3rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.85rem;"><input type="checkbox" class="bulk-apply-dow" value="1" onchange="updateBulkApplyPreview()">Mon</label>
+                            <label style="display:flex;align-items:center;gap:0.3rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.85rem;"><input type="checkbox" class="bulk-apply-dow" value="2" onchange="updateBulkApplyPreview()">Tue</label>
+                            <label style="display:flex;align-items:center;gap:0.3rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.85rem;"><input type="checkbox" class="bulk-apply-dow" value="3" onchange="updateBulkApplyPreview()">Wed</label>
+                            <label style="display:flex;align-items:center;gap:0.3rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.85rem;"><input type="checkbox" class="bulk-apply-dow" value="4" onchange="updateBulkApplyPreview()">Thu</label>
+                            <label style="display:flex;align-items:center;gap:0.3rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.85rem;"><input type="checkbox" class="bulk-apply-dow" value="5" onchange="updateBulkApplyPreview()">Fri</label>
+                            <label style="display:flex;align-items:center;gap:0.3rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.85rem;"><input type="checkbox" class="bulk-apply-dow" value="6" onchange="updateBulkApplyPreview()">Sat</label>
+                            <label style="display:flex;align-items:center;gap:0.3rem;padding:0.35rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.85rem;"><input type="checkbox" class="bulk-apply-dow" value="0" onchange="updateBulkApplyPreview()">Sun</label>
+                        </div>
+                    </div>
+                    <div style="padding: 0.85rem 1rem; background:#fafafa; border:1px solid #e2e8f0; border-radius:8px;">
+                        <div style="font-weight:600; font-size:0.85rem; color:#64748b; margin-bottom:0.5rem;">Action</div>
+                        <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:10px;">
+                            <select id="bulk-apply-block" class="form-input" style="width:auto; padding:4px 8px; font-size:0.85rem;">
+                                <option value="none">— leave as-is —</option>
+                                <option value="true">Block dates</option>
+                                <option value="false">Unblock dates</option>
+                            </select>
+                            <span style="font-size:0.85rem; color:#64748b; padding-top:5px;">Block = nothing books. Unblock = clear existing blocks.</span>
+                        </label>
+                        <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+                            <select id="bulk-apply-hide" class="form-input" style="width:auto; padding:4px 8px; font-size:0.85rem;">
+                                <option value="none">— leave as-is —</option>
+                                <option value="true">Hide from OTAs</option>
+                                <option value="false">Restore OTA visibility</option>
+                            </select>
+                            <span style="font-size:0.85rem; color:#64748b; padding-top:5px;">Hide = only website + direct book. Restore = OTAs see it again.</span>
+                        </label>
+                    </div>
+                    <div id="bulk-apply-preview" style="padding: 0.85rem 1rem; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; color:#1e3a8a; font-weight:600; font-size:0.9rem;">
+                        Pick a room + range to see how many dates will be affected.
+                    </div>
+                </div>
+                <div style="display:flex; gap:0.5rem; justify-content:flex-end; margin-top:1.25rem;">
+                    <button class="btn btn-secondary" onclick="closeModal('bulkApplyModal')">Cancel</button>
+                    <button class="btn" id="bulk-apply-confirm-btn" onclick="confirmBulkApply()" disabled style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">Apply →</button>
                 </div>
             </div>
         </div>
@@ -58305,6 +58384,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('cell-edit-price').value = '';
             document.getElementById('cell-edit-minstay').value = '';
             document.getElementById('cell-edit-blocked').checked = false;
+            document.getElementById('cell-edit-hide-otas').checked = false;
             // Reset current-state pills to loading state
             document.getElementById('cell-edit-current-price').textContent = '…';
             document.getElementById('cell-edit-current-minstay').textContent = '…';
@@ -58313,10 +58393,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('cell-edit-rate-plans-section').style.display = 'none';
             document.getElementById('cell-edit-rate-plans-list').innerHTML = '';
             document.getElementById('cell-edit-rate-plans-count').textContent = '';
-            // Reset channel visibility list to a spinner + load fresh
-            document.getElementById('cell-edit-channels-list').innerHTML = '<div style="color:#94a3b8; font-size:0.85rem;">Loading channel state…</div>';
             openModal('cellRateEditModal');
-            loadCellEditChannelVisibility(roomId, dateStr);
+            loadCellEditHideOtas(roomId, dateStr);
             // Load availability + rate plans in parallel — they're independent.
             try {
                 const [availRes, rpRes] = await Promise.all([
@@ -58433,9 +58511,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
                 const d = await r.json();
                 if (d.success) {
-                    // Save channel visibility toggles too (if any changed from
-                    // their loaded state). Fires the Channex re-push server-side.
-                    await saveCellEditChannelVisibility(roomId, dateStr).catch(() => {});
+                    // Save "Hide from OTAs" state if it changed. Fires the
+                    // Channex re-push server-side.
+                    await saveCellEditHideOtas(roomId, dateStr).catch(() => {});
                     showNotification('Saved', 'success');
                     closeModal('cellRateEditModal');
                     if (typeof loadGridData === 'function') loadGridData();
@@ -58447,59 +58525,30 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        // Per-cell channel visibility loader + saver.
-        // Renders a toggle per connected channel. Empty override row =
-        // default visible. Save only sends changes.
-        let _cellEditChannelState = {}; // { channel: { was:bool, next:bool } }
-        async function loadCellEditChannelVisibility(roomId, dateStr) {
-            _cellEditChannelState = {};
-            const wrap = document.getElementById('cell-edit-channels-list');
-            // For now the list of channels is hardcoded to those we support
-            // outbound overrides for. When more channels get wired we add
-            // them here. Direct is deliberately not in this list — GAS
-            // always sees direct availability regardless.
-            const channels = [{ key: 'channex', label: '📨 OTA channels (via Channex)', hint: 'Airbnb, Booking.com, Vrbo etc.' }];
+        // Per-cell "Hide from OTA channels" checkbox load + save. Under the
+        // hood writes to unit_channel_daily_visibility (channel=channex).
+        // Loader ticks the box if an override says is_visible=false; saver
+        // only fires if the state changed.
+        let _cellEditHideOtasWas = false;
+        async function loadCellEditHideOtas(roomId, dateStr) {
+            _cellEditHideOtasWas = false;
+            document.getElementById('cell-edit-hide-otas').checked = false;
             try {
                 const r = await fetch(`/api/admin/units/${roomId}/channel-visibility?from=${dateStr}&to=${dateStr}`, { headers: authHeaders() });
                 const d = await r.json();
-                const overrides = (d && d.overrides) || [];
-                const rowsHtml = channels.map(c => {
-                    const row = overrides.find(o => o.channel === c.key);
-                    const isVisible = row ? !!row.is_visible : true; // default visible
-                    _cellEditChannelState[c.key] = { was: isVisible, next: isVisible };
-                    return `
-                    <label style="display:flex; align-items:center; gap:0.75rem; padding:0.6rem 0.75rem; border:1px solid #e2e8f0; border-radius:8px; background:${isVisible ? '#f0fdf4' : '#fef2f2'}; cursor:pointer;" id="cell-ch-row-${c.key}">
-                        <input type="checkbox" ${isVisible ? 'checked' : ''} onchange="_cellEditToggleChannel('${c.key}', this.checked)" style="width:18px; height:18px;">
-                        <div style="flex:1;">
-                            <div style="font-weight:600; color:${isVisible ? '#065f46' : '#7f1d1d'};">${c.label}</div>
-                            <div style="font-size:0.8rem; color:#64748b;">${c.hint}</div>
-                        </div>
-                        <span id="cell-ch-status-${c.key}" style="font-size:0.75rem; font-weight:600; color:${isVisible ? '#059669' : '#dc2626'};">${isVisible ? 'VISIBLE' : 'HIDDEN'}</span>
-                    </label>`;
-                }).join('');
-                wrap.innerHTML = rowsHtml;
-            } catch (e) {
-                wrap.innerHTML = '<div style="color:#dc2626; font-size:0.85rem;">Failed to load channel state: ' + e.message + '</div>';
-            }
+                const row = (d?.overrides || []).find(o => o.channel === 'channex');
+                const isHidden = row && row.is_visible === false;
+                _cellEditHideOtasWas = isHidden;
+                document.getElementById('cell-edit-hide-otas').checked = isHidden;
+            } catch (_) { /* soft-fail — leave unticked */ }
         }
-        function _cellEditToggleChannel(channel, checked) {
-            if (!_cellEditChannelState[channel]) _cellEditChannelState[channel] = { was: true, next: true };
-            _cellEditChannelState[channel].next = !!checked;
-            const row = document.getElementById('cell-ch-row-' + channel);
-            const status = document.getElementById('cell-ch-status-' + channel);
-            if (row) row.style.background = checked ? '#f0fdf4' : '#fef2f2';
-            if (status) { status.textContent = checked ? 'VISIBLE' : 'HIDDEN'; status.style.color = checked ? '#059669' : '#dc2626'; }
-        }
-        async function saveCellEditChannelVisibility(roomId, dateStr) {
-            const entries = [];
-            for (const [ch, s] of Object.entries(_cellEditChannelState)) {
-                if (s.was !== s.next) entries.push({ date: dateStr, channel: ch, is_visible: s.next });
-            }
-            if (entries.length === 0) return; // nothing changed
+        async function saveCellEditHideOtas(roomId, dateStr) {
+            const next = document.getElementById('cell-edit-hide-otas').checked;
+            if (next === _cellEditHideOtasWas) return; // no change
             await fetch(`/api/admin/units/${roomId}/channel-visibility`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                body: JSON.stringify({ entries })
+                body: JSON.stringify({ entries: [{ date: dateStr, channel: 'channex', is_visible: !next }] })
             });
         }
 
@@ -59229,6 +59278,88 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('edit-discount-group').style.display = action === 'discount' ? 'block' : 'none';
         }
         
+        // Bulk apply — open the modal, populate rooms, wire live preview.
+        // Nothing writes until the operator confirms via a native confirm().
+        async function openBulkApplyModal() {
+            const roomSel = document.getElementById('bulk-apply-room');
+            roomSel.innerHTML = '<option value="">Select a room…</option>' +
+                (Array.isArray(gridRooms) ? gridRooms : []).map(r => `<option value="${r.id}">${(r.name || 'Room ' + r.id).replace(/</g, '&lt;')}</option>`).join('');
+            roomSel.onchange = updateBulkApplyPreview;
+            // Default range: today → 90 days out
+            const t = new Date();
+            document.getElementById('bulk-apply-from').value = t.toISOString().slice(0, 10);
+            const later = new Date(t); later.setDate(later.getDate() + 90);
+            document.getElementById('bulk-apply-to').value = later.toISOString().slice(0, 10);
+            // Reset actions + weekday ticks
+            document.getElementById('bulk-apply-block').value = 'none';
+            document.getElementById('bulk-apply-hide').value = 'none';
+            document.querySelectorAll('.bulk-apply-dow').forEach(cb => cb.checked = false);
+            document.getElementById('bulk-apply-block').onchange = updateBulkApplyPreview;
+            document.getElementById('bulk-apply-hide').onchange = updateBulkApplyPreview;
+            document.getElementById('bulk-apply-preview').innerHTML = 'Pick a room + range to see how many dates will be affected.';
+            document.getElementById('bulk-apply-confirm-btn').disabled = true;
+            openModal('bulkApplyModal');
+        }
+        async function updateBulkApplyPreview() {
+            const roomId = document.getElementById('bulk-apply-room').value;
+            const from = document.getElementById('bulk-apply-from').value;
+            const to = document.getElementById('bulk-apply-to').value;
+            const block = document.getElementById('bulk-apply-block').value;
+            const hide = document.getElementById('bulk-apply-hide').value;
+            const weekdays = Array.from(document.querySelectorAll('.bulk-apply-dow:checked')).map(cb => parseInt(cb.value, 10));
+            const previewEl = document.getElementById('bulk-apply-preview');
+            const btn = document.getElementById('bulk-apply-confirm-btn');
+            btn.disabled = true;
+            if (!roomId || !from || !to) { previewEl.innerHTML = 'Pick a room + range to see how many dates will be affected.'; return; }
+            if (block === 'none' && hide === 'none') { previewEl.innerHTML = 'Pick at least one action (Block and/or Hide from OTAs).'; return; }
+            try {
+                const r = await fetch(`/api/admin/units/${roomId}/bulk-apply?preview=1`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ from, to, weekdays, block: null, hide_otas: null, preview: true })
+                });
+                const d = await r.json();
+                if (!d.success) { previewEl.innerHTML = 'Preview failed: ' + (d.error || 'unknown'); return; }
+                const actions = [];
+                if (block !== 'none') actions.push(block === 'true' ? '🚫 Block' : '↺ Unblock');
+                if (hide !== 'none') actions.push(hide === 'true' ? '🌐 Hide from OTAs' : '↺ Restore OTAs');
+                previewEl.innerHTML = `<div style="font-size:1.05rem;">This will affect <strong>${d.count}</strong> date${d.count === 1 ? '' : 's'}</div>` +
+                    `<div style="font-size:0.85rem; margin-top:4px; font-weight:normal;">Actions: ${actions.join(' + ')}</div>`;
+                btn.disabled = d.count === 0;
+            } catch (e) {
+                previewEl.innerHTML = 'Preview failed: ' + e.message;
+            }
+        }
+        async function confirmBulkApply() {
+            const roomId = document.getElementById('bulk-apply-room').value;
+            const from = document.getElementById('bulk-apply-from').value;
+            const to = document.getElementById('bulk-apply-to').value;
+            const blockRaw = document.getElementById('bulk-apply-block').value;
+            const hideRaw = document.getElementById('bulk-apply-hide').value;
+            const weekdays = Array.from(document.querySelectorAll('.bulk-apply-dow:checked')).map(cb => parseInt(cb.value, 10));
+            const block = blockRaw === 'none' ? null : (blockRaw === 'true');
+            const hide_otas = hideRaw === 'none' ? null : (hideRaw === 'true');
+            const preview = document.getElementById('bulk-apply-preview').textContent.trim();
+            if (!confirm(`Bulk apply — ${preview}\n\nProceed?`)) return;
+            const btn = document.getElementById('bulk-apply-confirm-btn');
+            btn.disabled = true; btn.textContent = 'Working…';
+            try {
+                const r = await fetch(`/api/admin/units/${roomId}/bulk-apply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ from, to, weekdays, block, hide_otas })
+                });
+                const d = await r.json();
+                if (!d.success) { alert('Failed: ' + (d.error || 'unknown')); btn.disabled = false; btn.textContent = 'Apply →'; return; }
+                showNotification(`✓ Applied to ${d.count} date${d.count === 1 ? '' : 's'}`, 'success');
+                closeModal('bulkApplyModal');
+                if (typeof loadGridData === 'function') loadGridData();
+            } catch (e) {
+                alert('Error: ' + e.message);
+                btn.disabled = false; btn.textContent = 'Apply →';
+            }
+        }
+
         async function applyQuickEdit() {
             const roomId = document.getElementById('edit-room-select').value;
             const fromDate = document.getElementById('edit-from-date').value;

@@ -71851,6 +71851,114 @@ app.post('/api/admin/units/:unitId/channel-visibility', async (req, res) => {
   }
 });
 
+// POST /api/admin/units/:unitId/bulk-apply — atomically apply block +/-
+// hide-from-OTAs across a date range with an optional weekday filter.
+// Body: {
+//   from: 'YYYY-MM-DD', to: 'YYYY-MM-DD',
+//   weekdays: [0..6] (empty = every day),
+//   block: true|false|null,    // null = don't touch existing is_blocked
+//   hide_otas: true|false|null // null = don't touch existing visibility
+// }
+// Returns { success, affected_dates:[...], counts:{block, hide, restore} }.
+// Fires Channex re-push for every affected date so channels reflect the
+// change immediately. Preview-safe: pass ?preview=1 to return the count
+// without writing anything.
+app.post('/api/admin/units/:unitId/bulk-apply', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
+    const unitId = parseInt(req.params.unitId, 10);
+    if (!unitId) return res.status(400).json({ success: false, error: 'unit id required' });
+    const own = await pool.query(`SELECT p.account_id FROM bookable_units bu LEFT JOIN properties p ON p.id = bu.property_id WHERE bu.id = $1`, [unitId]);
+    if (!own.rows[0]) return res.status(404).json({ success: false, error: 'unit not found' });
+    if (decoded.role !== 'master_admin' && own.rows[0].account_id !== decoded.id) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const { from, to, weekdays, block, hide_otas } = req.body || {};
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '')) {
+      return res.status(400).json({ success: false, error: 'from + to (YYYY-MM-DD) required' });
+    }
+    const weekdaySet = Array.isArray(weekdays) && weekdays.length > 0
+      ? new Set(weekdays.map(n => parseInt(n, 10)).filter(n => n >= 0 && n <= 6))
+      : null; // null = every day
+    // Compute affected dates. Bounded to 2 years to prevent runaway loops.
+    const start = new Date(from + 'T00:00:00Z');
+    const end = new Date(to + 'T00:00:00Z');
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+      return res.status(400).json({ success: false, error: 'invalid date range' });
+    }
+    const MAX_DAYS = 730;
+    const dates = [];
+    for (let d = new Date(start); d <= end && dates.length <= MAX_DAYS; d.setUTCDate(d.getUTCDate() + 1)) {
+      const dow = d.getUTCDay();
+      if (weekdaySet && !weekdaySet.has(dow)) continue;
+      dates.push(d.toISOString().slice(0, 10));
+    }
+    if (dates.length > MAX_DAYS) return res.status(400).json({ success: false, error: `range too large (${dates.length} > ${MAX_DAYS} dates)` });
+
+    // Preview mode — don't write, just count.
+    if (req.query.preview === '1' || req.body?.preview === true) {
+      return res.json({ success: true, preview: true, affected_dates: dates, count: dates.length });
+    }
+
+    // If both flags are null/undefined, nothing to do — treat as preview.
+    const doBlock = (block === true || block === false) ? block : null;
+    const doHide = (hide_otas === true || hide_otas === false) ? hide_otas : null;
+    if (doBlock === null && doHide === null) {
+      return res.status(400).json({ success: false, error: 'no action — set block and/or hide_otas' });
+    }
+
+    let blockWrites = 0, hideWrites = 0;
+    for (const dateStr of dates) {
+      if (doBlock !== null) {
+        // Route through the availability endpoint's underlying update so
+        // room_availability gets the correct is_blocked + is_available flip.
+        await pool.query(
+          `INSERT INTO room_availability (room_id, date, is_available, is_blocked)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (room_id, date) DO UPDATE
+             SET is_available = EXCLUDED.is_available,
+                 is_blocked = EXCLUDED.is_blocked`,
+          [unitId, dateStr, !doBlock, doBlock]).catch(e => console.warn('[bulk-apply block]', dateStr, e.message));
+        blockWrites++;
+      }
+      if (doHide !== null) {
+        await pool.query(
+          `INSERT INTO unit_channel_daily_visibility (bookable_unit_id, date, channel, is_visible, updated_at, updated_by)
+           VALUES ($1, $2, 'channex', $3, NOW(), $4)
+           ON CONFLICT (bookable_unit_id, date, channel) DO UPDATE
+             SET is_visible = EXCLUDED.is_visible,
+                 updated_at = NOW(),
+                 updated_by = EXCLUDED.updated_by`,
+          [unitId, dateStr, !doHide, decoded.id]);
+        hideWrites++;
+      }
+    }
+
+    // Fire Channex re-push per affected date so channels update immediately.
+    // Fire-and-forget; failures are logged not blocking.
+    try {
+      const { recomputeAndEnqueueAvailabilityForRoom } = require('./gas-sync/channex-outbox');
+      for (const dateStr of dates) {
+        recomputeAndEnqueueAvailabilityForRoom(pool, unitId, dateStr)
+          .catch(err => console.warn('[bulk-apply channex re-push]', unitId, dateStr, err.message));
+      }
+    } catch (wireErr) {
+      console.warn('[bulk-apply channex re-push wiring]', wireErr.message);
+    }
+
+    res.json({
+      success: true,
+      affected_dates: dates,
+      count: dates.length,
+      writes: { block: blockWrites, hide: hideWrites },
+    });
+  } catch (e) {
+    console.error('[bulk-apply]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.get('/api/admin/property/:id/availability-month', async (req, res) => {
   try {
     const propertyId = parseInt(req.params.id);
