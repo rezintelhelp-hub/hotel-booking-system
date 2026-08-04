@@ -126462,6 +126462,20 @@ async function runChannexAvailabilityExtender(options = {}) {
             }
             if (typeof outbox.enqueueRestrictionForRoom === 'function') {
               await outbox.enqueueRestrictionForRoom(pool, room.room_id, { date: dateStr, rate: Number(price) }, 'rate');
+              // 2026-08-04 — extender was initialising future dates with rate
+              // + availability only, so any stop_sell / CTA / CTD flags left
+              // over on Channex from OTA-side blocks or a prior close-period
+              // never got cleared. Charles House Dec 2027+ showed shut for
+              // exactly this reason. Push a clean restriction state alongside
+              // the rate so brand-new dates get a definitive open baseline.
+              await outbox.enqueueRestrictionForRoom(pool, room.room_id, {
+                date: dateStr,
+                stopSell: false,
+                closedToArrival: false,
+                closedToDeparture: false,
+                minStayArrival: minStay,
+                minStayThrough: minStay,
+              }, 'restriction');
             }
           } catch (e) {
             // outbox failure is non-fatal — the row is written; next
