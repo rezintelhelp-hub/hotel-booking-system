@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.17
+ * Version: 4.3.18
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.17');
+define('GAS_BOOKING_VERSION', '4.3.18');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7158,6 +7158,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 if ($checkin) $room_url .= '&checkin=' . urlencode($checkin);
                                 if ($checkout) $room_url .= '&checkout=' . urlencode($checkout);
                                 if ($guests) $room_url .= '&guests=' . intval($guests);
+                                // Preserve linked_product for shop→book flow so
+                                // the room page's widget can inject the shop
+                                // product as a fixed-total rate. Steve 2026-08-04.
+                                if (!empty($_GET['linked_product'])) $room_url .= '&linked_product=' . intval($_GET['linked_product']);
                                 // Land on Description tab by default — guest sees
                                 // the room write-up first. Dates are still on the
                                 // right-hand booking form so they can tap into
@@ -7360,6 +7364,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 if ($checkin) $room_url .= '&checkin=' . urlencode($checkin);
                                 if ($checkout) $room_url .= '&checkout=' . urlencode($checkout);
                                 if ($guests) $room_url .= '&guests=' . intval($guests);
+                                // Preserve linked_product for shop→book flow so
+                                // the room page's widget can inject the shop
+                                // product as a fixed-total rate. Steve 2026-08-04.
+                                if (!empty($_GET['linked_product'])) $room_url .= '&linked_product=' . intval($_GET['linked_product']);
                                 // Land on Description tab by default — guest sees
                                 // the room write-up first. Dates are still on the
                                 // right-hand booking form so they can tap into
