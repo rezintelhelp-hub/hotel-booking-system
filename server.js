@@ -120450,7 +120450,30 @@ Requirements:
 
 Generate the page content only, nothing else:`;
                 break;
-                
+
+            case 'property_description':
+                // 2026-08-04 — used by the Property edit modal's ✨ AI Generate
+                // button. Pushes to Channex → OTAs / Google Hotel Search as the
+                // property-level description. Must be plain-text (no HTML),
+                // one flowing paragraph, ~120-180 words. Tone: welcoming,
+                // travel-guide style, mentions actual location + property type.
+                prompt = `Generate a property-level description for a booking website + OTA distribution (Booking.com, Google Hotel Search, Airbnb).
+
+${contextBlock}
+
+Requirements:
+- 120-180 words in one flowing paragraph (no line breaks, no headings, no lists)
+- Plain text only — no HTML tags, no markdown
+- Third person, travel-guide voice (not "we welcome you"; instead "Guests find…")
+- Highlight the location's appeal AND what the property offers
+- Reference the actual property name, city, and room mix if known
+- Avoid marketing clichés ("nestled", "hidden gem", "boutique jewel")
+- Do NOT include quotes around the text
+- Do NOT include any explanation, header, or label — output the paragraph only
+
+Generate the description now:`;
+                break;
+
             default:
                 return res.json({ success: false, error: 'Unknown content type' });
         }

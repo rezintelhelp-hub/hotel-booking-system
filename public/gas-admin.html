@@ -30239,12 +30239,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div style="margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">📝 Property Description</h4>
                     <p style="font-size: 0.78rem; color: #64748b; margin: 0 0 0.5rem 0;">Full property pitch. Pushed to Channex → OTAs (Google Hotel Search, Booking.com, etc.) as the property-level description.</p>
-                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;">
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center; flex-wrap: wrap;">
                         <label style="font-size: 0.85rem; color:#64748b;">Copy from room:</label>
-                        <select id="edit-property-copy-from-room" class="form-input" style="flex:1; padding: 0.35rem 0.5rem; font-size: 0.85rem;">
+                        <select id="edit-property-copy-from-room" class="form-input" style="flex:1; min-width:120px; padding: 0.35rem 0.5rem; font-size: 0.85rem;">
                             <option value="">— pick a room —</option>
                         </select>
                         <button type="button" class="btn btn-small" style="background:#6366f1;" onclick="copyRoomDescToProperty()">Copy →</button>
+                        <button type="button" class="btn btn-small" id="edit-property-ai-desc-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); white-space:nowrap;" onclick="generatePropertyDescriptionAi()">✨ AI Generate</button>
                     </div>
                     <textarea class="form-input" id="edit-property-description" rows="6" placeholder="Charles House is a charming boutique B&amp;B in the heart of Windsor…" style="width: 100%; padding: 0.6rem; font-family: inherit; font-size: 0.9rem; resize: vertical;"></textarea>
                 </div>
@@ -78489,6 +78490,40 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.getElementById('edit-property-description').value = plain;
                 if (typeof showNotification === 'function') showNotification('Copied — review + tweak before saving', 'success');
             } catch (e) { alert('Copy failed: ' + e.message); }
+        }
+
+        // ✨ AI Generate for property description. Reuses the shared
+        // /api/admin/ai/generate-website-content endpoint (same one the
+        // Web Builder uses for intro/about text) with a new
+        // 'property_description' type that outputs OTA-suitable plain-text.
+        async function generatePropertyDescriptionAi() {
+            const btn = document.getElementById('edit-property-ai-desc-btn');
+            const orig = btn ? btn.innerHTML : null;
+            if (btn) { btn.innerHTML = '✨ Generating…'; btn.disabled = true; }
+            try {
+                const propId = document.getElementById('edit-property-id').value;
+                const propName = document.getElementById('edit-property-name').value;
+                const city = document.getElementById('edit-property-city').value;
+                const acctId = document.getElementById('edit-property-account-id')?.value || selectedAccountId || null;
+                const r = await fetch('/api/admin/ai/generate-website-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        type: 'property_description',
+                        business_name: propName,
+                        location: city,
+                        account_id: acctId ? parseInt(acctId, 10) : null,
+                        property_id: propId ? parseInt(propId, 10) : null
+                    })
+                });
+                const d = await r.json();
+                if (!d.success || !d.content) { alert('Generation failed: ' + (d.error || 'unknown')); return; }
+                const cur = document.getElementById('edit-property-description').value.trim();
+                if (cur && !confirm('Replace the existing description with the AI-generated one?')) return;
+                document.getElementById('edit-property-description').value = d.content;
+                if (typeof showNotification === 'function') showNotification('✓ AI description generated — review + tweak before saving', 'success');
+            } catch (e) { alert('Error: ' + e.message); }
+            finally { if (btn) { btn.innerHTML = orig; btn.disabled = false; } }
         }
 
         // Push the current property's content up to Channex (description,
