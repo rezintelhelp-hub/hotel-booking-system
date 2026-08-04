@@ -9914,6 +9914,7 @@ jQuery(document).ready(function($) {
                 deposit_amount: checkoutData.depositAmount,
                 balance_amount: checkoutData.balanceAmount,
                 event_slug: new URLSearchParams(window.location.search).get('event') || undefined,
+                linked_product: (function(){var v = new URLSearchParams(window.location.search).get('linked_product'); return v ? parseInt(v,10) : undefined;})(),
                 price_breakdown: checkoutData.gasBreakdown || null
             };
             $.ajax({
@@ -9989,6 +9990,7 @@ jQuery(document).ready(function($) {
                 deposit_amount: checkoutData.depositAmount,
                 balance_amount: checkoutData.balanceAmount,
                 event_slug: new URLSearchParams(window.location.search).get('event') || undefined,
+                linked_product: (function(){var v = new URLSearchParams(window.location.search).get('linked_product'); return v ? parseInt(v,10) : undefined;})(),
                 price_breakdown: (function() {
                     var bd = checkoutData.gasBreakdown;
                     if (!bd) return null;
@@ -10084,6 +10086,7 @@ jQuery(document).ready(function($) {
                 // a fresh booking + skip the real-time Beds24 availability
                 // check (which would see our own hold as unavailable).
                 event_slug: new URLSearchParams(window.location.search).get('event') || undefined,
+                linked_product: (function(){var v = new URLSearchParams(window.location.search).get('linked_product'); return v ? parseInt(v,10) : undefined;})(),
                 price_breakdown: (function() {
                     var bd = checkoutData.gasBreakdown;
                     if (!bd) return null;

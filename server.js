@@ -102699,7 +102699,7 @@ app.get('/api/public/rooms/:roomId/min-stay', async (req, res) => {
 // Create booking (public)
 app.post('/api/public/book', async (req, res) => {
   try {
-    const {
+    let {
       unit_id, check_in, check_out, guests, adults, children,
       guest_first_name, guest_last_name, guest_email, guest_phone,
       guest_address, guest_city, guest_state, guest_country, guest_postcode,
@@ -102708,8 +102708,44 @@ app.post('/api/public/book', async (req, res) => {
       enigma_reference_id, stripe_setup_intent_id, stripe_payment_method_id,
       square_source_id, square_verification_token,
       worldpay_session,
-      source_site_url, hostvana_booking_id
+      source_site_url, hostvana_booking_id,
+      linked_product
     } = req.body;
+
+    // Shop-linked booking — server-side re-verify. If linked_product is set
+    // and the shop product qualifies (active, price > 0, duration matches),
+    // rewrite price_breakdown.accommodation_total + total_price to the
+    // authoritative shop total + booking-side taxes/extras. Guards against
+    // a tampered client that would otherwise post €900 for a €785 package.
+    // Steve 2026-08-04 — close the shop→book loop.
+    if (linked_product && Number.isFinite(parseInt(linked_product, 10))) {
+      try {
+        const spR = await pool.query(
+          `SELECT id, name, price, event_duration_nights, property_id, is_active
+             FROM shop_products WHERE id = $1 LIMIT 1`,
+          [parseInt(linked_product, 10)]);
+        const sp = spR.rows[0];
+        const bkNights = Math.round((new Date(check_out) - new Date(check_in)) / 86400000);
+        if (sp && sp.is_active && parseFloat(sp.price) > 0
+            && (!sp.event_duration_nights || parseInt(sp.event_duration_nights, 10) === bkNights)) {
+          const shopTotal = Math.round(parseFloat(sp.price) * 100) / 100;
+          // Keep pre-tax extras from the client (booking_extras, cleaning
+          // fee, taxe séjour) and add them on top of the shop-package base.
+          const clientTaxes = parseFloat(price_breakdown?.taxes_total || price_breakdown?.tax_total || 0);
+          const clientExtras = parseFloat(price_breakdown?.extras_total || 0);
+          price_breakdown = {
+            ...(price_breakdown || {}),
+            accommodation_total: shopTotal,
+            subtotal: shopTotal + clientExtras,
+            offer_discount: 0,
+          };
+          total_price = Math.round((shopTotal + clientExtras + clientTaxes) * 100) / 100;
+          console.log(`[book linked_product] applied shop product ${sp.id} (${sp.name}): accommodation=${shopTotal}, total=${total_price}`);
+        }
+      } catch (bkErr) {
+        console.warn('[book linked_product re-verify]', bkErr.message);
+      }
+    }
     let square_payment_id = null;
     let square_customer_id = null;
     let square_card_id_captured = null;
