@@ -103046,6 +103046,47 @@ app.post('/api/public/book', async (req, res) => {
     // TRUE — only disabled when explicitly set to false.
     const marketingAllowed = (unit.rows[0].account_settings?.marketing_opt_in_enabled !== false);
 
+    // ────────────────────────────────────────────────────────────────
+    // 2026-08-04 — DEPOSIT = deposit_percent × grand_total. ONE RULE.
+    // See project_deposit_one_rule_20260804.md. The plugin previously
+    // computed deposit on the pre-tax number, then taxes got added to
+    // grand_total, and the deposit + balance no longer summed to the
+    // total. Auto-charge cron then fired on the stale balance → under-
+    // charged the tax (Mornington) OR over-charged when it re-fired
+    // (Rebecca / Janet). Server now re-computes deposit from grand_total
+    // (== total_price, post-shop-link-override) so the numbers always add
+    // up. Client-provided deposit_amount is ignored — server truth wins.
+    try {
+      const _grand = parseFloat(total_price || 0);
+      if (_grand > 0) {
+        const _depRule = await resolveDepositRule(pool,
+          unit.rows[0].property_id, unit.rows[0].account_id, null, check_in, new Date());
+        if (_depRule) {
+          const _pct = parseFloat(_depRule.deposit_percentage || 0);
+          let _newDep = null;
+          if (_pct >= 100) {
+            _newDep = _grand;
+          } else if (_pct > 0) {
+            _newDep = Math.round(_grand * (_pct / 100) * 100) / 100;
+          } else if (_depRule.deposit_fixed_amount) {
+            _newDep = Math.min(parseFloat(_depRule.deposit_fixed_amount), _grand);
+          }
+          if (_newDep !== null) {
+            const _newBal = Math.round((_grand - _newDep) * 100) / 100;
+            const _oldDep = parseFloat(deposit_amount || 0);
+            if (Math.abs(_oldDep - _newDep) > 0.01) {
+              console.log(`[book deposit-recompute] booking on unit ${unit_id}: client sent deposit=${_oldDep} balance=${balance_amount}, server recomputed deposit=${_newDep} balance=${_newBal} (grand=${_grand}, rule pct=${_pct})`);
+            }
+            deposit_amount = _newDep;
+            balance_amount = _newBal;
+          }
+        }
+      }
+    } catch (depErr) {
+      console.warn('[book deposit-recompute] failed, using client values:', depErr.message);
+    }
+    // ────────────────────────────────────────────────────────────────
+
     // Same-day booking cutoff (Beds24-sourced rule, mirrored on every 6h sync).
     {
       const cutoffErr = await checkSameDayCutoff(pool, unit.rows[0].property_id, check_in);
