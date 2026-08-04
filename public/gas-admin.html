@@ -78537,7 +78537,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 // Find the account's Channex connection id
                 const acctId = document.getElementById('edit-property-account-id')?.value || null;
-                const cr = await fetch(`/api/admin/sync-connections${acctId ? '?account_id=' + acctId : ''}`, { headers: authHeaders() });
+                const cr = await fetch(`/api/gas-sync/connections${acctId ? '?account_id=' + acctId : ''}`, { headers: authHeaders() });
                 const cd = await cr.json();
                 const conn = ((cd && cd.connections) || []).find(c => c.adapter_code === 'channex' || c.adapter_code === 'channex-marketplace');
                 if (!conn) return alert('No Channex connection for this account');
