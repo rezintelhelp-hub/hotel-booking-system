@@ -102553,10 +102553,17 @@ app.post('/api/public/calculate-price', async (req, res) => {
             id: `shop-${sp.id}`,
             name: sp.name,
             description: sp.description || `Package price for ${nights} nights.`,
+            // discount_value=0 so the widget's savings math doesn't
+            // mistake the fixed-total for a fixed-amount discount and
+            // render "Save 87%" nonsense. Real per-stay savings vs
+            // standard render from rate_plan_total on the client.
             discount_type: 'fixed_total',
-            discount_value: shopTotal,
+            discount_value: 0,
+            // Package IS the offer — headline this rate instead of
+            // Standard so guests arriving from the shop's "Book This
+            // Package" see €785 up top, not the standard €900.
+            replaces_standard: true,
             hide_discount_badge: false,
-            replaces_standard: false,
             source: 'shop_link',
             rate_plan_total: shopTotal,
             price_per_night: Math.round((shopTotal / nights) * 100) / 100,

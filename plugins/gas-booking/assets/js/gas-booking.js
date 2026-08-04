@@ -4065,8 +4065,12 @@ jQuery(document).ready(function($) {
             // R5b: if the server attached a rate_plan_total (CM-imported
             // per-rate-plan price for the selected dates), use THAT — it's
             // the authoritative Beds24 per-slot price, not a derived %.
+            // Also re-derive discountAmount vs Standard so the savings %
+            // badge doesn't render nonsense when the offer's discount_value
+            // isn't the actual discount (e.g. shop-linked fixed_total).
             if (offer.rate_plan_total != null) {
                 offerTotal = parseFloat(offer.rate_plan_total);
+                discountAmount = Math.max(0, standardTotal - offerTotal);
             }
             // Extras surcharge (extra adult / child × nights). Server
             // computes against base_occupancy and emits this alongside
