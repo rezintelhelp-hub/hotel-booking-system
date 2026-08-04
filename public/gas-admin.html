@@ -56966,9 +56966,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 modal.id = 'blockUnblockModal';
                 modal.className = 'modal';
                 modal.innerHTML = `
-                    <div class="modal-content" style="max-width: 520px;">
-                        <div class="modal-header" style="background: linear-gradient(135deg,#4f46e5,#4338ca); color:white; padding:1rem 1.25rem; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center;">
-                            <h3 style="margin:0; font-size:1.1rem;">🚫 Block / Unblock / Channel visibility</h3>
+                    <div class="modal-content" id="block-modal-draggable" style="max-width: 520px; position: relative;">
+                        <div class="modal-header" data-block-modal-drag-handle="1" style="background: linear-gradient(135deg,#4f46e5,#4338ca); color:white; padding:1rem 1.25rem; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; cursor: move; user-select: none;" title="Drag to move — modal stays where you put it">
+                            <h3 style="margin:0; font-size:1.1rem;">🚫 Block / Unblock / Channel visibility <span style="font-size:0.75rem; font-weight:normal; opacity:0.8; margin-left:6px;">↔ drag me</span></h3>
                             <button onclick="closeModal('blockUnblockModal')" style="background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">&times;</button>
                         </div>
                         <div style="padding:1.25rem;">
@@ -57058,12 +57058,61 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('block-modal-from').value = today;
             document.getElementById('block-modal-to').value = today;
             document.getElementById('block-modal-status').textContent = '';
+            // Reset drag position each open so it lands centered again if
+            // the operator dragged it somewhere weird last time.
+            const draggable = document.getElementById('block-modal-draggable');
+            if (draggable) {
+                draggable.style.position = '';
+                draggable.style.left = '';
+                draggable.style.top = '';
+                draggable.style.margin = '';
+                draggable.style.transform = '';
+            }
             openModal('blockUnblockModal');
         }
 
         function blockModalToggleAll(state) {
             document.querySelectorAll('.block-modal-room-cb').forEach(cb => { cb.checked = state; });
         }
+
+        // Draggable block/unblock modal — Steve 2026-08-04 asked so the
+        // calendar underneath stays visible while picking date ranges.
+        // Drag from the header. Position persists within a session (until
+        // page reload). Delegated so we don't have to rebind after each
+        // modal open (modal is recreated once but content is preserved).
+        (function () {
+            let drag = null;
+            document.addEventListener('mousedown', function (e) {
+                const handle = e.target.closest('[data-block-modal-drag-handle]');
+                if (!handle) return;
+                // Don't hijack close-button clicks
+                if (e.target.tagName === 'BUTTON') return;
+                const modal = document.getElementById('block-modal-draggable');
+                if (!modal) return;
+                const rect = modal.getBoundingClientRect();
+                drag = { modal, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top };
+                // Switch to absolute positioning inside the fixed-overlay so
+                // margin-based centering doesn't fight the translate.
+                modal.style.position = 'fixed';
+                modal.style.left = rect.left + 'px';
+                modal.style.top = rect.top + 'px';
+                modal.style.margin = '0';
+                modal.style.transform = 'none';
+                e.preventDefault();
+            });
+            document.addEventListener('mousemove', function (e) {
+                if (!drag) return;
+                let x = e.clientX - drag.offsetX;
+                let y = e.clientY - drag.offsetY;
+                // Keep at least 40px of the header on-screen so it can't get lost
+                const w = drag.modal.offsetWidth, h = drag.modal.offsetHeight;
+                x = Math.max(-w + 80, Math.min(window.innerWidth - 80, x));
+                y = Math.max(0, Math.min(window.innerHeight - 40, y));
+                drag.modal.style.left = x + 'px';
+                drag.modal.style.top = y + 'px';
+            });
+            document.addEventListener('mouseup', function () { drag = null; });
+        })();
 
         async function applyBlockUnblock(btn) {
             const roomIds = Array.from(document.querySelectorAll('.block-modal-room-cb:checked')).map(cb => parseInt(cb.value, 10));
