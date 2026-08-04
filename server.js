@@ -13799,6 +13799,96 @@ function _normaliseCountryToIso2(input) {
   return null;
 }
 
+// POST /api/admin/channex/:connectionId/sync-property-content — push a
+// GAS property's content (description, phone, timezone, address, images,
+// hotel/cancellation policies) up to its Channex counterpart. Idempotent,
+// only updates fields present on the GAS side. Used to onboard clients
+// for Google Hotel Search (Channex requires phone/timezone/description/
+// photos/policy fields before enabling the channel). Steve 2026-08-04.
+// Body: { gas_property_id }
+app.post('/api/admin/channex/:connectionId/sync-property-content', async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.connectionId);
+    const { gas_property_id } = req.body;
+    if (!connectionId || !gas_property_id) {
+      return res.status(400).json({ success: false, error: 'connectionId + gas_property_id required' });
+    }
+    // Load GAS property + descriptions from various columns (JSONB _ml
+    // fields take priority; fall back to plain text). Extracts English
+    // from JSONB, since Channex only stores one description.
+    const propRow = await pool.query(
+      `SELECT id, name, address, city, country, postal_code, timezone, currency, phone,
+              description, full_description, short_description, location_description,
+              cancellation_policy, account_id, latitude, longitude
+         FROM properties WHERE id = $1`, [gas_property_id]);
+    if (!propRow.rows[0]) return res.status(404).json({ success: false, error: 'GAS property not found' });
+    const prop = propRow.rows[0];
+
+    const pickText = (val) => {
+      if (!val) return null;
+      if (typeof val === 'string') return val.trim() || null;
+      if (typeof val === 'object' && (val.en || val['en'])) return String(val.en || val['en']).trim() || null;
+      return null;
+    };
+    const description = pickText(prop.full_description)
+                     || pickText(prop.description)
+                     || pickText(prop.short_description)
+                     || pickText(prop.location_description);
+
+    // Look up Channex property external_id
+    const sp = await pool.query(
+      `SELECT external_id FROM gas_sync_properties WHERE connection_id = $1 AND gas_property_id = $2 LIMIT 1`,
+      [connectionId, gas_property_id]);
+    if (!sp.rows[0]) return res.status(404).json({ success: false, error: 'Property not linked to Channex — push-property first' });
+    const channexPropertyId = sp.rows[0].external_id;
+
+    const { SyncManager } = require('./gas-sync/adapters');
+    const adapter = await new SyncManager(pool).getAdapterForConnection(connectionId);
+
+    const countryIso2 = _normaliseCountryToIso2(prop.country) || 'GB';
+    const updatePayload = {
+      title: prop.name || undefined,
+      phone: prop.phone || undefined,
+      timezone: prop.timezone || undefined,
+      country: countryIso2,
+      city: prop.city || undefined,
+      address: prop.address || undefined,
+      zipCode: prop.postal_code || undefined,
+      currency: prop.currency || undefined,
+      description: description || undefined,
+      hotelPolicy: pickText(prop.cancellation_policy) || undefined,
+    };
+    const updRes = await adapter.updateProperty(channexPropertyId, updatePayload);
+
+    // Photos — property_images table for property-level shots.
+    let photoRes = null;
+    try {
+      const imgs = await pool.query(
+        `SELECT image_url FROM property_images WHERE property_id = $1 AND (is_hidden IS NULL OR is_hidden = false) ORDER BY sort_order NULLS LAST, id LIMIT 20`,
+        [gas_property_id]).catch(() => ({ rows: [] }));
+      const urls = imgs.rows.map(r => r.image_url).filter(Boolean);
+      if (urls.length > 0) {
+        photoRes = await adapter.setPropertyPhotos(channexPropertyId, urls);
+      } else {
+        photoRes = { success: true, skipped: 'no property-level images in GAS' };
+      }
+    } catch (photoErr) {
+      photoRes = { success: false, error: photoErr.message };
+    }
+
+    res.json({
+      success: !!updRes.success,
+      channex_property_id: channexPropertyId,
+      updated: updRes,
+      photos: photoRes,
+      description_source_present: !!description,
+    });
+  } catch (e) {
+    console.error('[sync-property-content]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST /api/admin/channex/:connectionId/push-property — programmatically
 // onboard a GAS property to Channex. Reads the property + its rooms from
 // the GAS DB, calls Channex createProperty + createRoomType, and persists

@@ -308,6 +308,53 @@ class ChannexAdapter {
   }
 
   /**
+   * Update a Channex property. Only sends the fields provided so partial
+   * updates (e.g. just phone + timezone) don't clobber other content.
+   * 2026-08-04 — Steve wanted GAS-driven content sync so onboarding new
+   * clients doesn't require Channex admin steps. Charles House was first
+   * (Google Hotel Search requirement pass).
+   */
+  async updateProperty(propertyId, payload) {
+    if (!propertyId) return { success: false, error: 'propertyId required' };
+    const attrs = {};
+    if (payload.title != null) attrs.title = payload.title;
+    if (payload.email != null) attrs.email = payload.email;
+    if (payload.phone != null) attrs.phone = payload.phone;
+    if (payload.timezone != null) attrs.timezone = payload.timezone;
+    if (payload.country != null) attrs.country = payload.country;
+    if (payload.state != null) attrs.state = payload.state;
+    if (payload.city != null) attrs.city = payload.city;
+    if (payload.address != null) attrs.address = payload.address;
+    if (payload.zipCode != null) attrs.zip_code = payload.zipCode;
+    if (payload.propertyType != null) attrs.property_type = payload.propertyType;
+    if (payload.currency != null) attrs.currency = payload.currency;
+    if (payload.description != null) attrs.description = payload.description;
+    if (payload.content != null) attrs.content = payload.content;
+    if (payload.settings != null) attrs.settings = payload.settings;
+    if (payload.hotelPolicy != null) attrs.hotel_policy = payload.hotelPolicy;
+    if (payload.facilities != null) attrs.facilities = payload.facilities;
+    return this.request(`/properties/${propertyId}`, 'PUT', { property: attrs });
+  }
+
+  /**
+   * Upload photo URLs to a Channex property. Channex fetches the images
+   * from the URLs we send — no direct binary upload needed (which means
+   * the image URLs must be publicly accessible, e.g. R2 with public bucket).
+   * Silently succeeds with an empty list if no URLs given.
+   */
+  async setPropertyPhotos(propertyId, photoUrls) {
+    if (!propertyId) return { success: false, error: 'propertyId required' };
+    const urls = Array.isArray(photoUrls) ? photoUrls.filter(Boolean) : [];
+    if (urls.length === 0) return { success: true, data: [], skipped: 'no-urls' };
+    // Channex /properties/:id/photos accepts array of { url, position, description }.
+    // We use position=index+1, description = property name (fallback empty).
+    const body = {
+      photos: urls.map((u, i) => ({ url: u, position: i + 1, description: '' }))
+    };
+    return this.request(`/properties/${propertyId}/photos`, 'POST', body);
+  }
+
+  /**
    * Create a Channex property under the configured Group. Channex's
    * /properties is one of the few CMs in the GAS portfolio that exposes
    * write-side property creation — this is the lever for programmatic
