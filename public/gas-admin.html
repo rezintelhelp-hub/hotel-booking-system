@@ -58130,6 +58130,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                             text = '';
                             textColor = '#92400e';
                         }
+                        // Website-only override — available in GAS but hidden
+                        // from OTAs. Repaints the cell purple so operator
+                        // sees at-a-glance which dates are held for direct.
+                        // Applied AFTER the branch above so it wins over the
+                        // default green/no-price fills for non-booked days.
+                        // Steve 2026-08-04.
+                        if (dayData.otas_hidden && !isBooked && !dayData.is_blocked) {
+                            bgColor = '#f5f3ff';
+                            textColor = '#6d28d9';
+                            leftBar = 'border-left: 4px solid #7c3aed;';
+                            titleText = 'Website-only (OTAs hidden)';
+                            text = text ? '🌐 ' + text : '🌐';
+                        }
                     } else {
                         // No availability data at all for this cell — usually
                         // means the sync hasn't covered this date yet. Use the
