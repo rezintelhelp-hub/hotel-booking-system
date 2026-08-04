@@ -79340,7 +79340,20 @@ app.get('/api/availability/:roomId', async (req, res) => {
         );
       }
     }
-    
+
+    // Per-date channel visibility overrides — stamp otas_hidden=true on any
+    // day where the operator has toggled OTA visibility off. Grid renderer
+    // uses this to paint a distinct "website-only" colour. Steve 2026-08-04.
+    let _otasHiddenDates = new Set();
+    try {
+      const vr = await pool.query(
+        `SELECT to_char(date, 'YYYY-MM-DD') AS date FROM unit_channel_daily_visibility
+          WHERE bookable_unit_id = $1 AND channel = 'channex' AND is_visible = false
+            AND date >= $2 AND date <= $3`,
+        [roomId, from, to]);
+      _otasHiddenDates = new Set(vr.rows.map(r => r.date));
+    } catch (_) { /* table may not exist in dev — soft-fail */ }
+
     const currency = roomInfo.rows[0]?.currency || null;
     const currencySymbol = currency ? getCurrencySymbol(currency) : '';
 
@@ -79584,6 +79597,9 @@ app.get('/api/availability/:roomId', async (req, res) => {
         // Stamp cutoff_blocked from the shared helper — pool branch.
         if (_cutoffBlocked.size > 0) {
           for (const d of result) if (_cutoffBlocked.has(d.date)) d.cutoff_blocked = true;
+        }
+        if (_otasHiddenDates.size > 0) {
+          for (const d of result) if (_otasHiddenDates.has(d.date)) d.otas_hidden = true;
         }
 
         const multiplier = parseFloat(roomInfo.rows[0]?.booking_page_multiplier) || null;
@@ -79875,6 +79891,9 @@ app.get('/api/availability/:roomId', async (req, res) => {
     // Stamp cutoff_blocked from the shared helper — legacy branch.
     if (_cutoffBlocked.size > 0) {
       for (const d of result) if (_cutoffBlocked.has(d.date)) d.cutoff_blocked = true;
+    }
+    if (_otasHiddenDates.size > 0) {
+      for (const d of result) if (_otasHiddenDates.has(d.date)) d.otas_hidden = true;
     }
 
     const multiplier = parseFloat(roomInfo.rows[0]?.booking_page_multiplier) || null;

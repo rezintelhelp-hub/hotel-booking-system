@@ -5388,6 +5388,10 @@
                         <input type="color" id="cal-colour-no_data" onchange="setCalColour('no_data', this.value)" style="width: 22px; height: 22px; border: 1px solid #cbd5e1; border-radius: 3px; padding: 0; cursor: pointer; background: none;">
                         No data
                     </label>
+                    <span style="display: flex; align-items: center; gap: 0.4rem;" title="Website + direct book, OTAs hidden">
+                        <span style="width: 22px; height: 22px; background: #f5f3ff; border: 1px solid #7c3aed; border-radius: 3px; display:inline-flex; align-items:center; justify-content:center; font-size:0.7rem;">🌐</span>
+                        Website-only
+                    </span>
                 </div>
 
                 <!-- Grid Calendar — .grid-fullbleed activates the negative-margin
@@ -56292,6 +56296,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     } else {
                         bg = CAL_COLOURS.no_price; text = '?'; textColor = '#92400e';
                         title = 'Available — no price set';
+                    }
+                    // Website-only state — available in GAS but hidden from
+                    // OTAs. Repaints the cell purple + prepends 🌐 to the text
+                    // so operator sees at-a-glance which dates are held for
+                    // direct-only. Steve 2026-08-04.
+                    if (day.otas_hidden) {
+                        bg = '#f5f3ff'; // pale purple
+                        textColor = '#6d28d9';
+                        text = '🌐 ' + text;
+                        title = `Website-only (OTAs hidden) · ${title.replace(/^Available[·—]? ?/, '')}`;
+                        leftBar = 'border-left:3px solid #7c3aed;';
                     }
                 }
             }
