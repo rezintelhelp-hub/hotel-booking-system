@@ -4649,6 +4649,11 @@ jQuery(document).ready(function($) {
         if (activeOffer && activeOffer.id) {
             checkoutUrl += '&offer_id=' + encodeURIComponent(activeOffer.id);
         }
+        // Preserve linked_product through to checkout so the shop-linked
+        // fixed-price package is re-injected on the checkout calc-price call
+        // and the guest sees the €785 total, not the standard €900.
+        var _lpBook = new URLSearchParams(window.location.search).get('linked_product');
+        if (_lpBook) checkoutUrl += '&linked_product=' + encodeURIComponent(_lpBook);
         var roomCurrency = $roomWidget.data('currency') || '';
         if (roomCurrency) {
             checkoutUrl += '&currency=' + encodeURIComponent(roomCurrency);
@@ -8262,6 +8267,7 @@ jQuery(document).ready(function($) {
             // that may be shorter than the property's general min_stay rule).
             console.log('GAS DEBUG currentLanguage:', currentLanguage);
             var checkoutEventSlug = new URLSearchParams(window.location.search).get('event');
+            var checkoutLinkedProduct = new URLSearchParams(window.location.search).get('linked_product');
             $.ajax({
                 url: checkoutData.apiUrl + '/api/public/calculate-price',
                 method: 'POST',
@@ -8279,6 +8285,7 @@ jQuery(document).ready(function($) {
                     // server applies THAT offer, not the highest-priority one.
                     offer_id: checkoutData.offerId || undefined,
                     event_slug: checkoutEventSlug || undefined,
+                    linked_product: checkoutLinkedProduct ? parseInt(checkoutLinkedProduct, 10) : undefined,
                     lang: currentLanguage
                 }),
                 success: function(response) {

@@ -102536,6 +102536,10 @@ app.post('/api/public/calculate-price', async (req, res) => {
     // duration AND the room is on the product's property (or product has no
     // property scope). Steve 2026-08-04. Fixed-price packages are shop-only
     // per project_shop_fixed_price_packages_usp.md.
+    let shopLinkedTotal = null; // set when injection succeeds; overrides
+                                // accommodation_total in the response so
+                                // checkout page shows the package price
+                                // instead of the standard math.
     if (linked_product && Number.isFinite(parseInt(linked_product, 10))) {
       try {
         const spR = await pool.query(
@@ -102547,6 +102551,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
             && (!sp.event_duration_nights || parseInt(sp.event_duration_nights, 10) === nights)
             && (!sp.property_id || parseInt(sp.property_id, 10) === parseInt(roomData.property_id, 10))) {
           const shopTotal = Math.round(parseFloat(sp.price) * 100) / 100;
+          shopLinkedTotal = shopTotal;
           // allOffers is already an array from the .map() upstream — const,
           // but mutable. .unshift is fine; reassignment would throw.
           allOffers.unshift({
@@ -102592,7 +102597,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       pricing_mode: pricingMode,
       occupancy_adjustment: roundMoney(occupancyAdjustmentTotal, currency),
       occupancy_label: occupancyLabel,
-      accommodation_total: roundMoney(accommodationTotal, currency),
+      accommodation_total: roundMoney(shopLinkedTotal != null ? shopLinkedTotal : accommodationTotal, currency),
       cm_total: roundMoney(cmTotal, currency),
       offer_discount: roundMoney(discount, currency),
       offer_applied: offerApplied,
