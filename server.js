@@ -148567,16 +148567,27 @@ app.post('/api/admin/bookings/:id/charge-stripe-card', async (req, res) => {
 
     // Amount priority:
     //   1. Explicit amount from request body (operator wants partial charge)
-    //   2. Outstanding balance
-    //   3. Full grand_total if nothing else outstanding
+    //   2. Ledger-computed outstanding = grand_total − sum(successful stripe payments)
+    //   3. Refuse if outstanding is 0
+    // 2026-08-04 — was reading booking.balance_amount which can be stale
+    // (same disease as the auto-charge cron; see the one-rule note). Always
+    // derive from the ledger so we can't over-charge.
     let chargeAmount = parseFloat(req.body.amount);
     if (!Number.isFinite(chargeAmount) || chargeAmount <= 0) {
-      chargeAmount = parseFloat(booking.balance_amount) > 0
-        ? parseFloat(booking.balance_amount)
-        : parseFloat(booking.grand_total) || 0;
+      const _paidRes = await pool.query(
+        `SELECT COALESCE(SUM(amount::numeric), 0) AS paid
+           FROM payment_transactions
+          WHERE booking_id = $1 AND payment_gateway = 'stripe'
+            AND status IN ('completed','succeeded')
+            AND transaction_type IN ('deposit','balance','payment','charge','capture')`,
+        [bookingId]);
+      const _paid = parseFloat(_paidRes.rows[0]?.paid || 0);
+      const _grand = parseFloat(booking.grand_total) || 0;
+      chargeAmount = Math.max(0, Math.round((_grand - _paid) * 100) / 100);
+      console.log(`[charge-stripe-card] booking ${bookingId} ledger-derived outstanding £${chargeAmount} (grand ${_grand} − paid ${_paid})`);
     }
     if (!(chargeAmount > 0)) {
-      return res.json({ success: false, error: 'No amount to charge (balance already 0)' });
+      return res.json({ success: false, error: 'No amount to charge — grand_total already fully paid per ledger' });
     }
 
     // Load property's Stripe config via the adapter — same source of truth
@@ -157454,18 +157465,30 @@ app.post('/api/admin/properties/:id/owner', async (req, res) => {
 // of waiting for the guest to complain.
 // =====================================================
 async function buildOverchargeAudit() {
+  // 2026-08-04 — subtract refunds from the paid total. Previously the audit
+  // only summed 'deposit/balance/payment/charge/capture' rows and ignored
+  // refund rows entirely — which meant every already-refunded overcharge
+  // (Rebecca Dean, Janet Emery, Chris Moffat) kept crying wolf every night.
+  // Now the SUM treats 'refund' rows as negative regardless of stored sign,
+  // and any explicitly-negative amount is honoured as-is. Result: only
+  // genuine cash-still-owed overcharges surface.
   const rows = await pool.query(`
     WITH stripe_paid AS (
       SELECT pt.booking_id,
-             SUM(pt.amount)::numeric AS paid,
-             COUNT(*)::int AS tx_count,
-             array_agg(pt.gateway_transaction_id ORDER BY pt.created_at) AS pi_ids,
-             array_agg(pt.transaction_type ORDER BY pt.created_at) AS tx_types,
+             SUM(
+               CASE
+                 WHEN pt.transaction_type ILIKE '%refund%' THEN -ABS(pt.amount::numeric)
+                 ELSE pt.amount::numeric
+               END
+             )::numeric AS paid,
+             COUNT(*) FILTER (WHERE pt.transaction_type NOT ILIKE '%refund%')::int AS tx_count,
+             array_agg(pt.gateway_transaction_id ORDER BY pt.created_at) FILTER (WHERE pt.transaction_type NOT ILIKE '%refund%') AS pi_ids,
+             array_agg(pt.transaction_type ORDER BY pt.created_at) FILTER (WHERE pt.transaction_type NOT ILIKE '%refund%') AS tx_types,
              MAX(pt.created_at) AS last_tx_at
         FROM payment_transactions pt
        WHERE pt.payment_gateway = 'stripe'
          AND pt.status IN ('succeeded','completed')
-         AND pt.transaction_type IN ('deposit','balance','payment','charge','capture')
+         AND pt.transaction_type IN ('deposit','balance','payment','charge','capture','refund')
        GROUP BY pt.booking_id
     )
     SELECT b.id, b.beds24_booking_id, b.guest_first_name, b.guest_last_name,
