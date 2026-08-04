@@ -102547,7 +102547,8 @@ app.post('/api/public/calculate-price', async (req, res) => {
             && (!sp.event_duration_nights || parseInt(sp.event_duration_nights, 10) === nights)
             && (!sp.property_id || parseInt(sp.property_id, 10) === parseInt(roomData.property_id, 10))) {
           const shopTotal = Math.round(parseFloat(sp.price) * 100) / 100;
-          allOffers = allOffers || [];
+          // allOffers is already an array from the .map() upstream — const,
+          // but mutable. .unshift is fine; reassignment would throw.
           allOffers.unshift({
             id: `shop-${sp.id}`,
             name: sp.name,
