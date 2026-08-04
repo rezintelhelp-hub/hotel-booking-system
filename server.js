@@ -55325,12 +55325,22 @@ app.put('/api/db/properties/:id', async (req, res) => {
       }
     }
 
+    // description + house_rules columns are JSONB (multi-language shape).
+    // The edit modal exposes a plain-text textarea so convert to
+    // {"en": "..."} before saving. Empty/undefined skips the update.
+    const descJson = (description !== undefined && description !== null)
+      ? (typeof description === 'string' ? JSON.stringify({ en: description }) : JSON.stringify(description))
+      : null;
+    const houseRulesJson = (house_rules !== undefined && house_rules !== null)
+      ? (typeof house_rules === 'string' ? JSON.stringify({ en: house_rules }) : JSON.stringify(house_rules))
+      : null;
+
     let result;
     try {
       result = await pool.query(
-        `UPDATE properties SET 
-          name = COALESCE($1, name), 
-          description = COALESCE($2, description), 
+        `UPDATE properties SET
+          name = COALESCE($1, name),
+          description = COALESCE($2::jsonb, description),
           address = COALESCE($3, address), 
           city = COALESCE($4, city), 
           country = COALESCE($5, country), 
@@ -55355,12 +55365,12 @@ app.put('/api/db/properties/:id', async (req, res) => {
           timezone        = COALESCE($27, timezone),
           check_in_time   = COALESCE($28, check_in_time),
           check_out_time  = COALESCE($29, check_out_time),
-          house_rules     = COALESCE($30, house_rules),
+          house_rules     = COALESCE($30::jsonb, house_rules),
           facilities      = COALESCE($31::jsonb, facilities),
           updated_at = NOW()
         WHERE id = $21
         RETURNING *`,
-        [name, description, address, city, country, property_type, status,
+        [name, descJson, address, city, country, property_type, status,
          state, latitude, longitude, account_id, currency, district, zip_code,
          display_name || null, show_on_portfolio,
          portfolio_display ? JSON.stringify(portfolio_display) : null,
@@ -55380,7 +55390,7 @@ app.put('/api/db/properties/:id', async (req, res) => {
          timezone !== undefined ? (timezone && String(timezone).trim() ? String(timezone).trim() : null) : null,
          check_in_time !== undefined ? (check_in_time || null) : null,
          check_out_time !== undefined ? (check_out_time || null) : null,
-         house_rules !== undefined ? (house_rules || null) : null,
+         houseRulesJson,
          facilities !== undefined ? JSON.stringify(Array.isArray(facilities) ? facilities : []) : null]
       );
     } catch (queryErr) {
