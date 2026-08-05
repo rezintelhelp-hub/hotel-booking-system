@@ -14565,37 +14565,32 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
     const { ChannexAdapter } = require('./gas-sync/adapters/channex-adapter');
     const adapter = new ChannexAdapter({ apiKey, groupId });
 
-    // Channex's Google integration only feeds Google Vacation Rentals,
-    // and their docs say VR requires 1 room type per property. In
-    // practice Google itself may just index each room type as a
-    // separate listing — potentially GOOD for hotels (4 rooms = 4
-    // Google listings). Rather than hard-reject on the 1-rt rule, log
-    // the count so the operator can decide + we can see what Google
-    // does after 7 days.
-    const rtCountQ = await pool.query(
-      `SELECT COUNT(*)::int AS n FROM gas_sync_room_types WHERE sync_property_id = (SELECT id FROM gas_sync_properties WHERE gas_property_id = $1 AND connection_id = $2 LIMIT 1)`,
-      [gasPropertyId, connectionId]);
-    const roomTypeCount = rtCountQ.rows[0]?.n || 0;
-    if (roomTypeCount > 1) {
-      console.log(`[google/create-channel] property ${gasPropertyId} has ${roomTypeCount} room types — Channex docs say VR wants 1, testing what Google does with more.`);
-    }
-
-    // Flip Channex billing_type to Vacation Rental (idempotent — no-op
-    // if already set). Google VR won't index otherwise.
+    // 2026-08-05 (Evan @ Channex): Google-via-Channex works for BOTH
+    // hotels AND vacation rentals. The property's `property_type` drives
+    // the channel behaviour; there's no need to flip `billing_type` (it
+    // doesn't persist via API anyway). Read the current property_type
+    // from Channex and choose the right pair:
+    //   - property_type='hotel'    → account_type='Hotel',           partner_account='Channex ARI'
+    //   - anything else (apartment/villa/etc for VR) → account_type='Vacation Rental', partner_account='Channex'
+    // These pairs were verified empirically 2026-08-05 — Charles House
+    // (Hotel) rejected 'Channex' but accepted 'Channex ARI'; Elizabeth
+    // VR test was the opposite. Overriding the client-passed
+    // partner_account still allowed, but the resolved default fits the
+    // property type.
+    let resolvedAccountType = 'Vacation Rental';
+    let partnerAccountResolved;
     try {
-      await adapter.request(`/properties/${channexPropertyId}`, 'PUT', {
-        property: { billing_type: 'Vacation Rental' }
-      });
+      const propGet = await adapter.request(`/properties/${channexPropertyId}`, 'GET');
+      const chxPropType = String(propGet.data?.attributes?.property_type || propGet.raw?.data?.attributes?.property_type || '').toLowerCase();
+      if (chxPropType === 'hotel') resolvedAccountType = 'Hotel';
     } catch (e) {
-      console.warn('[google/create-channel] billing_type flip warn:', e.message);
+      console.warn('[google/create-channel] property_type read failed, defaulting to VR:', e.message);
     }
-
-    // Channex requires partner_account = 'Channex' for the shared
-    // Channex Hotel Centre (not the display name 'Channex ARI' which
-    // the /channels/list catalog surfaces). Selecting 'Channex ARI'
-    // returns 422 "partner_account is invalid".
-    const partnerAccountResolved = (partnerAccount === 'Channex ARI' || !partnerAccount)
-      ? 'Channex' : partnerAccount;
+    if (partnerAccount) {
+      partnerAccountResolved = partnerAccount;
+    } else {
+      partnerAccountResolved = resolvedAccountType === 'Hotel' ? 'Channex ARI' : 'Channex';
+    }
 
     // Aggregate bedroom / bathroom / bed counts across all rooms on the
     // property. Google's readiness check rejects the channel with
@@ -14614,10 +14609,11 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
       email,
       partner_account: partnerAccountResolved,
       use_built_in_ibe: useBuiltInIbe,
-      // Matches the property billing_type flip above — Channex's Google
-      // integration only serves Vacation Rental accounts, and their
-      // channel-settings account_type must align with property.billing_type.
-      account_type: 'Vacation Rental',
+      // account_type derived from Channex property.property_type (see
+      // resolvedAccountType above) — 'Hotel' for hotel-type properties,
+      // 'Vacation Rental' for everything else. Matches what Channex
+      // support (Evan 2026-08-05) confirmed as the correct routing.
+      account_type: resolvedAccountType,
       request_credit_card: true,
       request_billing_info: true,
       send_email_notifications: true,
