@@ -13893,11 +13893,117 @@ async function pushGasPropertyContentToChannex(gasPropertyId, connectionId) {
     } catch (photoErr) {
       photoRes = { success: false, error: photoErr.message };
     }
+
+    // 2026-08-05 — Google Rooms wizard: Channex requires these 3
+    // separate entities (hotel_policy, cancellation_policy, facilities)
+    // populated before Google Hotel Search will activate. We create
+    // sensible defaults if they're missing, so autofill can genuinely
+    // one-click a client through to Google-ready.
+    const currentProp = await adapter.request(`/properties/${channexPropertyId}`, 'GET').catch(() => null);
+    const currAttrs = currentProp?.data?.attributes || currentProp?.raw?.data?.attributes || {};
+    const hotelPolicyRes = { skipped: 'already-set' };
+    const cancellationRes = { skipped: 'already-set' };
+    const facilitiesRes = { skipped: 'already-set' };
+
+    // Hotel policy — create if missing
+    if (!currAttrs.hotel_policy_id) {
+      const hpBody = {
+        property_id: channexPropertyId,
+        title: 'Standard',
+        currency: prop.currency || 'GBP',
+        is_adults_only: false,
+        max_count_of_guests: 4,
+        checkin_from_time: (prop.check_in_time || '15:00').slice(0, 5),
+        checkin_to_time: '22:00',
+        checkout_from_time: '07:00',
+        checkout_to_time: (prop.check_out_time || '11:00').slice(0, 5),
+        internet_access_type: 'wifi',
+        internet_access_coverage: 'entire_property',
+        internet_access_cost: null,
+        parking_type: 'none',
+        parking_reservation: 'not_available',
+        parking_is_private: false,
+        pets_policy: 'not_allowed',
+        pets_non_refundable_fee: '0.00',
+        pets_refundable_deposit: '0.00',
+        smoking_policy: 'no_smoking',
+      };
+      try {
+        const hpResp = await adapter.request('/hotel_policies', 'POST', { hotel_policy: hpBody });
+        const hpId = hpResp.data?.id || hpResp.raw?.data?.id;
+        if (hpId) {
+          await adapter.request(`/properties/${channexPropertyId}`, 'PUT', { property: { hotel_policy_id: hpId } });
+          hotelPolicyRes.success = true; hotelPolicyRes.id = hpId; delete hotelPolicyRes.skipped;
+        } else hotelPolicyRes.error = 'no id in response';
+      } catch (e) { hotelPolicyRes.error = e.message; delete hotelPolicyRes.skipped; }
+    }
+
+    // Cancellation policy — create if missing. Try to parse days from
+    // the GAS text policy ("30 days prior to your arrival") — fall back
+    // to 30 days free.
+    if (!currAttrs.default_cancellation_policy_id) {
+      const cpText = String(prop.cancellation_policy || '').toLowerCase();
+      const daysMatch = cpText.match(/(\d+)\s*days?/);
+      const days = daysMatch ? parseInt(daysMatch[1], 10) : 30;
+      const cpBody = {
+        property_id: channexPropertyId,
+        title: `${days} days free`,
+        is_default: true,
+        currency: prop.currency || 'GBP',
+        cancellation_policy_logic: 'deadline',
+        cancellation_policy_mode: 'nights',
+        cancellation_policy_deadline: days,
+        cancellation_policy_deadline_type: 'days',
+        cancellation_policy_penalty: '1',
+        guarantee_payment_policy: 'none',
+        guarantee_payment_amount: null,
+        non_show_policy: 'default',
+      };
+      try {
+        const cpResp = await adapter.request('/cancellation_policies', 'POST', { cancellation_policy: cpBody });
+        const cpId = cpResp.data?.id || cpResp.raw?.data?.id;
+        if (cpId) {
+          await adapter.request(`/properties/${channexPropertyId}`, 'PUT', { property: { default_cancellation_policy_id: cpId } });
+          cancellationRes.success = true; cancellationRes.id = cpId; cancellationRes.days = days; delete cancellationRes.skipped;
+        } else cancellationRes.error = 'no id in response';
+      } catch (e) { cancellationRes.error = e.message; delete cancellationRes.skipped; }
+    }
+
+    // Facilities — resolve GAS facility strings to Channex facility
+    // UUIDs from the /property_facilities/options taxonomy. Falls back
+    // to WiFi + Non-smoking rooms as a safe minimum so Google's ≥1
+    // requirement is met even for properties with an empty facilities
+    // array in GAS.
+    try {
+      const gasFacs = Array.isArray(prop.facilities) ? prop.facilities : [];
+      const tax = await adapter.request('/property_facilities/options', 'GET');
+      const opts = tax.data || tax.raw?.data || [];
+      const byTitle = new Map();
+      for (const o of opts) {
+        const t = (o.attributes?.title || '').toLowerCase();
+        if (t) byTitle.set(t, o.id);
+      }
+      const wantedTitles = gasFacs.length
+        ? gasFacs.map(s => String(s).replace(/[-_]/g, ' ').toLowerCase())
+        : ['wifi', 'non-smoking rooms'];
+      const facilityIds = [];
+      for (const t of wantedTitles) if (byTitle.has(t)) facilityIds.push(byTitle.get(t));
+      if (facilityIds.length) {
+        await adapter.request(`/properties/${channexPropertyId}`, 'PUT', { property: { facilities: facilityIds } });
+        facilitiesRes.success = true; facilitiesRes.count = facilityIds.length; delete facilitiesRes.skipped;
+      } else {
+        facilitiesRes.skipped = 'no facilities matched taxonomy';
+      }
+    } catch (e) { facilitiesRes.error = e.message; delete facilitiesRes.skipped; }
+
     return {
       success: !!updRes.success,
       channex_property_id: channexPropertyId,
       updated: updRes,
       photos: photoRes,
+      hotel_policy: hotelPolicyRes,
+      cancellation_policy: cancellationRes,
+      facilities: facilitiesRes,
       description_source_present: !!description,
     };
   } catch (e) {
