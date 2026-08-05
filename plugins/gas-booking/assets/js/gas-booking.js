@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.24
+ * Version: 4.3.25
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -678,11 +678,25 @@ jQuery(document).ready(function($) {
             // is fetched once and cached; the rendered "X remaining" is
             // computed on every draw as (max - cart qty) so the badge
             // ticks down as the guest clicks +.
+            // Pre-compute total cart qty per (type|id|checkin|checkout) so
+            // multiple rows of the SAME room/dates share the same pool of
+            // remaining inventory. Row 1 shows (max - totalQty), row 2
+            // shows the same lower number — matches the guest's mental
+            // model of "how many more can I add total?". Steve 2026-08-05
+            // Hebden: 2 rows of the same Private Room Double both showed
+            // "3 more available · 4 total" instead of accounting for the
+            // other row already consuming 1.
+            var totalQtyByKey = {};
+            items.forEach(function(it) {
+                var k = availKey(it);
+                totalQtyByKey[k] = (totalQtyByKey[k] || 0) + (parseInt(it.qty, 10) || 1);
+            });
             function renderAvailBadge(item, i, max, okMsg) {
                 var $row = $page.find('.gas-cart-row[data-idx="' + i + '"]');
                 if (!$row.length) return;
                 $row.find('.gas-cart-avail').remove();
                 var curQty = item.qty || 1;
+                var totalQty = totalQtyByKey[availKey(item)] || curQty;
                 var $plus = $row.find('.gas-cart-qty-plus');
                 if (max === 0) {
                     $row.find('> div:first-child').append('<div class="gas-cart-avail" style="margin-top:6px;font-size:0.85rem;color:#b91c1c;font-weight:600;">⚠ Sold out for these dates</div>');
@@ -693,17 +707,21 @@ jQuery(document).ready(function($) {
                     $row.find('> div:first-child').append('<div class="gas-cart-avail" style="margin-top:4px;font-size:0.8rem;color:#059669;">✓ Available</div>');
                     return true;
                 }
-                if (curQty > max) {
-                    // Auto-clamp the cart to fit
+                if (totalQty > max) {
+                    // Auto-clamp: this row shrinks by the overshoot amount
+                    // (or to 1, whichever is larger). Other rows keep their
+                    // quantities so the guest isn't silently mutilated.
+                    var overshoot = totalQty - max;
+                    var newQ = Math.max(1, curQty - overshoot);
                     var cart3 = window.gasCart.read();
-                    if (cart3 && cart3.items[i]) { cart3.items[i].qty = max; window.gasCart.write(cart3); }
+                    if (cart3 && cart3.items[i]) { cart3.items[i].qty = newQ; window.gasCart.write(cart3); }
                     draw();
                     return true;
                 }
-                var remaining = Math.max(0, max - curQty);
+                var remaining = Math.max(0, max - totalQty);
                 var msg = (max === 1)
                     ? (okMsg || 'Available')
-                    : (remaining === 0 ? 'Max reached · ' + max + ' available' : remaining + ' more available · ' + max + ' total');
+                    : (remaining === 0 ? 'Max reached · ' + max + ' total' : remaining + ' more available · ' + max + ' total');
                 $row.find('> div:first-child').append('<div class="gas-cart-avail" style="margin-top:4px;font-size:0.8rem;color:' + (remaining === 0 ? '#b45309' : '#059669') + ';">✓ ' + msg + '</div>');
                 if (remaining === 0) {
                     $plus.prop('disabled', true).css('opacity', '0.4').css('cursor', 'not-allowed');
