@@ -109981,6 +109981,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <button class="btn" onclick="_channexStartAirbnbImport()" style="background:#FF5A5F;color:#fff;font-size:14px;padding:10px 20px;">📥 Import from Airbnb</button>
                         <p style="font-size:11px;color:#64748b;margin:6px 0 0 0;max-width:200px;">Authorise Airbnb, then pick listings to import into GAS.</p>
                     </div>
+                    <div style="text-align:center;">
+                        <button class="btn" onclick="_channexStartGoogleWizard()" style="background:#4285F4;color:#fff;font-size:14px;padding:10px 20px;">🏨 Connect Google Rooms</button>
+                        <p style="font-size:11px;color:#64748b;margin:6px 0 0 0;max-width:200px;">Push property to Google Hotel Search (free listings).</p>
+                    </div>
                 </div>
                 <div style="margin-top:14px;text-align:center;font-size:11px;">
                     <a href="#" onclick="_channexSyncFromRemote();return false;" style="color:#3b82f6;text-decoration:underline;font-weight:600;">🔄 Sync channels from Channex</a>
@@ -110042,6 +110046,212 @@ const promo = await fetch('/api/v1/offers/validate', {
                 ` + _channexBackBtn('_channexRenderHome');
             } catch (e) {
                 body.innerHTML = `<p style="color:#ef4444;padding:14px;">Error: ${escapeHtml(e.message)}</p>` + _channexBackBtn('_channexRenderHome');
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // Google Rooms wizard (channel code GoogleHotelARI). Google has
+        // no OTA extranet, so Channex requires the property to be fully
+        // populated (address/phone/coords/timezone/hotel_policy/
+        // cancellation/facility/photo/description) BEFORE we can create
+        // the channel. Flow: pick property → audit → auto-fill missing
+        // → email + booking link → create + map.
+        // -----------------------------------------------------------------
+
+        function _googleStepHeader(step) {
+            const steps = ['Pick property', 'Audit content', 'Auto-fill', 'Config', 'Create & map'];
+            return `<div style="display:flex;gap:6px;margin-bottom:18px;font-size:11px;font-weight:600;">${steps.map((s, i) => {
+                const n = i + 1;
+                const active = n === step;
+                const done = n < step;
+                const bg = done ? '#10b981' : (active ? '#4285F4' : '#e2e8f0');
+                const fg = (done || active) ? '#fff' : '#64748b';
+                return `<div style="flex:1;background:${bg};color:${fg};padding:6px 10px;border-radius:4px;text-align:center;">${n}. ${s}</div>`;
+            }).join('')}</div>`;
+        }
+
+        // Entry point — pick a Channex-linked property from this connection.
+        async function _channexStartGoogleWizard() {
+            const { connectionId } = _channexWizardState;
+            const body = document.getElementById('channex-wizard-body');
+            body.innerHTML = _googleStepHeader(1) + '<div style="text-align:center;padding:40px;">Loading properties…</div>';
+            let props = [];
+            try {
+                const r = await fetch(`/api/gas-sync/properties?connection_id=${connectionId}`, { headers: authHeaders() }).then(r => r.json());
+                props = (r.properties || r.data || []).filter(p => p.gas_property_id);
+            } catch (e) {
+                body.innerHTML = _googleStepHeader(1) + `<p style="color:#ef4444;">Could not load properties: ${escapeHtml(e.message)}</p>` + _channexBackBtn('_channexRenderHome');
+                return;
+            }
+            if (!props.length) {
+                body.innerHTML = _googleStepHeader(1) + `
+                    <div style="background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:6px;padding:14px;font-size:13px;">
+                        No properties are linked to Channex on this connection yet. Push a GAS property to Channex first (use <strong>+ Connect a new channel</strong> above and pick a property).
+                    </div>` + _channexBackBtn('_channexRenderHome');
+                return;
+            }
+            body.innerHTML = _googleStepHeader(1) + `
+                <h4 style="margin:0 0 12px 0;">Pick the property to connect to Google</h4>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    ${props.map(p => `
+                        <button class="btn" onclick="_googleRunAudit(${p.gas_property_id})" style="background:#f8fafc;color:#334155;border:1px solid #e2e8f0;text-align:left;padding:10px 14px;">
+                            <strong>${escapeHtml(p.name || p.title || 'Unnamed')}</strong>
+                            <span style="font-size:11px;color:#64748b;margin-left:8px;">gas #${p.gas_property_id}</span>
+                        </button>
+                    `).join('')}
+                </div>
+            ` + _channexBackBtn('_channexRenderHome');
+        }
+
+        async function _googleRunAudit(gasPropId) {
+            const { connectionId } = _channexWizardState;
+            _channexWizardState.googleGasPropId = gasPropId;
+            const body = document.getElementById('channex-wizard-body');
+            body.innerHTML = _googleStepHeader(2) + '<div style="text-align:center;padding:40px;">Auditing Channex property content…</div>';
+            try {
+                const r = await fetch(`/api/admin/channex/${connectionId}/google/audit?gas_property_id=${gasPropId}`, { headers: authHeaders() }).then(r => r.json());
+                if (!r.success) throw new Error(r.error || 'audit failed');
+                const rows = r.audit.map(a => `
+                    <tr>
+                        <td style="padding:6px 8px;">${a.ready ? '<span style="color:#059669;">✓</span>' : '<span style="color:#dc2626;">✗</span>'}</td>
+                        <td style="padding:6px 8px;">${escapeHtml(a.label)}</td>
+                        <td style="padding:6px 8px;color:#64748b;font-size:12px;">${a.value ? escapeHtml(String(a.value)) : '<em>missing</em>'}</td>
+                    </tr>`).join('');
+                const canProceed = r.missing_count === 0;
+                body.innerHTML = _googleStepHeader(2) + `
+                    <h4 style="margin:0 0 8px 0;">Channex content audit</h4>
+                    <p style="font-size:12px;color:#64748b;margin:0 0 12px 0;">Google requires all of these fields. Missing items will be pulled from GAS in the next step.</p>
+                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead><tr style="background:#f8fafc;text-align:left;">
+                            <th style="padding:6px 8px;width:30px;"></th>
+                            <th style="padding:6px 8px;">Field</th>
+                            <th style="padding:6px 8px;">Value</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                    <div style="margin-top:18px;display:flex;gap:8px;">
+                        ${canProceed
+                            ? `<button class="btn" onclick="_googleRenderConfig()" style="background:#10b981;color:#fff;">✓ All set — Configure channel →</button>`
+                            : `<button class="btn" onclick="_googleAutofill()" style="background:#4285F4;color:#fff;">Auto-fill ${r.missing_count} missing from GAS →</button>`
+                        }
+                        <button class="btn" onclick="_channexStartGoogleWizard()" style="background:#e2e8f0;color:#334155;">← Pick another property</button>
+                    </div>
+                `;
+            } catch (e) {
+                body.innerHTML = _googleStepHeader(2) + `<p style="color:#ef4444;padding:14px;">Audit failed: ${escapeHtml(e.message)}</p>` + _channexBackBtn('_channexStartGoogleWizard');
+            }
+        }
+
+        async function _googleAutofill() {
+            const { connectionId, googleGasPropId } = _channexWizardState;
+            const body = document.getElementById('channex-wizard-body');
+            body.innerHTML = _googleStepHeader(3) + '<div style="text-align:center;padding:40px;">Pushing GAS content + photos to Channex…</div>';
+            try {
+                const r = await fetch(`/api/admin/channex/${connectionId}/google/autofill`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ gas_property_id: googleGasPropId }),
+                }).then(r => r.json());
+                if (!r.success) throw new Error(r.error || 'autofill failed');
+                body.innerHTML = _googleStepHeader(3) + `
+                    <div style="background:#dcfce7;border:1px solid #86efac;color:#166534;border-radius:6px;padding:14px;font-size:13px;">
+                        ✓ Content pushed to Channex${r.photos?.skipped ? ' (photos: ' + escapeHtml(r.photos.skipped) + ')' : ''}
+                    </div>
+                    <p style="font-size:12px;color:#64748b;margin:12px 0;">Re-run audit to confirm every field is now green before moving on.</p>
+                    <button class="btn" onclick="_googleRunAudit(${googleGasPropId})" style="background:#4285F4;color:#fff;">Re-run audit →</button>
+                `;
+            } catch (e) {
+                body.innerHTML = _googleStepHeader(3) + `<p style="color:#ef4444;padding:14px;">Autofill failed: ${escapeHtml(e.message)}</p>
+                    <button class="btn" onclick="_googleRunAudit(${googleGasPropId})">← Back to audit</button>`;
+            }
+        }
+
+        async function _googleRenderConfig() {
+            const { googleGasPropId } = _channexWizardState;
+            const body = document.getElementById('channex-wizard-body');
+            body.innerHTML = _googleStepHeader(4) + '<div style="text-align:center;padding:40px;">Loading property config…</div>';
+            let prop = null;
+            try {
+                const r = await fetch(`/api/admin/properties/${googleGasPropId}`, { headers: authHeaders() }).then(r => r.json());
+                prop = r.property || r;
+            } catch (e) {
+                body.innerHTML = _googleStepHeader(4) + `<p style="color:#ef4444;">Could not load property: ${escapeHtml(e.message)}</p>`;
+                return;
+            }
+            const defaultEmail = prop.google_hotel_center_email || prop.email || prop.contact_email || '';
+            const siteHost = (prop.website_url || prop.website || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+            const defaultBookingLink = siteHost
+                ? `https://${siteHost}/book-now/?checkin=(CHECKIN_DATE)&checkout=(CHECKOUT_DATE)&adults=(ADULTS)`
+                : '';
+            body.innerHTML = _googleStepHeader(4) + `
+                <h4 style="margin:0 0 12px 0;">Google channel settings</h4>
+                <div style="display:flex;flex-direction:column;gap:12px;font-size:13px;">
+                    <div>
+                        <label style="font-weight:600;display:block;margin-bottom:4px;">Property notification email</label>
+                        <input id="google-cfg-email" type="email" value="${escapeHtml(defaultEmail)}" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;">
+                        <p style="font-size:11px;color:#64748b;margin:4px 0 0;">Where Google sends booking notifications for this property.</p>
+                    </div>
+                    <div>
+                        <label style="font-weight:600;display:block;margin-bottom:4px;">Partner account</label>
+                        <select id="google-cfg-partner" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;">
+                            <option value="Channex ARI" selected>Channex ARI (default — shared Channex Hotel Centre)</option>
+                        </select>
+                        <p style="font-size:11px;color:#64748b;margin:4px 0 0;">Your own Google Hotel Center (${escapeHtml(prop.google_hotel_center_account_id || 'not set')}) needs Channex support to add it as a partner_account option before it can be selected here.</p>
+                    </div>
+                    <div>
+                        <label style="display:flex;align-items:center;gap:6px;font-weight:600;">
+                            <input id="google-cfg-use-ibe" type="checkbox" checked>
+                            Use Channex built-in booking engine
+                        </label>
+                        <p style="font-size:11px;color:#64748b;margin:4px 0 0 22px;">Untick to send Google clicks to your own booking widget.</p>
+                    </div>
+                    <div id="google-cfg-booking-link-wrap" style="display:none;">
+                        <label style="font-weight:600;display:block;margin-bottom:4px;">Booking link</label>
+                        <input id="google-cfg-booking-link" type="text" value="${escapeHtml(defaultBookingLink)}" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-family:monospace;font-size:12px;">
+                        <p style="font-size:11px;color:#64748b;margin:4px 0 0;">Use Channex variables: <code>(CHECKIN_DATE)</code>, <code>(CHECKOUT_DATE)</code>, <code>(ADULTS)</code>, <code>(LENGTH)</code>, <code>(CURRENCY)</code>.</p>
+                    </div>
+                </div>
+                <div style="margin-top:18px;display:flex;gap:8px;">
+                    <button class="btn" onclick="_googleCreateChannel()" style="background:#10b981;color:#fff;">Create Google channel →</button>
+                    <button class="btn" onclick="_googleRunAudit(${googleGasPropId})" style="background:#e2e8f0;color:#334155;">← Back to audit</button>
+                </div>
+            `;
+            document.getElementById('google-cfg-use-ibe').addEventListener('change', (ev) => {
+                document.getElementById('google-cfg-booking-link-wrap').style.display = ev.target.checked ? 'none' : 'block';
+            });
+        }
+
+        async function _googleCreateChannel() {
+            const { connectionId, googleGasPropId } = _channexWizardState;
+            const email = document.getElementById('google-cfg-email').value.trim();
+            const partner_account = document.getElementById('google-cfg-partner').value;
+            const use_built_in_ibe = document.getElementById('google-cfg-use-ibe').checked;
+            const booking_link = use_built_in_ibe ? undefined : document.getElementById('google-cfg-booking-link').value.trim();
+            if (!email) { alert('Property email is required.'); return; }
+            if (!use_built_in_ibe && !booking_link) { alert('Booking link is required when not using Channex IBE.'); return; }
+            const body = document.getElementById('channex-wizard-body');
+            body.innerHTML = _googleStepHeader(5) + '<div style="text-align:center;padding:40px;">Creating channel + mapping rate plans…</div>';
+            try {
+                const r = await fetch(`/api/admin/channex/${connectionId}/google/create-channel`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ gas_property_id: googleGasPropId, email, partner_account, use_built_in_ibe, booking_link }),
+                }).then(r => r.json());
+                if (!r.success) throw new Error(r.error || JSON.stringify(r.details || r).slice(0, 300));
+                body.innerHTML = _googleStepHeader(5) + `
+                    <div style="background:#dcfce7;border:1px solid #86efac;color:#166534;border-radius:6px;padding:14px;font-size:13px;">
+                        ✓ Google Hotel Search channel created<br>
+                        Mapped ${r.rate_plans_mapped} rate plan(s). Channel is inactive until you Activate.
+                    </div>
+                    <p style="font-size:12px;color:#64748b;margin:12px 0;">Google indexes new properties weekly — expect it live in ~7 days after activation. Google matches by address + phone + name, so double-check those before flipping on.</p>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn" onclick="channexActivate(${r.channel_id}); _channexRenderHome();" style="background:#10b981;color:#fff;">Activate now</button>
+                        <button class="btn" onclick="_channexRenderHome()" style="background:#e2e8f0;color:#334155;">Activate later</button>
+                    </div>
+                `;
+            } catch (e) {
+                body.innerHTML = _googleStepHeader(5) + `<p style="color:#ef4444;padding:14px;">Create failed: ${escapeHtml(e.message)}</p>
+                    <button class="btn" onclick="_googleRenderConfig()">← Back to config</button>`;
             }
         }
 

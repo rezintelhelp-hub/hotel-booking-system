@@ -14197,6 +14197,204 @@ app.get('/api/admin/channex/:connectionId/channels', async (req, res) => {
   }
 });
 
+// =====================================================
+// GOOGLE ROOMS WIZARD — Channex "Google Hotel Search"
+// (channel code GoogleHotelARI) connection flow.
+// Google has no OTA extranet, so Channex requires the property to have
+// country/address/phone/coords/timezone/hotel_policy/cancellation/
+// facility/photo/description populated BEFORE the channel can activate.
+// These endpoints back the client-side wizard.
+// =====================================================
+
+// GET /api/admin/channex/:connectionId/google/audit?gas_property_id=X
+// Reads the Channex property + its photos + facilities and returns a
+// per-field ready/missing status keyed to Google's 10 requirements.
+app.get('/api/admin/channex/:connectionId/google/audit', async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.connectionId, 10);
+    const gasPropertyId = parseInt(req.query.gas_property_id, 10);
+    if (!gasPropertyId) return res.status(400).json({ success: false, error: 'gas_property_id required' });
+
+    const conn = await pool.query(
+      "SELECT credentials FROM gas_sync_connections WHERE id = $1 AND adapter_code IN ('channex','channex-marketplace') LIMIT 1",
+      [connectionId]);
+    if (!conn.rows[0]) return res.status(404).json({ success: false, error: 'Channex connection not found' });
+    const apiKey = conn.rows[0].credentials?.apiKey || conn.rows[0].credentials?.api_key || process.env.CHANNEX_API_KEY;
+    if (!apiKey) return res.status(400).json({ success: false, error: 'No Channex API key on this connection' });
+
+    const sp = await pool.query(
+      "SELECT external_id FROM gas_sync_properties WHERE connection_id = $1 AND gas_property_id = $2 LIMIT 1",
+      [connectionId, gasPropertyId]);
+    if (!sp.rows[0]) return res.status(404).json({ success: false, error: 'GAS property not linked to Channex — push property first' });
+    const channexPropertyId = sp.rows[0].external_id;
+
+    const axios = require('axios');
+    const headers = { 'user-api-key': apiKey };
+    const propResp = await axios.get(`https://app.channex.io/api/v1/properties/${channexPropertyId}`, { headers });
+    const a = propResp.data?.data?.attributes || {};
+
+    let photoCount = 0;
+    try {
+      const photosResp = await axios.get(`https://app.channex.io/api/v1/photos?filter[property_id]=${channexPropertyId}`, { headers });
+      photoCount = (photosResp.data?.data || []).length;
+    } catch (_) { /* photos endpoint may 404 if none */ }
+
+    let facilitiesCount = 0;
+    try {
+      const facResp = await axios.get(`https://app.channex.io/api/v1/properties/${channexPropertyId}/facilities`, { headers });
+      const facData = facResp.data?.data;
+      facilitiesCount = Array.isArray(facData) ? facData.length : (facData ? Object.keys(facData).length : 0);
+    } catch (_) { /* facilities may 404 if never set */ }
+
+    const audit = [
+      { field: 'title',                label: 'Property name',        ready: !!a.title,                                value: a.title || null },
+      { field: 'address',              label: 'Address',              ready: !!a.address,                              value: a.address || null },
+      { field: 'city',                 label: 'City',                 ready: !!a.city,                                 value: a.city || null },
+      { field: 'country',              label: 'Country (ISO)',        ready: !!a.country,                              value: a.country || null },
+      { field: 'zip_code',             label: 'Postcode',             ready: !!a.zip_code,                             value: a.zip_code || null },
+      { field: 'phone',                label: 'Phone number',         ready: !!a.phone,                                value: a.phone || null },
+      { field: 'timezone',             label: 'Timezone',             ready: !!a.timezone,                             value: a.timezone || null },
+      { field: 'currency',             label: 'Currency',             ready: !!a.currency,                             value: a.currency || null },
+      { field: 'lat_lon',              label: 'Map location (lat/lon)', ready: !!(a.latitude && a.longitude),          value: (a.latitude && a.longitude) ? `${a.latitude}, ${a.longitude}` : null },
+      { field: 'description',          label: 'Property description', ready: !!a.description,                          value: a.description ? String(a.description).slice(0, 80) + '…' : null },
+      { field: 'hotel_policy',         label: 'Hotel policy',         ready: !!a.hotel_policy_id,                      value: a.hotel_policy_id || null },
+      { field: 'cancellation_policy',  label: 'Cancellation policy',  ready: !!a.default_cancellation_policy_id,       value: a.default_cancellation_policy_id || null },
+      { field: 'facilities',           label: 'Facilities (need ≥1)', ready: facilitiesCount > 0,                      value: `${facilitiesCount} set` },
+      { field: 'photos',               label: 'Photos (need ≥1)',     ready: photoCount > 0,                           value: `${photoCount} uploaded` },
+    ];
+    const missing = audit.filter(a => !a.ready).length;
+    res.json({
+      success: true,
+      channex_property_id: channexPropertyId,
+      gas_property_id: gasPropertyId,
+      ready: missing === 0,
+      missing_count: missing,
+      audit,
+    });
+  } catch (err) {
+    console.error('[google/audit]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/channex/:connectionId/google/autofill
+// { gas_property_id, fields: [...] } — pulls each requested field from
+// the GAS property row and pushes to Channex. Reuses the same helper
+// (pushGasPropertyContentToChannex) that runs on property save.
+app.post('/api/admin/channex/:connectionId/google/autofill', async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.connectionId, 10);
+    const gasPropertyId = parseInt(req.body?.gas_property_id, 10);
+    if (!gasPropertyId) return res.status(400).json({ success: false, error: 'gas_property_id required' });
+    const result = await pushGasPropertyContentToChannex(gasPropertyId, connectionId);
+    res.json(result);
+  } catch (err) {
+    console.error('[google/autofill]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/channex/:connectionId/google/create-channel
+// {
+//   gas_property_id, email, booking_link?, use_built_in_ibe (bool default true),
+//   partner_account (default "Channex ARI"), room_ids: [gas_room_id, ...]
+// }
+// Creates the GoogleHotelARI channel on Channex + maps the selected
+// rooms + rate plans. Activation is a separate call so the operator can
+// review the mapping first.
+app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, res) => {
+  try {
+    const connectionId = parseInt(req.params.connectionId, 10);
+    const gasPropertyId = parseInt(req.body?.gas_property_id, 10);
+    if (!gasPropertyId) return res.status(400).json({ success: false, error: 'gas_property_id required' });
+    const { email, booking_link, room_ids } = req.body || {};
+    const useBuiltInIbe = req.body?.use_built_in_ibe !== false;
+    const partnerAccount = req.body?.partner_account || 'Channex ARI';
+    if (!email) return res.status(400).json({ success: false, error: 'email required' });
+    if (!useBuiltInIbe && !booking_link) return res.status(400).json({ success: false, error: 'booking_link required when not using Channex IBE' });
+
+    const conn = await pool.query(
+      "SELECT credentials FROM gas_sync_connections WHERE id = $1 AND adapter_code IN ('channex','channex-marketplace') LIMIT 1",
+      [connectionId]);
+    if (!conn.rows[0]) return res.status(404).json({ success: false, error: 'Channex connection not found' });
+    const apiKey = conn.rows[0].credentials?.apiKey || conn.rows[0].credentials?.api_key || process.env.CHANNEX_API_KEY;
+    const groupId = conn.rows[0].credentials?.groupId || conn.rows[0].credentials?.group_id;
+    if (!apiKey) return res.status(400).json({ success: false, error: 'No Channex API key' });
+
+    const sp = await pool.query(
+      "SELECT external_id FROM gas_sync_properties WHERE connection_id = $1 AND gas_property_id = $2 LIMIT 1",
+      [connectionId, gasPropertyId]);
+    if (!sp.rows[0]) return res.status(404).json({ success: false, error: 'GAS property not linked to Channex' });
+    const channexPropertyId = sp.rows[0].external_id;
+
+    // Resolve rate plans for the picked rooms (fall back to all rooms
+    // under the property if room_ids not supplied)
+    let roomIds = Array.isArray(room_ids) && room_ids.length
+      ? room_ids.map(x => parseInt(x, 10)).filter(Boolean)
+      : null;
+    if (!roomIds) {
+      const rr = await pool.query(
+        `SELECT gsrt.gas_room_id FROM gas_sync_room_types gsrt
+           JOIN gas_sync_properties sp ON sp.id = gsrt.sync_property_id
+          WHERE sp.gas_property_id = $1 AND sp.connection_id = $2`,
+        [gasPropertyId, connectionId]);
+      roomIds = rr.rows.map(r => r.gas_room_id);
+    }
+    const rateResolve = await pool.query(
+      `SELECT gsrt.external_id AS room_type_id, rp.external_id AS rate_plan_id
+         FROM gas_sync_room_types gsrt
+         LEFT JOIN gas_sync_rate_plans rp ON rp.sync_room_type_id = gsrt.id
+        WHERE gsrt.gas_room_id = ANY($1::int[])
+          AND gsrt.connection_id = $2
+          AND rp.external_id IS NOT NULL`,
+      [roomIds, connectionId]);
+    if (!rateResolve.rows.length) return res.status(400).json({ success: false, error: 'No rate plans resolved for selected rooms' });
+
+    const { ChannexAdapter } = require('./gas-sync/adapters/channex-adapter');
+    const adapter = new ChannexAdapter({ apiKey, groupId });
+
+    const settings = {
+      email,
+      partner_account: partnerAccount,
+      use_built_in_ibe: useBuiltInIbe,
+      account_type: 'Hotel',
+      request_credit_card: true,
+      request_billing_info: true,
+      send_email_notifications: true,
+    };
+    if (!useBuiltInIbe && booking_link) settings.booking_link = booking_link;
+
+    const rate_plans = rateResolve.rows.map(r => ({ rate_plan_id: r.rate_plan_id }));
+    const createPayload = {
+      channel: 'GoogleHotelARI',
+      title: 'Google Hotel Search',
+      group_id: groupId || undefined,
+      properties: [{ property_id: channexPropertyId }],
+      rate_plans,
+      settings,
+    };
+    const createResp = await adapter.createChannel(createPayload);
+    if (!createResp.success) {
+      return res.json({ success: false, error: 'Channex createChannel failed', details: createResp });
+    }
+    const channel = createResp.data || createResp.raw?.data;
+    const channelId = channel?.id || channel?.attributes?.id;
+
+    await pool.query(`
+      INSERT INTO gas_sync_channels (connection_id, channex_channel_id, channel_code, title, settings, is_active, created_at, updated_at)
+      VALUES ($1, $2, 'GoogleHotelARI', 'Google Hotel Search', $3::jsonb, false, NOW(), NOW())
+      ON CONFLICT (channex_channel_id) DO UPDATE SET settings = EXCLUDED.settings, updated_at = NOW()
+    `, [connectionId, channelId, JSON.stringify({ ...settings, gas_property_id: gasPropertyId })]).catch(e => {
+      console.warn('[google/create-channel] local upsert warn:', e.message);
+    });
+
+    res.json({ success: true, channel_id: channelId, rate_plans_mapped: rate_plans.length, next: 'Call /channels/:id/activate when ready' });
+  } catch (err) {
+    console.error('[google/create-channel]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/admin/channex/:connectionId/sync-channels
 // Reconcile the GAS-side gas_sync_channels list against whatever is
 // actually attached in Channex. Needed when Channex support (or the
