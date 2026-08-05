@@ -133304,36 +133304,13 @@ async function fireRecipeForContact({ workflowId, contactId, bookingId = null, t
     if (exists.rows[0]) return { success: false, error: 'already fired', dedupe: true };
   }
 
-  // 2026-08-05 (Cynthia Gabrielides, Lehmann) — guest-level dedupe.
-  // The per-booking dedupe above lets a guest with 3 identical bookings
-  // (same dates, same email) get the same workflow email 3× because
-  // the booking ids differ. Add a workflow-level check: has ANY step
-  // of THIS workflow already fired for THIS contact in the last 72h?
-  // If yes, skip the whole run — prevents the double-click / duplicate-
-  // booking pattern from spamming the guest.
-  //
-  // 72h window is loose enough that a guest booking again in 6 months
-  // still gets their welcome; strict enough that duplicate bookings
-  // created seconds apart only send once.
-  if (!testRun && contactId != null) {
-    const guestDupe = await pool.query(
-      `SELECT id, booking_id, step_index, created_at FROM workflow_runs
-        WHERE workflow_id = $1
-          AND contact_id  = $2
-          AND status      = 'sent'
-          AND created_at  > NOW() - INTERVAL '72 hours'
-        ORDER BY created_at DESC LIMIT 1`,
-      [workflowId, contactId]
-    );
-    if (guestDupe.rows[0]) {
-      return {
-        success: false,
-        error: `guest already received this workflow within 72h (step ${guestDupe.rows[0].step_index} from booking ${guestDupe.rows[0].booking_id})`,
-        dedupe: true,
-        dedupe_kind: 'guest_level_72h',
-      };
-    }
-  }
+  // 2026-08-05 — a guest-level "already got this workflow in 72h" dedupe
+  // was tried here (Cynthia Gabrielides 3-booking spam). Reverted:
+  // multi-booking guests genuinely need per-booking emails — access
+  // codes / RemoteLock PINs / per-booking arrival info differ. Suppressing
+  // subsequent bookings' comms would break the guest's ability to check in
+  // for their second stay. Real fix belongs at the booking-creation layer
+  // (dedupe identical-guest-same-dates bookings) not the comms layer.
 
   const contactR = await pool.query(`SELECT * FROM contacts WHERE id = $1`, [contactId]);
   const contact = contactR.rows[0];
