@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.25
+ * Version: 4.3.26
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -4461,7 +4461,21 @@ jQuery(document).ready(function($) {
         // Multi-quantity items (e.g. Pet fee, Extra bed) render a stepper:
         // tap card → +1 (cap at max_quantity); small "–" corner button → -1.
         // Single-quantity items keep the existing checkbox toggle.
-        var maxQty = parseInt(upsell.max_quantity, 10) || 1;
+        // 2026-08-05 — upsells with max_qty_cap_type='guests' derive their
+        // cap from the booking's guest count (adults + children on the
+        // widget). Lets one "Towel Hire" upsell serve every room type
+        // without a separate row per capacity.
+        var maxQty;
+        if (upsell.max_qty_cap_type === 'guests') {
+            var adultsN = parseInt(($('.gas-adults').val() || $('.gas-guests').val()), 10) || 1;
+            var childrenN = parseInt(($('.gas-children').val()), 10) || 0;
+            var guestCount = adultsN + childrenN;
+            var staticCap = parseInt(upsell.max_quantity, 10);
+            maxQty = (staticCap > 0) ? Math.min(staticCap, guestCount) : guestCount;
+            if (maxQty < 1) maxQty = 1;
+        } else {
+            maxQty = parseInt(upsell.max_quantity, 10) || 1;
+        }
         var qtyAware = maxQty > 1;
 
         var qtyControls = '';

@@ -27427,6 +27427,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </label>
                         <input type="number" id="upsell-max-qty" class="form-input" placeholder="Unlimited" min="1"
                             style="padding: 0.75rem; border-radius: 8px; width: 120px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; font-size: 0.85rem; color: #475569; cursor: pointer;">
+                            <input type="checkbox" id="upsell-max-qty-guests" style="width: 16px; height: 16px;">
+                            <span>Cap at booking's guest count instead (e.g. towel per guest — no per-room upsell needed)</span>
+                        </label>
                     </div>
                     
                     <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
@@ -75375,6 +75379,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('upsell-price').value = upsell.price || '';
             document.getElementById('upsell-charge-type').value = upsell.charge_type || 'per_booking';
             document.getElementById('upsell-max-qty').value = upsell.max_quantity || '';
+            (function(){ var el = document.getElementById('upsell-max-qty-guests'); if (el) el.checked = (upsell.max_qty_cap_type === 'guests'); })();
             document.getElementById('upsell-category').value = upsell.category || '';
             document.getElementById('upsell-active').checked = upsell.active;
             document.getElementById('upsell-mandatory').checked = upsell.mandatory || false;
@@ -75571,6 +75576,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 price: parseFloat(document.getElementById('upsell-price').value),
                 charge_type: document.getElementById('upsell-charge-type').value,
                 max_quantity: parseInt(document.getElementById('upsell-max-qty').value) || null,
+                max_qty_cap_type: (document.getElementById('upsell-max-qty-guests') && document.getElementById('upsell-max-qty-guests').checked) ? 'guests' : null,
                 category: document.getElementById('upsell-category').value || null,
                 property_ids: getSelectedCheckboxIds('upsell-properties'),
                 room_ids: getSelectedCheckboxIds('upsell-rooms'),

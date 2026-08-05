@@ -41752,6 +41752,11 @@ app.get('/api/setup-database', async (req, res) => {
     // Both NULL = legacy behaviour (price × nights).
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS first_night_price DECIMAL(10,2)`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS subsequent_night_price DECIMAL(10,2)`);
+    // 2026-08-05 — dynamic cap: when set to 'guests', the widget caps
+    // the qty stepper at the booking's guest count instead of the static
+    // max_quantity value (e.g. Towel Hire → 1 per guest, without needing
+    // a separate upsell per room type). NULL = static max_quantity (legacy).
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS max_qty_cap_type VARCHAR(20)`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
     
     // Partner tracking for taxes
@@ -72140,7 +72145,7 @@ app.post('/api/admin/upsells', async (req, res) => {
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS property_ids INTEGER[]').catch(() => {});
 
-    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, required_amenity_ids, active, mandatory, is_external, vendor_id, category, account_id, total_tax_exempt, companion_bookable_unit_id, valid_from, valid_until, hide_from_checkout, available_days_of_week, min_notice_hours } = req.body;
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, max_qty_cap_type, property_id, property_ids, room_id, room_ids, required_amenity_ids, active, mandatory, is_external, vendor_id, category, account_id, total_tax_exempt, companion_bookable_unit_id, valid_from, valid_until, hide_from_checkout, available_days_of_week, min_notice_hours } = req.body;
     // property_ids: null|undefined|[] all mean "applies to all properties" — empty array is not "scoped to nothing"
     // CSV asymmetry: upsells.room_ids is TEXT (legacy CSV); upsells.property_ids is INTEGER[]
     // companion_bookable_unit_id: nullable FK to bookable_units. When set, selecting
@@ -72185,10 +72190,10 @@ app.post('/api/admin/upsells', async (req, res) => {
     const subsequentNightPrice = (req.body.subsequent_night_price === '' || req.body.subsequent_night_price == null) ? null : parseFloat(req.body.subsequent_night_price);
 
     const result = await pool.query(`
-      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, min_nights, max_nights, first_night_price, subsequent_night_price, user_id, total_tax_exempt, companion_bookable_unit_id, valid_from, valid_until, hide_from_checkout, available_days_of_week, min_notice_hours, required_amenity_ids)
-      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, max_qty_cap_type, property_id, property_ids, room_id, room_ids, active, mandatory, is_external, vendor_id, category, min_nights, max_nights, first_night_price, subsequent_night_price, user_id, total_tax_exempt, companion_bookable_unit_id, valid_from, valid_until, hide_from_checkout, available_days_of_week, min_notice_hours, required_amenity_ids)
+      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active !== false, mandatory || false, is_external || false, vendor_id || null, category || null, req.body.min_nights || null, req.body.max_nights || null, firstNightPrice, subsequentNightPrice, account_id || null, total_tax_exempt || false, companion_bookable_unit_id || null, validFrom, validUntil, hideFromCheckout, daysOfWeek, minNoticeHours, amenityIdsArr]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, (max_qty_cap_type === 'guests' ? 'guests' : null), propId, propertyIdsArr, room_id, roomIdsCsv, active !== false, mandatory || false, is_external || false, vendor_id || null, category || null, req.body.min_nights || null, req.body.max_nights || null, firstNightPrice, subsequentNightPrice, account_id || null, total_tax_exempt || false, companion_bookable_unit_id || null, validFrom, validUntil, hideFromCheckout, daysOfWeek, minNoticeHours, amenityIdsArr]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -72203,7 +72208,7 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS property_ids INTEGER[]').catch(() => {});
 
-    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, property_ids, room_id, room_ids, required_amenity_ids, active, mandatory, is_external, vendor_id, category, total_tax_exempt, companion_bookable_unit_id, valid_from, valid_until, hide_from_checkout, available_days_of_week, min_notice_hours } = req.body;
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, max_qty_cap_type, property_id, property_ids, room_id, room_ids, required_amenity_ids, active, mandatory, is_external, vendor_id, category, total_tax_exempt, companion_bookable_unit_id, valid_from, valid_until, hide_from_checkout, available_days_of_week, min_notice_hours } = req.body;
     // property_ids: null|undefined|[] all mean "applies to all properties" — empty array is not "scoped to nothing"
     // CSV asymmetry: upsells.room_ids is TEXT (legacy CSV); upsells.property_ids is INTEGER[]
     // companion_bookable_unit_id: same semantics as on POST. PUT sends an explicit
@@ -72254,6 +72259,7 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
         price = COALESCE($5, price),
         charge_type = COALESCE($6, charge_type),
         max_quantity = $7,
+        max_qty_cap_type = $30,
         property_id = $8,
         property_ids = $9,
         room_id = $10,
@@ -72278,7 +72284,7 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
         updated_at = NOW()
       WHERE id = $21
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active, mandatory || false, is_external, vendor_id, category || null, req.body.min_nights || null, req.body.max_nights || null, firstNightPrice, subsequentNightPrice, req.params.id, total_tax_exempt, companion_bookable_unit_id !== undefined ? companion_bookable_unit_id : null, validFromUpd, validUntilUpd, hideFromCheckoutUpd ?? null, daysOfWeekUpd ?? null, minNoticeHoursUpd ?? null, amenityIdsUpd ?? null]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, propId, propertyIdsArr, room_id, roomIdsCsv, active, mandatory || false, is_external, vendor_id, category || null, req.body.min_nights || null, req.body.max_nights || null, firstNightPrice, subsequentNightPrice, req.params.id, total_tax_exempt, companion_bookable_unit_id !== undefined ? companion_bookable_unit_id : null, validFromUpd, validUntilUpd, hideFromCheckoutUpd ?? null, daysOfWeekUpd ?? null, minNoticeHoursUpd ?? null, amenityIdsUpd ?? null, (max_qty_cap_type === 'guests' ? 'guests' : null)]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
