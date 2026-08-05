@@ -14676,17 +14676,28 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
     // and looks up gas_sync_channels.id). Returning the Channex UUID
     // here caused parseInt→NaN→silent 404 when the Activate button was
     // clicked.
+    // Unique constraint is (connection_id, channex_channel_id) — not
+    // channex_channel_id alone. Earlier ON CONFLICT (channex_channel_id)
+    // threw silently, localChannelId stayed null, client passed null to
+    // channexActivate → parseInt(null)=NaN → Postgres integer error.
     let localChannelId = null;
     try {
       const ins = await pool.query(`
         INSERT INTO gas_sync_channels (connection_id, channex_channel_id, channel_code, title, settings, is_active, created_at, updated_at)
         VALUES ($1, $2, 'GoogleHotelARI', 'Google Hotel Search', $3::jsonb, false, NOW(), NOW())
-        ON CONFLICT (channex_channel_id) DO UPDATE SET settings = EXCLUDED.settings, updated_at = NOW()
+        ON CONFLICT (connection_id, channex_channel_id) DO UPDATE SET settings = EXCLUDED.settings, updated_at = NOW()
         RETURNING id
       `, [connectionId, channelId, JSON.stringify({ ...settings, gas_property_id: gasPropertyId })]);
       localChannelId = ins.rows[0]?.id || null;
     } catch (e) {
-      console.warn('[google/create-channel] local upsert warn:', e.message);
+      console.error('[google/create-channel] local upsert FAILED:', e.message);
+    }
+    if (!localChannelId) {
+      // Fallback lookup — row might have been created without RETURNING firing
+      const fb = await pool.query(
+        'SELECT id FROM gas_sync_channels WHERE connection_id=$1 AND channex_channel_id=$2 LIMIT 1',
+        [connectionId, channelId]);
+      localChannelId = fb.rows[0]?.id || null;
     }
 
     res.json({
