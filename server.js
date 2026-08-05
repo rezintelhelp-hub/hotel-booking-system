@@ -155337,11 +155337,42 @@ async function processAutoChargePayments() {
             } catch (chargeErr) {
                 console.error(`[AUTO-CHARGE] Failed to charge booking ${booking.booking_id}:`, chargeErr.message);
 
-                // Update booking status
+                // 2026-08-05 — distinguish transient errors (network blips,
+                // Stripe 5xx, rate limits) from terminal card failures.
+                // Diane Crawford B243181 flipped balance_failed on a
+                // transient blip and never self-healed even though the card
+                // was perfectly chargeable — cron caught, marked failed,
+                // moved on. New behaviour:
+                //   • Terminal errors (card_declined, expired_card,
+                //     insufficient_funds, authentication_required) → flip
+                //     to balance_failed as before + email owner.
+                //   • Transient errors (StripeConnectionError, 5xx,
+                //     rate_limit_error, generic network) → leave
+                //     payment_status alone so the NEXT hourly cron tick
+                //     retries automatically. No owner email — self-heals.
+                // Either way, persist the error message + code + timestamp
+                // so we can see what actually happened (was losing this in
+                // console.error / Railway log buffer scroll).
+                const terminalCodes = new Set([
+                    'card_declined', 'expired_card', 'insufficient_funds',
+                    'authentication_required', 'incorrect_cvc', 'processing_error',
+                    'stolen_card', 'lost_card', 'card_not_supported',
+                    'invalid_account', 'currency_not_supported'
+                ]);
+                const errCode = chargeErr.code || chargeErr.raw?.code || chargeErr.raw?.decline_code || null;
+                const errType = chargeErr.type || chargeErr.raw?.type || null;
+                const isTerminal = errCode ? terminalCodes.has(errCode)
+                    : (errType === 'StripeCardError' || errType === 'card_error');
                 await pool.query(
-                    "UPDATE bookings SET payment_status = 'balance_failed', updated_at = NOW() WHERE id = $1",
-                    [booking.booking_id]
+                    "UPDATE bookings SET last_charge_error = $2, last_charge_error_code = $3, last_charge_error_at = NOW(), updated_at = NOW()"
+                    + (isTerminal ? ", payment_status = 'balance_failed'" : '')
+                    + " WHERE id = $1",
+                    [booking.booking_id, String(chargeErr.message || '').slice(0, 1000), errCode || errType || 'unknown']
                 ).catch(() => {});
+                if (!isTerminal) {
+                    console.warn(`[AUTO-CHARGE] Transient err on booking ${booking.booking_id} (${errType || 'unknown'}) — payment_status left as-is; next cron tick will retry`);
+                    continue;
+                }
 
                 // Email notification to property owner
                 try {
