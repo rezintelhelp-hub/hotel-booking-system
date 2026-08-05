@@ -126461,15 +126461,16 @@ async function runChannexAvailabilityExtender(options = {}) {
               await outbox.enqueueAvailabilityForRoom(pool, room.room_id, dateStr, 1);
             }
             if (typeof outbox.enqueueRestrictionForRoom === 'function') {
-              await outbox.enqueueRestrictionForRoom(pool, room.room_id, { date: dateStr, rate: Number(price) }, 'rate');
-              // 2026-08-04 — extender was initialising future dates with rate
-              // + availability only, so any stop_sell / CTA / CTD flags left
-              // over on Channex from OTA-side blocks or a prior close-period
-              // never got cleared. Charles House Dec 2027+ showed shut for
-              // exactly this reason. Push a clean restriction state alongside
-              // the rate so brand-new dates get a definitive open baseline.
+              // 2026-08-05 — single combined push. Extender was rate-only
+              // originally, so stale stop_sell/CTA/CTD from OTA blocks
+              // never got cleared on new future dates (Charles House Dec
+              // 2027+ showed shut). Also learned the hard way: touching
+              // /restrictions WITHOUT a rate field wipes the stored rate
+              // to Channex's £10 default. So we must send rate + full
+              // clean restriction state together, in one payload, per date.
               await outbox.enqueueRestrictionForRoom(pool, room.room_id, {
                 date: dateStr,
+                rate: Number(price),
                 stopSell: false,
                 closedToArrival: false,
                 closedToDeparture: false,
