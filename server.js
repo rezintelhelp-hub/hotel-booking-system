@@ -14629,6 +14629,20 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
     const channel = createResp.data || createResp.raw?.data;
     const channelId = channel?.id || channel?.attributes?.id;
 
+    // 2026-08-05 — Channex silently drops the rate_plans array in the
+    // initial POST /channels for GoogleHotelARI. The channel is created
+    // but has zero mappings — readiness check then fails with "channel
+    // mapping should not be empty". Fix is a follow-up PUT that sends
+    // just the rate_plans; that stores them correctly.
+    let mappedCount = 0;
+    try {
+      const mapResp = await adapter.updateChannel(channelId, { rate_plans });
+      const mapped = mapResp.data?.attributes?.rate_plans || mapResp.raw?.data?.attributes?.rate_plans || [];
+      mappedCount = mapped.length;
+    } catch (e) {
+      console.warn('[google/create-channel] follow-up rate_plans PUT failed:', e.message);
+    }
+
     // Insert the local row + capture its integer id — that's what
     // channexActivate on the client expects (it POSTs to
     // /api/admin/channex/channel/:id/activate which does parseInt(id)
@@ -14652,7 +14666,7 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
       success: true,
       channel_id: localChannelId,          // integer — client uses this for activate
       channex_channel_id: channelId,        // Channex UUID — for reference
-      rate_plans_mapped: rate_plans.length,
+      rate_plans_mapped: mappedCount || rate_plans.length,
       next: 'Call /channels/:id/activate when ready'
     });
   } catch (err) {
