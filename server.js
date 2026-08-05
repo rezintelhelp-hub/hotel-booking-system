@@ -14565,11 +14565,37 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
     const { ChannexAdapter } = require('./gas-sync/adapters/channex-adapter');
     const adapter = new ChannexAdapter({ apiKey, groupId });
 
-    // 2026-08-05 — Channex requires partner_account = 'Channex' for the
-    // shared Channex Hotel Centre (not the display name 'Channex ARI'
-    // which the /channels/list catalog surfaces). Selecting 'Channex ARI'
-    // returns 422 "partner_account is invalid". Client wizard may still
-    // show "Channex ARI" for UX; we translate here.
+    // 2026-08-05 — Channex's Google integration only feeds Google
+    // Vacation Rentals (their support confirmed). Google VR requires
+    // property.billing_type='Vacation Rental' AND exactly one room type
+    // per property. Guard both before we try to create the channel;
+    // reject cleanly rather than let Channex return a cryptic 422.
+    const rtCountQ = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM gas_sync_room_types WHERE sync_property_id = (SELECT id FROM gas_sync_properties WHERE gas_property_id = $1 AND connection_id = $2 LIMIT 1)`,
+      [gasPropertyId, connectionId]);
+    const roomTypeCount = rtCountQ.rows[0]?.n || 0;
+    if (roomTypeCount > 1) {
+      return res.json({
+        success: false,
+        error: `Google Vacation Rental requires exactly 1 room type per property. This property has ${roomTypeCount} in Channex. Collapse it into a single "whole property" listing in Channex first, or split into ${roomTypeCount} separate Channex properties.`,
+        code: 'VR_MULTI_ROOM_TYPE',
+      });
+    }
+
+    // Flip Channex billing_type to Vacation Rental (idempotent — no-op
+    // if already set). Google VR won't index otherwise.
+    try {
+      await adapter.request(`/properties/${channexPropertyId}`, 'PUT', {
+        property: { billing_type: 'Vacation Rental' }
+      });
+    } catch (e) {
+      console.warn('[google/create-channel] billing_type flip warn:', e.message);
+    }
+
+    // Channex requires partner_account = 'Channex' for the shared
+    // Channex Hotel Centre (not the display name 'Channex ARI' which
+    // the /channels/list catalog surfaces). Selecting 'Channex ARI'
+    // returns 422 "partner_account is invalid".
     const partnerAccountResolved = (partnerAccount === 'Channex ARI' || !partnerAccount)
       ? 'Channex' : partnerAccount;
 
@@ -14590,7 +14616,10 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
       email,
       partner_account: partnerAccountResolved,
       use_built_in_ibe: useBuiltInIbe,
-      account_type: 'Hotel',
+      // Matches the property billing_type flip above — Channex's Google
+      // integration only serves Vacation Rental accounts, and their
+      // channel-settings account_type must align with property.billing_type.
+      account_type: 'Vacation Rental',
       request_credit_card: true,
       request_billing_info: true,
       send_email_notifications: true,

@@ -110072,8 +110072,48 @@ const promo = await fetch('/api/v1/offers/validate', {
             }).join('')}</div>`;
         }
 
-        // Entry point — pick a Channex-linked property from this connection.
+        // Entry point — first ask what kind of property this is. Channex's
+        // Google integration only works for Vacation Rental billing_type
+        // (their support 2026-08-05). Hotels get a clear "here's why not
+        // + what to do instead" screen. VRs continue to the property picker.
         async function _channexStartGoogleWizard() {
+            const body = document.getElementById('channex-wizard-body');
+            body.innerHTML = `
+                <h4 style="margin:0 0 8px 0;">What kind of property are you connecting?</h4>
+                <p style="font-size:12px;color:#64748b;margin:0 0 18px 0;">Google via Channex only supports Vacation Rentals right now — one whole-property listing per Channex property. Hotels (per-room bookings) need a different route.</p>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <button class="btn" onclick="_channexGoogleVrPickProperty()" style="background:#4285F4;color:#fff;padding:14px;text-align:left;">
+                        <div style="font-size:15px;font-weight:600;">🏡 Vacation Rental / holiday let / gîte / cottage</div>
+                        <div style="font-size:11px;opacity:0.85;margin-top:4px;">Whole property is one bookable unit. Guest rents the whole place.</div>
+                    </button>
+                    <button class="btn" onclick="_channexGoogleHotelDeadEnd()" style="background:#f1f5f9;color:#334155;padding:14px;text-align:left;border:1px solid #e2e8f0;">
+                        <div style="font-size:15px;font-weight:600;">🏨 Hotel — guests book individual rooms</div>
+                        <div style="font-size:11px;color:#64748b;margin-top:4px;">Explains why Channex can't do this + what to do instead.</div>
+                    </button>
+                </div>
+            ` + _channexBackBtn('_channexRenderHome');
+        }
+
+        function _channexGoogleHotelDeadEnd() {
+            const body = document.getElementById('channex-wizard-body');
+            body.innerHTML = `
+                <h4 style="margin:0 0 12px 0;color:#92400e;">Google Hotel Search isn't available via Channex</h4>
+                <div style="background:#fef3c7;border:1px solid #fde68a;color:#78350f;border-radius:6px;padding:14px;font-size:13px;line-height:1.5;">
+                    Channex's Google integration only feeds <strong>Google Vacation Rentals</strong>. Google Hotel Ads (per-room searches) needs a different route because Google requires one property = one bookable unit for their VR product.
+                </div>
+                <h5 style="margin:18px 0 8px 0;">Options for this property:</h5>
+                <ol style="font-size:13px;line-height:1.6;padding-left:20px;">
+                    <li><strong>Connect directly to Google Hotel Center</strong> — if the operator has (or can get) their own Hotel Center account, they set it up on Google's side outside GAS. Their booking engine (their own website's Book Now button) then handles Google-sourced traffic.</li>
+                    <li><strong>Push Channex support</strong> — their own docs say Hotel billing_type feeds Google Hotel Search, but in practice only the VR side works. Email <a href="mailto:support@channex.io">support@channex.io</a> asking when Hotel billing_type will be enabled.</li>
+                    <li><strong>Restructure as VR</strong> — collapse the property to a single "whole hotel" listing in Channex + flip billing_type to Vacation Rental. Loses per-room bookability on Google-sourced traffic but the listing does go live. Poor fit for actual hotels; guests searching "hotel room in Windsor" won't see it.</li>
+                </ol>
+                <div style="margin-top:18px;">
+                    <button class="btn" onclick="_channexStartGoogleWizard()" style="background:#e2e8f0;color:#334155;">← Back</button>
+                </div>
+            `;
+        }
+
+        async function _channexGoogleVrPickProperty() {
             const { connectionId } = _channexWizardState;
             const body = document.getElementById('channex-wizard-body');
             body.innerHTML = _googleStepHeader(1) + '<div style="text-align:center;padding:40px;">Loading properties…</div>';
@@ -110082,18 +110122,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const r = await fetch(`/api/gas-sync/connections/${connectionId}/properties`, { headers: authHeaders() }).then(r => r.json());
                 props = (r.properties || r.data || []).filter(p => p.gas_property_id);
             } catch (e) {
-                body.innerHTML = _googleStepHeader(1) + `<p style="color:#ef4444;">Could not load properties: ${escapeHtml(e.message)}</p>` + _channexBackBtn('_channexRenderHome');
+                body.innerHTML = _googleStepHeader(1) + `<p style="color:#ef4444;">Could not load properties: ${escapeHtml(e.message)}</p>` + _channexBackBtn('_channexStartGoogleWizard');
                 return;
             }
             if (!props.length) {
                 body.innerHTML = _googleStepHeader(1) + `
                     <div style="background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:6px;padding:14px;font-size:13px;">
                         No properties are linked to Channex on this connection yet. Push a GAS property to Channex first (use <strong>+ Connect a new channel</strong> above and pick a property).
-                    </div>` + _channexBackBtn('_channexRenderHome');
+                    </div>` + _channexBackBtn('_channexStartGoogleWizard');
                 return;
             }
             body.innerHTML = _googleStepHeader(1) + `
-                <h4 style="margin:0 0 12px 0;">Pick the property to connect to Google</h4>
+                <h4 style="margin:0 0 4px 0;">Pick the vacation rental to connect to Google</h4>
+                <p style="font-size:12px;color:#64748b;margin:0 0 12px 0;">Channex billing_type will be flipped to <em>Vacation Rental</em> as part of the setup. The property should have <strong>1 room type</strong> in Channex (Google VR's rule) — properties with multiple room types will need to be collapsed first.</p>
                 <div style="display:flex;flex-direction:column;gap:8px;">
                     ${props.map(p => `
                         <button class="btn" onclick="_googleRunAudit(${p.gas_property_id})" style="background:#f8fafc;color:#334155;border:1px solid #e2e8f0;text-align:left;padding:10px 14px;">
@@ -110102,7 +110143,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </button>
                     `).join('')}
                 </div>
-            ` + _channexBackBtn('_channexRenderHome');
+            ` + _channexBackBtn('_channexStartGoogleWizard');
         }
 
         async function _googleRunAudit(gasPropId) {
