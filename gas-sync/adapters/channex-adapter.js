@@ -625,6 +625,24 @@ class ChannexAdapter {
       if (Number.isNaN(n)) return undefined;
       return Math.round(n * 100);
     };
+    // 2026-08-05 sanity floor: any rate below £20/night is almost
+    // certainly a bug — a missing-encode (integer sent as major units),
+    // a Channex-default £10 sneaking back in, or a bad price row.
+    // Refuse the whole batch rather than push OTA-visible mispriced
+    // rates. Callers should fix the input; a genuinely £15 room can
+    // still push via the raw request() escape hatch if ever needed.
+    const RATE_FLOOR_MAJOR = 20;
+    const suspect = items.filter(i => {
+      if (i.rate === null || i.rate === undefined || i.rate === '') return false;
+      const n = typeof i.rate === 'number' ? i.rate : parseFloat(String(i.rate));
+      return !Number.isNaN(n) && n < RATE_FLOOR_MAJOR;
+    });
+    if (suspect.length) {
+      const sample = suspect.slice(0, 3).map(i => `${i.date}=${i.rate}`).join(', ');
+      const msg = `[channex-adapter] REFUSED updateRestrictions: ${suspect.length}/${items.length} items below rate floor £${RATE_FLOOR_MAJOR} (sample: ${sample})`;
+      console.error(msg);
+      return { success: false, error: msg, code: 'RATE_FLOOR_GUARD' };
+    }
 
     const body = {
       values: items.map(i => {

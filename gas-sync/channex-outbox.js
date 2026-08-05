@@ -278,7 +278,35 @@ async function drain(pool) {
         }
         continue; // skip the batch-level success path below
       } else {
-        // 'rate' and 'restriction' both go via /restrictions with rate/restriction fields
+        // 'rate' and 'restriction' both go via /restrictions with rate/restriction fields.
+        // 2026-08-05 rate-wipe guardrail: Channex silently resets rate to
+        // its default (£10) if we POST /restrictions for a (rate_plan, date)
+        // without a rate field. If a restriction event has no rate in the
+        // payload, look up the current GAS price and inject it. Belt+braces
+        // vs future callers that forget to include rate.
+        const needsRate = batch.filter(r => r.change_type === 'restriction'
+          && (r.payload?.rate == null || r.payload?.rate === '')
+          && r.payload?.date);
+        if (needsRate.length) {
+          const rows = await pool.query(`
+            SELECT gsrt.external_id AS rtid, ra.date::text AS d,
+                   COALESCE(ra.direct_price, ra.cm_price, ra.standard_price)::float AS price
+              FROM gas_sync_room_types gsrt
+              JOIN room_availability ra ON ra.room_id = gsrt.gas_room_id
+             WHERE gsrt.external_id = ANY($1::text[])
+               AND ra.date = ANY($2::date[])
+          `, [
+            [...new Set(needsRate.map(r => r.channex_room_type_id).filter(Boolean))],
+            [...new Set(needsRate.map(r => r.payload.date))],
+          ]).catch(() => ({ rows: [] }));
+          const priceMap = new Map();
+          for (const row of rows.rows) priceMap.set(row.rtid + '|' + row.d, row.price);
+          for (const r of needsRate) {
+            const key = r.channex_room_type_id + '|' + r.payload.date;
+            const p = priceMap.get(key);
+            if (p && p > 0) r.payload.rate = p;
+          }
+        }
         const items = batch.map(r => ({
           propertyId: r.channex_property_id,
           ratePlanId: r.channex_rate_plan_id,
