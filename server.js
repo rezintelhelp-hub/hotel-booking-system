@@ -109620,6 +109620,7 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
         u.price,
         u.charge_type,
         u.max_quantity,
+        u.max_qty_cap_type,
         u.image_url,
         u.category,
         u.property_id,
