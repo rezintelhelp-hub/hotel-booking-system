@@ -13996,11 +13996,31 @@ async function pushGasPropertyContentToChannex(gasPropertyId, connectionId) {
         [gasPropertyId]).catch(() => ({ rows: [] }));
       for (const r of rasQ.rows) collected.add(r.name);
 
+      // Synonym map for common Airbnb/GAS codes that don't match Channex
+      // taxonomy directly. Keys are normalised (lowercased, underscores→spaces).
+      // Values are exact Channex taxonomy titles (case-insensitive lookup).
+      const SYNONYMS = {
+        'tv': 'television',
+        'water kettle': 'kettle',
+        'cooking basics': 'kitchenware',
+        'hair dryer': 'hairdryer',
+        'washer': 'washing machine',
+        'parking available': 'parking',
+        'parking on street': 'street parking',
+        'private terrace (1)': 'terrace',
+        'private terrace': 'terrace',
+        'dining table': 'dining area',
+        'washbasin': 'private bathroom',
+        'yard': 'garden',
+        'rural': 'countryside view',
+      };
       const normalise = (s) => {
         let n = String(s || '').trim();
         // Airbnb-style: HAS_HAIR_DRYER → hair dryer, IS_RURAL → rural
         n = n.replace(/^HAS[_ ]/i, '').replace(/^IS[_ ]/i, '');
         n = n.replace(/[_-]/g, ' ').toLowerCase().trim();
+        // Drop the trailing counts in parens: "Private Terrace (1)" → "private terrace"
+        n = n.replace(/\s*\([^)]*\)\s*$/, '').trim();
         // Drop obvious non-facilities so we don't force a mismatch (e.g. "2 single bed", "a", "b")
         if (n.length < 2 || /^\d+\s/.test(n) || /^[a-z]$/.test(n)) return null;
         return n;
@@ -14013,14 +14033,31 @@ async function pushGasPropertyContentToChannex(gasPropertyId, connectionId) {
         const t = (o.attributes?.title || '').toLowerCase();
         if (t) byTitle.set(t, o.id);
       }
+      // Word-boundary containment test. "tv" must appear as a whole word,
+      // not embedded inside "cctv" or "battery-tv". Uses regex with \b.
+      const wordContains = (haystack, needle) => {
+        const esc = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp('\\b' + esc + '\\b').test(haystack);
+      };
       const facilityIds = new Set();
       for (const raw of collected) {
         const n = normalise(raw);
         if (!n) continue;
+        // 1. Exact match on normalised name
         if (byTitle.has(n)) { facilityIds.add(byTitle.get(n)); continue; }
-        // Contains match: any Channex facility title that mentions this word
+        // 2. Synonym → exact match
+        const syn = SYNONYMS[n];
+        if (syn && byTitle.has(syn)) { facilityIds.add(byTitle.get(syn)); continue; }
+        // 3. Word-boundary containment (both directions). Skip 1-word
+        //    generic terms like "a", "b" (already filtered by normalise).
+        //    Prefer the shortest matching title (least surprising).
+        const candidates = [];
         for (const [title, id] of byTitle) {
-          if (title.includes(n) || n.includes(title)) { facilityIds.add(id); break; }
+          if (wordContains(title, n) || wordContains(n, title)) candidates.push({ title, id });
+        }
+        if (candidates.length) {
+          candidates.sort((a, b) => a.title.length - b.title.length);
+          facilityIds.add(candidates[0].id);
         }
       }
       // Safe minimum if we couldn't resolve anything — Google needs ≥1
@@ -14407,12 +14444,15 @@ app.get('/api/admin/channex/:connectionId/google/audit', async (req, res) => {
       photoCount = (photosResp.data?.data || []).length;
     } catch (_) { /* photos endpoint may 404 if none */ }
 
+    // Facilities are attached as JSON:API relationships, not on the
+    // property attributes. Use ?include=facilities so we see them via
+    // relationships.facilities.data — the /properties/:id/facilities
+    // endpoint doesn't exist (404).
     let facilitiesCount = 0;
     try {
-      const facResp = await axios.get(`https://app.channex.io/api/v1/properties/${channexPropertyId}/facilities`, { headers });
-      const facData = facResp.data?.data;
-      facilitiesCount = Array.isArray(facData) ? facData.length : (facData ? Object.keys(facData).length : 0);
-    } catch (_) { /* facilities may 404 if never set */ }
+      const facProp = await axios.get(`https://app.channex.io/api/v1/properties/${channexPropertyId}?include=facilities`, { headers });
+      facilitiesCount = (facProp.data?.data?.relationships?.facilities?.data || []).length;
+    } catch (_) { /* fall through with 0 */ }
 
     // Description lives in either content.description (current) or
     // top-level description (legacy). Read both, prefer content.
