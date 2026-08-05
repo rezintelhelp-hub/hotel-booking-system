@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.23
+ * Version: 4.3.24
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -4816,22 +4816,31 @@ jQuery(document).ready(function($) {
             if (confirm('Remove ' + roomName + ' from cart?')) {
                 window.GASCart.remove(index);
 
-                // Also remove the same room from the newer gasCart store,
-                // matching by roomId + checkin + checkout so we don't kill
-                // the wrong stay in a multi-stay cart.
+                // Also remove the same room from the newer gasCart store.
+                // GASCart items use roomId; gasCart items use id (not roomId).
+                // Match on id + checkin + checkout — don't kill the wrong
+                // stay in a multi-stay cart. Also handle repeat rows: a
+                // qty>1 in gasCart maps to multiple flat rows in GASCart,
+                // so we only decrement gasCart qty by 1 (or remove if qty=1).
                 try {
                     if (item && window.gasCart && typeof window.gasCart.read === 'function') {
                         var cart2 = window.gasCart.read();
                         if (cart2 && Array.isArray(cart2.items)) {
-                            var before = cart2.items.length;
-                            cart2.items = cart2.items.filter(function(it) {
-                                if (it.type !== 'room') return true;
-                                var sameRoom = String(it.roomId) === String(item.roomId);
+                            var mutated = false;
+                            for (var k = 0; k < cart2.items.length; k++) {
+                                var it = cart2.items[k];
+                                if (it.type !== 'room') continue;
+                                var sameId = String(it.id) === String(item.roomId);
                                 var sameCi = it.checkin === item.checkin;
                                 var sameCo = it.checkout === item.checkout;
-                                return !(sameRoom && sameCi && sameCo);
-                            });
-                            if (cart2.items.length !== before) window.gasCart.write(cart2);
+                                if (sameId && sameCi && sameCo) {
+                                    var q = parseInt(it.qty || 1, 10);
+                                    if (q > 1) { it.qty = q - 1; mutated = true; }
+                                    else { cart2.items.splice(k, 1); mutated = true; }
+                                    break; // only one legacy row = one qty unit
+                                }
+                            }
+                            if (mutated) window.gasCart.write(cart2);
                         }
                     }
                 } catch (mirrorErr) { /* non-fatal — GASCart already updated */ }
