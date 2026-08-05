@@ -13975,7 +13975,37 @@ async function pushGasPropertyContentToChannex(gasPropertyId, connectionId) {
     // requirement is met even for properties with an empty facilities
     // array in GAS.
     try {
-      const gasFacs = Array.isArray(prop.facilities) ? prop.facilities : [];
+      // GAS stores amenities in three places; walk all of them:
+      //   1. properties.facilities (JSONB array — new/manual)
+      //   2. properties.amenities (JSONB array — legacy)
+      //   3. room_amenity_selections → amenities.name (per-room, typical
+      //      for imported properties — Charles House has 16 room-level
+      //      amenities and zero property-level)
+      // Then normalise the names (Airbnb-style HAS_TV → 'tv', strip
+      // codes, drop non-facility rooms/beds strings) and fuzzy-match
+      // against Channex's 301-entry facility taxonomy.
+      const collected = new Set();
+      const addAll = (arr) => { if (Array.isArray(arr)) for (const v of arr) if (v) collected.add(String(v)); };
+      addAll(prop.facilities);
+      addAll(prop.amenities);
+      const rasQ = await pool.query(
+        `SELECT DISTINCT a.name
+           FROM room_amenity_selections ras
+           JOIN amenities a ON a.id = ras.amenity_id
+          WHERE ras.room_id IN (SELECT id FROM bookable_units WHERE property_id = $1)`,
+        [gasPropertyId]).catch(() => ({ rows: [] }));
+      for (const r of rasQ.rows) collected.add(r.name);
+
+      const normalise = (s) => {
+        let n = String(s || '').trim();
+        // Airbnb-style: HAS_HAIR_DRYER → hair dryer, IS_RURAL → rural
+        n = n.replace(/^HAS[_ ]/i, '').replace(/^IS[_ ]/i, '');
+        n = n.replace(/[_-]/g, ' ').toLowerCase().trim();
+        // Drop obvious non-facilities so we don't force a mismatch (e.g. "2 single bed", "a", "b")
+        if (n.length < 2 || /^\d+\s/.test(n) || /^[a-z]$/.test(n)) return null;
+        return n;
+      };
+
       const tax = await adapter.request('/property_facilities/options', 'GET');
       const opts = tax.data || tax.raw?.data || [];
       const byTitle = new Map();
@@ -13983,14 +14013,27 @@ async function pushGasPropertyContentToChannex(gasPropertyId, connectionId) {
         const t = (o.attributes?.title || '').toLowerCase();
         if (t) byTitle.set(t, o.id);
       }
-      const wantedTitles = gasFacs.length
-        ? gasFacs.map(s => String(s).replace(/[-_]/g, ' ').toLowerCase())
-        : ['wifi', 'non-smoking rooms'];
-      const facilityIds = [];
-      for (const t of wantedTitles) if (byTitle.has(t)) facilityIds.push(byTitle.get(t));
-      if (facilityIds.length) {
-        await adapter.request(`/properties/${channexPropertyId}`, 'PUT', { property: { facilities: facilityIds } });
-        facilitiesRes.success = true; facilitiesRes.count = facilityIds.length; delete facilitiesRes.skipped;
+      const facilityIds = new Set();
+      for (const raw of collected) {
+        const n = normalise(raw);
+        if (!n) continue;
+        if (byTitle.has(n)) { facilityIds.add(byTitle.get(n)); continue; }
+        // Contains match: any Channex facility title that mentions this word
+        for (const [title, id] of byTitle) {
+          if (title.includes(n) || n.includes(title)) { facilityIds.add(id); break; }
+        }
+      }
+      // Safe minimum if we couldn't resolve anything — Google needs ≥1
+      if (facilityIds.size === 0) {
+        for (const t of ['wifi', 'non-smoking rooms']) if (byTitle.has(t)) facilityIds.add(byTitle.get(t));
+      }
+      const idsArr = [...facilityIds];
+      if (idsArr.length) {
+        await adapter.request(`/properties/${channexPropertyId}`, 'PUT', { property: { facilities: idsArr } });
+        facilitiesRes.success = true;
+        facilitiesRes.count = idsArr.length;
+        facilitiesRes.source_amenity_count = collected.size;
+        delete facilitiesRes.skipped;
       } else {
         facilitiesRes.skipped = 'no facilities matched taxonomy';
       }
@@ -83336,12 +83379,58 @@ app.get('/api/admin/rooms', async (req, res) => {
   }
 });
 
+// 2026-08-05 — Copy/move photo from room to property was calling
+// /api/admin/properties/:id/images with a JSON body { image_url, thumbnail_url }
+// but this endpoint is multer-multipart (real file upload) and returned
+// "No files uploaded". Mirror the /api/admin/rooms/:id/assign-images
+// pattern so operators can copy already-uploaded R2 URLs into
+// property_images without re-uploading the binary. Idempotent — skips
+// URLs already present for the property.
+app.post('/api/admin/properties/:id/assign-images', async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Accept either an { images: [...] } array or a single { image_url, thumbnail_url } object
+    const images = Array.isArray(req.body?.images) ? req.body.images
+      : (req.body?.image_url ? [{ url: req.body.image_url, thumbnail_url: req.body.thumbnail_url, caption: req.body.caption }] : []);
+    if (!images.length) return res.json({ success: false, error: 'No images provided (send { images: [{ url, thumbnail_url }] } or { image_url })' });
+
+    const propCheck = await pool.query('SELECT id FROM properties WHERE id = $1', [id]);
+    if (!propCheck.rows[0]) return res.json({ success: false, error: 'Property not found' });
+
+    const maxOrder = await pool.query('SELECT COALESCE(MAX(display_order), -1)::int AS max FROM property_images WHERE property_id = $1', [id]);
+    let nextOrder = maxOrder.rows[0].max + 1;
+
+    let added = 0, skipped = 0;
+    for (const img of images) {
+      const url = img.url || img.image_url;
+      if (!url) { skipped++; continue; }
+      const existing = await pool.query('SELECT id FROM property_images WHERE property_id = $1 AND image_url = $2', [id, url]);
+      if (existing.rows[0]) { skipped++; continue; }
+      await pool.query(`
+        INSERT INTO property_images (property_id, image_key, image_url, url, thumbnail_url, caption, display_order, sort_order, upload_source, is_active, created_at)
+        VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'assigned', true, NOW())
+      `, [id, 'assign-' + Date.now() + '-' + nextOrder, url, img.thumbnail_url || url, img.caption || '', nextOrder++]);
+      added++;
+    }
+    if (added > 0) {
+      const hasPrimary = await pool.query('SELECT id FROM property_images WHERE property_id = $1 AND is_primary = true', [id]);
+      if (!hasPrimary.rows[0]) {
+        await pool.query(`UPDATE property_images SET is_primary = true WHERE id = (SELECT id FROM property_images WHERE property_id = $1 AND is_active = true ORDER BY display_order LIMIT 1)`, [id]);
+      }
+    }
+    res.json({ success: true, added, skipped, message: `${added} image(s) assigned, ${skipped} already present` });
+  } catch (err) {
+    console.error('[assign-images]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/admin/properties/:id/images', upload.array('images', 10), async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
     const files = req.files;
-    
+
     if (!files || files.length === 0) {
       return res.json({ success: false, error: 'No files uploaded' });
     }

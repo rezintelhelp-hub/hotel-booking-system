@@ -52341,11 +52341,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const result = await resp.json();
                     if (!result.success) throw new Error(result.error);
                 } else {
-                    // Copy to property images
-                    const resp = await fetch(`/api/admin/properties/${destId}/images`, {
+                    // Copy to property images — uses the assign-images endpoint
+                    // (JSON-body sibling of the multer /images uploader) so an
+                    // already-hosted R2 URL can be attached without re-uploading.
+                    const resp = await fetch(`/api/admin/properties/${destId}/assign-images`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                        body: JSON.stringify({ image_url: imageUrl, thumbnail_url: thumbnailUrl })
+                        body: JSON.stringify({ images: [{ url: imageUrl, thumbnail_url: thumbnailUrl }] })
                     });
                     const result = await resp.json();
                     if (!result.success) throw new Error(result.error);

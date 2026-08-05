@@ -355,12 +355,29 @@ class ChannexAdapter {
     if (!propertyId) return { success: false, error: 'propertyId required' };
     const urls = Array.isArray(photoUrls) ? photoUrls.filter(Boolean) : [];
     if (urls.length === 0) return { success: true, data: [], skipped: 'no-urls' };
-    // Channex /properties/:id/photos accepts array of { url, position, description }.
-    // We use position=index+1, description = property name (fallback empty).
-    const body = {
-      photos: urls.map((u, i) => ({ url: u, position: i + 1, description: '' }))
-    };
-    return this.request(`/properties/${propertyId}/photos`, 'POST', body);
+    // 2026-08-05 — Channex photo endpoint is POST /photos (not
+    // /properties/:id/photos) and takes ONE photo per call under
+    // { photo: { property_id, url, position, kind } }. Fires them
+    // sequentially so we can report per-URL success/failure.
+    // Charles House audit was showing 0 photos even though 27 R2 URLs
+    // were being sent — the old /properties/:id/photos returned 404
+    // and the batch was lost.
+    const results = { success: true, uploaded: [], failed: [] };
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i];
+      try {
+        const resp = await this.request('/photos', 'POST', {
+          photo: { property_id: propertyId, url, position: i, kind: 'photo', description: '' }
+        });
+        if (resp.success) results.uploaded.push({ url, id: resp.data?.id || resp.raw?.data?.id || null });
+        else results.failed.push({ url, error: resp.error || 'unknown' });
+      } catch (e) {
+        results.failed.push({ url, error: e.message });
+      }
+    }
+    results.count = results.uploaded.length;
+    if (results.failed.length) results.success = results.uploaded.length > 0; // partial success still succeeds
+    return results;
   }
 
   /**
