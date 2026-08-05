@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.04
+ * Version: 4.3.23
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -4798,16 +4798,44 @@ jQuery(document).ready(function($) {
     });
     
     // Remove individual room from cart (on checkout page)
+    // 2026-08-05 Hebden — mirror the delete to BOTH cart stores.
+    // window.GASCart (uppercase, key 'gas_cart') is the older legacy cart
+    // the checkout page + group-booking flow use. window.gasCart
+    // (lowercase, key 'gas_cart_v1') is the newer split-cart the room
+    // page + [gas_cart] shortcode use. They persist independently in
+    // localStorage — removing from GASCart alone left the item visible
+    // in the room-page cart after checkout deletion.
     $(document).on('click', '.gas-remove-room-btn', function(e) {
         e.preventDefault();
         var index = parseInt($(this).data('index'));
-        
+
         if (window.GASCart && window.GASCart.items.length > 0) {
-            var roomName = window.GASCart.items[index]?.name || 'this room';
-            
+            var item = window.GASCart.items[index];
+            var roomName = item?.name || 'this room';
+
             if (confirm('Remove ' + roomName + ' from cart?')) {
                 window.GASCart.remove(index);
-                
+
+                // Also remove the same room from the newer gasCart store,
+                // matching by roomId + checkin + checkout so we don't kill
+                // the wrong stay in a multi-stay cart.
+                try {
+                    if (item && window.gasCart && typeof window.gasCart.read === 'function') {
+                        var cart2 = window.gasCart.read();
+                        if (cart2 && Array.isArray(cart2.items)) {
+                            var before = cart2.items.length;
+                            cart2.items = cart2.items.filter(function(it) {
+                                if (it.type !== 'room') return true;
+                                var sameRoom = String(it.roomId) === String(item.roomId);
+                                var sameCi = it.checkin === item.checkin;
+                                var sameCo = it.checkout === item.checkout;
+                                return !(sameRoom && sameCi && sameCo);
+                            });
+                            if (cart2.items.length !== before) window.gasCart.write(cart2);
+                        }
+                    }
+                } catch (mirrorErr) { /* non-fatal — GASCart already updated */ }
+
                 // If cart is now empty, redirect to book now page
                 if (window.GASCart.items.length === 0) {
                     var bookNowUrl = (typeof gasBooking !== 'undefined' && gasBooking.searchResultsUrl) ? gasBooking.searchResultsUrl : '/book-now/';
@@ -5754,6 +5782,24 @@ jQuery(document).ready(function($) {
                         sp3.set('prefill_quantity', '0');
                         history.replaceState(null, '', window.location.pathname + '?' + sp3.toString());
                     } catch (e) {}
+                    // 2026-08-05 Hebden — mirror the delete into gasCart so
+                    // the item disappears from the room-page [gas_cart]
+                    // shortcode too. Match on upsell id (from prefill_upsells
+                    // URL param or first cart item) so a multi-item cart
+                    // only loses this one line.
+                    try {
+                        if (window.gasCart && typeof window.gasCart.read === 'function' && upsellId) {
+                            var cart3 = window.gasCart.read();
+                            if (cart3 && Array.isArray(cart3.items)) {
+                                var before3 = cart3.items.length;
+                                cart3.items = cart3.items.filter(function(it) {
+                                    if (it.type !== 'upsell') return true;
+                                    return String(it.id || '') !== String(upsellId);
+                                });
+                                if (cart3.items.length !== before3) window.gasCart.write(cart3);
+                            }
+                        }
+                    } catch (mirrorErr) { /* non-fatal */ }
                 });
 
                 // Stripe init — pull publishable key for this property.
