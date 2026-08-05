@@ -101719,11 +101719,19 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       const dayPrice = dayData?.price ? parseFloat(dayData.price) : null;
       let dayAvailable;
       if (poolDayMap) {
-        // Pool-model: the pool counter is the source of truth. Ignore the
-        // legacy room_availability.is_blocked — that row may be a stale
-        // wholesale block from pre-fix /api/public/book runs. Price still
-        // has to exist.
-        dayAvailable = (poolDayMap[dateStr] || 0) > 0 && dayPrice > 0;
+        // Pool-model: MIN(pool counter) is authoritative for capacity,
+        // BUT room_availability.is_blocked / is_available=false from
+        // Beds24 are legitimate operator stop-sell / maintenance / OTA-
+        // consumed blocks that still trump pool capacity. Matches the
+        // /api/availability picker + GAS Admin availability grid, which
+        // both honour Beds24 flags on top of pool math ("Beds24 manual
+        // block beats pool capacity" — /api/availability:80284).
+        // Hebden 2026-08-05: widget availability tab was showing dates
+        // green that GAS Admin + widget picker (both /api/availability)
+        // correctly showed as blocked, causing guests to click and be
+        // rejected at /public/book.
+        const rawBlocked = dayData ? (dayData.is_blocked === true || dayData.is_available === false) : false;
+        dayAvailable = !rawBlocked && (poolDayMap[dateStr] || 0) > 0 && dayPrice > 0;
       } else if (bookingCountByDate) {
         // Multi-unit room (quantity > 1): count active bookings on this
         // night against quantity. Ignore the single is_available/is_blocked
