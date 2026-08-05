@@ -362,9 +362,20 @@ class ChannexAdapter {
     // Charles House audit was showing 0 photos even though 27 R2 URLs
     // were being sent — the old /properties/:id/photos returned 404
     // and the batch was lost.
+    // Channex rejects URLs with unencoded spaces or brackets — GAS R2
+    // photos commonly contain filenames like "... (5).jpg" which need
+    // encoding before submit. Re-encode the path portion while
+    // preserving the origin + query.
+    const safeUrl = (u) => {
+      try {
+        const parsed = new URL(u);
+        parsed.pathname = parsed.pathname.split('/').map(seg => encodeURIComponent(decodeURIComponent(seg))).join('/');
+        return parsed.toString();
+      } catch (_) { return u; }
+    };
     const results = { success: true, uploaded: [], failed: [] };
     for (let i = 0; i < urls.length; i++) {
-      const url = urls[i];
+      const url = safeUrl(urls[i]);
       try {
         const resp = await this.request('/photos', 'POST', {
           photo: { property_id: propertyId, url, position: i, kind: 'photo', description: '' }

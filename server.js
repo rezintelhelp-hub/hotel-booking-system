@@ -13814,10 +13814,10 @@ async function pushGasPropertyContentToChannex(gasPropertyId, connectionId) {
   try {
     if (!gasPropertyId || !connectionId) return { success: false, error: 'gas_property_id + connectionId required' };
     const propRow = await pool.query(
-      `SELECT id, name, address, city, country, postal_code, timezone, currency, phone,
+      `SELECT id, name, address, city, state, country, postal_code, timezone, currency, phone,
               description, full_description, short_description, location_description,
               cancellation_policy, house_rules, check_in_time, check_out_time,
-              facilities, account_id, latitude, longitude
+              facilities, amenities, account_id, latitude, longitude
          FROM properties WHERE id = $1`, [gasPropertyId]);
     if (!propRow.rows[0]) return { success: false, error: 'GAS property not found' };
     const prop = propRow.rows[0];
@@ -13851,6 +13851,7 @@ async function pushGasPropertyContentToChannex(gasPropertyId, connectionId) {
       phone: prop.phone || undefined,
       timezone: prop.timezone || undefined,
       country: countryIso2,
+      state: prop.state || undefined,
       city: prop.city || undefined,
       address: prop.address || undefined,
       zipCode: prop.postal_code || undefined,
@@ -14571,6 +14572,20 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
     // show "Channex ARI" for UX; we translate here.
     const partnerAccountResolved = (partnerAccount === 'Channex ARI' || !partnerAccount)
       ? 'Channex' : partnerAccount;
+
+    // Aggregate bedroom / bathroom / bed counts across all rooms on the
+    // property. Google's readiness check rejects the channel with
+    // "invalid bedroom/bathroom/bed count" if these are left empty on
+    // the channel settings — even when account_type=Hotel hides them in
+    // the Channex dashboard UI. Charles House 2026-08-05.
+    const _agg = await pool.query(`
+      SELECT COUNT(*)::int AS rooms,
+             COALESCE(SUM(COALESCE(num_bedrooms, bedroom_count, 1))::int, 1) AS bedrooms,
+             COALESCE(SUM(COALESCE(num_bathrooms, bathroom_count, 1)::numeric)::int, 1) AS bathrooms,
+             COALESCE(SUM(COALESCE(beds_from_amenities, beds, 1))::int, 1) AS beds
+        FROM bookable_units WHERE property_id = $1`, [gasPropertyId]);
+    const roomAgg = _agg.rows[0] || { bedrooms: 1, bathrooms: 1, beds: 1 };
+
     const settings = {
       email,
       partner_account: partnerAccountResolved,
@@ -14579,6 +14594,9 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
       request_credit_card: true,
       request_billing_info: true,
       send_email_notifications: true,
+      bedrooms_count: parseInt(roomAgg.bedrooms) || 1,
+      bathrooms_count: parseInt(roomAgg.bathrooms) || 1,
+      beds_count: parseInt(roomAgg.beds) || 1,
     };
     if (!useBuiltInIbe && booking_link) settings.booking_link = booking_link;
 
