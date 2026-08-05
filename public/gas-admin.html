@@ -73119,10 +73119,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                         : '·';
                     const amount = Number(t.amount || 0).toFixed(2);
                     const desc = t.description ? ` <span style="color:#94a3b8;">— ${escapeHtml(t.description)}</span>` : '';
+                    // Source pill so operators can see at a glance whether
+                    // the money went through GAS's direct Stripe / Square /
+                    // Enigma flow vs a channel-manager or manual channel
+                    // (Beds24-side Stripe, bank transfer typed into Beds24, etc).
+                    // Steve 2026-08-05 (Lora Stacey): the ledger showed
+                    // "deposit 665.50 + payment 150.00" with no visual hint
+                    // that the 150 came from Beds24-Stripe, not GAS-Stripe.
+                    const gw = String(t.payment_gateway || '').toLowerCase();
+                    let src = { label: gw ? gw.toUpperCase() : 'MANUAL', bg: '#e5e7eb', fg: '#334155', title: 'Source: ' + (gw || 'manual entry') };
+                    if (gw === 'stripe')          src = { label: 'GAS · Stripe', bg: '#dcfce7', fg: '#166534', title: 'Charged directly by GAS via the property\'s Stripe account' };
+                    else if (gw === 'square')     src = { label: 'GAS · Square', bg: '#dbeafe', fg: '#1e40af', title: 'Charged directly by GAS via the property\'s Square account' };
+                    else if (gw === 'enigma')     src = { label: 'GAS · Enigma', bg: '#ede9fe', fg: '#5b21b6', title: 'Card guarantee via Enigma (verify, not charge)' };
+                    else if (gw === 'worldpay')   src = { label: 'GAS · Worldpay', bg: '#fee2e2', fg: '#991b1b', title: 'Charged directly by GAS via Worldpay' };
+                    else if (gw === 'beds24_import')  src = { label: 'Beds24', bg: '#fef3c7', fg: '#92400e', title: 'Payment received on the Beds24 side (Beds24-Stripe, bank transfer, or manual entry). Mirrored into GAS by the Beds24 sync.' };
+                    else if (gw === 'hostaway_import') src = { label: 'Hostaway', bg: '#ede9fe', fg: '#5b21b6', title: 'Payment received on the Hostaway side. Mirrored into GAS by the Hostaway sync.' };
+                    else if (gw === 'hostfully_import') src = { label: 'Hostfully', bg: '#ede9fe', fg: '#5b21b6', title: 'Payment received on the Hostfully side. Mirrored into GAS by the Hostfully sync.' };
+                    else if (gw === 'bank' || gw === 'bank_transfer') src = { label: 'Bank', bg: '#e5e7eb', fg: '#334155', title: 'Bank transfer — manual entry' };
+                    else if (gw === 'cash')       src = { label: 'Cash', bg: '#e5e7eb', fg: '#334155', title: 'Cash — manual entry' };
+                    const srcPill = `<span title="${escapeHtml(src.title)}" style="display:inline-block;padding:1px 8px;margin-left:4px;background:${src.bg};color:${src.fg};font-size:11px;font-weight:600;border-radius:10px;vertical-align:middle;">${escapeHtml(src.label)}</span>`;
                     return `<div style="padding: 4px 0; border-bottom: 1px dashed #e2e8f0;">
                         <span style="display:inline-block; min-width: 80px; color: ${typeColor}; font-weight: 500;">${t.transaction_type}</span>
                         <span style="display:inline-block; min-width: 100px;">${amount} ${(t.currency || cur).toUpperCase()}</span>
-                        <span style="color:#64748b;">${statusBadge} ${date}</span>${desc}
+                        ${srcPill}
+                        <span style="color:#64748b; margin-left:6px;">${statusBadge} ${date}</span>${desc}
                     </div>`;
                 }).join('');
 
