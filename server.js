@@ -13862,14 +13862,33 @@ async function pushGasPropertyContentToChannex(gasPropertyId, connectionId) {
     const updRes = await adapter.updateProperty(channexPropertyId, updatePayload);
     let photoRes = null;
     try {
-      const imgs = await pool.query(
-        `SELECT image_url FROM property_images WHERE property_id = $1 AND (is_hidden IS NULL OR is_hidden = false) ORDER BY sort_order NULLS LAST, id LIMIT 20`,
+      // Prefer property-level images, fall back to room_images so a
+      // property that only manages photos at room level (common for
+      // small hotels — e.g. Charles House had 27 room_images and zero
+      // property_images) still gets photos into Channex.
+      const propImgs = await pool.query(
+        `SELECT image_url FROM property_images WHERE property_id = $1 AND (is_hidden IS NULL OR is_hidden = false) ORDER BY sort_order NULLS LAST, id LIMIT 30`,
         [gasPropertyId]).catch(() => ({ rows: [] }));
-      const urls = imgs.rows.map(r => r.image_url).filter(Boolean);
+      let urls = propImgs.rows.map(r => r.image_url).filter(Boolean);
+      let photoSource = 'property_images';
+      if (urls.length === 0) {
+        const roomImgs = await pool.query(
+          `SELECT ri.image_url FROM room_images ri
+             JOIN bookable_units bu ON bu.id = ri.room_id
+            WHERE bu.property_id = $1
+              AND (ri.is_active IS NULL OR ri.is_active = true)
+            ORDER BY ri.is_primary DESC NULLS LAST, ri.display_order NULLS LAST, ri.id
+            LIMIT 30`,
+          [gasPropertyId]).catch(() => ({ rows: [] }));
+        urls = roomImgs.rows.map(r => r.image_url).filter(Boolean);
+        photoSource = 'room_images';
+      }
       if (urls.length > 0) {
         photoRes = await adapter.setPropertyPhotos(channexPropertyId, urls);
+        photoRes.source = photoSource;
+        photoRes.count = urls.length;
       } else {
-        photoRes = { success: true, skipped: 'no property-level images in GAS' };
+        photoRes = { success: true, skipped: 'no images in property_images OR room_images' };
       }
     } catch (photoErr) {
       photoRes = { success: false, error: photoErr.message };
@@ -14246,6 +14265,9 @@ app.get('/api/admin/channex/:connectionId/google/audit', async (req, res) => {
       facilitiesCount = Array.isArray(facData) ? facData.length : (facData ? Object.keys(facData).length : 0);
     } catch (_) { /* facilities may 404 if never set */ }
 
+    // Description lives in either content.description (current) or
+    // top-level description (legacy). Read both, prefer content.
+    const descText = a.content?.description || a.description || null;
     const audit = [
       { field: 'title',                label: 'Property name',        ready: !!a.title,                                value: a.title || null },
       { field: 'address',              label: 'Address',              ready: !!a.address,                              value: a.address || null },
@@ -14256,10 +14278,10 @@ app.get('/api/admin/channex/:connectionId/google/audit', async (req, res) => {
       { field: 'timezone',             label: 'Timezone',             ready: !!a.timezone,                             value: a.timezone || null },
       { field: 'currency',             label: 'Currency',             ready: !!a.currency,                             value: a.currency || null },
       { field: 'lat_lon',              label: 'Map location (lat/lon)', ready: !!(a.latitude && a.longitude),          value: (a.latitude && a.longitude) ? `${a.latitude}, ${a.longitude}` : null },
-      { field: 'description',          label: 'Property description', ready: !!a.description,                          value: a.description ? String(a.description).slice(0, 80) + '…' : null },
-      { field: 'hotel_policy',         label: 'Hotel policy',         ready: !!a.hotel_policy_id,                      value: a.hotel_policy_id || null },
-      { field: 'cancellation_policy',  label: 'Cancellation policy',  ready: !!a.default_cancellation_policy_id,       value: a.default_cancellation_policy_id || null },
-      { field: 'facilities',           label: 'Facilities (need ≥1)', ready: facilitiesCount > 0,                      value: `${facilitiesCount} set` },
+      { field: 'description',          label: 'Property description', ready: !!descText,                               value: descText ? String(descText).slice(0, 80) + '…' : null },
+      { field: 'hotel_policy',         label: 'Hotel policy',         ready: !!a.hotel_policy_id,                      value: a.hotel_policy_id || 'set manually in Channex (Property → Policies) — 2 min job' },
+      { field: 'cancellation_policy',  label: 'Cancellation policy',  ready: !!a.default_cancellation_policy_id,       value: a.default_cancellation_policy_id || 'set manually in Channex (Property → Policies) — 2 min job' },
+      { field: 'facilities',           label: 'Facilities (need ≥1)', ready: facilitiesCount > 0,                      value: facilitiesCount > 0 ? `${facilitiesCount} set` : 'tick any 1 in Channex (Property → Facilities) — 30 sec' },
       { field: 'photos',               label: 'Photos (need ≥1)',     ready: photoCount > 0,                           value: `${photoCount} uploaded` },
     ];
     const missing = audit.filter(a => !a.ready).length;

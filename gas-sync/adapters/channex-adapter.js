@@ -328,8 +328,17 @@ class ChannexAdapter {
     if (payload.zipCode != null) attrs.zip_code = payload.zipCode;
     if (payload.propertyType != null) attrs.property_type = payload.propertyType;
     if (payload.currency != null) attrs.currency = payload.currency;
-    if (payload.description != null) attrs.description = payload.description;
-    if (payload.content != null) attrs.content = payload.content;
+    // 2026-08-05 — Channex deprecated top-level `description` (PUT with
+    // it returns 200 but attrs.description stays null on read). The
+    // canonical location is content.description. Set both for max
+    // compatibility with older Channex environments still on the
+    // legacy attribute.
+    if (payload.description != null) {
+      attrs.description = payload.description;
+      attrs.content = { ...(payload.content || {}), description: payload.description };
+    } else if (payload.content != null) {
+      attrs.content = payload.content;
+    }
     if (payload.settings != null) attrs.settings = payload.settings;
     if (payload.hotelPolicy != null) attrs.hotel_policy = payload.hotelPolicy;
     if (payload.facilities != null) attrs.facilities = payload.facilities;
