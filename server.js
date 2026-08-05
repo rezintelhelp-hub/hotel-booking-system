@@ -14564,9 +14564,16 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
     const { ChannexAdapter } = require('./gas-sync/adapters/channex-adapter');
     const adapter = new ChannexAdapter({ apiKey, groupId });
 
+    // 2026-08-05 — Channex requires partner_account = 'Channex' for the
+    // shared Channex Hotel Centre (not the display name 'Channex ARI'
+    // which the /channels/list catalog surfaces). Selecting 'Channex ARI'
+    // returns 422 "partner_account is invalid". Client wizard may still
+    // show "Channex ARI" for UX; we translate here.
+    const partnerAccountResolved = (partnerAccount === 'Channex ARI' || !partnerAccount)
+      ? 'Channex' : partnerAccount;
     const settings = {
       email,
-      partner_account: partnerAccount,
+      partner_account: partnerAccountResolved,
       use_built_in_ibe: useBuiltInIbe,
       account_type: 'Hotel',
       request_credit_card: true,
@@ -14575,7 +14582,11 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
     };
     if (!useBuiltInIbe && booking_link) settings.booking_link = booking_link;
 
-    const rate_plans = rateResolve.rows.map(r => ({ rate_plan_id: r.rate_plan_id }));
+    // Channex requires each rate_plan mapping to carry a `settings` object
+    // even when the channel has no rate-level params (GoogleHotelARI has
+    // rate_params:null in the catalog). Omitting `settings` per-plan
+    // returns 422 "rate_plans: settings is required".
+    const rate_plans = rateResolve.rows.map(r => ({ rate_plan_id: r.rate_plan_id, settings: {} }));
     const createPayload = {
       channel: 'GoogleHotelARI',
       title: 'Google Hotel Search',
