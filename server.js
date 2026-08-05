@@ -14565,21 +14565,19 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
     const { ChannexAdapter } = require('./gas-sync/adapters/channex-adapter');
     const adapter = new ChannexAdapter({ apiKey, groupId });
 
-    // 2026-08-05 — Channex's Google integration only feeds Google
-    // Vacation Rentals (their support confirmed). Google VR requires
-    // property.billing_type='Vacation Rental' AND exactly one room type
-    // per property. Guard both before we try to create the channel;
-    // reject cleanly rather than let Channex return a cryptic 422.
+    // Channex's Google integration only feeds Google Vacation Rentals,
+    // and their docs say VR requires 1 room type per property. In
+    // practice Google itself may just index each room type as a
+    // separate listing — potentially GOOD for hotels (4 rooms = 4
+    // Google listings). Rather than hard-reject on the 1-rt rule, log
+    // the count so the operator can decide + we can see what Google
+    // does after 7 days.
     const rtCountQ = await pool.query(
       `SELECT COUNT(*)::int AS n FROM gas_sync_room_types WHERE sync_property_id = (SELECT id FROM gas_sync_properties WHERE gas_property_id = $1 AND connection_id = $2 LIMIT 1)`,
       [gasPropertyId, connectionId]);
     const roomTypeCount = rtCountQ.rows[0]?.n || 0;
     if (roomTypeCount > 1) {
-      return res.json({
-        success: false,
-        error: `Google Vacation Rental requires exactly 1 room type per property. This property has ${roomTypeCount} in Channex. Collapse it into a single "whole property" listing in Channex first, or split into ${roomTypeCount} separate Channex properties.`,
-        code: 'VR_MULTI_ROOM_TYPE',
-      });
+      console.log(`[google/create-channel] property ${gasPropertyId} has ${roomTypeCount} room types — Channex docs say VR wants 1, testing what Google does with more.`);
     }
 
     // Flip Channex billing_type to Vacation Rental (idempotent — no-op
