@@ -2390,6 +2390,10 @@
                         <span class="nav-icon"></span>
                         <span>Connections</span>
                     </a>
+                    <a class="nav-item" data-view="channex-messages" data-roles="master_admin,admin,submaster_admin,agency_admin" href="#" onclick="navClick(this, 'channex-messages'); loadChannexMessages(); return false;">
+                        <span class="nav-icon">💬</span>
+                        <span>Messages</span>
+                    </a>
                     <a class="nav-item master-only" style="display: none;" data-view="gas-sync-dashboard" data-roles="master_admin" href="#" onclick="navClick(this, 'gas-sync-dashboard'); return false;">
                         <span class="nav-icon"></span>
                         <span>Sync Dashboard</span>
@@ -24205,6 +24209,24 @@ const promo = await fetch('/api/v1/offers/validate', {
             </div>
 
             <!-- GasSync Connections View -->
+            <!-- 💬 Channex Messages — unified OTA inbox (BDC + Airbnb via Channex Messages & Reviews app) -->
+            <div id="channex-messages" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div><h2>💬 Messages</h2><p>Guest chats from Booking.com + Airbnb (via Channex)</p></div>
+                        <div><button class="btn" onclick="loadChannexMessages()">↻ Refresh</button></div>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns: 340px 1fr; gap:0; height: calc(100vh - 220px); background:#fff; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0;">
+                    <div id="channex-messages-list" style="border-right:1px solid #e2e8f0; overflow-y:auto; background:#f8fafc;">
+                        <div style="padding:20px; text-align:center; color:#94a3b8;">Loading…</div>
+                    </div>
+                    <div id="channex-messages-thread" style="display:flex; flex-direction:column; overflow:hidden;">
+                        <div style="padding:40px; text-align:center; color:#94a3b8;">Pick a conversation on the left</div>
+                    </div>
+                </div>
+            </div>
+
             <div id="gas-sync-connections" class="view">
                 <div class="header">
                     <div class="header-top">
@@ -29792,7 +29814,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <button onclick="deleteBooking(currentViewingBookingId); closeModal('viewBookingModal');" class="btn" style="background: #991b1b; font-size: 0.85rem;">🗑️ Delete Booking</button>
                     <button id="push-beds24-btn" onclick="pushBookingToBeds24(currentViewingBookingId)" class="btn" style="background: #06b6d4; display: none; font-size: 0.85rem;">Push to Beds24</button>
                 </div>
-                
+
+                <!-- 💬 Channex Messages panel — inline guest chat for
+                     Airbnb + Booking.com bookings via Channex Messages
+                     & Reviews app. Populated by loadChannexBookingThread
+                     which is called from viewBooking() below. -->
+                <div style="margin-top: 1.25rem;">
+                    <h4 style="margin: 0 0 0.5rem; color: #475569; font-size: 0.95rem;">💬 Guest chat (Channex Messages)</h4>
+                    <div id="booking-channex-thread"></div>
+                </div>
+
             </div>
         </div>
     </div>
@@ -71461,11 +71492,17 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function viewBooking(id) {
             currentViewingBookingId = id;
+            // Fire the Channex thread lookup in parallel (no await — it renders
+            // into #booking-channex-thread when it resolves; if no match, the
+            // panel shows a soft "no conversation" message).
+            if (typeof loadChannexBookingThread === 'function') {
+                setTimeout(() => loadChannexBookingThread(id, 'booking-channex-thread'), 100);
+            }
 
             try {
                 const response = await fetch(`/api/bookings/${id}`);
                 const data = await response.json();
-                
+
                 if (!data.success || !data.booking) {
                     alert('Failed to load booking details');
                     return;
@@ -109054,6 +109091,173 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             showNotification(`Connected ${success} properties${failed ? `, ${failed} failed` : ''}`, failed ? 'warning' : 'success');
             if (success > 0) loadGasSyncConnections();
+        }
+
+        // =====================================================
+        // CHANNEX MESSAGES INBOX (BDC + Airbnb via Channex Messages
+        // & Reviews app). Two surfaces:
+        //   1. Full-page Messages view — nav item, all threads in a list
+        //   2. Per-booking mini-panel — inside booking detail modal
+        // Both share these functions.
+        // =====================================================
+        let _channexMessagesState = { threads: [], activeThreadId: null, activeConnectionId: null };
+
+        function _cmEsc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+        function _cmFmtDate(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            const now = Date.now();
+            const diffH = (now - d.getTime()) / 3600000;
+            if (diffH < 24) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            if (diffH < 168) return d.toLocaleDateString([], { weekday: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return d.toLocaleDateString();
+        }
+
+        async function loadChannexMessages() {
+            const listEl = document.getElementById('channex-messages-list');
+            if (!listEl) return;
+            listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">Loading threads…</div>';
+            const params = new URLSearchParams();
+            if (selectedAccountId) params.set('account_id', selectedAccountId);
+            try {
+                const r = await fetch('/api/admin/channex/messages/threads?' + params, { headers: authHeaders() }).then(r => r.json());
+                if (!r.success) throw new Error(r.error || 'load failed');
+                _channexMessagesState.threads = r.threads || [];
+                _cmRenderThreadList();
+            } catch (e) {
+                listEl.innerHTML = `<div style="padding:20px; color:#dc2626;">Error: ${_cmEsc(e.message)}</div>`;
+            }
+        }
+
+        function _cmRenderThreadList() {
+            const listEl = document.getElementById('channex-messages-list');
+            const threads = _channexMessagesState.threads;
+            if (!threads.length) {
+                listEl.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8;">No conversations. New guest messages from Airbnb + Booking.com appear here.</div>';
+                return;
+            }
+            listEl.innerHTML = threads.map(t => {
+                const last = t.last_message || {};
+                const isGuest = last.sender === 'guest';
+                const preview = _cmEsc(String(last.message || '').slice(0, 80));
+                const propTag = t.property_name ? `<span style="font-size:11px;color:#64748b;">${_cmEsc(t.property_name.slice(0, 30))}</span>` : '';
+                const isActive = t.id === _channexMessagesState.activeThreadId;
+                const bg = isActive ? '#dbeafe' : (isGuest ? '#fff' : '#f8fafc');
+                return `<div onclick="_cmOpenThread('${t.id}', ${t.connection_id})" style="padding:12px 14px; border-bottom:1px solid #e2e8f0; cursor:pointer; background:${bg};">
+                    <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                        <strong style="color:#0f172a; font-size:14px;">${_cmEsc(t.title || 'Unnamed')}</strong>
+                        <span style="font-size:11px; color:#94a3b8;">${_cmFmtDate(t.updated_at)}</span>
+                    </div>
+                    <div style="font-size:12px; color:#475569; margin-top:4px; ${isGuest ? 'font-weight:600;' : ''}">
+                        ${isGuest ? '' : '<span style="color:#94a3b8;">You: </span>'}${preview}
+                    </div>
+                    <div style="margin-top:4px;">${propTag}</div>
+                </div>`;
+            }).join('');
+        }
+
+        async function _cmOpenThread(threadId, connectionId) {
+            _channexMessagesState.activeThreadId = threadId;
+            _channexMessagesState.activeConnectionId = connectionId;
+            _cmRenderThreadList();
+            const pane = document.getElementById('channex-messages-thread');
+            if (pane) {
+                pane.innerHTML = '<div style="padding:40px; text-align:center; color:#94a3b8;">Loading messages…</div>';
+                await _cmRenderThread(pane, threadId, connectionId);
+            }
+        }
+
+        async function _cmRenderThread(pane, threadId, connectionId) {
+            try {
+                const r = await fetch(`/api/admin/channex/messages/thread/${threadId}?connection_id=${connectionId}`, { headers: authHeaders() }).then(r => r.json());
+                if (!r.success) throw new Error(r.error || 'load failed');
+                const messages = r.messages || [];
+                const thread = _channexMessagesState.threads.find(t => t.id === threadId) || {};
+                const title = thread.title || 'Conversation';
+                const propName = thread.property_name || '';
+                const msgsHtml = messages.length === 0
+                    ? '<div style="padding:24px; color:#94a3b8; text-align:center;">No messages yet.</div>'
+                    : messages.map(m => {
+                        const isGuest = m.sender === 'guest';
+                        const bg = isGuest ? '#f1f5f9' : '#dbeafe';
+                        const align = isGuest ? 'flex-start' : 'flex-end';
+                        const senderName = m.meta?.name || (isGuest ? 'Guest' : 'You');
+                        return `<div style="display:flex; justify-content:${align}; margin-bottom:10px;">
+                            <div style="max-width:70%; background:${bg}; padding:10px 14px; border-radius:12px;">
+                                <div style="font-size:11px; color:#64748b; margin-bottom:4px;"><strong>${_cmEsc(senderName)}</strong> · ${_cmFmtDate(m.inserted_at)}</div>
+                                <div style="white-space:pre-wrap; font-size:14px; color:#0f172a;">${_cmEsc(m.message)}</div>
+                            </div>
+                        </div>`;
+                    }).join('');
+                pane.innerHTML = `
+                    <div style="padding:14px 20px; border-bottom:1px solid #e2e8f0; background:#f8fafc;">
+                        <strong>${_cmEsc(title)}</strong>
+                        ${propName ? `<span style="color:#64748b; font-size:12px; margin-left:8px;">${_cmEsc(propName)}</span>` : ''}
+                    </div>
+                    <div style="flex:1; overflow-y:auto; padding:20px; background:#fff;" id="cm-msgs">${msgsHtml}</div>
+                    <div style="border-top:1px solid #e2e8f0; padding:12px 16px; background:#fff;">
+                        <textarea id="cm-reply-body" placeholder="Type your reply…" style="width:100%; min-height:70px; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-family:inherit; font-size:14px; resize:vertical;"></textarea>
+                        <div style="margin-top:8px; text-align:right;">
+                            <button class="btn" onclick="_cmSendReply('${threadId}', ${connectionId})" style="background:#059669; color:#fff;">Send →</button>
+                        </div>
+                    </div>
+                `;
+                // Auto-scroll to bottom
+                const m = document.getElementById('cm-msgs'); if (m) m.scrollTop = m.scrollHeight;
+            } catch (e) {
+                pane.innerHTML = `<div style="padding:24px; color:#dc2626;">Error: ${_cmEsc(e.message)}</div>`;
+            }
+        }
+
+        async function _cmSendReply(threadId, connectionId) {
+            const ta = document.getElementById('cm-reply-body');
+            const msg = (ta.value || '').trim();
+            if (!msg) return;
+            ta.disabled = true;
+            try {
+                const r = await fetch(`/api/admin/channex/messages/thread/${threadId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ connection_id: connectionId, message: msg })
+                }).then(r => r.json());
+                if (!r.success) throw new Error(typeof r.error === 'string' ? r.error : JSON.stringify(r.error));
+                ta.value = '';
+                // Reload the thread — new message will appear
+                const pane = document.getElementById('channex-messages-thread');
+                if (pane) await _cmRenderThread(pane, threadId, connectionId);
+                // Also refresh the thread list so last_message updates
+                loadChannexMessages();
+            } catch (e) {
+                alert('Send failed: ' + e.message);
+            } finally {
+                ta.disabled = false;
+            }
+        }
+
+        // Per-booking mini panel — mounts inside a container on the
+        // booking detail modal. Given a bookingId, resolves the matching
+        // Channex thread + reuses the same _cmRenderThread renderer.
+        async function loadChannexBookingThread(bookingId, containerId) {
+            const el = document.getElementById(containerId);
+            if (!el) return;
+            el.innerHTML = '<div style="padding:16px; color:#94a3b8; text-align:center;">Looking up conversation…</div>';
+            try {
+                const r = await fetch(`/api/admin/bookings/${bookingId}/channex-thread`, { headers: authHeaders() }).then(r => r.json());
+                if (!r.success || !r.thread_id) {
+                    el.innerHTML = `<div style="padding:16px; color:#64748b; font-size:13px; text-align:center;">No matching Channex conversation${r.reason ? ' — ' + _cmEsc(r.reason) : ''}. (Only Airbnb + Booking.com guest chats come through Channex Messages.)</div>`;
+                    return;
+                }
+                el.style.display = 'flex';
+                el.style.flexDirection = 'column';
+                el.style.height = '480px';
+                el.style.border = '1px solid #e2e8f0';
+                el.style.borderRadius = '8px';
+                el.style.overflow = 'hidden';
+                el.innerHTML = '<div style="padding:16px; text-align:center; color:#94a3b8;">Loading…</div>';
+                await _cmRenderThread(el, r.thread_id, r.connection_id);
+            } catch (e) {
+                el.innerHTML = `<div style="padding:16px; color:#dc2626;">Error: ${_cmEsc(e.message)}</div>`;
+            }
         }
 
         // Link a Beds24 marketplace property to the current GAS account

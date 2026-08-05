@@ -14386,6 +14386,240 @@ app.get('/api/admin/channex/:connectionId/rate-plans', async (req, res) => {
   }
 });
 
+// =====================================================
+// CHANNEX MESSAGES — inbox for OTA guest chats (BDC + Airbnb)
+// Requires the "Channex Messages & Reviews" application enabled on
+// the account (paid Channex add-on). Endpoints proxy through Channex's
+// /message_threads + /message_threads/:id/messages APIs; we don't
+// mirror threads locally — just proxy so display is always live.
+// =====================================================
+
+// GET /api/admin/channex/messages/threads?account_id=X
+//   OR ?connection_id=X for a single Channex connection.
+// Returns threads (guest, last message, unread) across all Channex
+// connections the caller can see. Master admin can pass ?account_id
+// to scope; account admins are auto-scoped to their own account.
+app.get('/api/admin/channex/messages/threads', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const isMaster = decoded.role === 'master_admin';
+    const accountIdFilter = req.query.account_id ? parseInt(req.query.account_id, 10)
+                          : (!isMaster ? (decoded.accountId || decoded.id) : null);
+    const connectionIdFilter = req.query.connection_id ? parseInt(req.query.connection_id, 10) : null;
+
+    // Pull Channex connections in scope. Bail early if none.
+    let connsQ;
+    if (connectionIdFilter) {
+      connsQ = await pool.query(
+        "SELECT id, account_id, credentials FROM gas_sync_connections WHERE id = $1 AND adapter_code IN ('channex','channex-marketplace') AND COALESCE(status,'') <> 'deleted'",
+        [connectionIdFilter]);
+    } else if (accountIdFilter) {
+      connsQ = await pool.query(
+        "SELECT id, account_id, credentials FROM gas_sync_connections WHERE account_id = $1 AND adapter_code IN ('channex','channex-marketplace') AND COALESCE(status,'') <> 'deleted'",
+        [accountIdFilter]);
+    } else {
+      connsQ = await pool.query(
+        "SELECT id, account_id, credentials FROM gas_sync_connections WHERE adapter_code IN ('channex','channex-marketplace') AND COALESCE(status,'') <> 'deleted'");
+    }
+    if (!connsQ.rows.length) return res.json({ success: true, threads: [] });
+
+    // Enforce non-master-admin scope
+    if (!isMaster) {
+      const own = decoded.accountId || decoded.id;
+      connsQ.rows = connsQ.rows.filter(c => c.account_id === own);
+      if (!connsQ.rows.length) return res.status(403).json({ success: false, error: 'Not your connection' });
+    }
+
+    const axios = require('axios');
+    // Query the property list per connection first so we can label each
+    // thread with its property name. Cheap because Channex caches it.
+    const allThreads = [];
+    for (const conn of connsQ.rows) {
+      const apiKey = conn.credentials?.apiKey || conn.credentials?.api_key;
+      if (!apiKey) continue;
+      const propsMap = new Map();
+      try {
+        const spQ = await pool.query(
+          "SELECT sp.external_id, sp.name, sp.gas_property_id FROM gas_sync_properties sp WHERE sp.connection_id = $1",
+          [conn.id]);
+        for (const r of spQ.rows) propsMap.set(r.external_id, { name: r.name, gas_property_id: r.gas_property_id });
+      } catch (_) { /* no-op */ }
+      // For each property, pull its thread list. Channex has a per-
+      // property filter but doesn't support "list all threads for group",
+      // hence per-property loop.
+      for (const [pid, meta] of propsMap) {
+        try {
+          const r = await axios.get(`https://app.channex.io/api/v1/message_threads?filter[property_id]=${pid}&limit=50`,
+            { headers: { 'user-api-key': apiKey } });
+          for (const th of (r.data.data || [])) {
+            allThreads.push({
+              id: th.id,
+              connection_id: conn.id,
+              account_id: conn.account_id,
+              channex_property_id: pid,
+              property_name: meta.name || null,
+              gas_property_id: meta.gas_property_id || null,
+              title: th.attributes?.title || null,
+              last_message: th.attributes?.last_message || null,
+              last_message_received_at: th.attributes?.last_message_received_at || th.attributes?.updated_at,
+              is_closed: !!th.attributes?.is_closed,
+              inserted_at: th.attributes?.inserted_at,
+              updated_at: th.attributes?.updated_at,
+              meta: th.attributes?.meta || {},
+            });
+          }
+        } catch (e) {
+          console.warn(`[channex/messages/threads] property ${pid} fetch failed: ${e.response?.status || e.message}`);
+        }
+      }
+    }
+    // Newest activity first
+    allThreads.sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
+    res.json({ success: true, threads: allThreads });
+  } catch (err) {
+    console.error('[channex/messages/threads]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/admin/channex/messages/thread/:threadId?connection_id=X
+// Returns the full message list for one thread. connection_id is
+// required so we know which Channex API key to use.
+app.get('/api/admin/channex/messages/thread/:threadId', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const connectionId = parseInt(req.query.connection_id, 10);
+    if (!connectionId) return res.status(400).json({ success: false, error: 'connection_id required' });
+    const conn = await pool.query(
+      "SELECT id, account_id, credentials FROM gas_sync_connections WHERE id = $1 AND adapter_code IN ('channex','channex-marketplace')",
+      [connectionId]);
+    if (!conn.rows[0]) return res.status(404).json({ success: false, error: 'Connection not found' });
+    if (decoded.role !== 'master_admin' && conn.rows[0].account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Not your connection' });
+    }
+    const apiKey = conn.rows[0].credentials?.apiKey || conn.rows[0].credentials?.api_key;
+    if (!apiKey) return res.status(400).json({ success: false, error: 'No API key on connection' });
+
+    const axios = require('axios');
+    const r = await axios.get(`https://app.channex.io/api/v1/message_threads/${req.params.threadId}/messages`,
+      { headers: { 'user-api-key': apiKey } });
+    const messages = (r.data.data || []).map(m => ({
+      id: m.id,
+      message: m.attributes?.message || '',
+      sender: m.attributes?.sender || null,
+      meta: m.attributes?.meta || {},
+      attachments: m.attributes?.attachments || [],
+      inserted_at: m.attributes?.inserted_at,
+      updated_at: m.attributes?.updated_at,
+    }));
+    res.json({ success: true, messages });
+  } catch (err) {
+    console.error('[channex/messages/thread]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/channex/messages/thread/:threadId
+// Body: { connection_id, message }
+// Sends a reply to the guest via Channex's thread. Channex routes it
+// to the correct OTA (Airbnb / BDC).
+app.post('/api/admin/channex/messages/thread/:threadId', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const connectionId = parseInt(req.body?.connection_id, 10);
+    const message = String(req.body?.message || '').trim();
+    if (!connectionId) return res.status(400).json({ success: false, error: 'connection_id required' });
+    if (!message) return res.status(400).json({ success: false, error: 'message required' });
+    const conn = await pool.query(
+      "SELECT id, account_id, credentials FROM gas_sync_connections WHERE id = $1 AND adapter_code IN ('channex','channex-marketplace')",
+      [connectionId]);
+    if (!conn.rows[0]) return res.status(404).json({ success: false, error: 'Connection not found' });
+    if (decoded.role !== 'master_admin' && conn.rows[0].account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Not your connection' });
+    }
+    const apiKey = conn.rows[0].credentials?.apiKey || conn.rows[0].credentials?.api_key;
+
+    const axios = require('axios');
+    const sendResp = await axios.post(
+      `https://app.channex.io/api/v1/message_threads/${req.params.threadId}/messages`,
+      { message: { message } },
+      { headers: { 'user-api-key': apiKey, 'Content-Type': 'application/json' } }
+    );
+    res.json({ success: true, message: sendResp.data?.data });
+  } catch (err) {
+    console.error('[channex/messages/thread POST]', err.response?.status, err.response?.data || err.message);
+    res.status(500).json({ success: false, error: err.response?.data?.errors || err.message });
+  }
+});
+
+// GET /api/admin/bookings/:id/channex-thread
+// For a specific GAS booking, try to find the matching Channex message
+// thread and return {thread_id, connection_id} so the booking-detail
+// panel can load it inline. Matches by channex_booking_id → thread
+// meta.reservation_live_feed_event_id or by guest name + listing.
+app.get('/api/admin/bookings/:id/channex-thread', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    const bkQ = await pool.query(
+      `SELECT b.id, b.guest_first_name, b.guest_last_name, b.channex_booking_id,
+              b.property_id, p.account_id
+         FROM bookings b JOIN properties p ON p.id = b.property_id WHERE b.id = $1`,
+      [bookingId]);
+    if (!bkQ.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    const bk = bkQ.rows[0];
+    if (decoded.role !== 'master_admin' && bk.account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Not your booking' });
+    }
+    const connQ = await pool.query(
+      "SELECT id, credentials FROM gas_sync_connections WHERE account_id = $1 AND adapter_code IN ('channex','channex-marketplace') AND COALESCE(status,'') <> 'deleted' LIMIT 1",
+      [bk.account_id]);
+    if (!connQ.rows[0]) return res.json({ success: true, thread_id: null, reason: 'no Channex connection on account' });
+    const apiKey = connQ.rows[0].credentials?.apiKey || connQ.rows[0].credentials?.api_key;
+    if (!apiKey) return res.json({ success: true, thread_id: null, reason: 'no API key' });
+
+    // Resolve Channex property id
+    const spQ = await pool.query(
+      "SELECT external_id FROM gas_sync_properties WHERE connection_id = $1 AND gas_property_id = $2 LIMIT 1",
+      [connQ.rows[0].id, bk.property_id]);
+    if (!spQ.rows[0]) return res.json({ success: true, thread_id: null, reason: 'property not linked to Channex' });
+
+    const axios = require('axios');
+    const r = await axios.get(
+      `https://app.channex.io/api/v1/message_threads?filter[property_id]=${spQ.rows[0].external_id}&limit=100`,
+      { headers: { 'user-api-key': apiKey } });
+    const threads = r.data.data || [];
+    // Match strategies, best → weakest:
+    //  1. channex_booking_id equals thread.meta.reservation_live_feed_event_id
+    //  2. title equals guest first name (case-insensitive)
+    //  3. title includes guest first name
+    let match = null;
+    if (bk.channex_booking_id) {
+      match = threads.find(t => t.attributes?.meta?.reservation_live_feed_event_id === bk.channex_booking_id
+                              || t.attributes?.meta?.booking_id === bk.channex_booking_id);
+    }
+    if (!match && bk.guest_first_name) {
+      const first = bk.guest_first_name.trim().toLowerCase();
+      match = threads.find(t => (t.attributes?.title || '').trim().toLowerCase() === first);
+      if (!match) match = threads.find(t => (t.attributes?.title || '').toLowerCase().includes(first));
+    }
+    res.json({
+      success: true,
+      thread_id: match?.id || null,
+      connection_id: connQ.rows[0].id,
+      title: match?.attributes?.title || null,
+      reason: match ? null : 'no thread matched'
+    });
+  } catch (err) {
+    console.error('[bookings/channex-thread]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/admin/channex/:connectionId/channels — list connected channels
 app.get('/api/admin/channex/:connectionId/channels', async (req, res) => {
   try {
