@@ -14611,15 +14611,32 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
     const channel = createResp.data || createResp.raw?.data;
     const channelId = channel?.id || channel?.attributes?.id;
 
-    await pool.query(`
-      INSERT INTO gas_sync_channels (connection_id, channex_channel_id, channel_code, title, settings, is_active, created_at, updated_at)
-      VALUES ($1, $2, 'GoogleHotelARI', 'Google Hotel Search', $3::jsonb, false, NOW(), NOW())
-      ON CONFLICT (channex_channel_id) DO UPDATE SET settings = EXCLUDED.settings, updated_at = NOW()
-    `, [connectionId, channelId, JSON.stringify({ ...settings, gas_property_id: gasPropertyId })]).catch(e => {
+    // Insert the local row + capture its integer id — that's what
+    // channexActivate on the client expects (it POSTs to
+    // /api/admin/channex/channel/:id/activate which does parseInt(id)
+    // and looks up gas_sync_channels.id). Returning the Channex UUID
+    // here caused parseInt→NaN→silent 404 when the Activate button was
+    // clicked.
+    let localChannelId = null;
+    try {
+      const ins = await pool.query(`
+        INSERT INTO gas_sync_channels (connection_id, channex_channel_id, channel_code, title, settings, is_active, created_at, updated_at)
+        VALUES ($1, $2, 'GoogleHotelARI', 'Google Hotel Search', $3::jsonb, false, NOW(), NOW())
+        ON CONFLICT (channex_channel_id) DO UPDATE SET settings = EXCLUDED.settings, updated_at = NOW()
+        RETURNING id
+      `, [connectionId, channelId, JSON.stringify({ ...settings, gas_property_id: gasPropertyId })]);
+      localChannelId = ins.rows[0]?.id || null;
+    } catch (e) {
       console.warn('[google/create-channel] local upsert warn:', e.message);
-    });
+    }
 
-    res.json({ success: true, channel_id: channelId, rate_plans_mapped: rate_plans.length, next: 'Call /channels/:id/activate when ready' });
+    res.json({
+      success: true,
+      channel_id: localChannelId,          // integer — client uses this for activate
+      channex_channel_id: channelId,        // Channex UUID — for reference
+      rate_plans_mapped: rate_plans.length,
+      next: 'Call /channels/:id/activate when ready'
+    });
   } catch (err) {
     console.error('[google/create-channel]', err.message);
     res.status(500).json({ success: false, error: err.message });
