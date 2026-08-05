@@ -14580,13 +14580,22 @@ app.post('/api/admin/channex/:connectionId/google/create-channel', async (req, r
       channel: 'GoogleHotelARI',
       title: 'Google Hotel Search',
       group_id: groupId || undefined,
-      properties: [{ property_id: channexPropertyId }],
+      is_active: false,
+      properties: [channexPropertyId], // plain UUID strings, not wrapped objects (BDC pattern)
       rate_plans,
       settings,
     };
     const createResp = await adapter.createChannel(createPayload);
     if (!createResp.success) {
-      return res.json({ success: false, error: 'Channex createChannel failed', details: createResp });
+      const detailStr = createResp.details
+        ? (typeof createResp.details === 'string' ? createResp.details : JSON.stringify(createResp.details))
+        : (createResp.error || 'unknown');
+      return res.json({
+        success: false,
+        error: 'Channex createChannel failed: ' + detailStr.slice(0, 500),
+        code: createResp.code || null,
+        details: createResp
+      });
     }
     const channel = createResp.data || createResp.raw?.data;
     const channelId = channel?.id || channel?.attributes?.id;
