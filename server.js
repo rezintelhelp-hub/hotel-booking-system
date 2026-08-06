@@ -7757,6 +7757,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS display_name TEXT');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS max_guests INTEGER');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS base_price DECIMAL(10,2)');
+    // 2026-08-06 — per-room minimum rate. Beds24-style floor: nothing gets
+    // pushed to any OTA below this. Used by the Channex extender's floor
+    // guard AND the estate-wide low-price sweep. NULL = no operator-set
+    // floor; the GLOBAL_MIN_FLOOR (£15) still applies as safety net.
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS min_rate DECIMAL(10,2)').catch(() => {});
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS currency VARCHAR(3)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS short_description TEXT');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS full_description TEXT');
@@ -127669,13 +127674,16 @@ async function runChannexAvailabilityExtender(options = {}) {
   try {
     // Rooms on Channex-connected accounts (any account with an active
     // channex connection). Skip hidden/companion units — they'd never
-    // be sold to OTAs anyway. base_price included so the floor guard
-    // below can prevent below-threshold pushes to Expedia (Warning 7021
-    // "must be within rate verification threshold" — Charles House
-    // room 324501724 hit this on 2027-12-18 with a £10 mode price).
+    // be sold to OTAs anyway. min_rate is the operator's per-room floor
+    // (Beds24-style) — nothing gets pushed to any OTA below this. When
+    // NULL, the global GLOBAL_MIN_FLOOR (£15) applies. base_price is
+    // deliberately NOT used as a floor — it's a nominal reference and
+    // legit operator discounts below base_price should not be overwritten
+    // (Charles House pushes £85-£99 vs £100 base — discount pricing,
+    // intentional, must not be raised by the extender).
     const roomsRes = await pool.query(`
       SELECT DISTINCT bu.id AS room_id, bu.name AS room_name, p.account_id, p.name AS property_name,
-             bu.base_price AS room_base_price
+             bu.min_rate AS room_min_rate
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN gas_sync_connections gsc ON gsc.account_id = p.account_id
@@ -127728,15 +127736,14 @@ async function runChannexAvailabilityExtender(options = {}) {
 
       // 2026-08-06 — Floor guard. Expedia rejects rates below its per-property
       // rate verification threshold (Warning 7021). Charles House hit this
-      // when the mode price came out as £10 — below Expedia's £20.81 floor
-      // on rate plan 394808764A. Cap every DOW's mode price to at least
-      // max(room.base_price, GLOBAL_MIN_FLOOR) so we never push a
-      // suspiciously-low rate that OTAs will refuse. base_price is the
-      // operator's own configured floor; the global floor catches accounts
-      // whose base_price is also low/unset.
+      // when the mode price came out as £10 — below Expedia's £20.81 floor.
+      // Floor = max(bookable_units.min_rate, GLOBAL_MIN_FLOOR). Operators
+      // set min_rate per room (Beds24-style); when NULL, the global £15
+      // catches obvious placeholders (£1 test data etc.) without touching
+      // legitimate operator-set discounts (Charles House £85-£99).
       const GLOBAL_MIN_FLOOR = 15;
-      const roomBase = parseFloat(room.room_base_price) || 0;
-      const floorPrice = Math.max(roomBase, GLOBAL_MIN_FLOOR);
+      const roomMinRate = parseFloat(room.room_min_rate) || 0;
+      const floorPrice = Math.max(roomMinRate, GLOBAL_MIN_FLOOR);
       let floorHits = 0;
       for (const d of Object.keys(byDow)) {
         if (byDow[d].price < floorPrice) {
@@ -127745,7 +127752,7 @@ async function runChannexAvailabilityExtender(options = {}) {
         }
       }
       if (floorHits > 0) {
-        console.warn(`🌀 [Channex-Extend] Room ${room.room_id} (${room.room_name}): floor guard raised ${floorHits}/7 DOW prices to £${floorPrice} (was below room base £${roomBase} / global floor £${GLOBAL_MIN_FLOOR}). Suspiciously-low historical mode — check room_availability for placeholder rows.`);
+        console.warn(`🌀 [Channex-Extend] Room ${room.room_id} (${room.room_name}): floor guard raised ${floorHits}/7 DOW prices to £${floorPrice} (min_rate=£${roomMinRate}, global=£${GLOBAL_MIN_FLOOR}). Suspiciously-low historical mode — check room_availability for placeholder rows.`);
       }
 
       // 2. Find the last existing date; anything past that up to horizon needs filling.
