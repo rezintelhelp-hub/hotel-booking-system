@@ -133567,8 +133567,17 @@ async function walkRecipeSteps({ wf, steps, contact, contactId, bookingId, ctx, 
         // Preferred email: real captured email > pre-arrival capture >
         // OTA-masked booking email > contact record fallback. Never sends
         // to a null / empty address (would throw at Mailgun anyway).
+        //
+        // Test-fire override: when testRun=true the operator passed a
+        // synthetic contact (their own email) and possibly a booking_id
+        // for merge-tag rendering. Without this guard, any test-fire with
+        // a booking_id silently pulled the REAL guest's email and shipped
+        // the test straight to them (Doris Kassl B340217, 2026-08-06 —
+        // "TEST1234" bike code went to a past guest). Merge tags still
+        // resolve from the booking via ctx; only the recipient is forced
+        // to the operator's contact for test runs.
         let targetEmail = null;
-        if (bookingId) {
+        if (bookingId && !testRun) {
           const bR = await pool.query(
             `SELECT guest_direct_email, pre_arrival_captured_email, guest_email
                FROM bookings WHERE id = $1`, [bookingId]
