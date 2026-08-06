@@ -43778,6 +43778,21 @@ app.get('/api/setup-billing', async (req, res) => {
     await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS base_units INTEGER DEFAULT 0`).catch(() => {});
     await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS billing_period VARCHAR(20) DEFAULT 'monthly'`).catch(() => {});
     await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS stripe_price_id VARCHAR(255)`).catch(() => {});
+    // 2026-08-06 — GAS product catalogue v2. Extends billing_plans into a
+    // proper multi-pricing-type product table: fixed monthly, per-unit
+    // (base + included + overage), metered (rate per unit), pass-through
+    // (computed from external data like the Beds24 usage report). Old
+    // v1 rows (Starter/Professional/API tiers/etc.) are soft-hidden by
+    // is_active=false in the v2 seed below. account_subscriptions
+    // references by `product` code string, so no FK migration needed.
+    await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS product_code VARCHAR(50)`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS pricing_type VARCHAR(20) DEFAULT 'fixed'`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS included_units INTEGER DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS unit_price NUMERIC(10,4) DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS unit_type VARCHAR(30)`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS category VARCHAR(30)`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_plans ADD COLUMN IF NOT EXISTS notes TEXT`).catch(() => {});
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS billing_plans_product_code_uniq ON billing_plans(product_code) WHERE product_code IS NOT NULL`).catch(() => {});
     // Drop old slug unique constraint if it exists (we're replacing slugs)
     await pool.query(`ALTER TABLE billing_plans DROP CONSTRAINT IF EXISTS billing_plans_slug_key`).catch(() => {});
     // Check if new products already seeded
@@ -43807,7 +43822,42 @@ app.get('/api/setup-billing', async (req, res) => {
       `);
       console.log('✅ billing_plans seeded with GAS product suite');
     }
-    
+
+    // v2 seed — 2026-08-06. Steve's proper product list with the new
+    // pricing_type model. Only runs once (checked via product_code).
+    // Old v1 rows (per above and legacy Starter/Business/Enterprise
+    // etc.) get soft-hidden by is_active=false so nothing FKs break.
+    // The single source of truth for pricing going forward.
+    const v2Check = await pool.query("SELECT COUNT(*) FROM billing_plans WHERE product_code IS NOT NULL");
+    if (parseInt(v2Check.rows[0].count) === 0) {
+      // Hide all old rows so the UI shows a clean catalogue
+      await pool.query(`UPDATE billing_plans SET is_active = false WHERE product_code IS NULL`);
+      await pool.query(`
+        INSERT INTO billing_plans
+          (product_code, name, slug, description, pricing_type, price_monthly, included_units, unit_price, unit_type, currency, category, is_active, sort_order, notes)
+        VALUES
+          ('website',           'Website',                  'website',           'Direct booking website. 5 properties included, €1/month per property after.',                 'per_unit',    19.00, 5,  1.0000, 'property', 'EUR', 'website',        true,  10, 'Standard branded site with booking widget'),
+          ('wp_plugin',         'WordPress Plugin',         'wp-plugin',         'Booking plugin for the client''s own WordPress site. Same pricing as Website.',              'per_unit',    19.00, 5,  1.0000, 'property', 'EUR', 'website',        true,  11, 'For clients who host their own WordPress'),
+          ('gas_direct',        'GA Direct',                'ga-direct',         'GAS Direct booking pages. Same pricing as Website.',                                          'per_unit',    19.00, 5,  1.0000, 'property', 'EUR', 'website',        true,  12, 'Hosted direct booking pages'),
+          ('blog',              'Blog Module',              'blog',              'AI-assisted blog authoring. First 5 posts free; €19.99/mo when active.',                       'fixed',       19.99, 5,  0.0000, 'blog_post','EUR', 'content',        true,  20, 'Free tier: up to 5 posts. Charged when subscription enabled.'),
+          ('reviews',           'Reviews Module',           'reviews',           'Reviews widget (TripAdvisor / Booking.com / Google).',                                        'fixed',       19.99, 0,  0.0000, NULL,      'EUR', 'content',        true,  21, NULL),
+          ('attractions',       'Attractions Module',       'attractions',       'Local attractions / things-to-do pages.',                                                      'fixed',       19.99, 0,  0.0000, NULL,      'EUR', 'content',        true,  22, NULL),
+          ('shop',              'Shop',                     'shop',              'Product / package shop with fixed prices.',                                                    'fixed',       19.99, 0,  0.0000, NULL,      'USD', 'commerce',       true,  30, NULL),
+          ('social_campaigns',  'Social Campaigns',         'social-campaigns',  'Social media campaign & card generator (coming soon).',                                        'fixed',       19.99, 0,  0.0000, NULL,      'USD', 'content',        true,  31, 'Not yet wired'),
+          ('crm_basic',         'GAS CRM (Basic)',          'crm-basic',         'Contacts, workflows, comms. Free for the first 5 contacts.',                                   'fixed',        0.00, 5,  0.0000, 'contact', 'USD', 'crm',            true,  40, 'Free tier gate — upgrade to crm_pro past 5 contacts'),
+          ('crm_pro',           'GAS CRM Pro',              'crm-pro',           'Full CRM: unlimited contacts, advanced workflows, broadcast.',                                 'fixed',       60.00, 0,  0.0000, NULL,      'USD', 'crm',            true,  41, NULL),
+          ('gas24',             'GAS24 (Beds24 through GAS)','gas24',            '20% off Beds24 direct pricing. Billed per usage from the monthly AccountUsage report.',        'pass_through', 0.00, 0,  0.0000, NULL,      'EUR', 'gas24',          true,  50, 'Composed of the gas24_* atomic sub-products. Total = sum of enabled units × unit_price.'),
+          ('gas24_base',        'GAS24 — Base fee',         'gas24-base',        '20% off Beds24 base account fee (€12.90).',                                                   'per_unit',    10.32, 0, 10.3200, 'account',  'EUR', 'gas24_atomic',   true,  51, NULL),
+          ('gas24_property',    'GAS24 — Property',         'gas24-property',    '20% off €3/property.',                                                                        'per_unit',     0.00, 0,  2.4000, 'property', 'EUR', 'gas24_atomic',   true,  52, NULL),
+          ('gas24_extra_rental','GAS24 — Extra rental',     'gas24-extra-rental','20% off €1 per extra rental (multi-unit rooms beyond first).',                                'per_unit',     0.00, 0,  0.8000, 'rental',   'EUR', 'gas24_atomic',   true,  53, NULL),
+          ('gas24_link',        'GAS24 — Channel link',     'gas24-link',        '20% off €0.55 per channel connection.',                                                       'per_unit',     0.00, 0,  0.4400, 'link',     'EUR', 'gas24_atomic',   true,  54, NULL),
+          ('gas24_sub_user',    'GAS24 — Sub-user',         'gas24-sub-user',    '20% off €2 per Beds24 sub-account.',                                                          'per_unit',     0.00, 0,  1.6000, 'sub_user', 'EUR', 'gas24_atomic',   true,  55, NULL),
+          ('gas24_ssl',         'GAS24 — Branded SSL',      'gas24-ssl',         '20% off €50 per branded SSL certificate.',                                                    'per_unit',     0.00, 0, 40.0000, 'ssl',      'EUR', 'gas24_atomic',   true,  56, NULL),
+          ('gas24_sms',         'GAS24 — Beds24 SMS',       'gas24-sms',         '20% off €0.10 per text message sent through Beds24.',                                         'metered',      0.00, 0,  0.0800, 'sms',      'EUR', 'gas24_atomic',   true,  57, 'Billed per message sent')
+      `);
+      console.log('✅ billing_plans v2 seed applied (17 products) + old rows hidden');
+    }
+
     // Insert default credit packages if empty
     const creditCheck = await pool.query('SELECT COUNT(*) FROM billing_credit_packages');
     if (parseInt(creditCheck.rows[0].count) === 0) {
