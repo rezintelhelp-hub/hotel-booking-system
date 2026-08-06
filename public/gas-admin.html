@@ -106962,7 +106962,127 @@ const promo = await fetch('/api/v1/offers/validate', {
                 ${paymentsTable}
                 <h4 style="margin:1.25rem 0 0.5rem;color:#1e293b;font-size:0.95rem;">GAS Invoices Issued</h4>
                 ${invoicesTable}
+                <!-- 2026-08-06 — Billing Reconciliation panel. Loads on demand via
+                     the button so a failure here can't break the sections above.
+                     Renders left = catalogue products (subscribed + available),
+                     right = payments feed, with keyword auto-matching. -->
+                <h4 style="margin:1.5rem 0 0.5rem;color:#1e293b;font-size:0.95rem;display:flex;justify-content:space-between;align-items:center;">
+                    🧾 Billing Reconciliation
+                    <button class="btn btn-sm" onclick="loadClientReconciliation(${accountId})">Load products ↔ payments</button>
+                </h4>
+                <div id="client-recon-${accountId}" style="padding:0.75rem;background:#f8fafc;border-radius:6px;color:#64748b;font-size:0.85rem;">
+                    Click "Load products ↔ payments" to see this client's catalogue products on the left and their actual GoCardless/Stripe payments on the right, with matches highlighted and gaps flagged.
+                </div>
             `;
+        }
+
+        // Client Billing Reconciliation — loaded on demand from the GC drill-in.
+        // Uses the /api/admin/billing/client/:id endpoint (built earlier + proven).
+        // Fails LOUDLY into the container so an error here can't affect the drill-in above.
+        async function loadClientReconciliation(accountId) {
+            const container = document.getElementById('client-recon-' + accountId);
+            if (!container) return;
+            container.innerHTML = '<div style="color:#6366f1;">Loading reconciliation…</div>';
+            try {
+                const r = await fetch('/api/admin/billing/client/' + accountId, { headers: authHeaders() });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const d = await r.json();
+                if (!d.success) throw new Error(d.error || 'endpoint returned success=false');
+
+                // Keyword → product_code map for auto-matching payment descriptions
+                const kw = [
+                    ['gas24_link', ['vrbo connection', 'vrbo']],
+                    ['gas24',      ['beds24', 'beds 24']],
+                    ['website',    ['website']],
+                    ['wp_plugin',  ['wp plugin', 'wordpress plugin']],
+                    ['gas_direct', ['ga direct', 'gas direct']],
+                    ['blog',       ['blog']],
+                    ['reviews',    ['review']],
+                    ['attractions',['attraction']],
+                    ['shop',       ['shop order', 'shop']],
+                    ['crm_pro',    ['crm']],
+                ];
+                const matchCodes = {};  // product_code → list of payments
+                (d.payments || []).forEach(p => {
+                    const desc = (p.description || '').toLowerCase();
+                    for (const [code, keys] of kw) {
+                        if (keys.some(k => desc.includes(k))) {
+                            (matchCodes[code] = matchCodes[code] || []).push(p);
+                            p._matched = code;
+                            break;
+                        }
+                    }
+                });
+
+                const esc = (s) => String(s || '').replace(/</g, '&lt;');
+                const fmt = (a, c) => (c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'USD' ? '$' : (c || '')) + Number(a || 0).toFixed(2);
+
+                // LEFT — products with match state
+                const activeProducts = [...(d.subscribed_products || [])];
+                // Add synthetic GAS24 line if applicable + not already there
+                if (d.gas24_recommended && !activeProducts.some(s => s.product_code === 'gas24')) {
+                    activeProducts.unshift({
+                        product_code: 'gas24', name: 'GAS24 (Beds24 pass-through)',
+                        override_price: d.gas24_recommended.gas24_price_eur, currency: 'EUR', _synthetic: true
+                    });
+                }
+                const leftRows = activeProducts.map(s => {
+                    const code = s.product_code || s.product;
+                    const paymentsMatched = matchCodes[code] || [];
+                    const status = paymentsMatched.length > 0
+                        ? `<span style="color:#16a34a;font-size:0.75rem;">✓ ${paymentsMatched.length} match${paymentsMatched.length > 1 ? 'es' : ''}</span>`
+                        : `<span style="color:#dc2626;font-size:0.75rem;">⚠ no payment matched</span>`;
+                    return `<div style="padding:0.4rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;">
+                        <div style="display:flex;justify-content:space-between;">
+                            <strong style="font-size:0.85rem;">${esc(s.name || code)}</strong>
+                            <span style="font-size:0.85rem;color:#0f172a;">${fmt(s.override_price || s.price_monthly, s.currency)}</span>
+                        </div>
+                        <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">${code}${s._synthetic ? ' · auto (from Beds24 usage)' : ''} · ${status}</div>
+                    </div>`;
+                }).join('') || '<div style="color:#94a3b8;font-size:0.85rem;">No active products.</div>';
+
+                // RIGHT — payments with match state
+                const rightRows = (d.payments || []).slice(0, 30).map(p => {
+                    const matched = p._matched
+                        ? `<span style="color:#16a34a;font-size:0.7rem;">→ ${p._matched}</span>`
+                        : `<span style="color:#dc2626;font-size:0.7rem;">⚠ unmatched</span>`;
+                    const sourceBadge = p.source === 'stripe'
+                        ? '<span style="font-size:0.62rem;background:#635bff;color:#fff;padding:1px 4px;border-radius:3px;">Stripe</span>'
+                        : '<span style="font-size:0.62rem;background:#0e7c66;color:#fff;padding:1px 4px;border-radius:3px;">GC</span>';
+                    return `<div style="padding:0.4rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;">
+                        <div style="display:flex;justify-content:space-between;">
+                            <span style="font-size:0.72rem;color:#64748b;">${p.date ? new Date(p.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : ''}</span>
+                            <span style="font-size:0.85rem;font-weight:600;">${fmt(p.amount, p.currency)}</span>
+                        </div>
+                        <div style="font-size:0.75rem;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sourceBadge} ${esc(p.description)}</div>
+                        <div style="font-size:0.7rem;margin-top:2px;">${matched}</div>
+                    </div>`;
+                }).join('') || '<div style="color:#94a3b8;font-size:0.85rem;">No recent payments.</div>';
+
+                // Summary
+                const t = d.totals || {};
+                const deltaColor = (t.delta || 0) > 5 ? '#dc2626' : (t.delta || 0) < -5 ? '#16a34a' : '#64748b';
+                container.innerHTML = `
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                        <div>
+                            <div style="font-size:0.72rem;color:#64748b;text-transform:uppercase;font-weight:600;margin-bottom:0.4rem;">Products (should pay)</div>
+                            <div style="display:flex;flex-direction:column;gap:0.35rem;">${leftRows}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.72rem;color:#64748b;text-transform:uppercase;font-weight:600;margin-bottom:0.4rem;">Payments (last 90 days)</div>
+                            <div style="display:flex;flex-direction:column;gap:0.35rem;max-height:500px;overflow-y:auto;">${rightRows}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #e2e8f0;display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;font-size:0.85rem;">
+                        <div><strong>Recommended /mo:</strong> €${(t.recommended_monthly||0).toFixed(2)}</div>
+                        <div><strong>Collected 30d:</strong> €${(t.collected_last_30d||0).toFixed(2)}</div>
+                        <div style="color:${deltaColor};"><strong>Delta:</strong> €${(t.delta||0).toFixed(2)} ${(t.delta||0) > 0 ? '(under-billed)' : (t.delta||0) < 0 ? '(over-billed)' : ''}</div>
+                    </div>
+                `;
+            } catch (e) {
+                container.innerHTML = `<div style="color:#dc2626;background:#fef2f2;padding:0.75rem;border-radius:6px;font-size:0.85rem;"><strong>Reconciliation failed:</strong> ${(e.message || e).toString().replace(/</g,'&lt;')}</div>`;
+                console.error('[Client Recon]', e);
+            }
         }
         async function loadGoCardlessRecurring(accountId) {
             const el = document.getElementById('gc-recurring-list-' + accountId);
