@@ -25295,6 +25295,144 @@ app.delete('/api/billing/gocardless/recurring/:id', async (req, res) => {
 });
 
 // ═════════════════════════════════════════════════════════════════════
+// Estate Overview — master-admin billing dashboard. Bulk endpoint that
+// returns one row per client showing:
+//   - subscribed_products_monthly  (sum of active account_subscriptions × billing_plans v2 price)
+//   - gas24_monthly                (latest beds24_usage_snapshots list_total × 0.80, or 0)
+//   - recommended_monthly          (sum of above two)
+//   - collected_last_30d           (GoCardless + Stripe cache, both live)
+//   - delta                        (recommended − collected)
+// Answers "where's my business today, per client" in one API call.
+// Read-only. Master admin only. GoCardless calls fetched in parallel.
+// ═════════════════════════════════════════════════════════════════════
+app.get('/api/admin/billing/estate-overview', async (req, res) => {
+  try {
+    const requester = await extractAccountFromToken(req);
+    if (!requester || requester.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+
+    // All accounts we'd want in the overview — anything with a mandate OR
+    // an active subscription OR a Beds24 usage row.
+    const accts = await pool.query(`
+      SELECT DISTINCT a.id, a.name, a.email, a.billing_currency, a.role
+        FROM accounts a
+        LEFT JOIN account_mandates m ON m.account_id = a.id
+        LEFT JOIN account_subscriptions s ON s.account_id = a.id AND s.status = 'active'
+        LEFT JOIN beds24_usage_snapshots b ON b.account_id = a.id
+       WHERE a.status = 'active'
+         AND (m.id IS NOT NULL OR s.id IS NOT NULL OR b.id IS NOT NULL)
+       ORDER BY a.name
+    `);
+    const rows = accts.rows;
+
+    // Bulk: subscribed_products_monthly per account (in-DB SUM)
+    const subSumR = await pool.query(`
+      SELECT s.account_id, SUM(COALESCE(s.monthly_price, bp.price_monthly, 0))::numeric AS subscribed_total
+        FROM account_subscriptions s
+        LEFT JOIN billing_plans bp ON bp.product_code = s.product
+       WHERE s.status = 'active'
+       GROUP BY s.account_id
+    `);
+    const subSumByAcct = {};
+    subSumR.rows.forEach(r => { subSumByAcct[r.account_id] = parseFloat(r.subscribed_total); });
+
+    // Bulk: latest GAS24 recommended per account (from beds24_usage_snapshots)
+    const gas24R = await pool.query(`
+      SELECT DISTINCT ON (account_id) account_id, list_total, property_count, link_count, sub_account_count, ssl_count, period_date
+        FROM beds24_usage_snapshots
+        ORDER BY account_id, period_date DESC
+    `);
+    const gas24ByAcct = {};
+    gas24R.rows.forEach(r => {
+      gas24ByAcct[r.account_id] = {
+        gas24_monthly: Math.round(parseFloat(r.list_total || 0) * 0.80 * 100) / 100,
+        period: r.period_date,
+        counts: { properties: r.property_count, links: r.link_count, sub_accounts: r.sub_account_count, ssl: r.ssl_count }
+      };
+    });
+
+    // Bulk: mandates per account
+    const mandR = await pool.query(`
+      SELECT account_id, mandate_id FROM account_mandates
+    `);
+    const mandsByAcct = {};
+    mandR.rows.forEach(m => {
+      if (!mandsByAcct[m.account_id]) mandsByAcct[m.account_id] = [];
+      mandsByAcct[m.account_id].push(m.mandate_id);
+    });
+
+    // Bulk: stripe collected last 30d per account (single query)
+    const stripeR = await pool.query(`
+      SELECT account_id, SUM(ABS(gross_amount)::numeric / 100.0) AS total_gbp
+        FROM stripe_transactions
+       WHERE created_at_stripe > NOW() - INTERVAL '30 days'
+         AND type IN ('charge','payment')
+         AND ABS(gross_amount) > 0
+       GROUP BY account_id
+    `).catch(() => ({ rows: [] }));
+    const stripeByAcct = {};
+    stripeR.rows.forEach(r => { stripeByAcct[r.account_id] = parseFloat(r.total_gbp); });
+
+    // Per-account GoCardless — fetch in parallel per mandate, sum paid_out in last 30d
+    const sinceISO = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const gcCollected = {};
+    await Promise.all(rows.map(async (a) => {
+      const mands = mandsByAcct[a.id] || [];
+      let sum = 0;
+      for (const mid of mands) {
+        try {
+          const pr = await axios.get(`${GC_BASE}/payments`, {
+            headers: gcHeaders(),
+            params: { mandate: mid, limit: 50, 'charge_date[gte]': sinceISO }
+          });
+          for (const p of (pr.data?.payments || [])) {
+            if (['paid_out', 'confirmed'].includes(p.status)) sum += p.amount / 100;
+          }
+        } catch (_) { /* skip failed mandate */ }
+      }
+      gcCollected[a.id] = sum;
+    }));
+
+    // Assemble
+    const overview = rows.map(a => {
+      const subscribed = subSumByAcct[a.id] || 0;
+      const gas24 = gas24ByAcct[a.id]?.gas24_monthly || 0;
+      const recommended = subscribed + gas24;
+      const collected = (gcCollected[a.id] || 0) + (stripeByAcct[a.id] || 0);
+      return {
+        account_id: a.id,
+        name: a.name,
+        email: a.email,
+        role: a.role,
+        billing_currency: a.billing_currency,
+        subscribed_products_monthly: Math.round(subscribed * 100) / 100,
+        gas24_monthly: gas24,
+        gas24_counts: gas24ByAcct[a.id]?.counts || null,
+        recommended_monthly: Math.round(recommended * 100) / 100,
+        collected_last_30d: Math.round(collected * 100) / 100,
+        delta: Math.round((recommended - collected) * 100) / 100,
+        mandate_count: (mandsByAcct[a.id] || []).length,
+      };
+    });
+
+    // Grand totals
+    const totals = overview.reduce((acc, r) => ({
+      accounts: acc.accounts + 1,
+      recommended: acc.recommended + r.recommended_monthly,
+      collected: acc.collected + r.collected_last_30d,
+      delta: acc.delta + r.delta,
+    }), { accounts: 0, recommended: 0, collected: 0, delta: 0 });
+    totals.recommended = Math.round(totals.recommended * 100) / 100;
+    totals.collected = Math.round(totals.collected * 100) / 100;
+    totals.delta = Math.round(totals.delta * 100) / 100;
+
+    res.json({ success: true, overview, totals, generated_at: new Date().toISOString() });
+  } catch (e) {
+    console.error('[estate-overview]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════
 // Client Billing Hub — one endpoint per account. Powers the reconciliation
 // page introduced 2026-08-06 that replaces the tangled account-modal
 // billing sections. Returns products (subscribed + available from v2
