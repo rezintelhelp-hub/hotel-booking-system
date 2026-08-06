@@ -25294,6 +25294,214 @@ app.delete('/api/billing/gocardless/recurring/:id', async (req, res) => {
   }
 });
 
+// ═════════════════════════════════════════════════════════════════════
+// Client Billing Hub — one endpoint per account. Powers the reconciliation
+// page introduced 2026-08-06 that replaces the tangled account-modal
+// billing sections. Returns products (subscribed + available from v2
+// catalogue), payments (Stripe + GoCardless combined, last 90 days), and
+// totals. Master admin can view any account; other roles are locked to
+// their own. Same endpoint powers the master-admin management view AND
+// the client's self-service billing page.
+// ═════════════════════════════════════════════════════════════════════
+app.get('/api/admin/billing/client/:id', async (req, res) => {
+  try {
+    const requester = await extractAccountFromToken(req);
+    if (!requester) return res.status(401).json({ success: false, error: 'Auth required' });
+    const targetId = parseInt(req.params.id, 10);
+    if (!targetId) return res.status(400).json({ success: false, error: 'Invalid account id' });
+    if (requester.role !== 'master_admin' && requester.accountId !== targetId) {
+      return res.status(403).json({ success: false, error: 'Not authorised' });
+    }
+
+    const acctR = await pool.query(
+      `SELECT id, name, email, billing_currency, billing_method, role,
+              gocardless_mandate_id, gocardless_customer_id
+         FROM accounts WHERE id = $1`,
+      [targetId]
+    );
+    if (!acctR.rows[0]) return res.status(404).json({ success: false, error: 'Account not found' });
+    const account = acctR.rows[0];
+
+    // v2 catalogue split into subscribed + available
+    const subs = await pool.query(`
+      SELECT s.id AS subscription_id, s.product, s.quantity, s.status,
+             s.monthly_price AS override_price, s.currency AS override_currency,
+             bp.product_code, bp.name, bp.description, bp.pricing_type,
+             bp.price_monthly, bp.included_units, bp.unit_price, bp.unit_type,
+             bp.currency, bp.category, bp.sort_order
+        FROM account_subscriptions s
+        LEFT JOIN billing_plans bp ON bp.product_code = s.product
+       WHERE s.account_id = $1 AND s.status = 'active'
+       ORDER BY bp.sort_order NULLS LAST, s.product
+    `, [targetId]);
+
+    const activeCodes = new Set(subs.rows.map(r => r.product_code || r.product).filter(Boolean));
+    const catR = await pool.query(`
+      SELECT product_code, name, description, pricing_type, price_monthly,
+             included_units, unit_price, unit_type, currency, category, sort_order
+        FROM billing_plans
+       WHERE product_code IS NOT NULL AND is_active = true
+       ORDER BY sort_order
+    `);
+    const available = catR.rows.filter(p => !activeCodes.has(p.product_code));
+
+    // GoCardless payments (last 90 days) — live from GC API per mandate
+    const mandRows = (await pool.query(
+      `SELECT mandate_id, label, is_default, scheme FROM account_mandates WHERE account_id = $1`,
+      [targetId]
+    )).rows;
+    const gcPayments = [];
+    for (const m of mandRows) {
+      try {
+        const pr = await axios.get(`${GC_BASE}/payments`, {
+          headers: gcHeaders(),
+          params: { mandate: m.mandate_id, limit: 50 }
+        });
+        for (const p of (pr.data?.payments || [])) {
+          gcPayments.push({
+            source: 'gocardless',
+            id: p.id,
+            amount: p.amount / 100,
+            currency: p.currency,
+            description: p.description || '(no description)',
+            status: p.status,
+            date: p.charge_date || p.created_at,
+            allocated_to: null
+          });
+        }
+      } catch (_) { /* per-mandate fetch failures don't block */ }
+    }
+
+    // Stripe payments (last 90 days from stripe_transactions cache)
+    const stripeR = await pool.query(`
+      SELECT id::text, ABS(gross_amount)::numeric / 100.0 AS amount, currency,
+             description, created_at_stripe AS date, type, payment_intent
+        FROM stripe_transactions
+       WHERE account_id = $1
+         AND created_at_stripe > NOW() - INTERVAL '90 days'
+         AND type IN ('charge','payment')
+         AND ABS(gross_amount) > 0
+       ORDER BY created_at_stripe DESC
+       LIMIT 50
+    `, [targetId]).catch(() => ({ rows: [] }));
+    const stripePayments = stripeR.rows.map(r => ({
+      source: 'stripe',
+      id: r.payment_intent || r.id,
+      amount: parseFloat(r.amount),
+      currency: (r.currency || '').toUpperCase(),
+      description: r.description || '(Stripe payment)',
+      status: 'succeeded',
+      date: r.date,
+      allocated_to: null
+    }));
+
+    const allPayments = [...gcPayments, ...stripePayments]
+      .filter(p => p.date && new Date(p.date) > new Date(Date.now() - 90 * 86400000))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // GAS24 recommendation from latest usage snapshot
+    let gas24_recommended = null;
+    const b24R = await pool.query(`
+      SELECT list_total, property_count, sub_account_count, link_count, ssl_count,
+             room_count, period_date
+        FROM beds24_usage_snapshots
+       WHERE account_id = $1
+       ORDER BY period_date DESC LIMIT 1
+    `, [targetId]);
+    if (b24R.rows[0]) {
+      const s = b24R.rows[0];
+      const listTotal = parseFloat(s.list_total || 0);
+      gas24_recommended = {
+        period: s.period_date,
+        beds24_list_total_eur: listTotal,
+        gas24_price_eur: Math.round(listTotal * 0.80 * 100) / 100,
+        counts: {
+          properties: s.property_count,
+          sub_accounts: s.sub_account_count,
+          links: s.link_count,
+          ssl: s.ssl_count,
+          rooms: s.room_count
+        }
+      };
+    }
+
+    // Totals — recommended = sum of subscribed override_or_base + gas24
+    const subscribedTotal = subs.rows.reduce((s, r) => {
+      const p = parseFloat(r.override_price || r.price_monthly || 0);
+      return s + (isNaN(p) ? 0 : p);
+    }, 0);
+    const gas24Total = gas24_recommended ? gas24_recommended.gas24_price_eur : 0;
+    const recommendedMonthly = subscribedTotal + gas24Total;
+
+    const collectedLast30 = allPayments
+      .filter(p => new Date(p.date) > new Date(Date.now() - 30 * 86400000) && ['paid_out', 'confirmed', 'succeeded'].includes(p.status))
+      .reduce((s, p) => s + p.amount, 0);
+
+    res.json({
+      success: true,
+      account,
+      subscribed_products: subs.rows,
+      available_products: available,
+      payments: allPayments,
+      gas24_recommended,
+      totals: {
+        subscribed_products_monthly: Math.round(subscribedTotal * 100) / 100,
+        gas24_monthly: Math.round(gas24Total * 100) / 100,
+        recommended_monthly: Math.round(recommendedMonthly * 100) / 100,
+        collected_last_30d: Math.round(collectedLast30 * 100) / 100,
+        delta: Math.round((recommendedMonthly - collectedLast30) * 100) / 100
+      },
+      viewer_role: requester.role
+    });
+  } catch (e) {
+    console.error('[client billing]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Subscribe a client to a catalogue product (master admin only for now).
+app.post('/api/admin/billing/client/:id/subscribe', async (req, res) => {
+  try {
+    const requester = await extractAccountFromToken(req);
+    if (!requester || requester.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const targetId = parseInt(req.params.id, 10);
+    const { product_code, override_price, notes } = req.body || {};
+    if (!targetId || !product_code) return res.status(400).json({ success: false, error: 'targetId + product_code required' });
+    const pR = await pool.query(`SELECT product_code, price_monthly, currency FROM billing_plans WHERE product_code = $1 AND is_active = true`, [product_code]);
+    if (!pR.rows[0]) return res.status(404).json({ success: false, error: 'Product not found in catalogue' });
+    const price = override_price != null ? parseFloat(override_price) : parseFloat(pR.rows[0].price_monthly);
+    const currency = pR.rows[0].currency;
+    await pool.query(`
+      INSERT INTO account_subscriptions (account_id, product, tier, quantity, monthly_price, currency, status)
+      VALUES ($1, $2, 1, 1, $3, $4, 'active')
+      ON CONFLICT (account_id, product)
+      DO UPDATE SET monthly_price = $3, currency = $4, status = 'active', updated_at = CURRENT_TIMESTAMP
+    `, [targetId, product_code, price, currency]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[client billing subscribe]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Cancel a client's subscription to a product (master admin only for now).
+app.delete('/api/admin/billing/client/:id/subscribe/:code', async (req, res) => {
+  try {
+    const requester = await extractAccountFromToken(req);
+    if (!requester || requester.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const targetId = parseInt(req.params.id, 10);
+    const productCode = req.params.code;
+    await pool.query(`
+      UPDATE account_subscriptions SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+       WHERE account_id = $1 AND product = $2
+    `, [targetId, productCode]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[client billing unsubscribe]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // GET /api/billing/gocardless/status?account_id=...
 // Returns the current mandate state for an account. Powers the admin UI.
 app.get('/api/billing/gocardless/status', async (req, res) => {
