@@ -132269,6 +132269,14 @@ const GAS_TRIGGER_EVENTS = [
       { field: 'send_day_of_month', label: 'Day of month (1–28)', kind: 'number', default: 1, required: true }
     ],
     wired: false
+  },
+  {
+    type: 'bike_storage.code_minted',
+    icon: '🚲',
+    name: 'When a bike-storage door code is minted',
+    description: 'Fires the instant a TTLock passcode is created for a bike-storage cabinet booking — perfect for arrival instructions + code delivery. Merge tags: {{first_name}}, {{booking_ref}}, {{arrival_date}}, {{departure_date}}, {{room_name}} (the cabinet name), {{property_name}}, {{access_code}}.',
+    config_schema: [],
+    wired: true
   }
 ];
 
@@ -133180,6 +133188,7 @@ async function buildRecipeContext({ contact, booking, account, property, sparkLi
     // authors who use the DB names).
     arrival_date: booking?.arrival_date ? new Date(booking.arrival_date).toLocaleDateString('en-GB', { dateStyle: 'long' }) : '',
     departure_date: booking?.departure_date ? new Date(booking.departure_date).toLocaleDateString('en-GB', { dateStyle: 'long' }) : '',
+    booking_ref: booking?.id ? 'GAS-' + booking.id : '',
     ota_platform_name: resolveOtaPlatformName(booking),
     // Operator tags — matches the CC-field hint at the send_email step and
     // lets templates say "Contact us at {{account_owner_email}}" etc.
@@ -154670,13 +154679,48 @@ async function _mintBikeStoragePasscodeForBooking(bookingId) {
     );
     console.log('[BIKE-STORAGE helper] Passcode minted for booking', bookingId);
 
+    // CRM trigger — if the account has an active bike_storage.code_minted
+    // workflow, let it own the guest email (custom copy, merge fields, per-
+    // account branding). Only fall back to the hardcoded default below when
+    // no workflow is bound, so no client ever misses the code while they're
+    // still building their template. Never both — one code = one email.
+    let workflowHandled = false;
+    try {
+      const wfR = await pool.query(
+        `SELECT 1 FROM workflows
+          WHERE account_id = $1 AND source = 'gas' AND is_active = true
+            AND trigger_type = 'bike_storage.code_minted'
+          LIMIT 1`,
+        [b.account_id]
+      );
+      if (wfR.rows.length) {
+        const contactId = await _resolveOrCreateContactForGuest(b.account_id, {
+          guest_email:      b.guest_email,
+          guest_first_name: b.guest_first_name,
+          guest_last_name:  b.guest_last_name,
+        });
+        if (contactId) {
+          await emitRecipeEvent(b.account_id, 'bike_storage.code_minted', {
+            contact_id: contactId,
+            booking_id: bookingId,
+          });
+          workflowHandled = true;
+          console.log('[BIKE-STORAGE helper] CRM workflow fired for booking', bookingId);
+        } else {
+          console.warn('[BIKE-STORAGE helper] Contact resolve failed for booking', bookingId, '— falling back to default email');
+        }
+      }
+    } catch (wfErr) {
+      console.error('[BIKE-STORAGE helper] Workflow dispatch failed for booking', bookingId, '—', wfErr.message, '— falling back to default email');
+    }
+
     const fmtUk = (s) => {
       try {
         const d = new Date(s + 'T00:00:00Z');
         return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
       } catch (_) { return s; }
     };
-    try {
+    if (!workflowHandled) try {
       await sendEmail({
         to: [b.guest_email],
         accountId: b.account_id,
