@@ -64594,14 +64594,31 @@ async function syncBeds24PaymentItem(bookingId) {
         if (newIdOut) claimedBeds24Ids.add(newIdOut);
         pushedLines.push({ tx: tx.id, amount: amt, description: desc, beds24_item: newIdOut || null, success: true, attempts: attempt + 1 });
       } else {
-        pushedLines.push({ tx: tx.id, amount: amt, description: desc, error: lastErr?.response?.data ? JSON.stringify(lastErr.response.data).slice(0,150) : lastErr?.message, success: false, attempts: attempt });
+        const errMsg = lastErr?.response?.data ? JSON.stringify(lastErr.response.data).slice(0,150) : lastErr?.message;
+        pushedLines.push({ tx: tx.id, amount: amt, description: desc, error: errMsg, success: false, attempts: attempt });
+        // Persist per-line failure to bookings.sync_errors so it's visible in
+        // the booking view + queryable estate-wide. 2026-08-06 fix — until
+        // this, syncBeds24PaymentItem failures only lived in Railway logs
+        // (24h rotation) so operators saw "GAS=paid, Beds24=due" with no
+        // traceable cause (Diane Crawford B243181 auto-charge, 5 Aug 07:16).
+        await pool.query(
+          `UPDATE bookings SET sync_errors = COALESCE(sync_errors, '') || $1, updated_at = NOW() WHERE id = $2`,
+          [`[beds24_sync ${new Date().toISOString()}] tx=${tx.id} pi=${piId || 'legacy'} ${amt} — ${errMsg}\n`, bookingId]
+        ).catch(pErr => console.warn('[syncBeds24PaymentItem] sync_errors persist failed:', pErr.message));
       }
     }
     const allOk = pushedLines.every(p => p.success !== false);
     console.log(`[syncBeds24PaymentItem] booking=${bookingId} beds24=${row.beds24_booking_id} gas_tx=${gasTx.rows.length} pushed=${pushedLines.length} skipped=${skippedLines.length} ok=${allOk}`);
     return { gas_tx_count: gasTx.rows.length, pushed: pushedLines, skipped: skippedLines, success: allOk };
   } catch (e) {
-    console.error(`[syncBeds24PaymentItem] booking=${bookingId} ERR:`, e.response?.data || e.message);
+    const errMsg = e.response?.data ? JSON.stringify(e.response.data).slice(0,200) : e.message;
+    console.error(`[syncBeds24PaymentItem] booking=${bookingId} ERR:`, errMsg);
+    // Persist the outer crash to sync_errors too — same reasoning as above.
+    // Best-effort: if the DB itself is unreachable this .catch swallows.
+    await pool.query(
+      `UPDATE bookings SET sync_errors = COALESCE(sync_errors, '') || $1, updated_at = NOW() WHERE id = $2`,
+      [`[beds24_sync ${new Date().toISOString()}] helper crash — ${errMsg}\n`, bookingId]
+    ).catch(() => {});
     return { error: e.message };
   } finally {
     if (lockAcquired) {
@@ -155870,10 +155887,23 @@ async function processAutoChargePayments() {
                 // balance as paid — otherwise the operator sees GAS=paid but
                 // Beds24 still shows the balance outstanding (Robert Del
                 // Grande GAS-370497 pattern, Steve 2026-07-25 audit).
-                // Fire-and-forget: Beds24 push failure must not fail the
-                // successful charge.
+                // 2026-08-06 — was setImmediate + console.warn. When the push
+                // failed (Diane Crawford B243181 5 Aug 07:16), the failure
+                // rotated out of Railway logs in 24h and left zero DB trace.
+                // Now: awaited so failures land in sync_errors via the helper's
+                // own persist logic, AND the cron log shows the outcome. A
+                // failed push still doesn't fail the successful Stripe charge
+                // — we've already inserted the ledger row and marked paid —
+                // but the failure is now visible to operators immediately.
                 if (typeof syncBeds24PaymentItem === 'function') {
-                    setImmediate(() => syncBeds24PaymentItem(booking.booking_id).catch(e => console.warn(`[AUTO-CHARGE beds24 sync] booking ${booking.booking_id}: ${e.message}`)));
+                    try {
+                        const syncResult = await syncBeds24PaymentItem(booking.booking_id);
+                        if (syncResult && syncResult.success === false) {
+                            console.warn(`[AUTO-CHARGE beds24 sync] booking ${booking.booking_id}: push completed with failures — see bookings.sync_errors`);
+                        }
+                    } catch (syncErr) {
+                        console.warn(`[AUTO-CHARGE beds24 sync] booking ${booking.booking_id} threw: ${syncErr.message}`);
+                    }
                 }
 
             } catch (chargeErr) {
