@@ -127669,9 +127669,13 @@ async function runChannexAvailabilityExtender(options = {}) {
   try {
     // Rooms on Channex-connected accounts (any account with an active
     // channex connection). Skip hidden/companion units — they'd never
-    // be sold to OTAs anyway.
+    // be sold to OTAs anyway. base_price included so the floor guard
+    // below can prevent below-threshold pushes to Expedia (Warning 7021
+    // "must be within rate verification threshold" — Charles House
+    // room 324501724 hit this on 2027-12-18 with a £10 mode price).
     const roomsRes = await pool.query(`
-      SELECT DISTINCT bu.id AS room_id, bu.name AS room_name, p.account_id, p.name AS property_name
+      SELECT DISTINCT bu.id AS room_id, bu.name AS room_name, p.account_id, p.name AS property_name,
+             bu.base_price AS room_base_price
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN gas_sync_connections gsc ON gsc.account_id = p.account_id
@@ -127721,6 +127725,28 @@ async function runChannexAvailabilityExtender(options = {}) {
       const overallMinStay = 1;
       for (let d = 0; d < 7; d++) if (!byDow[d]) byDow[d] = { price: overallMedian, minStay: overallMinStay };
       if (overallMedian <= 0) { skippedThin++; continue; }
+
+      // 2026-08-06 — Floor guard. Expedia rejects rates below its per-property
+      // rate verification threshold (Warning 7021). Charles House hit this
+      // when the mode price came out as £10 — below Expedia's £20.81 floor
+      // on rate plan 394808764A. Cap every DOW's mode price to at least
+      // max(room.base_price, GLOBAL_MIN_FLOOR) so we never push a
+      // suspiciously-low rate that OTAs will refuse. base_price is the
+      // operator's own configured floor; the global floor catches accounts
+      // whose base_price is also low/unset.
+      const GLOBAL_MIN_FLOOR = 15;
+      const roomBase = parseFloat(room.room_base_price) || 0;
+      const floorPrice = Math.max(roomBase, GLOBAL_MIN_FLOOR);
+      let floorHits = 0;
+      for (const d of Object.keys(byDow)) {
+        if (byDow[d].price < floorPrice) {
+          floorHits++;
+          byDow[d].price = floorPrice;
+        }
+      }
+      if (floorHits > 0) {
+        console.warn(`🌀 [Channex-Extend] Room ${room.room_id} (${room.room_name}): floor guard raised ${floorHits}/7 DOW prices to £${floorPrice} (was below room base £${roomBase} / global floor £${GLOBAL_MIN_FLOOR}). Suspiciously-low historical mode — check room_availability for placeholder rows.`);
+      }
 
       // 2. Find the last existing date; anything past that up to horizon needs filling.
       const lastRes = await pool.query(
