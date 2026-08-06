@@ -64427,7 +64427,71 @@ async function buildBeds24InvoiceItemsForBooking(pool, booking) {
   return items;
 }
 
-function getBeds24BookingHeaders(beds24PropId, accessToken) {
+// Read-only resolver — inspects an account's gas_sync_connections to decide
+// which Beds24 auth style should be used for it. Introduced 2026-08-06 after
+// a survey (scripts/_beds24_auth_survey.js) showed 38 accounts silently
+// pushing via the master token even though GAS had them configured with
+// their own per-account OAuth (adapter_code='beds24'). Cotswolds B243181
+// was the trigger — payment sync went via master because the env-var gate
+// in getBeds24BookingHeaders fired for any account with a beds24_property_id,
+// ignoring gas_sync_connections entirely.
+//
+// Returns:
+//   'master'      → gas_sync_connections has adapter_code='beds24-marketplace'
+//   'per_account' → gas_sync_connections has adapter_code='beds24' (or the
+//                   invite-code fallback via accounts.beds24_refresh_token)
+//   'auto'        → no explicit signal — caller should let the legacy env-var
+//                   logic in getBeds24BookingHeaders decide (unchanged)
+// Fails to 'auto' on any DB error (safe default — never worse than today).
+async function resolveBeds24AuthStyle(accountId) {
+  if (!accountId) return 'auto';
+  try {
+    const r = await pool.query(
+      `SELECT array_agg(DISTINCT adapter_code) AS adapters
+         FROM gas_sync_connections
+        WHERE account_id = $1
+          AND adapter_code IN ('beds24','beds24-marketplace')
+          AND status != 'deleted'`,
+      [accountId]
+    );
+    const adapters = r.rows[0]?.adapters || [];
+    if (adapters.includes('beds24-marketplace')) return 'master';
+    if (adapters.includes('beds24')) return 'per_account';
+    const a = await pool.query(
+      `SELECT beds24_refresh_token FROM accounts WHERE id = $1`,
+      [accountId]
+    );
+    if (a.rows[0]?.beds24_refresh_token) return 'per_account';
+    return 'auto';
+  } catch (e) {
+    console.warn('[resolveBeds24AuthStyle] account', accountId, '—', e.message);
+    return 'auto';
+  }
+}
+
+// Third argument (opts) added 2026-08-06 for deliberate routing. Callers that
+// pass { forceStyle: 'master' | 'per_account' } get explicit routing;
+// callers that omit it fall through the legacy env-var gate (unchanged).
+// This lets syncBeds24PaymentItem opt into the correct auth style without
+// touching the 30+ other call sites.
+function getBeds24BookingHeaders(beds24PropId, accessToken, opts) {
+  const forceStyle = opts && opts.forceStyle;
+  if (forceStyle === 'per_account') {
+    return {
+      'Content-Type': 'application/json',
+      'token': accessToken || ''
+    };
+  }
+  if (forceStyle === 'master' && beds24PropId && process.env.BEDS24_MASTER_TOKEN) {
+    return {
+      'Content-Type': 'application/json',
+      'accept': 'application/json',
+      'token': process.env.BEDS24_MASTER_TOKEN + ':p' + beds24PropId,
+      'organization': process.env.BEDS24_ORG_ID || '70_rezintelnet'
+    };
+  }
+  // Legacy path (no forceStyle) — unchanged so every existing caller keeps
+  // behaving as before. Only syncBeds24PaymentItem opts into forceStyle for now.
   if (beds24PropId && process.env.BEDS24_MASTER_TOKEN) {
     return {
       'Content-Type': 'application/json',
@@ -64533,7 +64597,16 @@ async function syncBeds24PaymentItem(bookingId) {
     //    Anything unmatched gets pushed as a new line with the pi_id
     //    embedded so future runs match definitively.
     //    NEVER deletes anything — Steve rule 2026-07-31.
-    const headers = getBeds24BookingHeaders(beds24PropId, token);
+    // 2026-08-06 — route based on the account's actual connection state
+    // (gas_sync_connections.adapter_code) instead of the env-var default.
+    // Was silently pushing 38 clients via master token even though they had
+    // valid per-account OAuth tokens sitting unused. Cotswolds B243181 was
+    // the trigger. forceStyle overrides the legacy env-var gate for this
+    // one call site only; all other getBeds24BookingHeaders callers keep
+    // their current behaviour.
+    const authStyle = await resolveBeds24AuthStyle(row.account_id);
+    const headers = getBeds24BookingHeaders(beds24PropId, token, { forceStyle: authStyle });
+    console.log(`[syncBeds24PaymentItem] booking=${bookingId} account=${row.account_id} auth_style=${authStyle}`);
     const pushedLines = [];
     const skippedLines = [];
     const claimedBeds24Ids = new Set();
