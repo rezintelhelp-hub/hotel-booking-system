@@ -30030,6 +30030,15 @@ app.get('/api/setup-accounts-billing', async (req, res) => {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_beds24_usage_account ON beds24_usage_snapshots(account_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_beds24_usage_period ON beds24_usage_snapshots(period_date)`);
+    // 2026-08-06 — persist per-property lines from the .xls parser so
+    // we can decompose Beds24 cost per property (rooms, links, cost) and
+    // eventually derive per-unit rates + month-over-month deltas. Parser
+    // (parseBeds24UsageReport) already emits properties[]; before this,
+    // the commit endpoint aggregated them into scalar counts and threw
+    // the per-property detail away. JSONB shape:
+    //   [{ beds24_property_id, name, rooms, activities, links, cost }, ...]
+    // Null on old rows + manual-snapshot inserts — safe.
+    await pool.query(`ALTER TABLE beds24_usage_snapshots ADD COLUMN IF NOT EXISTS property_lines JSONB`).catch(() => {});
     console.log('✅ beds24_usage_snapshots table created');
 
     // Account subscriptions - what GAS products each client has
@@ -34512,11 +34521,11 @@ app.post('/api/admin/beds24-usage/commit', async (req, res) => {
 
       // Store usage snapshot for RRP calculation
       await pool.query(`
-        INSERT INTO beds24_usage_snapshots 
+        INSERT INTO beds24_usage_snapshots
         (account_id, beds24_username, beds24_id, period_date, account_fee, ssl_count, ssl_cost,
-         private_domain, private_domain_cost, sub_account_count, property_count, room_count, 
-         link_count, activity_count, list_total, discounted_total, discount_pct)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+         private_domain, private_domain_cost, sub_account_count, property_count, room_count,
+         link_count, activity_count, list_total, discounted_total, discount_pct, property_lines)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       `, [
         gasAccountId, beds24Username, alloc.beds24_id, periodDate,
         alloc.account_fee, alloc.ssl_count || 0, alloc.ssl_cost || 0,
@@ -34524,7 +34533,8 @@ app.post('/api/admin/beds24-usage/commit', async (req, res) => {
         alloc.sub_account_count || 0, (alloc.properties || []).length,
         alloc.total_rooms || 0, alloc.total_links || 0, alloc.total_activities || 0,
         alloc.total_cost, Math.round(alloc.total_cost * discountMultiplier * 100) / 100,
-        discount_pct || 50
+        discount_pct || 50,
+        JSON.stringify(alloc.properties || [])
       ]);
     }
 
