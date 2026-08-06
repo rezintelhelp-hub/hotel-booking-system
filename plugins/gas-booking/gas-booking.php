@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.26
+ * Version: 4.3.27
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -8889,13 +8889,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             </div>
                         </div>
                         
-                        <!-- Send Enquiry Option -->
-                        <div class="gas-enquiry-option" style="text-align: center; padding: 12px 0;">
-                            <a href="#" class="gas-send-enquiry-link" onclick="window.gasSendEnquiry(); return false;" style="color: #6366f1; font-size: 0.85rem; text-decoration: none;">
-                                💬 <?php echo esc_html($t_payment['trouble_paying'] ?? 'Having trouble paying? Send an enquiry instead'); ?>
-                            </a>
-                        </div>
-                        
+                        <?php /* 2026-08-06 — "Having trouble paying? Send an enquiry instead"
+                                 link removed at Steve's request. Forces guests to complete
+                                 payment online rather than diverting to an enquiry that
+                                 rarely converts + drops the operator into a manual chase.
+                                 gasSendEnquiry() JS function left in place (no callers now)
+                                 in case we reintroduce as a per-account toggle later. */ ?>
+
+
                         <!-- Terms & Conditions -->
                         <div class="gas-checkout-section">
                             <div class="gas-terms-box">
