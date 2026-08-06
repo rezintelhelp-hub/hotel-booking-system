@@ -24105,7 +24105,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <h2 id="my-billing-title">Billing</h2>
                             <p id="my-billing-subtitle">Products, payments, and reconciliation</p>
                         </div>
-                        <div id="my-billing-picker-wrap" class="master-only" style="display:none;">
+                        <div id="my-billing-picker-wrap" style="display:none;">
                             <select id="my-billing-account-picker" class="form-input" style="min-width:280px;" onchange="loadMyBilling()">
                                 <option value="">Loading accounts...</option>
                             </select>
@@ -24139,7 +24139,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <div id="my-billing-subscribed" style="display:flex;flex-direction:column;gap:0.4rem;">
                             <p style="color:#64748b;">Loading…</p>
                         </div>
-                        <div id="my-billing-available-wrap" class="master-only" style="border-top:1px solid #e2e8f0;margin-top:1rem;padding-top:0.75rem;">
+                        <div id="my-billing-available-wrap" style="display:none;border-top:1px solid #e2e8f0;margin-top:1rem;padding-top:0.75rem;">
                             <h4 style="font-size:0.72rem;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;font-weight:600;margin:0 0 0.5rem;">Available to add</h4>
                             <div id="my-billing-available" style="display:flex;flex-direction:column;gap:0.3rem;"></div>
                         </div>
@@ -106419,12 +106419,18 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadMyBilling() {
             const isMaster = currentAccount && currentAccount.role === 'master_admin';
             const pickerWrap = document.getElementById('my-billing-picker-wrap');
+            const availWrap = document.getElementById('my-billing-available-wrap');
             const picker = document.getElementById('my-billing-account-picker');
-            let accountId = currentAccount?.id;
+            // Prefer the global selectedAccountId (master impersonation / account filter),
+            // fall back to the logged-in account. Ensures the view works whether master is
+            // viewing as a client, viewing an account they've filtered to, or viewing own.
+            let accountId = (typeof selectedAccountId !== 'undefined' && selectedAccountId)
+                ? selectedAccountId
+                : (currentAccount && currentAccount.id);
 
             if (isMaster) {
                 pickerWrap.style.display = 'block';
-                // Populate picker on first load
+                availWrap.style.display = 'block';
                 if (picker.options.length < 2 || picker.options[0].value === '') {
                     try {
                         const r = await fetch('/api/admin/accounts', { headers: authHeaders() });
@@ -106434,15 +106440,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                             .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
                             .map(a => `<option value="${a.id}">${(a.name || 'Account ' + a.id).replace(/</g, '&lt;')}</option>`)
                             .join('');
-                        if (accountId) picker.value = accountId;
                     } catch (e) { picker.innerHTML = '<option>Failed to load</option>'; }
                 }
+                if (accountId) picker.value = accountId;
                 accountId = parseInt(picker.value) || accountId;
             } else {
                 pickerWrap.style.display = 'none';
+                availWrap.style.display = 'none';
             }
 
-            if (!accountId) return;
+            if (!accountId) {
+                document.getElementById('my-billing-subscribed').innerHTML = '<p style="color:#dc2626;">No account id — cannot load billing.</p>';
+                document.getElementById('my-billing-payments').innerHTML = '';
+                return;
+            }
 
             const subEl = document.getElementById('my-billing-subscribed');
             const availEl = document.getElementById('my-billing-available');
