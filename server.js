@@ -121050,26 +121050,35 @@ app.get('/api/admin/inbox/threads', async (req, res) => {
     const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
 
+    // 2026-08-07 — include google_sheets channel so Google Sheet snags/
+    // requests flow into the same client↔GAS-team inbox rather than
+    // being buried in the master's unified inbox. Each sheet row is its
+    // own thread_id (composite hash) so they list as separate
+    // conversations — exactly the shape operators expect for snag
+    // tracking. 'internal' = direct compose from master or client.
+    const CLIENT_INBOX_CHANNELS = "('internal', 'google_sheets')";
     const isMaster = decoded.role === 'master_admin';
     const query = isMaster
-      ? `SELECT m.account_id, a.name AS account_name, m.thread_id,
+      ? `SELECT m.account_id, a.name AS account_name, m.thread_id, m.channel,
                 COUNT(*) FILTER (WHERE m.direction = 'out' AND m.read_at IS NULL)::int AS unread_count,
                 MAX(m.created_at) AS last_message_at,
                 (SELECT body FROM inbox_messages WHERE thread_id = m.thread_id ORDER BY created_at DESC LIMIT 1) AS last_body,
-                (SELECT direction FROM inbox_messages WHERE thread_id = m.thread_id ORDER BY created_at DESC LIMIT 1) AS last_direction
+                (SELECT direction FROM inbox_messages WHERE thread_id = m.thread_id ORDER BY created_at DESC LIMIT 1) AS last_direction,
+                (SELECT subject FROM inbox_messages WHERE thread_id = m.thread_id ORDER BY created_at DESC LIMIT 1) AS last_subject
          FROM inbox_messages m
          JOIN accounts a ON a.id = m.account_id
-         WHERE m.channel = 'internal'
-         GROUP BY m.account_id, a.name, m.thread_id
+         WHERE m.channel IN ${CLIENT_INBOX_CHANNELS}
+         GROUP BY m.account_id, a.name, m.thread_id, m.channel
          ORDER BY last_message_at DESC`
-      : `SELECT m.account_id, m.thread_id,
+      : `SELECT m.account_id, m.thread_id, m.channel,
                 COUNT(*) FILTER (WHERE m.direction = 'in' AND m.read_at IS NULL)::int AS unread_count,
                 MAX(m.created_at) AS last_message_at,
                 (SELECT body FROM inbox_messages WHERE thread_id = m.thread_id ORDER BY created_at DESC LIMIT 1) AS last_body,
-                (SELECT direction FROM inbox_messages WHERE thread_id = m.thread_id ORDER BY created_at DESC LIMIT 1) AS last_direction
+                (SELECT direction FROM inbox_messages WHERE thread_id = m.thread_id ORDER BY created_at DESC LIMIT 1) AS last_direction,
+                (SELECT subject FROM inbox_messages WHERE thread_id = m.thread_id ORDER BY created_at DESC LIMIT 1) AS last_subject
          FROM inbox_messages m
-         WHERE m.channel = 'internal' AND m.account_id = $1
-         GROUP BY m.account_id, m.thread_id
+         WHERE m.channel IN ${CLIENT_INBOX_CHANNELS} AND m.account_id = $1
+         GROUP BY m.account_id, m.thread_id, m.channel
          ORDER BY last_message_at DESC`;
 
     const result = isMaster ? await pool.query(query) : await pool.query(query, [decoded.id || decoded.accountId]);
@@ -121087,20 +121096,24 @@ app.get('/api/admin/inbox/threads/:threadId/messages', async (req, res) => {
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
     const { threadId } = req.params;
 
-    const match = threadId.match(/^internal-acct(\d+)$/);
-    if (!match) return res.json({ success: false, error: 'Invalid thread id' });
-    const operatorAccountId = parseInt(match[1]);
-
-    if (decoded.role !== 'master_admin' && (decoded.id || decoded.accountId) !== operatorAccountId) {
-      return res.status(403).json({ success: false, error: 'Forbidden' });
-    }
-
+    // 2026-08-07 — was hardcoded to accept only 'internal-acctN' pattern
+    // (rejected sheet-{chan}-{hash} IDs from google_sheets imports).
+    // Now format-agnostic: fetch the thread's account_id from the DB and
+    // authorise on that. Works for internal, google_sheets, and any
+    // future channels that populate the app-inbox surface.
     const messages = await pool.query(
       `SELECT * FROM inbox_messages WHERE thread_id = $1 ORDER BY created_at ASC`,
       [threadId]
     );
+    if (messages.rows.length === 0) return res.json({ success: true, messages: [] });
+    const threadAccountId = messages.rows[0].account_id;
+    if (decoded.role !== 'master_admin' && (decoded.id || decoded.accountId) !== threadAccountId) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
 
-    // Mark messages addressed TO the current viewer as read
+    // Mark messages addressed TO the current viewer as read.
+    // Client viewing: mark 'in' (inbound to them — internal composes + sheet imports both count).
+    // Master viewing: mark 'out' (outbound to a client, awaiting master's reply is 'in').
     const directionForMe = decoded.role === 'master_admin' ? 'out' : 'in';
     await pool.query(
       `UPDATE inbox_messages SET read_at = NOW(), status = 'read'

@@ -2637,7 +2637,7 @@
                          master-admin Messages view above which surfaces both
                          internal team threads (via inbox_messages) AND
                          WhatsApp/email/Facebook inbound from the same table. -->
-                    <a class="nav-item" data-view="app-inbox" data-roles="none" href="#" onclick="showView('app-inbox'); return false;" style="display: none !important;">
+                    <a class="nav-item" data-view="app-inbox" data-roles="master_admin,admin,submaster_admin,agency_admin" href="#" onclick="showView('app-inbox'); loadInboxThreads(); return false;">
                         <span class="nav-icon">💬</span>
                         <span>Inbox (legacy)</span>
                     </a>
