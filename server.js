@@ -146604,20 +146604,26 @@ app.listen(PORT, '0.0.0.0', async () => {
 
     // 2026-08-07 — hard split between the two audiences that share the
     // Messages surface today: 'guest_to_owner' (a guest talking to the
-    // property owner — OTA chat, contact-form, guest WhatsApp, booking
-    // emails) and 'owner_to_gas' (the property owner talking to GAS
-    // support — their Google Sheet requests, email to us, WhatsApp to
-    // the GAS platform number). One column, two buttons, no mixing.
+    // property owner — currently only booking-linked inbound; contact
+    // forms + guest WhatsApp classification added in Phase 2) and
+    // 'owner_to_gas' (the property owner talking to GAS support —
+    // sheets, personal-channel email sync, WhatsApp to platform number).
+    // First-pass rule: unless a message is explicitly booking-linked,
+    // it landed at GAS, not at a property owner from a guest.
     await pool.query(`ALTER TABLE inbox_messages ADD COLUMN IF NOT EXISTS conversation_type VARCHAR(20)`).catch(() => {});
-    // Backfill: google_sheets is unambiguously owner→GAS. Everything
-    // else defaults to guest→owner. Idempotent — only touches NULLs.
+    // Backfill + corrective backfill. Idempotent: only touches NULL rows
+    // or rows the earlier over-broad v1 backfill wrongly tagged as
+    // guest_to_owner (any sheet/email/non-booking-linked row).
     await pool.query(`
       UPDATE inbox_messages
          SET conversation_type = CASE
            WHEN channel = 'google_sheets' THEN 'owner_to_gas'
-           ELSE 'guest_to_owner'
+           WHEN linked_booking_id IS NOT NULL AND direction = 'inbound' THEN 'guest_to_owner'
+           ELSE 'owner_to_gas'
          END
        WHERE conversation_type IS NULL
+          OR (conversation_type = 'guest_to_owner'
+              AND (channel IN ('google_sheets','email') OR linked_booking_id IS NULL))
     `).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_inbox_messages_conv_type ON inbox_messages(conversation_type)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS converted_from_prospect_id INTEGER REFERENCES prospects(id) ON DELETE SET NULL`).catch(() => {});
