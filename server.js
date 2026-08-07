@@ -70035,6 +70035,21 @@ async function syncClientSheetChannel(channelId) {
       column_map: columnMap
     };
 
+    // 2026-08-07 — Friendly sender fallback + richer body composition.
+    // Before: from_name='Unknown' when submitted_by is blank; body was
+    // just description (blank on many rows). After: sheet nickname as
+    // sender fallback; body concatenates category + description +
+    // client_notes + follow_up + links so nothing hides in metadata.
+    const displaySender = submittedBy || ch.sheet_name || 'Client Request';
+    const bodyParts = [];
+    if (category)     bodyParts.push(`Category: ${category}`);
+    if (description)  bodyParts.push(description);
+    if (clientNotes)  bodyParts.push(`Client notes: ${clientNotes}`);
+    if (followUp)     bodyParts.push(`Follow-up: ${followUp}`);
+    if (links.length) bodyParts.push(`Links: ${links.join(' · ')}`);
+    if (sheetStatus)  bodyParts.push(`Sheet status: ${sheetStatus}`);
+    const displayBody = bodyParts.join('\n\n') || null;
+
     const upsert = await pool.query(`
       INSERT INTO inbox_messages (
         account_id, channel, channel_message_id, thread_id,
@@ -70043,22 +70058,22 @@ async function syncClientSheetChannel(channelId) {
       ) VALUES ($1, 'google_sheets', $2, $2, $3, $4, $5, 'inbound', $6, $7, $8, $9)
       ON CONFLICT DO NOTHING
       RETURNING (xmax = 0) AS inserted
-    `, [ch.account_id, channelMessageId, submittedBy || null, title, description || null, status, category || null, createdAt, metadata]);
+    `, [ch.account_id, channelMessageId, displaySender, title, displayBody, status, category || null, createdAt, metadata]);
 
     if (upsert.rows[0]?.inserted) imported++;
     else {
-      // Update metadata + status on existing row (sheet content may have
-      // changed since first import: follow-up updated, links added,
-      // client set status to Done, etc.)
+      // Update metadata + status + body on existing row (sheet content
+      // may have changed since first import: follow-up updated, links
+      // added, client set status to Done, etc.)
       await pool.query(`
         UPDATE inbox_messages SET
-          subject = $2, body = $3, metadata = $4,
+          from_name = $7, subject = $2, body = $3, metadata = $4,
           category = COALESCE(NULLIF($5, ''), category),
           status = CASE
             WHEN replied_at IS NOT NULL THEN status  -- keep 'replied' if we responded
             ELSE $6 END
         WHERE channel_message_id = $1 AND channel = 'google_sheets'
-      `, [channelMessageId, title, description || null, metadata, category, status]);
+      `, [channelMessageId, title, displayBody, metadata, category, status, displaySender]);
       updated++;
     }
   }
