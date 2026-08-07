@@ -2451,7 +2451,7 @@
                         <span class="nav-icon">🛎</span>
                         <span>Arrivals</span>
                     </a>
-                    <a class="nav-item" data-view="messages-inbox" data-roles="master_admin,admin,submaster_admin" href="#" onclick="navClick(this, 'messages-inbox'); return false;">
+                    <a class="nav-item" data-view="messages-inbox" data-roles="admin,submaster_admin,agency_admin" href="#" onclick="navClick(this, 'messages-inbox'); return false;">
                         <span class="nav-icon"></span>
                         <span>Messages <span id="inbox-unread-badge" style="display:none; background:#ef4444; color:white; border-radius:10px; padding:1px 7px; font-size:0.7rem; margin-left:6px;"></span></span>
                     </a>
@@ -2637,7 +2637,7 @@
                          master-admin Messages view above which surfaces both
                          internal team threads (via inbox_messages) AND
                          WhatsApp/email/Facebook inbound from the same table. -->
-                    <a class="nav-item" data-view="app-inbox" data-roles="master_admin,admin,submaster_admin,agency_admin" href="#" onclick="showView('app-inbox'); loadInboxThreads(); return false;">
+                    <a class="nav-item" data-view="app-inbox" data-roles="admin,submaster_admin,agency_admin" href="#" onclick="showView('app-inbox'); loadInboxThreads(); return false;">
                         <span class="nav-icon">💬</span>
                         <span>Inbox (legacy)</span>
                     </a>
@@ -3149,7 +3149,7 @@
 
                     <!-- ── Client tiles added in the sidebar-retirement sweep ── -->
 
-                    <div class="category-card" data-tile="messages" data-roles="master_admin,admin,submaster_admin" onclick="showView('messages-inbox')">
+                    <div class="category-card" data-tile="messages" data-roles="admin,submaster_admin,agency_admin" onclick="showView('messages-inbox')">
                         <div class="category-icon" style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);">
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
                                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
