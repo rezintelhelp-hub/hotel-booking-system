@@ -5617,6 +5617,13 @@
                     </div>
                 </div>
 
+                <!-- Two-type split: guest ↔ owner vs owner ↔ GAS support.
+                     Wiring deferred — buttons only for now. -->
+                <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
+                    <button class="btn" style="background:#3b82f6; color:white; padding:8px 16px; font-size:0.9rem;">👤 Guest messages</button>
+                    <button class="btn" style="background:#7c3aed; color:white; padding:8px 16px; font-size:0.9rem;">🛟 GAS Support messages</button>
+                </div>
+
                 <!-- WhatsApp Connect card — Purpose 2 (client's own WABA).
                      Hidden by default; renderWaConnectCard() on view show
                      fetches /api/whatsapp/configs and populates state. Three
