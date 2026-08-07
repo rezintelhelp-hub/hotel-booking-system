@@ -69806,10 +69806,17 @@ app.get('/api/admin/inbox/messages', async (req, res) => {
     if (req.query.show_promo !== 'true') {
       conds.push(`COALESCE(m.is_promo, false) = false`);
     }
-    // Optional filter: messages linked to a specific account.
+    // Optional filter: messages linked to a specific account. Matches
+    // either linked_account_id (explicit link, e.g. supplier email tagged
+    // to a client) OR account_id (the message's owning account, e.g.
+    // google_sheets imports set account_id=client but leave
+    // linked_account_id NULL). 2026-08-07 fix — EasyLandlord's sheet
+    // requests weren't visible under 'view as' because only linked_account_id
+    // matched.
     if (req.query.linked_account_id) {
-      conds.push(`m.linked_account_id = $${i++}`);
+      conds.push(`(m.linked_account_id = $${i} OR m.account_id = $${i})`);
       params.push(parseInt(req.query.linked_account_id));
+      i++;
     }
     // Optional filter: messages linked to a specific supplier.
     if (req.query.supplier_id) {
