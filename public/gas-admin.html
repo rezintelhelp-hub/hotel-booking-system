@@ -60234,13 +60234,31 @@ const promo = await fetch('/api/v1/offers/validate', {
                     listEl.innerHTML = viewAsBanner + '<p style="color:#64748b; text-align:center; padding:2rem;">No messages found.</p>';
                     return;
                 }
-                listEl.innerHTML = viewAsBanner + data.data.map(m => renderInboxRow(m)).join('');
+                // Group by thread_id so a request + its replies render as one
+                // conversation instead of a flat wall. Solo (no thread_id)
+                // rows still render one-per-row.
+                const byThread = new Map();
+                for (const m of data.data) {
+                    const key = m.thread_id || `_solo_${m.id}`;
+                    if (!byThread.has(key)) byThread.set(key, []);
+                    byThread.get(key).push(m);
+                }
+                const threads = [];
+                for (const [threadId, msgs] of byThread) {
+                    const sorted = msgs.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                    // Prefer the earliest 'out' as spine (sheet import / client-sent)
+                    const spine = sorted.find(x => x.direction === 'out') || sorted[0];
+                    threads.push({ threadId, spine, sorted });
+                }
+                // Newest activity first
+                threads.sort((a, b) => new Date(b.sorted[b.sorted.length - 1].created_at) - new Date(a.sorted[a.sorted.length - 1].created_at));
+                listEl.innerHTML = viewAsBanner + threads.map(t => renderInboxRow(t.spine, t.sorted)).join('');
             } catch (e) {
                 listEl.innerHTML = '<p style="color:#ef4444; padding:1rem;">Network error: ' + e.message + '</p>';
             }
         }
 
-        function renderInboxRow(m) {
+        function renderInboxRow(m, threadMessages) {
             const channelEmoji = { whatsapp: '💬', email: '📧', facebook: '📘' }[m.channel] || '✉️';
             const isInbound = m.direction === 'inbound';
             const unread = m.status === 'unread' && isInbound;
@@ -60300,20 +60318,39 @@ const promo = await fetch('/api/v1/offers/validate', {
             // grey badge rather than being swallowed.
             const sheetStatus = m.metadata && m.metadata.sheet_status ? String(m.metadata.sheet_status).trim() : '';
             const statusChip = (() => {
-                if (!sheetStatus) return '';
-                const norm = sheetStatus.toLowerCase();
-                let bg = '#f3f4f6', fg = '#374151', dot = '●';
-                if (/(done|complete|resolved|closed|✓)/.test(norm))              { bg = '#dcfce7'; fg = '#166534'; dot = '✓'; }
-                else if (/(progress|working|active|doing)/.test(norm))          { bg = '#dbeafe'; fg = '#1e3a8a'; dot = '◐'; }
-                else if (/(open|new|todo|to do|pending)/.test(norm))            { bg = '#fee2e2'; fg = '#991b1b'; dot = '●'; }
-                else if (/(block|hold|wait|paused)/.test(norm))                 { bg = '#fef3c7'; fg = '#92400e'; dot = '⏸'; }
-                return `<span style="background:${bg}; color:${fg}; font-size:0.65rem; padding:1px 6px; border-radius:4px; font-weight:700;">${dot} ${escapeHtml(sheetStatus)}</span>`;
+                if (sheetStatus) {
+                    const norm = sheetStatus.toLowerCase();
+                    let bg = '#f3f4f6', fg = '#374151', dot = '●';
+                    if (/(done|complete|resolved|closed|✓)/.test(norm))              { bg = '#dcfce7'; fg = '#166534'; dot = '✓'; }
+                    else if (/(progress|working|active|doing)/.test(norm))          { bg = '#dbeafe'; fg = '#1e3a8a'; dot = '◐'; }
+                    else if (/(open|new|todo|to do|pending)/.test(norm))            { bg = '#fee2e2'; fg = '#991b1b'; dot = '●'; }
+                    else if (/(block|hold|wait|paused)/.test(norm))                 { bg = '#fef3c7'; fg = '#92400e'; dot = '⏸'; }
+                    return `<span style="background:${bg}; color:${fg}; font-size:0.65rem; padding:1px 6px; border-radius:4px; font-weight:700;">${dot} ${escapeHtml(sheetStatus)}</span>`;
+                }
+                // Sheet row with no status value — help the operator see WHY
+                // there's no coloured chip: is the sheet missing a Status
+                // column, or is the value just blank on this row?
+                if (m.channel === 'google_sheets') {
+                    const hasStatusCol = m.metadata && m.metadata.column_map && m.metadata.column_map.status;
+                    if (!hasStatusCol) {
+                        return `<span title="No 'Status' column detected in the sheet header — add one to enable Open/In Progress/Done chips" style="background:#fef3c7; color:#92400e; font-size:0.65rem; padding:1px 6px; border-radius:4px; font-weight:600;">⚠ No status col</span>`;
+                    }
+                    return `<span title="Status column exists but this row is blank" style="color:#94a3b8; font-size:0.65rem; padding:1px 6px; border-radius:4px; border:1px dashed #cbd5e1;">Status: —</span>`;
+                }
+                return '';
             })();
             // Thread-actioned chip — surfaces on the ORIGINAL row when we've
             // already replied. Cheap "thread is being held" signal even
             // without a full thread-grouped view.
             const repliedChip = m.replied_at
                 ? `<span title="Reply sent ${new Date(m.replied_at).toLocaleString()}" style="background:#ecfdf5; color:#065f46; font-size:0.65rem; padding:1px 6px; border-radius:4px; font-weight:600;">✓ Replied</span>`
+                : '';
+            // Thread count — when this row represents a conversation with
+            // multiple messages, show a badge so it's obvious history exists
+            // before the operator expands.
+            const threadCount = Array.isArray(threadMessages) ? threadMessages.length : 1;
+            const threadChip = threadCount > 1
+                ? `<span title="${threadCount} messages in this thread" style="background:#e0e7ff; color:#3730a3; font-size:0.65rem; padding:1px 6px; border-radius:4px; font-weight:700;">💬 ${threadCount}</span>`
                 : '';
 
             // Compact row that expands on click. Initial render shows
@@ -60331,6 +60368,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 ${supplierChip}
                                 ${bookingChip}
                                 ${statusChip}
+                                ${threadChip}
                                 ${repliedChip}
                                 ${promoChip}
                                 ${autoChip}
@@ -60347,6 +60385,29 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <span style="color:#6b7280; font-size:0.8rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapedPreview || '<span style="color:#9ca3af;">(empty)</span>'}</span>
                         </div>
                         <div class="gas-inbox-full" style="display:none; margin-top:0.75rem; padding:0.75rem; background:#f9fafb; border-radius:6px; color:#1f2937; white-space:pre-wrap; word-break:break-word; font-size:0.85rem; max-height:480px; overflow-y:auto;">${fullEscapedBody}
+                            ${(Array.isArray(threadMessages) && threadMessages.length > 1) ? (() => {
+                                // Conversation history: every message with the same
+                                // thread_id, oldest first. Skip the spine itself
+                                // since its body is already rendered above.
+                                return `<div style="margin-top:0.75rem; padding-top:0.75rem; border-top:2px solid #c7d2fe;" onclick="event.stopPropagation();">
+                                    <div style="font-size:0.7rem; color:#3730a3; font-weight:700; margin-bottom:0.5rem;">💬 CONVERSATION (${threadMessages.length - 1} ${threadMessages.length - 1 === 1 ? 'reply' : 'replies'})</div>
+                                    ${threadMessages.filter(x => x.id !== m.id).map(x => {
+                                        const isReplyFromUs = x.direction === 'in';
+                                        const bg = isReplyFromUs ? '#eff6ff' : '#f5f3ff';
+                                        const border = isReplyFromUs ? '#3b82f6' : '#7c3aed';
+                                        const who = isReplyFromUs ? (x.from_name || 'GAS') : (x.from_name || 'Client');
+                                        const when = new Date(x.created_at).toLocaleString();
+                                        const body = (x.body || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+                                        return `<div style="background:${bg}; border-left:3px solid ${border}; padding:0.5rem 0.75rem; margin-bottom:0.4rem; border-radius:4px;">
+                                            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#64748b; margin-bottom:0.25rem;">
+                                                <strong>${isReplyFromUs ? '↩ ' : '→ '}${escapeHtml(who)}</strong>
+                                                <span>${when}</span>
+                                            </div>
+                                            <div style="font-size:0.85rem; color:#1f2937; white-space:pre-wrap; word-break:break-word;">${body}</div>
+                                        </div>`;
+                                    }).join('')}
+                                </div>`;
+                            })() : ''}
                             ${m.channel === 'google_sheets' ? `
                             <div style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px dashed #e5e7eb;" onclick="event.stopPropagation();">
                                 <textarea id="sheet-reply-${m.id}" placeholder="Type a reply or note (goes to Karl's sheet reply column)..." style="width:100%; min-height:60px; padding:0.5rem; border:1px solid #d1d5db; border-radius:4px; font-size:0.85rem; resize:vertical;"></textarea>
