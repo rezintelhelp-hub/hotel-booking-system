@@ -79698,6 +79698,18 @@ app.put('/api/admin/units/:id', async (req, res) => {
         return res.status(400).json({ success: false, error: 'min_rate must be a non-negative number or blank' });
       }
       await pool.query('UPDATE bookable_units SET min_rate = $1 WHERE id = $2', [parsed, id]);
+      // Propagate the new property-wide min to Channex's property.settings.
+      // min_price (the field the Channex UI shows as minimum). Uses the MAX
+      // across all rooms on this property. Fire-and-forget — save shouldn't
+      // block on Channex; the drain loop is idempotent if this fails.
+      try {
+        const propR = await pool.query('SELECT property_id FROM bookable_units WHERE id = $1', [id]);
+        const gasPropId = propR.rows[0]?.property_id;
+        if (gasPropId) {
+          const { pushChannexPropertyMinPrice } = require('./gas-sync/channex-outbox');
+          setImmediate(() => pushChannexPropertyMinPrice(pool, gasPropId).catch(e => console.warn('[units min_rate → channex]', e.message)));
+        }
+      } catch (e) { console.warn('[units min_rate → channex trigger]', e.message); }
     }
 
     // Ensure repuso_widget_id column exists

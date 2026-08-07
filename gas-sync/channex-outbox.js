@@ -734,6 +734,63 @@ async function recomputeAndEnqueueAvailabilityForRoom(pool, gasRoomId, date) {
   return enqueueAvailabilityForRoom(pool, gasRoomId, date, available);
 }
 
+/**
+ * Push a property-level min_price to Channex. Channex only supports min_price
+ * at property.settings.min_price (not per-room, not on rate plans, not on
+ * restrictions), so this function takes the MAX of bookable_units.min_rate
+ * across every Channex-mapped room on that property. Setting a lower min on
+ * one room won't drop the floor for others.
+ *
+ * 2026-08-07 — Steve set min_rate=30 for rooms 1309 + 1310 (5 Rte Des Thermes)
+ * expecting to see it in Channex; it wasn't there because nothing ever pushed
+ * it. Now called fire-and-forget from PUT /api/admin/units/:id after min_rate
+ * saves. Also called by the one-off backfill script.
+ *
+ * Channex quirk: the value must be sent as a STRING (e.g. "30.00"), not a
+ * number — otherwise it stores the integer as cents (30 → 0.30).
+ */
+async function pushChannexPropertyMinPrice(pool, gasPropertyId) {
+  const axios = require('axios');
+  const apiKey = process.env.CHANNEX_API_KEY;
+  if (!apiKey) return { success: false, error: 'CHANNEX_API_KEY not set' };
+  const baseUrl = process.env.CHANNEX_BASE_URL
+    || (process.env.CHANNEX_ENV === 'production' ? 'https://app.channex.io/api/v1' : 'https://staging.channex.io/api/v1');
+
+  // Resolve the Channex property_id + the MAX per-room min_rate across every
+  // Channex-mapped room on that GAS property.
+  const r = await pool.query(`
+    SELECT gsp.external_id AS channex_property_id,
+           MAX(bu.min_rate) AS max_min_rate,
+           COUNT(bu.id) FILTER (WHERE bu.min_rate IS NOT NULL) AS rooms_with_min
+      FROM bookable_units bu
+      JOIN gas_sync_room_types gsrt ON gsrt.gas_room_id = bu.id
+      JOIN gas_sync_properties gsp ON gsp.id = gsrt.sync_property_id
+      JOIN gas_sync_connections gsc ON gsc.id = gsp.connection_id
+     WHERE bu.property_id = $1
+       AND gsc.adapter_code = 'channex'
+     GROUP BY gsp.external_id
+     LIMIT 1
+  `, [gasPropertyId]);
+  const row = r.rows[0];
+  if (!row) return { skipped: 'no-channex-mapping' };
+  // If nobody has a min_rate set, unset the Channex floor too (null) so we
+  // don't leave a stale value pinning higher than any current room wants.
+  const value = row.max_min_rate == null ? null : String(parseFloat(row.max_min_rate).toFixed(2));
+  try {
+    const resp = await axios.put(`${baseUrl}/properties/${row.channex_property_id}`,
+      { property: { settings: { min_price: value } } },
+      { headers: { 'user-api-key': apiKey, 'Content-Type': 'application/json' }, validateStatus: () => true, timeout: 20000 }
+    );
+    if (resp.status >= 200 && resp.status < 300) {
+      console.log(`[channex min_price] property=${row.channex_property_id} set min_price=${value} (from ${row.rooms_with_min} rooms with min_rate)`);
+      return { success: true, channex_property_id: row.channex_property_id, min_price: value };
+    }
+    return { success: false, status: resp.status, error: JSON.stringify(resp.data).slice(0, 300) };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
 module.exports = {
   ensureSchema,
   enqueue,
@@ -745,5 +802,6 @@ module.exports = {
   recomputeAndEnqueueAvailabilityForRoom,
   enqueueRestrictionForRoom,
   enqueueBookingPush,
+  pushChannexPropertyMinPrice,
   CHANGE_TYPES,
 };
