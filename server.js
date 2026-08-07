@@ -69772,8 +69772,13 @@ app.post('/api/admin/accounts/:id/whatsapp-settings/smoke-test', async (req, res
 // Filters: channel, direction, status, search (against body / from_handle / from_name).
 // Returns newest first.
 app.get('/api/admin/inbox/messages', async (req, res) => {
-  const decoded = await requireMasterAdmin(req, res);
-  if (!decoded) return;
+  // 2026-08-07 — opened to client admins so they see their own account's
+  // messages (Google Sheet snags/requests, emails, WhatsApp etc). Master
+  // admin sees all; other roles are scoped to their own account_id. This
+  // is what makes the sheet inbox usable by clients themselves, not just
+  // by Steve as master (EasyLandlord Karl needs to see his own requests).
+  const decoded = await extractAccountFromToken(req);
+  if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
   try {
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
     const offset = parseInt(req.query.offset, 10) || 0;
@@ -69784,6 +69789,11 @@ app.get('/api/admin/inbox/messages', async (req, res) => {
     const conds = [];
     const params = [];
     let i = 1;
+    // Non-master admins can only see their own account's messages.
+    if (decoded.role !== 'master_admin') {
+      conds.push(`m.account_id = $${i++}`);
+      params.push(decoded.accountId);
+    }
     if (channel) { conds.push(`m.channel = $${i++}`); params.push(channel); }
     if (direction) { conds.push(`m.direction = $${i++}`); params.push(direction); }
     if (status) { conds.push(`m.status = $${i++}`); params.push(status); }
@@ -70048,7 +70058,11 @@ async function syncClientSheetChannel(channelId) {
     if (followUp)     bodyParts.push(`Follow-up: ${followUp}`);
     if (links.length) bodyParts.push(`Links: ${links.join(' · ')}`);
     if (sheetStatus)  bodyParts.push(`Sheet status: ${sheetStatus}`);
-    const displayBody = bodyParts.join('\n\n') || null;
+    // If everything else is blank, fall back to the title so the inbox
+    // never shows an empty message body. Row 2026-08-07 EasyLandlord —
+    // "Contact Forms to be sent to stay@easystays.mt" was title-only.
+    let displayBody = bodyParts.join('\n\n') || null;
+    if (!displayBody && title) displayBody = title;
 
     const upsert = await pool.query(`
       INSERT INTO inbox_messages (
