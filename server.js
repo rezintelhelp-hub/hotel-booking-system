@@ -69795,12 +69795,13 @@ app.get('/api/admin/inbox/messages', async (req, res) => {
       params.push(decoded.accountId);
     }
     if (channel) { conds.push(`m.channel = $${i++}`); params.push(channel); }
-    // 2026-08-07 — exclude owner-facing channels ('internal' + 'google_sheets')
-    // from the master unified inbox. Those belong exclusively in the 💬 Inbox
-    // (app-inbox) surface which is designed for client↔GAS conversations.
-    // The unified inbox here shows guest-facing channels only (WhatsApp,
-    // email, Channex OTA, etc). Explicit channel filter override still works
-    // if a caller genuinely wants to see internal/sheet messages.
+    // 2026-08-07 — the guest-vs-support split is now a first-class filter
+    // via conversation_type. When a caller passes ?conversation_type=X, we
+    // trust it and skip the channel-based exclusion. Otherwise we fall back
+    // to the legacy "hide internal/sheets from the unified list" behaviour
+    // so existing surfaces don't change until they opt in.
+    const convType = req.query.conversation_type || null;
+    if (convType) { conds.push(`m.conversation_type = $${i++}`); params.push(convType); }
     else { conds.push(`m.channel NOT IN ('internal', 'google_sheets')`); }
     if (direction) { conds.push(`m.direction = $${i++}`); params.push(direction); }
     if (status) { conds.push(`m.status = $${i++}`); params.push(status); }
@@ -146600,6 +146601,25 @@ app.listen(PORT, '0.0.0.0', async () => {
     // audit trail of which prospect (if any) was converted to the
     // account they now belong to.
     await pool.query(`ALTER TABLE inbox_messages ADD COLUMN IF NOT EXISTS linked_prospect_id INTEGER REFERENCES prospects(id) ON DELETE SET NULL`).catch(() => {});
+
+    // 2026-08-07 — hard split between the two audiences that share the
+    // Messages surface today: 'guest_to_owner' (a guest talking to the
+    // property owner — OTA chat, contact-form, guest WhatsApp, booking
+    // emails) and 'owner_to_gas' (the property owner talking to GAS
+    // support — their Google Sheet requests, email to us, WhatsApp to
+    // the GAS platform number). One column, two buttons, no mixing.
+    await pool.query(`ALTER TABLE inbox_messages ADD COLUMN IF NOT EXISTS conversation_type VARCHAR(20)`).catch(() => {});
+    // Backfill: google_sheets is unambiguously owner→GAS. Everything
+    // else defaults to guest→owner. Idempotent — only touches NULLs.
+    await pool.query(`
+      UPDATE inbox_messages
+         SET conversation_type = CASE
+           WHEN channel = 'google_sheets' THEN 'owner_to_gas'
+           ELSE 'guest_to_owner'
+         END
+       WHERE conversation_type IS NULL
+    `).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inbox_messages_conv_type ON inbox_messages(conversation_type)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS converted_from_prospect_id INTEGER REFERENCES prospects(id) ON DELETE SET NULL`).catch(() => {});
 
     // Prospect ↔ LinkedIn profile aliases — sibling to prospect_domain_aliases

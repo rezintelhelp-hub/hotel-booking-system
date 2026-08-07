@@ -5618,11 +5618,13 @@
                 </div>
 
                 <!-- Two-type split: guest ↔ owner vs owner ↔ GAS support.
-                     Wiring deferred — buttons only for now. -->
+                     Sets a hidden filter that the endpoint reads as
+                     ?conversation_type=guest_to_owner|owner_to_gas. -->
                 <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
-                    <button class="btn" style="background:#3b82f6; color:white; padding:8px 16px; font-size:0.9rem;">👤 Guest messages</button>
-                    <button class="btn" style="background:#7c3aed; color:white; padding:8px 16px; font-size:0.9rem;">🛟 GAS Support messages</button>
+                    <button id="inbox-type-btn-guest" class="btn" onclick="setInboxConvType('guest_to_owner')" style="background:#3b82f6; color:white; padding:8px 16px; font-size:0.9rem;">👤 Guest messages</button>
+                    <button id="inbox-type-btn-gas" class="btn" onclick="setInboxConvType('owner_to_gas')" style="background:#e5e7eb; color:#374151; padding:8px 16px; font-size:0.9rem;">🛟 GAS Support messages</button>
                 </div>
+                <input type="hidden" id="inbox-filter-conv-type" value="guest_to_owner">
 
                 <!-- WhatsApp Connect card — Purpose 2 (client's own WABA).
                      Hidden by default; renderWaConnectCard() on view show
@@ -60060,6 +60062,24 @@ const promo = await fetch('/api/v1/offers/validate', {
             loadMessagesInbox();
         }
 
+        // Swap between the two audiences: guests-to-owner vs owner-to-GAS.
+        // Wired to the two big buttons at the top of the Messages view.
+        function setInboxConvType(type) {
+            const hidden = document.getElementById('inbox-filter-conv-type');
+            if (hidden) hidden.value = type;
+            const guestBtn = document.getElementById('inbox-type-btn-guest');
+            const gasBtn = document.getElementById('inbox-type-btn-gas');
+            if (guestBtn && gasBtn) {
+                const active = { background: (type === 'guest_to_owner' ? '#3b82f6' : '#7c3aed'), color: 'white' };
+                const idle = { background: '#e5e7eb', color: '#374151' };
+                const guestState = type === 'guest_to_owner' ? active : idle;
+                const gasState = type === 'owner_to_gas' ? active : idle;
+                guestBtn.style.background = guestState.background; guestBtn.style.color = guestState.color;
+                gasBtn.style.background = gasState.background; gasBtn.style.color = gasState.color;
+            }
+            loadMessagesInbox();
+        }
+
         // Track which view-as account we last auto-synced the inbox filter
         // to. Lets us re-default when the operator switches view-as targets
         // without clobbering a manually-cleared filter mid-session.
@@ -60176,6 +60196,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const st = document.getElementById('inbox-filter-status')?.value || '';
                 const q = document.getElementById('inbox-filter-q')?.value || '';
                 const showPromo = document.getElementById('inbox-show-promo')?.checked || false;
+                const convType = document.getElementById('inbox-filter-conv-type')?.value || '';
                 const params = new URLSearchParams();
                 if (ch) params.set('channel', ch);
                 if (dir) params.set('direction', dir);
@@ -60184,6 +60205,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (st) params.set('status', st);
                 if (q) params.set('q', q);
                 if (showPromo) params.set('show_promo', 'true');
+                if (convType) params.set('conversation_type', convType);
                 const r = await fetch('/api/admin/inbox/messages?' + params.toString(), { headers: authHeaders() });
                 const data = await r.json();
                 if (!data.success) {
