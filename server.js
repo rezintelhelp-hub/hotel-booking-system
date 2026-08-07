@@ -69795,6 +69795,13 @@ app.get('/api/admin/inbox/messages', async (req, res) => {
       params.push(decoded.accountId);
     }
     if (channel) { conds.push(`m.channel = $${i++}`); params.push(channel); }
+    // 2026-08-07 — exclude owner-facing channels ('internal' + 'google_sheets')
+    // from the master unified inbox. Those belong exclusively in the 💬 Inbox
+    // (app-inbox) surface which is designed for client↔GAS conversations.
+    // The unified inbox here shows guest-facing channels only (WhatsApp,
+    // email, Channex OTA, etc). Explicit channel filter override still works
+    // if a caller genuinely wants to see internal/sheet messages.
+    else { conds.push(`m.channel NOT IN ('internal', 'google_sheets')`); }
     if (direction) { conds.push(`m.direction = $${i++}`); params.push(direction); }
     if (status) { conds.push(`m.status = $${i++}`); params.push(status); }
     if (q) {
