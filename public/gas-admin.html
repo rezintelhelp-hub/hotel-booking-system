@@ -31565,6 +31565,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <p style="font-size: 0.8rem; color: #64748b; margin: 0.25rem 0 0;">If set, the Book Now button will link here instead of the GAS checkout.</p>
                 </div>
 
+                <!-- 2026-08-07 — Per-room minimum rate (Beds24-style floor).
+                     The Channex extender + sweep will never push a nightly rate
+                     below this to any OTA. Prevents Expedia Warning 7021
+                     rejections and other OTA rate-verification failures.
+                     Blank = use the global £15 safety floor. -->
+                <div class="form-group" style="margin-top: 1rem; padding: 1rem; background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px;">
+                    <label class="form-label" style="color: #92400e; font-weight: 600;">🛡️ Minimum Rate <small style="color: #a16207; font-weight: 400;">(OTA floor — the lowest rate we'll ever push to Airbnb / Booking / Expedia)</small></label>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="number" class="form-input" id="edit-room-min-rate" min="0" step="0.01" placeholder="e.g. 75.00" style="max-width: 180px;">
+                        <span style="color: #92400e; font-size: 0.85rem;">per night</span>
+                    </div>
+                    <p style="font-size: 0.8rem; color: #a16207; margin: 0.35rem 0 0;">Set this to your contract minimum with the OTAs (e.g. Expedia's rate floor). Leave blank to use the global £15 safety floor. Applies to Channex pushes — every extender run + sweep respects this.</p>
+                </div>
+
                 <!-- Note about amenities -->
                 <div style="background: #e0f2fe; border: 1px solid #0ea5e9; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
                     <p style="margin: 0; color: #0369a1;">
@@ -80543,6 +80557,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (dacEl) dacEl.value = room.default_access_code || '';
                     const extUrlEl = document.getElementById('edit-room-external-url');
                     if (extUrlEl) extUrlEl.value = room.external_booking_url || '';
+                    const minRateEl = document.getElementById('edit-room-min-rate');
+                    if (minRateEl) minRateEl.value = (room.min_rate === null || room.min_rate === undefined) ? '' : room.min_rate;
                     // Reference code + show_reference toggle (EasyLandlord pattern).
                     const refCodeEl = document.getElementById('edit-room-reference-code');
                     if (refCodeEl) refCodeEl.value = room.reference_code || '';
@@ -80730,7 +80746,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 default_access_code: (document.getElementById('edit-room-default-access-code')?.value || '').trim() || null,
                 external_booking_url: (document.getElementById('edit-room-external-url')?.value || '').trim() || null,
                 reference_code: (document.getElementById('edit-room-reference-code')?.value || '').trim() || null,
-                show_reference: !!document.getElementById('edit-room-show-reference')?.checked
+                show_reference: !!document.getElementById('edit-room-show-reference')?.checked,
+                min_rate: (() => {
+                    const v = (document.getElementById('edit-room-min-rate')?.value || '').trim();
+                    return v === '' ? null : parseFloat(v);
+                })()
             };
 
             // Master-only: only include book_via_master_key when the field is in DOM (master role).

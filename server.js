@@ -79596,7 +79596,20 @@ app.put('/api/admin/units/:id', async (req, res) => {
     const { id } = req.params;
     console.log('PUT /api/admin/units/' + id, 'body:', JSON.stringify(req.body));
     
-    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description, repuso_widget_id, book_via_master_key, unit_role, external_booking_url, default_access_code, reference_code, show_reference } = req.body;
+    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description, repuso_widget_id, book_via_master_key, unit_role, external_booking_url, default_access_code, reference_code, show_reference, min_rate } = req.body;
+
+    // Per-room minimum rate floor (Beds24-style). Nothing gets pushed to any
+    // OTA below this. Feeds the Channex extender's floor guard + prevents
+    // Expedia Warning 7021 (rate below verification threshold). NULL = no
+    // operator-set floor; the global £15 (in extender) still applies. Empty
+    // string clears; a valid number saves; undefined leaves the row alone.
+    if (min_rate !== undefined) {
+      const parsed = min_rate === '' || min_rate === null ? null : parseFloat(min_rate);
+      if (parsed !== null && (isNaN(parsed) || parsed < 0)) {
+        return res.status(400).json({ success: false, error: 'min_rate must be a non-negative number or blank' });
+      }
+      await pool.query('UPDATE bookable_units SET min_rate = $1 WHERE id = $2', [parsed, id]);
+    }
 
     // Ensure repuso_widget_id column exists
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS repuso_widget_id VARCHAR(255)').catch(() => {});
