@@ -69834,11 +69834,11 @@ app.get('/api/admin/inbox/messages', async (req, res) => {
     const where = conds.length ? ('WHERE ' + conds.join(' AND ')) : '';
     params.push(limit, offset);
     const rows = await pool.query(
-      `SELECT m.id, m.account_id, m.channel, m.direction, m.channel_message_id,
+      `SELECT m.id, m.account_id, m.channel, m.direction, m.channel_message_id, m.thread_id,
               m.from_handle, m.from_name, m.subject, m.body, m.status, m.created_at, m.read_at, m.replied_at,
               m.linked_account_id, m.linked_booking_id, m.linked_guest_id, m.link_source,
               m.is_promo, m.promo_reason, m.is_automated,
-              m.supplier_id,
+              m.supplier_id, m.metadata, m.conversation_type,
               la.name as linked_account_name, la.business_name as linked_account_business,
               sp.name as supplier_name, sp.display_name as supplier_display_name, sp.category as supplier_category
          FROM inbox_messages m
@@ -121083,27 +121083,36 @@ app.post('/api/admin/inbox/messages', async (req, res) => {
     let threadId = threadIdIn || `internal-acct${parseInt(account_id)}`;
     let channel = 'internal';
     let sheetChannelId = null;
+    let convType = null;
 
     if (threadIdIn) {
-      // Look up existing thread to determine channel + sheet metadata
+      // Look up existing thread to determine channel + sheet metadata +
+      // conversation_type (so the reply lands in the same bucket as
+      // whatever the parent thread was classified as — otherwise the
+      // reply gets filtered out of both buttons and the thread appears
+      // broken).
       const existing = await pool.query(
-        `SELECT channel, metadata FROM inbox_messages WHERE thread_id = $1 ORDER BY created_at ASC LIMIT 1`,
+        `SELECT channel, metadata, conversation_type FROM inbox_messages WHERE thread_id = $1 ORDER BY created_at ASC LIMIT 1`,
         [threadIdIn]
       );
       if (existing.rows.length) {
         channel = existing.rows[0].channel;
+        convType = existing.rows[0].conversation_type || null;
         if (channel === 'google_sheets') {
           sheetChannelId = existing.rows[0].metadata?.sheet_channel_id || null;
         }
       }
     }
+    // Fallback: internal/new threads default to owner_to_gas (that's
+    // what the Messages compose flow was historically for).
+    if (!convType) convType = 'owner_to_gas';
 
     const result = await pool.query(`
       INSERT INTO inbox_messages
-        (account_id, channel, thread_id, from_name, from_handle, subject, body, direction, status, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'unread', NOW())
+        (account_id, channel, thread_id, from_name, from_handle, subject, body, direction, status, conversation_type, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'unread', $9, NOW())
       RETURNING *
-    `, [parseInt(account_id), channel, threadId, decoded.name || 'Unknown', decoded.email || '', subject || null, body, direction]);
+    `, [parseInt(account_id), channel, threadId, decoded.name || 'Unknown', decoded.email || '', subject || null, body, direction, convType]);
 
     // Sheet writeback — best effort; failure doesn't block the reply from landing in GAS.
     // NOTE 2026-08-07 — the function is writeReplyToClientSheet (not _writeSheetReply as
@@ -121199,7 +121208,7 @@ app.post('/api/admin/inbox/threads/:threadId/close', async (req, res) => {
 
     // Auth via first-message account_id (same pattern as thread-messages endpoint)
     const first = await pool.query(
-      `SELECT id, account_id, channel, metadata FROM inbox_messages
+      `SELECT id, account_id, channel, metadata, conversation_type FROM inbox_messages
         WHERE thread_id = $1 AND direction = 'out'
         ORDER BY created_at ASC LIMIT 1`,
       [threadId]
@@ -121214,10 +121223,11 @@ app.post('/api/admin/inbox/threads/:threadId/close', async (req, res) => {
     // same code path as sendInboxReply.
     if (note && String(note).trim()) {
       const noteBody = String(note).trim();
+      const noteConvType = first.rows[0].conversation_type || 'owner_to_gas';
       await pool.query(`
-        INSERT INTO inbox_messages (account_id, channel, thread_id, from_name, from_handle, subject, body, direction, status, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'unread', NOW())
-      `, [threadAccountId, first.rows[0].channel, threadId, decoded.name || 'Steve', decoded.email || '', null, noteBody, decoded.role === 'master_admin' ? 'in' : 'out']);
+        INSERT INTO inbox_messages (account_id, channel, thread_id, from_name, from_handle, subject, body, direction, status, conversation_type, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'unread', $9, NOW())
+      `, [threadAccountId, first.rows[0].channel, threadId, decoded.name || 'Steve', decoded.email || '', null, noteBody, decoded.role === 'master_admin' ? 'in' : 'out', noteConvType]);
       if (first.rows[0].channel === 'google_sheets') {
         try { await writeReplyToClientSheet(first.rows[0].id, noteBody); } catch (e) { console.warn('[close-thread reply writeback]', e.message); }
       }

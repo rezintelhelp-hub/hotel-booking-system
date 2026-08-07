@@ -60294,6 +60294,28 @@ const promo = await fetch('/api/v1/offers/validate', {
                 ? `<span style="background:#f3f4f6; color:#6b7280; font-size:0.65rem; padding:1px 6px; border-radius:4px;">🤖 Automated</span>`
                 : '';
 
+            // Sheet status chip — colour-coded from the client's own status
+            // column (Open / In Progress / Done / Blocked / etc). We keep the
+            // classifier permissive so unfamiliar values still surface as a
+            // grey badge rather than being swallowed.
+            const sheetStatus = m.metadata && m.metadata.sheet_status ? String(m.metadata.sheet_status).trim() : '';
+            const statusChip = (() => {
+                if (!sheetStatus) return '';
+                const norm = sheetStatus.toLowerCase();
+                let bg = '#f3f4f6', fg = '#374151', dot = '●';
+                if (/(done|complete|resolved|closed|✓)/.test(norm))              { bg = '#dcfce7'; fg = '#166534'; dot = '✓'; }
+                else if (/(progress|working|active|doing)/.test(norm))          { bg = '#dbeafe'; fg = '#1e3a8a'; dot = '◐'; }
+                else if (/(open|new|todo|to do|pending)/.test(norm))            { bg = '#fee2e2'; fg = '#991b1b'; dot = '●'; }
+                else if (/(block|hold|wait|paused)/.test(norm))                 { bg = '#fef3c7'; fg = '#92400e'; dot = '⏸'; }
+                return `<span style="background:${bg}; color:${fg}; font-size:0.65rem; padding:1px 6px; border-radius:4px; font-weight:700;">${dot} ${escapeHtml(sheetStatus)}</span>`;
+            })();
+            // Thread-actioned chip — surfaces on the ORIGINAL row when we've
+            // already replied. Cheap "thread is being held" signal even
+            // without a full thread-grouped view.
+            const repliedChip = m.replied_at
+                ? `<span title="Reply sent ${new Date(m.replied_at).toLocaleString()}" style="background:#ecfdf5; color:#065f46; font-size:0.65rem; padding:1px 6px; border-radius:4px; font-weight:600;">✓ Replied</span>`
+                : '';
+
             // Compact row that expands on click. Initial render shows
             // sender + subject + 1-line preview. Clicking toggles full body.
             return `
@@ -60308,6 +60330,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 ${accountChip}
                                 ${supplierChip}
                                 ${bookingChip}
+                                ${statusChip}
+                                ${repliedChip}
                                 ${promoChip}
                                 ${autoChip}
                                 ${unread ? '<span style="background:#ef4444; color:white; font-size:0.6rem; padding:1px 5px; border-radius:8px;">●</span>' : ''}
