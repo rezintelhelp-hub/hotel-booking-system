@@ -90978,7 +90978,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const r = await fetch('/api/admin/inbox/messages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ account_id: _currentInboxAccountId, body })
+                    body: JSON.stringify({ account_id: _currentInboxAccountId, body, thread_id: _currentInboxThreadId })
                 });
                 const data = await r.json();
                 if (data.success) {

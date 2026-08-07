@@ -70064,12 +70064,16 @@ async function syncClientSheetChannel(channelId) {
     let displayBody = bodyParts.join('\n\n') || null;
     if (!displayBody && title) displayBody = title;
 
+    // Direction 'out' — this message came FROM the client (via their sheet)
+    // TO GAS. Matches the app-inbox convention: 'out' = client sending to
+    // GAS team, 'in' = GAS team replying to client. Was 'inbound' which
+    // didn't match either side of the render logic.
     const upsert = await pool.query(`
       INSERT INTO inbox_messages (
         account_id, channel, channel_message_id, thread_id,
         from_name, subject, body,
         direction, status, category, created_at, metadata
-      ) VALUES ($1, 'google_sheets', $2, $2, $3, $4, $5, 'inbound', $6, $7, $8, $9)
+      ) VALUES ($1, 'google_sheets', $2, $2, $3, $4, $5, 'out', $6, $7, $8, $9)
       ON CONFLICT DO NOTHING
       RETURNING (xmax = 0) AS inserted
     `, [ch.account_id, channelMessageId, displaySender, title, displayBody, status, category || null, createdAt, metadata]);
@@ -121014,28 +121018,64 @@ app.post('/api/admin/inbox/messages', async (req, res) => {
   try {
     const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
-    const { account_id, body, subject } = req.body;
+    const { account_id, body, subject, thread_id: threadIdIn } = req.body;
     if (!account_id || !body) return res.json({ success: false, error: 'account_id and body required' });
 
-    // extractAccountFromToken returns { id, accountId, role, name, email } —
-    // both `id` and `accountId` are the same value (the account row's id).
     const senderId = decoded.id || decoded.accountId;
     const senderRole = decoded.role;
 
-    // Only master_admin can compose to any account; operators can only reply to threads in their own inbox.
     if (senderRole !== 'master_admin' && parseInt(account_id) !== senderId) {
       return res.status(403).json({ success: false, error: 'Operators can only reply to their own inbox' });
     }
 
     const direction = senderRole === 'master_admin' ? 'in' : 'out';
-    const threadId = `internal-acct${parseInt(account_id)}`;
+
+    // 2026-08-07 — thread_id now accepted from client so replies APPEND
+    // to the existing thread (was always creating a fresh internal
+    // thread, orphaning sheet-sourced conversations). Also detects sheet
+    // threads and writes the reply back to Karl's Google Sheet reply
+    // column so the client sees it in their own surface without logging
+    // into GAS.
+    let threadId = threadIdIn || `internal-acct${parseInt(account_id)}`;
+    let channel = 'internal';
+    let sheetChannelId = null;
+
+    if (threadIdIn) {
+      // Look up existing thread to determine channel + sheet metadata
+      const existing = await pool.query(
+        `SELECT channel, metadata FROM inbox_messages WHERE thread_id = $1 ORDER BY created_at ASC LIMIT 1`,
+        [threadIdIn]
+      );
+      if (existing.rows.length) {
+        channel = existing.rows[0].channel;
+        if (channel === 'google_sheets') {
+          sheetChannelId = existing.rows[0].metadata?.sheet_channel_id || null;
+        }
+      }
+    }
 
     const result = await pool.query(`
       INSERT INTO inbox_messages
         (account_id, channel, thread_id, from_name, from_handle, subject, body, direction, status, created_at)
-      VALUES ($1, 'internal', $2, $3, $4, $5, $6, $7, 'unread', NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'unread', NOW())
       RETURNING *
-    `, [parseInt(account_id), threadId, decoded.name || 'Unknown', decoded.email || '', subject || null, body, direction]);
+    `, [parseInt(account_id), channel, threadId, decoded.name || 'Unknown', decoded.email || '', subject || null, body, direction]);
+
+    // Sheet writeback — best effort; failure doesn't block the reply from landing in GAS.
+    if (sheetChannelId && typeof _writeSheetReply === 'function') {
+      try {
+        await _writeSheetReply(result.rows[0].id, body);
+      } catch (e) {
+        console.warn('[inbox reply → sheet writeback]', e.message);
+      }
+    }
+    // Mark the thread's original inbound message as replied
+    if (threadIdIn) {
+      await pool.query(
+        `UPDATE inbox_messages SET replied_at = NOW(), status = 'replied' WHERE thread_id = $1 AND id != $2 AND direction = 'out' AND replied_at IS NULL`,
+        [threadIdIn, result.rows[0].id]
+      ).catch(() => {});
+    }
 
     res.json({ success: true, message: result.rows[0] });
   } catch (error) {
