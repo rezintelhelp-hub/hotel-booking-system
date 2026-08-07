@@ -70117,6 +70117,35 @@ async function syncClientSheetChannel(channelId) {
   return { rows: dataRows.length, imported, updated, skipped, columnMap };
 }
 
+// Write a status value into the sheet's status column for a given
+// inbox_messages id. Used by the app-inbox 'Mark Done' button. Writes
+// plain value (no timestamp — the sheet's status column is
+// enumeration-style: Done / Pending / etc.).
+async function writeStatusToClientSheet(inboxMessageId, statusText) {
+  if (!sheetsApi) return { success: false, error: 'sheets api not initialised' };
+  const mr = await pool.query(`SELECT id, metadata, channel FROM inbox_messages WHERE id = $1`, [inboxMessageId]);
+  const msg = mr.rows[0];
+  if (!msg) return { success: false, error: 'message not found' };
+  if (msg.channel !== 'google_sheets') return { success: false, error: 'not a google_sheets message' };
+  const meta = msg.metadata || {};
+  const chId = meta.sheet_channel_id;
+  const sheetRow = meta.sheet_row;
+  if (!chId || !sheetRow) return { success: false, error: 'sheet_channel_id / sheet_row missing in metadata' };
+  const chRes = await pool.query(`SELECT * FROM client_sheet_channels WHERE id = $1`, [chId]);
+  const ch = chRes.rows[0];
+  if (!ch) return { success: false, error: 'channel deleted' };
+  const statusCol = ch.column_map && ch.column_map.status;
+  if (!statusCol) return { success: false, error: 'status column not mapped on this sheet' };
+  const tabName = meta.sheet_tab || (await _resolveSheetTabName(ch.sheet_id, ch.sheet_gid));
+  await sheetsApi.spreadsheets.values.update({
+    spreadsheetId: ch.sheet_id,
+    range: `${tabName}!${statusCol}${sheetRow}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [[statusText]] }
+  });
+  return { success: true };
+}
+
 // Write a reply into the sheet's reply column for a given inbox_messages id.
 async function writeReplyToClientSheet(inboxMessageId, replyText) {
   if (!sheetsApi) return { success: false, error: 'sheets api not initialised' };
@@ -121076,9 +121105,20 @@ app.post('/api/admin/inbox/messages', async (req, res) => {
     `, [parseInt(account_id), channel, threadId, decoded.name || 'Unknown', decoded.email || '', subject || null, body, direction]);
 
     // Sheet writeback — best effort; failure doesn't block the reply from landing in GAS.
-    if (sheetChannelId && typeof _writeSheetReply === 'function') {
+    // NOTE 2026-08-07 — the function is writeReplyToClientSheet (not _writeSheetReply as
+    // originally written). Reply wasn't reaching the sheet before this fix.
+    if (sheetChannelId && typeof writeReplyToClientSheet === 'function') {
       try {
-        await _writeSheetReply(result.rows[0].id, body);
+        // The reply we just inserted has channel='google_sheets' but no metadata copied
+        // from the original thread. Look up the ORIGINAL inbound message (the sheet-imported
+        // row) to source the metadata (sheet_row, sheet_channel_id, existing_reply).
+        const origR = await pool.query(
+          `SELECT id FROM inbox_messages WHERE thread_id = $1 AND direction = 'out' ORDER BY created_at ASC LIMIT 1`,
+          [threadIdIn]
+        );
+        if (origR.rows[0]) {
+          await writeReplyToClientSheet(origR.rows[0].id, body);
+        }
       } catch (e) {
         console.warn('[inbox reply → sheet writeback]', e.message);
       }
@@ -121139,6 +121179,68 @@ app.get('/api/admin/inbox/threads', async (req, res) => {
     res.json({ success: true, threads: result.rows });
   } catch (error) {
     console.error('Inbox threads error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/admin/inbox/threads/:threadId/close — Phase A of the request-to-task
+// pipeline (2026-08-07). Marks a thread done: sets every message in the thread
+// to status='closed', and if the thread's source channel is 'google_sheets',
+// writes 'Done' back to the sheet's status column so the client sees the same
+// state in their own sheet. Optional note is written as a final reply first
+// (so 'Done — passed to accounts' shows in both places).
+app.post('/api/admin/inbox/threads/:threadId/close', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const { threadId } = req.params;
+    const { note, status_text } = req.body || {};
+
+    // Auth via first-message account_id (same pattern as thread-messages endpoint)
+    const first = await pool.query(
+      `SELECT id, account_id, channel, metadata FROM inbox_messages
+        WHERE thread_id = $1 AND direction = 'out'
+        ORDER BY created_at ASC LIMIT 1`,
+      [threadId]
+    );
+    if (first.rows.length === 0) return res.status(404).json({ success: false, error: 'thread not found' });
+    const threadAccountId = first.rows[0].account_id;
+    if (decoded.role !== 'master_admin' && (decoded.id || decoded.accountId) !== threadAccountId) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    // Optional final note as a reply — writes to sheet reply column too via the
+    // same code path as sendInboxReply.
+    if (note && String(note).trim()) {
+      const noteBody = String(note).trim();
+      await pool.query(`
+        INSERT INTO inbox_messages (account_id, channel, thread_id, from_name, from_handle, subject, body, direction, status, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'unread', NOW())
+      `, [threadAccountId, first.rows[0].channel, threadId, decoded.name || 'Steve', decoded.email || '', null, noteBody, decoded.role === 'master_admin' ? 'in' : 'out']);
+      if (first.rows[0].channel === 'google_sheets') {
+        try { await writeReplyToClientSheet(first.rows[0].id, noteBody); } catch (e) { console.warn('[close-thread reply writeback]', e.message); }
+      }
+    }
+
+    // Set every message in the thread to status='closed'
+    await pool.query(
+      `UPDATE inbox_messages SET status = 'closed', replied_at = COALESCE(replied_at, NOW()) WHERE thread_id = $1`,
+      [threadId]
+    );
+
+    // For google_sheets threads, write 'Done' (or custom status_text) to the sheet status column
+    let sheetWrite = null;
+    if (first.rows[0].channel === 'google_sheets') {
+      try {
+        sheetWrite = await writeStatusToClientSheet(first.rows[0].id, status_text || 'Done');
+      } catch (e) {
+        sheetWrite = { success: false, error: e.message };
+      }
+    }
+
+    res.json({ success: true, threadId, sheet_write: sheetWrite });
+  } catch (error) {
+    console.error('Inbox close-thread error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

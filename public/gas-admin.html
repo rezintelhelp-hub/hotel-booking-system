@@ -21110,7 +21110,8 @@
                         <div id="inbox-messages" style="flex: 1; overflow-y: auto; padding: 1rem; background: #f8fafc;"></div>
                         <div id="inbox-reply-row" style="border-top: 1px solid #e2e8f0; padding: 0.75rem; background: white; display: none;">
                             <textarea id="inbox-reply-body" placeholder="Type your reply…" style="width: 100%; min-height: 64px; padding: 0.6rem; border: 1px solid #e2e8f0; border-radius: 6px; resize: vertical;"></textarea>
-                            <div style="display: flex; justify-content: flex-end; margin-top: 0.5rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; gap: 0.5rem;">
+                                <button onclick="markInboxThreadDone()" class="btn" style="background:#16a34a; color:white; padding: 6px 14px; font-size: 0.85rem;" title="Marks the thread closed. Writes 'Done' to the sheet status column. If you've typed a note above it also sends as a final reply.">✓ Mark Done</button>
                                 <button onclick="sendInboxReply()" class="btn" style="background: linear-gradient(135deg, #7c3aed, #5b21b6); padding: 6px 18px; font-size: 0.88rem;">Send</button>
                             </div>
                         </div>
@@ -90969,6 +90970,35 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) {
                 document.getElementById('inbox-messages').innerHTML = `<div style="color:#dc2626;">Load failed: ${e.message}</div>`;
             }
+        }
+
+        // Mark the current thread done. If a note is typed in the reply box,
+        // it goes along with the close (sent as a final reply AND written to
+        // the sheet reply column). Then writes 'Done' to the sheet status column
+        // for google_sheets threads, and closes all messages in the thread.
+        async function markInboxThreadDone() {
+            if (!_currentInboxThreadId) return;
+            const note = (document.getElementById('inbox-reply-body')?.value || '').trim();
+            if (!confirm(note ? 'Send this note and mark thread as Done?' : 'Mark this thread as Done?')) return;
+            try {
+                const r = await fetch(`/api/admin/inbox/threads/${encodeURIComponent(_currentInboxThreadId)}/close`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ note })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    document.getElementById('inbox-reply-body').value = '';
+                    // Refresh thread list + view
+                    loadInboxThreads();
+                    openInboxThread(_currentInboxThreadId, _currentInboxAccountId, document.getElementById('inbox-thread-header').textContent);
+                    if (d.sheet_write && d.sheet_write.success === false) {
+                        alert('Marked done in GAS. Sheet writeback failed: ' + d.sheet_write.error);
+                    }
+                } else {
+                    alert('Failed: ' + (d.error || 'unknown'));
+                }
+            } catch (e) { alert('Failed: ' + e.message); }
         }
 
         async function sendInboxReply() {
