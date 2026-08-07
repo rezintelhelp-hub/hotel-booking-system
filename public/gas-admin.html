@@ -60294,6 +60294,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <span style="color:#6b7280; font-size:0.8rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapedPreview || '<span style="color:#9ca3af;">(empty)</span>'}</span>
                         </div>
                         <div class="gas-inbox-full" style="display:none; margin-top:0.75rem; padding:0.75rem; background:#f9fafb; border-radius:6px; color:#1f2937; white-space:pre-wrap; word-break:break-word; font-size:0.85rem; max-height:480px; overflow-y:auto;">${fullEscapedBody}
+                            ${m.channel === 'google_sheets' ? `
+                            <div style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px dashed #e5e7eb;" onclick="event.stopPropagation();">
+                                <textarea id="sheet-reply-${m.id}" placeholder="Type a reply or note (goes to Karl's sheet reply column)..." style="width:100%; min-height:60px; padding:0.5rem; border:1px solid #d1d5db; border-radius:4px; font-size:0.85rem; resize:vertical;"></textarea>
+                                <div style="display:flex; gap:0.5rem; margin-top:0.5rem; justify-content:flex-end;">
+                                    <button onclick="sheetInboxSendReply(${m.id}, '${m.thread_id}', ${m.account_id})" class="btn" style="background:linear-gradient(135deg,#7c3aed,#5b21b6); color:white; padding:4px 12px; font-size:0.8rem;">✉ Send Reply</button>
+                                    <button onclick="sheetInboxMarkDone(${m.id}, '${m.thread_id}')" class="btn" style="background:#16a34a; color:white; padding:4px 12px; font-size:0.8rem;" title="Sets status='Done' on the sheet + closes thread. Any note above is sent as a final reply.">✓ Mark Done</button>
+                                </div>
+                            </div>` : `
                             <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.75rem; padding-top:0.5rem; border-top:1px dashed #e5e7eb; flex-wrap:wrap; font-size:0.75rem; color:#374151;" onclick="event.stopPropagation();">
                                 <strong>Link this email →</strong>
                                 <select onchange="linkInboxMessageToAccount(${m.id}, this.value)" style="font-size:0.75rem; padding:2px 6px; border-radius:4px; border:1px solid #d1d5db;">
@@ -60303,7 +60311,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <option value="">Supplier…</option>
                                 </select>
                                 <button class="btn btn-secondary" style="font-size:0.7rem; padding:2px 8px;" onclick="toggleInboxPromo(${m.id}, ${!m.is_promo})">${m.is_promo ? 'Unmark promo' : 'Mark promo'}</button>
-                            </div>
+                            </div>`}
                         </div>
                     </div>
                 </div>
@@ -60344,6 +60352,57 @@ const promo = await fetch('/api/v1/offers/validate', {
                     + '<option value="0">— Unlink —</option>'
                     + _inboxSuppliers.map(s => `<option value="${s.id}">${(s.display_name || s.name).replace(/</g,'&lt;')}</option>`).join('');
             }
+        }
+
+        // Send a reply to a google_sheets message from the unified inbox row.
+        // Wraps the same /api/admin/inbox/messages POST that the app-inbox uses,
+        // so the reply gets stored + written to Karl's sheet reply column.
+        async function sheetInboxSendReply(msgId, threadId, accountId) {
+            const ta = document.getElementById('sheet-reply-' + msgId);
+            const body = (ta?.value || '').trim();
+            if (!body) { alert('Type a reply first'); return; }
+            try {
+                const r = await fetch('/api/admin/inbox/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ account_id: accountId, body, thread_id: threadId })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    if (ta) ta.value = '';
+                    showNotification && showNotification('Reply sent — also written to sheet reply column', 'success');
+                    loadMessagesInbox();
+                } else {
+                    alert('Send failed: ' + (d.error || 'unknown'));
+                }
+            } catch (e) { alert('Send failed: ' + e.message); }
+        }
+
+        // Mark a google_sheets thread done. Note in the reply box (if any) gets
+        // sent as a final reply + written to the sheet's reply column, then
+        // 'Done' is written to the sheet's status column and the thread is closed.
+        async function sheetInboxMarkDone(msgId, threadId) {
+            const ta = document.getElementById('sheet-reply-' + msgId);
+            const note = (ta?.value || '').trim();
+            if (!confirm(note ? 'Send this note and mark thread as Done?' : 'Mark this thread as Done?')) return;
+            try {
+                const r = await fetch(`/api/admin/inbox/threads/${encodeURIComponent(threadId)}/close`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ note })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    if (ta) ta.value = '';
+                    showNotification && showNotification('Marked Done — sheet status updated', 'success');
+                    loadMessagesInbox();
+                    if (d.sheet_write && d.sheet_write.success === false) {
+                        alert('Marked done in GAS. Sheet writeback failed: ' + d.sheet_write.error);
+                    }
+                } else {
+                    alert('Failed: ' + (d.error || 'unknown'));
+                }
+            } catch (e) { alert('Failed: ' + e.message); }
         }
 
         async function linkInboxMessageToAccount(msgId, accountIdRaw) {
