@@ -2844,6 +2844,18 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS pre_arrival_notes TEXT`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS access_code VARCHAR(32)`).catch(() => {});
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS access_code_source VARCHAR(24)`);
+      // 2026-08-07 — marker for the Beds24 payment-line sweep. Set each
+      // time runBeds24PaymentItemSweep successfully re-fires
+      // syncBeds24PaymentItem for a booking. The sweep picks up any
+      // booking with a completed payment_transaction newer than this
+      // marker (or where the marker is NULL). Prevents re-scanning
+      // already-reconciled bookings every 30 min. Tracey / Cotswolds
+      // Fran Melville B604123 + B604095 were the trigger — payments
+      // completed in GAS but the setImmediate that fires
+      // syncBeds24PaymentItem post-book failed silently and no cron
+      // existed to catch stranded payments.
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS beds24_last_payment_sync_at TIMESTAMP`).catch(() => {});
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_bookings_beds24_payment_sync ON bookings(beds24_last_payment_sync_at) WHERE beds24_booking_id IS NOT NULL`).catch(() => {});
       console.log('✅ Property Stripe keys columns ensured');
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
@@ -136914,6 +136926,63 @@ async function runBeds24SyncRetry() {
 }
 setTimeout(runBeds24SyncRetry, 7 * 60 * 1000);          // 7 min after boot
 setInterval(runBeds24SyncRetry, 5 * 60 * 1000);         // every 5 min
+
+// Beds24 payment-line sweep — catches bookings where GAS has completed
+// payments that never landed on Beds24 as invoice items. Was a bug
+// class waiting to happen: the setImmediate(syncBeds24PaymentItem)
+// that fires post-book / post-charge is fire-and-forget, and if it
+// errored or the Railway process was recycled mid-flight, the failure
+// vanished. Nothing else picked it up — runBeds24SyncRetry only
+// covers booking-creation, not payment-line pushes. Cotswolds Fran
+// Melville B604123 + B604095 were stranded 24h before Tracey noticed.
+//
+// Marker: bookings.beds24_last_payment_sync_at. Sweep finds bookings
+// where a completed payment_transaction is newer than the marker (or
+// marker is NULL and the payment is < 60 days old for the initial
+// backfill window). Calls the idempotent syncBeds24PaymentItem which
+// is a no-op when Beds24 is already in sync. Stamps the marker on
+// every attempt (success or skipped) so we don't re-scan hot rows.
+async function runBeds24PaymentItemSweep() {
+  try {
+    const due = await pool.query(`
+      SELECT DISTINCT b.id
+        FROM bookings b
+        JOIN payment_transactions pt ON pt.booking_id = b.id
+       WHERE b.beds24_booking_id IS NOT NULL
+         AND pt.status IN ('completed','succeeded')
+         AND pt.transaction_type IN ('deposit','balance','charge','capture','payment')
+         AND pt.amount::numeric > 0.005
+         AND (
+           b.beds24_last_payment_sync_at IS NULL
+             AND pt.created_at > NOW() - interval '60 days'
+           OR b.beds24_last_payment_sync_at < GREATEST(pt.created_at, COALESCE(pt.updated_at, pt.created_at))
+         )
+       ORDER BY b.id
+       LIMIT 100
+    `);
+    if (due.rows.length === 0) return;
+    console.log(`[beds24 payment sweep] scanning ${due.rows.length} bookings`);
+    let synced = 0, skipped = 0, err = 0, pushedLines = 0;
+    for (const r of due.rows) {
+      try {
+        const result = await syncBeds24PaymentItem(r.id);
+        if (result?.pushed?.length) { synced++; pushedLines += result.pushed.length; }
+        else skipped++;
+        await pool.query(`UPDATE bookings SET beds24_last_payment_sync_at = NOW() WHERE id = $1`, [r.id]).catch(() => {});
+        // Small delay between calls so we don't burn Beds24 credits in a burst.
+        await new Promise(rz => setTimeout(rz, 800));
+      } catch (e) {
+        err++;
+        console.error(`[beds24 payment sweep] booking ${r.id}:`, e.message);
+      }
+    }
+    console.log(`[beds24 payment sweep] done: ${synced} synced (${pushedLines} lines pushed), ${skipped} already in sync, ${err} errors`);
+  } catch (e) {
+    console.error('[beds24 payment sweep] cron:', e.message);
+  }
+}
+setTimeout(runBeds24PaymentItemSweep, 10 * 60 * 1000);   // 10 min after boot
+setInterval(runBeds24PaymentItemSweep, 30 * 60 * 1000);  // every 30 min
 
 // GoCardless monthly subscription billing cron. Gated by env so it
 // stays inert until Steve flips GOCARDLESS_CRON_ENABLED=true (after
