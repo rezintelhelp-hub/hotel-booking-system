@@ -17529,6 +17529,26 @@
                     </div>
                 </div>
 
+                <!-- Property Owners — 2026-08-08. Distinct persona from Team
+                     Members: NOT staff of this account, but individual
+                     clients whose property/properties are managed under this
+                     account (e.g. EasyLandlord has 60 gîte owners each with
+                     1+ units). Each owner is a full sub-account with its
+                     own login. Property-scope query filters by
+                     properties.owner_account_id when they sign in. -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <h3 class="card-title">🏡 Property Owners</h3>
+                            <p style="color:#64748b; font-size:0.85rem; margin:0.25rem 0 0;">Individual owners whose properties you manage under this account. Each gets their own login and sees only their own units.</p>
+                        </div>
+                        <button class="btn" onclick="openAddOwnerModal()" style="background:linear-gradient(135deg,#059669 0%,#047857 100%); white-space:nowrap;">+ Add Owner</button>
+                    </div>
+                    <div id="owners-list" style="padding:0.5rem 0;">
+                        <div style="padding:2rem; text-align:center; color:#94a3b8;">Loading owners…</div>
+                    </div>
+                </div>
+
                 <!-- Email Setup — branded sender domain via Mailgun -->
                 <div class="card" style="margin-top: 1.5rem;">
                     <div class="card-header">
@@ -35774,7 +35794,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             // Load data for specific views
             if (viewName === 'dashboard') { loadDashboard().catch(() => {}); loadDashboardHealth(); }
-            if (viewName === 'my-account') { loadMyAccount(); loadTeam(); }
+            if (viewName === 'my-account') { loadMyAccount(); loadTeam(); loadOwners(); }
             if (viewName === 'account-settings') loadAccountSettings();
             if (viewName === 'management-requests') loadManagementRequests();
             if (viewName === 'accounts') loadAccounts();
@@ -101747,6 +101767,176 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </tbody>
                 </table>
             `;
+        }
+
+        // ============================================================
+        // PROPERTY OWNERS — sibling to Team Members. 2026-08-08.
+        // Sub-account persona: NOT staff, but the actual property owner
+        // whose unit is managed under this account (aggregator model).
+        // Own login, sees own units only.
+        // ============================================================
+        let _owners = [];
+        let _ownerPropertyPool = [];
+
+        async function loadOwners() {
+            const wrap = document.getElementById('owners-list');
+            if (!wrap) return;
+            wrap.innerHTML = '<div style="padding:2rem; text-align:center; color:#94a3b8;">Loading owners…</div>';
+            try {
+                const isMaster = currentAccount && currentAccount.role === 'master_admin';
+                const scopeId = isMaster && typeof selectedAccountId !== 'undefined' && selectedAccountId ? selectedAccountId : null;
+                const url = scopeId ? '/api/owners?account_id=' + scopeId : '/api/owners';
+                const r = await fetch(url, { headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success) {
+                    wrap.innerHTML = `<div style="padding:2rem; color:#dc2626;">Load failed: ${(d.error||'unknown').replace(/</g,'&lt;')}</div>`;
+                    return;
+                }
+                _owners = d.owners || [];
+                renderOwners();
+            } catch (e) {
+                wrap.innerHTML = `<div style="padding:2rem; color:#dc2626;">Load failed: ${e.message}</div>`;
+            }
+        }
+
+        function renderOwners() {
+            const wrap = document.getElementById('owners-list');
+            if (!wrap) return;
+            if (_owners.length === 0) {
+                wrap.innerHTML = `
+                    <div style="padding:3rem; text-align:center; color:#475569;">
+                        <div style="font-size:2.5rem; margin-bottom:0.75rem;">🏡</div>
+                        <h3 style="margin:0 0 0.5rem; color:#1e293b;">No property owners yet</h3>
+                        <p style="margin:0 0 1.5rem; color:#64748b;">Add an owner and assign the units they own — they'll get their own login and see only those units.</p>
+                        <button class="btn" onclick="openAddOwnerModal()" style="background:linear-gradient(135deg,#059669 0%,#047857 100%);">+ Add Owner</button>
+                    </div>`;
+                return;
+            }
+            wrap.innerHTML = `
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead style="background:#f8fafc;">
+                        <tr>
+                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Name</th>
+                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Email</th>
+                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Properties</th>
+                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Last login</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${_owners.map(o => `
+                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:0.7rem 1rem; font-weight:600; color:#1e293b;">${(o.name || '').replace(/</g,'&lt;') || '—'}</td>
+                                <td style="padding:0.7rem 1rem; color:#475569; font-size:0.9rem;">${(o.email || '').replace(/</g,'&lt;')}</td>
+                                <td style="padding:0.7rem 1rem; color:#475569; font-size:0.9rem;">${(o.property_names || []).length ? (o.property_names || []).join(', ').replace(/</g,'&lt;') : '<span style="color:#94a3b8;">— none assigned —</span>'}</td>
+                                <td style="padding:0.7rem 1rem; color:#94a3b8; font-size:0.8rem;">${o.last_login_at ? new Date(o.last_login_at).toLocaleDateString() : 'never'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>`;
+        }
+
+        async function openAddOwnerModal() {
+            // Load property pool for this account (own_only so we don't offer
+            // sub-account properties from other aggregators).
+            const isMaster = currentAccount && currentAccount.role === 'master_admin';
+            const scopeId = isMaster && typeof selectedAccountId !== 'undefined' && selectedAccountId ? selectedAccountId : (currentAccount ? currentAccount.id : null);
+            if (isMaster && !selectedAccountId) {
+                showNotification('Switch into a client account first (header account picker), then add the owner from that account.', 'error');
+                return;
+            }
+            try {
+                const r = await fetch('/api/db/properties?account_id=' + scopeId + '&own_only=true', { headers: authHeaders() });
+                const d = await r.json();
+                _ownerPropertyPool = (d.data || d.properties || d).filter(p => !p.owner_account_id);
+            } catch (e) { _ownerPropertyPool = []; }
+
+            const propRows = _ownerPropertyPool.length
+                ? _ownerPropertyPool.map(p => `
+                    <label style="display:flex; align-items:center; gap:0.5rem; padding:6px 0; border-bottom:1px solid #f1f5f9; cursor:pointer;">
+                        <input type="checkbox" name="owner-add-property" value="${p.id}">
+                        <span style="flex:1;">${(p.name || 'Property #' + p.id).replace(/</g,'&lt;')}</span>
+                        <span style="color:#94a3b8; font-size:0.75rem;">${p.city || ''}</span>
+                    </label>`).join('')
+                : '<p style="color:#94a3b8; font-size:0.85rem; padding:0.5rem; text-align:center;">No unassigned properties available. Every property on this account already has an owner or none exist yet.</p>';
+
+            const modal = document.createElement('div');
+            modal.id = 'add-owner-modal';
+            modal.className = 'modal';
+            modal.style.display = 'flex';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width:560px; width:95%;">
+                    <div class="modal-header">
+                        <h2>Add Property Owner</h2>
+                        <span class="modal-close" onclick="document.getElementById('add-owner-modal').remove()">×</span>
+                    </div>
+                    <div style="padding:1.5rem;">
+                        <p style="margin:0 0 1rem; color:#64748b; font-size:0.9rem;">Creates a new login for the owner. They'll see only the properties you assign below — no access to your other clients' properties, staff, or billing.</p>
+                        <div class="form-group">
+                            <label class="form-label">Full name <span style="color:#dc2626;">*</span></label>
+                            <input type="text" id="owner-add-name" class="form-input" placeholder="e.g. Marco Rossi">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Email <span style="color:#dc2626;">*</span></label>
+                            <input type="email" id="owner-add-email" class="form-input" placeholder="marco@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Phone <small style="color:#64748b;">(optional)</small></label>
+                            <input type="tel" id="owner-add-phone" class="form-input" placeholder="+44 7700 900000">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Properties this owner owns</label>
+                            <div style="padding:0.5rem 0.75rem; border:1px solid #e5e7eb; border-radius:8px; max-height:220px; overflow-y:auto;">${propRows}</div>
+                            <p style="margin:0.4rem 0 0; color:#64748b; font-size:0.8rem;">Tick each unit they own. Only unassigned properties appear here — an owner can own multiple, and a property can only have one owner at a time.</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Initial password <small style="color:#64748b;">(leave blank to auto-generate)</small></label>
+                            <div style="display:flex; gap:0.5rem;">
+                                <input type="text" id="owner-add-password" class="form-input" placeholder="Type a password, or click 🎲 Generate" style="font-family: ui-monospace, monospace; flex:1;">
+                                <button type="button" onclick="var pw=''; var chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; var buf=new Uint8Array(12); (window.crypto||window.msCrypto).getRandomValues(buf); for(var i=0;i<12;i++) pw+=chars[buf[i]%chars.length]; document.getElementById('owner-add-password').value=pw;" class="btn" style="background:#f1f5f9; color:#1e293b; white-space:nowrap;">🎲 Generate</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                                <input type="checkbox" id="owner-add-send-email" checked>
+                                <span>Also email now — send the login + magic set-password link</span>
+                            </label>
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
+                            <button class="btn" onclick="document.getElementById('add-owner-modal').remove()" style="background:#f1f5f9; color:#1e293b;">Cancel</button>
+                            <button class="btn" onclick="saveNewOwner()" style="background:linear-gradient(135deg,#059669 0%,#047857 100%);">Add Owner</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+        }
+
+        async function saveNewOwner() {
+            const name = document.getElementById('owner-add-name').value.trim();
+            const email = document.getElementById('owner-add-email').value.trim();
+            const phone = document.getElementById('owner-add-phone').value.trim();
+            const password = document.getElementById('owner-add-password').value;
+            const sendEmail = document.getElementById('owner-add-send-email')?.checked !== false;
+            const property_ids = Array.from(document.querySelectorAll('input[name="owner-add-property"]:checked')).map(el => parseInt(el.value)).filter(Number.isFinite);
+            if (!name || !email) { showNotification('Name and email are required', 'error'); return; }
+
+            const isMaster = currentAccount && currentAccount.role === 'master_admin';
+            const scopeId = isMaster && typeof selectedAccountId !== 'undefined' && selectedAccountId ? selectedAccountId : null;
+            const url = scopeId ? '/api/owners?account_id=' + scopeId : '/api/owners';
+            try {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ name, email, phone, password, property_ids, send_credentials: sendEmail })
+                });
+                const d = await r.json();
+                if (!d.success) { showNotification('Add failed: ' + (d.error || 'unknown'), 'error'); return; }
+                document.getElementById('add-owner-modal').remove();
+                showCredentialsModal({ name, email, password: d.password, action: 'Owner added', emailSent: d.email_sent === true });
+                if (sendEmail && d.email_sent === false) {
+                    showNotification('Owner added but the credentials email failed: ' + (d.email_error || 'unknown'), 'warning');
+                }
+                await loadOwners();
+            } catch (e) { showNotification('Add failed: ' + e.message, 'error'); }
         }
 
         async function openAddTeamMemberModal() {

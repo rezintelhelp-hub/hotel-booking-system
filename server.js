@@ -55714,13 +55714,23 @@ app.get('/api/db/properties', async (req, res) => {
           ORDER BY COALESCE(p.portfolio_order, 999999), p.name
         `, [accountId]);
       } else if (parentId) {
-        // Sub-account: include own properties + the parent's.
+        // Sub-account with parent: include own properties + the parent's.
         result = await pool.query(
           'SELECT * FROM properties WHERE account_id = ANY($1::int[]) ORDER BY COALESCE(portfolio_order, 999999), name',
           [[parseInt(accountId), parentId]]
         );
       } else {
-        result = await pool.query('SELECT * FROM properties WHERE account_id = $1 ORDER BY COALESCE(portfolio_order, 999999), name', [accountId]);
+        // Standalone OR property-owner sub-account (managed_by_id points at
+        // an aggregator but they hold no properties in account_id). Owners
+        // see only the units they own via properties.owner_account_id.
+        // 2026-08-08 — added for the aggregator property-owner persona
+        // (EasyLandlord's individual gîte owners).
+        result = await pool.query(
+          `SELECT * FROM properties
+            WHERE account_id = $1 OR owner_account_id = $1
+            ORDER BY COALESCE(portfolio_order, 999999), name`,
+          [accountId]
+        );
       }
     } else if (clientId) {
       result = await pool.query('SELECT * FROM properties WHERE client_id = $1 ORDER BY COALESCE(portfolio_order, 999999), name', [clientId]);
@@ -117542,6 +117552,192 @@ app.get('/api/team/scope-options', async (req, res) => {
     );
     res.json({ success: true, properties: p.rows });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// =========================================================
+// PROPERTY OWNERS — sub-account persona (2026-08-08)
+// A "property owner" is an accounts row with managed_by_id pointing at
+// an aggregator (e.g. EasyLandlord). They own one or more of the
+// aggregator's units via properties.owner_account_id. On login they see
+// only their own units — the /api/db/properties query at server.js:55700+
+// picks them up via the WHERE ... OR owner_account_id = self branch.
+//
+// These endpoints let an aggregator (or master admin operating on their
+// behalf) list and create owner sub-accounts. Credentials reuse the same
+// magic-link flow that Team Members use (buildCredentialsEmail +
+// generateTeamMemberResetToken adapted for accounts — but for the owner
+// persona the account IS the login so we generate an account-level reset
+// token via the existing /api/accounts/forgot-password infra).
+// =========================================================
+
+// Resolve which account we're operating on behalf of. Same rules as team
+// endpoints: master/agency can pass ?account_id=; client is pinned to
+// their own account.
+function resolveOwnersAccountId(user, req) {
+  return resolveTeamAccountId(user, req);
+}
+
+// GET /api/owners — list every accounts row where managed_by_id = current
+// account. Includes the property_ids each owner holds (via
+// properties.owner_account_id) for the UI's summary line.
+app.get('/api/owners', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res); if (!user) return;
+    const accountId = resolveOwnersAccountId(user, req);
+    if (!accountId) return res.status(400).json({ success: false, error: 'No account in scope' });
+    const r = await pool.query(`
+      SELECT o.id, o.name, o.email, o.phone, o.contact_name, o.status,
+             o.last_login_at, o.created_at,
+             COALESCE(
+               (SELECT array_agg(p.id ORDER BY p.name) FROM properties p WHERE p.owner_account_id = o.id),
+               '{}'::int[]
+             ) AS property_ids,
+             COALESCE(
+               (SELECT array_agg(p.name ORDER BY p.name) FROM properties p WHERE p.owner_account_id = o.id),
+               '{}'::text[]
+             ) AS property_names
+        FROM accounts o
+       WHERE o.managed_by_id = $1
+       ORDER BY o.name
+    `, [accountId]);
+    res.json({ success: true, owners: r.rows });
+  } catch (e) {
+    console.error('[owners GET]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/owners — create a property-owner sub-account under the current
+// account. Sets managed_by_id, optionally assigns owner_account_id on the
+// picked properties, and optionally emails credentials (temp password +
+// magic set-password link, 24h expiry).
+app.post('/api/owners', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const user = await authenticateUser(req, res); if (!user) { client.release(); return; }
+    const aggregatorAccountId = resolveOwnersAccountId(user, req);
+    if (!aggregatorAccountId) return res.status(400).json({ success: false, error: 'No account in scope' });
+
+    const name = (req.body?.name || '').trim();
+    const email = (req.body?.email || '').trim().toLowerCase();
+    const phone = (req.body?.phone || '').trim() || null;
+    const contact_name = (req.body?.contact_name || '').trim() || null;
+    const property_ids = Array.isArray(req.body?.property_ids)
+      ? req.body.property_ids.map(Number).filter(Number.isFinite)
+      : [];
+    if (!name)  return res.status(400).json({ success: false, error: 'Name is required' });
+    if (!email) return res.status(400).json({ success: false, error: 'Email is required' });
+
+    // Password — owner-supplied or auto-generated. sha256 to match the
+    // existing accounts.password_hash convention (see POST /api/accounts).
+    let plainPassword = (req.body?.password || '').trim();
+    if (!plainPassword) plainPassword = generateTempPassword();
+    if (plainPassword.length < 8) return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+    const passwordHash = crypto.createHash('sha256').update(plainPassword).digest('hex');
+
+    await client.query('BEGIN');
+
+    // Guard: don't clobber an existing accounts row on that email.
+    const dup = await client.query('SELECT id, managed_by_id, name FROM accounts WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+    if (dup.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, error: `An account already exists for ${email} (${dup.rows[0].name || 'no name'}). Use "Reassign existing owner" instead.` });
+    }
+
+    // Guard: every picked property must belong to the aggregator or be
+    // already-owned via owner_account_id back at them. Prevents an
+    // aggregator from stealing another aggregator's property.
+    if (property_ids.length) {
+      const owned = await client.query(
+        `SELECT id FROM properties WHERE id = ANY($1::int[]) AND (account_id = $2 OR owner_account_id IS NULL)`,
+        [property_ids, aggregatorAccountId]
+      );
+      if (owned.rows.length !== property_ids.length) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ success: false, error: 'One or more properties are not yours to assign' });
+      }
+    }
+
+    // Create the owner account. role='admin' + managed_by_id = aggregator.
+    const ins = await client.query(`
+      INSERT INTO accounts (name, email, phone, contact_name, role, status, password_hash, managed_by_id, created_at)
+      VALUES ($1, $2, $3, $4, 'admin', 'active', $5, $6, NOW())
+      RETURNING id, name, email
+    `, [name, email, phone, contact_name, passwordHash, aggregatorAccountId]);
+    const ownerId = ins.rows[0].id;
+
+    // Assign owner_account_id on the picked properties.
+    if (property_ids.length) {
+      await client.query(
+        `UPDATE properties SET owner_account_id = $1, updated_at = NOW() WHERE id = ANY($2::int[])`,
+        [ownerId, property_ids]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    // Optional credentials email — mirrors the team_members flow. Uses the
+    // shared password_reset_tokens table for the magic link (account_id
+    // branch since owners ARE accounts).
+    let emailSent = false;
+    let emailError = null;
+    if (req.body?.send_credentials === true) {
+      try {
+        const aggR = await pool.query('SELECT name FROM accounts WHERE id = $1', [aggregatorAccountId]);
+        const aggregatorName = aggR.rows[0]?.name || 'GAS';
+        // Generate a 24h magic reset token bound to this accounts row.
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await pool.query(
+          `INSERT INTO password_reset_tokens (account_id, token, expires_at) VALUES ($1, $2, $3)`,
+          [ownerId, resetToken, expiresAt]
+        );
+        const base = process.env.GAS_ADMIN_URL || 'https://admin.gas.travel';
+        const resetUrl = `${base.replace(/\/$/, '')}/reset-password.html?token=${resetToken}`;
+        const loginUrl = base;
+        const html = buildCredentialsEmail({
+          memberName: name,
+          memberEmail: email,
+          password: plainPassword,
+          roleLabel: 'Property Owner',
+          accountName: aggregatorName,
+          loginUrl,
+          resetUrl
+        });
+        const sendResult = await sendEmail({
+          to: email,
+          subject: `Welcome to ${aggregatorName}`,
+          html,
+          accountId: aggregatorAccountId,
+          context: {
+            accountId: aggregatorAccountId,
+            eventType: 'owner_credentials',
+            autoCreateGuest: false,
+            metadata: { owner_account_id: ownerId, aggregator_account_id: aggregatorAccountId }
+          }
+        });
+        if (sendResult.success !== false) emailSent = true;
+        else emailError = sendResult.error || 'send returned success:false';
+      } catch (e) {
+        emailError = e.message;
+        console.warn('[owners POST send_credentials]', e.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      owner: { id: ownerId, name, email, property_ids },
+      password: plainPassword,
+      email_sent: emailSent,
+      email_error: emailError
+    });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[owners POST]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  } finally {
+    client.release();
+  }
 });
 
 app.get('/api/team', async (req, res) => {

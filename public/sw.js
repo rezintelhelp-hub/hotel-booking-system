@@ -3,7 +3,7 @@
 // at least opens to a familiar screen on a flaky connection.
 // Cache version: bump the integer to force every installed PWA to
 // throw away its old cache on next visit.
-const CACHE_VERSION = 'gas-admin-v104-20260808k';
+const CACHE_VERSION = 'gas-admin-v105-20260808l';
 const SHELL_ASSETS = [
     '/gas-admin.html',
     '/gas-compass-color.png',
