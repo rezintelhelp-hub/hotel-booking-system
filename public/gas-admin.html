@@ -60290,7 +60290,14 @@ const promo = await fetch('/api/v1/offers/validate', {
             const rawBodyForRow = (m.body || '');
             const wasTruncated = rawBodyForRow.length > BODY_RENDER_CAP;
             const bodyForRender = wasTruncated ? rawBodyForRow.slice(0, BODY_RENDER_CAP) : rawBodyForRow;
-            const fullEscapedBody = bodyForRender.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+            // Escape then linkify. Escape first so any hostile input can't
+            // slip HTML through the linkifier; linkifier only matches
+            // http/https/mailto URLs so it can't over-match.
+            const _linkify = (esc) => esc.replace(
+                /(https?:\/\/[^\s<>"]+|mailto:[^\s<>"]+)/g,
+                '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#2563eb; text-decoration:underline; word-break:break-all;">$1</a>'
+            );
+            const fullEscapedBody = _linkify(bodyForRender.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])))
                 + (wasTruncated ? `<div style="margin-top:8px; padding:6px 10px; background:#fef3c7; color:#78350f; font-size:0.75rem; border-radius:4px;">⋯ Body truncated (${Math.round(rawBodyForRow.length/1024)}KB total, first 8KB shown). Long bodies are usually promo/marketing — full text available in Gmail.</div>` : '');
             const created = new Date(m.created_at).toLocaleString();
             const directionLabel = isInbound ? 'IN' : 'OUT';
@@ -60409,7 +60416,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         const border = isReplyFromUs ? '#3b82f6' : '#7c3aed';
                                         const who = isReplyFromUs ? (x.from_name || 'GAS') : (x.from_name || 'Client');
                                         const when = new Date(x.created_at).toLocaleString();
-                                        const body = (x.body || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+                                        const body = _linkify((x.body || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])));
                                         return `<div style="background:${bg}; border-left:3px solid ${border}; padding:0.5rem 0.75rem; margin-bottom:0.4rem; border-radius:4px;">
                                             <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#64748b; margin-bottom:0.25rem;">
                                                 <strong>${isReplyFromUs ? '↩ ' : '→ '}${escapeHtml(who)}</strong>
