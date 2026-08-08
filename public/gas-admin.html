@@ -41659,9 +41659,17 @@ const promo = await fetch('/api/v1/offers/validate', {
         // ALL cloned copies. Save afterwards to persist the blank on the
         // server. `section` is the id-prefix key (e.g. 'services-bg'), so it
         // targets wb-services-bg-image, -image-url, -image-preview.
+        // CRITICAL: server-side merge preserves image/url/logo fields when
+        // an empty string is sent, UNLESS the field's key is in the request
+        // body's clear_keys[] array. saveWebsiteSection builds clear_keys[]
+        // from every input carrying data-cleared="1", so we mark the URL
+        // input here — otherwise the empty save gets silently ignored.
         function clearWbSectionImage(section, placeholder) {
             const label = placeholder || 'No image';
-            document.querySelectorAll(`[id="wb-${section}-image-url"]`).forEach(el => { el.value = ''; });
+            document.querySelectorAll(`[id="wb-${section}-image-url"]`).forEach(el => {
+                el.value = '';
+                el.setAttribute('data-cleared', '1');
+            });
             document.querySelectorAll(`[id="wb-${section}-image"]`).forEach(el => { if (el.type === 'file') el.value = ''; });
             document.querySelectorAll(`[id="wb-${section}-image-preview"]`).forEach(el => {
                 el.style.backgroundImage = '';
