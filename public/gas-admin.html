@@ -60259,8 +60259,17 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function renderInboxRow(m, threadMessages) {
-            const channelEmoji = { whatsapp: '💬', email: '📧', facebook: '📘' }[m.channel] || '✉️';
-            const isInbound = m.direction === 'inbound';
+            const channelEmoji = { whatsapp: '💬', email: '📧', facebook: '📘', google_sheets: '📊' }[m.channel] || '✉️';
+            // Direction normalisation: two conventions live in inbox_messages —
+            //   long form ('inbound'/'outbound') from webhook ingest
+            //   short form ('in'/'out') from app-inbox + sheet imports where
+            //     'out' means "client sent it to us" and 'in' means "we replied"
+            // From the operator's perspective in this unified view, IN =
+            // arrived to us from outside, OUT = we sent it. So map:
+            //   'inbound' → IN,  'outbound' → OUT
+            //   'out'     → IN,  'in'       → OUT   (short form is inverted!)
+            const _dir = String(m.direction || '').toLowerCase();
+            const isInbound = _dir === 'inbound' || _dir === 'out';
             const unread = m.status === 'unread' && isInbound;
             const sideColor = isInbound ? '#22c55e' : '#3b82f6';
             // Body preview: strip quoted-reply chains (lines starting with >),

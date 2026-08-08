@@ -6,15 +6,15 @@ const p = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUn
 
 (async () => {
   const r = await p.query(`
-    SELECT id, thread_id, direction, from_name, subject, status, conversation_type,
+    SELECT id, channel, thread_id, direction, from_name, subject, status, conversation_type,
            replied_at, created_at,
            metadata->>'sheet_status' AS sheet_status,
            metadata->>'sheet_row' AS sheet_row,
            metadata->'column_map'->>'status' AS map_status_col,
            SUBSTRING(body FROM 1 FOR 60) AS body_preview
       FROM inbox_messages
-     WHERE channel = 'google_sheets' AND account_id = 230
-     ORDER BY thread_id, created_at`);
+     WHERE account_id = 230
+     ORDER BY thread_id NULLS LAST, created_at`);
 
   console.log('total rows:', r.rows.length);
   console.log('unique threads:', new Set(r.rows.map(x => x.thread_id)).size);
@@ -32,8 +32,8 @@ const p = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUn
   console.log('');
   console.log('per-row:');
   for (const row of r.rows) {
-    const t8 = (row.thread_id || '').slice(-8);
-    console.log(`  id=${row.id} t=…${t8} dir=${row.direction} conv=${row.conversation_type} row=${row.sheet_row} status='${row.sheet_status || '(blank)'}' mapH=${row.map_status_col} replied=${row.replied_at ? 'Y' : '-'} subj="${(row.subject || '').slice(0, 40)}"`);
+    const t8 = (row.thread_id || 'NULL').slice(-8);
+    console.log(`  id=${row.id} ch=${row.channel} t=…${t8} dir=${row.direction} conv=${row.conversation_type} row=${row.sheet_row || '-'} status='${row.sheet_status || '(blank)'}' from="${(row.from_name || '').slice(0, 20)}" subj="${(row.subject || row.body_preview || '').slice(0, 40)}"`);
   }
   await p.end();
 })().catch(e => { console.error(e.message); process.exit(1); });
