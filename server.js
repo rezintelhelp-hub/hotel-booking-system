@@ -121086,7 +121086,7 @@ app.post('/api/admin/inbox/messages', async (req, res) => {
   try {
     const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
-    const { account_id, body, subject, thread_id: threadIdIn } = req.body;
+    const { account_id, body, subject, thread_id: threadIdIn, sheet_status } = req.body;
     if (!account_id || !body) return res.json({ success: false, error: 'account_id and body required' });
 
     const senderId = decoded.id || decoded.accountId;
@@ -121151,7 +121151,25 @@ app.post('/api/admin/inbox/messages', async (req, res) => {
           [threadIdIn]
         );
         if (origR.rows[0]) {
-          await writeReplyToClientSheet(origR.rows[0].id, body);
+          // Only write to the sheet's Reply column when the operator actually
+          // typed a reply. '(status update)' is the sentinel the frontend
+          // sends for status-only saves — don't overwrite Karl's Reply column
+          // with that.
+          if (body && body !== '(status update)') {
+            await writeReplyToClientSheet(origR.rows[0].id, body);
+          }
+          // Optional status change — writes to the sheet's Status column.
+          // 2026-08-08 — Steve asked for the reply UI to also set status so
+          // he can mark items "In Progress" / "Pending Dev" / etc. without
+          // hitting Mark Done (which closes the thread).
+          if (sheet_status && String(sheet_status).trim() && typeof writeStatusToClientSheet === 'function') {
+            try {
+              const sw = await writeStatusToClientSheet(origR.rows[0].id, String(sheet_status).trim());
+              if (!sw?.success) console.warn('[inbox reply → sheet status]', sw?.error);
+            } catch (e) {
+              console.warn('[inbox reply → sheet status]', e.message);
+            }
+          }
         }
       } catch (e) {
         console.warn('[inbox reply → sheet writeback]', e.message);
@@ -121163,6 +121181,17 @@ app.post('/api/admin/inbox/messages', async (req, res) => {
         `UPDATE inbox_messages SET replied_at = NOW(), status = 'replied' WHERE thread_id = $1 AND id != $2 AND direction = 'out' AND replied_at IS NULL`,
         [threadIdIn, result.rows[0].id]
       ).catch(() => {});
+      // If a status was set alongside the reply, update the metadata on the
+      // original row too so the UI shows the new status right away (without
+      // having to wait for the next sheet sync tick to pull it back).
+      if (sheet_status && String(sheet_status).trim()) {
+        await pool.query(
+          `UPDATE inbox_messages
+              SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{sheet_status}', to_jsonb($2::text))
+            WHERE thread_id = $1 AND direction = 'out'`,
+          [threadIdIn, String(sheet_status).trim()]
+        ).catch(() => {});
+      }
     }
 
     res.json({ success: true, message: result.rows[0] });
