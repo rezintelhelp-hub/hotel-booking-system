@@ -60315,8 +60315,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Sheet status chip — colour-coded from the client's own status
             // column (Open / In Progress / Done / Blocked / etc). We keep the
             // classifier permissive so unfamiliar values still surface as a
-            // grey badge rather than being swallowed.
-            const sheetStatus = m.metadata && m.metadata.sheet_status ? String(m.metadata.sheet_status).trim() : '';
+            // grey badge rather than being swallowed. Defensive parse in case
+            // some client returns metadata as a JSON string instead of object.
+            let _meta = m.metadata;
+            if (typeof _meta === 'string') { try { _meta = JSON.parse(_meta); } catch { _meta = null; } }
+            const sheetStatus = _meta && _meta.sheet_status ? String(_meta.sheet_status).trim() : '';
             const statusChip = (() => {
                 if (sheetStatus) {
                     const norm = sheetStatus.toLowerCase();
@@ -60331,7 +60334,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // there's no coloured chip: is the sheet missing a Status
                 // column, or is the value just blank on this row?
                 if (m.channel === 'google_sheets') {
-                    const hasStatusCol = m.metadata && m.metadata.column_map && m.metadata.column_map.status;
+                    const hasStatusCol = _meta && _meta.column_map && _meta.column_map.status;
                     if (!hasStatusCol) {
                         return `<span title="No 'Status' column detected in the sheet header — add one to enable Open/In Progress/Done chips" style="background:#fef3c7; color:#92400e; font-size:0.65rem; padding:1px 6px; border-radius:4px; font-weight:600;">⚠ No status col</span>`;
                     }
