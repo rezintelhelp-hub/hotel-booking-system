@@ -9556,7 +9556,7 @@
                                         </div>
                                         <input type="file" id="wb-services-bg-image" accept="image/*" onchange="previewWebsiteImage('services-bg')" style="font-size: 0.75rem;">
                                         <button type="button" onclick="openMediaPicker(function(url){document.getElementById('wb-services-bg-image-url').value=url;var p=document.getElementById('wb-services-bg-image-preview');if(p){p.style.backgroundImage='url('+url+')';var s=p.querySelector('span');if(s)s.style.display='none';}})" style="margin-top:6px;padding:6px 10px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.75rem;">📁 Choose from Library</button>
-                                        <button type="button" onclick="var u=document.getElementById('wb-services-bg-image-url');if(u)u.value='';var f=document.getElementById('wb-services-bg-image');if(f)f.value='';var p=document.getElementById('wb-services-bg-image-preview');if(p){p.style.backgroundImage='';var s=p.querySelector('span');if(s){s.style.display='';s.textContent='No background image';}}" style="margin-top:6px;margin-left:6px;padding:6px 10px;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:6px;cursor:pointer;font-size:0.75rem;" title="Clear the background wallpaper (Save afterwards to persist)">× Remove Wallpaper</button>
+                                        <button type="button" onclick="clearWbSectionImage('services-bg', 'No background image')" style="margin-top:6px;margin-left:6px;padding:6px 10px;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:6px;cursor:pointer;font-size:0.75rem;" title="Clear the background wallpaper (Save afterwards to persist)">× Remove Wallpaper</button>
                                         <input type="hidden" id="wb-services-bg-image-url">
                                         <small class="form-hint">Optional wallpaper behind the services grid. Click Remove then Save to clear.</small>
                                         <div style="margin-top: 12px;">
@@ -41653,6 +41653,24 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) {
                 showNotification('⚠ ' + e.message, 'error');
             }
+        }
+
+        // Clear a Web Builder image field (URL + file input + preview) across
+        // ALL cloned copies. Save afterwards to persist the blank on the
+        // server. `section` is the id-prefix key (e.g. 'services-bg'), so it
+        // targets wb-services-bg-image, -image-url, -image-preview.
+        function clearWbSectionImage(section, placeholder) {
+            const label = placeholder || 'No image';
+            document.querySelectorAll(`[id="wb-${section}-image-url"]`).forEach(el => { el.value = ''; });
+            document.querySelectorAll(`[id="wb-${section}-image"]`).forEach(el => { if (el.type === 'file') el.value = ''; });
+            document.querySelectorAll(`[id="wb-${section}-image-preview"]`).forEach(el => {
+                el.style.backgroundImage = '';
+                // Preview may have been left empty after upload (innerHTML wiped)
+                // OR still contain a <span>No image</span>. Rebuild the span so
+                // the empty state is legible again.
+                el.innerHTML = `<span style="color:#94a3b8;">${label}</span>`;
+            });
+            if (typeof showNotification === 'function') showNotification('Wallpaper cleared — click Save to persist', 'info');
         }
 
         async function previewWebsiteImage(section) {
