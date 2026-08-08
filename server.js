@@ -3401,6 +3401,24 @@ async function runMigrations() {
       // Phase 2 login wiring — flag stored now so backfill isn't needed later).
       try { await pool.query(`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT true`); } catch (e) { console.error('[migration] team_members.must_change_password skipped:', e.message); }
       try { await pool.query(`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS credentials_sent_at TIMESTAMP`); } catch (e) { console.error('[migration] team_members.credentials_sent_at skipped:', e.message); }
+      // password_reset_tokens gets a team_member_id branch so the shared
+      // /api/accounts/reset-password endpoint can also service the "Set your
+      // own password now" magic link included in credentials emails. The
+      // table itself is created lazily by /api/accounts/forgot-password, so
+      // ensure it exists here first for the ALTER to have something to hit.
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+            token VARCHAR(255) UNIQUE NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            used BOOLEAN DEFAULT false,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+        await pool.query(`ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS team_member_id INTEGER REFERENCES team_members(id) ON DELETE CASCADE`);
+      } catch (e) { console.error('[migration] password_reset_tokens team_member_id skipped:', e.message); }
 
       // Track which team_assignment a session belongs to, so /api/accounts/me
       // can reconstruct the team-member context (role + property scope) on
@@ -21854,41 +21872,55 @@ app.get('/api/accounts/validate-reset-token/:token', async (req, res) => {
 app.post('/api/accounts/reset-password', async (req, res) => {
   try {
     const { token, password, confirm_password } = req.body;
-    
+
     if (!token || !password || !confirm_password) {
       return res.json({ success: false, error: 'All fields required' });
     }
-    
+
     if (password !== confirm_password) {
       return res.json({ success: false, error: 'Passwords do not match' });
     }
-    
+
     if (password.length < 8) {
       return res.json({ success: false, error: 'Password must be at least 8 characters' });
     }
-    
-    // Find valid token
+
+    // Find valid token — same table serves both accounts (sha256, legacy) and
+    // team_members (bcrypt, current). team_member_id column added 2026-08-08
+    // for the "Or set your own password now" magic link in credentials email.
     const tokenResult = await pool.query(`
-      SELECT account_id FROM password_reset_tokens 
+      SELECT account_id, team_member_id FROM password_reset_tokens
       WHERE token = $1 AND expires_at > NOW() AND used = false
     `, [token]);
-    
+
     if (tokenResult.rows.length === 0) {
       return res.json({ success: false, error: 'Invalid or expired reset link. Please request a new one.' });
     }
-    
+
     const accountId = tokenResult.rows[0].account_id;
-    
-    // Hash and set new password
-    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-    await pool.query('UPDATE accounts SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, accountId]);
-    
+    const teamMemberId = tokenResult.rows[0].team_member_id;
+
+    if (teamMemberId) {
+      // Team-member path — bcrypt hash + clear must_change_password so they
+      // don't get force-changed again on first login after using the magic link.
+      const bcrypt = require('bcryptjs');
+      const passwordHash = await bcrypt.hash(password, 10);
+      await pool.query(
+        `UPDATE team_members SET password_hash = $1, must_change_password = false, updated_at = NOW() WHERE id = $2`,
+        [passwordHash, teamMemberId]
+      );
+    } else {
+      // Legacy accounts path — sha256 hash on accounts table.
+      const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+      await pool.query('UPDATE accounts SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, accountId]);
+      // Clear any existing sessions for security (only for accounts — team_members
+      // don't have an equivalent multi-session table)
+      await pool.query('DELETE FROM account_sessions WHERE account_id = $1', [accountId]);
+    }
+
     // Mark token as used
     await pool.query('UPDATE password_reset_tokens SET used = true WHERE token = $1', [token]);
-    
-    // Clear any existing sessions for security
-    await pool.query('DELETE FROM account_sessions WHERE account_id = $1', [accountId]);
-    
+
     res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -117443,20 +117475,42 @@ function generateTempPassword() {
 // resolveAccountSender via sendEmail's `accountId` parameter. Plain temp
 // password in a monospace block + login URL + role description + a line
 // reminding them to change it on first login.
-function buildCredentialsEmail({ memberName, memberEmail, password, roleLabel, accountName, loginUrl }) {
+function buildCredentialsEmail({ memberName, memberEmail, password, roleLabel, accountName, loginUrl, resetUrl }) {
+  const resetSection = resetUrl ? `
+      <div style="text-align:center; margin:24px 0;">
+        <a href="${resetUrl}" style="display:inline-block; background:#7c3aed; color:white; padding:12px 28px; text-decoration:none; border-radius:8px; font-weight:600;">Or set your own password now</a>
+        <div style="color:#64748b; font-size:0.8rem; margin-top:8px;">Skip the temporary password — pick your own straight away. Link expires in 24 hours.</div>
+      </div>` : '';
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1e293b;">
       <h2 style="margin: 0 0 16px; color: #0f172a;">Welcome to ${accountName}</h2>
       <p style="line-height: 1.6;">Hi ${memberName || 'there'},</p>
-      <p style="line-height: 1.6;">You've been added to <strong>${accountName}</strong> on GAS as <strong>${roleLabel}</strong>. Here are your login details:</p>
+      <p style="line-height: 1.6;">You've been added to <strong>${accountName}</strong> on GAS as <strong>${roleLabel}</strong>. Two ways to sign in:</p>
       <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0; font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 0.95rem;">
         <div style="margin-bottom: 8px;"><strong style="color: #475569;">Email:</strong> ${memberEmail}</div>
         <div><strong style="color: #475569;">Password:</strong> <span style="background: #fef3c7; padding: 2px 6px; border-radius: 4px;">${password}</span></div>
       </div>
-      <p style="line-height: 1.6;">Sign in at <a href="${loginUrl}" style="color: #2563eb;">${loginUrl}</a>. You'll be asked to set your own password on first login — please pick something memorable to you.</p>
+      <p style="line-height: 1.6;">Sign in at <a href="${loginUrl}" style="color: #2563eb;">${loginUrl}</a> with the password above — you'll be asked to change it on first login.</p>
+      ${resetSection}
       <p style="line-height: 1.6; color: #64748b; font-size: 0.9rem; margin-top: 24px;">If you weren't expecting this, you can ignore this email — no action needed.</p>
     </div>
   `;
+}
+
+// Generate a magic reset link for a team member. Adds a row to
+// password_reset_tokens with team_member_id set (introduced 2026-08-08) —
+// the shared /api/accounts/reset-password endpoint detects the team_member_id
+// branch and updates team_members.password_hash with bcrypt instead of the
+// legacy sha256-on-accounts path.
+async function generateTeamMemberResetToken(memberId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+  await pool.query(
+    `INSERT INTO password_reset_tokens (team_member_id, token, expires_at) VALUES ($1, $2, $3)`,
+    [memberId, token, expiresAt]
+  );
+  const base = process.env.GAS_ADMIN_URL || 'https://admin.gas.travel';
+  return `${base.replace(/\/$/, '')}/reset-password.html?token=${token}`;
 }
 
 // Public role catalog so the UI can build the role dropdown without
@@ -117634,13 +117688,19 @@ app.post('/api/team', async (req, res) => {
           const accountName = acctR.rows[0]?.name || 'GAS';
           const roleLabel = (TEAM_ROLES[role] && TEAM_ROLES[role].label) || role;
           const loginUrl = process.env.GAS_ADMIN_URL || 'https://admin.gas.travel/';
+          // Magic link so the recipient can skip the temp-password step and
+          // set their own password straight away. 24h expiry.
+          let resetUrl = null;
+          try { resetUrl = await generateTeamMemberResetToken(memberRow.id); }
+          catch (e) { console.warn('[team POST reset-token]', e.message); }
           const html = buildCredentialsEmail({
             memberName: full_name || '',
             memberEmail: email,
             password: plainPassword,
             roleLabel,
             accountName,
-            loginUrl
+            loginUrl,
+            resetUrl
           });
           const sendResult = await sendEmail({
             to: email,
@@ -117744,13 +117804,19 @@ app.post('/api/team/:assignment_id/send-credentials', async (req, res) => {
     const loginUrl = process.env.GAS_ADMIN_URL || 'https://admin.gas.travel/';
     let sendResult = { success: true };
     if (shouldEmail) {
+      // Magic link — recipient can bypass typing the temp password and set
+      // their own straight away. 24h expiry.
+      let resetUrl = null;
+      try { resetUrl = await generateTeamMemberResetToken(row.member_id); }
+      catch (e) { console.warn('[team send-credentials reset-token]', e.message); }
       const html = buildCredentialsEmail({
         memberName: row.full_name || '',
         memberEmail: row.email,
         password: plainPassword,
         roleLabel,
         accountName,
-        loginUrl
+        loginUrl,
+        resetUrl
       });
       sendResult = await sendEmail({
         to: row.email,
