@@ -121300,11 +121300,24 @@ app.post('/api/admin/inbox/threads/:threadId/close', async (req, res) => {
 
     // For google_sheets threads, write 'Done' (or custom status_text) to the sheet status column
     let sheetWrite = null;
+    const targetStatus = String(status_text || 'Done').trim();
     if (first.rows[0].channel === 'google_sheets') {
       try {
-        sheetWrite = await writeStatusToClientSheet(first.rows[0].id, status_text || 'Done');
+        sheetWrite = await writeStatusToClientSheet(first.rows[0].id, targetStatus);
       } catch (e) {
         sheetWrite = { success: false, error: e.message };
+      }
+      // On successful sheet write, refresh our local metadata cache so the
+      // chip re-renders immediately without waiting for the next 15-min sync.
+      // 2026-08-08 — Steve reported Mark Done writing to the sheet but the
+      // chip stayed at the old status because metadata was stale.
+      if (sheetWrite?.success) {
+        await pool.query(
+          `UPDATE inbox_messages
+              SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{sheet_status}', to_jsonb($2::text))
+            WHERE thread_id = $1 AND direction = 'out'`,
+          [threadId, targetStatus]
+        ).catch(() => {});
       }
     }
 

@@ -60563,11 +60563,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const d = await r.json();
                 if (d.success) {
                     if (ta) ta.value = '';
-                    showNotification && showNotification('Marked Done — sheet status updated', 'success');
+                    const parts = ['Thread closed in GAS'];
+                    if (d.sheet_write?.success) parts.push('status "Done" → sheet ✓');
+                    else if (d.sheet_write) parts.push(`status → sheet ✗ ${d.sheet_write.error || 'failed'}`);
+                    const okSheet = !d.sheet_write || d.sheet_write.success;
+                    (showNotification && showNotification(parts.join(' | '), okSheet ? 'success' : 'warning'))
+                        || alert(parts.join('\n'));
                     loadMessagesInbox();
-                    if (d.sheet_write && d.sheet_write.success === false) {
-                        alert('Marked done in GAS. Sheet writeback failed: ' + d.sheet_write.error);
-                    }
                 } else {
                     alert('Failed: ' + (d.error || 'unknown'));
                 }
