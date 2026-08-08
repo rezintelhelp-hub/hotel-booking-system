@@ -101843,6 +101843,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                             <p style="margin:0.4rem 0 0; color:#64748b; font-size:0.8rem;">User is forced to set their own password on first login.</p>
                         </div>
+                        <div class="form-group">
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                                <input type="checkbox" id="team-add-send-email" checked>
+                                <span>Also email now — send the login link + password to their inbox</span>
+                            </label>
+                            <p style="margin:0.4rem 0 0; color:#64748b; font-size:0.8rem;">Untick if you'll pass the password via WhatsApp / verbally instead.</p>
+                        </div>
                         <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
                             <button class="btn" onclick="document.getElementById('add-team-modal').remove()" style="background:#f1f5f9; color:#1e293b;">Cancel</button>
                             <button class="btn" onclick="saveNewTeamMember()" style="background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);">Add Member</button>
@@ -101933,6 +101940,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (checked !== defaulted) permissions[cap] = checked;
             }
             const property_ids = collectTeamPropertyScope('team-add-scope-inner');
+            const sendEmail = document.getElementById('team-add-send-email')?.checked !== false;
             try {
                 // Pass ?account_id on the URL when master picked one — the
                 // server's resolveTeamAccountId honours it for master only.
@@ -101940,13 +101948,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const r = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ full_name: name, email, phone, role, password, permissions, property_ids })
+                    body: JSON.stringify({ full_name: name, email, phone, role, password, permissions, property_ids, send_credentials: sendEmail })
                 });
                 const d = await r.json();
                 if (!d.success) { showNotification('Add failed: ' + (d.error || 'unknown'), 'error'); return; }
                 document.getElementById('add-team-modal').remove();
                 // Show the password back to the owner once so they can copy it.
-                showCredentialsModal({ name, email, password: d.password, action: 'Added' });
+                // emailSent tells the modal to say "an email has gone out" (or
+                // to warn if the email step errored while the account was still
+                // created successfully).
+                showCredentialsModal({ name, email, password: d.password, action: 'Added', emailSent: d.email_sent === true });
+                if (sendEmail && d.email_sent === false) {
+                    showNotification('Member added but the credentials email failed: ' + (d.email_error || 'unknown'), 'warning');
+                }
                 await loadTeam();
             } catch (e) { showNotification('Add failed: ' + e.message, 'error'); }
         }

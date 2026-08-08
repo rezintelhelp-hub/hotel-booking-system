@@ -117620,12 +117620,60 @@ app.post('/api/team', async (req, res) => {
         );
       }
       await client.query('COMMIT');
+
+      // Optional: send the credentials email inline so the owner doesn't
+      // have to click a second button. Defaults to false for backwards
+      // compat; the Add Team Member modal ticks the box by default.
+      // Stamps credentials_sent_at only when the email actually goes.
+      // 2026-08-08 — Steve asked for the "Also email now" checkbox on Add.
+      let emailSent = false;
+      let emailError = null;
+      if (req.body?.send_credentials === true) {
+        try {
+          const acctR = await pool.query('SELECT name FROM accounts WHERE id = $1', [accountId]);
+          const accountName = acctR.rows[0]?.name || 'GAS';
+          const roleLabel = (TEAM_ROLES[role] && TEAM_ROLES[role].label) || role;
+          const loginUrl = process.env.GAS_ADMIN_URL || 'https://admin.gas.travel/';
+          const html = buildCredentialsEmail({
+            memberName: full_name || '',
+            memberEmail: email,
+            password: plainPassword,
+            roleLabel,
+            accountName,
+            loginUrl
+          });
+          const sendResult = await sendEmail({
+            to: email,
+            subject: `Welcome to ${accountName} on GAS`,
+            html,
+            accountId,
+            context: {
+              accountId,
+              eventType: 'team_member_credentials',
+              autoCreateGuest: false,
+              metadata: { team_assignment_id: a.rows[0].id, role, first_add: true }
+            }
+          });
+          if (sendResult.success !== false) {
+            emailSent = true;
+            await pool.query(`UPDATE team_members SET credentials_sent_at = NOW() WHERE id = $1`, [memberRow.id]).catch(() => {});
+          } else {
+            emailError = sendResult.error || 'send returned success:false';
+          }
+        } catch (e) {
+          emailError = e.message;
+          console.warn('[team POST send_credentials]', e.message);
+        }
+      }
+
       res.json({
         success: true,
         member: { ...a.rows[0], email: memberRow.email, full_name: memberRow.full_name },
         // Owner needs to see the plaintext password once so they can copy
         // it before triggering the credentials email later.
-        password: plainPassword
+        password: plainPassword,
+        email_sent: emailSent,
+        email_error: emailError,
       });
     } catch (e) {
       if (e.code === '23505') {
