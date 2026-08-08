@@ -121139,39 +121139,40 @@ app.post('/api/admin/inbox/messages', async (req, res) => {
     `, [parseInt(account_id), channel, threadId, decoded.name || 'Unknown', decoded.email || '', subject || null, body, direction, convType]);
 
     // Sheet writeback — best effort; failure doesn't block the reply from landing in GAS.
-    // NOTE 2026-08-07 — the function is writeReplyToClientSheet (not _writeSheetReply as
-    // originally written). Reply wasn't reaching the sheet before this fix.
+    // We now capture the actual write results and surface them in the response so
+    // the frontend can distinguish "landed in GAS + sheet" vs "landed in GAS only".
+    let sheetReplyWrite = null;
+    let sheetStatusWrite = null;
     if (sheetChannelId && typeof writeReplyToClientSheet === 'function') {
       try {
-        // The reply we just inserted has channel='google_sheets' but no metadata copied
-        // from the original thread. Look up the ORIGINAL inbound message (the sheet-imported
-        // row) to source the metadata (sheet_row, sheet_channel_id, existing_reply).
         const origR = await pool.query(
           `SELECT id FROM inbox_messages WHERE thread_id = $1 AND direction = 'out' ORDER BY created_at ASC LIMIT 1`,
           [threadIdIn]
         );
         if (origR.rows[0]) {
-          // Only write to the sheet's Reply column when the operator actually
-          // typed a reply. '(status update)' is the sentinel the frontend
-          // sends for status-only saves — don't overwrite Karl's Reply column
-          // with that.
           if (body && body !== '(status update)') {
-            await writeReplyToClientSheet(origR.rows[0].id, body);
+            try {
+              sheetReplyWrite = await writeReplyToClientSheet(origR.rows[0].id, body);
+              if (!sheetReplyWrite?.success) console.warn('[inbox reply → sheet reply]', sheetReplyWrite?.error);
+            } catch (e) {
+              sheetReplyWrite = { success: false, error: e.message };
+              console.warn('[inbox reply → sheet reply]', e.message);
+            }
           }
-          // Optional status change — writes to the sheet's Status column.
-          // 2026-08-08 — Steve asked for the reply UI to also set status so
-          // he can mark items "In Progress" / "Pending Dev" / etc. without
-          // hitting Mark Done (which closes the thread).
           if (sheet_status && String(sheet_status).trim() && typeof writeStatusToClientSheet === 'function') {
             try {
-              const sw = await writeStatusToClientSheet(origR.rows[0].id, String(sheet_status).trim());
-              if (!sw?.success) console.warn('[inbox reply → sheet status]', sw?.error);
+              sheetStatusWrite = await writeStatusToClientSheet(origR.rows[0].id, String(sheet_status).trim());
+              if (!sheetStatusWrite?.success) console.warn('[inbox reply → sheet status]', sheetStatusWrite?.error);
             } catch (e) {
+              sheetStatusWrite = { success: false, error: e.message };
               console.warn('[inbox reply → sheet status]', e.message);
             }
           }
+        } else {
+          sheetReplyWrite = { success: false, error: 'no original sheet-import row found for this thread — cannot map to a sheet row' };
         }
       } catch (e) {
+        sheetReplyWrite = { success: false, error: e.message };
         console.warn('[inbox reply → sheet writeback]', e.message);
       }
     }
@@ -121194,7 +121195,12 @@ app.post('/api/admin/inbox/messages', async (req, res) => {
       }
     }
 
-    res.json({ success: true, message: result.rows[0] });
+    res.json({
+      success: true,
+      message: result.rows[0],
+      sheet_reply_write: sheetReplyWrite,
+      sheet_status_write: sheetStatusWrite,
+    });
   } catch (error) {
     console.error('Inbox send error:', error);
     res.status(500).json({ success: false, error: error.message });

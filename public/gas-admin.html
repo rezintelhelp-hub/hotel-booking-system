@@ -60521,10 +60521,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (d.success) {
                     if (ta) ta.value = '';
                     if (statusSel) statusSel.value = '';
-                    const bits = [];
-                    if (body) bits.push('reply');
-                    if (newStatus) bits.push(`status → ${newStatus}`);
-                    showNotification && showNotification(`Saved: ${bits.join(' + ')} written to sheet`, 'success');
+                    const parts = ['Saved to GAS'];
+                    if (body && body !== '(status update)') {
+                        if (d.sheet_reply_write?.success) parts.push('reply → sheet ✓');
+                        else if (d.sheet_reply_write) parts.push(`reply → sheet ✗ ${d.sheet_reply_write.error || 'failed'}`);
+                    }
+                    if (newStatus) {
+                        if (d.sheet_status_write?.success) parts.push(`status "${newStatus}" → sheet ✓`);
+                        else if (d.sheet_status_write) parts.push(`status → sheet ✗ ${d.sheet_status_write.error || 'failed'}`);
+                    }
+                    const okAll = (!body || d.sheet_reply_write?.success) && (!newStatus || d.sheet_status_write?.success);
+                    (showNotification && showNotification(parts.join(' | '), okAll ? 'success' : 'warning'))
+                        || alert(parts.join('\n'));
                     loadMessagesInbox();
                 } else {
                     alert('Save failed: ' + (d.error || 'unknown'));
