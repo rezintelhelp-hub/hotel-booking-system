@@ -108377,8 +108377,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const tbody = document.getElementById('billing-products-table');
                 
                 if (data.success && data.data && data.data.length > 0) {
-                    tbody.innerHTML = data.data.map(p => {
-                        // Sell: base + per-unit rate
+                    // Group by category with expand/collapse headers. Categories
+                    // with per-unit pricing (gas24_atomic, channex) hide by
+                    // default because they're passthrough sub-products.
+                    const groups = new Map();
+                    for (const p of data.data) {
+                        const cat = p.category || 'general';
+                        if (!groups.has(cat)) groups.set(cat, []);
+                        groups.get(cat).push(p);
+                    }
+                    const CATEGORY_LABELS = {
+                        website: '🌐 Websites',
+                        content: '📝 Content Modules',
+                        commerce: '🛒 Commerce',
+                        crm: '👥 CRM',
+                        gas24_atomic: '🔗 Beds24 (GAS24 sub-products)',
+                        gas24: '🔗 Beds24 (parent)',
+                        channex: '🔌 Channex',
+                        general: '📦 Other',
+                    };
+                    const DEFAULT_COLLAPSED = new Set(['gas24_atomic', 'channex']);
+                    const rowHtml = (p) => {
                         const sellBase = parseFloat(p.price_monthly || 0);
                         const sellUnit = parseFloat(p.unit_price || 0);
                         const costBase = parseFloat(p.cost_monthly || 0);
@@ -108386,30 +108405,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const hasSellUnit = sellUnit > 0 || (p.pricing_type && p.pricing_type !== 'fixed');
                         const hasCostUnit = costUnit > 0;
                         const priceCell = hasSellUnit
-                            ? `<div>${sellBase.toFixed(2)} base</div>
-                               <div style="font-size:0.75rem; color:#64748b;">+ ${sellUnit.toFixed(2)}/${p.unit_type || 'unit'} (over ${p.included_units || 0})</div>`
+                            ? `<div>${sellBase.toFixed(2)} base</div><div style="font-size:0.75rem; color:#64748b;">+ ${sellUnit.toFixed(2)}/${p.unit_type || 'unit'} (over ${p.included_units || 0})</div>`
                             : (sellBase > 0 ? sellBase.toFixed(2) + '/mo' : '-');
                         const costCell = (costBase > 0 || hasCostUnit)
-                            ? `<div>${costBase > 0 ? costBase.toFixed(2) + ' base' : '-'}</div>
-                               ${hasCostUnit ? `<div style="font-size:0.75rem; color:#64748b;">+ ${costUnit.toFixed(2)}/${p.unit_type || 'unit'}</div>` : ''}`
+                            ? `<div>${costBase > 0 ? costBase.toFixed(2) + ' base' : '-'}</div>${hasCostUnit ? `<div style="font-size:0.75rem; color:#64748b;">+ ${costUnit.toFixed(2)}/${p.unit_type || 'unit'}</div>` : ''}`
                             : '<span style="color:#94a3b8;">not set</span>';
-                        // Margin: (sell - cost) at base + per unit. Colour green
-                        // if positive, red if negative, grey if no cost.
                         let marginCell = '<span style="color:#94a3b8;">—</span>';
                         if (costBase > 0 || hasCostUnit) {
                             const baseMargin = sellBase - costBase;
                             const unitMargin = sellUnit - costUnit;
-                            const marginColor = baseMargin >= 0 && unitMargin >= 0 ? '#16a34a'
-                                              : baseMargin < 0 || unitMargin < 0 ? '#dc2626' : '#64748b';
-                            marginCell = `<div style="color:${marginColor}; font-weight:600;">${baseMargin.toFixed(2)} base</div>` +
-                                         (hasCostUnit ? `<div style="color:${marginColor}; font-size:0.75rem;">+ ${unitMargin.toFixed(2)}/unit</div>` : '');
+                            const marginColor = baseMargin >= 0 && unitMargin >= 0 ? '#16a34a' : baseMargin < 0 || unitMargin < 0 ? '#dc2626' : '#64748b';
+                            marginCell = `<div style="color:${marginColor}; font-weight:600;">${baseMargin.toFixed(2)} base</div>` + (hasCostUnit ? `<div style="color:${marginColor}; font-size:0.75rem;">+ ${unitMargin.toFixed(2)}/unit</div>` : '');
                         }
-                        return `
-                        <tr style="${!p.is_active ? 'opacity: 0.6;' : ''}">
-                            <td>
-                                <strong>${p.name}</strong>
-                                <div style="font-size: 0.8rem; color: #64748b;">${p.code}</div>
-                            </td>
+                        return `<tr style="${!p.is_active ? 'opacity: 0.6;' : ''}">
+                            <td><strong>${p.name}</strong><div style="font-size:0.8rem; color:#64748b;">${p.code}</div></td>
                             <td><span class="badge">${p.category || 'general'}</span></td>
                             <td>${priceCell}</td>
                             <td>${costCell}</td>
@@ -108421,6 +108430,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; color: #ef4444;" onclick="deleteProduct(${p.id})">Delete</button>
                             </td>
                         </tr>`;
+                    };
+                    const catOrder = ['website','content','commerce','crm','gas24_atomic','gas24','channex','general'];
+                    const orderedGroups = catOrder.filter(c => groups.has(c)).concat([...groups.keys()].filter(c => !catOrder.includes(c)));
+                    tbody.innerHTML = orderedGroups.map(cat => {
+                        const items = groups.get(cat);
+                        const collapsed = DEFAULT_COLLAPSED.has(cat);
+                        const label = CATEGORY_LABELS[cat] || `📦 ${cat}`;
+                        const header = `<tr class="cat-header" data-cat="${cat}" style="background:#f1f5f9; cursor:pointer;" onclick="toggleProductCat('${cat}')">
+                            <td colspan="8" style="padding:0.6rem 1rem; font-weight:700; color:#334155;">
+                                <span id="cat-arrow-${cat}" style="display:inline-block; width:14px;">${collapsed ? '▶' : '▼'}</span>
+                                ${label} <span style="color:#94a3b8; font-weight:400; margin-left:0.5rem;">${items.length} products</span>
+                            </td>
+                        </tr>`;
+                        const rows = items.map(p => `<tr class="cat-row-${cat}" style="${collapsed ? 'display:none;' : ''}">${rowHtml(p).replace(/^<tr[^>]*>/, '').replace(/<\/tr>$/, '')}</tr>`).join('');
+                        return header + rows;
                     }).join('');
                 } else {
                     tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #64748b;">No products yet. Click "+ Add Product" to create one.</td></tr>';
@@ -108429,6 +108453,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.error('Error loading products:', error);
                 document.getElementById('billing-products-table').innerHTML = '<tr><td colspan="8" style="text-align: center; color: #ef4444;">Error loading products</td></tr>';
             }
+        }
+
+        // Category expand/collapse for the Products table (2026-08-09).
+        function toggleProductCat(cat) {
+            const arrow = document.getElementById('cat-arrow-' + cat);
+            const rows = document.querySelectorAll('.cat-row-' + cat);
+            const isCollapsed = rows.length && rows[0].style.display === 'none';
+            rows.forEach(r => r.style.display = isCollapsed ? '' : 'none');
+            if (arrow) arrow.textContent = isCollapsed ? '▼' : '▶';
         }
 
         function openProductModal(product = null) {

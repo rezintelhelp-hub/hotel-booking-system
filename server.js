@@ -45031,7 +45031,12 @@ app.delete('/api/admin/billing/plans/:id', async (req, res) => {
 // Get all products
 app.get('/api/admin/billing/products', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM billing_products ORDER BY display_order, name');
+    // is_public=false products are composite parents (gas24 rolls up gas24_*)
+    // — hide from the admin table but keep in the catalogue for detection.
+    // Pass ?include_hidden=true to see them anyway.
+    const includeHidden = req.query.include_hidden === 'true' || req.query.include_hidden === '1';
+    const where = includeHidden ? '' : 'WHERE is_public IS DISTINCT FROM false';
+    const result = await pool.query(`SELECT * FROM billing_products ${where} ORDER BY category NULLS LAST, display_order, name`);
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
