@@ -25547,12 +25547,22 @@ async function detectSubscriptionsForAccount(accountId) {
     if (s.ssl_count) detected.gas24_ssl = { quantity: parseInt(s.ssl_count), monthly: calcMonthly('gas24_ssl', parseInt(s.ssl_count)), signal: `${s.ssl_count} branded SSL(s)` };
   }
 
-  // CRM
+  // CRM — 2026-08-09 new rule. crm_basic is the free tier scoped to
+  // arrival + departure emails: auto-detected when the account has any
+  // bookings at all. crm_pro is the upgrade for full CRM (workflows,
+  // sparks, contact management) — signal for now is "> 100 contacts"
+  // as a proxy for real CRM usage (was "> 5" but the contacts table
+  // holds historical guest records; 5 is not a meaningful threshold).
   try {
-    const c = await pool.query(`SELECT COUNT(*)::int AS n FROM contacts WHERE account_id = $1`, [accountId]);
-    const n = c.rows[0].n;
-    if (n > 5) detected.crm_pro = { quantity: n, monthly: calcMonthly('crm_pro', n), signal: `${n} contacts (over 5 free tier)` };
-    else if (n > 0) detected.crm_basic = { quantity: n, monthly: 0, signal: `${n} contacts (under 5 free tier)` };
+    const bk = await pool.query(`SELECT COUNT(*)::int AS n FROM bookings WHERE account_id = $1 OR property_id IN (SELECT id FROM properties WHERE account_id = $1)`, [accountId]).catch(() => ({ rows: [{ n: 0 }] }));
+    const bookingCount = bk.rows[0].n;
+    const c = await pool.query(`SELECT COUNT(*)::int AS n FROM contacts WHERE account_id = $1`, [accountId]).catch(() => ({ rows: [{ n: 0 }] }));
+    const contactCount = c.rows[0].n;
+    if (contactCount > 100) {
+      detected.crm_pro = { quantity: contactCount, monthly: calcMonthly('crm_pro', contactCount), signal: `${contactCount} contacts — full CRM usage` };
+    } else if (bookingCount > 0) {
+      detected.crm_basic = { quantity: 1, monthly: 0, signal: `${bookingCount} bookings — free tier (arrival + departure emails)` };
+    }
   } catch (_) {}
 
   // SHOP
