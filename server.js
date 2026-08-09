@@ -137655,8 +137655,18 @@ async function runBeds24PaymentItemSweep() {
     console.error('[beds24 payment sweep] cron:', e.message);
   }
 }
-setTimeout(runBeds24PaymentItemSweep, 10 * 60 * 1000);   // 10 min after boot
-setInterval(runBeds24PaymentItemSweep, 30 * 60 * 1000);  // every 30 min
+// KILL-SWITCHED 2026-08-09 — this sweep pushed duplicate 'Payment via
+// Stripe beds24_b*' lines onto every Beds24-connected client's ledger
+// on its first run 2026-08-07 (~130+ fake payment lines on Cotswolds
+// alone). The bug: syncBeds24PaymentItem's matcher didn't recognise
+// Beds24-originated payments already in GAS payment_transactions
+// (gateway='beds24_import'), so it pushed them back to Beds24 as new
+// "Stripe" lines. Do NOT re-enable until (a) all fake lines are
+// deleted from Beds24 and (b) the sync helper filters out
+// beds24_import gateway rows.
+// setTimeout(runBeds24PaymentItemSweep, 10 * 60 * 1000);
+// setInterval(runBeds24PaymentItemSweep, 30 * 60 * 1000);
+console.log('⏸  Beds24 payment-line sweep DISABLED — see kill-switch note in server.js above');
 
 // GoCardless monthly subscription billing cron. Gated by env so it
 // stays inert until Steve flips GOCARDLESS_CRON_ENABLED=true (after
