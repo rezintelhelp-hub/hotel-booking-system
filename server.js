@@ -25482,6 +25482,89 @@ app.get('/api/admin/billing/estate-overview', async (req, res) => {
 });
 
 // ═════════════════════════════════════════════════════════════════════
+// Subscription auto-detection — shared helper used by the client-billing
+// endpoint below AND the standalone dry-run script. Walks observable
+// signals to propose which v2 products a client SHOULD be subscribed to.
+// Read-only. Returns { detected: { product_code → { quantity, monthly } }
+// so the frontend can render side-by-side with existing subscriptions.
+// Signals are documented at scripts/_subscription_migration_dryrun.js.
+// ═════════════════════════════════════════════════════════════════════
+async function detectSubscriptionsForAccount(accountId) {
+  const cat = await pool.query(`
+    SELECT product_code, price_monthly::numeric AS price_monthly,
+           unit_price::numeric AS unit_price, included_units, unit_type,
+           category, currency
+      FROM billing_plans
+     WHERE is_active = true AND product_code IS NOT NULL
+  `);
+  const catalog = {};
+  for (const r of cat.rows) catalog[r.product_code] = r;
+  const calcMonthly = (code, qty) => {
+    const p = catalog[code]; if (!p) return 0;
+    const q = parseInt(qty || 0);
+    const incl = parseInt(p.included_units || 0);
+    const base = parseFloat(p.price_monthly || 0);
+    const unit = parseFloat(p.unit_price || 0);
+    return Math.round((base + Math.max(0, q - incl) * unit) * 100) / 100;
+  };
+  const detected = {};
+
+  // WEBSITE / WP_PLUGIN / GAS_DIRECT
+  const sites = await pool.query(`
+    SELECT id, template, blog_id, site_status, custom_domain, site_url
+      FROM deployed_sites
+     WHERE account_id = $1 AND (site_status IS NULL OR site_status IN ('live','development'))
+  `, [accountId]).catch(() => ({ rows: [] }));
+  const propR = await pool.query(`SELECT COUNT(*)::int AS n FROM properties WHERE account_id = $1`, [accountId]);
+  const propCount = propR.rows[0].n;
+  let wpCount = 0, siteCount = 0;
+  for (const s of sites.rows) {
+    // WP signal: template contains 'wp' or 'wordpress' OR site is on multisite (blog_id set)
+    const isWp = (s.template && /wp|wordpress/i.test(s.template)) || s.blog_id;
+    if (isWp) wpCount++; else siteCount++;
+  }
+  if (wpCount > 0) detected.wp_plugin = { quantity: propCount || 1, monthly: calcMonthly('wp_plugin', propCount || 1), signal: `${wpCount} WP site(s), ${propCount} properties` };
+  else if (siteCount > 0) detected.website = { quantity: propCount || 1, monthly: calcMonthly('website', propCount || 1), signal: `${siteCount} non-WP site(s), ${propCount} properties` };
+  else if (propCount > 0) detected.gas_direct = { quantity: propCount, monthly: calcMonthly('gas_direct', propCount), signal: `${propCount} properties, no hosted site` };
+
+  // BEDS24 + gas24_*
+  const b24 = await pool.query(`
+    SELECT id FROM gas_sync_connections
+     WHERE account_id = $1 AND adapter_code IN ('beds24','beds24-marketplace') AND sync_enabled = true
+     LIMIT 1`, [accountId]).catch(() => ({ rows: [] }));
+  if (b24.rows.length) {
+    const snap = await pool.query(`
+      SELECT property_count, sub_account_count, link_count, ssl_count, room_count
+        FROM beds24_usage_snapshots
+       WHERE account_id = $1
+       ORDER BY period_date DESC LIMIT 1`, [accountId]).catch(() => ({ rows: [] }));
+    const s = snap.rows[0] || {};
+    detected.gas24 = { quantity: 1, monthly: 0, signal: 'Beds24 connection active' };
+    detected.gas24_base = { quantity: 1, monthly: calcMonthly('gas24_base', 1), signal: 'Base fee per Beds24 account' };
+    if (s.property_count) detected.gas24_property = { quantity: parseInt(s.property_count), monthly: calcMonthly('gas24_property', parseInt(s.property_count)), signal: `${s.property_count} Beds24 properties` };
+    if (s.link_count) detected.gas24_link = { quantity: parseInt(s.link_count), monthly: calcMonthly('gas24_link', parseInt(s.link_count)), signal: `${s.link_count} Beds24 channel links` };
+    if (s.sub_account_count) detected.gas24_sub_user = { quantity: parseInt(s.sub_account_count), monthly: calcMonthly('gas24_sub_user', parseInt(s.sub_account_count)), signal: `${s.sub_account_count} Beds24 sub-users` };
+    if (s.ssl_count) detected.gas24_ssl = { quantity: parseInt(s.ssl_count), monthly: calcMonthly('gas24_ssl', parseInt(s.ssl_count)), signal: `${s.ssl_count} branded SSL(s)` };
+  }
+
+  // CRM
+  try {
+    const c = await pool.query(`SELECT COUNT(*)::int AS n FROM contacts WHERE account_id = $1`, [accountId]);
+    const n = c.rows[0].n;
+    if (n > 5) detected.crm_pro = { quantity: n, monthly: calcMonthly('crm_pro', n), signal: `${n} contacts (over 5 free tier)` };
+    else if (n > 0) detected.crm_basic = { quantity: n, monthly: 0, signal: `${n} contacts (under 5 free tier)` };
+  } catch (_) {}
+
+  // SHOP
+  try {
+    const c = await pool.query(`SELECT COUNT(*)::int AS n FROM shop_products WHERE account_id = $1`, [accountId]);
+    if (c.rows[0].n > 0) detected.shop = { quantity: c.rows[0].n, monthly: calcMonthly('shop', c.rows[0].n), signal: `${c.rows[0].n} shop products` };
+  } catch (_) {}
+
+  return { catalog, detected };
+}
+
+// ═════════════════════════════════════════════════════════════════════
 // Client Billing Hub — one endpoint per account. Powers the reconciliation
 // page introduced 2026-08-06 that replaces the tangled account-modal
 // billing sections. Returns products (subscribed + available from v2
@@ -25624,11 +25707,76 @@ app.get('/api/admin/billing/client/:id', async (req, res) => {
       .filter(p => new Date(p.date) > new Date(Date.now() - 30 * 86400000) && ['paid_out', 'confirmed', 'succeeded'].includes(p.status))
       .reduce((s, p) => s + p.amount, 0);
 
+    // 2026-08-09 — Subscription auto-detection. Runs the shared detector
+    // (see detectSubscriptionsForAccount above) so the review panel can
+    // show detected vs existing side-by-side. Returned as an array of
+    // { product_code, quantity, monthly, signal, existing_subscription }
+    // where existing_subscription is the current row (if any) so the UI
+    // can render action=ADD/UPDATE/OK inline.
+    let detected_products = [];
+    try {
+      const { detected, catalog } = await detectSubscriptionsForAccount(targetId);
+      const existingByCode = new Map(subs.rows.map(r => [r.product_code || r.product, r]));
+      const seen = new Set();
+      for (const [code, det] of Object.entries(detected)) {
+        seen.add(code);
+        const plan = catalog[code];
+        const cur = existingByCode.get(code);
+        let action;
+        if (!cur) action = 'add';
+        else if (parseInt(cur.quantity || 0) !== parseInt(det.quantity) ||
+                 Math.abs(parseFloat(cur.override_price || 0) - det.monthly) > 0.01) action = 'update';
+        else action = 'ok';
+        detected_products.push({
+          product_code: code,
+          name: plan ? plan.name || code : code,
+          category: plan ? plan.category : null,
+          quantity: det.quantity,
+          monthly: det.monthly,
+          currency: plan ? plan.currency : 'EUR',
+          signal: det.signal,
+          action,
+          existing: cur ? {
+            subscription_id: cur.subscription_id,
+            quantity: cur.quantity,
+            monthly_price: parseFloat(cur.override_price || cur.price_monthly || 0)
+          } : null
+        });
+      }
+      // STALE existing subs (in DB but not detected) — surface so operator can decide keep/remove
+      for (const row of subs.rows) {
+        const code = row.product_code || row.product;
+        if (seen.has(code)) continue;
+        detected_products.push({
+          product_code: code,
+          name: row.name || code,
+          category: row.category || 'legacy',
+          quantity: row.quantity,
+          monthly: parseFloat(row.override_price || row.price_monthly || 0),
+          currency: row.override_currency || row.currency || 'EUR',
+          signal: 'existing subscription — no active signal detected',
+          action: 'stale',
+          existing: {
+            subscription_id: row.subscription_id,
+            quantity: row.quantity,
+            monthly_price: parseFloat(row.override_price || row.price_monthly || 0)
+          }
+        });
+      }
+      detected_products.sort((a, b) => {
+        const order = { add: 0, update: 1, ok: 2, stale: 3 };
+        return (order[a.action] || 9) - (order[b.action] || 9) || a.product_code.localeCompare(b.product_code);
+      });
+    } catch (e) {
+      console.warn('[client billing] detection failed:', e.message);
+    }
+
     res.json({
       success: true,
       account,
       subscribed_products: subs.rows,
       available_products: available,
+      detected_products,
       payments: allPayments,
       gas24_recommended,
       totals: {
@@ -25686,6 +25834,71 @@ app.delete('/api/admin/billing/client/:id/subscribe/:code', async (req, res) => 
   } catch (e) {
     console.error('[client billing unsubscribe]', e.message);
     res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// 2026-08-09 — Bulk-apply confirmed subscription changes for one client.
+// Powers the per-client subscription-review panel. Master-only. Each change:
+//   { product_code, action: 'add' | 'update' | 'delete' | 'skip',
+//     quantity, monthly_price }
+// action='skip' is a no-op; frontend sends it for rows the operator
+// explicitly left alone so we have a full audit of what was reviewed.
+app.post('/api/admin/billing/client/:id/subscriptions-bulk-apply', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const requester = await extractAccountFromToken(req);
+    if (!requester || requester.role !== 'master_admin') { client.release(); return res.status(403).json({ success: false, error: 'Master admin only' }); }
+    const targetId = parseInt(req.params.id, 10);
+    if (!targetId) { client.release(); return res.status(400).json({ success: false, error: 'Invalid account id' }); }
+    const changes = Array.isArray(req.body?.changes) ? req.body.changes : [];
+    if (!changes.length) { client.release(); return res.status(400).json({ success: false, error: 'changes[] required' }); }
+
+    const acctCurR = await pool.query(`SELECT currency FROM accounts WHERE id = $1`, [targetId]);
+    const defaultCurrency = acctCurR.rows[0]?.currency || 'EUR';
+
+    await client.query('BEGIN');
+    const applied = [];
+    for (const c of changes) {
+      const code = (c.product_code || '').trim();
+      const action = String(c.action || 'skip').toLowerCase();
+      if (!code || action === 'skip') { applied.push({ product_code: code, action: 'skip' }); continue; }
+      const qty = parseInt(c.quantity != null ? c.quantity : 0);
+      const price = c.monthly_price != null ? parseFloat(c.monthly_price) : null;
+      if (action === 'delete') {
+        await client.query(`
+          UPDATE account_subscriptions SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+           WHERE account_id = $1 AND product = $2 AND status = 'active'
+        `, [targetId, code]);
+        applied.push({ product_code: code, action: 'deleted' });
+        continue;
+      }
+      if (action === 'add' || action === 'update') {
+        // Upsert against the (account_id, product) unique constraint.
+        // Reactivate a previously-cancelled row if the operator re-adds it.
+        await client.query(`
+          INSERT INTO account_subscriptions (account_id, product, quantity, monthly_price, currency, status, started_at)
+          VALUES ($1, $2, $3, $4, $5, 'active', NOW())
+          ON CONFLICT (account_id, product) DO UPDATE
+             SET quantity = EXCLUDED.quantity,
+                 monthly_price = EXCLUDED.monthly_price,
+                 currency = EXCLUDED.currency,
+                 status = 'active',
+                 cancelled_at = NULL,
+                 updated_at = NOW()
+        `, [targetId, code, qty, price != null ? price : 0, defaultCurrency]);
+        applied.push({ product_code: code, action, quantity: qty, monthly_price: price });
+        continue;
+      }
+      applied.push({ product_code: code, action: 'unknown', ignored: true });
+    }
+    await client.query('COMMIT');
+    res.json({ success: true, applied });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[client billing bulk-apply]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  } finally {
+    client.release();
   }
 });
 

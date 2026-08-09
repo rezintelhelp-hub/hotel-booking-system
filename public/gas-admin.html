@@ -107484,7 +107484,129 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div id="client-recon-${accountId}" style="padding:0.75rem;background:#f8fafc;border-radius:6px;color:#64748b;font-size:0.85rem;">
                     Click "Load products ↔ payments" to see this client's catalogue products on the left and their actual GoCardless/Stripe payments on the right, with matches highlighted and gaps flagged.
                 </div>
+
+                <!-- 2026-08-09 — Subscription Review panel. Compares detected
+                     signals (from deployed_sites / beds24 usage / contacts /
+                     etc.) against existing account_subscriptions. Master
+                     ticks proposed changes and hits Apply for THIS client. -->
+                <h4 style="margin:1.5rem 0 0.5rem;color:#1e293b;font-size:0.95rem;display:flex;justify-content:space-between;align-items:center;">
+                    🔍 Subscription Review — Detected vs Actual
+                    <button class="btn btn-sm" onclick="loadSubscriptionReview(${accountId})">Load detected signals</button>
+                </h4>
+                <div id="sub-review-${accountId}" style="padding:0.75rem;background:#f8fafc;border-radius:6px;color:#64748b;font-size:0.85rem;">
+                    Click above to see what products this client SHOULD be subscribed to based on live signals (site type, beds24 usage, contact count etc.), with proposed changes side-by-side with existing subscriptions. Tick the changes you want to apply, edit qty/price inline, then click Apply.
+                </div>
             `;
+        }
+
+        // Subscription Review — loaded on demand. Renders detected_products
+        // from the shared endpoint. Operator ticks/edits per row, hits Apply
+        // to POST the confirmed changes to subscriptions-bulk-apply.
+        async function loadSubscriptionReview(accountId) {
+            const container = document.getElementById('sub-review-' + accountId);
+            if (!container) return;
+            container.innerHTML = '<div style="color:#6366f1;">Loading detected signals…</div>';
+            try {
+                const r = await fetch('/api/admin/billing/client/' + accountId, { headers: authHeaders() });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const d = await r.json();
+                if (!d.success) throw new Error(d.error || 'unknown');
+                const detected = Array.isArray(d.detected_products) ? d.detected_products : [];
+                if (detected.length === 0) { container.innerHTML = '<div style="color:#94a3b8; padding:1rem; text-align:center;">No detected signals + no existing subscriptions.</div>'; return; }
+                const actionBadge = (a) => {
+                    const map = {
+                        add:   { bg:'#dcfce7', fg:'#166534', label:'+ ADD',    tick: true  },
+                        update:{ bg:'#dbeafe', fg:'#1e3a8a', label:'~ UPDATE', tick: false },
+                        ok:    { bg:'#f1f5f9', fg:'#475569', label:'= OK',      tick: false },
+                        stale: { bg:'#fee2e2', fg:'#991b1b', label:'- STALE',   tick: false }
+                    };
+                    return map[a] || { bg:'#fef3c7', fg:'#92400e', label: a };
+                };
+                const rows = detected.map((p, i) => {
+                    const b = actionBadge(p.action);
+                    const isStale = p.action === 'stale';
+                    const defaultAction = p.action === 'add' ? 'add' : (p.action === 'update' ? 'update' : (isStale ? 'skip' : 'skip'));
+                    const cur = p.existing;
+                    return `
+                    <tr data-code="${p.product_code}" style="border-bottom:1px solid #e5e7eb;">
+                        <td style="padding:0.5rem;">
+                            <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-size:0.7rem; font-weight:700; background:${b.bg}; color:${b.fg};">${b.label}</span>
+                        </td>
+                        <td style="padding:0.5rem; font-weight:600; color:#1e293b;">
+                            <div>${(p.name || p.product_code).replace(/</g,'&lt;')}</div>
+                            <div style="font-size:0.7rem; color:#94a3b8;">${p.product_code} · ${p.category || ''}</div>
+                        </td>
+                        <td style="padding:0.5rem; color:#64748b; font-size:0.8rem; max-width:220px;">${(p.signal || '').replace(/</g,'&lt;')}</td>
+                        <td style="padding:0.5rem; color:#64748b; font-size:0.8rem; white-space:nowrap;">${cur ? `qty ${cur.quantity} · ${cur.monthly_price.toFixed(2)} ${p.currency}` : '<em>none</em>'}</td>
+                        <td style="padding:0.5rem; white-space:nowrap;">
+                            <input type="number" id="sr-${accountId}-${i}-qty" value="${p.quantity}" min="0" style="width:70px; padding:2px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.85rem;">
+                        </td>
+                        <td style="padding:0.5rem; white-space:nowrap;">
+                            <input type="number" step="0.01" id="sr-${accountId}-${i}-price" value="${p.monthly.toFixed(2)}" min="0" style="width:80px; padding:2px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.85rem;">
+                            <span style="font-size:0.75rem; color:#94a3b8;">${p.currency}</span>
+                        </td>
+                        <td style="padding:0.5rem;">
+                            <select id="sr-${accountId}-${i}-action" style="padding:2px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.8rem;">
+                                <option value="skip" ${defaultAction === 'skip' ? 'selected' : ''}>Skip</option>
+                                <option value="add" ${defaultAction === 'add' ? 'selected' : ''}>${cur ? 'Reactivate' : 'Add'}</option>
+                                <option value="update" ${defaultAction === 'update' ? 'selected' : ''} ${!cur ? 'disabled' : ''}>Update</option>
+                                <option value="delete">Delete</option>
+                            </select>
+                        </td>
+                    </tr>`;
+                }).join('');
+                container.innerHTML = `
+                    <div style="margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:center;">
+                        <div style="font-size:0.85rem; color:#64748b;">${detected.length} product row(s) detected or existing. Set each row's action, tweak qty / price if needed, then Apply.</div>
+                        <button class="btn" onclick="applySubscriptionReview(${accountId})" style="background:linear-gradient(135deg,#059669 0%,#047857 100%); color:white; padding:6px 14px; font-size:0.85rem;">💾 Apply changes for this client</button>
+                    </div>
+                    <table style="width:100%; border-collapse:collapse; background:white; border-radius:6px; overflow:hidden;">
+                        <thead style="background:#f8fafc;">
+                            <tr>
+                                <th style="text-align:left; padding:0.5rem; font-size:0.75rem; color:#475569;">State</th>
+                                <th style="text-align:left; padding:0.5rem; font-size:0.75rem; color:#475569;">Product</th>
+                                <th style="text-align:left; padding:0.5rem; font-size:0.75rem; color:#475569;">Signal</th>
+                                <th style="text-align:left; padding:0.5rem; font-size:0.75rem; color:#475569;">Current sub</th>
+                                <th style="text-align:left; padding:0.5rem; font-size:0.75rem; color:#475569;">New Qty</th>
+                                <th style="text-align:left; padding:0.5rem; font-size:0.75rem; color:#475569;">New €/mo</th>
+                                <th style="text-align:left; padding:0.5rem; font-size:0.75rem; color:#475569;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>`;
+                container.dataset.detected = JSON.stringify(detected);
+            } catch (e) {
+                container.innerHTML = `<div style="color:#dc2626; padding:1rem;">Failed to load: ${e.message}</div>`;
+            }
+        }
+
+        async function applySubscriptionReview(accountId) {
+            const container = document.getElementById('sub-review-' + accountId);
+            if (!container?.dataset.detected) return;
+            const detected = JSON.parse(container.dataset.detected);
+            const changes = detected.map((p, i) => {
+                const action = document.getElementById(`sr-${accountId}-${i}-action`)?.value || 'skip';
+                const qty = parseInt(document.getElementById(`sr-${accountId}-${i}-qty`)?.value || 0);
+                const price = parseFloat(document.getElementById(`sr-${accountId}-${i}-price`)?.value || 0);
+                return { product_code: p.product_code, action, quantity: qty, monthly_price: price };
+            });
+            const changeCount = changes.filter(c => c.action !== 'skip').length;
+            if (changeCount === 0) { showNotification('Nothing to apply — every row is set to Skip', 'warning'); return; }
+            if (!confirm(`Apply ${changeCount} change(s) to this client's subscriptions?`)) return;
+            try {
+                const r = await fetch(`/api/admin/billing/client/${accountId}/subscriptions-bulk-apply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ changes })
+                });
+                const d = await r.json();
+                if (!d.success) { showNotification('Apply failed: ' + (d.error || 'unknown'), 'error'); return; }
+                const summary = d.applied.reduce((m, a) => { m[a.action] = (m[a.action] || 0) + 1; return m; }, {});
+                showNotification('Applied: ' + Object.entries(summary).map(([k,v]) => `${v} ${k}`).join(', '), 'success');
+                loadSubscriptionReview(accountId);
+            } catch (e) {
+                showNotification('Apply failed: ' + e.message, 'error');
+            }
         }
 
         // Client Billing Reconciliation — loaded on demand from the GC drill-in.
