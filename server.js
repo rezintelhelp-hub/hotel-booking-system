@@ -44782,6 +44782,12 @@ app.get('/api/setup-billing', async (req, res) => {
     await pool.query(`ALTER TABLE billing_products ADD COLUMN IF NOT EXISTS included_units INTEGER DEFAULT 0`).catch(() => {});
     await pool.query(`ALTER TABLE billing_products ADD COLUMN IF NOT EXISTS unit_type VARCHAR(30)`).catch(() => {});
     await pool.query(`ALTER TABLE billing_products ADD COLUMN IF NOT EXISTS notes TEXT`).catch(() => {});
+    // 2026-08-09 — cost tracking. Steve pays Beds24 wholesale (50% off direct
+    // list) and charges clients GAS24 sell price (20% off direct). Margin =
+    // (sell - cost). Same shape as pricing: cost_monthly for flat base costs,
+    // cost_per_unit for per-unit costs.
+    await pool.query(`ALTER TABLE billing_products ADD COLUMN IF NOT EXISTS cost_monthly NUMERIC(10,4) DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_products ADD COLUMN IF NOT EXISTS cost_per_unit NUMERIC(10,4) DEFAULT 0`).catch(() => {});
     // Copy any v2 rows from billing_plans that don't already exist in
     // billing_products (matched on product_code == billing_products.code).
     // Also mark the 6 legacy scaffolding rows (Developer Theme etc) as
@@ -45028,21 +45034,24 @@ app.post('/api/admin/billing/products', async (req, res) => {
   try {
     const {
       code, name, description, category, price_monthly, price_yearly, is_active,
-      pricing_type, unit_price, included_units, unit_type, notes
+      pricing_type, unit_price, included_units, unit_type, notes,
+      cost_monthly, cost_per_unit
     } = req.body;
 
     const result = await pool.query(`
       INSERT INTO billing_products (
         code, name, description, category, price_monthly, price_yearly, is_active,
-        pricing_type, unit_price, included_units, unit_type, notes
+        pricing_type, unit_price, included_units, unit_type, notes,
+        cost_monthly, cost_per_unit
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
     `, [
       code, name, description, category || 'general',
       price_monthly || 0, price_yearly || 0, is_active !== false,
       pricing_type || 'fixed', unit_price || 0, included_units || 0,
-      unit_type || null, notes || null
+      unit_type || null, notes || null,
+      cost_monthly || 0, cost_per_unit || 0
     ]);
 
     res.json({ success: true, data: result.rows[0] });
@@ -45056,7 +45065,8 @@ app.put('/api/admin/billing/products/:id', async (req, res) => {
   try {
     const {
       code, name, description, category, price_monthly, price_yearly, is_active,
-      pricing_type, unit_price, included_units, unit_type, notes
+      pricing_type, unit_price, included_units, unit_type, notes,
+      cost_monthly, cost_per_unit
     } = req.body;
 
     const result = await pool.query(`
@@ -45065,14 +45075,16 @@ app.put('/api/admin/billing/products/:id', async (req, res) => {
           price_monthly = $5, price_yearly = $6, is_active = $7,
           pricing_type = $8, unit_price = $9, included_units = $10,
           unit_type = $11, notes = $12,
+          cost_monthly = $13, cost_per_unit = $14,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $13
+      WHERE id = $15
       RETURNING *
     `, [
       code, name, description, category || 'general',
       price_monthly || 0, price_yearly || 0, is_active !== false,
       pricing_type || 'fixed', unit_price || 0, included_units || 0,
       unit_type || null, notes || null,
+      cost_monthly || 0, cost_per_unit || 0,
       req.params.id
     ]);
 

@@ -23849,14 +23849,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <tr>
                                     <th>Product</th>
                                     <th>Category</th>
-                                    <th>Monthly</th>
+                                    <th>Price (charge)</th>
+                                    <th>Cost (pay)</th>
+                                    <th>Margin</th>
                                     <th>Yearly</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="billing-products-table">
-                                <tr><td colspan="6" style="text-align: center; color: #64748b;">Loading...</td></tr>
+                                <tr><td colspan="8" style="text-align: center; color: #64748b;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -25321,6 +25323,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <label>Internal Notes</label>
                             <textarea id="product-notes" class="form-input" rows="2" placeholder="e.g. Free tier up to 5 posts. Beds24 unit price × 0.80."></textarea>
                         </div>
+                    </fieldset>
+
+                    <!-- 2026-08-09 — cost tracking. What Steve pays wholesale
+                         (e.g. Beds24 gives 50% off direct list). Margin =
+                         (price - cost). Shown in the Products table row. -->
+                    <fieldset style="border:1px solid #fed7aa; background:#fff7ed; border-radius:8px; padding:0.75rem 1rem; margin-bottom:1rem;">
+                        <legend style="font-size:0.85rem; color:#9a3412; padding:0 0.5rem;">Cost to us (optional — for margin tracking)</legend>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                            <div class="form-group">
+                                <label>Cost Monthly (flat)</label>
+                                <input type="number" id="product-cost-monthly" class="form-input" step="0.0001" placeholder="6.45">
+                            </div>
+                            <div class="form-group">
+                                <label>Cost per unit</label>
+                                <input type="number" id="product-cost-per-unit" class="form-input" step="0.0001" placeholder="1.50">
+                            </div>
+                        </div>
+                        <p style="font-size:0.75rem; color:#9a3412; margin:0.25rem 0 0;">Beds24 partner discount is 50% off direct list. Leave blank for internal-only products with no COGS.</p>
                     </fieldset>
 
                     <div class="form-group" style="margin-bottom: 1rem;">
@@ -108358,14 +108378,32 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success && data.data && data.data.length > 0) {
                     tbody.innerHTML = data.data.map(p => {
-                        // Render pricing: for v2 usage-priced products (unit_price > 0
-                        // or pricing_type != 'fixed'), show both base + unit rate so
-                        // the operator can see the whole formula at a glance.
-                        const hasUnit = parseFloat(p.unit_price || 0) > 0 || (p.pricing_type && p.pricing_type !== 'fixed');
-                        const priceCell = hasUnit
-                            ? `<div>${parseFloat(p.price_monthly || 0).toFixed(2)} base</div>
-                               <div style="font-size:0.75rem; color:#64748b;">+ ${parseFloat(p.unit_price).toFixed(2)}/${p.unit_type || 'unit'} (over ${p.included_units || 0})</div>`
-                            : (parseFloat(p.price_monthly || 0) > 0 ? parseFloat(p.price_monthly).toFixed(2) + '/mo' : '-');
+                        // Sell: base + per-unit rate
+                        const sellBase = parseFloat(p.price_monthly || 0);
+                        const sellUnit = parseFloat(p.unit_price || 0);
+                        const costBase = parseFloat(p.cost_monthly || 0);
+                        const costUnit = parseFloat(p.cost_per_unit || 0);
+                        const hasSellUnit = sellUnit > 0 || (p.pricing_type && p.pricing_type !== 'fixed');
+                        const hasCostUnit = costUnit > 0;
+                        const priceCell = hasSellUnit
+                            ? `<div>${sellBase.toFixed(2)} base</div>
+                               <div style="font-size:0.75rem; color:#64748b;">+ ${sellUnit.toFixed(2)}/${p.unit_type || 'unit'} (over ${p.included_units || 0})</div>`
+                            : (sellBase > 0 ? sellBase.toFixed(2) + '/mo' : '-');
+                        const costCell = (costBase > 0 || hasCostUnit)
+                            ? `<div>${costBase > 0 ? costBase.toFixed(2) + ' base' : '-'}</div>
+                               ${hasCostUnit ? `<div style="font-size:0.75rem; color:#64748b;">+ ${costUnit.toFixed(2)}/${p.unit_type || 'unit'}</div>` : ''}`
+                            : '<span style="color:#94a3b8;">not set</span>';
+                        // Margin: (sell - cost) at base + per unit. Colour green
+                        // if positive, red if negative, grey if no cost.
+                        let marginCell = '<span style="color:#94a3b8;">—</span>';
+                        if (costBase > 0 || hasCostUnit) {
+                            const baseMargin = sellBase - costBase;
+                            const unitMargin = sellUnit - costUnit;
+                            const marginColor = baseMargin >= 0 && unitMargin >= 0 ? '#16a34a'
+                                              : baseMargin < 0 || unitMargin < 0 ? '#dc2626' : '#64748b';
+                            marginCell = `<div style="color:${marginColor}; font-weight:600;">${baseMargin.toFixed(2)} base</div>` +
+                                         (hasCostUnit ? `<div style="color:${marginColor}; font-size:0.75rem;">+ ${unitMargin.toFixed(2)}/unit</div>` : '');
+                        }
                         return `
                         <tr style="${!p.is_active ? 'opacity: 0.6;' : ''}">
                             <td>
@@ -108374,6 +108412,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </td>
                             <td><span class="badge">${p.category || 'general'}</span></td>
                             <td>${priceCell}</td>
+                            <td>${costCell}</td>
+                            <td>${marginCell}</td>
                             <td>${parseFloat(p.price_yearly || 0) > 0 ? parseFloat(p.price_yearly).toFixed(2) + '/yr' : '-'}</td>
                             <td><span class="badge ${p.is_active ? 'badge-success' : 'badge-warning'}">${p.is_active ? 'Active' : 'Inactive'}</span></td>
                             <td>
@@ -108383,11 +108423,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </tr>`;
                     }).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No products yet. Click "+ Add Product" to create one.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #64748b;">No products yet. Click "+ Add Product" to create one.</td></tr>';
                 }
             } catch (error) {
                 console.error('Error loading products:', error);
-                document.getElementById('billing-products-table').innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444;">Error loading products</td></tr>';
+                document.getElementById('billing-products-table').innerHTML = '<tr><td colspan="8" style="text-align: center; color: #ef4444;">Error loading products</td></tr>';
             }
         }
 
@@ -108409,6 +108449,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (el('product-included-units')) el('product-included-units').value = product?.included_units || '';
             if (el('product-unit-type')) el('product-unit-type').value = product?.unit_type || '';
             if (el('product-notes')) el('product-notes').value = product?.notes || '';
+            if (el('product-cost-monthly')) el('product-cost-monthly').value = product?.cost_monthly || '';
+            if (el('product-cost-per-unit')) el('product-cost-per-unit').value = product?.cost_per_unit || '';
             openModal('productModal');
         }
 
@@ -108440,7 +108482,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 unit_price: parseFloat(el('product-unit-price')?.value) || 0,
                 included_units: parseInt(el('product-included-units')?.value) || 0,
                 unit_type: el('product-unit-type')?.value || null,
-                notes: el('product-notes')?.value || null
+                notes: el('product-notes')?.value || null,
+                cost_monthly: parseFloat(el('product-cost-monthly')?.value) || 0,
+                cost_per_unit: parseFloat(el('product-cost-per-unit')?.value) || 0
             };
             
             try {
