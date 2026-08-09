@@ -25289,13 +25289,47 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                     
+                    <!-- v2 catalogue: usage-based pricing (2026-08-09). Total per
+                         month = price_monthly (base) + max(0, qty - included_units)
+                         * unit_price. Leave everything blank for a flat product. -->
+                    <fieldset style="border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem 1rem; margin-bottom:1rem;">
+                        <legend style="font-size:0.85rem; color:#475569; padding:0 0.5rem;">Usage-based pricing (optional)</legend>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                            <div class="form-group">
+                                <label>Pricing Type</label>
+                                <select id="product-pricing-type" class="form-input">
+                                    <option value="fixed">Fixed (flat monthly)</option>
+                                    <option value="per_unit">Per unit (base + rate per unit)</option>
+                                    <option value="metered">Metered (usage per period)</option>
+                                    <option value="pass_through">Pass-through (Beds24 / third-party)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Unit Type</label>
+                                <input type="text" id="product-unit-type" class="form-input" placeholder="property / rental / link / sms / etc.">
+                            </div>
+                            <div class="form-group">
+                                <label>Unit Price (per unit)</label>
+                                <input type="number" id="product-unit-price" class="form-input" step="0.0001" placeholder="1.00">
+                            </div>
+                            <div class="form-group">
+                                <label>Included Units (free tier)</label>
+                                <input type="number" id="product-included-units" class="form-input" step="1" placeholder="5">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top:0.5rem; margin-bottom:0;">
+                            <label>Internal Notes</label>
+                            <textarea id="product-notes" class="form-input" rows="2" placeholder="e.g. Free tier up to 5 posts. Beds24 unit price × 0.80."></textarea>
+                        </div>
+                    </fieldset>
+
                     <div class="form-group" style="margin-bottom: 1rem;">
                         <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                             <input type="checkbox" id="product-is-active" checked style="width: 18px; height: 18px;">
                             <span>Active (visible to customers)</span>
                         </label>
                     </div>
-                    
+
                     <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0;">
                         <button type="button" class="btn btn-secondary" onclick="closeModal('productModal')">Cancel</button>
                         <button type="submit" class="btn">💾 Save Product</button>
@@ -108323,22 +108357,31 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const tbody = document.getElementById('billing-products-table');
                 
                 if (data.success && data.data && data.data.length > 0) {
-                    tbody.innerHTML = data.data.map(p => `
+                    tbody.innerHTML = data.data.map(p => {
+                        // Render pricing: for v2 usage-priced products (unit_price > 0
+                        // or pricing_type != 'fixed'), show both base + unit rate so
+                        // the operator can see the whole formula at a glance.
+                        const hasUnit = parseFloat(p.unit_price || 0) > 0 || (p.pricing_type && p.pricing_type !== 'fixed');
+                        const priceCell = hasUnit
+                            ? `<div>${parseFloat(p.price_monthly || 0).toFixed(2)} base</div>
+                               <div style="font-size:0.75rem; color:#64748b;">+ ${parseFloat(p.unit_price).toFixed(2)}/${p.unit_type || 'unit'} (over ${p.included_units || 0})</div>`
+                            : (parseFloat(p.price_monthly || 0) > 0 ? parseFloat(p.price_monthly).toFixed(2) + '/mo' : '-');
+                        return `
                         <tr style="${!p.is_active ? 'opacity: 0.6;' : ''}">
                             <td>
                                 <strong>${p.name}</strong>
                                 <div style="font-size: 0.8rem; color: #64748b;">${p.code}</div>
                             </td>
                             <td><span class="badge">${p.category || 'general'}</span></td>
-                            <td>${p.price_monthly > 0 ? '' + parseFloat(p.price_monthly).toFixed(2) + '/mo' : '-'}</td>
-                            <td>${p.price_yearly > 0 ? '' + parseFloat(p.price_yearly).toFixed(2) + '/yr' : '-'}</td>
+                            <td>${priceCell}</td>
+                            <td>${parseFloat(p.price_yearly || 0) > 0 ? parseFloat(p.price_yearly).toFixed(2) + '/yr' : '-'}</td>
                             <td><span class="badge ${p.is_active ? 'badge-success' : 'badge-warning'}">${p.is_active ? 'Active' : 'Inactive'}</span></td>
                             <td>
                                 <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editProduct(${p.id})">Edit</button>
                                 <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; color: #ef4444;" onclick="deleteProduct(${p.id})">Delete</button>
                             </td>
-                        </tr>
-                    `).join('');
+                        </tr>`;
+                    }).join('');
                 } else {
                     tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No products yet. Click "+ Add Product" to create one.</td></tr>';
                 }
@@ -108358,6 +108401,14 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('product-price-monthly').value = product?.price_monthly || '';
             document.getElementById('product-price-yearly').value = product?.price_yearly || '';
             document.getElementById('product-is-active').checked = product?.is_active !== false;
+            // v2 catalogue fields (added 2026-08-09). Populate if the row has
+            // them; leave defaults otherwise.
+            const el = (id) => document.getElementById(id);
+            if (el('product-pricing-type')) el('product-pricing-type').value = product?.pricing_type || 'fixed';
+            if (el('product-unit-price')) el('product-unit-price').value = product?.unit_price || '';
+            if (el('product-included-units')) el('product-included-units').value = product?.included_units || '';
+            if (el('product-unit-type')) el('product-unit-type').value = product?.unit_type || '';
+            if (el('product-notes')) el('product-notes').value = product?.notes || '';
             openModal('productModal');
         }
 
@@ -108376,14 +108427,20 @@ const promo = await fetch('/api/v1/offers/validate', {
             event.preventDefault();
             
             const id = document.getElementById('product-id').value;
+            const el = (id) => document.getElementById(id);
             const productData = {
-                code: document.getElementById('product-code').value,
-                name: document.getElementById('product-name').value,
-                description: document.getElementById('product-description').value,
-                category: document.getElementById('product-category').value,
-                price_monthly: parseFloat(document.getElementById('product-price-monthly').value) || 0,
-                price_yearly: parseFloat(document.getElementById('product-price-yearly').value) || 0,
-                is_active: document.getElementById('product-is-active').checked
+                code: el('product-code').value,
+                name: el('product-name').value,
+                description: el('product-description').value,
+                category: el('product-category').value,
+                price_monthly: parseFloat(el('product-price-monthly').value) || 0,
+                price_yearly: parseFloat(el('product-price-yearly').value) || 0,
+                is_active: el('product-is-active').checked,
+                pricing_type: el('product-pricing-type')?.value || 'fixed',
+                unit_price: parseFloat(el('product-unit-price')?.value) || 0,
+                included_units: parseInt(el('product-included-units')?.value) || 0,
+                unit_type: el('product-unit-type')?.value || null,
+                notes: el('product-notes')?.value || null
             };
             
             try {

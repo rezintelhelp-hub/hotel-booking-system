@@ -25491,11 +25491,11 @@ app.get('/api/admin/billing/estate-overview', async (req, res) => {
 // ═════════════════════════════════════════════════════════════════════
 async function detectSubscriptionsForAccount(accountId) {
   const cat = await pool.query(`
-    SELECT product_code, price_monthly::numeric AS price_monthly,
+    SELECT code AS product_code, price_monthly::numeric AS price_monthly,
            unit_price::numeric AS unit_price, included_units, unit_type,
            category, currency
-      FROM billing_plans
-     WHERE is_active = true AND product_code IS NOT NULL
+      FROM billing_products
+     WHERE is_active = true AND code IS NOT NULL
   `);
   const catalog = {};
   for (const r of cat.rows) catalog[r.product_code] = r;
@@ -25596,22 +25596,22 @@ app.get('/api/admin/billing/client/:id', async (req, res) => {
     const subs = await pool.query(`
       SELECT s.id AS subscription_id, s.product, s.quantity, s.status,
              s.monthly_price AS override_price, s.currency AS override_currency,
-             bp.product_code, bp.name, bp.description, bp.pricing_type,
+             bp.code AS product_code, bp.name, bp.description, bp.pricing_type,
              bp.price_monthly, bp.included_units, bp.unit_price, bp.unit_type,
-             bp.currency, bp.category, bp.sort_order
+             bp.currency, bp.category, bp.display_order AS sort_order
         FROM account_subscriptions s
-        LEFT JOIN billing_plans bp ON bp.product_code = s.product
+        LEFT JOIN billing_products bp ON bp.code = s.product
        WHERE s.account_id = $1 AND s.status = 'active'
-       ORDER BY bp.sort_order NULLS LAST, s.product
+       ORDER BY bp.display_order NULLS LAST, s.product
     `, [targetId]);
 
     const activeCodes = new Set(subs.rows.map(r => r.product_code || r.product).filter(Boolean));
     const catR = await pool.query(`
-      SELECT product_code, name, description, pricing_type, price_monthly,
-             included_units, unit_price, unit_type, currency, category, sort_order
-        FROM billing_plans
-       WHERE product_code IS NOT NULL AND is_active = true
-       ORDER BY sort_order
+      SELECT code AS product_code, name, description, pricing_type, price_monthly,
+             included_units, unit_price, unit_type, currency, category, display_order AS sort_order
+        FROM billing_products
+       WHERE code IS NOT NULL AND is_active = true
+       ORDER BY display_order
     `);
     const available = catR.rows.filter(p => !activeCodes.has(p.product_code));
 
@@ -25802,7 +25802,7 @@ app.post('/api/admin/billing/client/:id/subscribe', async (req, res) => {
     const targetId = parseInt(req.params.id, 10);
     const { product_code, override_price, notes } = req.body || {};
     if (!targetId || !product_code) return res.status(400).json({ success: false, error: 'targetId + product_code required' });
-    const pR = await pool.query(`SELECT product_code, price_monthly, currency FROM billing_plans WHERE product_code = $1 AND is_active = true`, [product_code]);
+    const pR = await pool.query(`SELECT code AS product_code, price_monthly, currency FROM billing_products WHERE code = $1 AND is_active = true`, [product_code]);
     if (!pR.rows[0]) return res.status(404).json({ success: false, error: 'Product not found in catalogue' });
     const price = override_price != null ? parseFloat(override_price) : parseFloat(pR.rows[0].price_monthly);
     const currency = pR.rows[0].currency;
@@ -44770,7 +44770,48 @@ app.get('/api/setup-billing', async (req, res) => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+    // 2026-08-09 — v2 catalogue consolidation. billing_plans held two things:
+    // (a) legacy subscription tiers (Free/Premium/etc, used by the /billing
+    // subscribe API + GC subscription creation) and (b) my 18 v2 catalogue
+    // rows added 2026-08-06 with product_code / pricing_type / unit_price /
+    // included_units / category. (b) belonged in billing_products all along;
+    // this brings the columns over, then a subsequent block copies the 18 v2
+    // rows so subscription-detection + reconciliation can read from one place.
+    await pool.query(`ALTER TABLE billing_products ADD COLUMN IF NOT EXISTS pricing_type VARCHAR(20) DEFAULT 'fixed'`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_products ADD COLUMN IF NOT EXISTS unit_price NUMERIC(10,4) DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_products ADD COLUMN IF NOT EXISTS included_units INTEGER DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_products ADD COLUMN IF NOT EXISTS unit_type VARCHAR(30)`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_products ADD COLUMN IF NOT EXISTS notes TEXT`).catch(() => {});
+    // Copy any v2 rows from billing_plans that don't already exist in
+    // billing_products (matched on product_code == billing_products.code).
+    // Also mark the 6 legacy scaffolding rows (Developer Theme etc) as
+    // is_public=false so they don't show in the public catalogue but stay
+    // in the admin editor for reference.
+    await pool.query(`
+      INSERT INTO billing_products (
+        code, name, description, category, price_monthly, price_yearly, currency,
+        pricing_type, unit_price, included_units, unit_type, notes,
+        is_active, is_public, display_order
+      )
+      SELECT bp.product_code, bp.name, bp.description, bp.category,
+             bp.price_monthly, bp.price_yearly, bp.currency,
+             COALESCE(bp.pricing_type,'fixed'), bp.unit_price, bp.included_units, bp.unit_type, bp.notes,
+             bp.is_active, true, bp.sort_order
+        FROM billing_plans bp
+       WHERE bp.product_code IS NOT NULL
+         AND bp.is_active = true
+         AND NOT EXISTS (SELECT 1 FROM billing_products WHERE code = bp.product_code)
+    `).catch(e => console.error('[migration] billing v2 copy skipped:', e.message));
+    // Legacy scaffolding rows (id 1-6 with generic template/plugin codes
+    // like wp-theme-developer) — retain but hide from public. Match by
+    // code prefix + category so we don't accidentally hide real v2 rows.
+    await pool.query(`
+      UPDATE billing_products
+         SET is_public = false, is_active = false
+       WHERE (code LIKE 'wp-theme-%' OR code LIKE 'wp-plugin-%' OR code LIKE 'app-%' OR code LIKE 'portal-%')
+         AND created_at < '2026-08-09'
+    `).catch(() => {});
+
     // NEW: Billing Add-ons
     await pool.query(`
       CREATE TABLE IF NOT EXISTS billing_addons (
@@ -44981,37 +45022,60 @@ app.get('/api/admin/billing/products', async (req, res) => {
   }
 });
 
-// Create product
+// Create product — 2026-08-09 extended with v2 catalogue fields
+// (pricing_type, unit_price, included_units, unit_type, notes).
 app.post('/api/admin/billing/products', async (req, res) => {
   try {
-    const { code, name, description, category, price_monthly, price_yearly, is_active } = req.body;
-    
+    const {
+      code, name, description, category, price_monthly, price_yearly, is_active,
+      pricing_type, unit_price, included_units, unit_type, notes
+    } = req.body;
+
     const result = await pool.query(`
-      INSERT INTO billing_products (code, name, description, category, price_monthly, price_yearly, is_active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO billing_products (
+        code, name, description, category, price_monthly, price_yearly, is_active,
+        pricing_type, unit_price, included_units, unit_type, notes
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
-    `, [code, name, description, category || 'general', price_monthly || 0, price_yearly || 0, is_active !== false]);
-    
+    `, [
+      code, name, description, category || 'general',
+      price_monthly || 0, price_yearly || 0, is_active !== false,
+      pricing_type || 'fixed', unit_price || 0, included_units || 0,
+      unit_type || null, notes || null
+    ]);
+
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
 });
 
-// Update product
+// Update product — same v2 field set as create.
 app.put('/api/admin/billing/products/:id', async (req, res) => {
   try {
-    const { code, name, description, category, price_monthly, price_yearly, is_active } = req.body;
-    
+    const {
+      code, name, description, category, price_monthly, price_yearly, is_active,
+      pricing_type, unit_price, included_units, unit_type, notes
+    } = req.body;
+
     const result = await pool.query(`
-      UPDATE billing_products 
-      SET code = $1, name = $2, description = $3, category = $4, 
+      UPDATE billing_products
+      SET code = $1, name = $2, description = $3, category = $4,
           price_monthly = $5, price_yearly = $6, is_active = $7,
+          pricing_type = $8, unit_price = $9, included_units = $10,
+          unit_type = $11, notes = $12,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $8
+      WHERE id = $13
       RETURNING *
-    `, [code, name, description, category || 'general', price_monthly || 0, price_yearly || 0, is_active !== false, req.params.id]);
-    
+    `, [
+      code, name, description, category || 'general',
+      price_monthly || 0, price_yearly || 0, is_active !== false,
+      pricing_type || 'fixed', unit_price || 0, included_units || 0,
+      unit_type || null, notes || null,
+      req.params.id
+    ]);
+
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
