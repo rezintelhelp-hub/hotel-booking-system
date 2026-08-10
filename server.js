@@ -2613,6 +2613,12 @@ async function runMigrations() {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_account ON gas_media_library(account_id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_site ON gas_media_library(deployed_site_id)`);
       console.log('  ✓ Media library table ready');
+      // guest_communications.guest_id — drop NOT NULL. OTA messages
+      // (Channex Airbnb/BDC/Expedia) arrive with no linked GAS guest
+      // when the booking hasn't landed yet or the name doesn't match.
+      // Blocking those inserts loses the message; NULL is the right value.
+      try { await pool.query(`ALTER TABLE guest_communications ALTER COLUMN guest_id DROP NOT NULL`); } catch (e) { /* already nullable */ }
+
       // Owner image upload tokens — each token grants public write access
       // to a specific property or room's images. Landed images arrive with
       // is_active=false + upload_source='owner_link' so operator must
@@ -14632,6 +14638,8 @@ async function _persistChannexMessage({ threadId, threadMeta, threadTitle, prope
           const target = String(threadTitle).trim().toLowerCase().replace(/\s+/g, ' ');
           const cand = await pool.query(
             `SELECT id, guest_id,
+                    LOWER(TRIM(COALESCE(guest_first_name,''))) AS first_lc,
+                    LOWER(TRIM(COALESCE(guest_last_name,''))) AS last_lc,
                     LOWER(TRIM(COALESCE(guest_first_name,'') || ' ' || COALESCE(guest_last_name,''))) AS name_lc
                FROM bookings
               WHERE property_id = $1
@@ -14639,7 +14647,13 @@ async function _persistChannexMessage({ threadId, threadMeta, threadTitle, prope
                 AND arrival_date >= NOW() - INTERVAL '365 days'
               ORDER BY arrival_date DESC
               LIMIT 200`, [gasPropertyId]);
-          const match = cand.rows.find(r => r.name_lc && r.name_lc.replace(/\s+/g,' ') === target);
+          // Try full-name match first, then first-name-only (Airbnb only
+          // exposes the first name to hosts in most cases). First-name
+          // match is scoped by property already, so name collision risk
+          // is limited but non-zero — take the most recent booking as a
+          // tiebreaker (query is ORDER BY arrival_date DESC).
+          let match = cand.rows.find(r => r.name_lc && r.name_lc.replace(/\s+/g,' ') === target);
+          if (!match) match = cand.rows.find(r => r.first_lc === target);
           if (match) { bookingId = match.id; guestId = match.guest_id; }
         }
       } catch (e) { /* non-fatal */ }
