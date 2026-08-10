@@ -6,38 +6,47 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Upload Images</title>
 <style>
-  :root { --brand: #10b981; --ink: #0f172a; --muted: #64748b; --border: #e2e8f0; --bg: #f8fafc; --err: #dc2626; }
+  :root { --brand: #10b981; --ink: #0f172a; --muted: #64748b; --border: #e2e8f0; --bg: #f8fafc; --err: #dc2626; --card: #ffffff; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); }
-  .wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  .sub { color: var(--muted); font-size: 15px; margin: 0 0 24px; }
-  .drop { border: 2px dashed var(--border); border-radius: 16px; background: white; padding: 48px 24px; text-align: center; transition: all .15s; cursor: pointer; }
+  html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 48px 20px 96px; }
+  .header { margin-bottom: 32px; }
+  h1 { font-size: 26px; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 16px; margin: 0; }
+  .guidelines { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin-bottom: 24px; }
+  .guidelines h3 { margin: 0 0 12px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .guidelines ul { margin: 0; padding: 0; list-style: none; }
+  .guidelines li { padding: 4px 0; font-size: 14px; color: var(--ink); display: flex; align-items: flex-start; gap: 8px; }
+  .guidelines li::before { content: "•"; color: var(--brand); font-weight: 700; }
+  .drop { border: 2px dashed var(--border); border-radius: 16px; background: var(--card); padding: 56px 24px; text-align: center; transition: all .15s; cursor: pointer; display: block; }
   .drop:hover, .drop.hover { border-color: var(--brand); background: #ecfdf5; }
-  .drop.hover { transform: scale(1.005); }
-  .drop svg { width: 48px; height: 48px; color: var(--muted); margin-bottom: 12px; }
-  .drop p { margin: 0 0 8px; font-weight: 600; font-size: 16px; }
+  .drop svg { width: 52px; height: 52px; color: var(--muted); margin-bottom: 14px; }
+  .drop p { margin: 0 0 6px; font-weight: 600; font-size: 17px; }
   .drop small { color: var(--muted); font-size: 13px; }
   .drop input[type=file] { display: none; }
-  .btn { background: var(--brand); color: white; border: 0; padding: 12px 24px; font-size: 15px; font-weight: 600; border-radius: 999px; cursor: pointer; margin-top: 16px; }
+  .btn-row { display: flex; justify-content: center; margin: 24px 0 0; }
+  .btn { background: var(--brand); color: white; border: 0; padding: 14px 32px; font-size: 15px; font-weight: 600; border-radius: 999px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.06); transition: background .15s; }
   .btn:hover { background: #059669; }
-  .btn:disabled { background: #94a3b8; cursor: not-allowed; }
-  .files { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
-  .file { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
-  .file-name { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn:disabled { background: #cbd5e1; cursor: not-allowed; box-shadow: none; }
+  .files { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; }
+  .file { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .file-row { display: flex; align-items: center; gap: 12px; }
+  .file-name { flex: 1; font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .file-size { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .file .bar { flex-basis: 100%; height: 4px; background: #f1f5f9; border-radius: 2px; overflow: hidden; margin-top: 8px; }
+  .file .status { font-size: 12px; color: var(--muted); }
+  .file .bar { width: 100%; height: 4px; background: #f1f5f9; border-radius: 2px; overflow: hidden; margin-top: 10px; }
   .file .bar div { height: 100%; background: var(--brand); width: 0%; transition: width .2s; }
   .file.ok .status { color: var(--brand); font-weight: 600; }
-  .file.err .status { color: var(--err); font-weight: 600; font-size: 12px; }
-  .done { text-align: center; padding: 48px 24px; background: white; border-radius: 16px; margin-top: 24px; }
-  .done svg { width: 56px; height: 56px; color: var(--brand); margin-bottom: 12px; }
-  .done h2 { margin: 0 0 8px; font-size: 20px; }
-  .done p { margin: 0; color: var(--muted); }
-  .error-page { background: white; border-radius: 16px; padding: 48px 32px; text-align: center; }
-  .error-page h2 { color: var(--err); margin: 0 0 8px; }
-  .error-page p { color: var(--muted); margin: 0 0 16px; }
-  .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .file.err .status { color: var(--err); font-weight: 600; }
+  .done { text-align: center; padding: 56px 32px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; margin-top: 24px; }
+  .done svg { width: 60px; height: 60px; color: var(--brand); margin-bottom: 16px; }
+  .done h2 { margin: 0 0 10px; font-size: 22px; }
+  .done p { margin: 0; color: var(--muted); font-size: 15px; }
+  .done .btn { margin-top: 24px; }
+  .error-page { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 56px 32px; text-align: center; }
+  .error-page h2 { color: var(--err); margin: 0 0 10px; font-size: 22px; }
+  .error-page p { color: var(--muted); margin: 0 0 12px; font-size: 15px; }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -51,17 +60,31 @@
   </div>
 
   <div id="app" style="display:none;">
-    <h1 id="title">Upload images</h1>
-    <p class="sub" id="subtitle"></p>
+    <div class="header">
+      <h1 id="title">Upload images</h1>
+      <p class="sub" id="subtitle"></p>
+    </div>
+
+    <div class="guidelines">
+      <h3>Photo guidelines</h3>
+      <ul>
+        <li>Landscape orientation (wider than tall)</li>
+        <li>Approx. 2400 × 1200 pixels or larger</li>
+        <li>Bright, natural light where possible</li>
+        <li>JPG, PNG or HEIC — up to 20MB each, 10 files per drop</li>
+      </ul>
+    </div>
 
     <label class="drop" id="drop">
       <input type="file" id="file-input" accept="image/*" multiple>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v13m0-13-4 4m4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
       <p>Tap here or drop images</p>
-      <small>JPG, PNG, HEIC. Up to 10 files at a time, 20MB each.</small>
+      <small>Or drag and drop from your desktop</small>
     </label>
 
-    <button class="btn" id="upload-btn" disabled>Upload 0 files</button>
+    <div class="btn-row">
+      <button class="btn" id="upload-btn" disabled>Upload 0 files</button>
+    </div>
 
     <div class="files" id="files"></div>
   </div>
@@ -136,14 +159,12 @@
     wrap.className = 'file';
     wrap.id = id;
     wrap.innerHTML =
-      '<div style="flex:1; min-width:0;">' +
-        '<div style="display:flex; align-items:center; gap:8px;">' +
-          '<div class="file-name">' + f.name.replace(/</g,'&lt;') + '</div>' +
-          '<div class="file-size">' + fmtSize(f.size) + '</div>' +
-          '<div class="status" style="font-size:12px;">Ready</div>' +
-        '</div>' +
-        '<div class="bar"><div></div></div>' +
-      '</div>';
+      '<div class="file-row">' +
+        '<div class="file-name">' + f.name.replace(/</g,'&lt;') + '</div>' +
+        '<div class="file-size">' + fmtSize(f.size) + '</div>' +
+        '<div class="status">Ready</div>' +
+      '</div>' +
+      '<div class="bar"><div></div></div>';
     filesEl.appendChild(wrap);
   }
 
