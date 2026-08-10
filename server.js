@@ -85202,7 +85202,13 @@ app.get('/api/admin/properties/:id/owner-email-draft', async (req, res) => {
     if (!_isMasterAdmin(user) && user.account_id !== propR.rows[0].account_id) {
       return res.status(403).json({ success: false, error: 'not authorised' });
     }
-    const rooms = await pool.query(`SELECT id, name FROM bookable_units WHERE property_id = $1 ORDER BY id`, [id]);
+    // Only live rooms — status active/available AND not hidden by owner.
+    const rooms = await pool.query(`
+      SELECT id, name FROM bookable_units
+       WHERE property_id = $1
+         AND status IN ('available','active')
+         AND (is_hidden = false OR is_hidden IS NULL)
+       ORDER BY id`, [id]);
     // Issue tokens for property + each room. Reuses the same logic as
     // POST /api/admin/upload-tokens — one active token per scope.
     const base = process.env.PUBLIC_BASE_URL || `https://${req.get('host')}`;
@@ -85232,12 +85238,25 @@ app.get('/api/admin/properties/:id/owner-email-draft', async (req, res) => {
     const bodyLines = [
       greet,
       '',
-      `${prop.name} is ready for images. Please upload photos of the property and each room using the links below. Take them on your phone if easiest — no login needed, just click.`,
+      `${prop.name} is ready for images. Please upload photos of the property and each room using the links below — no login needed, just click.`,
       '',
-      `🏠 Property images (façade, common areas): ${propUrl}`,
+      'PHOTO GUIDELINES',
+      '  • Landscape orientation (wider than tall)',
+      '  • Approx. 2400 × 1200 pixels or larger',
+      '  • Bright, natural light where possible',
+      '  • JPG, PNG or HEIC — up to 20MB each',
+      '',
+      'UPLOAD LINKS',
+      '',
+      `🏠 Property (façade, common areas, exterior)`,
+      `   ${propUrl}`,
     ];
-    for (const rl of roomLinks) bodyLines.push(`🛏 ${rl.name}: ${rl.url}`);
-    bodyLines.push('', 'Uploads appear immediately for us to review before they go live.', '', 'Thanks!');
+    for (const rl of roomLinks) {
+      bodyLines.push('');
+      bodyLines.push(`🛏 ${rl.name}`);
+      bodyLines.push(`   ${rl.url}`);
+    }
+    bodyLines.push('', 'Uploads land immediately for us to review before they go live on your listings.', '', 'Thanks!');
     res.json({
       success: true,
       to: prop.owner_email || '',
