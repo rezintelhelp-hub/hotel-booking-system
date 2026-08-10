@@ -105968,6 +105968,51 @@ app.post('/api/public/book', async (req, res) => {
       console.warn('[public/book] price validation skipped:', validErr.message);
     }
 
+    // === Phase A breakdown recompute ===
+    // 2026-08-10 — calculate-price returns accommodation_total with
+    // ambiguous meaning (sometimes gross, sometimes post-offer, sometimes
+    // rate-plan total including baked-in extras). The value flows through
+    // price_breakdown.accommodation_total into the DB, so accommodation_price
+    // on the booking row can end up equal to grand_total — making the
+    // Financials breakdown look wrong ("Accommodation 855" when gross is
+    // 880). Fingerprint: Cotswolds GAS-548207 (Jade Newman) had
+    // accommodation_price = grand_total = 855 with £151 of extras and
+    // £176 offer, so line items didn't sum to total.
+    //
+    // grand_total is what the guest paid (authoritative, matches Stripe).
+    // Back-solve accommodation from source-of-truth values:
+    //   accommodation = grand_total − extras + discount + voucher
+    //   subtotal      = accommodation − discount − voucher
+    //   extras_total  = sum(booking_extras)
+    // Never touches grand_total, discount_amount, voucher_discount, deposit,
+    // balance, or any payment. Only derived breakdown columns.
+    try {
+      const _exSumR = await pool.query(
+        `SELECT COALESCE(SUM(qty * unit_price::numeric), 0) AS s
+           FROM booking_extras WHERE booking_id = $1`,
+        [newBooking.id]
+      );
+      const _extrasSum = parseFloat(_exSumR.rows[0].s) || 0;
+      const _gt = parseFloat(newBooking.grand_total) || 0;
+      const _disc = parseFloat(newBooking.discount_amount) || 0;
+      const _vch = parseFloat(newBooking.voucher_discount) || 0;
+      const _accom = _gt - _extrasSum + _disc + _vch;
+      const _sub = _accom - _disc - _vch;
+      if (_accom > 0) {
+        await pool.query(
+          `UPDATE bookings
+              SET accommodation_price = $1, subtotal = $2, extras_total = $3
+            WHERE id = $4`,
+          [_accom.toFixed(2), _sub.toFixed(2), _extrasSum.toFixed(2), newBooking.id]
+        );
+        newBooking.accommodation_price = _accom.toFixed(2);
+        newBooking.subtotal = _sub.toFixed(2);
+        newBooking.extras_total = _extrasSum.toFixed(2);
+      }
+    } catch (breakdownErr) {
+      console.warn('[public/book] accommodation breakdown recompute failed:', breakdownErr.message);
+    }
+
     // === Per-account sequential invoice number ===
     // Format INV-{accountId}-{6-digit padded}. Atomic increment so two
     // simultaneous bookings can't collide. Default 1000 → first invoice
