@@ -105783,8 +105783,33 @@ app.post('/api/public/book', async (req, res) => {
         }
       }
       if (extrasTotal > 0) {
-        await pool.query('UPDATE bookings SET extras_total = $1 WHERE id = $2', [extrasTotal.toFixed(2), newBooking.id]);
+        // 2026-08-10 — grand_total FLOOR from persisted line items.
+        // Client-sent total_price occasionally arrives without tax/fees
+        // (stale plugin cache, older widget, race between calculate-price
+        // response and checkout submit). Extras/fees/taxes just persisted
+        // above are the authoritative truth. Raise grand_total to at
+        // least accommodation + extras − discounts. Never lower.
+        // Fixes silent under-billing on direct/rezintel bookings that
+        // left ~£2.8k across 28 past bookings + would have leaked ~£3.2k
+        // on 44 future bookings (Aug 2026 audit).
+        const _accom = parseFloat(newBooking.accommodation_price) || 0;
+        const _voucher = parseFloat(newBooking.voucher_discount) || 0;
+        const _offerDisc = parseFloat(newBooking.discount_amount) || 0;
+        const _expected = _accom + extrasTotal - _voucher - _offerDisc;
+        const _currentGT = parseFloat(newBooking.grand_total) || 0;
+        const _finalGT = Math.max(_currentGT, _expected);
+        const _dep = parseFloat(newBooking.deposit_amount) || 0;
+        const _bal = Math.max(0, _finalGT - _dep);
+        await pool.query(
+          'UPDATE bookings SET extras_total = $1, grand_total = $2, balance_amount = $3, balance_due = $3 WHERE id = $4',
+          [extrasTotal.toFixed(2), _finalGT.toFixed(2), _bal.toFixed(2), newBooking.id]
+        );
         newBooking.extras_total = extrasTotal.toFixed(2);
+        newBooking.grand_total = _finalGT.toFixed(2);
+        newBooking.balance_amount = _bal.toFixed(2);
+        if (_finalGT > _currentGT + 0.01) {
+          console.warn(`[public/book] grand_total floor raised for booking ${newBooking.id}: plugin sent £${_currentGT.toFixed(2)}, persisted extras=${extrasTotal.toFixed(2)}, floored to £${_finalGT.toFixed(2)} (accom=${_accom.toFixed(2)}, voucher=${_voucher.toFixed(2)}, offer=${_offerDisc.toFixed(2)})`);
+        }
       }
     } catch (extrasErr) {
       console.error('[public/book] booking_extras persist failed:', extrasErr.message);
