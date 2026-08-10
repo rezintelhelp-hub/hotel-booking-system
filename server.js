@@ -103448,6 +103448,23 @@ app.post('/api/public/calculate-price', async (req, res) => {
       current.setDate(current.getDate() + 1);
     }
 
+    // === Phase C: freeze the gross accommodation ===
+    // 2026-08-10 — `accommodationTotal` is mutated in many places below:
+    //   ~103868  tier override      accommodationTotal = tierTotal
+    //   ~103885  rate-plan override accommodationTotal = ratePlanTotal
+    //   ~103977  offer applied      accommodationTotal = base - discount
+    //   ~104051  voucher applied    accommodationTotal -= voucherDiscount
+    // So by the time we return it, the field means different things per
+    // pricing path. That ambiguity is the reason Financials showed
+    // "Accommodation £855" for Cotswolds GAS-548207 when gross was £880.
+    //
+    // Snapshot the standard-rate gross here — post night-loop, post
+    // occupancy adjustment, PRE any offer/voucher/rate-plan override —
+    // so downstream has one unambiguous "gross" number to reason about.
+    // Exposed as `accommodation_gross` in the response. accommodation_total
+    // is left untouched for backward compat with older plugin versions.
+    const accommodationGross = accommodationTotal;
+
     // CHANGEOVER OVERRIDE REMOVED 2026-06-01.
     // The block that used to live here flipped allAvailable back to true
     // when only the last stay night was blocked AND the checkout date was
@@ -104607,6 +104624,10 @@ app.post('/api/public/calculate-price', async (req, res) => {
       occupancy_adjustment: roundMoney(occupancyAdjustmentTotal, currency),
       occupancy_label: occupancyLabel,
       accommodation_total: roundMoney(shopLinkedTotal != null ? shopLinkedTotal : accommodationTotal, currency),
+      // Phase C — unambiguous gross room rate (pre-offer, pre-voucher,
+      // pre-rate-plan-override). Downstream (plugin display, /api/public/book
+      // recompute) can read this instead of the ambiguous accommodation_total.
+      accommodation_gross: roundMoney(shopLinkedTotal != null ? shopLinkedTotal : accommodationGross, currency),
       cm_total: roundMoney(cmTotal, currency),
       offer_discount: roundMoney(discount, currency),
       offer_applied: offerApplied,
