@@ -84869,24 +84869,29 @@ app.post('/api/admin/properties/:id/images', upload.array('images', 10), async (
 // strip in GAS Admin.
 // ═══════════════════════════════════════════════════════════════════
 
-// Resolve the caller from the Bearer token (users.api_key) so we can
-// scope operations to their account. Existing admin routes don't do
-// this consistently — introducing a helper locally rather than a global
-// middleware to avoid touching everything else.
+// Resolve the caller from the Bearer token. Admin login stores
+// accounts.api_key in localStorage (see /api/auth/login flow); short-
+// lived sessions use account_sessions.token. Both resolve to a single
+// account_id + role. Not a global middleware — kept local so this
+// feature doesn't force auth on every existing endpoint.
 async function _resolveOwnerLinkCaller(req) {
   const auth = req.headers.authorization || '';
   const m = auth.match(/^Bearer\s+(.+)$/i);
   if (!m) return null;
-  const r = await pool.query(
-    `SELECT u.id, u.email, u.account_type, u.account_id,
-            COALESCE(a.role, u.account_type) AS role
-       FROM users u LEFT JOIN accounts a ON a.id = u.account_id
-      WHERE u.api_key = $1 LIMIT 1`, [m[1]]);
-  return r.rows[0] || null;
+  const token = m[1];
+  // Persistent account api_key
+  let r = await pool.query(
+    `SELECT id AS account_id, role FROM accounts WHERE api_key = $1 LIMIT 1`, [token]);
+  if (r.rows[0]) return { account_id: r.rows[0].account_id, role: r.rows[0].role };
+  // Session token fallback
+  r = await pool.query(
+    `SELECT s.account_id, a.role FROM account_sessions s
+       JOIN accounts a ON a.id = s.account_id
+      WHERE s.token = $1 AND s.expires_at > NOW() LIMIT 1`, [token]);
+  if (r.rows[0]) return { account_id: r.rows[0].account_id, role: r.rows[0].role };
+  return null;
 }
-function _isMasterAdmin(user) {
-  return user && (user.account_type === 'master_admin' || user.role === 'master_admin');
-}
+function _isMasterAdmin(user) { return user && user.role === 'master_admin'; }
 
 // Create an upload token for a property or a specific room.
 // Body: { scope: 'property'|'room', property_id, room_id?, expires_days? }
@@ -84925,7 +84930,7 @@ app.post('/api/admin/upload-tokens', async (req, res) => {
     await pool.query(`
       INSERT INTO image_upload_tokens (token, account_id, scope, property_id, room_id, created_by_user_id, expires_at)
       VALUES ($1, $2, $3, $4, $5, $6, NOW() + ($7 || ' days')::interval)`,
-      [token, accountId, scope, property_id, scope === 'room' ? room_id : null, user.id, String(expiresDays)]);
+      [token, accountId, scope, property_id, scope === 'room' ? room_id : null, null, String(expiresDays)]);
 
     const base = process.env.PUBLIC_BASE_URL || `https://${req.get('host')}`;
     res.json({ success: true, token, url: `${base}/upload/${token}`, expires_days: expiresDays });
@@ -85199,7 +85204,7 @@ app.get('/api/admin/properties/:id/owner-email-draft', async (req, res) => {
       await pool.query(`
         INSERT INTO image_upload_tokens (token, account_id, scope, property_id, room_id, created_by_user_id, expires_at)
         VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '30 days')`,
-        [token, propR.rows[0].account_id, scope, id, roomId, user.id]);
+        [token, propR.rows[0].account_id, scope, id, roomId, null]);
       return `${base}/upload/${token}`;
     }
     const propUrl = await issueToken('property', null);
