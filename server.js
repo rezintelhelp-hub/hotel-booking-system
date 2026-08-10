@@ -3447,6 +3447,49 @@ async function runMigrations() {
       try { await pool.query(`ALTER TABLE account_sessions ADD COLUMN IF NOT EXISTS team_assignment_id INT`); } catch (e) { console.error('[migration] account_sessions.team_assignment_id skipped:', e.message); }
 
       // ─────────────────────────────────────────────────────────────────────
+      // Backfill: account holder → team_members + team_assignments (2026-08-10)
+      // Every account with an email needs an owner-role team_assignment so
+      // password resets, credentials emails, and team-scoped flows can reach
+      // them via the same list as everyone else. Idempotent — runs on every
+      // boot; already-linked account holders are skipped by NOT EXISTS.
+      // If someone deletes the assignment, next boot reinstates it.
+      // ─────────────────────────────────────────────────────────────────────
+      try {
+        // Insert missing team_members for account holders (matched by email)
+        const memIns = await pool.query(`
+          INSERT INTO team_members (email, password_hash, full_name, phone, status, created_by, must_change_password, created_at, updated_at)
+          SELECT LOWER(a.email), a.password_hash,
+                 COALESCE(NULLIF(a.contact_name,''), NULLIF(a.name,''), a.email) AS full_name,
+                 a.phone, 'active', 1, false, NOW(), NOW()
+            FROM accounts a
+           WHERE a.email IS NOT NULL AND a.email <> ''
+             AND COALESCE(a.account_status,'active') NOT IN ('suspended','deleted')
+             AND NOT EXISTS (
+               SELECT 1 FROM team_members tm WHERE LOWER(tm.email) = LOWER(a.email)
+             )
+          RETURNING id, email`);
+        // Link account_holders → team_assignments (role='owner') where missing.
+        // The uq_team_assignments_active partial index guards uniqueness on
+        // (member_id, account_id, role) for non-deleted rows.
+        const asgIns = await pool.query(`
+          INSERT INTO team_assignments (member_id, account_id, role, permissions, status, invited_by, invited_at, accepted_at, created_at, updated_at)
+          SELECT tm.id, a.id, 'owner', '{}'::jsonb, 'active', 1, NOW(), NOW(), NOW(), NOW()
+            FROM accounts a
+            JOIN team_members tm ON LOWER(tm.email) = LOWER(a.email)
+           WHERE a.email IS NOT NULL AND a.email <> ''
+             AND COALESCE(a.account_status,'active') NOT IN ('suspended','deleted')
+             AND NOT EXISTS (
+               SELECT 1 FROM team_assignments ta
+                WHERE ta.member_id = tm.id AND ta.account_id = a.id
+                  AND COALESCE(ta.status,'') <> 'deleted'
+             )
+          RETURNING id`);
+        if (memIns.rowCount || asgIns.rowCount) {
+          console.log(`  ✓ Account-holder backfill: +${memIns.rowCount} team_members, +${asgIns.rowCount} owner assignments`);
+        }
+      } catch (e) { console.error('[migration] account-holder team backfill skipped:', e.message); }
+
+      // ─────────────────────────────────────────────────────────────────────
       // TTLock per-account OAuth connection (Phase A of the e-bike build).
       // Each operator (account) connects their own TTLock app user; that
       // user's locks are then mappable to shop_product_inventory rows.
