@@ -14591,7 +14591,7 @@ app.get('/api/admin/channex/messages/threads', async (req, res) => {
 // thread's meta (reservation_live_feed_event_id / guest_email) when
 // present. NULL is fine — the row still appears in a per-guest global
 // history when matched by contact_id later.
-async function _persistChannexMessage({ threadId, propertyId, msg, direction, connectionId }) {
+async function _persistChannexMessage({ threadId, threadMeta, propertyId, msg, direction, connectionId }) {
   try {
     const providerId = msg.id;
     if (!providerId) return;
@@ -14600,10 +14600,13 @@ async function _persistChannexMessage({ threadId, propertyId, msg, direction, co
         WHERE channel = 'channex' AND provider_message_id = $1 LIMIT 1`, [providerId]);
     if (exists.rows[0]) return; // already logged
 
-    // Best-effort booking match via the thread's Channex booking id
-    // (Channex sometimes carries it in the message meta).
+    // Best-effort booking match. Look in msg.meta first, then thread meta,
+    // covering both places Channex tends to carry the reservation id.
     let bookingId = null, guestId = null, contactId = null;
-    const channexBookingId = msg.meta?.reservation_id || msg.meta?.booking_revision_id || msg.meta?.booking_id;
+    const meta = msg.meta || {};
+    const tMeta = threadMeta || {};
+    const channexBookingId = meta.reservation_id || meta.booking_revision_id || meta.booking_id
+                          || tMeta.reservation_id || tMeta.booking_revision_id || tMeta.booking_id;
     if (channexBookingId) {
       const b = await pool.query(
         `SELECT id, guest_id FROM bookings WHERE channex_booking_id = $1 LIMIT 1`, [channexBookingId]);
@@ -14611,9 +14614,10 @@ async function _persistChannexMessage({ threadId, propertyId, msg, direction, co
     }
     // If no booking match, fall back to matching by guest email in a
     // thread whose contact we do know (contacts table).
-    if (!bookingId && msg.meta?.guest_email) {
+    const guestEmail = meta.guest_email || tMeta.guest_email;
+    if (!bookingId && guestEmail) {
       const ct = await pool.query(
-        `SELECT id FROM contacts WHERE LOWER(email) = LOWER($1) LIMIT 1`, [msg.meta.guest_email]);
+        `SELECT id FROM contacts WHERE LOWER(email) = LOWER($1) LIMIT 1`, [guestEmail]);
       if (ct.rows[0]) contactId = ct.rows[0].id;
     }
 
@@ -77466,8 +77470,8 @@ app.get('/api/admin/bookings/:id/communications', async (req, res) => {
     if (!bookingId) return res.status(400).json({ success: false, error: 'invalid booking id' });
     const r = await pool.query(`
       SELECT gc.id, gc.booking_id, gc.channel, gc.direction, gc.event_type,
-             gc.subject, gc.status, gc.sent_at, gc.opened_at, gc.clicked_at,
-             gc.provider_message_id,
+             gc.subject, gc.body, gc.status, gc.sent_at, gc.opened_at, gc.clicked_at,
+             gc.provider_message_id, gc.metadata,
              g.email AS recipient_email,
              TRIM(COALESCE(g.first_name,'') || ' ' || COALESCE(g.last_name,'')) AS recipient_name
       FROM guest_communications gc
@@ -128273,6 +128277,91 @@ async function runChannexBookingsPoller() {
 }
 setTimeout(runChannexBookingsPoller, 2 * 60 * 1000);      // 2 min after boot
 setInterval(runChannexBookingsPoller, 5 * 60 * 1000);     // every 5 min
+
+// ─── Channex message-thread poller (2026-08-10) ─────────────────────
+// Every 15 min, iterate all Channex connections → their properties →
+// active threads. Any thread whose updated_at is newer than our last
+// tick gets its messages pulled + mirrored into guest_communications
+// via _persistChannexMessage (idempotent on provider_message_id).
+// This is what closes the "Comms tab shows OTA history without an
+// operator opening Messages first" loop.
+// State: in-memory Map connection_id → last-poll timestamp. Warm-up
+// tick after boot fetches everything in the last 30 days.
+const _channexMsgPollState = new Map();
+async function runChannexMessagePoll() {
+  try {
+    const axios = require('axios');
+    const conns = await pool.query(`
+      SELECT id, credentials FROM gas_sync_connections
+       WHERE adapter_code IN ('channex','channex-marketplace')
+         AND COALESCE(status,'') <> 'deleted'
+    `);
+    if (conns.rows.length === 0) return;
+    let mirrored = 0, threadsScanned = 0;
+    const nowIso = new Date().toISOString();
+    for (const c of conns.rows) {
+      const apiKey = c.credentials?.apiKey || c.credentials?.api_key;
+      if (!apiKey) continue;
+      // Threads whose updated_at > this cutoff are worth pulling. First
+      // tick after boot = 30 days back. Later ticks = last poll time.
+      const cutoff = _channexMsgPollState.get(c.id)
+                  || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      try {
+        const propsQ = await pool.query(
+          "SELECT external_id FROM gas_sync_properties WHERE connection_id = $1",
+          [c.id]);
+        for (const p of propsQ.rows) {
+          try {
+            const tR = await axios.get(
+              `https://app.channex.io/api/v1/message_threads?filter[property_id]=${p.external_id}&limit=100`,
+              { headers: { 'user-api-key': apiKey }, timeout: 15000 });
+            for (const th of (tR.data?.data || [])) {
+              const upd = th.attributes?.updated_at;
+              if (!upd || upd < cutoff) continue;   // no activity since last tick
+              threadsScanned++;
+              const mR = await axios.get(
+                `https://app.channex.io/api/v1/message_threads/${th.id}/messages`,
+                { headers: { 'user-api-key': apiKey }, timeout: 15000 });
+              for (const m of (mR.data?.data || [])) {
+                const msg = {
+                  id: m.id,
+                  message: m.attributes?.message || '',
+                  sender: m.attributes?.sender || null,
+                  meta: m.attributes?.meta || {},
+                  attachments: m.attributes?.attachments || [],
+                  inserted_at: m.attributes?.inserted_at,
+                };
+                await _persistChannexMessage({
+                  threadId: th.id,
+                  threadMeta: th.attributes?.meta || {},
+                  propertyId: p.external_id,
+                  msg,
+                  direction: _inferChannexDirection(msg.sender),
+                  connectionId: c.id
+                });
+                mirrored++;
+              }
+              await new Promise(r => setTimeout(r, 300)); // gentle pacing
+            }
+          } catch (e) {
+            // 404 / auth errors on individual properties shouldn't halt the tick
+            if (e.response?.status !== 404) console.warn(`[channex-msg-poll] prop ${p.external_id}: ${e.response?.status || e.message}`);
+          }
+        }
+        _channexMsgPollState.set(c.id, nowIso);
+      } catch (e) {
+        console.warn(`[channex-msg-poll] conn ${c.id}: ${e.message}`);
+      }
+    }
+    if (mirrored > 0 || threadsScanned > 0) {
+      console.log(`[channex-msg-poll] tick: ${threadsScanned} threads scanned, ${mirrored} messages seen`);
+    }
+  } catch (e) {
+    console.error('[channex-msg-poll] fatal:', e.message);
+  }
+}
+setTimeout(runChannexMessagePoll, 3 * 60 * 1000);         // 3 min after boot
+setInterval(runChannexMessagePoll, 15 * 60 * 1000);       // every 15 min
 
 // =====================================================
 // BOOKING-CUTOFF CLOSE-OUT — push closedToArrival=true to Channex for dates
