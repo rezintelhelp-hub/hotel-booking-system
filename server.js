@@ -85180,10 +85180,23 @@ app.get('/api/admin/properties/:id/owner-email-draft', async (req, res) => {
     const user = await _resolveOwnerLinkCaller(req);
     if (!user) return res.status(401).json({ success: false, error: 'unauthorised' });
     const { id } = req.params;
+    // property_owners is scoped by account_id, not property_id. Prefer
+    // the first active owner on the account; fall back to accounts.email
+    // + contact_name so we always have something to pre-fill.
     const propR = await pool.query(`
       SELECT p.id, p.name, p.account_id,
-             (SELECT email FROM property_owners WHERE property_id = p.id ORDER BY id LIMIT 1) AS owner_email,
-             (SELECT first_name FROM property_owners WHERE property_id = p.id ORDER BY id LIMIT 1) AS owner_first_name
+             COALESCE(
+               (SELECT email FROM property_owners
+                 WHERE account_id = p.account_id AND is_active = true
+                 ORDER BY id LIMIT 1),
+               (SELECT email FROM accounts WHERE id = p.account_id)
+             ) AS owner_email,
+             COALESCE(
+               (SELECT name FROM property_owners
+                 WHERE account_id = p.account_id AND is_active = true
+                 ORDER BY id LIMIT 1),
+               (SELECT contact_name FROM accounts WHERE id = p.account_id)
+             ) AS owner_name
         FROM properties p WHERE p.id = $1`, [id]);
     if (!propR.rows[0]) return res.json({ success: false, error: 'not found' });
     if (!_isMasterAdmin(user) && user.account_id !== propR.rows[0].account_id) {
@@ -85213,7 +85226,9 @@ app.get('/api/admin/properties/:id/owner-email-draft', async (req, res) => {
       roomLinks.push({ name: r.name, url: await issueToken('room', r.id) });
     }
     const prop = propR.rows[0];
-    const greet = prop.owner_first_name ? `Hi ${prop.owner_first_name},` : 'Hi,';
+    // Greet by first token of "name" (handles "Barbara Jones" → "Barbara")
+    const firstName = (prop.owner_name || '').trim().split(/\s+/)[0];
+    const greet = firstName ? `Hi ${firstName},` : 'Hi,';
     const bodyLines = [
       greet,
       '',

@@ -33739,9 +33739,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.25rem;">Body</label>
                             <textarea id="owner-email-body" class="form-input" rows="14" style="width:100%;font-family:inherit;font-size:0.9rem;">${(j.body||'')}</textarea>
                         </div>
-                        <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
+                        <div style="border-top:1px solid #e2e8f0;margin-top:0.5rem;padding-top:0.75rem;">
+                            <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.25rem;">🧪 Send a test to yourself first (optional)</label>
+                            <div style="display:flex;gap:0.5rem;">
+                                <input id="owner-email-test-to" type="email" class="form-input" placeholder="your-email@example.com" style="flex:1;">
+                                <button class="btn btn-secondary" onclick="sendOwnerEmailTest(${propertyId})">Send test</button>
+                            </div>
+                            <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">Sends the same email above to the test address. The links are the same as what the owner will receive.</div>
+                        </div>
+                        <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.75rem;">
                             <button class="btn btn-secondary" onclick="document.getElementById('owner-email-modal-backdrop').remove()">Cancel</button>
-                            <button class="btn btn-primary" onclick="sendOwnerEmailFromDraft(${propertyId})">Send</button>
+                            <button class="btn btn-primary" onclick="sendOwnerEmailFromDraft(${propertyId})">Send to owner</button>
                         </div>
                     </div>`;
                 document.body.appendChild(backdrop);
@@ -33763,6 +33771,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (!j.success) { alert('Send failed: ' + (j.error || 'unknown')); return; }
                 document.getElementById('owner-email-modal-backdrop').remove();
                 alert('Email sent to ' + to);
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        async function sendOwnerEmailTest(propertyId) {
+            const testTo = document.getElementById('owner-email-test-to').value.trim();
+            if (!testTo) { alert('Enter a test email address first'); return; }
+            const subject = '[TEST] ' + document.getElementById('owner-email-subject').value.trim();
+            const body = '⚠️ TEST SEND — this is what your owner will receive:\n\n' + document.getElementById('owner-email-body').value;
+            try {
+                const r = await fetch('/api/admin/properties/' + propertyId + '/send-owner-email', {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ to: testTo, subject, body })
+                });
+                const j = await r.json();
+                if (!j.success) { alert('Test send failed: ' + (j.error || 'unknown')); return; }
+                alert('Test sent to ' + testTo + '.\n\nCheck that the links work, then click "Send to owner".');
             } catch (e) { alert('Error: ' + e.message); }
         }
 
