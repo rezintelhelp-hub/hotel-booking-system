@@ -107101,15 +107101,21 @@ app.post('/api/public/book', async (req, res) => {
         departure_date: check_out,
         num_adults: numAdults,
         num_children: numChildren,
-        accommodation_price: parseFloat(_pb.accommodation_total) || parseFloat(newBooking.accommodation_price) || 0,
+        // 2026-08-10 — prefer DB values. Phase A recompute above has
+        // already back-solved accommodation_price + grand_total from
+        // source-of-truth (persisted extras + guest payment). _pb fields
+        // were reading the plugin's original (ambiguous) submission,
+        // which was the reason confirmation emails showed the wrong
+        // "Accommodation" figure and could double-count with extras.
+        accommodation_price: parseFloat(newBooking.accommodation_price) || parseFloat(_pb.accommodation_gross) || parseFloat(_pb.accommodation_total) || 0,
         offer_label: _pb.offer_applied?.name ? `Offer: ${_pb.offer_applied.name}` : null,
-        offer_discount: parseFloat(_pb.offer_discount) || 0,
+        offer_discount: parseFloat(_pb.offer_discount) || parseFloat(newBooking.discount_amount) || 0,
         voucher_label: _pb.voucher_applied?.code ? `Voucher: ${_pb.voucher_applied.code}` : null,
-        voucher_discount: parseFloat(_pb.voucher_discount) || 0,
+        voucher_discount: parseFloat(_pb.voucher_discount) || parseFloat(newBooking.voucher_discount) || 0,
         extras: Array.isArray(newBooking.extras) ? newBooking.extras : [],
         tax_amount: parseFloat(_pb.tax_total) || parseFloat(_pb.total_tax?.amount) || 0,
         tax_label: _pb.total_tax?.label || 'Tax',
-        grand_total: total_price,
+        grand_total: parseFloat(newBooking.grand_total) || total_price,
         deposit_amount: deposit_amount,
         balance_amount: balance_amount,
         currency: room.currency || '$'

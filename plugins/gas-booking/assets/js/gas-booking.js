@@ -10,7 +10,7 @@
 
 /**
  * GAS Booking Plugin JavaScript - Dwellfort-Inspired Design
- * @version 3.8.01
+ * @version 3.8.02
  */
 jQuery(document).ready(function($) {
 
@@ -8444,6 +8444,13 @@ jQuery(document).ready(function($) {
             var currency = resolveCurrency(checkoutData.currency) || '';
             var nights = p.nights || 1;
             var accommodationTotal = parseFloat(p.accommodation_total) || 0;
+            // 2026-08-10 — accommodation_gross is the unambiguous pre-offer
+            // room rate exposed by server Phase C. Use it for the display
+            // line only, so the guest sees Accommodation + Offer/Extras as
+            // additive lines that sum to Total. accommodationTotal keeps its
+            // meaning for the grandTotal calc below (backward compat with
+            // the server's existing offer_discount semantics).
+            var accommodationDisplay = parseFloat(p.accommodation_gross) || accommodationTotal;
             checkoutData.accommodationTotal = accommodationTotal;
             var upsellsTotal = calculateUpsellsTotal();
             var discount = parseFloat(p.offer_discount) || 0;
@@ -8518,7 +8525,7 @@ jQuery(document).ready(function($) {
             // Accommodation line — just show total with night count, no misleading per-night average
             var nightWord = nights > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night');
             $('.gas-nights-label').text(t('booking', 'accommodation', 'Accommodation') + ' (' + nights + ' ' + nightWord + ')');
-            $('.gas-nights-total').text(formatPrice(accommodationTotal, currency));
+            $('.gas-nights-total').text(formatPrice(accommodationDisplay, currency));
             
             // Discount line
             if (discount > 0) {
