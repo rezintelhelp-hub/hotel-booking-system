@@ -14581,6 +14581,65 @@ app.get('/api/admin/channex/messages/threads', async (req, res) => {
   }
 });
 
+// ─── Channex message persistence (2026-08-10) ───────────────────────
+// Every time we pull a Channex thread or post a reply, mirror the
+// message into guest_communications so the booking's Comms tab shows
+// the same history the operator sees in Messages. Idempotent on
+// (channel, provider_message_id) — safe to re-run on repeat views.
+//
+// booking_id + guest_id are best-effort: extracted from the Channex
+// thread's meta (reservation_live_feed_event_id / guest_email) when
+// present. NULL is fine — the row still appears in a per-guest global
+// history when matched by contact_id later.
+async function _persistChannexMessage({ threadId, propertyId, msg, direction, connectionId }) {
+  try {
+    const providerId = msg.id;
+    if (!providerId) return;
+    const exists = await pool.query(
+      `SELECT 1 FROM guest_communications
+        WHERE channel = 'channex' AND provider_message_id = $1 LIMIT 1`, [providerId]);
+    if (exists.rows[0]) return; // already logged
+
+    // Best-effort booking match via the thread's Channex booking id
+    // (Channex sometimes carries it in the message meta).
+    let bookingId = null, guestId = null, contactId = null;
+    const channexBookingId = msg.meta?.reservation_id || msg.meta?.booking_revision_id || msg.meta?.booking_id;
+    if (channexBookingId) {
+      const b = await pool.query(
+        `SELECT id, guest_id FROM bookings WHERE channex_booking_id = $1 LIMIT 1`, [channexBookingId]);
+      if (b.rows[0]) { bookingId = b.rows[0].id; guestId = b.rows[0].guest_id; }
+    }
+    // If no booking match, fall back to matching by guest email in a
+    // thread whose contact we do know (contacts table).
+    if (!bookingId && msg.meta?.guest_email) {
+      const ct = await pool.query(
+        `SELECT id FROM contacts WHERE LOWER(email) = LOWER($1) LIMIT 1`, [msg.meta.guest_email]);
+      if (ct.rows[0]) contactId = ct.rows[0].id;
+    }
+
+    const subject = msg.meta?.subject || null;
+    const sentAt = msg.inserted_at || new Date().toISOString();
+    const metadata = { thread_id: threadId, channex_property_id: propertyId, connection_id: connectionId, sender: msg.sender || null, attachments: msg.attachments || [], raw_meta: msg.meta || {} };
+    await pool.query(
+      `INSERT INTO guest_communications
+         (booking_id, guest_id, contact_id, channel, direction, event_type,
+          subject, body, status, sent_at, provider_message_id, metadata, created_at)
+       VALUES ($1, $2, $3, 'channex', $4, 'message', $5, $6, 'delivered', $7, $8, $9::jsonb, NOW())`,
+      [bookingId, guestId, contactId, direction, subject, msg.message || '', sentAt, providerId, JSON.stringify(metadata)]);
+  } catch (e) {
+    console.warn('[_persistChannexMessage]', e.message);
+  }
+}
+function _inferChannexDirection(sender) {
+  // Channex sender field varies by OTA. Anything host/operator/property/
+  // owner-side = outbound (us → guest). Anything client/guest/customer-
+  // side = inbound. Default to inbound (safer — a mislabelled inbound
+  // is more visible than a mislabelled outbound).
+  const s = String(sender || '').toLowerCase();
+  if (/^(host|owner|operator|property|manager|admin|reservations?)$/.test(s)) return 'outbound';
+  return 'inbound';
+}
+
 // GET /api/admin/channex/messages/thread/:threadId?connection_id=X
 // Returns the full message list for one thread. connection_id is
 // required so we know which Channex API key to use.
@@ -14603,6 +14662,14 @@ app.get('/api/admin/channex/messages/thread/:threadId', async (req, res) => {
     const axios = require('axios');
     const r = await axios.get(`https://app.channex.io/api/v1/message_threads/${req.params.threadId}/messages`,
       { headers: { 'user-api-key': apiKey } });
+    // Also fetch thread meta so we can persist the property_id alongside
+    // each message (helps future guest-history queries).
+    let threadPropertyId = null;
+    try {
+      const tR = await axios.get(`https://app.channex.io/api/v1/message_threads/${req.params.threadId}`,
+        { headers: { 'user-api-key': apiKey }, timeout: 8000 });
+      threadPropertyId = tR.data?.data?.attributes?.property_id || null;
+    } catch (_) { /* non-fatal */ }
     const messages = (r.data.data || []).map(m => ({
       id: m.id,
       message: m.attributes?.message || '',
@@ -14612,6 +14679,17 @@ app.get('/api/admin/channex/messages/thread/:threadId', async (req, res) => {
       inserted_at: m.attributes?.inserted_at,
       updated_at: m.attributes?.updated_at,
     }));
+    // Mirror into guest_communications — idempotent, best-effort. Failures
+    // don't block the response; the operator still sees the thread live.
+    for (const m of messages) {
+      _persistChannexMessage({
+        threadId: req.params.threadId,
+        propertyId: threadPropertyId,
+        msg: m,
+        direction: _inferChannexDirection(m.sender),
+        connectionId
+      }).catch(() => {});
+    }
     res.json({ success: true, messages });
   } catch (err) {
     console.error('[channex/messages/thread]', err.message);
@@ -14646,7 +14724,27 @@ app.post('/api/admin/channex/messages/thread/:threadId', async (req, res) => {
       { message: { message } },
       { headers: { 'user-api-key': apiKey, 'Content-Type': 'application/json' } }
     );
-    res.json({ success: true, message: sendResp.data?.data });
+    // Log the outbound message into guest_communications so the Comms
+    // tab reflects everything the operator sent — even before the next
+    // thread poll re-reads it. Best-effort, non-blocking.
+    const sent = sendResp.data?.data;
+    if (sent?.id) {
+      _persistChannexMessage({
+        threadId: req.params.threadId,
+        propertyId: null,
+        msg: {
+          id: sent.id,
+          message: sent.attributes?.message || message,
+          sender: sent.attributes?.sender || 'host',
+          meta: sent.attributes?.meta || {},
+          attachments: sent.attributes?.attachments || [],
+          inserted_at: sent.attributes?.inserted_at || new Date().toISOString(),
+        },
+        direction: 'outbound',
+        connectionId
+      }).catch(() => {});
+    }
+    res.json({ success: true, message: sent });
   } catch (err) {
     console.error('[channex/messages/thread POST]', err.response?.status, err.response?.data || err.message);
     res.status(500).json({ success: false, error: err.response?.data?.errors || err.message });
