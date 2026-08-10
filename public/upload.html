@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Upload Images</title>
+<style>
+  :root { --brand: #10b981; --ink: #0f172a; --muted: #64748b; --border: #e2e8f0; --bg: #f8fafc; --err: #dc2626; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 15px; margin: 0 0 24px; }
+  .drop { border: 2px dashed var(--border); border-radius: 16px; background: white; padding: 48px 24px; text-align: center; transition: all .15s; cursor: pointer; }
+  .drop:hover, .drop.hover { border-color: var(--brand); background: #ecfdf5; }
+  .drop.hover { transform: scale(1.005); }
+  .drop svg { width: 48px; height: 48px; color: var(--muted); margin-bottom: 12px; }
+  .drop p { margin: 0 0 8px; font-weight: 600; font-size: 16px; }
+  .drop small { color: var(--muted); font-size: 13px; }
+  .drop input[type=file] { display: none; }
+  .btn { background: var(--brand); color: white; border: 0; padding: 12px 24px; font-size: 15px; font-weight: 600; border-radius: 999px; cursor: pointer; margin-top: 16px; }
+  .btn:hover { background: #059669; }
+  .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+  .files { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
+  .file { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .file-name { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-size { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .file .bar { flex-basis: 100%; height: 4px; background: #f1f5f9; border-radius: 2px; overflow: hidden; margin-top: 8px; }
+  .file .bar div { height: 100%; background: var(--brand); width: 0%; transition: width .2s; }
+  .file.ok .status { color: var(--brand); font-weight: 600; }
+  .file.err .status { color: var(--err); font-weight: 600; font-size: 12px; }
+  .done { text-align: center; padding: 48px 24px; background: white; border-radius: 16px; margin-top: 24px; }
+  .done svg { width: 56px; height: 56px; color: var(--brand); margin-bottom: 12px; }
+  .done h2 { margin: 0 0 8px; font-size: 20px; }
+  .done p { margin: 0; color: var(--muted); }
+  .error-page { background: white; border-radius: 16px; padding: 48px 32px; text-align: center; }
+  .error-page h2 { color: var(--err); margin: 0 0 8px; }
+  .error-page p { color: var(--muted); margin: 0 0 16px; }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="loading" style="text-align:center; padding: 60px 20px; color: var(--muted);">Loading…</div>
+
+  <div id="expired" style="display:none;" class="error-page">
+    <h2>This link isn't active</h2>
+    <p id="expired-msg">The upload link has expired or been revoked.</p>
+    <p class="hint">Please ask your operator for a new one.</p>
+  </div>
+
+  <div id="app" style="display:none;">
+    <h1 id="title">Upload images</h1>
+    <p class="sub" id="subtitle"></p>
+
+    <label class="drop" id="drop">
+      <input type="file" id="file-input" accept="image/*" multiple>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v13m0-13-4 4m4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+      <p>Tap here or drop images</p>
+      <small>JPG, PNG, HEIC. Up to 10 files at a time, 20MB each.</small>
+    </label>
+
+    <button class="btn" id="upload-btn" disabled>Upload 0 files</button>
+
+    <div class="files" id="files"></div>
+  </div>
+
+  <div id="done" style="display:none;" class="done">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+    <h2>Thanks — uploads received</h2>
+    <p id="done-count"></p>
+    <p class="hint" style="margin-top:16px;">You can close this page. Your operator will review shortly.</p>
+    <button class="btn" onclick="location.reload()">Upload more</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  var token = location.pathname.split('/').pop();
+  var queue = []; // {file, id, done}
+
+  function api(path, opts) { return fetch(path, opts || {}); }
+
+  function show(id) {
+    ['loading','expired','app','done'].forEach(function(x) {
+      document.getElementById(x).style.display = (x === id) ? 'block' : 'none';
+    });
+  }
+
+  function fmtSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024*1024) return (n/1024).toFixed(0) + ' KB';
+    return (n/1024/1024).toFixed(1) + ' MB';
+  }
+
+  // Load token info
+  api('/api/public/upload-tokens/' + token + '/info')
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (!j.success) {
+        var msg = j.error === 'expired' ? 'This upload link expired.' :
+                  j.error === 'revoked' ? 'This upload link has been revoked.' :
+                  'Upload link not found.';
+        document.getElementById('expired-msg').textContent = msg;
+        show('expired');
+        return;
+      }
+      document.getElementById('title').textContent = j.scope === 'room'
+        ? 'Upload photos: ' + (j.room_name || 'room')
+        : 'Upload property photos';
+      document.getElementById('subtitle').textContent = j.property_name || '';
+      show('app');
+    });
+
+  var drop = document.getElementById('drop');
+  var input = document.getElementById('file-input');
+  var btn = document.getElementById('upload-btn');
+  var filesEl = document.getElementById('files');
+
+  function addFiles(fileList) {
+    for (var i = 0; i < fileList.length; i++) {
+      var f = fileList[i];
+      if (!f.type.match(/^image\//)) continue;
+      if (queue.length >= 10) break;
+      var id = 'f-' + Date.now() + '-' + i;
+      queue.push({ file: f, id: id, done: false });
+      renderFile(f, id);
+    }
+    btn.disabled = queue.length === 0;
+    btn.textContent = 'Upload ' + queue.length + ' file' + (queue.length === 1 ? '' : 's');
+  }
+
+  function renderFile(f, id) {
+    var wrap = document.createElement('div');
+    wrap.className = 'file';
+    wrap.id = id;
+    wrap.innerHTML =
+      '<div style="flex:1; min-width:0;">' +
+        '<div style="display:flex; align-items:center; gap:8px;">' +
+          '<div class="file-name">' + f.name.replace(/</g,'&lt;') + '</div>' +
+          '<div class="file-size">' + fmtSize(f.size) + '</div>' +
+          '<div class="status" style="font-size:12px;">Ready</div>' +
+        '</div>' +
+        '<div class="bar"><div></div></div>' +
+      '</div>';
+    filesEl.appendChild(wrap);
+  }
+
+  input.addEventListener('change', function() { addFiles(input.files); });
+
+  ['dragenter','dragover'].forEach(function(ev) {
+    drop.addEventListener(ev, function(e) { e.preventDefault(); drop.classList.add('hover'); });
+  });
+  ['dragleave','drop'].forEach(function(ev) {
+    drop.addEventListener(ev, function(e) { e.preventDefault(); drop.classList.remove('hover'); });
+  });
+  drop.addEventListener('drop', function(e) {
+    e.preventDefault();
+    if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
+  });
+
+  btn.addEventListener('click', function() {
+    if (queue.length === 0) return;
+    btn.disabled = true;
+    var fd = new FormData();
+    queue.forEach(function(q) { fd.append('images', q.file); });
+    queue.forEach(function(q) {
+      var el = document.getElementById(q.id);
+      if (el) el.querySelector('.status').textContent = 'Uploading…';
+      if (el) el.querySelector('.bar > div').style.width = '30%';
+    });
+    var xhr = new XMLHttpRequest();
+    xhr.upload.onprogress = function(e) {
+      if (!e.lengthComputable) return;
+      var pct = Math.min(95, Math.round((e.loaded / e.total) * 100));
+      queue.forEach(function(q) {
+        var el = document.getElementById(q.id);
+        if (el) el.querySelector('.bar > div').style.width = pct + '%';
+      });
+    };
+    xhr.onload = function() {
+      var j; try { j = JSON.parse(xhr.responseText); } catch (e) { j = null; }
+      if (!j || !j.success) {
+        alert('Upload failed: ' + (j && j.error ? j.error : xhr.status));
+        btn.disabled = false;
+        return;
+      }
+      var saved = j.saved || [];
+      var okCount = 0;
+      saved.forEach(function(s, idx) {
+        var q = queue[idx];
+        if (!q) return;
+        var el = document.getElementById(q.id);
+        if (!el) return;
+        if (s.error) {
+          el.classList.add('err');
+          el.querySelector('.status').textContent = s.error === 'too_large' ? 'Too large (max 20MB)' : 'Failed';
+          el.querySelector('.bar > div').style.width = '0%';
+        } else {
+          el.classList.add('ok');
+          el.querySelector('.status').textContent = '✓ Uploaded';
+          el.querySelector('.bar > div').style.width = '100%';
+          okCount++;
+        }
+      });
+      if (okCount > 0) {
+        setTimeout(function() {
+          document.getElementById('done-count').textContent =
+            okCount + ' image' + (okCount === 1 ? '' : 's') + ' sent for review.';
+          show('done');
+        }, 800);
+      } else {
+        btn.disabled = false;
+      }
+    };
+    xhr.onerror = function() { alert('Network error, please try again.'); btn.disabled = false; };
+    xhr.open('POST', '/api/public/upload-tokens/' + token + '/images');
+    xhr.send(fd);
+  });
+})();
+</script>
+</body>
+</html>

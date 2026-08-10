@@ -2613,6 +2613,26 @@ async function runMigrations() {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_account ON gas_media_library(account_id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_media_site ON gas_media_library(deployed_site_id)`);
       console.log('  ✓ Media library table ready');
+      // Owner image upload tokens — each token grants public write access
+      // to a specific property or room's images. Landed images arrive with
+      // is_active=false + upload_source='owner_link' so operator must
+      // approve before they go live. Tokens expire after 30 days by default.
+      await pool.query(`CREATE TABLE IF NOT EXISTS image_upload_tokens (
+        token VARCHAR(64) PRIMARY KEY,
+        account_id INTEGER NOT NULL,
+        scope VARCHAR(16) NOT NULL,
+        property_id INTEGER,
+        room_id INTEGER,
+        created_by_user_id INTEGER,
+        expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
+        created_at TIMESTAMP DEFAULT NOW(),
+        last_used_at TIMESTAMP,
+        upload_count INTEGER DEFAULT 0,
+        is_revoked BOOLEAN DEFAULT false
+      )`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_iut_property ON image_upload_tokens(property_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_iut_room ON image_upload_tokens(room_id)`);
+      console.log('  ✓ Owner image upload tokens table ready');
       await pool.query(`CREATE TABLE IF NOT EXISTS form_submissions (
         id SERIAL PRIMARY KEY,
         account_id INTEGER,
@@ -84837,6 +84857,403 @@ app.post('/api/admin/properties/:id/images', upload.array('images', 10), async (
     res.json({ success: false, error: error.message });
   } finally {
     client.release();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Owner image upload tokens — 2026-08-10
+// Operators create a token per property or room and email the resulting
+// link to the property owner. Owner drops photos into a public page (no
+// login). Images land as is_active=false + upload_source='owner_link'
+// so nothing goes live until an operator approves in the Pending Review
+// strip in GAS Admin.
+// ═══════════════════════════════════════════════════════════════════
+
+// Resolve the caller from the Bearer token (users.api_key) so we can
+// scope operations to their account. Existing admin routes don't do
+// this consistently — introducing a helper locally rather than a global
+// middleware to avoid touching everything else.
+async function _resolveOwnerLinkCaller(req) {
+  const auth = req.headers.authorization || '';
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  if (!m) return null;
+  const r = await pool.query(
+    `SELECT u.id, u.email, u.account_type, u.account_id,
+            COALESCE(a.role, u.account_type) AS role
+       FROM users u LEFT JOIN accounts a ON a.id = u.account_id
+      WHERE u.api_key = $1 LIMIT 1`, [m[1]]);
+  return r.rows[0] || null;
+}
+function _isMasterAdmin(user) {
+  return user && (user.account_type === 'master_admin' || user.role === 'master_admin');
+}
+
+// Create an upload token for a property or a specific room.
+// Body: { scope: 'property'|'room', property_id, room_id?, expires_days? }
+app.post('/api/admin/upload-tokens', async (req, res) => {
+  const user = await _resolveOwnerLinkCaller(req);
+  if (!user) return res.status(401).json({ success: false, error: 'unauthorised' });
+  try {
+    const { scope, property_id, room_id, expires_days } = req.body || {};
+    if (!['property','room'].includes(scope)) return res.json({ success: false, error: 'scope must be property or room' });
+    if (!property_id) return res.json({ success: false, error: 'property_id required' });
+    if (scope === 'room' && !room_id) return res.json({ success: false, error: 'room_id required for room scope' });
+
+    const propR = await pool.query('SELECT account_id FROM properties WHERE id = $1', [property_id]);
+    if (!propR.rows[0]) return res.json({ success: false, error: 'property not found' });
+    const accountId = propR.rows[0].account_id;
+
+    // Same auth check as the rest of the admin routes: master_admin can act
+    // on any account; other roles must belong to the property's account.
+    if (!_isMasterAdmin(user) && user.account_id !== accountId) {
+      return res.status(403).json({ success: false, error: 'not authorised for this account' });
+    }
+
+    // Revoke any existing active token for the same scope+entity so
+    // there's only ever one live link per property/room. Simpler for
+    // the operator; no confusion about which link is current.
+    if (scope === 'property') {
+      await pool.query(`UPDATE image_upload_tokens SET is_revoked = true
+                         WHERE property_id = $1 AND scope = 'property' AND is_revoked = false`, [property_id]);
+    } else {
+      await pool.query(`UPDATE image_upload_tokens SET is_revoked = true
+                         WHERE room_id = $1 AND scope = 'room' AND is_revoked = false`, [room_id]);
+    }
+
+    const token = require('crypto').randomBytes(24).toString('base64url'); // 32 URL-safe chars
+    const expiresDays = Math.max(1, Math.min(365, parseInt(expires_days) || 30));
+    await pool.query(`
+      INSERT INTO image_upload_tokens (token, account_id, scope, property_id, room_id, created_by_user_id, expires_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW() + ($7 || ' days')::interval)`,
+      [token, accountId, scope, property_id, scope === 'room' ? room_id : null, user.id, String(expiresDays)]);
+
+    const base = process.env.PUBLIC_BASE_URL || `https://${req.get('host')}`;
+    res.json({ success: true, token, url: `${base}/upload/${token}`, expires_days: expiresDays });
+  } catch (e) {
+    console.error('[upload-tokens create]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// List active tokens for a property (used by the Images UI to show what's live).
+app.get('/api/admin/upload-tokens', async (req, res) => {
+  try {
+    const user = await _resolveOwnerLinkCaller(req);
+    if (!user) return res.status(401).json({ success: false, error: 'unauthorised' });
+    const { property_id } = req.query;
+    if (!property_id) return res.json({ success: false, error: 'property_id required' });
+    const propR = await pool.query('SELECT account_id FROM properties WHERE id = $1', [property_id]);
+    if (!propR.rows[0]) return res.json({ success: false, error: 'property not found' });
+    if (!_isMasterAdmin(user) && user.account_id !== propR.rows[0].account_id) {
+      return res.status(403).json({ success: false, error: 'not authorised' });
+    }
+    const rows = await pool.query(`
+      SELECT token, scope, property_id, room_id, expires_at, created_at, last_used_at, upload_count
+        FROM image_upload_tokens
+       WHERE property_id = $1 AND is_revoked = false AND expires_at > NOW()
+       ORDER BY scope, room_id NULLS FIRST`, [property_id]);
+    const base = process.env.PUBLIC_BASE_URL || `https://${req.get('host')}`;
+    res.json({ success: true, tokens: rows.rows.map(r => ({ ...r, url: `${base}/upload/${r.token}` })) });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Serve the public upload page. Standalone HTML — no login. Reads token
+// from URL, calls the public upload endpoint below to receive files.
+app.get('/upload/:token', async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT t.token, t.scope, t.expires_at, t.is_revoked,
+             p.name AS property_name,
+             CASE WHEN t.scope = 'room' THEN
+               (SELECT name FROM bookable_units WHERE id = t.room_id)
+             ELSE NULL END AS room_name
+        FROM image_upload_tokens t
+        LEFT JOIN properties p ON p.id = t.property_id
+       WHERE t.token = $1`, [req.params.token]);
+    const row = r.rows[0];
+    if (!row) return res.status(404).sendFile(require('path').join(__dirname, 'public', 'upload.html'));
+    // upload.html handles the "expired" / "revoked" states itself by
+    // calling GET /api/public/upload-tokens/:token/info below.
+    res.sendFile(require('path').join(__dirname, 'public', 'upload.html'));
+  } catch (e) {
+    res.status(500).send('error');
+  }
+});
+
+// Public endpoint the upload page calls to know what to display.
+app.get('/api/public/upload-tokens/:token/info', async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT t.token, t.scope, t.expires_at, t.is_revoked, t.upload_count,
+             p.name AS property_name,
+             CASE WHEN t.scope = 'room' THEN
+               (SELECT name FROM bookable_units WHERE id = t.room_id)
+             ELSE NULL END AS room_name
+        FROM image_upload_tokens t
+        LEFT JOIN properties p ON p.id = t.property_id
+       WHERE t.token = $1`, [req.params.token]);
+    const row = r.rows[0];
+    if (!row) return res.json({ success: false, error: 'not_found' });
+    if (row.is_revoked) return res.json({ success: false, error: 'revoked' });
+    if (new Date(row.expires_at) < new Date()) return res.json({ success: false, error: 'expired' });
+    res.json({
+      success: true,
+      scope: row.scope,
+      property_name: row.property_name,
+      room_name: row.room_name,
+      upload_count: row.upload_count
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Public upload endpoint. Validates token, uploads to R2 via the existing
+// processAndUploadImage helper, inserts as is_active=false so the operator
+// approves in the Pending Review strip.
+app.post('/api/public/upload-tokens/:token/images', upload.array('images', 10), async (req, res) => {
+  try {
+    const files = req.files || [];
+    if (files.length === 0) return res.json({ success: false, error: 'no files' });
+    const r = await pool.query(`
+      SELECT token, account_id, scope, property_id, room_id, expires_at, is_revoked, upload_count
+        FROM image_upload_tokens WHERE token = $1`, [req.params.token]);
+    const t = r.rows[0];
+    if (!t) return res.status(404).json({ success: false, error: 'not_found' });
+    if (t.is_revoked) return res.status(410).json({ success: false, error: 'revoked' });
+    if (new Date(t.expires_at) < new Date()) return res.status(410).json({ success: false, error: 'expired' });
+    // Rate-limit: 100 uploads per token / 24h. Owner uploads a room
+    // shouldn't need more than a few dozen; anything more is spam.
+    if (t.upload_count >= 100) {
+      const check = await pool.query(`SELECT last_used_at FROM image_upload_tokens WHERE token = $1`, [t.token]);
+      if (check.rows[0]?.last_used_at && (Date.now() - new Date(check.rows[0].last_used_at).getTime()) < 24 * 60 * 60 * 1000) {
+        return res.status(429).json({ success: false, error: 'rate_limited' });
+      }
+      // Older than 24h — reset the counter.
+      await pool.query(`UPDATE image_upload_tokens SET upload_count = 0 WHERE token = $1`, [t.token]);
+    }
+
+    const saved = [];
+    for (const file of files) {
+      try {
+        // 20MB per-file cap (matches multer default here). Skip larger.
+        if (file.size > 20 * 1024 * 1024) { saved.push({ name: file.originalname, error: 'too_large' }); continue; }
+        const entityType = t.scope === 'room' ? 'rooms' : 'properties';
+        const entityId = t.scope === 'room' ? t.room_id : t.property_id;
+        const urls = await processAndUploadImage(file.buffer, entityType, entityId, file.originalname);
+        const tableName = t.scope === 'room' ? 'room_images' : 'property_images';
+        const fkCol = t.scope === 'room' ? 'room_id' : 'property_id';
+        const maxOrder = await pool.query(
+          `SELECT COALESCE(MAX(display_order), -1)::int AS max FROM ${tableName} WHERE ${fkCol} = $1`, [entityId]);
+        const nextOrder = maxOrder.rows[0].max + 1;
+        const ins = await pool.query(`
+          INSERT INTO ${tableName} (${fkCol}, image_key, image_url, large_url, medium_url, thumbnail_url,
+                                    original_filename, file_size, mime_type, display_order,
+                                    upload_source, is_active, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'image/webp', $9, 'owner_link', false, NOW())
+          RETURNING id`,
+          [entityId, urls.imageKey, urls.original, urls.large, urls.medium, urls.thumbnail,
+           file.originalname, file.size, nextOrder]);
+        saved.push({ name: file.originalname, id: ins.rows[0].id, thumbnail_url: urls.thumbnail });
+      } catch (e) {
+        console.error('[public upload] file failed:', file.originalname, e.message);
+        saved.push({ name: file.originalname, error: e.message });
+      }
+    }
+
+    await pool.query(`UPDATE image_upload_tokens
+                        SET upload_count = upload_count + $1, last_used_at = NOW()
+                      WHERE token = $2`, [saved.filter(s => s.id).length, t.token]);
+
+    res.json({ success: true, saved });
+  } catch (e) {
+    console.error('[public upload]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// List owner-uploaded images awaiting review for a property (and its rooms).
+// Returned rows have kind = 'property' | 'room' + entity id + name for context.
+app.get('/api/admin/pending-owner-images', async (req, res) => {
+  try {
+    const user = await _resolveOwnerLinkCaller(req);
+    if (!user) return res.status(401).json({ success: false, error: 'unauthorised' });
+    const { property_id } = req.query;
+    if (!property_id) return res.json({ success: false, error: 'property_id required' });
+    const propR = await pool.query('SELECT account_id FROM properties WHERE id = $1', [property_id]);
+    if (!propR.rows[0]) return res.json({ success: false, error: 'property not found' });
+    if (!_isMasterAdmin(user) && user.account_id !== propR.rows[0].account_id) {
+      return res.status(403).json({ success: false, error: 'not authorised' });
+    }
+    const pProp = await pool.query(`
+      SELECT id, property_id, image_url, thumbnail_url, medium_url, large_url,
+             original_filename, file_size, created_at
+        FROM property_images
+       WHERE property_id = $1 AND is_active = false AND upload_source = 'owner_link'
+       ORDER BY created_at DESC`, [property_id]);
+    const pRoom = await pool.query(`
+      SELECT ri.id, ri.room_id, bu.name AS room_name,
+             ri.image_url, ri.thumbnail_url, ri.medium_url, ri.large_url,
+             ri.original_filename, ri.file_size, ri.created_at
+        FROM room_images ri
+        JOIN bookable_units bu ON bu.id = ri.room_id
+       WHERE bu.property_id = $1 AND ri.is_active = false AND ri.upload_source = 'owner_link'
+       ORDER BY ri.created_at DESC`, [property_id]);
+    res.json({
+      success: true,
+      property: pProp.rows.map(r => ({ ...r, kind: 'property' })),
+      rooms: pRoom.rows.map(r => ({ ...r, kind: 'room' }))
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Approve a pending owner-uploaded image. Just flips is_active=true so
+// the existing gallery renderers pick it up. Auto-appends to end (highest
+// display_order) — no reordering here.
+app.post('/api/admin/pending-owner-images/:kind/:id/approve', async (req, res) => {
+  try {
+    const user = await _resolveOwnerLinkCaller(req);
+    if (!user) return res.status(401).json({ success: false, error: 'unauthorised' });
+    const { kind, id } = req.params;
+    const table = kind === 'room' ? 'room_images' : 'property_images';
+    const fkCol = kind === 'room' ? 'room_id' : 'property_id';
+    // Confirm auth via property lookup
+    const rowR = await pool.query(`SELECT ${fkCol} FROM ${table} WHERE id = $1`, [id]);
+    if (!rowR.rows[0]) return res.json({ success: false, error: 'not found' });
+    const entityId = rowR.rows[0][fkCol];
+    const propIdQ = kind === 'room'
+      ? await pool.query('SELECT p.account_id FROM bookable_units bu JOIN properties p ON p.id = bu.property_id WHERE bu.id = $1', [entityId])
+      : await pool.query('SELECT account_id FROM properties WHERE id = $1', [entityId]);
+    if (!propIdQ.rows[0]) return res.json({ success: false, error: 'orphaned' });
+    if (!_isMasterAdmin(user) && user.account_id !== propIdQ.rows[0].account_id) {
+      return res.status(403).json({ success: false, error: 'not authorised' });
+    }
+    await pool.query(`UPDATE ${table} SET is_active = true, updated_at = NOW() WHERE id = $1`, [id]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Reject a pending owner-uploaded image. Hard delete of the DB row. R2
+// object cleanup is deferred (small — a few KB of orphaned WebP per
+// rejection). Cheaper than adding a lifecycle-managed staging bucket.
+app.post('/api/admin/pending-owner-images/:kind/:id/reject', async (req, res) => {
+  try {
+    const user = await _resolveOwnerLinkCaller(req);
+    if (!user) return res.status(401).json({ success: false, error: 'unauthorised' });
+    const { kind, id } = req.params;
+    const table = kind === 'room' ? 'room_images' : 'property_images';
+    const fkCol = kind === 'room' ? 'room_id' : 'property_id';
+    const rowR = await pool.query(`SELECT ${fkCol} FROM ${table} WHERE id = $1 AND is_active = false`, [id]);
+    if (!rowR.rows[0]) return res.json({ success: false, error: 'not found or already approved' });
+    const entityId = rowR.rows[0][fkCol];
+    const propIdQ = kind === 'room'
+      ? await pool.query('SELECT p.account_id FROM bookable_units bu JOIN properties p ON p.id = bu.property_id WHERE bu.id = $1', [entityId])
+      : await pool.query('SELECT account_id FROM properties WHERE id = $1', [entityId]);
+    if (!propIdQ.rows[0]) return res.json({ success: false, error: 'orphaned' });
+    if (!_isMasterAdmin(user) && user.account_id !== propIdQ.rows[0].account_id) {
+      return res.status(403).json({ success: false, error: 'not authorised' });
+    }
+    await pool.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Compose the owner email body server-side so we can include all room
+// links in one go. Returns { subject, body, to } — the admin UI shows a
+// modal so the operator eyeballs / edits before send. A separate POST
+// endpoint below actually fires the email once approved.
+app.get('/api/admin/properties/:id/owner-email-draft', async (req, res) => {
+  try {
+    const user = await _resolveOwnerLinkCaller(req);
+    if (!user) return res.status(401).json({ success: false, error: 'unauthorised' });
+    const { id } = req.params;
+    const propR = await pool.query(`
+      SELECT p.id, p.name, p.account_id,
+             (SELECT email FROM property_owners WHERE property_id = p.id ORDER BY id LIMIT 1) AS owner_email,
+             (SELECT first_name FROM property_owners WHERE property_id = p.id ORDER BY id LIMIT 1) AS owner_first_name
+        FROM properties p WHERE p.id = $1`, [id]);
+    if (!propR.rows[0]) return res.json({ success: false, error: 'not found' });
+    if (!_isMasterAdmin(user) && user.account_id !== propR.rows[0].account_id) {
+      return res.status(403).json({ success: false, error: 'not authorised' });
+    }
+    const rooms = await pool.query(`SELECT id, name FROM bookable_units WHERE property_id = $1 ORDER BY id`, [id]);
+    // Issue tokens for property + each room. Reuses the same logic as
+    // POST /api/admin/upload-tokens — one active token per scope.
+    const base = process.env.PUBLIC_BASE_URL || `https://${req.get('host')}`;
+    const crypto = require('crypto');
+    async function issueToken(scope, roomId) {
+      if (scope === 'property') {
+        await pool.query(`UPDATE image_upload_tokens SET is_revoked = true WHERE property_id = $1 AND scope = 'property' AND is_revoked = false`, [id]);
+      } else {
+        await pool.query(`UPDATE image_upload_tokens SET is_revoked = true WHERE room_id = $1 AND scope = 'room' AND is_revoked = false`, [roomId]);
+      }
+      const token = crypto.randomBytes(24).toString('base64url');
+      await pool.query(`
+        INSERT INTO image_upload_tokens (token, account_id, scope, property_id, room_id, created_by_user_id, expires_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '30 days')`,
+        [token, propR.rows[0].account_id, scope, id, roomId, user.id]);
+      return `${base}/upload/${token}`;
+    }
+    const propUrl = await issueToken('property', null);
+    const roomLinks = [];
+    for (const r of rooms.rows) {
+      roomLinks.push({ name: r.name, url: await issueToken('room', r.id) });
+    }
+    const prop = propR.rows[0];
+    const greet = prop.owner_first_name ? `Hi ${prop.owner_first_name},` : 'Hi,';
+    const bodyLines = [
+      greet,
+      '',
+      `${prop.name} is ready for images. Please upload photos of the property and each room using the links below. Take them on your phone if easiest — no login needed, just click.`,
+      '',
+      `🏠 Property images (façade, common areas): ${propUrl}`,
+    ];
+    for (const rl of roomLinks) bodyLines.push(`🛏 ${rl.name}: ${rl.url}`);
+    bodyLines.push('', 'Uploads appear immediately for us to review before they go live.', '', 'Thanks!');
+    res.json({
+      success: true,
+      to: prop.owner_email || '',
+      subject: `Photos for ${prop.name} — upload links`,
+      body: bodyLines.join('\n'),
+      property_url: propUrl,
+      room_links: roomLinks
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Send the composed email. Operator has already reviewed in the modal.
+app.post('/api/admin/properties/:id/send-owner-email', async (req, res) => {
+  try {
+    const user = await _resolveOwnerLinkCaller(req);
+    if (!user) return res.status(401).json({ success: false, error: 'unauthorised' });
+    const { id } = req.params;
+    const { to, subject, body } = req.body || {};
+    if (!to || !subject || !body) return res.json({ success: false, error: 'to/subject/body required' });
+    const propR = await pool.query('SELECT account_id FROM properties WHERE id = $1', [id]);
+    if (!propR.rows[0]) return res.json({ success: false, error: 'property not found' });
+    if (!_isMasterAdmin(user) && user.account_id !== propR.rows[0].account_id) {
+      return res.status(403).json({ success: false, error: 'not authorised' });
+    }
+    // Convert plain-text body to minimal HTML (keep line breaks, autolink URLs).
+    const htmlBody = body
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>')
+      .replace(/\n/g, '<br>');
+    await sendEmail({ to, subject, html: `<div style="font-family:sans-serif;line-height:1.5;">${htmlBody}</div>`, text: body });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[send-owner-email]', e.message);
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 

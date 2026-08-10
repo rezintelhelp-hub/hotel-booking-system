@@ -4360,6 +4360,24 @@
                     </div>
                 </div>
 
+                <!-- Owner Upload Links + Pending Review -->
+                <div id="owner-upload-card" class="card" style="display: none; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 0.25rem;">📎 Owner uploads</div>
+                            <div style="font-size: 0.85rem; color: #64748b;">Send the property owner a link so they can upload photos themselves. Uploads land in Pending review below.</div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-secondary btn-small" id="owner-copy-scope-btn" onclick="copyOwnerUploadLinkForCurrentScope()" style="padding: 0.5rem 0.85rem;">📎 Copy link</button>
+                            <button class="btn btn-primary btn-small" onclick="openOwnerEmailDraft()" style="padding: 0.5rem 0.85rem;">📧 Email all links to owner</button>
+                        </div>
+                    </div>
+                    <div id="owner-pending-review" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                        <div style="font-weight: 600; margin-bottom: 0.5rem;">🕐 Pending review <span id="owner-pending-count" style="color: #64748b; font-weight: 400;"></span></div>
+                        <div id="owner-pending-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem;"></div>
+                    </div>
+                </div>
+
                 <!-- Image Stats Summary -->
                 <div id="images-stats" style="display: none; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                     <div class="card" style="padding: 1.5rem;">
@@ -33633,6 +33651,145 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (appActiveCard) appActiveCard.style.display = (source && source !== '') ? 'block' : 'none';
         }
         
+        // ─── Owner Upload Links (2026-08-10) ─────────────────────────
+        // Card sits above the image stats when a property is selected.
+        // "Copy link" issues a token scoped to the currently-selected room
+        // (or property if no room selected). "Email all links to owner"
+        // opens a modal with subject/body pre-filled from the server.
+        // Pending review grid shows owner-uploaded images awaiting approval.
+        async function refreshOwnerUploadsCard() {
+            const propertyId = document.getElementById('images-property-select')?.value;
+            const card = document.getElementById('owner-upload-card');
+            if (!card) return;
+            if (!propertyId) { card.style.display = 'none'; return; }
+            card.style.display = 'block';
+            const roomId = document.getElementById('images-room-select')?.value;
+            const btn = document.getElementById('owner-copy-scope-btn');
+            if (btn) btn.textContent = roomId ? '📎 Copy room link' : '📎 Copy property link';
+
+            // Pending review — load and render
+            try {
+                const r = await fetch('/api/admin/pending-owner-images?property_id=' + encodeURIComponent(propertyId), { headers: authHeaders() });
+                const j = await r.json();
+                if (!j.success) return;
+                const items = [...(j.property || []), ...(j.rooms || [])];
+                const grid = document.getElementById('owner-pending-grid');
+                const wrap = document.getElementById('owner-pending-review');
+                const countEl = document.getElementById('owner-pending-count');
+                if (!items.length) { wrap.style.display = 'none'; grid.innerHTML = ''; return; }
+                wrap.style.display = 'block';
+                countEl.textContent = '(' + items.length + ')';
+                grid.innerHTML = items.map(it => {
+                    const src = it.thumbnail_url || it.medium_url || it.image_url;
+                    const label = it.kind === 'room' ? ('🛏 ' + (it.room_name || 'Room')) : '🏠 Property';
+                    return `
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                        <img src="${src}" style="width:100%;height:100px;object-fit:cover;display:block;">
+                        <div style="padding:0.4rem 0.5rem;font-size:0.7rem;color:#64748b;">${label}</div>
+                        <div style="display:flex;gap:0.25rem;padding:0 0.5rem 0.5rem;">
+                            <button onclick="approveOwnerImage('${it.kind}',${it.id})" class="btn btn-primary btn-small" style="flex:1;padding:0.25rem;font-size:0.7rem;">✓ Approve</button>
+                            <button onclick="rejectOwnerImage('${it.kind}',${it.id})" class="btn btn-secondary btn-small" style="flex:1;padding:0.25rem;font-size:0.7rem;color:#ef4444;">✕ Reject</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch (e) { console.error('[refreshOwnerUploadsCard]', e); }
+        }
+
+        async function copyOwnerUploadLinkForCurrentScope() {
+            const propertyId = document.getElementById('images-property-select')?.value;
+            if (!propertyId) { alert('Select a property first'); return; }
+            const roomId = document.getElementById('images-room-select')?.value;
+            const scope = roomId ? 'room' : 'property';
+            try {
+                const r = await fetch('/api/admin/upload-tokens', {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scope, property_id: parseInt(propertyId), room_id: roomId ? parseInt(roomId) : undefined })
+                });
+                const j = await r.json();
+                if (!j.success) { alert('Failed: ' + (j.error || 'unknown')); return; }
+                await navigator.clipboard.writeText(j.url);
+                alert('Link copied to clipboard.\n\n' + j.url + '\n\nExpires in ' + j.expires_days + ' days.');
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        async function openOwnerEmailDraft() {
+            const propertyId = document.getElementById('images-property-select')?.value;
+            if (!propertyId) { alert('Select a property first'); return; }
+            try {
+                const r = await fetch('/api/admin/properties/' + propertyId + '/owner-email-draft', { headers: authHeaders() });
+                const j = await r.json();
+                if (!j.success) { alert('Failed: ' + (j.error || 'unknown')); return; }
+                // Build a lightweight modal inline so we don't fight with existing modal frameworks
+                const backdrop = document.createElement('div');
+                backdrop.id = 'owner-email-modal-backdrop';
+                backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+                backdrop.innerHTML = `
+                    <div style="background:white;max-width:640px;width:100%;max-height:90vh;overflow:auto;border-radius:12px;padding:1.5rem;">
+                        <h3 style="margin:0 0 1rem;">📧 Email upload links to owner</h3>
+                        <div style="margin-bottom:0.75rem;">
+                            <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.25rem;">To</label>
+                            <input id="owner-email-to" type="email" class="form-input" value="${(j.to||'').replace(/"/g,'&quot;')}" style="width:100%;">
+                        </div>
+                        <div style="margin-bottom:0.75rem;">
+                            <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.25rem;">Subject</label>
+                            <input id="owner-email-subject" type="text" class="form-input" value="${(j.subject||'').replace(/"/g,'&quot;')}" style="width:100%;">
+                        </div>
+                        <div style="margin-bottom:0.75rem;">
+                            <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.25rem;">Body</label>
+                            <textarea id="owner-email-body" class="form-input" rows="14" style="width:100%;font-family:inherit;font-size:0.9rem;">${(j.body||'')}</textarea>
+                        </div>
+                        <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
+                            <button class="btn btn-secondary" onclick="document.getElementById('owner-email-modal-backdrop').remove()">Cancel</button>
+                            <button class="btn btn-primary" onclick="sendOwnerEmailFromDraft(${propertyId})">Send</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(backdrop);
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        async function sendOwnerEmailFromDraft(propertyId) {
+            const to = document.getElementById('owner-email-to').value.trim();
+            const subject = document.getElementById('owner-email-subject').value.trim();
+            const body = document.getElementById('owner-email-body').value;
+            if (!to || !subject || !body) { alert('To / subject / body all required'); return; }
+            try {
+                const r = await fetch('/api/admin/properties/' + propertyId + '/send-owner-email', {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ to, subject, body })
+                });
+                const j = await r.json();
+                if (!j.success) { alert('Send failed: ' + (j.error || 'unknown')); return; }
+                document.getElementById('owner-email-modal-backdrop').remove();
+                alert('Email sent to ' + to);
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        async function approveOwnerImage(kind, id) {
+            try {
+                const r = await fetch('/api/admin/pending-owner-images/' + kind + '/' + id + '/approve', {
+                    method: 'POST', headers: authHeaders()
+                });
+                const j = await r.json();
+                if (!j.success) { alert('Approve failed: ' + (j.error || 'unknown')); return; }
+                refreshOwnerUploadsCard();
+                if (typeof loadImagesForProperty === 'function') loadImagesForProperty(); // repull gallery
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        async function rejectOwnerImage(kind, id) {
+            if (!confirm('Reject this image? It will be permanently deleted.')) return;
+            try {
+                const r = await fetch('/api/admin/pending-owner-images/' + kind + '/' + id + '/reject', {
+                    method: 'POST', headers: authHeaders()
+                });
+                const j = await r.json();
+                if (!j.success) { alert('Reject failed: ' + (j.error || 'unknown')); return; }
+                refreshOwnerUploadsCard();
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
         // Helper to add auth header to fetch requests
         function authHeaders() {
             const token = localStorage.getItem('gas_token');
@@ -51833,6 +51990,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.getElementById('room-image-count').textContent = roomCount;
                 document.getElementById('location-image-count').textContent = locationCount;
                 document.getElementById('total-image-count').textContent = propertyCount + roomCount + locationCount;
+
+                // Owner uploads card (copy link + email links + pending review)
+                refreshOwnerUploadsCard();
 
                 // Display gallery
                 displayImages();
