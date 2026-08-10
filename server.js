@@ -14591,7 +14591,7 @@ app.get('/api/admin/channex/messages/threads', async (req, res) => {
 // thread's meta (reservation_live_feed_event_id / guest_email) when
 // present. NULL is fine — the row still appears in a per-guest global
 // history when matched by contact_id later.
-async function _persistChannexMessage({ threadId, threadMeta, propertyId, msg, direction, connectionId }) {
+async function _persistChannexMessage({ threadId, threadMeta, threadTitle, propertyId, msg, direction, connectionId }) {
   try {
     const providerId = msg.id;
     if (!providerId) return;
@@ -14600,8 +14600,13 @@ async function _persistChannexMessage({ threadId, threadMeta, propertyId, msg, d
         WHERE channel = 'channex' AND provider_message_id = $1 LIMIT 1`, [providerId]);
     if (exists.rows[0]) return; // already logged
 
-    // Best-effort booking match. Look in msg.meta first, then thread meta,
-    // covering both places Channex tends to carry the reservation id.
+    // Best-effort booking match. Try three strategies in order of certainty:
+    //   1. Reservation id in msg or thread meta (Airbnb OAuth, some BDC)
+    //   2. Thread title = guest name AND channex property matches
+    //      (Expedia + non-OAuth threads have empty meta but the title
+    //      is the guest name — good enough to link 90% of the time)
+    //   3. Give up on booking_id; still persist so the message lands
+    //      in the account-wide Comms view
     let bookingId = null, guestId = null, contactId = null;
     const meta = msg.meta || {};
     const tMeta = threadMeta || {};
@@ -14612,8 +14617,35 @@ async function _persistChannexMessage({ threadId, threadMeta, propertyId, msg, d
         `SELECT id, guest_id FROM bookings WHERE channex_booking_id = $1 LIMIT 1`, [channexBookingId]);
       if (b.rows[0]) { bookingId = b.rows[0].id; guestId = b.rows[0].guest_id; }
     }
-    // If no booking match, fall back to matching by guest email in a
-    // thread whose contact we do know (contacts table).
+    // Strategy 2: property + guest name match. propertyId is the Channex
+    // uuid; resolve to GAS property_id via gas_sync_properties, then find
+    // an active booking on that property whose guest_first_name +
+    // guest_last_name (case-insensitive, whitespace-normalised) matches
+    // the thread title. Prefer the most recent arriving booking.
+    if (!bookingId && propertyId && threadTitle) {
+      try {
+        const gp = await pool.query(
+          `SELECT gas_property_id FROM gas_sync_properties WHERE external_id = $1 LIMIT 1`,
+          [propertyId]);
+        const gasPropertyId = gp.rows[0]?.gas_property_id;
+        if (gasPropertyId) {
+          const target = String(threadTitle).trim().toLowerCase().replace(/\s+/g, ' ');
+          const cand = await pool.query(
+            `SELECT id, guest_id,
+                    LOWER(TRIM(COALESCE(guest_first_name,'') || ' ' || COALESCE(guest_last_name,''))) AS name_lc
+               FROM bookings
+              WHERE property_id = $1
+                AND status NOT IN ('cancelled','test')
+                AND arrival_date >= NOW() - INTERVAL '365 days'
+              ORDER BY arrival_date DESC
+              LIMIT 200`, [gasPropertyId]);
+          const match = cand.rows.find(r => r.name_lc && r.name_lc.replace(/\s+/g,' ') === target);
+          if (match) { bookingId = match.id; guestId = match.guest_id; }
+        }
+      } catch (e) { /* non-fatal */ }
+    }
+    // If still no booking match, fall back to matching by guest email in
+    // a thread whose contact we do know (contacts table).
     const guestEmail = meta.guest_email || tMeta.guest_email;
     if (!bookingId && guestEmail) {
       const ct = await pool.query(
@@ -14666,13 +14698,16 @@ app.get('/api/admin/channex/messages/thread/:threadId', async (req, res) => {
     const axios = require('axios');
     const r = await axios.get(`https://app.channex.io/api/v1/message_threads/${req.params.threadId}/messages`,
       { headers: { 'user-api-key': apiKey } });
-    // Also fetch thread meta so we can persist the property_id alongside
-    // each message (helps future guest-history queries).
-    let threadPropertyId = null;
+    // Also fetch thread meta + title so we can persist those alongside
+    // each message (helps booking-match fallback + future history queries).
+    let threadPropertyId = null, threadTitle = null, threadMeta = {};
     try {
       const tR = await axios.get(`https://app.channex.io/api/v1/message_threads/${req.params.threadId}`,
         { headers: { 'user-api-key': apiKey }, timeout: 8000 });
-      threadPropertyId = tR.data?.data?.attributes?.property_id || null;
+      const tAttrs = tR.data?.data?.attributes || {};
+      threadPropertyId = tAttrs.property_id || null;
+      threadTitle = tAttrs.title || null;
+      threadMeta = tAttrs.meta || {};
     } catch (_) { /* non-fatal */ }
     const messages = (r.data.data || []).map(m => ({
       id: m.id,
@@ -14688,6 +14723,8 @@ app.get('/api/admin/channex/messages/thread/:threadId', async (req, res) => {
     for (const m of messages) {
       _persistChannexMessage({
         threadId: req.params.threadId,
+        threadMeta,
+        threadTitle,
         propertyId: threadPropertyId,
         msg: m,
         direction: _inferChannexDirection(m.sender),
@@ -128334,6 +128371,7 @@ async function runChannexMessagePoll() {
                 await _persistChannexMessage({
                   threadId: th.id,
                   threadMeta: th.attributes?.meta || {},
+                  threadTitle: th.attributes?.title || null,
                   propertyId: p.external_id,
                   msg,
                   direction: _inferChannexDirection(msg.sender),
