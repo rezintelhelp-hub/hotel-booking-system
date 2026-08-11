@@ -107953,7 +107953,96 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div id="sub-review-${accountId}" style="padding:0.75rem;background:#f8fafc;border-radius:6px;color:#64748b;font-size:0.85rem;">
                     Click above to see what products this client SHOULD be subscribed to based on live signals (site type, beds24 usage, contact count etc.), with proposed changes side-by-side with existing subscriptions. Tick the changes you want to apply, edit qty/price inline, then click Apply.
                 </div>
+
+                <!-- 2026-08-11 — Manual add-from-catalogue. The Subscription
+                     Review above only surfaces products with a detection
+                     signal. This lets the operator pick ANY catalogue
+                     product (Reviews, Social Campaigns, GAS Fire, etc.)
+                     and add it to this client's subscriptions. -->
+                <h4 style="margin:1.5rem 0 0.5rem;color:#1e293b;font-size:0.95rem;display:flex;justify-content:space-between;align-items:center;">
+                    ➕ Add a product from the catalogue
+                </h4>
+                <div id="catalogue-add-${accountId}" style="padding:0.75rem;background:#f8fafc;border-radius:6px;font-size:0.85rem;">
+                    <button class="btn btn-sm" onclick="loadCatalogueAdd(${accountId})">Show catalogue</button>
+                    <span style="color:#64748b; margin-left:0.5rem;">Pick a product that doesn't auto-detect yet — Reviews Module, Social Campaigns, GAS Fire, extras — and add it to this client's billing.</span>
+                </div>
             `;
+        }
+
+        // Load the catalogue picker under the Subscription Review panel.
+        // Shows every active billing_product that this account is NOT
+        // already subscribed to (avoids duplicate "add" flows). Operator
+        // picks one, tweaks quantity + price (defaults from catalogue),
+        // and hits Add — POSTs to /api/admin/billing/client/:id/subscribe.
+        async function loadCatalogueAdd(accountId) {
+            const container = document.getElementById('catalogue-add-' + accountId);
+            if (!container) return;
+            container.innerHTML = '<div style="color:#6366f1;">Loading catalogue…</div>';
+            try {
+                const [catRes, clientRes] = await Promise.all([
+                    fetch('/api/admin/billing/products?include_hidden=true', { headers: authHeaders() }).then(r => r.json()),
+                    fetch('/api/admin/billing/client/' + accountId, { headers: authHeaders() }).then(r => r.json())
+                ]);
+                if (!catRes.success) throw new Error(catRes.error || 'catalogue load failed');
+                if (!clientRes.success) throw new Error(clientRes.error || 'client load failed');
+                const activeCodes = new Set((clientRes.subscribed_products || []).map(s => s.product_code || s.product));
+                const available = (catRes.data || []).filter(p => p.code && !activeCodes.has(p.code));
+                if (available.length === 0) {
+                    container.innerHTML = '<div style="color:#94a3b8;">All catalogue products are already active on this client.</div>';
+                    return;
+                }
+                // Group by category for a scannable dropdown.
+                const byCat = {};
+                for (const p of available) {
+                    const cat = p.category || 'Other';
+                    if (!byCat[cat]) byCat[cat] = [];
+                    byCat[cat].push(p);
+                }
+                const opts = Object.keys(byCat).sort().map(cat => {
+                    const rows = byCat[cat].sort((a,b) => (a.display_order || 999) - (b.display_order || 999) || (a.name||'').localeCompare(b.name||''));
+                    return `<optgroup label="${cat.replace(/</g,'&lt;')}">
+                        ${rows.map(p => `<option value="${p.code}" data-price="${p.price_monthly || 0}" data-currency="${p.currency || 'EUR'}">${(p.name || p.code).replace(/</g,'&lt;')} — ${p.price_monthly || 0} ${p.currency || ''}</option>`).join('')}
+                    </optgroup>`;
+                }).join('');
+                container.innerHTML = `
+                    <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                        <select id="cat-add-code-${accountId}" style="flex:1; min-width:280px; padding:6px 10px; border:1px solid #d1d5db; border-radius:4px;"
+                            onchange="var o=this.options[this.selectedIndex]; document.getElementById('cat-add-price-${accountId}').value = o.dataset.price;">
+                            ${opts}
+                        </select>
+                        <label style="font-size:0.8rem; color:#64748b;">Price:</label>
+                        <input type="number" step="0.01" id="cat-add-price-${accountId}" value="0" style="width:90px; padding:6px 10px; border:1px solid #d1d5db; border-radius:4px;">
+                        <button class="btn" onclick="applyCatalogueAdd(${accountId})" style="background:#059669; color:white; padding:6px 14px;">➕ Add to client</button>
+                    </div>
+                    <p style="font-size:0.75rem; color:#94a3b8; margin:0.5rem 0 0;">Adding creates an active account_subscriptions row at the given monthly price. Detected products above are auto-suggested; this dropdown is for anything without a detection signal.</p>
+                `;
+                // Fire onchange to populate the initial price.
+                const sel = document.getElementById('cat-add-code-' + accountId);
+                if (sel && sel.options.length > 0) sel.dispatchEvent(new Event('change'));
+            } catch (e) {
+                container.innerHTML = `<div style="color:#dc2626;">Failed to load: ${e.message}</div>`;
+            }
+        }
+
+        async function applyCatalogueAdd(accountId) {
+            const code = document.getElementById('cat-add-code-' + accountId)?.value;
+            const price = parseFloat(document.getElementById('cat-add-price-' + accountId)?.value || 0);
+            if (!code) { showNotification('Pick a product first', 'warning'); return; }
+            try {
+                const r = await fetch('/api/admin/billing/client/' + accountId + '/subscribe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ product_code: code, override_price: price })
+                });
+                const d = await r.json();
+                if (!d.success) { showNotification('Add failed: ' + (d.error || 'unknown'), 'error'); return; }
+                showNotification('Added ' + code, 'success');
+                // Reload the review panel + catalogue picker to reflect the new sub.
+                loadSubscriptionReview(accountId);
+                loadCatalogueAdd(accountId);
+            } catch (e) {
+                showNotification('Add failed: ' + e.message, 'error');
+            }
         }
 
         // Subscription Review — loaded on demand. Renders detected_products
