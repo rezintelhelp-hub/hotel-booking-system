@@ -108066,13 +108066,26 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (!catRes.success) throw new Error(catRes.error || 'catalogue load failed');
                 if (!clientRes.success) throw new Error(clientRes.error || 'client load failed');
                 const activeCodes = new Set((clientRes.subscribed_products || []).map(s => s.product_code || s.product));
-                // 2026-08-11 — All gas24_* products are managed as a
-                // single Beds24 bundle via the button above; hide them
-                // from the general dropdown so operators don't try to
-                // add them individually.
-                const available = (catRes.data || []).filter(p =>
-                    p.code && !activeCodes.has(p.code) && !p.code.startsWith('gas24')
-                );
+                // 2026-08-11 — Filter out the gas24 ATOMICS (base, property,
+                // link, sub_user, ssl) from the dropdown — the parent
+                // gas24 code is kept as a single "Beds24 pass-through"
+                // entry. Selecting + adding it fires the bundle preview
+                // (auto-configures all atomics from the usage snapshot).
+                // Steve 2026-08-11: he wants ONE entry, not a scattered
+                // set of Beds24 options + a separate button.
+                const beds24Active = activeCodes.has('gas24') ||
+                                     activeCodes.has('gas24_base') ||
+                                     activeCodes.has('gas24_property') ||
+                                     activeCodes.has('gas24_link') ||
+                                     activeCodes.has('gas24_sub_user') ||
+                                     activeCodes.has('gas24_ssl');
+                const available = (catRes.data || []).filter(p => {
+                    if (!p.code) return false;
+                    if (activeCodes.has(p.code)) return false;
+                    if (p.code === 'gas24') return !beds24Active; // Beds24 bundle option
+                    if (p.code.startsWith('gas24_')) return false; // atomics hidden
+                    return true;
+                });
                 if (available.length === 0) {
                     container.innerHTML = '<div style="color:#94a3b8;">All catalogue products are already active on this client.</div>';
                     return;
@@ -108091,20 +108104,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </optgroup>`;
                 }).join('');
                 container.innerHTML = `
-                    <div style="margin-bottom:0.75rem; padding:0.75rem; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px;">
-                        <div style="font-size:0.85rem; color:#1e3a8a; margin-bottom:0.5rem;"><strong>🔧 Beds24 bundle</strong> — add the whole set (base fee, per-property, per-link, sub-users, SSL) at once, quantities pulled from the account's live usage snapshot.</div>
-                        <button class="btn" onclick="previewBeds24Bundle(${accountId})" style="background:#2563eb; color:white; padding:6px 14px;">🔧 Preview Beds24 bundle</button>
-                    </div>
                     <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
                         <select id="cat-add-code-${accountId}" style="flex:1; min-width:280px; padding:6px 10px; border:1px solid #d1d5db; border-radius:4px;"
-                            onchange="var o=this.options[this.selectedIndex]; document.getElementById('cat-add-price-${accountId}').value = o.dataset.price;">
+                            onchange="onCatalogueSelectChange(${accountId})">
                             ${opts}
                         </select>
-                        <label style="font-size:0.8rem; color:#64748b;">Price:</label>
+                        <label style="font-size:0.8rem; color:#64748b;" id="cat-add-price-label-${accountId}">Price:</label>
                         <input type="number" step="0.01" id="cat-add-price-${accountId}" value="0" style="width:90px; padding:6px 10px; border:1px solid #d1d5db; border-radius:4px;">
-                        <button class="btn" onclick="applyCatalogueAdd(${accountId})" style="background:#059669; color:white; padding:6px 14px;">➕ Add to client</button>
+                        <button class="btn" onclick="applyCatalogueAdd(${accountId})" style="background:#059669; color:white; padding:6px 14px;" id="cat-add-btn-${accountId}">➕ Add to client</button>
                     </div>
-                    <p style="font-size:0.75rem; color:#94a3b8; margin:0.5rem 0 0;">Adding creates an active account_subscriptions row at the given monthly price. Detected products above are auto-suggested; this dropdown is for anything without a detection signal.</p>
+                    <p style="font-size:0.75rem; color:#94a3b8; margin:0.5rem 0 0;" id="cat-add-hint-${accountId}">Pick a product and Add. For GAS24, the full fee breakdown (base fee, per-property, per-link, sub-users, SSL) is auto-configured from the account's Beds24 usage snapshot.</p>
                 `;
                 // Fire onchange to populate the initial price.
                 const sel = document.getElementById('cat-add-code-' + accountId);
@@ -108112,6 +108121,29 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) {
                 container.innerHTML = `<div style="color:#dc2626;">Failed to load: ${e.message}</div>`;
             }
+        }
+
+        // Called on dropdown change. For GAS24 (Beds24 bundle) we hide
+        // the price input + button — the bundle preview modal is the
+        // add path. For every other product, price + Add work normally.
+        function onCatalogueSelectChange(accountId) {
+            const sel = document.getElementById('cat-add-code-' + accountId);
+            if (!sel) return;
+            const opt = sel.options[sel.selectedIndex];
+            if (!opt) return;
+            const code = sel.value;
+            const priceInput = document.getElementById('cat-add-price-' + accountId);
+            const priceLabel = document.getElementById('cat-add-price-label-' + accountId);
+            const addBtn = document.getElementById('cat-add-btn-' + accountId);
+            const hint = document.getElementById('cat-add-hint-' + accountId);
+            const isBundle = code === 'gas24';
+            if (priceInput) priceInput.style.display = isBundle ? 'none' : '';
+            if (priceLabel) priceLabel.style.display = isBundle ? 'none' : '';
+            if (priceInput) priceInput.value = opt.dataset.price;
+            if (addBtn) addBtn.textContent = isBundle ? '🔧 Preview Beds24 fees…' : '➕ Add to client';
+            if (hint) hint.textContent = isBundle
+                ? 'GAS24 opens a preview showing each Beds24 fee (base, property, link, sub-users, SSL) with quantities pulled from live usage. Nothing is added until you confirm.'
+                : 'Pick a product and Add. For GAS24, the full fee breakdown is auto-configured from the account\'s Beds24 usage snapshot.';
         }
 
         // Remove a subscribed product from a client's billing. Uses the
@@ -108209,8 +108241,13 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function applyCatalogueAdd(accountId) {
             const code = document.getElementById('cat-add-code-' + accountId)?.value;
-            const price = parseFloat(document.getElementById('cat-add-price-' + accountId)?.value || 0);
             if (!code) { showNotification('Pick a product first', 'warning'); return; }
+            // GAS24 (Beds24 pass-through) routes through the bundle preview
+            // rather than the plain subscribe endpoint — the atomic fees
+            // (base, property, link, etc.) are added together at sizes
+            // pulled from the live usage snapshot.
+            if (code === 'gas24') { previewBeds24Bundle(accountId); return; }
+            const price = parseFloat(document.getElementById('cat-add-price-' + accountId)?.value || 0);
             try {
                 const r = await fetch('/api/admin/billing/client/' + accountId + '/subscribe', {
                     method: 'POST',
@@ -108220,8 +108257,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const d = await r.json();
                 if (!d.success) { showNotification('Add failed: ' + (d.error || 'unknown'), 'error'); return; }
                 showNotification('Added ' + code, 'success');
-                // Reload the review panel + catalogue picker to reflect the new sub.
-                loadSubscriptionReview(accountId);
+                loadClientReconciliation(accountId);
                 loadCatalogueAdd(accountId);
             } catch (e) {
                 showNotification('Add failed: ' + e.message, 'error');
