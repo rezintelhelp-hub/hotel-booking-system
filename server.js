@@ -2150,7 +2150,22 @@ function generateBookingConfirmationEmail(booking, property, room, paymentSchedu
                   <td style="padding: 6px 0; font-size: 14px; color: #16a34a;">${booking.voucher_label}</td>
                   <td style="padding: 6px 0; font-size: 14px; color: #16a34a; text-align: right;">-${booking.currency || '$'}${parseFloat(booking.voucher_discount).toFixed(2)}</td>
                 </tr>` : ''}
-                ${Array.isArray(booking.extras) && booking.extras.length > 0 ? booking.extras.map(x => `
+                ${Array.isArray(booking.extras) && booking.extras.length > 0 ? booking.extras
+                    // 2026-08-11 — never render tax rows from booking.extras;
+                    // tax_breakdown below is the canonical tax source (handles
+                    // inclusive vs exclusive with an `incl.` badge). Filter
+                    // by explicit source_type when present, else by matching
+                    // name against tax_breakdown entries. Prevents the "VAT
+                    // £5 shown twice" bug on Hebden / Lehmann bookings.
+                    .filter(x => {
+                      if (x && x.source_type === 'tax') return false;
+                      const bdArr = Array.isArray(booking.tax_breakdown)
+                        ? booking.tax_breakdown
+                        : (typeof booking.tax_breakdown === 'string' ? (() => { try { return JSON.parse(booking.tax_breakdown); } catch { return []; } })() : []);
+                      if (Array.isArray(bdArr) && bdArr.some(t => t && t.name && x && x.name && String(t.name).toLowerCase() === String(x.name).toLowerCase())) return false;
+                      return true;
+                    })
+                    .map(x => `
                 <tr>
                   <td style="padding: 6px 0; font-size: 14px; color: #475569;">${(parseInt(x.qty) || 1) > 1 ? (parseInt(x.qty) + ' × ') : ''}${(x.name || 'Extra').replace(/</g,'&lt;')}</td>
                   <td style="padding: 6px 0; font-size: 14px; color: #475569; text-align: right;">${booking.currency || '$'}${parseFloat(x.total || (x.qty || 1) * (x.unit_price || 0)).toFixed(2)}</td>
@@ -106733,13 +106748,24 @@ app.post('/api/public/book', async (req, res) => {
         for (const t of price_breakdown.taxes) {
           const amt = parseFloat(t.amount) || 0;
           if (!(amt > 0)) continue;
+          // 2026-08-11 — Inclusive taxes are ALREADY baked into
+          // accommodation_price. Persisting them as a booking_extras
+          // row double-counts (extras_total + grand_total both climb
+          // by the tax amount that's already inside accom). Hebden /
+          // Lehmann bookings showed VAT £5 twice + grand_total £35
+          // when accom (inclusive) was £30. Skip persist for inclusive.
+          // tax_breakdown still carries the tax line for display.
+          if (t.inclusive) continue;
           extrasTotal += amt;
           await pool.query(
             `INSERT INTO booking_extras (booking_id, source_type, source_id, name, qty, unit_price, currency, status, created_at, updated_at)
              VALUES ($1, 'tax', 0, $2, 1, $3, $4, 'reserved', NOW(), NOW())`,
             [newBooking.id, (t.name || 'Tax').slice(0, 255), amt, bookingCurrency]
           );
-          persistedExtras.push({ name: t.name || 'Tax', qty: 1, unit_price: amt, total: amt });
+          // NOTE: no persistedExtras.push here — the email/invoice
+          // renders tax rows from booking.tax_breakdown (with the
+          // proper `incl.` badge), so pushing into persistedExtras
+          // would double-print in the "extras" loop of the template.
         }
       }
       if (extrasTotal > 0) {
