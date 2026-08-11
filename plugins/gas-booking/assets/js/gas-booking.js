@@ -2054,6 +2054,92 @@ jQuery(document).ready(function($) {
             }, 100);
         })();
 
+        // 2026-08-11 — Shop-linked booking: enforce the package's
+        // checkin_days_of_week (e.g. Sat/Sun only for a Curist Package)
+        // and lock the checkout to arrival + event_duration_nights. Fires
+        // only when the URL carries ?linked_product=<id>; no-op otherwise.
+        (function shopLinkedConstraints() {
+            var params = new URLSearchParams(window.location.search);
+            var lp = params.get('linked_product');
+            if (!lp) return;
+            var apiUrl = (window.gasBooking && window.gasBooking.apiUrl) ||
+                         (window.gasCheckout && window.gasCheckout.apiUrl) || '';
+            if (!apiUrl) return;
+            fetch(apiUrl + '/api/public/shop/products/' + encodeURIComponent(lp) + '/booking-constraints')
+                .then(function(r) { return r.json(); })
+                .then(function(j) {
+                    if (!j || !j.success) return;
+                    var allowedDays = Array.isArray(j.checkin_days_of_week) ? j.checkin_days_of_week : [];
+                    var nights = parseInt(j.event_duration_nights, 10) || 0;
+                    if (allowedDays.length === 0 && !nights) return;
+
+                    // Poll for flatpickr instances (same 4s ceiling pattern
+                    // the URL prefill uses) then apply the constraint fns.
+                    var applied = false, tries = 0;
+                    var iv = setInterval(function() {
+                        tries++;
+                        var checkinEls = document.querySelectorAll('.gas-checkin, .gas-checkin-date, .gas-search-checkin, .gas-filter-checkin');
+                        var checkoutEls = document.querySelectorAll('.gas-checkout, .gas-checkout-date, .gas-search-checkout, .gas-filter-checkout');
+                        if (checkinEls.length === 0) { if (tries > 40) clearInterval(iv); return; }
+                        // Apply the day-of-week filter on the check-in
+                        // picker (either flatpickr or native input).
+                        checkinEls.forEach(function(el) {
+                            if (allowedDays.length === 0) return;
+                            if (el._flatpickr) {
+                                // Flatpickr `disable` supports a function
+                                // returning true to disable a date.
+                                el._flatpickr.set('disable', [function(date) {
+                                    return allowedDays.indexOf(date.getDay()) === -1;
+                                }]);
+                            }
+                            // For native date inputs there's no built-in day-
+                            // of-week block; guard on change so a bad manual
+                            // entry falls back to the previous valid value.
+                            el.addEventListener('change', function() {
+                                if (!el.value) return;
+                                var d = new Date(el.value);
+                                if (allowedDays.indexOf(d.getDay()) === -1) {
+                                    alert('This package requires a check-in on '
+                                        + allowedDays.map(function(n){return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][n];}).join(' or '));
+                                    el.value = '';
+                                }
+                            });
+                        });
+                        // Lock the checkout to arrival + nights whenever
+                        // the check-in changes.
+                        if (nights > 0) {
+                            checkinEls.forEach(function(ci) {
+                                var handler = function() {
+                                    var raw = ci._flatpickr ? ci._flatpickr.selectedDates[0] : (ci.value ? new Date(ci.value) : null);
+                                    if (!raw) return;
+                                    var out = new Date(raw.getTime() + nights * 86400000);
+                                    var yyyy = out.getFullYear();
+                                    var mm = String(out.getMonth() + 1).padStart(2, '0');
+                                    var dd = String(out.getDate()).padStart(2, '0');
+                                    var iso = yyyy + '-' + mm + '-' + dd;
+                                    checkoutEls.forEach(function(co) {
+                                        if (co._flatpickr) co._flatpickr.setDate(iso, true);
+                                        else if (co.tagName === 'INPUT') { co.value = iso; co.dispatchEvent(new Event('change', { bubbles: true })); }
+                                        // Read-only lock — guest can't override
+                                        // a fixed-duration package.
+                                        co.setAttribute('readonly', 'readonly');
+                                        co.style.background = '#f1f5f9';
+                                        co.style.cursor = 'not-allowed';
+                                    });
+                                };
+                                if (ci._flatpickr) ci._flatpickr.config.onChange.push(handler);
+                                else ci.addEventListener('change', handler);
+                                // Fire once if a date is already prefilled from URL.
+                                if ((ci._flatpickr && ci._flatpickr.selectedDates[0]) || ci.value) handler();
+                            });
+                        }
+                        applied = true;
+                        clearInterval(iv);
+                    }, 100);
+                })
+                .catch(function(e) { console.warn('[shop-linked constraints]', e); });
+        })();
+
         // Legacy setTimeout kept for the rest of the URL-driven prefills
         // (property, offer_id popup, event slug etc.).
         setTimeout(function() {

@@ -105534,7 +105534,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
           shopLinkedTotal = shopTotal;
           // allOffers is already an array from the .map() upstream — const,
           // but mutable. .unshift is fine; reassignment would throw.
-          allOffers.unshift({
+          const shopOffer = {
             id: `shop-${sp.id}`,
             name: sp.name,
             description: sp.description || `Package price for ${nights} nights.`,
@@ -105552,7 +105552,14 @@ app.post('/api/public/calculate-price', async (req, res) => {
             source: 'shop_link',
             rate_plan_total: shopTotal,
             price_per_night: Math.round((shopTotal / nights) * 100) / 100,
-          });
+          };
+          // Steve 2026-08-11: when the guest arrived via a shop package
+          // link, this IS the rate. Don't offer alternatives like "Non
+          // Cancellable −10%" alongside — guests shouldn't be able to
+          // downshift a fixed-price package. Replace the offer list
+          // entirely with just the shop offer.
+          allOffers.length = 0;
+          allOffers.push(shopOffer);
         }
       } catch (spErr) {
         console.warn('[calculate-price linked_product]', spErr.message);
@@ -154922,6 +154929,38 @@ app.get('/api/public/client/:clientId/shop/products', async (req, res) => {
 });
 
 // GET /api/public/client/:clientId/shop/products/:slug — public single product
+// Public: get the booking-widget constraints for a shop product by id.
+// Used by the shop→book bridge — when /book-now/ is opened with
+// ?linked_product=<id>, the widget calls this to know which check-in
+// days-of-week to allow + how many nights the package is, so the date
+// picker enforces Sat/Sun only + the checkout auto-locks to arrival+N.
+// Returns only the fields needed for widget behaviour; no pricing (the
+// widget derives that via the existing shop-linked rate injection).
+app.get('/api/public/shop/products/:id/booking-constraints', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'invalid id' });
+    const r = await pool.query(
+      `SELECT id, name, checkin_days_of_week, event_duration_nights, account_id, property_id
+         FROM shop_products WHERE id = $1 AND is_active = true LIMIT 1`, [id]);
+    const p = r.rows[0];
+    if (!p) return res.status(404).json({ success: false, error: 'not found' });
+    // Parse comma-separated days ("0,6") into a JS array [0, 6] — 0=Sun.
+    const days = String(p.checkin_days_of_week || '').split(',').map(s => parseInt(s.trim(), 10)).filter(n => n >= 0 && n <= 6);
+    res.json({
+      success: true,
+      id: p.id,
+      name: p.name,
+      checkin_days_of_week: days,
+      event_duration_nights: p.event_duration_nights || null,
+      account_id: p.account_id,
+      property_id: p.property_id || null
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => {
   try {
     const clientId = parseInt(req.params.clientId);
