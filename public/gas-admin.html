@@ -108108,6 +108108,24 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        // Remove a subscribed product from a client's billing. Uses the
+        // existing DELETE endpoint which soft-cancels (status='cancelled',
+        // history preserved). Master-only per the server. Steve
+        // 2026-08-11 — one-click remove from the reconciliation panel.
+        async function removeSubscribedProduct(accountId, productCode, productName) {
+            if (!confirm('Remove ' + productName + ' from this client? History preserved (soft-cancel).')) return;
+            try {
+                const r = await fetch('/api/admin/billing/client/' + accountId + '/subscribe/' + encodeURIComponent(productCode), {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const d = await r.json();
+                if (!d.success) { alert('Remove failed: ' + (d.error || 'unknown')); return; }
+                if (typeof showNotification === 'function') showNotification('Removed ' + productName, 'success');
+                loadClientReconciliation(accountId);
+            } catch (e) { alert('Remove error: ' + e.message); }
+        }
+
         // Preview the Beds24 bundle — shows what would be added, current
         // status, drift vs live snapshot. Operator picks Add or Apply drift.
         async function previewBeds24Bundle(accountId) {
@@ -108440,9 +108458,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                         ? `<span style="color:#f59e0b;font-size:0.75rem;">⚠ ${paymentsMatched.length} payments (double-billed?)</span>`
                         : `<span style="color:#dc2626;font-size:0.75rem;">⚠ no payment received this month</span>`;
                     return `<div style="padding:0.4rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;">
-                        <div style="display:flex;justify-content:space-between;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
                             <strong style="font-size:0.85rem;">${esc(s.name || code)}</strong>
-                            <span style="font-size:0.85rem;color:#0f172a;">${fmt(s.override_price || s.price_monthly, s.currency)}</span>
+                            <div style="display:flex;align-items:center;gap:0.5rem;">
+                                <span style="font-size:0.85rem;color:#0f172a;">${fmt(s.override_price || s.price_monthly, s.currency)}</span>
+                                <button onclick="removeSubscribedProduct(${accountId}, '${esc(code)}', '${(s.name || code).replace(/'/g,"\\'")}')"
+                                    title="Remove this product from ${esc(s.name || code)}"
+                                    style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1rem;padding:0 4px;line-height:1;"
+                                >×</button>
+                            </div>
                         </div>
                         <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">${code} · ${status}</div>
                     </div>`;
