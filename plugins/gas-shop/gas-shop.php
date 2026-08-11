@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.6.1
+ * Version: 1.6.2
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -640,7 +640,12 @@ class GAS_Shop {
                 echo '<a href="'.esc_url(home_url('/shop/cart/')).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';margin-left:12px" id="gas-shop-go-cart">View Cart</a>';
                 $rendered++;
             }
-            if ($offerBookWithRoom) {
+            // Suppress the generic "Book a room with this →" button when a
+            // shop-linked package CTA ("Book This Package →") was already
+            // rendered — same destination for these products, and having
+            // both confuses guests. Steve / Curist Package 2026-08-11.
+            $suppressBookWithRoom = ($checkinDaysCsv !== '');
+            if ($offerBookWithRoom && !$suppressBookWithRoom) {
                 // Booking Add-on with a linked upsell + booking_url pre-fills
                 // via ?prefill_upsells=<upsell_id>. Everything else uses
                 // /book-now/?linked_product=<product_id> to signal the
