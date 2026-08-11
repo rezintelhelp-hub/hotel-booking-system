@@ -108019,14 +108019,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <!-- 2026-08-09 — Subscription Review panel. Compares detected
                      signals (from deployed_sites / beds24 usage / contacts /
                      etc.) against existing account_subscriptions. Master
-                     ticks proposed changes and hits Apply for THIS client. -->
-                <h4 style="margin:1.5rem 0 0.5rem;color:#1e293b;font-size:0.95rem;display:flex;justify-content:space-between;align-items:center;">
-                    🔍 Subscription Review — Detected vs Actual
-                    <button class="btn btn-sm" onclick="loadSubscriptionReview(${accountId})">Load detected signals</button>
-                </h4>
-                <div id="sub-review-${accountId}" style="padding:0.75rem;background:#f8fafc;border-radius:6px;color:#64748b;font-size:0.85rem;">
-                    Click above to see what products this client SHOULD be subscribed to based on live signals (site type, beds24 usage, contact count etc.), with proposed changes side-by-side with existing subscriptions. Tick the changes you want to apply, edit qty/price inline, then click Apply.
-                </div>
+                     ticks proposed changes and hits Apply for THIS client.
+                     2026-08-11 — collapsed by default (Steve: too much
+                     noise on the main view; use catalogue picker as the
+                     primary add path, this is here when you WANT
+                     detector suggestions). -->
+                <details style="margin:1.5rem 0 0.5rem;">
+                    <summary style="cursor:pointer; font-size:0.9rem; color:#64748b; font-weight:600;">🔍 Show auto-detected suggestions (optional)</summary>
+                    <div style="margin-top:0.5rem;">
+                        <button class="btn btn-sm" onclick="loadSubscriptionReview(${accountId})">Load detected signals</button>
+                        <div id="sub-review-${accountId}" style="padding:0.75rem;background:#f8fafc;border-radius:6px;color:#64748b;font-size:0.85rem;margin-top:0.5rem;">
+                            Click above to see what products this client SHOULD be subscribed to based on live signals (site type, beds24 usage, contact count etc.), with proposed changes side-by-side with existing subscriptions. Tick the changes you want to apply, edit qty/price inline, then click Apply.
+                        </div>
+                    </div>
+                </details>
 
                 <!-- 2026-08-11 — Manual add-from-catalogue. The Subscription
                      Review above only surfaces products with a detection
@@ -108308,15 +108314,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const esc = (s) => String(s || '').replace(/</g, '&lt;');
                 const fmt = (a, c) => (c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'USD' ? '$' : (c || '')) + Number(a || 0).toFixed(2);
 
-                // LEFT — products with match state
+                // LEFT — only products that HAVE been added by operator/
+                // client. Auto-detection has moved to a separate collapsed
+                // panel below. Steve 2026-08-11: he wants control, no
+                // synthetic guesses cluttering the confirmed list.
                 const activeProducts = [...(d.subscribed_products || [])];
-                // Add synthetic GAS24 line if applicable + not already there
-                if (d.gas24_recommended && !activeProducts.some(s => s.product_code === 'gas24')) {
-                    activeProducts.unshift({
-                        product_code: 'gas24', name: 'GAS24 (Beds24 pass-through)',
-                        override_price: d.gas24_recommended.gas24_price_eur, currency: 'EUR', _synthetic: true
-                    });
-                }
                 const leftRows = activeProducts.map(s => {
                     const code = s.product_code || s.product;
                     const paymentsMatched = matchCodes[code] || [];
@@ -108356,7 +108358,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 container.innerHTML = `
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
                         <div>
-                            <div style="font-size:0.72rem;color:#64748b;text-transform:uppercase;font-weight:600;margin-bottom:0.4rem;">Products (should pay)</div>
+                            <div style="font-size:0.72rem;color:#64748b;text-transform:uppercase;font-weight:600;margin-bottom:0.4rem;">Products (subscribed)</div>
                             <div style="display:flex;flex-direction:column;gap:0.35rem;">${leftRows}</div>
                         </div>
                         <div>
