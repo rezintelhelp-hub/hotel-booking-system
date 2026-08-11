@@ -1056,12 +1056,14 @@ async function resolveAccountSender(accountId, siteId) {
   if (!accountId) return fallback;
   try {
     const acct = await pool.query(
-      'SELECT name, business_name, email FROM accounts WHERE id = $1',
+      'SELECT name, business_name, email, reply_to_email FROM accounts WHERE id = $1',
       [accountId]
     );
     if (!acct.rows[0]) return fallback;
     const displayName = acct.rows[0].business_name || acct.rows[0].name || 'GAS';
-    let replyTo = acct.rows[0].email || null;
+    // reply_to_email is the operator-set override (My Accounts → Booking
+    // reply-to). Falls back to the account owner email if unset.
+    let replyTo = acct.rows[0].reply_to_email || acct.rows[0].email || null;
     // Phase 1 site-level override — sites with a Comms tab configured
     // point guest replies at info@lgstays.com, hotelcaracaspanama@gmail.com
     // etc. Falls back to the account-level email when the site row is
@@ -24364,7 +24366,7 @@ app.put('/api/accounts/:id', async (req, res) => {
       vat_number, company_reg, vat_enabled, vat_rate, beds24_billing_enabled, website_billing_enabled,
       billing_currency, managed_by_id,
       preferred_contact_channel, contact_whatsapp,
-      booking_cc_email
+      booking_cc_email, reply_to_email
     } = req.body;
 
     // Ensure columns exist
@@ -24372,6 +24374,7 @@ app.put('/api/accounts/:id', async (req, res) => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS default_currency VARCHAR(10)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS booking_cc_email VARCHAR(255)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS reply_to_email VARCHAR(255)`).catch(() => {});
     
     // Build dynamic update query
     const updates = [];
@@ -24405,6 +24408,10 @@ app.put('/api/accounts/:id', async (req, res) => {
     if (booking_cc_email !== undefined) {
       updates.push(`booking_cc_email = $${paramIndex++}`);
       values.push((booking_cc_email || '').trim() || null);
+    }
+    if (reply_to_email !== undefined) {
+      updates.push(`reply_to_email = $${paramIndex++}`);
+      values.push((reply_to_email || '').trim() || null);
     }
     if (contact_name !== undefined) {
       updates.push(`contact_name = $${paramIndex++}`);

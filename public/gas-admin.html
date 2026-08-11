@@ -29087,6 +29087,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <input type="tel" id="account-contact-whatsapp" class="form-input" placeholder="+44 7700 900000" style="padding: 0.5rem;">
                             </div>
                         </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr; gap: 0.75rem; margin-top: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;" title="Address guests reply to on booking confirmations and other outbound emails. Leave blank to use the account Email above.">Booking Reply-To Email <span style="color: #64748b; font-weight: normal;">(override)</span></label>
+                                <input type="email" id="account-reply-to-email" class="form-input" placeholder="Leave blank to use the account Email above" style="padding: 0.5rem;">
+                                <div style="font-size: 0.72rem; color: #64748b; margin-top: 0.25rem;">Guests replying to booking confirmations land here. Falls back to the account Email if unset.</div>
+                            </div>
+                        </div>
                         
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.75rem;">
                             <div class="form-group" style="margin: 0;">
@@ -47393,6 +47401,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('account-name').value = account.name || '';
                     document.getElementById('account-contact-name').value = account.contact_name || '';
                     document.getElementById('account-email').value = account.email || '';
+                    const _replyTo = document.getElementById('account-reply-to-email');
+                    if (_replyTo) _replyTo.value = account.reply_to_email || '';
                     document.getElementById('account-phone').value = account.phone || '';
                     const _waEl = document.getElementById('account-contact-whatsapp');
                     if (_waEl) _waEl.value = account.contact_whatsapp || '';
@@ -47717,6 +47727,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 name: document.getElementById('account-name').value,
                 contact_name: document.getElementById('account-contact-name').value,
                 email: document.getElementById('account-email').value,
+                reply_to_email: document.getElementById('account-reply-to-email')?.value || null,
                 phone: document.getElementById('account-phone').value,
                 contact_whatsapp: document.getElementById('account-contact-whatsapp')?.value || null,
                 address_line1: document.getElementById('account-address1').value,
