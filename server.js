@@ -6312,7 +6312,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
               endDate: endDate,
               includeNumAvail: true,
               includePrices: true,
-              includeMinStay: true
+              includeMinStay: true,
+              includeLinkedPrices: true
             }
           });
           
@@ -9688,12 +9689,13 @@ app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
     const results = {};
     
     // Build params based on what was provided
-    const calParams = { 
-      startDate: startDate, 
+    const calParams = {
+      startDate: startDate,
       endDate: endDate,
       includeNumAvail: true,
       includePrices: true,
-      includeMinStay: true
+      includeMinStay: true,
+      includeLinkedPrices: true
     };
     if (roomId) calParams.roomId = parseInt(roomId);
     if (propertyId) calParams.propertyId = parseInt(propertyId);
@@ -11991,13 +11993,14 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           // Try CALENDAR API first - one call gets everything
           const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
             headers: { 'token': accessToken },
-            params: { 
-              roomId: beds24RoomId, 
-              startDate, 
+            params: {
+              roomId: beds24RoomId,
+              startDate,
               endDate,
               includeNumAvail: true,
               includePrices: true,
-              includeMinStay: true
+              includeMinStay: true,
+              includeLinkedPrices: true
             }
           });
           
@@ -12016,13 +12019,14 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
               try {
                 const sourceCalResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
                   headers: { 'token': accessToken },
-                  params: { 
-                    roomId: linking.sourceRoomId, 
-                    startDate, 
+                  params: {
+                    roomId: linking.sourceRoomId,
+                    startDate,
                     endDate,
                     includeNumAvail: true,
                     includePrices: true,
-                    includeMinStay: true
+                    includeMinStay: true,
+                    includeLinkedPrices: true
                   }
                 });
                 
@@ -12780,7 +12784,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
             endDate,
             includeNumAvail: true,
             includePrices: true,
-            includeMinStay: true
+            includeMinStay: true,
+            includeLinkedPrices: true
           }
         });
         
@@ -12807,7 +12812,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
                   endDate,
                   includeNumAvail: true,
                   includePrices: true,
-                  includeMinStay: true
+                  includeMinStay: true,
+                  includeLinkedPrices: true
                 }
               });
               
