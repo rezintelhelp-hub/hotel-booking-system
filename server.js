@@ -14811,6 +14811,122 @@ app.post('/api/admin/channex/messages/thread/:threadId', async (req, res) => {
 // thread and return {thread_id, connection_id} so the booking-detail
 // panel can load it inline. Matches by channex_booking_id → thread
 // meta.reservation_live_feed_event_id or by guest name + listing.
+// ─── Beds24 messages mirror (2026-08-11) ────────────────────────────
+// Beds24 stores messages per-booking (no thread concept). Fetch on
+// booking-open, persist into guest_communications with
+// channel='beds24_message', direction derived from message.source
+// ('guest' = inbound, 'host'/anything else = outbound).
+// provider_message_id is synthesized from bookingId + timestamp since
+// Beds24 doesn't return a stable message id.
+async function _persistBeds24Message({ gasBookingId, guestId, beds24BookingId, msg }) {
+  try {
+    const rawTime = msg.time || msg.timestamp;
+    if (!rawTime || !msg.message) return;
+    // Idempotency key — bookingId + iso time is unique per message.
+    const providerId = `beds24_${beds24BookingId}_${String(rawTime).replace(/\s+/g,'T')}`;
+    const exists = await pool.query(
+      `SELECT 1 FROM guest_communications
+        WHERE channel = 'beds24_message' AND provider_message_id = $1 LIMIT 1`, [providerId]);
+    if (exists.rows[0]) return;
+    const direction = String(msg.source || '').toLowerCase() === 'guest' ? 'inbound' : 'outbound';
+    const metadata = { beds24_booking_id: beds24BookingId, source: msg.source || null, raw_time: rawTime };
+    await pool.query(
+      `INSERT INTO guest_communications
+         (booking_id, guest_id, channel, direction, event_type, subject, body, status,
+          sent_at, provider_message_id, metadata, created_at)
+       VALUES ($1, $2, 'beds24_message', $3, 'message', NULL, $4, 'delivered', $5, $6, $7::jsonb, NOW())`,
+      [gasBookingId, guestId, direction, msg.message, rawTime, providerId, JSON.stringify(metadata)]);
+  } catch (e) {
+    console.warn('[_persistBeds24Message]', e.message);
+  }
+}
+
+// GET /api/admin/bookings/:id/beds24-messages — fetches messages from
+// Beds24 for this booking, mirrors any new ones into
+// guest_communications, returns the raw list. Called by the booking-
+// detail view alongside loadBookingCommunications.
+app.get('/api/admin/bookings/:id/beds24-messages', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    const bkQ = await pool.query(
+      `SELECT b.id, b.beds24_booking_id, b.guest_id, p.account_id
+         FROM bookings b
+         LEFT JOIN properties p ON p.id = b.property_id
+        WHERE b.id = $1`, [bookingId]);
+    const bk = bkQ.rows[0];
+    if (!bk) return res.status(404).json({ success: false, error: 'booking not found' });
+    if (!bk.beds24_booking_id) return res.json({ success: true, messages: [], reason: 'no_beds24_id' });
+    if (decoded.role !== 'master_admin' && bk.account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'not authorised' });
+    }
+    let token;
+    try { token = await getBeds24AccessTokenForAccount(pool, bk.account_id); }
+    catch (e) { return res.json({ success: false, error: 'no beds24 token: ' + e.message }); }
+    if (!token) return res.json({ success: false, error: 'no beds24 token' });
+
+    const axios = require('axios');
+    const r = await axios.get(`https://beds24.com/api/v2/bookings/messages?bookingId=${bk.beds24_booking_id}`,
+      { headers: { token }, timeout: 15000 });
+    const raw = r.data?.data || [];
+    for (const m of raw) {
+      await _persistBeds24Message({ gasBookingId: bk.id, guestId: bk.guest_id, beds24BookingId: bk.beds24_booking_id, msg: m });
+    }
+    const messages = raw.map(m => ({
+      text: m.message || '',
+      time: m.time || null,
+      source: m.source || null,
+      direction: String(m.source||'').toLowerCase() === 'guest' ? 'inbound' : 'outbound'
+    })).sort((a, b) => new Date(a.time) - new Date(b.time));
+    res.json({ success: true, messages, count: messages.length });
+  } catch (e) {
+    console.error('[beds24-messages GET]', e.response?.status, e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/admin/bookings/:id/beds24-messages — sends a reply to
+// Beds24, then persists it. Body: { message }.
+app.post('/api/admin/bookings/:id/beds24-messages', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    const message = String(req.body?.message || '').trim();
+    if (!message) return res.status(400).json({ success: false, error: 'message required' });
+    const bkQ = await pool.query(
+      `SELECT b.id, b.beds24_booking_id, b.guest_id, p.account_id
+         FROM bookings b LEFT JOIN properties p ON p.id = b.property_id
+        WHERE b.id = $1`, [bookingId]);
+    const bk = bkQ.rows[0];
+    if (!bk) return res.status(404).json({ success: false, error: 'booking not found' });
+    if (!bk.beds24_booking_id) return res.json({ success: false, error: 'no beds24 booking id on this row' });
+    if (decoded.role !== 'master_admin' && bk.account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'not authorised' });
+    }
+    const token = await getBeds24AccessTokenForAccount(pool, bk.account_id);
+    if (!token) return res.json({ success: false, error: 'no beds24 token' });
+
+    const axios = require('axios');
+    // Beds24 send: source='host' when operator sends. Beds24 stamps its
+    // own timestamp; we synthesise one here for the local persist since
+    // the response doesn't echo it in a stable field.
+    const sentAt = new Date().toISOString();
+    await axios.post('https://beds24.com/api/v2/bookings/messages',
+      [{ bookingId: parseInt(bk.beds24_booking_id), message, source: 'host' }],
+      { headers: { token, 'Content-Type': 'application/json' }, timeout: 15000 });
+    await _persistBeds24Message({
+      gasBookingId: bk.id, guestId: bk.guest_id, beds24BookingId: bk.beds24_booking_id,
+      msg: { message, source: 'host', time: sentAt }
+    });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[beds24-messages POST]', e.response?.status, e.message);
+    res.status(500).json({ success: false, error: e.response?.data?.errors || e.message });
+  }
+});
+
 app.get('/api/admin/bookings/:id/channex-thread', async (req, res) => {
   try {
     const decoded = await extractAccountFromToken(req);

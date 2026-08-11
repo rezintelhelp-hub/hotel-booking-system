@@ -73417,62 +73417,92 @@ const promo = await fetch('/api/v1/offers/validate', {
         function renderCommsReplyComposer(bookingId, comms) {
             const wrap = document.getElementById('view-comms-reply');
             if (!wrap) return;
-            const channexComms = comms.filter(c => c.channel === 'channex' && c.metadata?.thread_id && c.metadata?.connection_id);
-            if (channexComms.length === 0) { wrap.style.display = 'none'; return; }
-            // Unique threads with metadata for the dropdown label
-            const seen = new Map();
-            for (const c of channexComms) {
+            // Build the option list — one entry per Channex thread + one
+            // per unique Beds24 booking. Send route decided by kind.
+            const options = [];
+            const seenCx = new Map();
+            for (const c of comms.filter(x => x.channel === 'channex' && x.metadata?.thread_id && x.metadata?.connection_id)) {
                 const tid = c.metadata.thread_id;
-                if (!seen.has(tid)) {
-                    seen.set(tid, {
-                        thread_id: tid,
-                        connection_id: c.metadata.connection_id,
-                        title: c.metadata.thread_title || 'OTA thread',
-                        last_at: c.sent_at
-                    });
-                }
+                if (seenCx.has(tid)) continue;
+                seenCx.set(tid, true);
+                options.push({
+                    kind: 'channex',
+                    key: 'cx:' + tid,
+                    label: '💬 OTA: ' + (c.metadata.thread_title || 'thread'),
+                    thread_id: tid,
+                    connection_id: c.metadata.connection_id,
+                    last_at: c.sent_at
+                });
             }
-            const threads = [...seen.values()].sort((a, b) => new Date(b.last_at || 0) - new Date(a.last_at || 0));
-            const singleThread = threads.length === 1;
-            const threadPicker = singleThread
-                ? `<input type="hidden" id="reply-thread-id" value="${threads[0].thread_id}"><input type="hidden" id="reply-conn-id" value="${threads[0].connection_id}"><div style="font-size:0.8rem; color:#64748b; margin-bottom:6px;">💬 Reply on OTA thread: <strong>${escapeHtml(threads[0].title)}</strong></div>`
+            const beds24Comm = comms.find(c => c.channel === 'beds24_message');
+            if (beds24Comm) {
+                options.push({
+                    kind: 'beds24',
+                    key: 'b24:' + bookingId,
+                    label: '💬 Beds24 messages',
+                    beds24_booking_id: beds24Comm.metadata?.beds24_booking_id || null,
+                    last_at: beds24Comm.sent_at
+                });
+            }
+            if (options.length === 0) { wrap.style.display = 'none'; return; }
+            options.sort((a, b) => new Date(b.last_at || 0) - new Date(a.last_at || 0));
+            const singleOpt = options.length === 1;
+            const optJson = escapeHtml(JSON.stringify(options));
+            const picker = singleOpt
+                ? `<div style="font-size:0.8rem; color:#64748b; margin-bottom:6px;">${options[0].label}</div>`
                 : `<div style="margin-bottom:6px;">
-                     <label style="font-size:0.8rem; color:#64748b;">Reply to thread:</label>
-                     <select id="reply-thread-picker" onchange="var o=this.options[this.selectedIndex];document.getElementById('reply-thread-id').value=o.value;document.getElementById('reply-conn-id').value=o.dataset.conn;" class="form-input" style="max-width:400px; margin-top:4px;">
-                       ${threads.map(t => `<option value="${t.thread_id}" data-conn="${t.connection_id}">${escapeHtml(t.title)} · ${new Date(t.last_at||0).toLocaleDateString('en-GB')}</option>`).join('')}
+                     <label style="font-size:0.8rem; color:#64748b;">Reply on:</label>
+                     <select id="reply-target-picker" class="form-input" style="max-width:400px; margin-top:4px;">
+                       ${options.map((o,i) => `<option value="${i}">${escapeHtml(o.label)}</option>`).join('')}
                      </select>
-                     <input type="hidden" id="reply-thread-id" value="${threads[0].thread_id}">
-                     <input type="hidden" id="reply-conn-id" value="${threads[0].connection_id}">
                    </div>`;
             wrap.style.display = 'block';
             wrap.innerHTML = `
-                ${threadPicker}
-                <textarea id="reply-body" placeholder="Type your reply — it'll be sent through the OTA thread…" rows="3" class="form-input" style="width:100%; font-family:inherit; font-size:0.9rem; margin-bottom:8px;"></textarea>
+                ${picker}
+                <textarea id="reply-body" placeholder="Type your reply…" rows="3" class="form-input" style="width:100%; font-family:inherit; font-size:0.9rem; margin-bottom:8px;"></textarea>
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
                     <div id="reply-status" style="font-size:0.8rem; color:#64748b;"></div>
-                    <button class="btn btn-primary" onclick="sendChannexReplyFromBooking(${bookingId})" style="font-size:0.85rem;">Send reply</button>
+                    <button class="btn btn-primary" onclick="sendReplyFromBooking(${bookingId})" style="font-size:0.85rem;">Send reply</button>
                 </div>`;
+            // Cache the options on the wrap element so the send handler
+            // can look them up by index (avoids serialisation gymnastics).
+            wrap._replyOptions = options;
         }
 
-        async function sendChannexReplyFromBooking(bookingId) {
-            const threadId = document.getElementById('reply-thread-id')?.value;
-            const connId = parseInt(document.getElementById('reply-conn-id')?.value);
-            const body = document.getElementById('reply-body')?.value?.trim();
+        // Generic send handler — dispatches to the right endpoint based
+        // on the selected option's kind (channex vs beds24).
+        async function sendReplyFromBooking(bookingId) {
+            const wrap = document.getElementById('view-comms-reply');
             const status = document.getElementById('reply-status');
-            if (!threadId || !connId) { if (status) status.textContent = '⚠ No thread selected'; return; }
+            const body = document.getElementById('reply-body')?.value?.trim();
             if (!body) { if (status) status.textContent = '⚠ Enter a message first'; return; }
+            const options = wrap._replyOptions || [];
+            const picker = document.getElementById('reply-target-picker');
+            const idx = picker ? parseInt(picker.value) : 0;
+            const opt = options[idx];
+            if (!opt) { if (status) status.textContent = '⚠ No reply target'; return; }
             if (status) { status.textContent = 'Sending…'; status.style.color = '#64748b'; }
             try {
-                const r = await fetch('/api/admin/channex/messages/thread/' + encodeURIComponent(threadId), {
-                    method: 'POST',
-                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ connection_id: connId, message: body })
-                });
-                const j = await r.json();
+                let r, j;
+                if (opt.kind === 'channex') {
+                    r = await fetch('/api/admin/channex/messages/thread/' + encodeURIComponent(opt.thread_id), {
+                        method: 'POST',
+                        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ connection_id: opt.connection_id, message: body })
+                    });
+                } else if (opt.kind === 'beds24') {
+                    r = await fetch('/api/admin/bookings/' + bookingId + '/beds24-messages', {
+                        method: 'POST',
+                        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: body })
+                    });
+                } else {
+                    throw new Error('unknown target kind');
+                }
+                j = await r.json();
                 if (!j.success) throw new Error(j.error || 'send failed');
                 if (status) { status.textContent = '✓ Sent — refreshing Comms…'; status.style.color = '#059669'; }
                 document.getElementById('reply-body').value = '';
-                // Refresh Comms so the outbound row appears
                 setTimeout(() => loadBookingCommunications(bookingId), 800);
             } catch (e) {
                 if (status) { status.textContent = '✗ ' + e.message; status.style.color = '#dc2626'; }
@@ -73483,6 +73513,13 @@ const promo = await fetch('/api/v1/offers/validate', {
             const el = document.getElementById('view-comms-list');
             if (!el) return;
             el.innerHTML = '<em style="color:#94a3b8;">Loading…</em>';
+            // Eagerly pull Beds24 messages for this booking before the
+            // list fetch so any new ones land in guest_communications
+            // and appear in the same panel. Non-blocking on error — the
+            // rest of the load still runs.
+            try {
+                await fetch(`/api/admin/bookings/${bookingId}/beds24-messages`, { headers: authHeaders() });
+            } catch (_) { /* non-fatal */ }
             try {
                 const r = await fetch(`/api/admin/bookings/${bookingId}/communications`, { headers: authHeaders() });
                 const d = await r.json();
@@ -73502,6 +73539,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const map = {
                         email:    { icon: '📧', label: 'Email',    bg: '#dbeafe', fg: '#1e40af' },
                         channex:  { icon: '💬', label: 'OTA',      bg: '#fef3c7', fg: '#92400e' },
+                        beds24_message: { icon: '💬', label: 'Beds24', bg: '#fce7f3', fg: '#9d174d' },
                         whatsapp: { icon: '📱', label: 'WhatsApp', bg: '#dcfce7', fg: '#166534' },
                         sms:      { icon: '📱', label: 'SMS',      bg: '#f3e8ff', fg: '#6b21a8' },
                         pre_arrival_form: { icon: '📝', label: 'Pre-arrival', bg: '#e0e7ff', fg: '#4338ca' }
@@ -73521,8 +73559,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // — click to expand inline (no separate fetch, body is in
                     // the row payload already).
                     const isChannex = c.channel === 'channex';
+                    const isBeds24Msg = c.channel === 'beds24_message';
+                    const isChatChannel = isChannex || isBeds24Msg;
                     let preview = '';
-                    if (isChannex && c.body) {
+                    if (isChatChannel && c.body) {
                         const full = String(c.body);
                         const borderColour = c.direction === 'inbound' ? '#2563eb' : '#059669';
                         const bubbleStyle = `color:#334155; margin-top:6px; padding:8px 10px; background:#fff; border-left:3px solid ${borderColour}; border-radius:4px; white-space:pre-wrap; font-size:0.85rem;`;
@@ -73538,10 +73578,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 `</div>`;
                         }
                     }
-                    const action = isChannex
-                        ? `<span style="font-size:0.7rem; color:#94a3b8;">via Channex</span>`
-                        : `<button class="btn btn-secondary" onclick="resendCommunication(${bookingId}, ${c.id})" style="font-size: 0.75rem; padding: 4px 10px; white-space: nowrap;">🔄 Resend</button>`;
-                    const titleLine = c.subject || (isChannex ? (c.direction === 'inbound' ? 'Guest message' : 'Reply sent') : '(no subject)');
+                    const action = isChannex ? `<span style="font-size:0.7rem; color:#94a3b8;">via Channex</span>`
+                                 : isBeds24Msg ? `<span style="font-size:0.7rem; color:#94a3b8;">via Beds24</span>`
+                                 : `<button class="btn btn-secondary" onclick="resendCommunication(${bookingId}, ${c.id})" style="font-size: 0.75rem; padding: 4px 10px; white-space: nowrap;">🔄 Resend</button>`;
+                    const titleLine = c.subject || (isChatChannel ? (c.direction === 'inbound' ? 'Guest message' : 'Reply sent') : '(no subject)');
                     return `<div style="padding: 10px 0; border-bottom: 1px dashed #e2e8f0;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem;">
                             <div style="flex:1; min-width:0;">
