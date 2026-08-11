@@ -73427,8 +73427,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Channex OTA messages can't be resent from GAS (the thread
                     // is held by Channex + the OTA). Show the message body inline
                     // for those rows since there's often no separate subject.
+                    // Long bodies collapse to ~400 chars with a Show more toggle
+                    // — click to expand inline (no separate fetch, body is in
+                    // the row payload already).
                     const isChannex = c.channel === 'channex';
-                    const preview = isChannex && c.body ? `<div style="color:#334155; margin-top:6px; padding:8px 10px; background:#fff; border-left:3px solid ${c.direction === 'inbound' ? '#2563eb' : '#059669'}; border-radius:4px; white-space:pre-wrap; font-size:0.85rem;">${escapeHtml(String(c.body).slice(0, 400))}${c.body.length > 400 ? '…' : ''}</div>` : '';
+                    let preview = '';
+                    if (isChannex && c.body) {
+                        const full = String(c.body);
+                        const borderColour = c.direction === 'inbound' ? '#2563eb' : '#059669';
+                        const bubbleStyle = `color:#334155; margin-top:6px; padding:8px 10px; background:#fff; border-left:3px solid ${borderColour}; border-radius:4px; white-space:pre-wrap; font-size:0.85rem;`;
+                        if (full.length <= 400) {
+                            preview = `<div style="${bubbleStyle}">${escapeHtml(full)}</div>`;
+                        } else {
+                            const escaped = escapeHtml(full);
+                            preview =
+                                `<div style="${bubbleStyle}">` +
+                                    `<span id="comm-body-${c.id}-short">${escapeHtml(full.slice(0, 400))}…</span>` +
+                                    `<span id="comm-body-${c.id}-full" style="display:none;">${escaped}</span>` +
+                                    ` <a href="#" onclick="var s=document.getElementById('comm-body-${c.id}-short'),f=document.getElementById('comm-body-${c.id}-full');if(f.style.display==='none'){s.style.display='none';f.style.display='inline';this.textContent='Show less';}else{s.style.display='inline';f.style.display='none';this.textContent='Show more';}return false;" style="color:${borderColour}; font-weight:600; font-size:0.8rem; text-decoration:none; white-space:nowrap;">Show more</a>` +
+                                `</div>`;
+                        }
+                    }
                     const action = isChannex
                         ? `<span style="font-size:0.7rem; color:#94a3b8;">via Channex</span>`
                         : `<button class="btn btn-secondary" onclick="resendCommunication(${bookingId}, ${c.id})" style="font-size: 0.75rem; padding: 4px 10px; white-space: nowrap;">🔄 Resend</button>`;
