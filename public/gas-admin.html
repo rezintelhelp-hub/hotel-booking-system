@@ -108085,6 +108085,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </optgroup>`;
                 }).join('');
                 container.innerHTML = `
+                    <div style="margin-bottom:0.75rem; padding:0.75rem; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px;">
+                        <div style="font-size:0.85rem; color:#1e3a8a; margin-bottom:0.5rem;"><strong>🔧 Beds24 bundle</strong> — add the whole set (base fee, per-property, per-link, sub-users, SSL) at once, quantities pulled from the account's live usage snapshot.</div>
+                        <button class="btn" onclick="previewBeds24Bundle(${accountId})" style="background:#2563eb; color:white; padding:6px 14px;">🔧 Preview Beds24 bundle</button>
+                    </div>
                     <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
                         <select id="cat-add-code-${accountId}" style="flex:1; min-width:280px; padding:6px 10px; border:1px solid #d1d5db; border-radius:4px;"
                             onchange="var o=this.options[this.selectedIndex]; document.getElementById('cat-add-price-${accountId}').value = o.dataset.price;">
@@ -108102,6 +108106,78 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) {
                 container.innerHTML = `<div style="color:#dc2626;">Failed to load: ${e.message}</div>`;
             }
+        }
+
+        // Preview the Beds24 bundle — shows what would be added, current
+        // status, drift vs live snapshot. Operator picks Add or Apply drift.
+        async function previewBeds24Bundle(accountId) {
+            try {
+                const r = await fetch('/api/admin/billing/client/' + accountId + '/beds24-bundle-preview', { headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success) { alert('Preview failed: ' + (d.error || 'unknown')); return; }
+                const lines = d.lines || [];
+                if (lines.length === 0) { alert('No Beds24 usage snapshot found for this account.'); return; }
+                const rowsHtml = lines.map(l => {
+                    const cur = l.existing;
+                    const driftBadge = l.drift
+                        ? `<span style="color:#f59e0b; font-size:0.7rem;">⚠ drift (was qty ${cur.quantity} × ${cur.monthly_price})</span>`
+                        : cur ? `<span style="color:#64748b; font-size:0.7rem;">already added</span>`
+                              : `<span style="color:#16a34a; font-size:0.7rem;">new</span>`;
+                    return `<tr style="border-bottom:1px solid #e5e7eb;">
+                        <td style="padding:6px 8px;">
+                            <div style="font-weight:600; font-size:0.85rem;">${(l.name || l.product_code).replace(/</g,'&lt;')}</div>
+                            <div style="font-size:0.7rem; color:#94a3b8;">${l.product_code} · ${(l.note || '').replace(/</g,'&lt;')}</div>
+                        </td>
+                        <td style="padding:6px 8px; text-align:right; white-space:nowrap;">${l.quantity} × ${l.monthly_price.toFixed(2)} ${l.currency}</td>
+                        <td style="padding:6px 8px; text-align:right;">${driftBadge}</td>
+                    </tr>`;
+                }).join('');
+                const total = lines.reduce((s, l) => s + Number(l.monthly_price || 0), 0);
+                const hasDrift = lines.some(l => l.drift);
+                const anyNew = lines.some(l => !l.existing);
+                const backdrop = document.createElement('div');
+                backdrop.id = 'beds24-bundle-modal';
+                backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+                backdrop.innerHTML = `
+                    <div style="background:white; max-width:640px; width:100%; border-radius:12px; padding:1.5rem;">
+                        <h3 style="margin:0 0 1rem;">🔧 Beds24 bundle preview</h3>
+                        <p style="font-size:0.85rem; color:#64748b; margin-bottom:1rem;">Adds each Beds24 fee as its own subscription line for full transparency. Existing rows are left alone unless you tick "Apply drift".</p>
+                        <table style="width:100%; border-collapse:collapse; margin-bottom:1rem;">
+                            <thead><tr style="background:#f8fafc; text-align:left;">
+                                <th style="padding:6px 8px; font-size:0.75rem; color:#475569;">Product</th>
+                                <th style="padding:6px 8px; font-size:0.75rem; color:#475569; text-align:right;">Qty × Monthly</th>
+                                <th style="padding:6px 8px; font-size:0.75rem; color:#475569; text-align:right;">Status</th>
+                            </tr></thead>
+                            <tbody>${rowsHtml}</tbody>
+                            <tfoot><tr><td colspan="1" style="padding:8px; font-weight:700;">Total /mo</td><td style="padding:8px; text-align:right; font-weight:700;">${total.toFixed(2)} ${lines[0]?.currency || ''}</td><td></td></tr></tfoot>
+                        </table>
+                        ${hasDrift ? `<div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:6px; padding:8px 12px; margin-bottom:1rem; font-size:0.85rem;">
+                            <strong>⚠ Drift detected</strong> — the live snapshot differs from what's already subscribed. Choose <em>Add new + apply drift</em> to update, or <em>Add new only</em> to leave existing rows untouched.
+                        </div>` : ''}
+                        <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+                            <button class="btn btn-secondary" onclick="document.getElementById('beds24-bundle-modal').remove()">Cancel</button>
+                            ${anyNew ? `<button class="btn" onclick="applyBeds24Bundle(${accountId}, false)" style="background:#059669; color:white;">Add new only</button>` : ''}
+                            ${hasDrift ? `<button class="btn" onclick="applyBeds24Bundle(${accountId}, true)" style="background:#f59e0b; color:white;">Add new + apply drift</button>` : ''}
+                        </div>
+                    </div>`;
+                document.body.appendChild(backdrop);
+            } catch (e) { alert('Preview error: ' + e.message); }
+        }
+
+        async function applyBeds24Bundle(accountId, applyDrift) {
+            try {
+                const url = '/api/admin/billing/client/' + accountId + '/subscribe-beds24-bundle' + (applyDrift ? '?apply_drift=1' : '');
+                const r = await fetch(url, { method: 'POST', headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success) { alert('Add failed: ' + (d.error || 'unknown')); return; }
+                const msg = 'Added ' + (d.created?.length || 0) + ' new'
+                          + (d.updated?.length ? ', updated ' + d.updated.length : '')
+                          + (d.skipped_drift?.length ? ', skipped ' + d.skipped_drift.length + ' (drift left as-is)' : '');
+                showNotification(msg, 'success');
+                document.getElementById('beds24-bundle-modal')?.remove();
+                if (typeof loadClientReconciliation === 'function') loadClientReconciliation(accountId);
+                if (typeof loadCatalogueAdd === 'function') loadCatalogueAdd(accountId);
+            } catch (e) { alert('Add error: ' + e.message); }
         }
 
         async function applyCatalogueAdd(accountId) {

@@ -26418,6 +26418,113 @@ app.post('/api/admin/billing/client/:id/subscribe/:code/approve', async (req, re
   }
 });
 
+// Beds24 bundle — add every gas24_* atomic fee at once, sized by the
+// account's live usage snapshot. Master picks "Add Beds24" once and
+// the endpoint creates the whole set (parent + base + per-property +
+// per-link + sub-user + SSL) at the correct quantities. Never
+// silently updates on repeat calls — if a subscription already exists,
+// leave its qty/price alone; operator must explicitly re-run with
+// ?apply_drift=1 to apply drift. This is the "review-first on quantity
+// changes" rule Steve requested.
+async function _computeBeds24Bundle(accountId) {
+  const cat = await pool.query(
+    `SELECT code, name, price_monthly, unit_price, currency
+       FROM billing_products WHERE code IN ('gas24','gas24_base','gas24_property','gas24_link','gas24_sub_user','gas24_ssl') AND is_active = true`);
+  const priceByCode = {};
+  for (const r of cat.rows) priceByCode[r.code] = r;
+  const snap = await pool.query(
+    `SELECT property_count, sub_account_count, link_count, ssl_count, room_count
+       FROM beds24_usage_snapshots
+      WHERE account_id = $1 ORDER BY period_date DESC LIMIT 1`, [accountId]);
+  const s = snap.rows[0] || {};
+  const lines = [];
+  const push = (code, qty, note) => {
+    const p = priceByCode[code]; if (!p) return;
+    const unit = parseFloat(p.unit_price || 0);
+    const base = parseFloat(p.price_monthly || 0);
+    const monthly = Math.round((base + Math.max(0, qty) * unit) * 100) / 100;
+    lines.push({ product_code: code, name: p.name, quantity: qty, monthly_price: monthly, currency: p.currency, note });
+  };
+  push('gas24', 1, 'parent (0 by itself)');
+  push('gas24_base', 1, 'flat base fee');
+  if (s.property_count) push('gas24_property', parseInt(s.property_count), `${s.property_count} property(ies)`);
+  if (s.link_count) push('gas24_link', parseInt(s.link_count), `${s.link_count} channel link(s)`);
+  if (s.sub_account_count) push('gas24_sub_user', parseInt(s.sub_account_count), `${s.sub_account_count} sub-user(s)`);
+  if (s.ssl_count) push('gas24_ssl', parseInt(s.ssl_count), `${s.ssl_count} branded SSL(s)`);
+  return { snapshot: s, lines };
+}
+
+app.get('/api/admin/billing/client/:id/beds24-bundle-preview', async (req, res) => {
+  try {
+    const requester = await extractAccountFromToken(req);
+    if (!requester) return res.status(401).json({ success: false, error: 'Auth required' });
+    const targetId = parseInt(req.params.id, 10);
+    if (requester.role !== 'master_admin' && requester.accountId !== targetId) {
+      return res.status(403).json({ success: false, error: 'Not authorised' });
+    }
+    const bundle = await _computeBeds24Bundle(targetId);
+    // Annotate each line with drift flag: existing sub differs from
+    // what the current snapshot would compute. UI flags these for
+    // explicit approval instead of auto-applying.
+    const existing = await pool.query(
+      `SELECT product, quantity, monthly_price FROM account_subscriptions
+        WHERE account_id = $1 AND status IN ('active','pending')`, [targetId]);
+    const byCode = new Map(existing.rows.map(r => [r.product, r]));
+    for (const l of bundle.lines) {
+      const cur = byCode.get(l.product_code);
+      if (cur) {
+        l.existing = { quantity: cur.quantity, monthly_price: parseFloat(cur.monthly_price) };
+        l.drift = (cur.quantity !== l.quantity) ||
+                  (Math.abs(parseFloat(cur.monthly_price) - l.monthly_price) > 0.01);
+      }
+    }
+    res.json({ success: true, ...bundle });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/admin/billing/client/:id/subscribe-beds24-bundle', async (req, res) => {
+  try {
+    const requester = await extractAccountFromToken(req);
+    if (!requester) return res.status(401).json({ success: false, error: 'Auth required' });
+    const targetId = parseInt(req.params.id, 10);
+    const isMaster = requester.role === 'master_admin';
+    const isSelf = requester.accountId === targetId || requester.id === targetId;
+    if (!isMaster && !isSelf) return res.status(403).json({ success: false, error: 'Not authorised' });
+    const applyDrift = isMaster && (req.query.apply_drift === '1' || req.query.apply_drift === 'true');
+    const { lines } = await _computeBeds24Bundle(targetId);
+    if (lines.length === 0) return res.json({ success: false, error: 'No Beds24 usage snapshot found for this account' });
+    const status = isMaster ? 'active' : 'pending';
+    const existing = await pool.query(
+      `SELECT product FROM account_subscriptions
+        WHERE account_id = $1 AND status IN ('active','pending')`, [targetId]);
+    const existingCodes = new Set(existing.rows.map(r => r.product));
+    const created = [], updated = [], skipped_drift = [];
+    for (const l of lines) {
+      if (!existingCodes.has(l.product_code)) {
+        await pool.query(
+          `INSERT INTO account_subscriptions (account_id, product, tier, quantity, monthly_price, currency, status)
+           VALUES ($1, $2, 1, $3, $4, $5, $6)`,
+          [targetId, l.product_code, l.quantity, l.monthly_price, l.currency, status]);
+        created.push(l.product_code);
+      } else if (applyDrift) {
+        await pool.query(
+          `UPDATE account_subscriptions SET quantity = $3, monthly_price = $4, updated_at = CURRENT_TIMESTAMP
+            WHERE account_id = $1 AND product = $2`,
+          [targetId, l.product_code, l.quantity, l.monthly_price]);
+        updated.push(l.product_code);
+      } else {
+        skipped_drift.push(l.product_code);
+      }
+    }
+    res.json({ success: true, created, updated, skipped_drift, status });
+  } catch (e) {
+    console.error('[beds24 bundle subscribe]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Cancel a client's subscription to a product (master admin only for now).
 app.delete('/api/admin/billing/client/:id/subscribe/:code', async (req, res) => {
   try {
