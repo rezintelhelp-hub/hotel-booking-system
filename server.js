@@ -26133,7 +26133,9 @@ app.get('/api/admin/billing/client/:id', async (req, res) => {
     if (!acctR.rows[0]) return res.status(404).json({ success: false, error: 'Account not found' });
     const account = acctR.rows[0];
 
-    // v2 catalogue split into subscribed + available
+    // v2 catalogue split into subscribed + available. Include 'pending'
+    // so the client's Plans & Extras page can show them as awaiting
+    // approval, and the master's Review panel can show + approve them.
     const subs = await pool.query(`
       SELECT s.id AS subscription_id, s.product, s.quantity, s.status,
              s.monthly_price AS override_price, s.currency AS override_currency,
@@ -26142,7 +26144,7 @@ app.get('/api/admin/billing/client/:id', async (req, res) => {
              bp.currency, bp.category, bp.display_order AS sort_order
         FROM account_subscriptions s
         LEFT JOIN billing_products bp ON bp.code = s.product
-       WHERE s.account_id = $1 AND s.status = 'active'
+       WHERE s.account_id = $1 AND s.status IN ('active','pending')
        ORDER BY bp.display_order NULLS LAST, s.product
     `, [targetId]);
 
@@ -26265,6 +26267,7 @@ app.get('/api/admin/billing/client/:id', async (req, res) => {
         const cur = existingByCode.get(code);
         let action;
         if (!cur) action = 'add';
+        else if (cur.status === 'pending') action = 'pending';
         else if (parseInt(cur.quantity || 0) !== parseInt(det.quantity) ||
                  Math.abs(parseFloat(cur.override_price || 0) - det.monthly) > 0.01) action = 'update';
         else action = 'ok';
@@ -26284,10 +26287,13 @@ app.get('/api/admin/billing/client/:id', async (req, res) => {
           } : null
         });
       }
-      // STALE existing subs (in DB but not detected) — surface so operator can decide keep/remove
+      // STALE / PENDING existing subs (in DB but not detected) — surface
+      // so operator can decide keep/approve/remove. Pending gets its own
+      // action so the UI can render an Approve button; stale stays stale.
       for (const row of subs.rows) {
         const code = row.product_code || row.product;
         if (seen.has(code)) continue;
+        const isPending = row.status === 'pending';
         detected_products.push({
           product_code: code,
           name: row.name || code,
@@ -26295,12 +26301,13 @@ app.get('/api/admin/billing/client/:id', async (req, res) => {
           quantity: row.quantity,
           monthly: parseFloat(row.override_price || row.price_monthly || 0),
           currency: row.override_currency || row.currency || 'EUR',
-          signal: 'existing subscription — no active signal detected',
-          action: 'stale',
+          signal: isPending ? 'client requested — awaiting master approval' : 'existing subscription — no active signal detected',
+          action: isPending ? 'pending' : 'stale',
           existing: {
             subscription_id: row.subscription_id,
             quantity: row.quantity,
-            monthly_price: parseFloat(row.override_price || row.price_monthly || 0)
+            monthly_price: parseFloat(row.override_price || row.price_monthly || 0),
+            status: row.status
           }
         });
       }
@@ -26357,15 +26364,56 @@ app.post('/api/admin/billing/client/:id/subscribe', async (req, res) => {
     // self-subscribing at the published rate. Master can price-override.
     const price = (isMaster && override_price != null) ? parseFloat(override_price) : parseFloat(pR.rows[0].price_monthly);
     const currency = pR.rows[0].currency;
+    // 2026-08-11 — Approval gate. Master-initiated subs go straight to
+    // active (master is the approver). Client-initiated self-subscribes
+    // land as 'pending' so the master can review the price + map a
+    // payment method + approve BEFORE any billing kicks in. Nothing
+    // charges automatically today anyway, but this makes the intent
+    // explicit + gives the master a visible queue of client requests.
+    const newStatus = isMaster ? 'active' : 'pending';
     await pool.query(`
       INSERT INTO account_subscriptions (account_id, product, tier, quantity, monthly_price, currency, status)
-      VALUES ($1, $2, 1, 1, $3, $4, 'active')
+      VALUES ($1, $2, 1, 1, $3, $4, $5)
       ON CONFLICT (account_id, product)
-      DO UPDATE SET monthly_price = $3, currency = $4, status = 'active', updated_at = CURRENT_TIMESTAMP
-    `, [targetId, product_code, price, currency]);
-    res.json({ success: true });
+      DO UPDATE SET monthly_price = $3, currency = $4,
+                    status = CASE
+                      WHEN account_subscriptions.status = 'active' THEN 'active'
+                      ELSE $5
+                    END,
+                    updated_at = CURRENT_TIMESTAMP
+    `, [targetId, product_code, price, currency, newStatus]);
+    res.json({ success: true, status: newStatus });
   } catch (e) {
     console.error('[client billing subscribe]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Approve a client's pending subscription — flips status='pending' →
+// 'active'. Optional { monthly_price, currency, quantity } to adjust
+// terms before activating (negotiated rate, bundle count, etc.).
+// Master admin only. Existing 'active' subs go through the bulk-apply
+// panel for modifications.
+app.post('/api/admin/billing/client/:id/subscribe/:code/approve', async (req, res) => {
+  try {
+    const requester = await extractAccountFromToken(req);
+    if (!requester || requester.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const targetId = parseInt(req.params.id, 10);
+    const productCode = req.params.code;
+    const { monthly_price, currency, quantity } = req.body || {};
+    const sets = ["status = 'active'", "updated_at = CURRENT_TIMESTAMP"];
+    const params = [targetId, productCode];
+    if (monthly_price != null) { sets.push('monthly_price = $' + (params.length + 1)); params.push(parseFloat(monthly_price)); }
+    if (currency)              { sets.push('currency = $' + (params.length + 1));      params.push(currency); }
+    if (quantity != null)      { sets.push('quantity = $' + (params.length + 1));      params.push(parseInt(quantity)); }
+    const r = await pool.query(
+      `UPDATE account_subscriptions SET ${sets.join(', ')}
+        WHERE account_id = $1 AND product = $2
+       RETURNING id, status, monthly_price, currency, quantity`, params);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Subscription not found' });
+    res.json({ success: true, subscription: r.rows[0] });
+  } catch (e) {
+    console.error('[client billing approve]', e.message);
     res.status(500).json({ success: false, error: e.message });
   }
 });

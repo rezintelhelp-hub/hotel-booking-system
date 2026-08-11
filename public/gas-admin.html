@@ -107413,18 +107413,24 @@ const promo = await fetch('/api/v1/offers/validate', {
             // instead of Subscribe (call to action). Set of billing_products
             // codes — matched against plan.slug on the plan card.
             const acctId = (currentAccount && currentAccount.id) || null;
-            let subscribedCodes = new Set();
+            // Map product_code → status ('active' | 'pending') so cards
+            // can render green (active) OR amber (pending master approval).
+            let subscriptionStatus = {};
             if (acctId) {
                 try {
                     const hubRes = await fetch('/api/admin/billing/client/' + acctId, { headers: authHeaders() });
                     if (hubRes.ok) {
                         const hub = await hubRes.json();
                         if (hub.success && Array.isArray(hub.subscribed_products)) {
-                            subscribedCodes = new Set(hub.subscribed_products.map(s => s.product_code || s.product));
+                            for (const s of hub.subscribed_products) {
+                                const code = s.product_code || s.product;
+                                if (code) subscriptionStatus[code] = s.status || 'active';
+                            }
                         }
                     }
                 } catch (_) { /* non-fatal; cards still render, just no green */ }
             }
+            const subscribedCodes = new Set(Object.keys(subscriptionStatus));
             // Load plans
             try {
                 const plansRes = await fetch('/api/billing/plans');
@@ -107433,12 +107439,15 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                 const plansContainer = document.getElementById('my-billing-plans');
                 if (plansData.success && plansData.data.length > 0) {
-                    // Sort subscribed plans to the top so client's active
-                    // products are the first thing they see.
+                    // Sort: active first, then pending, then unsubscribed.
+                    const rank = (slug) => {
+                        const s = subscriptionStatus[slug];
+                        if (s === 'active') return 0;
+                        if (s === 'pending') return 1;
+                        return 2;
+                    };
                     const sorted = [...plansData.data].sort((a, b) => {
-                        const aSub = subscribedCodes.has(a.slug) ? 0 : 1;
-                        const bSub = subscribedCodes.has(b.slug) ? 0 : 1;
-                        return aSub - bSub || (a.name||'').localeCompare(b.name||'');
+                        return rank(a.slug) - rank(b.slug) || (a.name||'').localeCompare(b.name||'');
                     });
                     plansContainer.innerHTML = sorted.map(plan => {
                         let features = plan.features;
@@ -107450,15 +107459,26 @@ const promo = await fetch('/api/v1/offers/validate', {
                         else if (features && features.features_list) featuresList = features.features_list;
 
                         const currencySymbol = plan.currency === 'GBP' ? '' : plan.currency === 'EUR' ? '' : '$';
-                        const isSubscribed = subscribedCodes.has(plan.slug);
-                        const cardBg = isSubscribed ? '#f0fdf4' : 'white';
-                        const cardBorder = isSubscribed ? '#16a34a' : 'var(--border)';
-                        const btnHtml = isSubscribed
+                        const status = subscriptionStatus[plan.slug]; // 'active' | 'pending' | undefined
+                        const isActive = status === 'active';
+                        const isPending = status === 'pending';
+                        // Colour scheme: green for active, amber for pending
+                        // (awaiting master approval), neutral otherwise.
+                        const cardBg = isActive ? '#f0fdf4' : isPending ? '#fefce8' : 'white';
+                        const cardBorder = isActive ? '#16a34a' : isPending ? '#eab308' : 'var(--border)';
+                        const pill = isActive
+                            ? '<div style="color:#16a34a; font-weight:700; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.25rem;">✓ Active</div>'
+                            : isPending
+                            ? '<div style="color:#a16207; font-weight:700; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.25rem;">⏳ Awaiting approval</div>'
+                            : '';
+                        const btnHtml = isActive
                             ? `<button class="btn" style="width: 100%; background:#16a34a; color:white; cursor:default;" disabled>✓ Subscribed</button>`
+                            : isPending
+                            ? `<button class="btn" style="width: 100%; background:#eab308; color:white; cursor:default;" disabled>⏳ Pending review</button>`
                             : `<button class="btn" style="width: 100%;" onclick="subscribeToPlan('${plan.slug}', '${(plan.name||'').replace(/'/g, "\\'")}')">Subscribe</button>`;
                         return `
                         <div style="border: 2px solid ${cardBorder}; border-radius: 12px; padding: 1.5rem; text-align: center; background:${cardBg};">
-                            ${isSubscribed ? '<div style="color:#16a34a; font-weight:700; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.25rem;">✓ Active</div>' : ''}
+                            ${pill}
                             <h4 style="margin: 0 0 0.5rem 0; font-size: 1.2rem;">${plan.name}</h4>
                             <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 1rem;">${plan.description || ''}</p>
                             <div style="font-size: 2rem; font-weight: 700; color: var(--accent);">
@@ -108115,22 +108135,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (detected.length === 0) { container.innerHTML = '<div style="color:#94a3b8; padding:1rem; text-align:center;">No detected signals + no existing subscriptions.</div>'; return; }
                 const actionBadge = (a) => {
                     const map = {
-                        // 2026-08-11 — "ok" now means: this client uses this
-                        // product AND is subscribed to it (matched). Steve
-                        // wants these promoted (green + top) so the master
-                        // sees confirmed products first, suggestions second.
-                        ok:    { bg:'#dcfce7', fg:'#166534', label:'✓ IN USE',    tick: false },
-                        add:   { bg:'#fef9c3', fg:'#854d0e', label:'+ ADD',       tick: true  },
-                        update:{ bg:'#dbeafe', fg:'#1e3a8a', label:'~ UPDATE',    tick: false },
-                        stale: { bg:'#fee2e2', fg:'#991b1b', label:'- STALE',     tick: false }
+                        // 2026-08-11 — "ok" = confirmed in-use. "pending"
+                        // = client requested it, master needs to approve.
+                        pending: { bg:'#fef9c3', fg:'#854d0e', label:'⏳ AWAITING APPROVAL', tick: false },
+                        ok:      { bg:'#dcfce7', fg:'#166534', label:'✓ IN USE',            tick: false },
+                        add:     { bg:'#e0e7ff', fg:'#3730a3', label:'+ ADD',               tick: true  },
+                        update:  { bg:'#dbeafe', fg:'#1e3a8a', label:'~ UPDATE',            tick: false },
+                        stale:   { bg:'#fee2e2', fg:'#991b1b', label:'- STALE',             tick: false }
                     };
                     return map[a] || { bg:'#fef3c7', fg:'#92400e', label: a };
                 };
-                // In-use (ok) rows to the top with a green tint so master
-                // can see confirmed subscriptions at a glance. Add/update/
-                // stale sink below.
+                // Sort: pending approval first (needs action), then
+                // in-use, then add/update/stale.
                 detected.sort((a, b) => {
-                    const order = { ok: 0, add: 1, update: 2, stale: 3 };
+                    const order = { pending: 0, ok: 1, add: 2, update: 3, stale: 4 };
                     return (order[a.action] ?? 9) - (order[b.action] ?? 9)
                         || (a.product_code || '').localeCompare(b.product_code || '');
                 });
@@ -108139,9 +108157,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const isStale = p.action === 'stale';
                     const defaultAction = p.action === 'add' ? 'add' : (p.action === 'update' ? 'update' : (isStale ? 'skip' : 'skip'));
                     const cur = p.existing;
-                    // Row background = green tint when this product is
-                    // confirmed as in use (ok), neutral otherwise.
+                    // Row background: green (in use), amber (awaiting
+                    // approval), red (stale), otherwise white.
                     const rowBg = p.action === 'ok' ? '#f0fdf4'
+                                : p.action === 'pending' ? '#fefce8'
                                 : p.action === 'stale' ? '#fef2f2'
                                 : 'white';
                     return `
@@ -108163,12 +108182,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <span style="font-size:0.75rem; color:#94a3b8;">${p.currency}</span>
                         </td>
                         <td style="padding:0.5rem;">
-                            <select id="sr-${accountId}-${i}-action" style="padding:2px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.8rem;">
-                                <option value="skip" ${defaultAction === 'skip' ? 'selected' : ''}>Skip</option>
-                                <option value="add" ${defaultAction === 'add' ? 'selected' : ''}>${cur ? 'Reactivate' : 'Add'}</option>
-                                <option value="update" ${defaultAction === 'update' ? 'selected' : ''} ${!cur ? 'disabled' : ''}>Update</option>
-                                <option value="delete">Delete</option>
-                            </select>
+                            ${p.action === 'pending'
+                                ? `<button class="btn btn-sm" onclick="approvePendingSubscription(${accountId}, '${p.product_code}', ${i})" style="background:#16a34a; color:white; padding:4px 10px; font-size:0.75rem;">✓ Approve</button>`
+                                : `<select id="sr-${accountId}-${i}-action" style="padding:2px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.8rem;">
+                                    <option value="skip" ${defaultAction === 'skip' ? 'selected' : ''}>Skip</option>
+                                    <option value="add" ${defaultAction === 'add' ? 'selected' : ''}>${cur ? 'Reactivate' : 'Add'}</option>
+                                    <option value="update" ${defaultAction === 'update' ? 'selected' : ''} ${!cur ? 'disabled' : ''}>Update</option>
+                                    <option value="delete">Delete</option>
+                                </select>`}
                         </td>
                     </tr>`;
                 }).join('');
@@ -108195,6 +108216,26 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) {
                 container.innerHTML = `<div style="color:#dc2626; padding:1rem;">Failed to load: ${e.message}</div>`;
             }
+        }
+
+        // Approve a client-requested pending subscription. Master can
+        // tweak the qty + price in the row's inputs first — those values
+        // override the client's requested terms when it flips to active.
+        async function approvePendingSubscription(accountId, productCode, rowIndex) {
+            const qty = parseInt(document.getElementById(`sr-${accountId}-${rowIndex}-qty`)?.value || 1);
+            const price = parseFloat(document.getElementById(`sr-${accountId}-${rowIndex}-price`)?.value || 0);
+            if (!confirm(`Approve ${productCode} at ${price} × ${qty}? Client sees this immediately as ✓ Active.`)) return;
+            try {
+                const r = await fetch('/api/admin/billing/client/' + accountId + '/subscribe/' + encodeURIComponent(productCode) + '/approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ monthly_price: price, quantity: qty })
+                });
+                const d = await r.json();
+                if (!d.success) { showNotification('Approve failed: ' + (d.error || 'unknown'), 'error'); return; }
+                showNotification('Approved ' + productCode, 'success');
+                loadSubscriptionReview(accountId);
+            } catch (e) { showNotification('Approve failed: ' + e.message, 'error'); }
         }
 
         async function applySubscriptionReview(accountId) {
