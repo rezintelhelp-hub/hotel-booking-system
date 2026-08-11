@@ -107516,13 +107516,30 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        // Placeholder functions for purchase actions
+        // Client billing CTAs — placeholder until Stripe checkout is wired.
+        // Kick off a mailto: with the plan / package prefilled so the client
+        // is one click away from an actual conversation, not stuck copy-pasting
+        // a fake address. Real support inbox = support@gas.travel.
         function contactForPlan(planName) {
-            alert('To subscribe to the ' + planName + ' plan, please contact us at support@example.com');
+            const acct = (currentAccount && (currentAccount.name || currentAccount.email)) || '';
+            const subject = encodeURIComponent('Subscribe to ' + planName + ' plan');
+            const body = encodeURIComponent(
+                'Hi GAS team,\n\nI\'d like to subscribe to the ' + planName + ' plan.\n\n' +
+                (acct ? 'Account: ' + acct + '\n\n' : '') +
+                'Please send me the next steps.\n\nThanks'
+            );
+            window.location.href = 'mailto:support@gas.travel?subject=' + subject + '&body=' + body;
         }
 
         function contactForCredits(packageName) {
-            alert('To purchase ' + packageName + ', please contact us at support@example.com');
+            const acct = (currentAccount && (currentAccount.name || currentAccount.email)) || '';
+            const subject = encodeURIComponent('Buy credit package: ' + packageName);
+            const body = encodeURIComponent(
+                'Hi GAS team,\n\nI\'d like to purchase the ' + packageName + ' credit package.\n\n' +
+                (acct ? 'Account: ' + acct + '\n\n' : '') +
+                'Please send me the payment link.\n\nThanks'
+            );
+            window.location.href = 'mailto:support@gas.travel?subject=' + subject + '&body=' + body;
         }
 
         // ─── Estate Overview (master-admin billing dashboard, 2026-08-06) ───
