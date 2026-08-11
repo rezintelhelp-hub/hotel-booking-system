@@ -17448,6 +17448,10 @@
                                     <label class="form-label">Booking notifications CC <small style="color:#64748b;font-weight:normal;">(extra email that gets a copy of every booking — e.g. your property manager)</small></label>
                                     <input type="email" id="myAccountBookingCc" class="form-input" placeholder="manager@example.com">
                                 </div>
+                                <div>
+                                    <label class="form-label">Booking Reply-To Email <small style="color:#64748b;font-weight:normal;">(override — where guests' replies to booking confirmations land; blank = uses the Email Address above)</small></label>
+                                    <input type="email" id="myAccountReplyTo" class="form-input" placeholder="Leave blank to use the account Email above">
+                                </div>
 
                                 <div style="border-top: 1px solid #e2e8f0; padding-top: 1rem; margin-top: 0.5rem;">
                                     <label class="form-label">Preferred Contact Channel</label>
@@ -43590,6 +43594,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('myAccountBusiness').value = account.business_name || '';
                     const ccEl = document.getElementById('myAccountBookingCc');
                     if (ccEl) ccEl.value = account.booking_cc_email || '';
+                    const rtEl = document.getElementById('myAccountReplyTo');
+                    if (rtEl) rtEl.value = account.reply_to_email || '';
                     document.getElementById('myAccountContactChannel').value = account.preferred_contact_channel || 'email';
                     document.getElementById('myAccountWhatsApp').value = account.contact_whatsapp || '';
                     
@@ -44405,7 +44411,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const response = await fetch(`/api/accounts/${targetAccountId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ name, email, phone, business_name, preferred_contact_channel, contact_whatsapp, booking_cc_email: document.getElementById('myAccountBookingCc')?.value.trim() || null })
+                    body: JSON.stringify({ name, email, phone, business_name, preferred_contact_channel, contact_whatsapp, booking_cc_email: document.getElementById('myAccountBookingCc')?.value.trim() || null, reply_to_email: document.getElementById('myAccountReplyTo')?.value.trim() || null })
                 });
                 
                 const data = await response.json();
