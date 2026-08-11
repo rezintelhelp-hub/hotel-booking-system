@@ -26089,6 +26089,19 @@ async function detectSubscriptionsForAccount(accountId) {
     if (c.rows[0].n > 0) detected.shop = { quantity: c.rows[0].n, monthly: calcMonthly('shop', c.rows[0].n), signal: `${c.rows[0].n} shop products` };
   } catch (_) {}
 
+  // BLOG — client_id (legacy alias for account_id) on blog_posts.
+  // Any published post = client is using the Blog Module.
+  try {
+    const c = await pool.query(`SELECT COUNT(*)::int AS n FROM blog_posts WHERE client_id = $1`, [accountId]);
+    if (c.rows[0].n > 0) detected.blog = { quantity: 1, monthly: calcMonthly('blog', 1), signal: `${c.rows[0].n} blog post(s)` };
+  } catch (_) {}
+
+  // ATTRACTIONS — same shape, attractions table also uses client_id.
+  try {
+    const c = await pool.query(`SELECT COUNT(*)::int AS n FROM attractions WHERE client_id = $1`, [accountId]);
+    if (c.rows[0].n > 0) detected.attractions = { quantity: 1, monthly: calcMonthly('attractions', 1), signal: `${c.rows[0].n} attraction(s)` };
+  } catch (_) {}
+
   return { catalog, detected };
 }
 
