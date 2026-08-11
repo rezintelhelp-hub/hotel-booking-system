@@ -26339,13 +26339,23 @@ app.get('/api/admin/billing/client/:id', async (req, res) => {
 app.post('/api/admin/billing/client/:id/subscribe', async (req, res) => {
   try {
     const requester = await extractAccountFromToken(req);
-    if (!requester || requester.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    if (!requester) return res.status(401).json({ success: false, error: 'Auth required' });
     const targetId = parseInt(req.params.id, 10);
+    // 2026-08-11 — Client can self-subscribe to their own account. Master
+    // admin can subscribe any account. Non-master trying to subscribe
+    // someone else's account = forbidden. Client-driven subs land as
+    // 'active' straight away (same as master path); payment allocation
+    // + approval happens on the master reconciliation panel later.
+    const isMaster = requester.role === 'master_admin';
+    const isSelfSubscribe = requester.accountId === targetId || requester.id === targetId;
+    if (!isMaster && !isSelfSubscribe) return res.status(403).json({ success: false, error: 'Not authorised' });
     const { product_code, override_price, notes } = req.body || {};
     if (!targetId || !product_code) return res.status(400).json({ success: false, error: 'targetId + product_code required' });
     const pR = await pool.query(`SELECT code AS product_code, price_monthly, currency FROM billing_products WHERE code = $1 AND is_active = true`, [product_code]);
     if (!pR.rows[0]) return res.status(404).json({ success: false, error: 'Product not found in catalogue' });
-    const price = override_price != null ? parseFloat(override_price) : parseFloat(pR.rows[0].price_monthly);
+    // Non-master callers can't override the catalogue price — they're
+    // self-subscribing at the published rate. Master can price-override.
+    const price = (isMaster && override_price != null) ? parseFloat(override_price) : parseFloat(pR.rows[0].price_monthly);
     const currency = pR.rows[0].currency;
     await pool.query(`
       INSERT INTO account_subscriptions (account_id, product, tier, quantity, monthly_price, currency, status)

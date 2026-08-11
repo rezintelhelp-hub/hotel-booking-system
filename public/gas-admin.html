@@ -107408,31 +107408,57 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const el = document.getElementById(elId);
                 if (el) el.innerHTML = `<p style="color:#dc2626; font-size:0.85rem;">⚠ Failed to load: ${(msg||'').replace(/</g,'&lt;').slice(0,200)}</p>`;
             }
+            // Look up which products this account is already subscribed to
+            // so the plan cards can render as ✓ Subscribed (green, disabled)
+            // instead of Subscribe (call to action). Set of billing_products
+            // codes — matched against plan.slug on the plan card.
+            const acctId = (currentAccount && currentAccount.id) || null;
+            let subscribedCodes = new Set();
+            if (acctId) {
+                try {
+                    const hubRes = await fetch('/api/admin/billing/client/' + acctId, { headers: authHeaders() });
+                    if (hubRes.ok) {
+                        const hub = await hubRes.json();
+                        if (hub.success && Array.isArray(hub.subscribed_products)) {
+                            subscribedCodes = new Set(hub.subscribed_products.map(s => s.product_code || s.product));
+                        }
+                    }
+                } catch (_) { /* non-fatal; cards still render, just no green */ }
+            }
             // Load plans
             try {
                 const plansRes = await fetch('/api/billing/plans');
                 if (!plansRes.ok) throw new Error('HTTP ' + plansRes.status);
                 const plansData = await plansRes.json();
-                
+
                 const plansContainer = document.getElementById('my-billing-plans');
                 if (plansData.success && plansData.data.length > 0) {
-                    plansContainer.innerHTML = plansData.data.map(plan => {
+                    // Sort subscribed plans to the top so client's active
+                    // products are the first thing they see.
+                    const sorted = [...plansData.data].sort((a, b) => {
+                        const aSub = subscribedCodes.has(a.slug) ? 0 : 1;
+                        const bSub = subscribedCodes.has(b.slug) ? 0 : 1;
+                        return aSub - bSub || (a.name||'').localeCompare(b.name||'');
+                    });
+                    plansContainer.innerHTML = sorted.map(plan => {
                         let features = plan.features;
                         if (typeof features === 'string') {
                             try { features = JSON.parse(features); } catch(e) { features = {}; }
                         }
-                        
-                        // Handle both old array format and new object format
                         let featuresList = [];
-                        if (Array.isArray(features)) {
-                            featuresList = features;
-                        } else if (features && features.features_list) {
-                            featuresList = features.features_list;
-                        }
-                        
+                        if (Array.isArray(features)) featuresList = features;
+                        else if (features && features.features_list) featuresList = features.features_list;
+
                         const currencySymbol = plan.currency === 'GBP' ? '' : plan.currency === 'EUR' ? '' : '$';
+                        const isSubscribed = subscribedCodes.has(plan.slug);
+                        const cardBg = isSubscribed ? '#f0fdf4' : 'white';
+                        const cardBorder = isSubscribed ? '#16a34a' : 'var(--border)';
+                        const btnHtml = isSubscribed
+                            ? `<button class="btn" style="width: 100%; background:#16a34a; color:white; cursor:default;" disabled>✓ Subscribed</button>`
+                            : `<button class="btn" style="width: 100%;" onclick="subscribeToPlan('${plan.slug}', '${(plan.name||'').replace(/'/g, "\\'")}')">Subscribe</button>`;
                         return `
-                        <div style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center;">
+                        <div style="border: 2px solid ${cardBorder}; border-radius: 12px; padding: 1.5rem; text-align: center; background:${cardBg};">
+                            ${isSubscribed ? '<div style="color:#16a34a; font-weight:700; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.25rem;">✓ Active</div>' : ''}
                             <h4 style="margin: 0 0 0.5rem 0; font-size: 1.2rem;">${plan.name}</h4>
                             <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 1rem;">${plan.description || ''}</p>
                             <div style="font-size: 2rem; font-weight: 700; color: var(--accent);">
@@ -107446,7 +107472,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <ul style="text-align: left; font-size: 0.8rem; color: #64748b; margin: 0 0 1rem 0; padding-left: 1.2rem;">
                                 ${featuresList.slice(0, 5).map(f => `<li>${f}</li>`).join('')}
                             </ul>
-                            <button class="btn" style="width: 100%;" onclick="contactForPlan('${plan.name}')">Get Started</button>
+                            ${btnHtml}
                         </div>
                     `}).join('');
                 } else {
@@ -107516,21 +107542,32 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        // Client billing CTAs — placeholder until Stripe checkout is wired.
-        // Kick off a mailto: with the plan / package prefilled so the client
-        // is one click away from an actual conversation, not stuck copy-pasting
-        // a fake address. Real support inbox = support@gas.travel.
-        function contactForPlan(planName) {
-            const acct = (currentAccount && (currentAccount.name || currentAccount.email)) || '';
-            const subject = encodeURIComponent('Subscribe to ' + planName + ' plan');
-            const body = encodeURIComponent(
-                'Hi GAS team,\n\nI\'d like to subscribe to the ' + planName + ' plan.\n\n' +
-                (acct ? 'Account: ' + acct + '\n\n' : '') +
-                'Please send me the next steps.\n\nThanks'
-            );
-            window.location.href = 'mailto:support@gas.travel?subject=' + subject + '&body=' + body;
+        // 2026-08-11 — Real subscribe. Client clicks Subscribe → POSTs
+        // to the existing /api/admin/billing/client/:id/subscribe endpoint
+        // (relaxed to allow self-subscribe). Plan appears immediately in
+        // the master's Review panel as ✓ IN USE (green, top). Master can
+        // then allocate payments + approve. No mailto.
+        async function subscribeToPlan(productCode, planName) {
+            const acctId = (currentAccount && currentAccount.id);
+            if (!acctId) { alert('Please sign in again — no account context found.'); return; }
+            if (!confirm('Subscribe to ' + planName + '? You can cancel at any time from this page.')) return;
+            try {
+                const r = await fetch('/api/admin/billing/client/' + acctId + '/subscribe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ product_code: productCode })
+                });
+                const d = await r.json();
+                if (!d.success) { alert('Subscribe failed: ' + (d.error || 'unknown')); return; }
+                if (typeof showNotification === 'function') showNotification('Subscribed to ' + planName, 'success');
+                loadMyBilling();
+            } catch (e) {
+                alert('Subscribe failed: ' + e.message);
+            }
         }
 
+        // Credit packages — still a placeholder; buying credits will need
+        // actual payment (Stripe). Kept as a mailto for now until wired.
         function contactForCredits(packageName) {
             const acct = (currentAccount && (currentAccount.name || currentAccount.email)) || '';
             const subject = encodeURIComponent('Buy credit package: ' + packageName);
