@@ -3217,7 +3217,7 @@
                          (Contacts / Guests / Lead Forms). Views retained in the file. -->
 
 
-                    <div class="category-card" data-tile="billing" data-roles="master_admin,admin,submaster_admin,agency_admin" onclick="showView('my-billing')">
+                    <div class="category-card" data-tile="billing" data-roles="master_admin,admin,submaster_admin,agency_admin" onclick="showView('my-billing'); if (typeof loadMyBilling === 'function') loadMyBilling();">
                         <div class="category-icon" style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);">
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
                                 <rect x="2" y="5" width="20" height="14" rx="2"></rect>
