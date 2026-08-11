@@ -26427,9 +26427,15 @@ app.post('/api/admin/billing/client/:id/subscribe/:code/approve', async (req, re
 // ?apply_drift=1 to apply drift. This is the "review-first on quantity
 // changes" rule Steve requested.
 async function _computeBeds24Bundle(accountId) {
+  // Pull every atomic price row from the catalogue including the "per
+  // extra rental" line that was missing from the first cut. Cross-
+  // referenced against docs/gas24-price-list.md 2026-08-11.
   const cat = await pool.query(
     `SELECT code, name, price_monthly, unit_price, currency
-       FROM billing_products WHERE code IN ('gas24','gas24_base','gas24_property','gas24_link','gas24_sub_user','gas24_ssl') AND is_active = true`);
+       FROM billing_products
+      WHERE code IN ('gas24','gas24_base','gas24_property','gas24_extra_rental',
+                     'gas24_link','gas24_sub_user','gas24_ssl')
+        AND is_active = true`);
   const priceByCode = {};
   for (const r of cat.rows) priceByCode[r.code] = r;
   const snap = await pool.query(
@@ -26447,7 +26453,11 @@ async function _computeBeds24Bundle(accountId) {
   };
   push('gas24', 1, 'parent (0 by itself)');
   push('gas24_base', 1, 'flat base fee');
-  if (s.property_count) push('gas24_property', parseInt(s.property_count), `${s.property_count} property(ies)`);
+  const props = parseInt(s.property_count || 0);
+  const rooms = parseInt(s.room_count || 0);
+  const extraRentals = Math.max(0, rooms - props);
+  if (props) push('gas24_property', props, `${props} property(ies)`);
+  if (extraRentals) push('gas24_extra_rental', extraRentals, `${extraRentals} extra rental(s) — ${rooms} rooms across ${props} properties`);
   if (s.link_count) push('gas24_link', parseInt(s.link_count), `${s.link_count} channel link(s)`);
   if (s.sub_account_count) push('gas24_sub_user', parseInt(s.sub_account_count), `${s.sub_account_count} sub-user(s)`);
   if (s.ssl_count) push('gas24_ssl', parseInt(s.ssl_count), `${s.ssl_count} branded SSL(s)`);
@@ -26503,9 +26513,16 @@ app.post('/api/admin/billing/client/:id/subscribe-beds24-bundle', async (req, re
     const created = [], updated = [], skipped_drift = [];
     for (const l of lines) {
       if (!existingCodes.has(l.product_code)) {
+        // ON CONFLICT reactivates soft-cancelled rows for the same
+        // (account_id, product) — plain INSERT would hit the unique
+        // constraint. Steve 2026-08-11: caught when re-adding Beds24
+        // after we cleared Casa's subs earlier in the session.
         await pool.query(
           `INSERT INTO account_subscriptions (account_id, product, tier, quantity, monthly_price, currency, status)
-           VALUES ($1, $2, 1, $3, $4, $5, $6)`,
+           VALUES ($1, $2, 1, $3, $4, $5, $6)
+           ON CONFLICT (account_id, product)
+           DO UPDATE SET quantity = $3, monthly_price = $4, currency = $5,
+                         status = $6, cancelled_at = NULL, updated_at = CURRENT_TIMESTAMP`,
           [targetId, l.product_code, l.quantity, l.monthly_price, l.currency, status]);
         created.push(l.product_code);
       } else if (applyDrift) {
