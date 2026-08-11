@@ -107400,9 +107400,18 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         // Load client-facing billing page
         async function loadMyBilling() {
+            // Small helper — surface the fetch failure into the panel
+            // instead of leaving "Loading…" forever. Steve / Casa Magnolia
+            // 2026-08-11: all three sections were stuck loading and we
+            // had no way to tell why until we opened dev tools.
+            function _renderMyBillingError(elId, msg) {
+                const el = document.getElementById(elId);
+                if (el) el.innerHTML = `<p style="color:#dc2626; font-size:0.85rem;">⚠ Failed to load: ${(msg||'').replace(/</g,'&lt;').slice(0,200)}</p>`;
+            }
             // Load plans
             try {
                 const plansRes = await fetch('/api/billing/plans');
+                if (!plansRes.ok) throw new Error('HTTP ' + plansRes.status);
                 const plansData = await plansRes.json();
                 
                 const plansContainer = document.getElementById('my-billing-plans');
@@ -107445,11 +107454,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             } catch (e) {
                 console.error('Error loading plans:', e);
+                _renderMyBillingError('my-billing-plans', e.message);
             }
-            
+
             // Load credit packages
             try {
                 const creditsRes = await fetch('/api/billing/credit-packages');
+                if (!creditsRes.ok) throw new Error('HTTP ' + creditsRes.status);
                 const creditsData = await creditsRes.json();
                 
                 const creditsContainer = document.getElementById('my-billing-credits');
@@ -107472,11 +107483,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             } catch (e) {
                 console.error('Error loading credits:', e);
+                _renderMyBillingError('my-billing-credits', e.message);
             }
-            
+
             // Load extras
             try {
                 const extrasRes = await fetch('/api/billing/extras');
+                if (!extrasRes.ok) throw new Error('HTTP ' + extrasRes.status);
                 const extrasData = await extrasRes.json();
                 
                 const extrasContainer = document.getElementById('my-billing-extras');
@@ -107499,6 +107512,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             } catch (e) {
                 console.error('Error loading extras:', e);
+                _renderMyBillingError('my-billing-extras', e.message);
             }
         }
 
