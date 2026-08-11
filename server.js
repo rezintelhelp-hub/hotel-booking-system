@@ -134770,6 +134770,15 @@ const GAS_TRIGGER_EVENTS = [
       // already slid past their booking window. NOT EXISTS workflow_runs
       // still guarantees at-most-once per booking.
       { field: 'fire_within_window', label: 'Fire on any day within the window (catches near-term bookings — e.g. someone booking today for arrival in 2 days)', kind: 'checkbox', default: false },
+      // Minimum lead days between booking creation and arrival for this
+      // rule to fire. Steve / Charles House 2026-08-11 — Barbara has a
+      // 7-day pre-arrival AND a 3-day reminder. Short-notice bookings
+      // (say 2 days out) fired BOTH the T-7 (backfilled) AND the T-3
+      // simultaneously → guest got 2 emails at booking. Setting this to
+      // 4 on the T-7 rule skips it when lead < 4, so short-notice
+      // bookings only get the T-3. Default 0 = fire for any lead time.
+      { field: 'min_lead_days', label: 'Only fire when booking made at least N days before arrival (0 = any)',
+        kind: 'number', default: 0 },
       // Direct vs OTA gate. Same options as booking.created's source_filter.
       // Barbara / Charles House 2026-07-10 needed this so the pre-arrival
       // link-heavy email only fires for direct bookings; OTAs get a
@@ -138239,6 +138248,14 @@ async function runGasRecipeBookingEventCron() {
       // only fire for bookings on one of the listed bookable_units.
       const roomIds = Array.isArray(cfg.room_ids) ? cfg.room_ids.map(Number).filter(Boolean) : [];
       const ROOM_CLAUSE = roomIds.length ? ` AND b.bookable_unit_id = ANY($5::int[])` : '';
+      // Minimum lead days — skip bookings whose arrival is less than N
+      // days after the booking was created. Prevents T-7 and T-3 rules
+      // from BOTH backfilling for the same short-notice booking (Steve
+      // / Charles House 2026-08-11).
+      const minLeadDays = parseInt(cfg.min_lead_days, 10);
+      const LEAD_CLAUSE = (Number.isFinite(minLeadDays) && minLeadDays > 0)
+        ? ` AND (DATE(b.arrival_date) - DATE(b.created_at)) >= ${minLeadDays}`
+        : '';
       const cand = await pool.query(`
         SELECT b.id AS booking_id, b.guest_email, b.guest_first_name, b.guest_last_name,
                (SELECT ds.id FROM deployed_sites ds
@@ -138257,6 +138274,7 @@ async function runGasRecipeBookingEventCron() {
           ${SOURCE_CLAUSE}
           ${SITE_FILTER.replace(/\$SITE/g, '$4')}
           ${ROOM_CLAUSE}
+          ${LEAD_CLAUSE}
       `, roomIds.length
           ? [wf.account_id, daysBefore, wf.id, wf.deployed_site_id, roomIds]
           : [wf.account_id, daysBefore, wf.id, wf.deployed_site_id]);
