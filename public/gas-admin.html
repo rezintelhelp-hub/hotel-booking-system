@@ -108078,20 +108078,37 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (detected.length === 0) { container.innerHTML = '<div style="color:#94a3b8; padding:1rem; text-align:center;">No detected signals + no existing subscriptions.</div>'; return; }
                 const actionBadge = (a) => {
                     const map = {
-                        add:   { bg:'#dcfce7', fg:'#166534', label:'+ ADD',    tick: true  },
-                        update:{ bg:'#dbeafe', fg:'#1e3a8a', label:'~ UPDATE', tick: false },
-                        ok:    { bg:'#f1f5f9', fg:'#475569', label:'= OK',      tick: false },
-                        stale: { bg:'#fee2e2', fg:'#991b1b', label:'- STALE',   tick: false }
+                        // 2026-08-11 — "ok" now means: this client uses this
+                        // product AND is subscribed to it (matched). Steve
+                        // wants these promoted (green + top) so the master
+                        // sees confirmed products first, suggestions second.
+                        ok:    { bg:'#dcfce7', fg:'#166534', label:'✓ IN USE',    tick: false },
+                        add:   { bg:'#fef9c3', fg:'#854d0e', label:'+ ADD',       tick: true  },
+                        update:{ bg:'#dbeafe', fg:'#1e3a8a', label:'~ UPDATE',    tick: false },
+                        stale: { bg:'#fee2e2', fg:'#991b1b', label:'- STALE',     tick: false }
                     };
                     return map[a] || { bg:'#fef3c7', fg:'#92400e', label: a };
                 };
+                // In-use (ok) rows to the top with a green tint so master
+                // can see confirmed subscriptions at a glance. Add/update/
+                // stale sink below.
+                detected.sort((a, b) => {
+                    const order = { ok: 0, add: 1, update: 2, stale: 3 };
+                    return (order[a.action] ?? 9) - (order[b.action] ?? 9)
+                        || (a.product_code || '').localeCompare(b.product_code || '');
+                });
                 const rows = detected.map((p, i) => {
                     const b = actionBadge(p.action);
                     const isStale = p.action === 'stale';
                     const defaultAction = p.action === 'add' ? 'add' : (p.action === 'update' ? 'update' : (isStale ? 'skip' : 'skip'));
                     const cur = p.existing;
+                    // Row background = green tint when this product is
+                    // confirmed as in use (ok), neutral otherwise.
+                    const rowBg = p.action === 'ok' ? '#f0fdf4'
+                                : p.action === 'stale' ? '#fef2f2'
+                                : 'white';
                     return `
-                    <tr data-code="${p.product_code}" style="border-bottom:1px solid #e5e7eb;">
+                    <tr data-code="${p.product_code}" style="border-bottom:1px solid #e5e7eb; background:${rowBg};">
                         <td style="padding:0.5rem;">
                             <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-size:0.7rem; font-weight:700; background:${b.bg}; color:${b.fg};">${b.label}</span>
                         </td>
