@@ -108276,9 +108276,24 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Client Billing Reconciliation — loaded on demand from the GC drill-in.
         // Uses the /api/admin/billing/client/:id endpoint (built earlier + proven).
         // Fails LOUDLY into the container so an error here can't affect the drill-in above.
-        async function loadClientReconciliation(accountId) {
+        // Per-account state so the month picker can re-render without a re-fetch.
+        window._clientReconState = window._clientReconState || {};
+        async function loadClientReconciliation(accountId, forceMonth) {
             const container = document.getElementById('client-recon-' + accountId);
             if (!container) return;
+            // Preserve current picker selection across renders. Default to
+            // last completed month — most DDs land mid-month, so "this
+            // month" is misleading early on.
+            if (!window._clientReconState[accountId]) {
+                const now = new Date();
+                const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                window._clientReconState[accountId] = {
+                    selectedMonth: lastMonth.toISOString().slice(0, 7) // YYYY-MM
+                };
+            }
+            if (forceMonth) window._clientReconState[accountId].selectedMonth = forceMonth;
+            const selectedMonth = window._clientReconState[accountId].selectedMonth;
+
             container.innerHTML = '<div style="color:#6366f1;">Loading reconciliation…</div>';
             try {
                 const r = await fetch('/api/admin/billing/client/' + accountId, { headers: authHeaders() });
@@ -108299,8 +108314,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     ['shop',       ['shop order', 'shop']],
                     ['crm_pro',    ['crm']],
                 ];
-                const matchCodes = {};  // product_code → list of payments
-                (d.payments || []).forEach(p => {
+                // Filter payments to just the selected calendar month.
+                const paymentsInMonth = (d.payments || []).filter(p => {
+                    if (!p.date) return false;
+                    return String(p.date).slice(0, 7) === selectedMonth;
+                });
+                const matchCodes = {};  // product_code → list of payments IN THIS MONTH
+                paymentsInMonth.forEach(p => {
                     const desc = (p.description || '').toLowerCase();
                     for (const [code, keys] of kw) {
                         if (keys.some(k => desc.includes(k))) {
@@ -108314,28 +108334,46 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const esc = (s) => String(s || '').replace(/</g, '&lt;');
                 const fmt = (a, c) => (c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'USD' ? '$' : (c || '')) + Number(a || 0).toFixed(2);
 
-                // LEFT — only products that HAVE been added by operator/
-                // client. Auto-detection has moved to a separate collapsed
-                // panel below. Steve 2026-08-11: he wants control, no
-                // synthetic guesses cluttering the confirmed list.
+                // Build month picker options — 12 most-recent months back.
+                const now = new Date();
+                const monthOpts = [];
+                for (let i = 0; i < 12; i++) {
+                    const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    const val = m.toISOString().slice(0, 7);
+                    const label = m.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+                    const suffix = i === 0 ? ' (current)' : i === 1 ? ' (last)' : '';
+                    monthOpts.push({ val, label: label + suffix });
+                }
+                const monthPicker = `
+                    <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.75rem;">
+                        <label style="font-size:0.85rem; color:#64748b;">Billing month:</label>
+                        <select onchange="loadClientReconciliation(${accountId}, this.value)" style="padding:4px 8px; border:1px solid #d1d5db; border-radius:4px;">
+                            ${monthOpts.map(o => `<option value="${o.val}" ${o.val === selectedMonth ? 'selected' : ''}>${o.label}</option>`).join('')}
+                        </select>
+                        <span style="font-size:0.75rem; color:#94a3b8;">Reconciliation is per-month — DDs are billed monthly, so viewing a rolling 90-day window can mistake three consecutive monthly payments for a triple-charge.</span>
+                    </div>`;
+
+                // LEFT — subscribed products only, matched against THIS MONTH.
                 const activeProducts = [...(d.subscribed_products || [])];
                 const leftRows = activeProducts.map(s => {
                     const code = s.product_code || s.product;
                     const paymentsMatched = matchCodes[code] || [];
-                    const status = paymentsMatched.length > 0
-                        ? `<span style="color:#16a34a;font-size:0.75rem;">✓ ${paymentsMatched.length} match${paymentsMatched.length > 1 ? 'es' : ''}</span>`
-                        : `<span style="color:#dc2626;font-size:0.75rem;">⚠ no payment matched</span>`;
+                    const status = paymentsMatched.length === 1
+                        ? `<span style="color:#16a34a;font-size:0.75rem;">✓ paid this month</span>`
+                        : paymentsMatched.length > 1
+                        ? `<span style="color:#f59e0b;font-size:0.75rem;">⚠ ${paymentsMatched.length} payments (double-billed?)</span>`
+                        : `<span style="color:#dc2626;font-size:0.75rem;">⚠ no payment received this month</span>`;
                     return `<div style="padding:0.4rem 0.6rem;background:white;border:1px solid #e2e8f0;border-radius:6px;">
                         <div style="display:flex;justify-content:space-between;">
                             <strong style="font-size:0.85rem;">${esc(s.name || code)}</strong>
                             <span style="font-size:0.85rem;color:#0f172a;">${fmt(s.override_price || s.price_monthly, s.currency)}</span>
                         </div>
-                        <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">${code}${s._synthetic ? ' · auto (from Beds24 usage)' : ''} · ${status}</div>
+                        <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">${code} · ${status}</div>
                     </div>`;
-                }).join('') || '<div style="color:#94a3b8;font-size:0.85rem;">No active products.</div>';
+                }).join('') || '<div style="color:#94a3b8;font-size:0.85rem;">No subscribed products yet — use "Add a product from the catalogue" below.</div>';
 
-                // RIGHT — payments with match state
-                const rightRows = (d.payments || []).slice(0, 30).map(p => {
+                // RIGHT — payments in THIS MONTH only.
+                const rightRows = paymentsInMonth.map(p => {
                     const matched = p._matched
                         ? `<span style="color:#16a34a;font-size:0.7rem;">→ ${p._matched}</span>`
                         : `<span style="color:#dc2626;font-size:0.7rem;">⚠ unmatched</span>`;
@@ -108350,26 +108388,32 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <div style="font-size:0.75rem;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sourceBadge} ${esc(p.description)}</div>
                         <div style="font-size:0.7rem;margin-top:2px;">${matched}</div>
                     </div>`;
-                }).join('') || '<div style="color:#94a3b8;font-size:0.85rem;">No recent payments.</div>';
+                }).join('') || '<div style="color:#94a3b8;font-size:0.85rem;">No payments in this month.</div>';
 
-                // Summary
-                const t = d.totals || {};
-                const deltaColor = (t.delta || 0) > 5 ? '#dc2626' : (t.delta || 0) < -5 ? '#16a34a' : '#64748b';
+                // Per-month totals — sum products' monthly prices + sum
+                // payments in the selected month (no FX conversion yet).
+                const shouldPayMonthly = activeProducts.reduce((sum, s) => sum + parseFloat(s.override_price || s.price_monthly || 0), 0);
+                const collectedThisMonth = paymentsInMonth.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+                const delta = shouldPayMonthly - collectedThisMonth;
+                const deltaColor = delta > 5 ? '#dc2626' : delta < -5 ? '#16a34a' : '#64748b';
+                const monthLabel = monthOpts.find(o => o.val === selectedMonth)?.label || selectedMonth;
+
                 container.innerHTML = `
+                    ${monthPicker}
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
                         <div>
                             <div style="font-size:0.72rem;color:#64748b;text-transform:uppercase;font-weight:600;margin-bottom:0.4rem;">Products (subscribed)</div>
                             <div style="display:flex;flex-direction:column;gap:0.35rem;">${leftRows}</div>
                         </div>
                         <div>
-                            <div style="font-size:0.72rem;color:#64748b;text-transform:uppercase;font-weight:600;margin-bottom:0.4rem;">Payments (last 90 days)</div>
+                            <div style="font-size:0.72rem;color:#64748b;text-transform:uppercase;font-weight:600;margin-bottom:0.4rem;">Payments (${esc(monthLabel)})</div>
                             <div style="display:flex;flex-direction:column;gap:0.35rem;max-height:500px;overflow-y:auto;">${rightRows}</div>
                         </div>
                     </div>
                     <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #e2e8f0;display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;font-size:0.85rem;">
-                        <div><strong>Recommended /mo:</strong> €${(t.recommended_monthly||0).toFixed(2)}</div>
-                        <div><strong>Collected 30d:</strong> €${(t.collected_last_30d||0).toFixed(2)}</div>
-                        <div style="color:${deltaColor};"><strong>Delta:</strong> €${(t.delta||0).toFixed(2)} ${(t.delta||0) > 0 ? '(under-billed)' : (t.delta||0) < 0 ? '(over-billed)' : ''}</div>
+                        <div><strong>Should pay /mo:</strong> ${shouldPayMonthly.toFixed(2)}</div>
+                        <div><strong>Collected in ${esc(monthLabel)}:</strong> ${collectedThisMonth.toFixed(2)}</div>
+                        <div style="color:${deltaColor};"><strong>Delta:</strong> ${delta.toFixed(2)} ${delta > 0 ? '(under-billed)' : delta < 0 ? '(over-billed)' : ''}</div>
                     </div>
                 `;
             } catch (e) {
