@@ -29858,11 +29858,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                              at a glance whether the guest has received their door
                              code / pre-arrival / confirmation / refund notice. -->
                         <div style="margin-bottom: 1.5rem;">
-                            <h4 style="margin: 0 0 1rem 0; color: #374151; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem;">
-                                💬 Communications
+                            <h4 style="margin: 0 0 1rem 0; color: #374151; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;" onclick="toggleCommsPanel()">
+                                <span id="view-comms-toggle" style="font-size:0.75rem; color:#94a3b8;">▼</span>
+                                <span>💬 Communications</span>
+                                <span id="view-comms-count" style="color:#94a3b8; font-weight:400;"></span>
                             </h4>
-                            <div style="background: #f8fafc; border-radius: 12px; padding: 1rem; font-size: 0.9rem;">
+                            <div id="view-comms-body" style="background: #f8fafc; border-radius: 12px; padding: 1rem; font-size: 0.9rem;">
                                 <div id="view-comms-list" style="color: #475569;"><em style="color:#94a3b8;">Loading…</em></div>
+                                <div id="view-comms-reply" style="display:none; margin-top:1rem; padding-top:1rem; border-top:1px dashed #e2e8f0;"></div>
                             </div>
                         </div>
 
@@ -73392,6 +73395,90 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Communications panel — lists guest_communications rows for the booking
         // and lets the operator resend any one. Added 2026-07-17 after Barbara
         // couldn't tell whether Desi Kirilova had been sent her door code.
+        // Collapse / expand the whole Comms panel from its header. Keeps
+        // the trigger simple — just flips display on the body div and swaps
+        // the caret glyph. Not persisted across sessions.
+        function toggleCommsPanel() {
+            const body = document.getElementById('view-comms-body');
+            const toggle = document.getElementById('view-comms-toggle');
+            if (!body || !toggle) return;
+            const hidden = body.style.display === 'none';
+            body.style.display = hidden ? 'block' : 'none';
+            toggle.textContent = hidden ? '▼' : '▶';
+        }
+
+        // Build the reply composer that sits under the Comms list. Picks
+        // distinct Channex thread_ids present on this booking's comms and
+        // exposes each as an option in a dropdown; if only one, hides the
+        // dropdown and locks the thread. Send calls the existing
+        // /api/admin/channex/messages/thread/:threadId POST endpoint —
+        // reuses the outbound persistence side-effect so the message
+        // appears in the panel on next load without a separate insert.
+        function renderCommsReplyComposer(bookingId, comms) {
+            const wrap = document.getElementById('view-comms-reply');
+            if (!wrap) return;
+            const channexComms = comms.filter(c => c.channel === 'channex' && c.metadata?.thread_id && c.metadata?.connection_id);
+            if (channexComms.length === 0) { wrap.style.display = 'none'; return; }
+            // Unique threads with metadata for the dropdown label
+            const seen = new Map();
+            for (const c of channexComms) {
+                const tid = c.metadata.thread_id;
+                if (!seen.has(tid)) {
+                    seen.set(tid, {
+                        thread_id: tid,
+                        connection_id: c.metadata.connection_id,
+                        title: c.metadata.thread_title || 'OTA thread',
+                        last_at: c.sent_at
+                    });
+                }
+            }
+            const threads = [...seen.values()].sort((a, b) => new Date(b.last_at || 0) - new Date(a.last_at || 0));
+            const singleThread = threads.length === 1;
+            const threadPicker = singleThread
+                ? `<input type="hidden" id="reply-thread-id" value="${threads[0].thread_id}"><input type="hidden" id="reply-conn-id" value="${threads[0].connection_id}"><div style="font-size:0.8rem; color:#64748b; margin-bottom:6px;">💬 Reply on OTA thread: <strong>${escapeHtml(threads[0].title)}</strong></div>`
+                : `<div style="margin-bottom:6px;">
+                     <label style="font-size:0.8rem; color:#64748b;">Reply to thread:</label>
+                     <select id="reply-thread-picker" onchange="var o=this.options[this.selectedIndex];document.getElementById('reply-thread-id').value=o.value;document.getElementById('reply-conn-id').value=o.dataset.conn;" class="form-input" style="max-width:400px; margin-top:4px;">
+                       ${threads.map(t => `<option value="${t.thread_id}" data-conn="${t.connection_id}">${escapeHtml(t.title)} · ${new Date(t.last_at||0).toLocaleDateString('en-GB')}</option>`).join('')}
+                     </select>
+                     <input type="hidden" id="reply-thread-id" value="${threads[0].thread_id}">
+                     <input type="hidden" id="reply-conn-id" value="${threads[0].connection_id}">
+                   </div>`;
+            wrap.style.display = 'block';
+            wrap.innerHTML = `
+                ${threadPicker}
+                <textarea id="reply-body" placeholder="Type your reply — it'll be sent through the OTA thread…" rows="3" class="form-input" style="width:100%; font-family:inherit; font-size:0.9rem; margin-bottom:8px;"></textarea>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                    <div id="reply-status" style="font-size:0.8rem; color:#64748b;"></div>
+                    <button class="btn btn-primary" onclick="sendChannexReplyFromBooking(${bookingId})" style="font-size:0.85rem;">Send reply</button>
+                </div>`;
+        }
+
+        async function sendChannexReplyFromBooking(bookingId) {
+            const threadId = document.getElementById('reply-thread-id')?.value;
+            const connId = parseInt(document.getElementById('reply-conn-id')?.value);
+            const body = document.getElementById('reply-body')?.value?.trim();
+            const status = document.getElementById('reply-status');
+            if (!threadId || !connId) { if (status) status.textContent = '⚠ No thread selected'; return; }
+            if (!body) { if (status) status.textContent = '⚠ Enter a message first'; return; }
+            if (status) { status.textContent = 'Sending…'; status.style.color = '#64748b'; }
+            try {
+                const r = await fetch('/api/admin/channex/messages/thread/' + encodeURIComponent(threadId), {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ connection_id: connId, message: body })
+                });
+                const j = await r.json();
+                if (!j.success) throw new Error(j.error || 'send failed');
+                if (status) { status.textContent = '✓ Sent — refreshing Comms…'; status.style.color = '#059669'; }
+                document.getElementById('reply-body').value = '';
+                // Refresh Comms so the outbound row appears
+                setTimeout(() => loadBookingCommunications(bookingId), 800);
+            } catch (e) {
+                if (status) { status.textContent = '✗ ' + e.message; status.style.color = '#dc2626'; }
+            }
+        }
+
         async function loadBookingCommunications(bookingId) {
             const el = document.getElementById('view-comms-list');
             if (!el) return;
@@ -73401,6 +73488,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const d = await r.json();
                 if (!d.success) throw new Error(d.error || 'Failed to load');
                 const comms = d.communications || [];
+                const countEl = document.getElementById('view-comms-count');
+                if (countEl) countEl.textContent = comms.length ? `(${comms.length})` : '';
+                renderCommsReplyComposer(bookingId, comms);
                 if (!comms.length) {
                     el.innerHTML = `<div style="color:#94a3b8;"><em>No emails or messages sent yet for this booking.</em><br>
                         <span style="font-size:0.8rem;">If a guest should have received something (confirmation, pre-arrival, door code), check GAS CRM → 🔥 GAS Actions that the relevant workflow is enabled for this account.</span></div>`;
