@@ -26427,14 +26427,16 @@ app.post('/api/admin/billing/client/:id/subscribe/:code/approve', async (req, re
 // ?apply_drift=1 to apply drift. This is the "review-first on quantity
 // changes" rule Steve requested.
 async function _computeBeds24Bundle(accountId) {
-  // Pull every atomic price row from the catalogue including the "per
-  // extra rental" line that was missing from the first cut. Cross-
-  // referenced against docs/gas24-price-list.md 2026-08-11.
+  // Steve 2026-08-11 revision: Beds24's actual model is per-ROOM, not
+  // per-property + per-extra-rental. Verified against his Beds24 usage
+  // report: Pen Mar (8 rooms, 21 links) = €32.35 = 8×€2.60 + 21×€0.55.
+  // Bundle now: base + per-room + per-link + per-sub-user + SSL, all
+  // sized from the latest usage snapshot. Prices come from the DB
+  // catalogue (retail = 20% off Beds24, cost = 50% off Beds24).
   const cat = await pool.query(
     `SELECT code, name, price_monthly, unit_price, currency
        FROM billing_products
-      WHERE code IN ('gas24','gas24_base','gas24_property','gas24_extra_rental',
-                     'gas24_link','gas24_sub_user','gas24_ssl')
+      WHERE code IN ('gas24','gas24_base','gas24_room','gas24_link','gas24_sub_user','gas24_ssl')
         AND is_active = true`);
   const priceByCode = {};
   for (const r of cat.rows) priceByCode[r.code] = r;
@@ -26453,11 +26455,7 @@ async function _computeBeds24Bundle(accountId) {
   };
   push('gas24', 1, 'parent (0 by itself)');
   push('gas24_base', 1, 'flat base fee');
-  const props = parseInt(s.property_count || 0);
-  const rooms = parseInt(s.room_count || 0);
-  const extraRentals = Math.max(0, rooms - props);
-  if (props) push('gas24_property', props, `${props} property(ies)`);
-  if (extraRentals) push('gas24_extra_rental', extraRentals, `${extraRentals} extra rental(s) — ${rooms} rooms across ${props} properties`);
+  if (s.room_count) push('gas24_room', parseInt(s.room_count), `${s.room_count} room(s)`);
   if (s.link_count) push('gas24_link', parseInt(s.link_count), `${s.link_count} channel link(s)`);
   if (s.sub_account_count) push('gas24_sub_user', parseInt(s.sub_account_count), `${s.sub_account_count} sub-user(s)`);
   if (s.ssl_count) push('gas24_ssl', parseInt(s.ssl_count), `${s.ssl_count} branded SSL(s)`);
@@ -45540,6 +45538,38 @@ app.get('/api/setup-billing', async (req, res) => {
        WHERE (code LIKE 'wp-theme-%' OR code LIKE 'wp-plugin-%' OR code LIKE 'app-%' OR code LIKE 'portal-%')
          AND created_at < '2026-08-09'
     `).catch(() => {});
+
+    // 2026-08-11 — GAS24 catalogue realignment.
+    // Beds24's actual billing model is per-ROOM (verified against Steve's
+    // Beds24 report — 8 rooms × €2.60 + 21 links × €0.55 = €32.35 for Pen
+    // Mar Guest House). The prior 'per property + per extra rental'
+    // split from docs/gas24-price-list.md didn't reconcile against the
+    // real report. Retire the wrong products, add per-room.
+    // Also populate cost columns: GAS pays Beds24 wholesale at 50% off
+    // direct, charges clients GAS24 sell price at 20% off direct.
+    //   list = retail / 0.80  →  cost = list × 0.50  →  cost = retail × 0.625
+    await pool.query(`
+      INSERT INTO billing_products
+        (code, name, description, category, price_monthly, currency, pricing_type,
+         unit_price, cost_per_unit, unit_type, is_active, is_public, display_order)
+      VALUES
+        ('gas24_room', 'GAS24 — Room', 'Per room (was wrongly split into property + extra rental)',
+         'gas24_atomic', 0, 'EUR', 'per_unit', 2.08, 1.30, 'room', true, true, 15)
+      ON CONFLICT (code) DO UPDATE
+        SET unit_price = 2.08, cost_per_unit = 1.30, is_active = true, is_public = true
+    `).catch(e => console.error('[migration] gas24_room insert skipped:', e.message));
+    await pool.query(`
+      UPDATE billing_products SET is_active = false, is_public = false
+       WHERE code IN ('gas24_property', 'gas24_extra_rental')
+    `).catch(() => {});
+    // Backfill wholesale costs on the surviving gas24_* items — 50% off
+    // Beds24 direct list. cost_per_unit only where unit_price > 0.
+    await pool.query(`
+      UPDATE billing_products
+         SET cost_monthly  = CASE WHEN price_monthly > 0 THEN ROUND(price_monthly * 0.625::numeric, 2) ELSE 0 END,
+             cost_per_unit = CASE WHEN unit_price   > 0 THEN ROUND(unit_price   * 0.625::numeric, 4) ELSE 0 END
+       WHERE code IN ('gas24_base','gas24_room','gas24_link','gas24_sub_user','gas24_ssl','gas24_sms')
+    `).catch(e => console.error('[migration] gas24 cost backfill skipped:', e.message));
 
     // NEW: Billing Add-ons
     await pool.query(`
