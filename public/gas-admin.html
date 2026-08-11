@@ -73444,6 +73444,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                     last_at: beds24Comm.sent_at
                 });
             }
+            // Hostfully — pick the most recent hostfully comm to seed
+            // thread_uid + type (server also has this as a fallback).
+            const hfComms = comms.filter(c => c.channel === 'hostfully');
+            if (hfComms.length > 0) {
+                const latest = hfComms[0]; // list is ordered DESC by sent_at
+                const chType = latest.metadata?.channel_type || 'DIRECT';
+                options.push({
+                    kind: 'hostfully',
+                    key: 'hf:' + bookingId,
+                    label: '💬 Hostfully (' + chType + ')',
+                    thread_uid: latest.metadata?.hostfully_thread_uid || null,
+                    channel_type: chType,
+                    last_at: latest.sent_at
+                });
+            }
             if (options.length === 0) { wrap.style.display = 'none'; return; }
             options.sort((a, b) => new Date(b.last_at || 0) - new Date(a.last_at || 0));
             const singleOpt = options.length === 1;
@@ -73496,6 +73511,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
                         body: JSON.stringify({ message: body })
                     });
+                } else if (opt.kind === 'hostfully') {
+                    r = await fetch('/api/admin/bookings/' + bookingId + '/hostfully-messages', {
+                        method: 'POST',
+                        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: body, thread_uid: opt.thread_uid, type: opt.channel_type })
+                    });
                 } else {
                     throw new Error('unknown target kind');
                 }
@@ -73513,12 +73534,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             const el = document.getElementById('view-comms-list');
             if (!el) return;
             el.innerHTML = '<em style="color:#94a3b8;">Loading…</em>';
-            // Eagerly pull Beds24 messages for this booking before the
-            // list fetch so any new ones land in guest_communications
-            // and appear in the same panel. Non-blocking on error — the
-            // rest of the load still runs.
+            // Eagerly pull Beds24 + Hostfully messages for this booking
+            // before the list fetch so any new ones land in
+            // guest_communications and appear in the same panel. Both
+            // are no-ops when the booking has no external id.
             try {
-                await fetch(`/api/admin/bookings/${bookingId}/beds24-messages`, { headers: authHeaders() });
+                await Promise.all([
+                    fetch(`/api/admin/bookings/${bookingId}/beds24-messages`, { headers: authHeaders() }).catch(()=>{}),
+                    fetch(`/api/admin/bookings/${bookingId}/hostfully-messages`, { headers: authHeaders() }).catch(()=>{})
+                ]);
             } catch (_) { /* non-fatal */ }
             try {
                 const r = await fetch(`/api/admin/bookings/${bookingId}/communications`, { headers: authHeaders() });
@@ -73540,6 +73564,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         email:    { icon: '📧', label: 'Email',    bg: '#dbeafe', fg: '#1e40af' },
                         channex:  { icon: '💬', label: 'OTA',      bg: '#fef3c7', fg: '#92400e' },
                         beds24_message: { icon: '💬', label: 'Beds24', bg: '#fce7f3', fg: '#9d174d' },
+                        hostfully: { icon: '💬', label: 'Hostfully', bg: '#e0f2fe', fg: '#075985' },
                         whatsapp: { icon: '📱', label: 'WhatsApp', bg: '#dcfce7', fg: '#166534' },
                         sms:      { icon: '📱', label: 'SMS',      bg: '#f3e8ff', fg: '#6b21a8' },
                         pre_arrival_form: { icon: '📝', label: 'Pre-arrival', bg: '#e0e7ff', fg: '#4338ca' }
@@ -73560,7 +73585,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // the row payload already).
                     const isChannex = c.channel === 'channex';
                     const isBeds24Msg = c.channel === 'beds24_message';
-                    const isChatChannel = isChannex || isBeds24Msg;
+                    const isHostfully = c.channel === 'hostfully';
+                    const isChatChannel = isChannex || isBeds24Msg || isHostfully;
                     let preview = '';
                     if (isChatChannel && c.body) {
                         const full = String(c.body);
@@ -73580,6 +73606,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                     const action = isChannex ? `<span style="font-size:0.7rem; color:#94a3b8;">via Channex</span>`
                                  : isBeds24Msg ? `<span style="font-size:0.7rem; color:#94a3b8;">via Beds24</span>`
+                                 : isHostfully ? `<span style="font-size:0.7rem; color:#94a3b8;">via Hostfully</span>`
                                  : `<button class="btn btn-secondary" onclick="resendCommunication(${bookingId}, ${c.id})" style="font-size: 0.75rem; padding: 4px 10px; white-space: nowrap;">🔄 Resend</button>`;
                     const titleLine = c.subject || (isChatChannel ? (c.direction === 'inbound' ? 'Guest message' : 'Reply sent') : '(no subject)');
                     return `<div style="padding: 10px 0; border-bottom: 1px dashed #e2e8f0;">

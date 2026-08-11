@@ -14927,6 +14927,177 @@ app.post('/api/admin/bookings/:id/beds24-messages', async (req, res) => {
   }
 });
 
+// ─── Hostfully messages mirror (2026-08-11) ─────────────────────────
+// Hostfully: leads → threads → messages. Per booking: fetch threads by
+// leadUid, then messages by threadUid. Persist with channel='hostfully'.
+// senderType='AGENCY' = outbound, 'GUEST' = inbound.
+async function _persistHostfullyMessage({ gasBookingId, guestId, leadUid, threadUid, msg }) {
+  try {
+    const providerId = 'hf_' + (msg.uid || (leadUid + '_' + msg.createdUtcDateTime));
+    if (!msg.createdUtcDateTime) return;
+    const exists = await pool.query(
+      `SELECT 1 FROM guest_communications
+        WHERE channel = 'hostfully' AND provider_message_id = $1 LIMIT 1`, [providerId]);
+    if (exists.rows[0]) return;
+    const direction = String(msg.senderType || '').toUpperCase() === 'GUEST' ? 'inbound' : 'outbound';
+    // Body arrives as HTML; strip tags for the panel preview. Keep the
+    // original HTML in metadata for anyone who wants to render richly.
+    const rawHtml = String(msg.content?.text || '');
+    const bodyText = rawHtml.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g,' ').trim();
+    const metadata = {
+      hostfully_lead_uid: leadUid,
+      hostfully_thread_uid: threadUid,
+      hostfully_message_uid: msg.uid,
+      channel_type: msg.type || null,
+      sender_type: msg.senderType || null,
+      html: rawHtml
+    };
+    await pool.query(
+      `INSERT INTO guest_communications
+         (booking_id, guest_id, channel, direction, event_type, subject, body, status,
+          sent_at, provider_message_id, metadata, created_at)
+       VALUES ($1, $2, 'hostfully', $3, 'message', $4, $5, 'delivered', $6, $7, $8::jsonb, NOW())`,
+      [gasBookingId, guestId, direction, msg.content?.subject || null, bodyText,
+       msg.createdUtcDateTime, providerId, JSON.stringify(metadata)]);
+  } catch (e) {
+    console.warn('[_persistHostfullyMessage]', e.message);
+  }
+}
+
+// GET /api/admin/bookings/:id/hostfully-messages — pulls threads for
+// the booking's leadUid, then messages for each thread. Mirrors any
+// new ones into guest_communications. Returns the raw list.
+app.get('/api/admin/bookings/:id/hostfully-messages', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    const bkQ = await pool.query(
+      `SELECT b.id, b.hostfully_lead_uid, b.guest_id, p.account_id
+         FROM bookings b LEFT JOIN properties p ON p.id = b.property_id
+        WHERE b.id = $1`, [bookingId]);
+    const bk = bkQ.rows[0];
+    if (!bk) return res.status(404).json({ success: false, error: 'booking not found' });
+    if (!bk.hostfully_lead_uid) return res.json({ success: true, messages: [], reason: 'no_lead_uid' });
+    if (decoded.role !== 'master_admin' && bk.account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'not authorised' });
+    }
+    const connQ = await pool.query(
+      `SELECT credentials FROM gas_sync_connections
+        WHERE account_id = $1 AND adapter_code = 'hostfully'
+          AND COALESCE(status,'') <> 'deleted' ORDER BY id DESC LIMIT 1`, [bk.account_id]);
+    const apiKey = connQ.rows[0]?.credentials?.apiKey;
+    if (!apiKey) return res.json({ success: false, error: 'no hostfully api key' });
+
+    const axios = require('axios');
+    const tR = await axios.get(
+      `https://platform.hostfully.com/api/v3.2/threads?leadUid=${bk.hostfully_lead_uid}&_limit=50`,
+      { headers: { 'X-HOSTFULLY-APIKEY': apiKey }, timeout: 15000 });
+    const threads = tR.data?.threads || [];
+    const allMessages = [];
+    for (const th of threads) {
+      try {
+        const mR = await axios.get(
+          `https://platform.hostfully.com/api/v3.2/messages?threadUid=${th.uid}&_limit=100`,
+          { headers: { 'X-HOSTFULLY-APIKEY': apiKey }, timeout: 15000 });
+        for (const m of (mR.data?.messages || [])) {
+          await _persistHostfullyMessage({
+            gasBookingId: bk.id, guestId: bk.guest_id,
+            leadUid: bk.hostfully_lead_uid, threadUid: th.uid, msg: m
+          });
+          allMessages.push({
+            uid: m.uid, time: m.createdUtcDateTime, type: m.type, sender: m.senderType,
+            subject: m.content?.subject || null,
+            text: String(m.content?.text || '').replace(/<[^>]+>/g,'').slice(0, 400)
+          });
+        }
+      } catch (e) {
+        console.warn(`[hostfully-messages] thread ${th.uid}: ${e.response?.status || e.message}`);
+      }
+    }
+    res.json({ success: true, messages: allMessages, thread_count: threads.length });
+  } catch (e) {
+    console.error('[hostfully-messages GET]', e.response?.status, e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/admin/bookings/:id/hostfully-messages — send a reply.
+// Body: { message, thread_uid?, type? } — thread_uid + type default to
+// the most recent thread + its last message type (Hostfully needs type
+// e.g. BOOKING_COM / AIRBNB to route back through the OTA the guest
+// originally used).
+app.post('/api/admin/bookings/:id/hostfully-messages', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    const message = String(req.body?.message || '').trim();
+    if (!message) return res.status(400).json({ success: false, error: 'message required' });
+    const bkQ = await pool.query(
+      `SELECT b.id, b.hostfully_lead_uid, b.guest_id, p.account_id
+         FROM bookings b LEFT JOIN properties p ON p.id = b.property_id
+        WHERE b.id = $1`, [bookingId]);
+    const bk = bkQ.rows[0];
+    if (!bk) return res.status(404).json({ success: false, error: 'booking not found' });
+    if (!bk.hostfully_lead_uid) return res.json({ success: false, error: 'no lead uid on booking' });
+    if (decoded.role !== 'master_admin' && bk.account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'not authorised' });
+    }
+    const connQ = await pool.query(
+      `SELECT credentials FROM gas_sync_connections
+        WHERE account_id = $1 AND adapter_code = 'hostfully'
+          AND COALESCE(status,'') <> 'deleted' ORDER BY id DESC LIMIT 1`, [bk.account_id]);
+    const apiKey = connQ.rows[0]?.credentials?.apiKey;
+    if (!apiKey) return res.json({ success: false, error: 'no hostfully api key' });
+
+    const axios = require('axios');
+    // Resolve thread + type. Prefer client-supplied. Otherwise pick the
+    // most recent thread and copy the type from its last message.
+    let threadUid = req.body?.thread_uid;
+    let msgType = req.body?.type;
+    if (!threadUid || !msgType) {
+      const tR = await axios.get(
+        `https://platform.hostfully.com/api/v3.2/threads?leadUid=${bk.hostfully_lead_uid}&_limit=10`,
+        { headers: { 'X-HOSTFULLY-APIKEY': apiKey }, timeout: 15000 });
+      const threads = tR.data?.threads || [];
+      const t = threads[0]; // Hostfully returns newest-first
+      if (!t) return res.json({ success: false, error: 'no threads on this lead yet' });
+      threadUid = threadUid || t.uid;
+      if (!msgType) {
+        const mR = await axios.get(
+          `https://platform.hostfully.com/api/v3.2/messages?threadUid=${threadUid}&_limit=5`,
+          { headers: { 'X-HOSTFULLY-APIKEY': apiKey }, timeout: 15000 });
+        const msgs = mR.data?.messages || [];
+        msgType = msgs[0]?.type || 'DIRECT';
+      }
+    }
+    const sendResp = await axios.post(
+      'https://platform.hostfully.com/api/v3.2/messages',
+      { leadUid: bk.hostfully_lead_uid, threadUid, type: msgType, content: { text: message } },
+      { headers: { 'X-HOSTFULLY-APIKEY': apiKey, 'Content-Type': 'application/json' }, timeout: 15000 });
+    const sent = sendResp.data?.message || sendResp.data;
+    // Persist immediately so the outbound appears in Comms on refresh.
+    if (sent?.uid) {
+      await _persistHostfullyMessage({
+        gasBookingId: bk.id, guestId: bk.guest_id,
+        leadUid: bk.hostfully_lead_uid, threadUid,
+        msg: {
+          uid: sent.uid,
+          createdUtcDateTime: sent.createdUtcDateTime || new Date().toISOString(),
+          senderType: sent.senderType || 'AGENCY',
+          type: sent.type || msgType,
+          content: sent.content || { text: message }
+        }
+      });
+    }
+    res.json({ success: true, message: sent });
+  } catch (e) {
+    console.error('[hostfully-messages POST]', e.response?.status, e.response?.data || e.message);
+    res.status(500).json({ success: false, error: e.response?.data?.apiErrorMessage || e.message });
+  }
+});
+
 app.get('/api/admin/bookings/:id/channex-thread', async (req, res) => {
   try {
     const decoded = await extractAccountFromToken(req);
