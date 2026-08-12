@@ -78122,6 +78122,99 @@ app.get('/api/admin/communications/:commId/body', async (req, res) => {
 // subject + body against the same recipient. Prefixes subject with [RESEND].
 // Non-destructive — original row stays; a new guest_communications row lands
 // via the standard logGuestCommunication path.
+// Send a FRESH booking confirmation with current DB values (dates, room,
+// totals, extras, etc). Different from the /communications/:commId/resend
+// endpoint below, which replays the frozen original HTML — that would send
+// OLD dates after an operator changed the booking. This endpoint rebuilds
+// the confirmation from live data using the same generator the initial
+// booking-create flow uses (server.js:generateBookingConfirmationEmail),
+// so layout is identical to what the guest received originally, just with
+// the current numbers. Steve 2026-08-12.
+app.post('/api/admin/bookings/:id/resend-confirmation-fresh', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(bookingId)) return res.status(400).json({ success: false, error: 'Bad booking id' });
+
+    const b = await pool.query('SELECT * FROM bookings WHERE id = $1', [bookingId]);
+    const booking = b.rows[0];
+    if (!booking) return res.status(404).json({ success: false, error: 'Booking not found' });
+    if (!booking.guest_email) return res.status(400).json({ success: false, error: 'Booking has no guest email' });
+
+    const propRows = await pool.query(`
+      SELECT p.*, a.email AS account_email, a.booking_cc_email AS account_cc_email
+        FROM properties p LEFT JOIN accounts a ON p.account_id = a.id
+       WHERE p.id = $1`, [booking.property_id]);
+    const property = propRows.rows[0];
+    if (!property) return res.status(404).json({ success: false, error: 'Property not found for booking' });
+
+    const roomRows = await pool.query('SELECT * FROM bookable_units WHERE id = $1', [booking.bookable_unit_id]);
+    const room = roomRows.rows[0] || {};
+
+    let emailPaymentSchedule = null;
+    try {
+      const s = await pool.query('SELECT * FROM booking_payment_schedule WHERE booking_id = $1 ORDER BY tier_order', [bookingId]);
+      if (s.rows.length > 0) emailPaymentSchedule = s.rows;
+    } catch (_) { /* table may not exist */ }
+
+    const emailBranding = await getEmailBranding(pool, property.account_id, property.id);
+
+    // Build the same shape used at booking creation, but from CURRENT DB
+    // values so date / room / total changes since booking are reflected.
+    const bookingForEmail = {
+      id: booking.id,
+      invoice_number: booking.invoice_number || null,
+      arrival_date: booking.arrival_date,
+      departure_date: booking.departure_date,
+      num_adults: booking.num_adults,
+      num_children: booking.num_children,
+      accommodation_price: parseFloat(booking.accommodation_price) || 0,
+      offer_label: null,
+      offer_discount: parseFloat(booking.discount_amount) || 0,
+      voucher_label: null,
+      voucher_discount: parseFloat(booking.voucher_discount) || 0,
+      extras: Array.isArray(booking.extras) ? booking.extras : [],
+      tax_amount: parseFloat(booking.tax_amount) || 0,
+      tax_label: 'Tax',
+      grand_total: parseFloat(booking.grand_total) || 0,
+      deposit_amount: parseFloat(booking.deposit_amount) || 0,
+      balance_amount: parseFloat(booking.balance_amount) || 0,
+      currency: room.currency || booking.currency || '£',
+      guest_first_name: booking.guest_first_name,
+      guest_last_name: booking.guest_last_name,
+      stripe_setup_intent_id: booking.stripe_setup_intent_id,
+      stripe_payment_method_id: booking.stripe_payment_method_id,
+      stripe_customer_id: booking.stripe_customer_id,
+      payment_method: booking.payment_method
+    };
+
+    let emailHtml = '';
+    try {
+      emailHtml = generateBookingConfirmationEmail(bookingForEmail, property, room, emailPaymentSchedule, emailBranding);
+    } catch (genErr) {
+      console.error('[resend-fresh] generator failed', genErr);
+      return res.status(500).json({ success: false, error: 'Confirmation template render failed: ' + genErr.message });
+    }
+
+    const subject = `Updated Booking Confirmation - ${property.name || 'Your Reservation'} (Ref: ${booking.id})`;
+    const send = await sendEmail({
+      to: booking.guest_email,
+      subject,
+      html: emailHtml,
+      accountId: property.account_id,
+      bookingId,
+      context: { accountId: property.account_id, guestId: booking.guest_id, bookingId, eventType: 'booking_confirmation_resend_fresh' }
+    });
+    if (!send.success) return res.status(500).json({ success: false, error: send.error || 'Send failed' });
+
+    return res.json({ success: true, message: 'Fresh confirmation sent to ' + booking.guest_email });
+  } catch (e) {
+    console.error('[resend-confirmation-fresh]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.post('/api/admin/bookings/:id/communications/:commId/resend', async (req, res) => {
   try {
     const decoded = await extractAccountFromToken(req);
