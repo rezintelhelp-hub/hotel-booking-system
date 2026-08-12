@@ -173,6 +173,65 @@ function developer_theme_activation() {
 add_action('after_switch_theme', 'developer_theme_activation');
 
 /**
+ * Slug → template map for pages the theme owns. Any page created with
+ * one of these slugs (via theme activation, GAS Admin, or manually in WP
+ * admin) needs the matching template. The activation function above sets
+ * it on first-run, but pages added later (e.g. operator manually creates
+ * a "Reviews" page in WP admin — Carbon Country 2026-08-12) miss it and
+ * fall back to page.php which renders empty.
+ */
+function developer_theme_template_slug_map() {
+    return array(
+        'reviews'  => 'template-reviews.php',
+        'contact'  => 'template-contact.php',
+        'terms'    => 'template-terms.php',
+        'privacy'  => 'template-privacy.php',
+        'book-now' => 'template-book-now.php',
+        'room'     => 'template-room.php',
+    );
+}
+
+/**
+ * Ensure any page whose slug matches a known template gets the template
+ * assigned on save. Fires on every page save/publish. Never overrides a
+ * template the operator has explicitly set to something else.
+ */
+function developer_ensure_page_template_on_save($post_id, $post, $update) {
+    if (wp_is_post_autosave($post_id) || wp_is_post_revision($post_id)) return;
+    if ($post->post_type !== 'page' || $post->post_status !== 'publish') return;
+    $map = developer_theme_template_slug_map();
+    if (!isset($map[$post->post_name])) return;
+    $current = get_post_meta($post_id, '_wp_page_template', true);
+    if (empty($current) || $current === 'default') {
+        update_post_meta($post_id, '_wp_page_template', $map[$post->post_name]);
+    }
+}
+add_action('save_post_page', 'developer_ensure_page_template_on_save', 10, 3);
+
+/**
+ * One-shot backfill: on the first wp_loaded after this code deploys,
+ * scan every published page whose slug matches the map and assign the
+ * template if missing. Guarded by an option flag so it only runs once
+ * per site. Fixes existing sites (like Carbon Country's Reviews page
+ * added before the save_post hook existed) without needing a manual
+ * wp-cli sweep.
+ */
+function developer_template_slug_backfill_once() {
+    if (get_option('developer_template_slug_backfill_v1')) return;
+    $map = developer_theme_template_slug_map();
+    foreach ($map as $slug => $template) {
+        $page = get_page_by_path($slug);
+        if (!$page) continue;
+        $current = get_post_meta($page->ID, '_wp_page_template', true);
+        if (empty($current) || $current === 'default') {
+            update_post_meta($page->ID, '_wp_page_template', $template);
+        }
+    }
+    update_option('developer_template_slug_backfill_v1', time());
+}
+add_action('wp_loaded', 'developer_template_slug_backfill_once');
+
+/**
  * Admin Notice after theme activation
  */
 function developer_activation_notice() {
