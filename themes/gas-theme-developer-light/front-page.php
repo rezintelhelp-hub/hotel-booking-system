@@ -1189,8 +1189,15 @@ for ($ir = 1; $ir <= 4; $ir++) {
             <?php if ($ir_heading) : ?>
                 <h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($ir_heading); ?></h2>
             <?php endif; ?>
-            <?php $ir_desc = $api[$ir_prefix . 'description'] ?? ''; if ($ir_desc) : ?>
-                <p style="color: #475569; line-height: 1.6; margin: 0 0 24px; text-align: center; max-width: 800px; margin-left: auto; margin-right: auto; font-size: 1rem;"><?php echo nl2br(esc_html($ir_desc)); ?></p>
+            <?php
+            $ir_desc = $api[$ir_prefix . 'description'] ?? '';
+            $ir_desc_font = $api[$ir_prefix . 'description_font_size'] ?? '1rem';
+            $ir_desc_mw = $api[$ir_prefix . 'description_max_width'] ?? '800';
+            $ir_desc_width_css = ($ir_desc_mw === 'full')
+                ? ''
+                : 'max-width: ' . esc_attr($ir_desc_mw) . 'px; margin-left: auto; margin-right: auto;';
+            if ($ir_desc) : ?>
+                <p style="color: #475569; line-height: 1.6; margin: 0 0 24px; text-align: <?php echo esc_attr($ir_align); ?>; <?php echo $ir_desc_width_css; ?> font-size: <?php echo esc_attr($ir_desc_font); ?>;"><?php echo nl2br(esc_html($ir_desc)); ?></p>
             <?php else : ?>
                 <div style="margin-bottom: 24px;"></div>
             <?php endif; ?>
