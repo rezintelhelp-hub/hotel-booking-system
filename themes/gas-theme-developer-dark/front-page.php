@@ -354,9 +354,11 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
     $wrap_media_image = $api['wrap_media_image_url'] ?? '';
     // 2026-08-12 — UI consolidated video + image URLs into
     // wrap_media_image_url in 2026-07-22 (see gas-admin.html:8991) but
-    // theme was never updated. Fallback keeps old data on wrap_media_url
-    // working while picking up the new single-field save.
-    $wrap_media_url = $api['wrap_media_url'] ?? $api['wrap_media_image_url'] ?? '';
+    // theme was never updated. Fallback uses !empty because functions.php
+    // defaults wrap_media_url to '' when the DB key is missing, and PHP's
+    // ?? only fires on null, not empty string. Falls through to the
+    // consolidated wrap_media_image_url when the legacy key is empty.
+    $wrap_media_url = !empty($api['wrap_media_url']) ? $api['wrap_media_url'] : ($api['wrap_media_image_url'] ?? '');
     $wrap_card_enabled = $api['wrap_card_enabled'] ?? false;
     // 2026-07-22 — heading layout: inline / top-left / top-center / top-right.
     $wrap_heading_layout = $api['wrap_heading_layout'] ?? 'inline';
