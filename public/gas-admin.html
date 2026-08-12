@@ -38558,6 +38558,32 @@ const promo = await fetch('/api/v1/offers/validate', {
                     });
                 }
 
+                // 2026-08-12 — Homepage panel scan. Sections that live under
+                // the Homepage tab (featured, usp, about, reviews, cta,
+                // wrap, intro…) wrap their main form in wb-${section} but
+                // keep the Position input inside #editor-homepage-${section}
+                // (the tab wrapper). Without this pass, the Position value
+                // never gets included in the save payload — server merges
+                // without it and the DB position stays whatever it was
+                // (usually null → theme uses the default position → slot
+                // collides with the next section that has the same default).
+                // Carbon Country surfaced this on 2026-08-12: Featured
+                // couldn't be moved off slot 5 to escape image-row-2.
+                const homepagePanel = document.getElementById(`editor-homepage-${section}`);
+                if (homepagePanel && homepagePanel !== originalContainer && homepagePanel !== clonedContainer && homepagePanel !== editorContainer) {
+                    homepagePanel.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
+                        const key = el.id.replace(prefix, '');
+                        if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) return;
+                        if (el.type === 'checkbox') {
+                            settings[key] = el.checked;
+                        } else if (el.type === 'file') {
+                            // Skip file inputs
+                        } else if (el.value !== undefined && el.value !== '') {
+                            settings[key] = el.value;
+                        }
+                    });
+                }
+
                 // Last-resort sweep: any contenteditable inside the panel whose
                 // sibling textarea matches our prefix and currently reads empty.
                 // Hits exotic cases (mode-toggle re-renders, late editor binds)

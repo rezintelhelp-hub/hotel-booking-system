@@ -1184,8 +1184,8 @@ for ($ir = 1; $ir <= 4; $ir++) {
     </style>
     <?php endif; ?>
     <!-- Image Row <?php echo $ir; ?> -->
-    <section class="developer-section developer-image-row" style="padding: 40px 24px; background: <?php echo esc_attr($ir_bg); ?>;">
-        <div class="developer-container" style="max-width: 1200px; margin: 0 auto;">
+    <section class="developer-section developer-image-row" style="padding: 40px 0; background: <?php echo esc_attr($ir_bg); ?>;">
+        <div class="developer-container">
             <?php if ($ir_heading) : ?>
                 <h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($ir_heading); ?></h2>
             <?php endif; ?>
