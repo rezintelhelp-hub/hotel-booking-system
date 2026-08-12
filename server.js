@@ -106142,20 +106142,41 @@ app.post('/api/public/book', async (req, res) => {
         const _depRule = await resolveDepositRule(pool,
           unit.rows[0].property_id, unit.rows[0].account_id, null, check_in, new Date());
         if (_depRule) {
-          const _pct = parseFloat(_depRule.deposit_percentage || 0);
           let _newDep = null;
-          if (_pct >= 100) {
-            _newDep = _grand;
-          } else if (_pct > 0) {
-            _newDep = Math.round(_grand * (_pct / 100) * 100) / 100;
-          } else if (_depRule.deposit_fixed_amount) {
-            _newDep = Math.min(parseFloat(_depRule.deposit_fixed_amount), _grand);
+          // 2026-08-12 — schedule-mode branch. Only fires when the operator
+          // explicitly set the payment schedule builder in the UI (currently
+          // Atlantis + GoSlopeSide). Uses the same calculator the tier-
+          // insertion path below (line 107592) already calls, so schedule +
+          // deposit charge finally agree. Roll-up honoured for bookings made
+          // inside a tier's window.
+          //
+          // Basic-mode accounts (22 of 23 with deposit rules) skip this
+          // branch entirely and run the byte-identical legacy code in the
+          // else block — provably unchanged behaviour for the majority.
+          if (_depRule.schedule_mode === 'schedule') {
+            try {
+              const _sched = calculatePaymentScheduleForBooking(_depRule, _grand, check_in, new Date().toISOString());
+              const _cn = parseFloat(_sched?.charge_now_amount);
+              if (Number.isFinite(_cn) && _cn >= 0) _newDep = Math.round(_cn * 100) / 100;
+            } catch (schedErr) {
+              console.warn('[book deposit-recompute] schedule calc failed, falling back to legacy:', schedErr.message);
+            }
+          }
+          if (_newDep === null) {
+            const _pct = parseFloat(_depRule.deposit_percentage || 0);
+            if (_pct >= 100) {
+              _newDep = _grand;
+            } else if (_pct > 0) {
+              _newDep = Math.round(_grand * (_pct / 100) * 100) / 100;
+            } else if (_depRule.deposit_fixed_amount) {
+              _newDep = Math.min(parseFloat(_depRule.deposit_fixed_amount), _grand);
+            }
           }
           if (_newDep !== null) {
             const _newBal = Math.round((_grand - _newDep) * 100) / 100;
             const _oldDep = parseFloat(deposit_amount || 0);
             if (Math.abs(_oldDep - _newDep) > 0.01) {
-              console.log(`[book deposit-recompute] booking on unit ${unit_id}: client sent deposit=${_oldDep} balance=${balance_amount}, server recomputed deposit=${_newDep} balance=${_newBal} (grand=${_grand}, rule pct=${_pct})`);
+              console.log(`[book deposit-recompute] booking on unit ${unit_id}: client sent deposit=${_oldDep} balance=${balance_amount}, server recomputed deposit=${_newDep} balance=${_newBal} (grand=${_grand}, schedule_mode=${_depRule.schedule_mode || 'basic'}, legacy pct=${_depRule.deposit_percentage})`);
             }
             deposit_amount = _newDep;
             balance_amount = _newBal;
