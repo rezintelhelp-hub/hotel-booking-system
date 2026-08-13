@@ -148431,13 +148431,19 @@ app.post('/api/page-templates/:id/push', async (req, res) => {
     let resolvedUrl = site_url;
     let resolvedAccountId = account_id;
 
-    // Allow blog_id as alternative to site_url + account_id
+    // Allow blog_id as alternative to site_url + account_id.
+    // Prefer custom_domain over site_url — for live custom-domain multisites
+    // like www.hebdenbridgehostel.org, site_url still points at the pre-cutover
+    // host, which 301-redirects to the canonical www. Node fetch follows the
+    // 301 but downgrades POST → GET, so the plugin sees no route (404 as
+    // "Failed to insert section"). Same fix as _proBuilderCanonicalSiteUrl
+    // for the save endpoint (commit e60b1e78).
     if (blog_id && (!site_url || !account_id)) {
       const siteRow = await pool.query('SELECT * FROM deployed_sites WHERE blog_id = $1', [blog_id]);
       if (siteRow.rows.length === 0) {
         return res.json({ success: false, error: 'Site not found for blog_id' });
       }
-      resolvedUrl = (siteRow.rows[0].site_url || '').replace(/\/+$/, '');
+      resolvedUrl = _proBuilderCanonicalSiteUrl(siteRow.rows[0]);
       resolvedAccountId = siteRow.rows[0].account_id;
     }
 
