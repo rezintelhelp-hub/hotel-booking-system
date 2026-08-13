@@ -24969,15 +24969,33 @@ app.get('/api/billing/gocardless/redirect-flow/complete', async (req, res) => {
 function generateSubscriptionInvoiceHtml({ invoice, account, lines, branding }) {
   const brand = branding || {};
   const brandColor = brand.primaryColor || '#10b981';
-  const brandName = brand.accountName || 'GAS';
   const brandLogo = brand.logoUrl || '';
-  const brandFooter = brand.footerText || `&copy; ${new Date().getFullYear()} GAS`;
   const fmt = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const cur = invoice.currency || 'GBP';
   const sym = cur === 'GBP' ? '£' : cur === 'EUR' ? '€' : cur === 'USD' ? '$' : (cur + ' ');
+  const esc = (s) => String(s == null ? '' : s).replace(/</g, '&lt;');
+  // GAS's own billing entity — env-driven so Steve can adjust without a
+  // redeploy. Multi-line address supported via literal \n in the env value.
+  const gas = {
+    name:    process.env.PLATFORM_INVOICE_NAME    || 'GAS',
+    address: process.env.PLATFORM_INVOICE_ADDRESS || '',
+    vat:     process.env.PLATFORM_INVOICE_VAT     || '',
+    cif:     process.env.PLATFORM_INVOICE_CIF     || '',
+    iban:    process.env.PLATFORM_INVOICE_IBAN    || '',
+    email:   process.env.PLATFORM_INVOICE_EMAIL   || '',
+    phone:   process.env.PLATFORM_INVOICE_PHONE   || '',
+  };
+  const gasAddrHtml = gas.address ? esc(gas.address).replace(/\n/g, '<br>') : '';
+  const gasMetaLines = [];
+  if (gas.vat)   gasMetaLines.push(`VAT: ${esc(gas.vat)}`);
+  if (gas.cif && gas.cif !== gas.vat) gasMetaLines.push(`CIF: ${esc(gas.cif)}`);
+  if (gas.email) gasMetaLines.push(esc(gas.email));
+  if (gas.phone) gasMetaLines.push(esc(gas.phone));
+  const gasFooter = process.env.PLATFORM_INVOICE_FOOTER
+    || `&copy; ${new Date().getFullYear()} ${esc(gas.name)}`;
   const lineRows = (lines || []).map(l => `
     <tr>
-      <td style="padding:6px 0;font-size:14px;color:#475569;">${(l.description || '').replace(/</g,'&lt;')}</td>
+      <td style="padding:6px 0;font-size:14px;color:#475569;">${esc(l.description || '')}</td>
       <td style="padding:6px 0;font-size:14px;color:#475569;text-align:right;">${sym}${parseFloat(l.amount || 0).toFixed(2)}</td>
     </tr>`).join('');
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
@@ -24987,10 +25005,24 @@ function generateSubscriptionInvoiceHtml({ invoice, account, lines, branding }) 
           <tr><td style="background:${brandColor};padding:32px 40px;text-align:center;">
             ${brandLogo ? `<img src="${brandLogo}" style="max-height:48px;max-width:180px;margin-bottom:12px;">` : ''}
             <h1 style="color:#fff;margin:0;font-size:24px;font-weight:700;">Invoice</h1>
-            <p style="color:rgba(255,255,255,0.9);margin:8px 0 0;font-size:14px;">${invoice.invoice_number || ''}</p>
+            <p style="color:rgba(255,255,255,0.9);margin:8px 0 0;font-size:14px;">${esc(invoice.invoice_number || '')}</p>
           </td></tr>
           <tr><td style="padding:24px 40px;">
-            <p style="margin:0 0 16px;color:#1e293b;font-size:14px;">Billed to <strong>${(account.name || '').replace(/</g,'&lt;')}</strong></p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+              <tr>
+                <td valign="top" style="width:50%;font-size:12px;color:#64748b;">
+                  <div style="text-transform:uppercase;font-size:10px;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">From</div>
+                  <div style="color:#1e293b;font-size:14px;font-weight:600;">${esc(gas.name)}</div>
+                  ${gasAddrHtml ? `<div style="margin-top:2px;line-height:1.5;">${gasAddrHtml}</div>` : ''}
+                  ${gasMetaLines.length ? `<div style="margin-top:6px;line-height:1.5;">${gasMetaLines.join('<br>')}</div>` : ''}
+                </td>
+                <td valign="top" style="width:50%;font-size:12px;color:#64748b;">
+                  <div style="text-transform:uppercase;font-size:10px;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Billed to</div>
+                  <div style="color:#1e293b;font-size:14px;font-weight:600;">${esc(account.name || '')}</div>
+                  ${account.billing_email || account.email ? `<div style="margin-top:2px;">${esc(account.billing_email || account.email)}</div>` : ''}
+                </td>
+              </tr>
+            </table>
             <p style="margin:0 0 4px;color:#64748b;font-size:13px;">Period: ${fmt(invoice.period_start)} → ${fmt(invoice.period_end)}</p>
             <p style="margin:0 0 16px;color:#64748b;font-size:13px;">Due: ${invoice.due_date ? fmt(invoice.due_date) : 'On receipt'}</p>
             <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">
@@ -25014,13 +25046,16 @@ function generateSubscriptionInvoiceHtml({ invoice, account, lines, branding }) 
                 return 'Direct Debit will be collected from your registered bank account.';
               }
               if (st === 'paid') return 'Paid. Thank you.';
-              return invoice.due_date
-                ? `Payment due by ${fmt(invoice.due_date)}. Reply to this email for payment instructions.`
-                : 'Please reply to this email for payment instructions.';
+              const dueLine = invoice.due_date
+                ? `Payment due by ${fmt(invoice.due_date)}.`
+                : 'Please pay on receipt.';
+              const ibanLine = gas.iban ? ` Please transfer to IBAN <strong>${esc(gas.iban)}</strong>.` : '';
+              const emailLine = gas.email ? ` Questions? ${esc(gas.email)}` : '';
+              return dueLine + ibanLine + emailLine;
             })()}</p>
           </td></tr>
         </table>
-        <p style="text-align:center;margin-top:16px;font-size:12px;color:#94a3b8;">${brandFooter}</p>
+        <p style="text-align:center;margin-top:16px;font-size:12px;color:#94a3b8;">${gasFooter}</p>
       </td></tr>
     </table>
   </body></html>`;
@@ -25031,7 +25066,7 @@ function generateSubscriptionInvoiceHtml({ invoice, account, lines, branding }) 
 // an array of { description, amount }.
 async function issueSubscriptionInvoice({ accountId, periodStart, periodEnd, currency, lines, dueDate }) {
   const acctR = await pool.query(
-    'SELECT id, name, email, billing_currency, next_invoice_number FROM accounts WHERE id = $1 FOR UPDATE',
+    'SELECT id, name, email, billing_email, billing_currency, next_invoice_number FROM accounts WHERE id = $1 FOR UPDATE',
     [accountId]
   );
   if (!acctR.rows[0]) throw new Error('Account not found');
