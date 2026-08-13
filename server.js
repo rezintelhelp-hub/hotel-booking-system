@@ -76344,6 +76344,130 @@ const REPORTS_REGISTRY = {
     },
   },
 
+  // 2026-08-13 — Hebden asked for a report separating CASH received
+  // (when the guest paid) from REVENUE recognised (when they actually
+  // stayed). Deposits collected months before check-in sit as deferred
+  // revenue (a liability) until the stay happens — then flip to real
+  // sales. Cancellations either refund the cash (money out) or forfeit
+  // it (revenue on cancel date). This report gives the accountant the
+  // per-booking view of that split at any "as-of" date.
+  'cash-vs-sales': {
+    slug: 'cash-vs-sales',
+    name: 'Cash vs Sales (Deferred Revenue)',
+    description: 'Per-booking view: total cash received, when it was received, the arrival month it becomes revenue, and how much is still sitting as deferred revenue (liability) as of the chosen date. Cash received BEFORE arrival = deferred. Once the guest checks in, it flips to recognised revenue. Filter by arrival window + as-of date to reconcile Aug 2026 sales vs cash-in etc.',
+    category: 'Cashflow',
+    joanne: '#15',
+    params: [
+      { key: 'as_of',       type: 'date', required: false, label: 'As-of date (default today)' },
+      { key: 'from',        type: 'date', required: true,  label: 'Arrival from' },
+      { key: 'to',          type: 'date', required: true,  label: 'Arrival to' },
+      { key: 'property_id', type: 'property_picker', required: false, label: 'Property' },
+      { key: 'room_id',     type: 'room_picker',     required: false, label: 'Room' },
+      { key: 'include_cancelled', type: 'enum', required: false, label: 'Include cancelled?',
+        default: 'no', options: [ { value: 'no', label: 'No (confirmed only)' }, { value: 'yes', label: 'Yes (show cancelled too)' } ] },
+    ],
+    columns: [
+      { key: 'booking_ref',       label: 'Booking',        format: 'text' },
+      { key: 'guest_name',        label: 'Guest',          format: 'text' },
+      { key: 'unit_name',         label: 'Room',           format: 'text' },
+      { key: 'arrival_date',      label: 'Arrival',        format: 'date' },
+      { key: 'sale_month',        label: 'Sale Month',     format: 'text' },
+      { key: 'status',            label: 'Status',         format: 'text' },
+      { key: 'currency',          label: 'Cur.',           format: 'text' },
+      { key: 'total_amount',      label: 'Total',          format: 'currency', align: 'right' },
+      { key: 'cash_received',     label: 'Cash Received',  format: 'currency', align: 'right' },
+      { key: 'first_payment_at',  label: 'Cash In (first)',format: 'date' },
+      { key: 'last_payment_at',   label: 'Cash In (last)', format: 'date' },
+      { key: 'revenue_recognised',label: 'Revenue Recognised', format: 'currency', align: 'right' },
+      { key: 'deferred',          label: 'Deferred (liability)', format: 'currency', align: 'right' },
+    ],
+    summary: { aggregates: ['total_amount', 'cash_received', 'revenue_recognised', 'deferred'] },
+    sql: ({ accountId, params }) => {
+      const args = [accountId, params.as_of || new Date().toISOString().slice(0,10), params.from, params.to];
+      let propFilter = '';
+      if (params.property_id) {
+        args.push(parseInt(params.property_id));
+        propFilter = `AND b.property_id = $${args.length}`;
+      }
+      let roomFilter = '';
+      if (params.room_id) {
+        args.push(parseInt(params.room_id));
+        roomFilter = `AND b.bookable_unit_id = $${args.length}`;
+      }
+      const includeCancelled = (params.include_cancelled === 'yes' || params.include_cancelled === true);
+      const statusFilter = includeCancelled
+        ? `AND b.status IN ('confirmed','checked_in','checked_out','cancelled')`
+        : `AND b.status IN ('confirmed','checked_in','checked_out')`;
+      return {
+        sql: `
+          -- Cash = SUM of succeeded payment_transactions up to as-of date.
+          -- Same source of truth as advance-bookings-paid so numbers agree.
+          -- Also capture first + last payment date so the operator can see
+          -- when the £X actually landed (June deposit? August balance?).
+          WITH paid AS (
+            SELECT booking_id,
+                   SUM(amount)::numeric(14,2) AS paid_amount,
+                   MIN(COALESCE(completed_at, created_at)) AS first_at,
+                   MAX(COALESCE(completed_at, created_at)) AS last_at
+            FROM payment_transactions
+            WHERE account_id = $1
+              AND status IN ('succeeded','completed')
+              AND transaction_type IN ('payment','deposit','balance','charge','capture')
+              AND COALESCE(completed_at, created_at) <= $2::date + INTERVAL '1 day'
+            GROUP BY booking_id
+          )
+          SELECT
+            'GAS-' || b.id                                                AS booking_ref,
+            COALESCE(NULLIF(TRIM(b.guest_first_name || ' ' || b.guest_last_name), ''), '(no name)') AS guest_name,
+            COALESCE(bu.display_name->>'en', bu.name, '—')                AS unit_name,
+            to_char(b.arrival_date, 'YYYY-MM-DD')                         AS arrival_date,
+            to_char(b.arrival_date, 'YYYY-MM')                            AS sale_month,
+            b.status                                                      AS status,
+            COALESCE(b.currency, p.currency, '')                          AS currency,
+            COALESCE(b.total_amount, b.grand_total, 0)::numeric(14,2)     AS total_amount,
+            COALESCE(paid.paid_amount, 0)::numeric(14,2)                  AS cash_received,
+            to_char(paid.first_at, 'YYYY-MM-DD')                          AS first_payment_at,
+            to_char(paid.last_at,  'YYYY-MM-DD')                          AS last_payment_at,
+            -- Revenue recognised: booking must have arrived on/before as-of
+            -- AND be confirmed (not cancelled). Otherwise 0.
+            CASE WHEN b.arrival_date::date <= $2::date
+                      AND b.status IN ('confirmed','checked_in','checked_out')
+                 THEN COALESCE(b.total_amount, b.grand_total, 0)
+                 ELSE 0
+            END::numeric(14,2)                                            AS revenue_recognised,
+            -- Deferred: cash sitting in the bank that hasn't been earned yet.
+            -- = cash_received  MINUS  revenue_recognised (floored at 0).
+            GREATEST(
+              COALESCE(paid.paid_amount, 0)
+              - CASE WHEN b.arrival_date::date <= $2::date
+                          AND b.status IN ('confirmed','checked_in','checked_out')
+                     THEN COALESCE(b.total_amount, b.grand_total, 0)
+                     ELSE 0
+                END,
+              0
+            )::numeric(14,2)                                              AS deferred
+          FROM bookings b
+          JOIN properties p ON p.id = b.property_id
+          LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
+          LEFT JOIN paid ON paid.booking_id = b.id
+          WHERE p.account_id = $1
+            AND b.arrival_date::date BETWEEN $3::date AND $4::date
+            AND b.parent_booking_id IS NULL       -- exclude companion child bookings
+            ${statusFilter}
+            ${propFilter}
+            ${roomFilter}
+            -- Only show bookings that have some cash movement OR that recognised
+            -- revenue in the window. Skips £0 blocks + hasn't-paid-yet rows.
+            AND (COALESCE(paid.paid_amount, 0) > 0
+                 OR (b.arrival_date::date <= $2::date AND b.status IN ('confirmed','checked_in','checked_out')))
+          ORDER BY b.arrival_date, b.id
+          LIMIT 5000
+        `,
+        args,
+      };
+    },
+  },
+
   'reviews-repuso': {
     slug: 'reviews-repuso',
     name: 'Guest Reviews',
