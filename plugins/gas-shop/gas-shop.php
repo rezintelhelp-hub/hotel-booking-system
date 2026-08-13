@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.6.3
+ * Version: 1.6.4
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -340,7 +340,18 @@ class GAS_Shop {
                     // Gift certs: buyer picks the value at the detail page, no card price.
                     echo '<div class="gas-shop-card-price" style="font-size:0.95rem">From any amount &rarr;</div>';
                 } elseif ((float)$p['price'] > 0) {
-                    echo '<div class="gas-shop-card-price">'.$curr.' '.$price.'</div>';
+                    // 2026-08-13 — if this product has variants (sizes /
+                    // options), show "From £X" so the grid reads as a
+                    // starting price, not a fixed one. Price already =
+                    // min variant (auto-filled by the admin save).
+                    $gridVariants = $p['variants'] ?? array();
+                    if (is_string($gridVariants)) { $decoded = json_decode($gridVariants, true); $gridVariants = is_array($decoded) ? $decoded : array(); }
+                    $hasVariants = is_array($gridVariants) && count(array_filter($gridVariants, function($v) { return is_array($v) && !empty($v['label']) && isset($v['price']); })) > 0;
+                    if ($hasVariants) {
+                        echo '<div class="gas-shop-card-price">From '.$curr.' '.$price.'</div>';
+                    } else {
+                        echo '<div class="gas-shop-card-price">'.$curr.' '.$price.'</div>';
+                    }
                 }
                 // Booking Add-on grid hint — signals the "sold with a room" flow
                 // before the click so the guest knows this needs a stay.

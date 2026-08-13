@@ -118453,7 +118453,21 @@ const promo = await fetch('/api/v1/offers/validate', {
             const allowCustom = document.getElementById('shop-product-gift-allow-custom').checked;
             if (!presets && !allowCustom) { showNotification('Add at least one preset value or enable custom amount', 'error'); return; }
         } else {
-            if (!price || parseFloat(price) < 0) { showNotification('Valid price is required', 'error'); return; }
+            // 2026-08-13 — when variants (sizes / options) are defined, they
+            // ARE the pricing. Base price becomes an auto-filled "from" price
+            // (min of variants) so the shop grid card still shows a number.
+            // If the operator entered a specific base price, respect it.
+            const _variants = _collectShopVariants();
+            if (_variants.length > 0) {
+                if (!price || parseFloat(price) <= 0) {
+                    const minP = Math.min.apply(null, _variants.map(v => v.price));
+                    price = minP.toFixed(2);
+                    // Reflect it in the form so the operator sees the derived value.
+                    document.getElementById('shop-product-price').value = price;
+                }
+            } else {
+                if (!price || parseFloat(price) < 0) { showNotification('Enter a price, or add at least one size/option below', 'error'); return; }
+            }
         }
 
         const formData = new FormData();
