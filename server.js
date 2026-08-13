@@ -2857,6 +2857,15 @@ async function runMigrations() {
       // booking hits /api/public/book. Barbara's guest hit a 500 because the
       // column was only added on Beds24 link — now it's guaranteed on boot.
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS same_day_cutoff_time TIME DEFAULT NULL`);
+      // Platform billing — accounts-dept invoice recipient + per-send audit.
+      // MUST live in runMigrations() (not inside a per-request handler): the
+      // Mandate Detail endpoint SELECTs billing_email on any GET, so it has
+      // to exist BEFORE first request after a fresh deploy. Prior placement
+      // inside link-to-gas caused 'column billing_email does not exist' 500s
+      // (fixed in the same commit that moved this here).
+      await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_email VARCHAR(255)`);
+      await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS sent_to VARCHAR(500)`);
+      await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS sent_cc VARCHAR(500)`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS min_advance_hours INTEGER DEFAULT NULL`);
       // Multi-room manual bookings — Steve 2026-07-12. All rooms in a single
       // '+ Add another room' group share this UUID so the Booking Detail /
@@ -8540,13 +8549,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS manually_paid_at TIMESTAMPTZ`).catch(() => {});
           await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS manually_paid_method VARCHAR(30)`).catch(() => {});
           await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS manually_paid_note VARCHAR(500)`).catch(() => {});
-          // Billing recipient (accounts dept) + per-invoice send audit
-          // (commit 4a5ff727 shipped these as accounts-PUT-scoped migrations,
-          // but Mandate Detail SELECTs billing_email on any GET → boot-time
-          // migration required so a fresh deploy doesn't 500).
-          await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_email VARCHAR(255)`).catch(() => {});
-          await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS sent_to VARCHAR(500)`).catch(() => {});
-          await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS sent_cc VARCHAR(500)`).catch(() => {});
 
           // Operator-typed reference code (EasyLandlord 2026-06-08).
           // Operators put whatever identifier they use for support — usually
