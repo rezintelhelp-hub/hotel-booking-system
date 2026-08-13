@@ -25157,6 +25157,79 @@ const promo = await fetch('/api/v1/offers/validate', {
         </div>
     </div>
 
+    <!-- One-off Invoice Modal — Estate Overview → client detail. Issues a
+         GAS-branded invoice + (optionally) pulls DD via GoCardless in one
+         click. Recipient defaults to accounts.billing_email (falls back to
+         accounts.email); operator can override + add CCs at send time. -->
+    <div id="oneOffInvoiceModal" class="modal">
+        <div class="modal-content" style="max-width: 560px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.15rem;">🧾 New one-off invoice</h3>
+                    <div id="ooi-account-name" style="font-size: 0.85rem; opacity: 0.9; margin-top: 0.25rem;"></div>
+                </div>
+                <button class="modal-close" onclick="closeModal('oneOffInvoiceModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.25rem;">
+                <input type="hidden" id="ooi-account-id">
+
+                <div class="form-group" style="margin-bottom: 0.85rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600;">Description *</label>
+                    <input type="text" id="ooi-description" class="form-input" placeholder="e.g. Additional development time — August 2026" style="padding: 0.55rem;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 130px; gap: 0.5rem; margin-bottom: 0.85rem;">
+                    <div>
+                        <label style="font-size: 0.85rem; font-weight: 600;">Amount *</label>
+                        <input type="number" id="ooi-amount" class="form-input" step="0.01" min="0.01" placeholder="200.00" style="padding: 0.55rem;">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.85rem; font-weight: 600;">Currency</label>
+                        <select id="ooi-currency" class="form-input" style="padding: 0.55rem;">
+                            <option value="GBP">£ GBP</option>
+                            <option value="EUR">€ EUR</option>
+                            <option value="USD">$ USD</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="ooi-mandate-row" class="form-group" style="margin-bottom: 0.85rem; display:none;">
+                    <label style="font-size: 0.85rem; font-weight: 600;">GoCardless mandate</label>
+                    <select id="ooi-mandate" class="form-input" style="padding: 0.55rem;"></select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.85rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600;">Send invoice to *</label>
+                    <input type="email" id="ooi-send-to" class="form-input" placeholder="accounts@company.com" style="padding: 0.55rem;">
+                    <div id="ooi-send-to-hint" style="font-size: 0.72rem; color: #64748b; margin-top: 0.25rem;"></div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600;">CC <span style="color:#64748b;font-weight:400;">(optional, comma-separated)</span></label>
+                    <input type="text" id="ooi-cc" class="form-input" placeholder="e.g. steve@rezintel.com, ops@company.com" style="padding: 0.55rem;">
+                </div>
+
+                <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:0.75rem; margin-bottom: 1rem;">
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; margin-bottom:0.5rem; font-weight:600; color:#065f46;">
+                        <input type="checkbox" id="ooi-charge" checked>
+                        ⚡ Charge now via GoCardless (Direct Debit)
+                    </label>
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:600; color:#065f46;">
+                        <input type="checkbox" id="ooi-email" checked>
+                        ✉ Email invoice to billing contact
+                    </label>
+                </div>
+
+                <div id="ooi-result" style="font-size:0.85rem; margin-bottom: 0.75rem;"></div>
+
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end; padding-top: 0.75rem; border-top: 1px solid #e2e8f0;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('oneOffInvoiceModal')">Cancel</button>
+                    <button type="button" class="btn" style="background:#059669;color:white;" onclick="submitOneOffInvoice()">Issue invoice</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Assign Plan Modal -->
     <div id="assignPlanModal" class="modal">
         <div class="modal-content" style="max-width: 450px; border-radius: 16px;">
@@ -29255,7 +29328,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <div style="font-size: 0.72rem; color: #64748b; margin-top: 0.25rem;">Guests replying to booking confirmations land here. Falls back to the account Email if unset.</div>
                             </div>
                         </div>
-                        
+
+                        <div style="display: grid; grid-template-columns: 1fr; gap: 0.75rem; margin-top: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;" title="Where GAS-issued invoices are emailed. Editable per-invoice at send time. Leave blank to use the account Email above.">Billing Email <span style="color: #64748b; font-weight: normal;">(accounts dept)</span></label>
+                                <input type="email" id="account-billing-email" class="form-input" placeholder="e.g. accounts@company.com — falls back to account Email" style="padding: 0.5rem;">
+                                <div style="font-size: 0.72rem; color: #64748b; margin-top: 0.25rem;">GAS-issued invoices default to this address. Falls back to the account Email if unset. Editable + CC on each invoice send.</div>
+                            </div>
+                        </div>
+
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.75rem;">
                             <div class="form-group" style="margin: 0;">
                                 <label style="font-size: 0.8rem;">Default Currency</label>
@@ -47592,6 +47673,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('account-email').value = account.email || '';
                     const _replyTo = document.getElementById('account-reply-to-email');
                     if (_replyTo) _replyTo.value = account.reply_to_email || '';
+                    const _billingEmail = document.getElementById('account-billing-email');
+                    if (_billingEmail) _billingEmail.value = account.billing_email || '';
                     document.getElementById('account-phone').value = account.phone || '';
                     const _waEl = document.getElementById('account-contact-whatsapp');
                     if (_waEl) _waEl.value = account.contact_whatsapp || '';
@@ -47917,6 +48000,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 contact_name: document.getElementById('account-contact-name').value,
                 email: document.getElementById('account-email').value,
                 reply_to_email: document.getElementById('account-reply-to-email')?.value || null,
+                billing_email: document.getElementById('account-billing-email')?.value || null,
                 phone: document.getElementById('account-phone').value,
                 contact_whatsapp: document.getElementById('account-contact-whatsapp')?.value || null,
                 address_line1: document.getElementById('account-address1').value,
@@ -108492,7 +108576,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <button class="btn btn-sm" onclick="backfillGoCardlessInvoices(${accountId})">Backfill invoices from GC history</button>
                 </h4>
                 ${paymentsTable}
-                <h4 style="margin:1.25rem 0 0.5rem;color:#1e293b;font-size:0.95rem;">GAS Invoices Issued</h4>
+                <h4 style="margin:1.25rem 0 0.5rem;color:#1e293b;font-size:0.95rem;display:flex;justify-content:space-between;align-items:center;">
+                    GAS Invoices Issued
+                    <button class="btn btn-sm" style="background:#059669;color:white;" onclick='openOneOffInvoiceModal(${JSON.stringify({
+                        accountId,
+                        accountName: data.account.name || '',
+                        currency: data.account.billing_currency || 'GBP',
+                        billingEmail: data.account.billing_email || '',
+                        accountEmail: data.account.email || '',
+                        mandates: (data.mandates || []).map(m => ({ mandate_id: m.mandate_id, label: m.label || m.scheme || m.mandate_id, is_default: !!m.is_default })),
+                    }).replace(/'/g, "&#39;")})'>+ New one-off invoice</button>
+                </h4>
                 ${invoicesTable}
                 <!-- 2026-08-06 — Billing Reconciliation panel. Loads on demand via
                      the button so a failure here can't break the sections above.
@@ -109161,15 +109255,122 @@ const promo = await fetch('/api/v1/offers/validate', {
             finally { if (btn) { btn.disabled = false; btn.textContent = 'Backfill invoices from GC history'; } }
         }
         async function sendGoCardlessInvoice(invoiceId, accountId) {
-            if (!confirm('Email this invoice to the account contact now?')) return;
+            // Small prompt so operator can override recipient + add CCs even
+            // for a re-send of an already-issued invoice (matches the create
+            // flow's Send-to + CC fields).
+            const to = prompt('Send invoice to (leave blank to use account billing email):', '');
+            if (to === null) return;
+            const cc = prompt('CC (optional, comma-separated):', '') || '';
             try {
                 const r = await fetch('/api/billing/gocardless/invoice/' + invoiceId + '/send', {
-                    method: 'POST', headers: authHeaders()
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ to: to.trim() || undefined, cc: cc.trim() || undefined }),
                 });
                 const data = await r.json();
                 if (!data.success) { alert('Send failed: ' + (data.error || 'unknown')); return; }
                 openGoCardlessAccountDetail(accountId);
             } catch (e) { alert('Network error: ' + e.message); }
+        }
+
+        // Estate Overview → client detail → "+ New one-off invoice".
+        // ctx: { accountId, accountName, currency, billingEmail, accountEmail,
+        //        mandates: [{mandate_id, label, is_default}] }
+        function openOneOffInvoiceModal(ctx) {
+            document.getElementById('ooi-account-id').value = ctx.accountId;
+            document.getElementById('ooi-account-name').textContent = ctx.accountName ? `${ctx.accountName}` : '';
+            document.getElementById('ooi-description').value = '';
+            document.getElementById('ooi-amount').value = '';
+            const curSel = document.getElementById('ooi-currency');
+            curSel.value = ['GBP','EUR','USD'].includes(ctx.currency) ? ctx.currency : 'GBP';
+            // Mandate picker only if 2+ mandates exist; single mandate = server default.
+            const mandRow = document.getElementById('ooi-mandate-row');
+            const mandSel = document.getElementById('ooi-mandate');
+            if (Array.isArray(ctx.mandates) && ctx.mandates.length >= 2) {
+                mandSel.innerHTML = ctx.mandates.map(m => `<option value="${m.mandate_id}"${m.is_default ? ' selected' : ''}>${(m.label || m.mandate_id).replace(/</g,'&lt;')}${m.is_default ? ' (default)' : ''}</option>`).join('');
+                mandRow.style.display = '';
+            } else {
+                mandSel.innerHTML = '';
+                mandRow.style.display = 'none';
+            }
+            const to = ctx.billingEmail || ctx.accountEmail || '';
+            document.getElementById('ooi-send-to').value = to;
+            const hint = document.getElementById('ooi-send-to-hint');
+            if (ctx.billingEmail) hint.textContent = 'Prefilled from account Billing Email. Edit for this invoice only.';
+            else if (ctx.accountEmail) hint.textContent = 'No Billing Email set on the account — falling back to account Email. Save a Billing Email on the account to change the default.';
+            else hint.textContent = 'No email on this account. Type one now, or set Billing Email on the account.';
+            document.getElementById('ooi-cc').value = '';
+            document.getElementById('ooi-charge').checked = Array.isArray(ctx.mandates) && ctx.mandates.length > 0;
+            document.getElementById('ooi-email').checked = true;
+            document.getElementById('ooi-result').innerHTML = '';
+            openModal('oneOffInvoiceModal');
+        }
+
+        async function submitOneOffInvoice() {
+            const accountId = parseInt(document.getElementById('ooi-account-id').value, 10);
+            const description = document.getElementById('ooi-description').value.trim();
+            const amount = parseFloat(document.getElementById('ooi-amount').value);
+            const currency = document.getElementById('ooi-currency').value;
+            const mandRow = document.getElementById('ooi-mandate-row');
+            const mandateId = mandRow.style.display !== 'none' ? (document.getElementById('ooi-mandate').value || null) : null;
+            const sendTo = document.getElementById('ooi-send-to').value.trim();
+            const cc = document.getElementById('ooi-cc').value.trim();
+            const charge = document.getElementById('ooi-charge').checked;
+            const emailIt = document.getElementById('ooi-email').checked;
+            const result = document.getElementById('ooi-result');
+
+            if (!accountId) { result.innerHTML = '<span style="color:#dc2626;">Missing account id.</span>'; return; }
+            if (!description) { result.innerHTML = '<span style="color:#dc2626;">Description is required.</span>'; return; }
+            if (!(amount > 0)) { result.innerHTML = '<span style="color:#dc2626;">Amount must be greater than zero.</span>'; return; }
+            if (emailIt && !sendTo) { result.innerHTML = '<span style="color:#dc2626;">Send-to email is required (or untick "Email invoice").</span>'; return; }
+
+            result.innerHTML = '<span style="color:#6b7280;">Issuing invoice…</span>';
+            try {
+                const issueBody = {
+                    account_id: accountId,
+                    lines: [{ description, amount }],
+                    currency,
+                    charge,
+                };
+                if (mandateId) issueBody.mandate_id = mandateId;
+                const r1 = await fetch('/api/billing/gocardless/invoice/issue', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify(issueBody),
+                });
+                const d1 = await r1.json();
+                if (!d1.success) {
+                    result.innerHTML = `<span style="color:#dc2626;">Issue failed: ${(d1.error || 'unknown').replace(/</g,'&lt;')}</span>`;
+                    return;
+                }
+                const invoiceId = d1.invoice_id;
+                const bits = [`Invoice <strong>${d1.invoice_number}</strong> issued (${d1.currency} ${parseFloat(d1.amount).toFixed(2)})`];
+                if (charge && d1.charge && d1.charge.payment_id) bits.push(`— DD charge queued (${d1.charge.payment_id})`);
+                else if (charge && d1.charge && d1.charge.skipped) bits.push(`— DD skipped (${d1.charge.reason})`);
+                result.innerHTML = `<span style="color:#059669;">✔ ${bits.join(' ')}</span>`;
+
+                if (emailIt) {
+                    result.innerHTML += '<br><span style="color:#6b7280;">Sending email…</span>';
+                    const r2 = await fetch(`/api/billing/gocardless/invoice/${invoiceId}/send`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ to: sendTo, cc: cc || undefined }),
+                    });
+                    const d2 = await r2.json();
+                    if (!d2.success) {
+                        result.innerHTML += `<br><span style="color:#dc2626;">Email failed: ${(d2.error || 'unknown').replace(/</g,'&lt;')}</span>`;
+                    } else {
+                        const ccMsg = (d2.cc && d2.cc.length) ? ` (cc: ${d2.cc.join(', ')})` : '';
+                        result.innerHTML += `<br><span style="color:#059669;">✉ Emailed to ${d2.to}${ccMsg}</span>`;
+                    }
+                }
+                setTimeout(() => {
+                    closeModal('oneOffInvoiceModal');
+                    openGoCardlessAccountDetail(accountId);
+                }, 1500);
+            } catch (e) {
+                result.innerHTML = `<span style="color:#dc2626;">Network error: ${e.message}</span>`;
+            }
         }
         async function syncGoCardlessSubscriptions(accountId) {
             try {

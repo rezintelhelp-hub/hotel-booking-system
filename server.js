@@ -24366,7 +24366,7 @@ app.put('/api/accounts/:id', async (req, res) => {
       vat_number, company_reg, vat_enabled, vat_rate, beds24_billing_enabled, website_billing_enabled,
       billing_currency, managed_by_id,
       preferred_contact_channel, contact_whatsapp,
-      booking_cc_email, reply_to_email
+      booking_cc_email, reply_to_email, billing_email
     } = req.body;
 
     // Ensure columns exist
@@ -24375,7 +24375,14 @@ app.put('/api/accounts/:id', async (req, res) => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS default_currency VARCHAR(10)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS booking_cc_email VARCHAR(255)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS reply_to_email VARCHAR(255)`).catch(() => {});
-    
+    // billing_email — where GAS-issued invoices go (accounts dept). Falls
+    // back to accounts.email when unset. Editable per-invoice at send time.
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_email VARCHAR(255)`).catch(() => {});
+    // Invoice send audit — captures the actual recipient + CC used so the
+    // operator can prove where a given invoice was delivered.
+    await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS sent_to VARCHAR(500)`).catch(() => {});
+    await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS sent_cc VARCHAR(500)`).catch(() => {});
+
     // Build dynamic update query
     const updates = [];
     const values = [];
@@ -24412,6 +24419,10 @@ app.put('/api/accounts/:id', async (req, res) => {
     if (reply_to_email !== undefined) {
       updates.push(`reply_to_email = $${paramIndex++}`);
       values.push((reply_to_email || '').trim() || null);
+    }
+    if (billing_email !== undefined) {
+      updates.push(`billing_email = $${paramIndex++}`);
+      values.push((billing_email || '').trim() || null);
     }
     if (contact_name !== undefined) {
       updates.push(`contact_name = $${paramIndex++}`);
@@ -24984,7 +24995,20 @@ function generateSubscriptionInvoiceHtml({ invoice, account, lines, branding }) 
             </table>
           </td></tr>
           <tr><td style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
-            <p style="margin:0;color:#64748b;font-size:13px;">Direct Debit will be collected from your registered bank account.</p>
+            <p style="margin:0;color:#64748b;font-size:13px;">${(function(){
+              const st = String(invoice.status || '').toLowerCase();
+              if (st === 'paid' && invoice.manually_paid_at) {
+                const method = invoice.manually_paid_method ? String(invoice.manually_paid_method).replace(/</g,'&lt;') : 'manual payment';
+                return `Paid via ${method} on ${fmt(invoice.manually_paid_at)}. Thank you.`;
+              }
+              if (invoice.gocardless_payment_id) {
+                return 'Direct Debit will be collected from your registered bank account.';
+              }
+              if (st === 'paid') return 'Paid. Thank you.';
+              return invoice.due_date
+                ? `Payment due by ${fmt(invoice.due_date)}. Reply to this email for payment instructions.`
+                : 'Please reply to this email for payment instructions.';
+            })()}</p>
           </td></tr>
         </table>
         <p style="text-align:center;margin-top:16px;font-size:12px;color:#94a3b8;">${brandFooter}</p>
@@ -25380,7 +25404,7 @@ app.get('/api/billing/gocardless/account/:id/detail', async (req, res) => {
     if (!accountId) return res.json({ success: false, error: 'account_id required' });
 
     const acctR = await pool.query(
-      `SELECT id, name, email, billing_currency, billing_method, gocardless_mandate_id, gocardless_customer_id
+      `SELECT id, name, email, billing_email, billing_currency, billing_method, gocardless_mandate_id, gocardless_customer_id
        FROM accounts WHERE id = $1`,
       [accountId]
     );
@@ -25665,33 +25689,56 @@ app.post('/api/billing/gocardless/invoice/:id/mark-paid-manual', async (req, res
 });
 
 // POST /api/billing/gocardless/invoice/:id/send
-// Emails the stored invoice_html to the account's email. Records sent_at
-// so the UI can show "Sent" instead of "Send".
+// Emails the stored invoice_html. Recipient resolution (in order):
+//   1. body.to (operator-typed override, always wins)
+//   2. accounts.billing_email (dedicated accounts-dept address)
+//   3. accounts.email (fallback)
+// CC recipients accepted as body.cc (string, comma-separated, or array).
+// Records sent_at, sent_to and sent_cc so the operator can prove where a
+// given invoice landed.
 app.post('/api/billing/gocardless/invoice/:id/send', async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT i.*, a.name as account_name, a.email as account_email
+      `SELECT i.*, a.name as account_name, a.email as account_email, a.billing_email as account_billing_email
        FROM gas_billing_invoices i JOIN accounts a ON i.account_id = a.id
        WHERE i.id = $1`,
       [req.params.id]
     );
     if (!r.rows[0]) return res.json({ success: false, error: 'Invoice not found' });
     const inv = r.rows[0];
-    const toEmail = req.body?.to || inv.account_email;
-    if (!toEmail) return res.json({ success: false, error: 'No recipient email on the account' });
+    const toEmail = (req.body?.to || '').toString().trim()
+      || inv.account_billing_email
+      || inv.account_email;
+    if (!toEmail) return res.json({ success: false, error: 'No recipient email — set a Billing email on the account or pass `to` in the request.' });
     if (!inv.invoice_html) return res.json({ success: false, error: 'Invoice has no rendered HTML' });
+
+    // CC — accept string ("a@x, b@y") or array (["a@x","b@y"]). Trim,
+    // drop blanks, de-dup. Never CC the same address we're TO'ing.
+    let ccList = [];
+    if (Array.isArray(req.body?.cc)) {
+      ccList = req.body.cc.map(v => String(v || '').trim()).filter(Boolean);
+    } else if (typeof req.body?.cc === 'string') {
+      ccList = req.body.cc.split(',').map(v => v.trim()).filter(Boolean);
+    }
+    const toLower = toEmail.toLowerCase();
+    ccList = [...new Set(ccList.filter(v => v.toLowerCase() !== toLower))];
 
     const branding = await getEmailBranding(pool, inv.account_id, null).catch(() => ({}));
     const fromName = branding.fromName || 'GAS Billing';
     const fromEmail = branding.fromEmail || EMAIL_FROM;
-    await sendEmail({
+    const sendPayload = {
       to: toEmail,
       from: `${fromName} <${fromEmail}>`,
       subject: `Invoice ${inv.invoice_number} — ${(inv.currency || 'GBP')} ${parseFloat(inv.amount).toFixed(2)}`,
       html: inv.invoice_html
-    });
-    await pool.query('UPDATE gas_billing_invoices SET sent_at = NOW() WHERE id = $1', [inv.id]);
-    res.json({ success: true, to: toEmail });
+    };
+    if (ccList.length) sendPayload.cc = ccList;
+    await sendEmail(sendPayload);
+    await pool.query(
+      'UPDATE gas_billing_invoices SET sent_at = NOW(), sent_to = $2, sent_cc = $3 WHERE id = $1',
+      [inv.id, toEmail.slice(0, 500), ccList.join(', ').slice(0, 500) || null]
+    );
+    res.json({ success: true, to: toEmail, cc: ccList });
   } catch (e) {
     console.error('[gc invoice send]', e.message);
     res.status(500).json({ success: false, error: e.message });
