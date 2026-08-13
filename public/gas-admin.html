@@ -4185,7 +4185,7 @@
                 <div style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
                     <label for="reports-picker" style="font-weight: 600; color: #475569;">Report:</label>
                     <select id="reports-picker" onchange="switchReportsTab(this.value)" class="form-input" style="min-width: 340px; font-weight: 500;">
-                        <option value="booking-ledger">Booking Ledger</option>
+                        <option value="booking-ledger">All Bookings</option>
                     </select>
                     <span id="reports-picker-joanne" style="color:#94a3b8; font-size:0.85rem; font-style:italic;"></span>
                 </div>
@@ -68827,12 +68827,15 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             // Booking Ledger sits at the top, outside any group, since it
             // predates the framework.
-            let html = '<option value="booking-ledger">Booking Ledger</option>';
+            // 2026-08-13 — Hidden the #N (joanne) suffix from the dropdown
+            // display so names read cleanly. Still stored in rep.joanne on
+            // the row/spec so accountant workflows that reference the numbers
+            // can pick them up elsewhere (kept in updateReportsPickerSubLabel).
+            let html = '<option value="booking-ledger">All Bookings</option>';
             for (const cat of categories) {
                 html += `<optgroup label="${cat}">`;
                 for (const rep of byCategory[cat].sort((a, b) => a.name.localeCompare(b.name))) {
-                    const suffix = rep.joanne ? ` ${rep.joanne}` : '';
-                    html += `<option value="${rep.slug}" title="${(rep.description || '').replace(/"/g, '&quot;')}">${rep.name}${suffix}</option>`;
+                    html += `<option value="${rep.slug}" title="${(rep.description || '').replace(/"/g, '&quot;')}">${rep.name}</option>`;
                 }
                 html += '</optgroup>';
             }

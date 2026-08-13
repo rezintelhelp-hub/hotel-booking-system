@@ -75087,7 +75087,7 @@ app.get('/api/admin/bookings', async (req, res) => {
 const REPORTS_REGISTRY = {
   'advance-bookings-paid': {
     slug: 'advance-bookings-paid',
-    name: 'Advance Bookings Paid (deferred liability)',
+    name: 'Money taken for future stays',
     description: 'Direct bookings where deposit or balance has been received but the guest has not yet checked in. Until check-in, this money is a liability on the balance sheet, not revenue. OTA bookings excluded — those settle post-stay so they create no deferred liability.',
     category: 'Cashflow',
     joanne: '#2',
@@ -75182,7 +75182,7 @@ const REPORTS_REGISTRY = {
 
   'revenue-net-ota': {
     slug: 'revenue-net-ota',
-    name: 'Revenue Net of OTA Commissions',
+    name: 'Revenue after OTA fees',
     description: 'Monthly revenue with OTA commission stripped out, showing the operator-net figure. Commissions are channel-default (Booking.com 15%, Airbnb 3% host fee, Hostelworld 12%, Expedia 18% — adjust by passing a commission column on bookings later). Direct + Rezintel bookings have 0% commission.',
     category: 'Revenue',
     joanne: '#11',
@@ -75266,7 +75266,7 @@ const REPORTS_REGISTRY = {
 
   'channel-pl': {
     slug: 'channel-pl',
-    name: 'Channel P&L (real commissions)',
+    name: 'Profit by Channel',
     description: 'Per-channel bookings, gross, and REAL commission captured on import (bookings.commission_amount). Direct/Rezintel show £0 commission (correct). Booking.com + Airbnb + Hostelworld generally populated for imported OTA bookings. Expedia typically NULL — commission won\'t be captured for Expedia; get from Expedia Partner Central. Companion to revenue-net-ota which uses hardcoded % estimates instead — use this one when you want the numbers the OTAs actually invoiced, not a formula.',
     category: 'Revenue',
     joanne: '#11a',
@@ -75347,7 +75347,7 @@ const REPORTS_REGISTRY = {
 
   'channel-pl-monthly': {
     slug: 'channel-pl-monthly',
-    name: 'Channel P&L Monthly (real commissions)',
+    name: 'Profit by Channel — Monthly',
     description: 'Same as Channel P&L but broken down by month × channel. One row per month per channel — makes trends, seasonality, and month-over-month VAT reconciliation visible. Sorted newest month first. Uses REAL bookings.commission_amount, not hardcoded rates.',
     category: 'Revenue',
     joanne: '#11b',
@@ -75426,7 +75426,7 @@ const REPORTS_REGISTRY = {
 
   'occupancy': {
     slug: 'occupancy',
-    name: 'Occupancy + ADR + RevPAR (monthly)',
+    name: 'Occupancy & Revenue per Bed',
     description: 'Hospitality metrics by month: room-nights available, room-nights sold, occupancy %, Average Daily Rate, and Revenue Per Available Room. Cancellations excluded. Companion / upsell units (e.g. bike storage) excluded from the room count so RevPAR isn\'t diluted.',
     category: 'Operations',
     joanne: '#14',
@@ -75547,7 +75547,7 @@ const REPORTS_REGISTRY = {
 
   'bookings-by-checkin': {
     slug: 'bookings-by-checkin',
-    name: 'Bookings by Check-in Date',
+    name: 'Arrivals',
     description: 'Operational list of bookings filtered by stay date. The plain "who is staying, when, where, for how much" view.',
     category: 'Operations',
     joanne: '#1',
@@ -75709,7 +75709,7 @@ const REPORTS_REGISTRY = {
 
   'receipts': {
     slug: 'receipts',
-    name: 'Receipts',
+    name: 'Payments Received',
     description: 'Every payment transaction — auto (Stripe, gateway, etc.) and manual — that was recorded against a booking. Filterable by date, status, transaction type, property.',
     category: 'Cashflow',
     joanne: '#12',
@@ -75815,7 +75815,7 @@ const REPORTS_REGISTRY = {
 
   'monthly-revenue': {
     slug: 'monthly-revenue',
-    name: 'Monthly Revenue (by check-in date)',
+    name: 'Monthly Revenue',
     description: 'Accrual revenue grouped by stay-month, split by booking channel. Net of cancellations by default.',
     category: 'Revenue',
     joanne: '#3',
@@ -75902,7 +75902,7 @@ const REPORTS_REGISTRY = {
   // tagged 'legacy' in the row so the accountant can see the boundary).
   'vat-return-summary': {
     slug: 'vat-return-summary',
-    name: 'VAT Return Summary (per period)',
+    name: 'VAT Return — totals for HMRC',
     description: 'Net / VAT / Gross bucketed by VAT rate for the chosen period. Drives the HMRC return. UK VAT quarter dates are the typical period (Apr-Jun, Jul-Sep, Oct-Dec, Jan-Mar). Accrual basis: revenue dated by check-in date.',
     category: 'Tax',
     joanne: '#7',
@@ -75989,7 +75989,7 @@ const REPORTS_REGISTRY = {
   // and will get their own report when Joanne's #4 spec lands).
   'vat-detail': {
     slug: 'vat-detail',
-    name: 'VAT Detail by Booking',
+    name: 'VAT — Per Booking',
     description: 'Per-booking VAT ledger — arrival date, invoice number, guest, gross, net, VAT, rate, channel. Export CSV to feed Xero or QuickBooks. Audit trail for VAT Return Summary.',
     category: 'Tax',
     joanne: '#8',
@@ -76084,7 +76084,7 @@ const REPORTS_REGISTRY = {
   // property + room + channel filters like the other Ops reports.
   'sales-ledger': {
     slug: 'sales-ledger',
-    name: 'Sales Ledger (per booking — VAT + platform fee)',
+    name: 'Sales Ledger — audit trail (all bookings)',
     description: 'One row per confirmed booking with booking date, stay dates, gross, VAT, net-ex-VAT, platform fee, and net receivable. VAT back-calculated from account tax rate (default 20% VAT-inclusive). Platform fee from bookings.commission_amount (populated by Beds24 sync for OTA channels). Direct + Rezintel show £0 fee. Filter by booking date (default) or arrival date. Full historical coverage requires the Full Re-sync from Beds24 button to have pulled the relevant years.',
     category: 'Tax',
     joanne: '#8b',
@@ -76338,7 +76338,7 @@ const REPORTS_REGISTRY = {
 
   'reviews-repuso': {
     slug: 'reviews-repuso',
-    name: 'Reviews (Repuso)',
+    name: 'Guest Reviews',
     description: 'Every review pulled from your Repuso "all-reviews" widget. Filter by source or rating, click through to the original if the URL is available. Aggregate row shows total count + average rating.',
     category: 'Operations',
     params: [
