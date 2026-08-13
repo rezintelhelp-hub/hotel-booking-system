@@ -33955,6 +33955,7 @@ async function syncBeds24MarketplaceBookings(conn, opts = {}) {
                     commission_amount, tax_amount,
                     notes, comments, message, rate_description, language,
                     booking_time, modified_time, cancelled_time,
+                    currency,
                     created_at, updated_at
                  ) VALUES (
                     $1, $2, $3, $4,
@@ -33967,6 +33968,9 @@ async function syncBeds24MarketplaceBookings(conn, opts = {}) {
                     $28, $29,
                     $30, $31, $32, $33, $34,
                     $35::timestamptz, $36::timestamptz, $37::timestamptz,
+                    COALESCE((SELECT NULLIF(currency, '') FROM properties WHERE id = $2),
+                             (SELECT NULLIF(default_currency, '') FROM accounts a JOIN properties p ON p.account_id = a.id WHERE p.id = $2),
+                             'GBP'),
                     COALESCE($35::timestamptz, NOW()), NOW()
                  )`,
                 [
@@ -34202,6 +34206,7 @@ async function _syncBeds24OAuthBookingsForProperty(ctx) {
                     commission_amount, tax_amount,
                     notes, comments, message, rate_description, language,
                     booking_time, modified_time, cancelled_time,
+                    currency,
                     created_at, updated_at
                  ) VALUES (
                     $1, $2, $3, $4,
@@ -34214,6 +34219,9 @@ async function _syncBeds24OAuthBookingsForProperty(ctx) {
                     $28, $29,
                     $30, $31, $32, $33, $34,
                     $35::timestamptz, $36::timestamptz, $37::timestamptz,
+                    COALESCE((SELECT NULLIF(currency, '') FROM properties WHERE id = $2),
+                             (SELECT NULLIF(default_currency, '') FROM accounts a JOIN properties p ON p.account_id = a.id WHERE p.id = $2),
+                             'GBP'),
                     COALESCE($35::timestamptz, NOW()), NOW()
                  )`,
                 [
