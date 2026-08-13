@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.6.4
+ * Version: 1.6.5
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -67,9 +67,43 @@ class GAS_Shop {
         return $defaults;
     }
 
+    // 2026-08-13 — operator-set shop header copy. Reads title/subtitle/intro
+    // from the same /api/public/client/{id}/app-settings/shop endpoint the
+    // colors/fonts helpers already use. Returns defaults when unset so the
+    // page never renders blank. Cached for 5 min per site (same TTL as
+    // colors); cleared by clear_colors_cache below.
+    private $meta_cache = null;
+    private function get_shop_meta() {
+        if ($this->meta_cache !== null) return $this->meta_cache;
+        $cached = get_transient('gas_shop_meta');
+        if ($cached !== false) { $this->meta_cache = $cached; return $cached; }
+        $defaults = array('title' => 'Shop', 'subtitle' => 'Browse our products and services', 'intro' => '');
+        $client_id = get_option('gas_shop_client_id') ?: get_option('gas_client_id', '');
+        if ($client_id) {
+            $url = trailingslashit($this->get_api_url()).'api/public/client/'.$client_id.'/app-settings/shop';
+            $response = wp_remote_get($url, array('timeout'=>10));
+            if (!is_wp_error($response)) {
+                $body = json_decode(wp_remote_retrieve_body($response), true);
+                if ($body && $body['success']) {
+                    $meta = array(
+                        'title'    => !empty($body['title'])    ? (string)$body['title']    : $defaults['title'],
+                        'subtitle' => isset($body['subtitle'])  ? (string)$body['subtitle'] : $defaults['subtitle'],
+                        'intro'    => isset($body['intro'])     ? (string)$body['intro']    : $defaults['intro'],
+                    );
+                    set_transient('gas_shop_meta', $meta, 5 * MINUTE_IN_SECONDS);
+                    $this->meta_cache = $meta;
+                    return $meta;
+                }
+            }
+        }
+        $this->meta_cache = $defaults;
+        return $defaults;
+    }
+
     public function clear_colors_cache() {
         delete_transient('gas_shop_colors');
         delete_transient('gas_shop_fonts');
+        delete_transient('gas_shop_meta');
         // Also bust the gas-booking plugin's palette cache — shop and booking
         // share the same colour source, so flushing both at once is the only
         // sane behaviour from the owner's perspective.
@@ -297,8 +331,10 @@ class GAS_Shop {
         get_header();
         echo $this->base_css();
         echo '<div class="gas-shop-wrap">';
-        echo '<h1 class="gas-shop-title">Shop</h1>';
-        echo '<p class="gas-shop-sub">Browse our products and services</p>';
+        $meta = $this->get_shop_meta();
+        echo '<h1 class="gas-shop-title">'.esc_html($meta['title']).'</h1>';
+        if (!empty($meta['subtitle'])) echo '<p class="gas-shop-sub">'.esc_html($meta['subtitle']).'</p>';
+        if (!empty($meta['intro'])) echo '<div class="gas-shop-intro" style="color:'.$c['text_secondary'].';max-width:720px;margin:0 0 30px;line-height:1.6;font-size:1rem;">'.nl2br(esc_html($meta['intro'])).'</div>';
 
         if (empty($products)) {
             echo '<p style="text-align:center;padding:60px;color:'.$c['text_secondary'].'">No products available.</p>';

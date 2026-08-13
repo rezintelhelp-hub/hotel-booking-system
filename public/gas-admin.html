@@ -20312,6 +20312,27 @@
                             </div>
                         </div>
 
+                        <!-- Shop page copy: title / subtitle / intro (2026-08-13).
+                             Previously hardcoded in the shop plugin; now operator-set
+                             so each account can brand their shop landing page. Empty
+                             = plugin falls back to its defaults ("Shop" / "Browse our
+                             products and services" / no intro). -->
+                        <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-top: 1.25rem;">
+                            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Shop Page Header</h4>
+                            <div class="form-group" style="margin-bottom: 0.75rem;">
+                                <label class="form-label" style="font-size: 0.85rem;">Title</label>
+                                <input type="text" id="shop-app-title" class="form-input" placeholder="Shop" maxlength="120">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0.75rem;">
+                                <label class="form-label" style="font-size: 0.85rem;">Subtitle <span style="color:#94a3b8;font-weight:normal;">(one line under the title)</span></label>
+                                <input type="text" id="shop-app-subtitle" class="form-input" placeholder="Browse our products and services" maxlength="240">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 0.85rem;">Intro text <span style="color:#94a3b8;font-weight:normal;">(optional paragraph under the subtitle)</span></label>
+                                <textarea id="shop-app-intro" class="form-textarea" rows="4" placeholder="Longer welcome paragraph, delivery info, opening notes…" maxlength="2000"></textarea>
+                            </div>
+                        </div>
+
                         <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem;">
                             <button class="btn" onclick="saveAppSettings('shop')" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">Save Display Settings</button>
                             <button class="btn btn-secondary" onclick="loadAppSettings('shop')">Reset</button>
@@ -88872,6 +88893,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 setColor('placeholder-fg', colors.placeholder_fg, '#94a3b8');
                 if (app === 'reviews') setColor('star', colors.star, '#fbbf24');
 
+                // Load shop-specific title/subtitle/intro (2026-08-13).
+                if (app === 'shop') {
+                    const shopT = document.getElementById('shop-app-title');       if (shopT) shopT.value = data.title || '';
+                    const shopS = document.getElementById('shop-app-subtitle');    if (shopS) shopS.value = data.subtitle || '';
+                    const shopI = document.getElementById('shop-app-intro');       if (shopI) shopI.value = data.intro || '';
+                }
+
                 // Load reviews-specific config
                 if (app === 'reviews') {
                     const srcEl = document.getElementById('reviews-app-source');
@@ -88994,10 +89022,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             }
 
+            // Shop-specific: title/subtitle/intro persisted into app_settings.settings
+            // JSONB alongside colors/fonts. Server exposes them on GET; plugin
+            // reads them for the shop landing page header.
+            let shopConfig = {};
+            if (app === 'shop') {
+                shopConfig.title    = document.getElementById('shop-app-title')?.value.trim() || '';
+                shopConfig.subtitle = document.getElementById('shop-app-subtitle')?.value.trim() || '';
+                shopConfig.intro    = document.getElementById('shop-app-intro')?.value.trim() || '';
+            }
+
             try {
                 const accountId = selectedAccountId || currentAccount?.id;
                 const payload = { colors: settings, fonts: fonts, account_id: accountId };
                 if (app === 'reviews') Object.assign(payload, reviewsConfig);
+                if (app === 'shop') Object.assign(payload, shopConfig);
                 if (app === 'blog') payload.custom_tabs = blogCustomTabs;
                 const response = await fetch(`/api/app-settings/${app}?account_id=${accountId}`, {
                     method: 'PUT',

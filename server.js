@@ -151097,6 +151097,14 @@ app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
                     response.subtitle = s.subtitle || '';
                     response.manual_reviews = s.manual_reviews || [];
                 }
+                // Include shop-specific title/subtitle/intro (2026-08-13) so the
+                // gas-shop plugin can render operator-set copy instead of the
+                // hardcoded "Shop / Browse our products and services".
+                if (app === 'shop') {
+                    response.title = s.title || '';
+                    response.subtitle = s.subtitle || '';
+                    response.intro = s.intro || '';
+                }
                 res.json(response);
             } else {
                 res.json({ success: true, colors: defaults[app], fonts: {} });
