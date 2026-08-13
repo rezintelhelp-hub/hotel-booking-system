@@ -26694,6 +26694,39 @@ app.post('/api/admin/billing/client/:id/subscriptions-bulk-apply', async (req, r
 
 // GET /api/billing/gocardless/status?account_id=...
 // Returns the current mandate state for an account. Powers the admin UI.
+// GET /api/billing/gocardless/accounts — bulk list for the Direct Debit
+// panel. Single DB query, no per-account HTTP fan-out. Replaces the old
+// pattern (front-end iterated `/api/admin/accounts` and fired N parallel
+// /status calls — one hang stuck the whole tbody at "Loading…" forever
+// on any estate with more than a few dozen accounts). Uses the multi-
+// mandate `account_mandates.is_default=true` row where present, else
+// falls back to the legacy single-mandate columns on `accounts`.
+app.get('/api/billing/gocardless/accounts', async (req, res) => {
+  try {
+    const requester = await extractAccountFromToken(req);
+    if (!requester || requester.role !== 'master_admin') {
+      return res.status(403).json({ success: false, error: 'Master admin only' });
+    }
+    const r = await pool.query(`
+      SELECT a.id, a.name, a.billing_currency,
+             COALESCE(am.mandate_id, a.gocardless_mandate_id) AS gocardless_mandate_id,
+             COALESCE(am.scheme, a.gocardless_mandate_scheme) AS gocardless_mandate_scheme,
+             COALESCE(am.status, a.gocardless_mandate_status) AS gocardless_mandate_status,
+             COALESCE(am.created_at, a.gocardless_mandate_setup_at) AS gocardless_mandate_setup_at
+        FROM accounts a
+        LEFT JOIN account_mandates am
+               ON am.account_id = a.id AND am.is_default = true
+       WHERE a.status = 'active'
+         AND COALESCE(a.role, '') <> 'master_admin'
+       ORDER BY a.name ASC
+    `);
+    res.json({ success: true, accounts: r.rows });
+  } catch (e) {
+    console.error('[gc accounts bulk]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.get('/api/billing/gocardless/status', async (req, res) => {
   try {
     const accountId = parseInt(req.query.account_id);

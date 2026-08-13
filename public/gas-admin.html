@@ -108386,15 +108386,23 @@ const promo = await fetch('/api/v1/offers/validate', {
             const tbody = document.getElementById('gc-accounts-rows');
             tbody.innerHTML = '<tr><td colspan="6" style="padding:1rem;color:#64748b;">Loading…</td></tr>';
             try {
-                const r = await fetch('/api/admin/accounts', { headers: authHeaders() });
+                // Single-query bulk endpoint (server.js /api/billing/gocardless/accounts).
+                // Was N+1 (list every account, then per-account /gocardless/status
+                // fan-out) — Promise.all would hang forever on any hung child.
+                const r = await fetch('/api/billing/gocardless/accounts', { headers: authHeaders() });
                 const data = await r.json();
-                const list = Array.isArray(data) ? data : (data.data || data.accounts || []);
-                // For each account, fetch its GC status in parallel.
-                const enriched = await Promise.all(list.map(async (a) => {
-                    try {
-                        const s = await fetch('/api/billing/gocardless/status?account_id=' + a.id, { headers: authHeaders() }).then(x => x.json());
-                        return { ...a, gc: s?.data || {} };
-                    } catch (_) { return { ...a, gc: {} }; }
+                if (!data.success) throw new Error(data.error || 'Endpoint returned success=false');
+                // Shape rows into the { ...a, gc: {...} } the renderer expects
+                // so nothing else has to change.
+                const enriched = (data.accounts || []).map(a => ({
+                    ...a,
+                    gc: {
+                        billing_currency: a.billing_currency,
+                        gocardless_mandate_id: a.gocardless_mandate_id,
+                        gocardless_mandate_scheme: a.gocardless_mandate_scheme,
+                        gocardless_mandate_status: a.gocardless_mandate_status,
+                        gocardless_mandate_setup_at: a.gocardless_mandate_setup_at,
+                    }
                 }));
                 gcAccountsCache = enriched;
                 renderGoCardlessAccounts();
