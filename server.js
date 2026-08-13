@@ -147623,9 +147623,11 @@ app.get('/api/pro-builder/sites/:blog_id/pages', async (req, res) => {
     );
     const licenseKey = license.rows.length > 0 ? license.rows[0].license_key : '';
 
-    // Build site URL
-    let siteUrl = siteRow.site_url || siteRow.domain;
-    if (!siteUrl.startsWith('http')) siteUrl = 'https://' + siteUrl;
+    // Build site URL — prefer custom_domain over site_url so live custom-domain
+    // multisites (e.g. www.hebdenbridgehostel.org) don't 301-downgrade the
+    // downstream proBuilderManagePage POST for menu-state enrichment.
+    const siteUrl = _proBuilderCanonicalSiteUrl(siteRow);
+    if (!siteUrl) return res.json({ success: false, error: 'Site has no URL configured' });
 
     // Fetch pages from WordPress REST API
     const wpRes = await fetch(`${siteUrl}/wp-json/wp/v2/pages?per_page=50&orderby=menu_order&order=asc`, {
@@ -148048,15 +148050,20 @@ app.post('/api/pro-builder/sites/:blog_id/push-css', async (req, res) => {
     const blogId = parseInt(req.params.blog_id);
     const { css } = req.body;
 
-    // Get site URL and license key
+    // Get site row + license key. Prefer custom_domain over site_url — POST
+    // on Hebden (live custom domain) 301-redirects on the apex which drops
+    // the body, silently swallowing the CSS. Same fix pattern as commits
+    // e60b1e78 (save) and 908a80d8 (insert).
     const siteResult = await pool.query(
-      `SELECT ds.site_url, ds.license_key FROM deployed_sites ds WHERE ds.blog_id = $1 LIMIT 1`,
+      `SELECT ds.* FROM deployed_sites ds WHERE ds.blog_id = $1 LIMIT 1`,
       [blogId]
     );
     if (siteResult.rows.length === 0) return res.json({ success: false, error: 'Site not found' });
 
-    const { site_url, license_key } = siteResult.rows[0];
-    const wpUrl = site_url.replace(/\/$/, '');
+    const siteRow = siteResult.rows[0];
+    const wpUrl = _proBuilderCanonicalSiteUrl(siteRow);
+    if (!wpUrl) return res.json({ success: false, error: 'Site has no URL configured' });
+    const license_key = siteRow.license_key;
 
     const wpRes = await fetch(`${wpUrl}/wp-json/gas/v1/push-css`, {
       method: 'POST',
