@@ -76952,6 +76952,274 @@ app.get('/api/admin/properties/:id/stripe-config', async (req, res) => {
   }
 });
 
+// Persists operator-selected upsells + validates/applies a voucher for an
+// admin-created booking. Mirrors the /api/public/book shape so booking_extras
+// rows, voucher_code / voucher_discount and the accommodation/subtotal/
+// grand_total breakdown look identical whether the guest booked via the site
+// or the operator typed the booking in. Throws Error on an invalid voucher
+// (caller should ROLLBACK); upsell insert failures log but don't throw.
+// Uses the caller's transactional `client` — nothing is committed here.
+async function _persistAdminBookingUpsellsAndVoucher(client, {
+  bookingId, propertyId, unitId, accountId,
+  checkIn, checkOut, guests,
+  currency, currentGrandTotal, currentDeposit,
+  upsells, voucher_code,
+}) {
+  const cur = String(currency || 'GBP').slice(0, 3);
+  const arrival = new Date(checkIn);
+  const departure = new Date(checkOut);
+  const nights = Math.max(1, Math.round((departure - arrival) / 86400000));
+  const guestsCount = Math.max(1, parseInt(guests || 1) || 1);
+
+  // 1. Persist operator-selected upsells to booking_extras.
+  let extrasTotal = 0;
+  const persistedUpsellIds = new Set();
+  const requested = Array.isArray(upsells) ? upsells : [];
+  for (const it of requested) {
+    if (!it) continue;
+    const upsellId = parseInt(it.id, 10);
+    if (!Number.isFinite(upsellId) || upsellId <= 0) continue;
+    try {
+      const u = await client.query(
+        `SELECT id, name, price, charge_type, active FROM upsells WHERE id = $1`,
+        [upsellId]
+      );
+      const row = u.rows[0];
+      if (!row || !row.active) continue;
+      const unitPrice = parseFloat(row.price) || 0;
+      if (!(unitPrice > 0)) continue;
+      let qty = parseInt(it.qty, 10);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        if (row.charge_type === 'per_night') qty = nights;
+        else if (row.charge_type === 'per_guest') qty = guestsCount;
+        else if (row.charge_type === 'per_guest_per_night') qty = guestsCount * nights;
+        else qty = 1;
+      }
+      await client.query(
+        `INSERT INTO booking_extras
+           (booking_id, source_type, source_id, name, qty, unit_price, currency, status, created_at, updated_at)
+         VALUES ($1, 'upsell', $2, $3, $4, $5, $6, 'reserved', NOW(), NOW())`,
+        [bookingId, upsellId, row.name, qty, unitPrice, cur]
+      );
+      extrasTotal += unitPrice * qty;
+      persistedUpsellIds.add(upsellId);
+    } catch (e) {
+      console.warn(`[admin booking ${bookingId}] upsell ${upsellId} persist failed: ${e.message}`);
+    }
+  }
+
+  // 2. Mandatory-upsell backstop — same scope query as /api/public/book so an
+  // operator can't accidentally skip a mandatory fee (cleaning, pet, tourist tax).
+  try {
+    const mand = await client.query(`
+      WITH unit AS (
+        SELECT bu.id AS unit_id, p.id AS property_id, p.account_id
+        FROM bookable_units bu JOIN properties p ON bu.property_id = p.id
+        WHERE bu.id = $1
+      )
+      SELECT u.id, u.name, u.price, u.charge_type
+        FROM upsells u, unit
+       WHERE u.active = true
+         AND u.mandatory = true
+         AND (
+           (u.property_id IS NULL AND u.property_ids IS NULL AND u.user_id = unit.account_id)
+           OR u.property_id = unit.property_id
+           OR unit.property_id = ANY(u.property_ids)
+         )
+         AND (
+           (u.room_id IS NULL AND (u.room_ids IS NULL OR u.room_ids = ''))
+           OR u.room_id = $1
+           OR $1 = ANY(string_to_array(u.room_ids, ',')::int[])
+         )
+    `, [unitId]);
+    for (const m of mand.rows) {
+      if (persistedUpsellIds.has(m.id)) continue;
+      const unitPrice = parseFloat(m.price) || 0;
+      if (!(unitPrice > 0)) continue;
+      let qty = 1;
+      if (m.charge_type === 'per_night') qty = nights;
+      else if (m.charge_type === 'per_guest') qty = guestsCount;
+      else if (m.charge_type === 'per_guest_per_night') qty = guestsCount * nights;
+      await client.query(
+        `INSERT INTO booking_extras
+           (booking_id, source_type, source_id, name, qty, unit_price, currency, status, created_at, updated_at)
+         VALUES ($1, 'upsell', $2, $3, $4, $5, $6, 'reserved', NOW(), NOW())`,
+        [bookingId, m.id, m.name, qty, unitPrice, cur]
+      );
+      extrasTotal += unitPrice * qty;
+      persistedUpsellIds.add(m.id);
+      console.warn(`[admin booking ${bookingId}] mandatory backstop: added upsell ${m.id} "${m.name}" (${qty}x ${unitPrice})`);
+    }
+  } catch (e) {
+    console.warn(`[admin booking ${bookingId}] mandatory-upsell backstop failed:`, e.message);
+  }
+
+  // 3. Voucher validation — throws on invalid so the caller ROLLBACKs.
+  let voucherDiscount = 0;
+  let voucherApplied = null;
+  if (voucher_code) {
+    const code = String(voucher_code).trim().toUpperCase();
+    if (code) {
+      const vRes = await client.query(`
+        SELECT * FROM vouchers
+         WHERE code = $1 AND active = true
+           AND (valid_from IS NULL OR valid_from <= $2::date)
+           AND (valid_until IS NULL OR valid_until >= $3::date)
+           AND (max_uses IS NULL OR uses_count < max_uses)
+      `, [code, checkIn, checkOut]);
+      const v = vRes.rows[0];
+      if (!v) throw new Error('Invalid or expired voucher code');
+      const accommodationBase = Math.max(0, (parseFloat(currentGrandTotal) || 0) - extrasTotal);
+      if (v.voucher_type === 'gift_certificate') {
+        if (v.expires_at && new Date(v.expires_at) < new Date()) {
+          throw new Error('This gift certificate has expired');
+        }
+        const balance = parseFloat(v.current_balance || 0);
+        if (balance <= 0) throw new Error('This gift certificate has no remaining balance');
+        if (v.user_id && accountId && v.user_id !== accountId) {
+          throw new Error('This gift certificate is not valid for this property');
+        }
+        voucherDiscount = Math.min(balance, accommodationBase);
+        voucherApplied = {
+          code: v.code, name: v.name || 'Gift Certificate',
+          voucher_type: 'gift_certificate',
+          initial_balance: parseFloat(v.initial_balance || balance),
+          current_balance: balance,
+          applied_amount: voucherDiscount,
+          remaining_after: Math.max(0, balance - voucherDiscount),
+          currency: v.currency || null,
+        };
+      } else {
+        if (!voucherMatchesScope(v, propertyId, unitId, accountId)) {
+          throw new Error('Voucher not valid for this property or room');
+        }
+        if (v.discount_type === 'percentage') {
+          voucherDiscount = accommodationBase * (parseFloat(v.discount_value) / 100);
+        } else {
+          voucherDiscount = Math.min(parseFloat(v.discount_value), accommodationBase);
+        }
+        voucherApplied = {
+          code: v.code, name: v.name, voucher_type: 'discount',
+          discount_type: v.discount_type, discount_value: v.discount_value,
+        };
+      }
+    }
+  }
+
+  // 4. Derived totals — operator-typed total wins, back-derive the breakdown.
+  const grand = parseFloat(currentGrandTotal) || 0;
+  const accom = Math.max(0, grand + voucherDiscount - extrasTotal);
+  const subtotal = Math.max(0, grand - extrasTotal);
+  const dep = parseFloat(currentDeposit) || 0;
+  const balance = Math.max(0, grand - dep);
+  await client.query(
+    `UPDATE bookings
+        SET accommodation_price = $1,
+            subtotal            = $2,
+            grand_total         = $3,
+            extras_total        = $4,
+            balance_amount      = $5,
+            balance_due         = $5,
+            voucher_code        = $6,
+            voucher_discount    = $7
+      WHERE id = $8`,
+    [
+      accom.toFixed(2), subtotal.toFixed(2), grand.toFixed(2),
+      extrasTotal.toFixed(2), balance.toFixed(2),
+      voucherApplied ? voucherApplied.code : null,
+      voucherDiscount.toFixed(2),
+      bookingId,
+    ]
+  );
+
+  // 5. Bump voucher usage / debit gift-cert balance.
+  if (voucherApplied) {
+    if (voucherApplied.voucher_type === 'gift_certificate') {
+      const newBalance = Math.max(0, voucherApplied.current_balance - voucherApplied.applied_amount);
+      const activeAfter = newBalance > 0;
+      await client.query(
+        `UPDATE vouchers
+            SET current_balance = $1, times_used = times_used + 1, active = $2, updated_at = NOW()
+          WHERE code = $3`,
+        [newBalance.toFixed(2), activeAfter, voucherApplied.code]
+      );
+    } else {
+      await client.query(
+        `UPDATE vouchers SET times_used = times_used + 1 WHERE code = $1`,
+        [voucherApplied.code]
+      );
+    }
+  }
+
+  return {
+    extras_total: extrasTotal,
+    voucher_discount: voucherDiscount,
+    voucher_applied: voucherApplied,
+    accommodation_price: accom,
+    subtotal,
+    grand_total: grand,
+    balance_amount: balance,
+  };
+}
+
+// Lightweight validator so the Add Booking modal can show the operator the
+// discount before submit. Server-side re-validation on submit is authoritative
+// (guards against race between validate call and submit).
+app.post('/api/admin/vouchers/validate', async (req, res) => {
+  try {
+    const { code, property_id, room_id, check_in, check_out, accommodation_amount } = req.body || {};
+    if (!code) return res.json({ success: false, error: 'Voucher code required' });
+    if (!property_id || !room_id || !check_in || !check_out) {
+      return res.json({ success: false, error: 'property_id, room_id, check_in, check_out required' });
+    }
+    const upperCode = String(code).trim().toUpperCase();
+    const vRes = await pool.query(`
+      SELECT * FROM vouchers
+       WHERE code = $1 AND active = true
+         AND (valid_from IS NULL OR valid_from <= $2::date)
+         AND (valid_until IS NULL OR valid_until >= $3::date)
+         AND (max_uses IS NULL OR uses_count < max_uses)
+    `, [upperCode, check_in, check_out]);
+    const v = vRes.rows[0];
+    if (!v) return res.json({ success: false, error: 'Invalid or expired voucher code' });
+    const propRes = await pool.query(`SELECT account_id FROM properties WHERE id = $1`, [property_id]);
+    const accountId = propRes.rows[0]?.account_id || null;
+    const accomBase = Math.max(0, parseFloat(accommodation_amount) || 0);
+    let discount = 0;
+    let payload = null;
+    if (v.voucher_type === 'gift_certificate') {
+      if (v.expires_at && new Date(v.expires_at) < new Date()) {
+        return res.json({ success: false, error: 'This gift certificate has expired' });
+      }
+      const bal = parseFloat(v.current_balance || 0);
+      if (bal <= 0) return res.json({ success: false, error: 'This gift certificate has no remaining balance' });
+      if (v.user_id && accountId && v.user_id !== accountId) {
+        return res.json({ success: false, error: 'This gift certificate is not valid for this property' });
+      }
+      discount = Math.min(bal, accomBase);
+      payload = { code: v.code, name: v.name || 'Gift Certificate', voucher_type: 'gift_certificate', discount };
+    } else {
+      if (!voucherMatchesScope(v, parseInt(property_id, 10), parseInt(room_id, 10), accountId)) {
+        return res.json({ success: false, error: 'Voucher not valid for this property or room' });
+      }
+      if (v.discount_type === 'percentage') {
+        discount = accomBase * (parseFloat(v.discount_value) / 100);
+      } else {
+        discount = Math.min(parseFloat(v.discount_value), accomBase);
+      }
+      payload = {
+        code: v.code, name: v.name, voucher_type: 'discount',
+        discount_type: v.discount_type, discount_value: v.discount_value,
+        discount,
+      };
+    }
+    res.json({ success: true, voucher: payload });
+  } catch (e) {
+    console.error('[admin voucher validate]', e.message);
+    res.json({ success: false, error: e.message });
+  }
+});
+
 // Atomic: take the payment (or card guarantee) AND create the booking in
 // one shot. Multi-provider: Stripe (MOTO), Square, Enigma card-guarantee.
 // Adding a new provider = drop a module in payments/, register it in
@@ -76978,6 +77246,8 @@ app.post('/api/admin/bookings/with-card', async (req, res) => {
       guest_email, guest_phone, total_price,
       notes, sync_to_cm,
       booking_group_id,
+      // Optional: operator-selected upsells + voucher (mirrors public flow).
+      upsells, voucher_code,
       // Provider dispatch + per-provider tokens
       provider: providerRaw,
       payment_method_id,                          // stripe
@@ -77185,6 +77455,32 @@ app.post('/api/admin/bookings/with-card', async (req, res) => {
         // varies across deployments). Surface the warning in logs.
         console.warn('[direct-booking] payment_transactions insert failed:', e.message);
       }
+    }
+
+    // Persist upsells + apply voucher, if the operator picked either.
+    // Voucher errors bubble up and roll the whole booking back (so a
+    // race-condition invalid voucher doesn't silently create a full-price
+    // booking that already charged the card). Upsell persist failures
+    // log-only, so a schema issue doesn't wipe a paid booking.
+    if ((Array.isArray(upsells) && upsells.length) || voucher_code) {
+      const extrasResult = await _persistAdminBookingUpsellsAndVoucher(client, {
+        bookingId: booking.id,
+        propertyId: property_id,
+        unitId: room_id,
+        accountId,
+        checkIn: check_in,
+        checkOut: check_out,
+        guests: (parseInt(num_adults) || 1) + (parseInt(num_children) || 0),
+        currency: bookingCurrency,
+        currentGrandTotal: amount,
+        // With-card path pays in full at booking time, deposit=amount.
+        currentDeposit: amount,
+        upsells, voucher_code,
+      });
+      // Refresh in-memory booking so the response payload has the updated numbers.
+      const refreshed = await client.query('SELECT * FROM bookings WHERE id = $1', [booking.id]);
+      if (refreshed.rows[0]) booking = refreshed.rows[0];
+      booking._extras_persisted = extrasResult;
     }
 
     await client.query('COMMIT');
@@ -77583,7 +77879,9 @@ app.post('/api/admin/bookings', async (req, res) => {
       guest_country: bodyGuestCountry,
       payment_status, status, notes, sync_to_cm,
       booking_group_id,
-      applied_offer_id
+      applied_offer_id,
+      // Optional: operator-selected upsells + voucher (mirrors public flow).
+      upsells, voucher_code
     } = req.body;
 
     if (!property_id || !room_id || !check_in || !check_out || !guest_first_name || !guest_last_name || !guest_email) {
@@ -77777,6 +78075,26 @@ app.post('/api/admin/bookings', async (req, res) => {
         `UPDATE bookings SET applied_offer_ids = COALESCE(applied_offer_ids, '[]'::jsonb) || jsonb_build_array($2::int) WHERE id = $1`,
         [booking.id, offerId]
       ).catch(e => console.warn('[admin booking] applied_offer_ids write skipped:', e.message));
+    }
+
+    // Persist upsells + apply voucher, if the operator picked either.
+    // Voucher errors bubble up so the outer try/catch ROLLBACKs the whole
+    // booking — clearer than committing a full-price row when the voucher
+    // failed a race with another redemption. Upsell insert failures log-only.
+    if ((Array.isArray(upsells) && upsells.length) || voucher_code) {
+      await _persistAdminBookingUpsellsAndVoucher(client, {
+        bookingId: booking.id,
+        propertyId: property_id,
+        unitId: room_id,
+        accountId,
+        checkIn: check_in,
+        checkOut: check_out,
+        guests: (parseInt(num_adults) || 1) + (parseInt(num_children) || 0),
+        currency,
+        currentGrandTotal: totalAmount,
+        currentDeposit: depositAmount,
+        upsells, voucher_code,
+      });
     }
 
     // Pool-model accounts: the pool trigger has decremented per-bed

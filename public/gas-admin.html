@@ -28906,11 +28906,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
                             <div>
                                 <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Adults</label>
-                                <input type="number" id="booking-guests" class="form-input" value="1" min="1" style="padding: 0.6rem; border-radius: 8px;" onchange="loadApplicableOffers()">
+                                <input type="number" id="booking-guests" class="form-input" value="1" min="1" style="padding: 0.6rem; border-radius: 8px;" onchange="loadApplicableOffers(); loadApplicableUpsells();">
                             </div>
                             <div>
                                 <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Children</label>
-                                <input type="number" id="booking-children" class="form-input" value="0" min="0" style="padding: 0.6rem; border-radius: 8px;" onchange="loadApplicableOffers()">
+                                <input type="number" id="booking-children" class="form-input" value="0" min="0" style="padding: 0.6rem; border-radius: 8px;" onchange="loadApplicableOffers(); loadApplicableUpsells();">
                             </div>
                         </div>
                     </div>
@@ -28924,6 +28924,35 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <label style="font-weight:600; color:#3730a3; margin-bottom:0.75rem; display:block;">Rate / Offer</label>
                         <div id="booking-offer-list" style="display:flex; flex-direction:column; gap:0.4rem;"></div>
                         <input type="hidden" id="booking-offer-id" value="">
+                    </div>
+
+                    <!-- Extras / Upsells — populated by loadApplicableUpsells()
+                         from /api/admin/upsells/by-room, filtered to the picked
+                         room. Mandatory items are auto-selected and locked;
+                         optional items are togglable. Toggling recomputes the
+                         Total Price below (same behaviour as a website booking). -->
+                    <div id="booking-upsell-card" style="display:none; background:#ecfdf5; border:1px solid #a7f3d0; border-radius:12px; padding:1rem; margin-bottom:1.25rem;">
+                        <label style="font-weight:600; color:#065f46; margin-bottom:0.75rem; display:block;">Extras</label>
+                        <div id="booking-upsell-list" style="display:flex; flex-direction:column; gap:0.4rem;"></div>
+                        <div id="booking-upsell-summary" style="font-size:0.8rem; color:#047857; margin-top:0.5rem;"></div>
+                    </div>
+
+                    <!-- Voucher / gift certificate. Validate button calls
+                         /api/admin/vouchers/validate — server checks scope,
+                         dates, max_uses, gift-cert balance and returns the
+                         discount. Discount is subtracted from Total Price
+                         below; the code + discount are also sent on submit
+                         so the server can re-validate + persist voucher_code
+                         and voucher_discount on the bookings row (same as
+                         a website booking). -->
+                    <div id="booking-voucher-card" style="display:none; background:#fff7ed; border:1px solid #fed7aa; border-radius:12px; padding:1rem; margin-bottom:1.25rem;">
+                        <label style="font-weight:600; color:#9a3412; margin-bottom:0.5rem; display:block;">Voucher / Gift Certificate</label>
+                        <div style="display:flex; gap:0.5rem; align-items:stretch;">
+                            <input type="text" id="booking-voucher-code" class="form-input" placeholder="e.g. SUMMER10" style="flex:1; padding:0.5rem; border-radius:8px; text-transform:uppercase;">
+                            <button type="button" class="btn" onclick="applyBookingVoucher()" style="background:#f97316; color:white; padding:0.5rem 1rem;">Apply</button>
+                            <button type="button" id="booking-voucher-clear" class="btn btn-secondary" onclick="clearBookingVoucher()" style="display:none; padding:0.5rem 0.9rem;">Clear</button>
+                        </div>
+                        <div id="booking-voucher-status" style="font-size:0.85rem; margin-top:0.5rem;"></div>
                     </div>
 
                     <!-- Guest Details -->
@@ -70806,6 +70835,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Reset the inline availability calendar so a previous booking's
             // selection doesn't linger across opens.
             try { if (typeof _bookingCalReset === 'function') _bookingCalReset(); } catch (_) {}
+            // Same for extras (upsells) + voucher — otherwise a leftover
+            // mandatory-upsell delta from the last open re-inflates booking-total.
+            try { if (typeof _resetBookingExtrasState === 'function') _resetBookingExtrasState(); } catch (_) {}
 
             // Populate property dropdown
             loadBookingProperties();
@@ -70933,6 +70965,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function _bookingCalOnRoomChange() {
             const roomSel = document.getElementById('booking-room');
             const roomId = roomSel ? parseInt(roomSel.value, 10) : null;
+            // Room change invalidates any picked upsells (scoped per room)
+            // and any applied voucher (validated against room+dates).
+            _resetBookingExtrasState();
             if (!roomId) { _bookingCalReset(); return; }
             const opt = roomSel.options[roomSel.selectedIndex];
             // Switching rooms invalidates the availability cache — otherwise
@@ -71086,19 +71121,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                     const totalEl = document.getElementById('booking-total');
                     if (totalEl && anyPriced) totalEl.value = total.toFixed(2);
-                    // After dates + total are set, load applicable offers so
-                    // the operator can pick a rate that changes the price.
+                    // After dates + total are set, load applicable offers +
+                    // upsells so the operator sees the same rate / extras
+                    // picker a website guest would.
                     loadApplicableOffers();
+                    loadApplicableUpsells();
                 }
             } else {
                 chkIn.value = ''; chkOut.value = '';
                 const totalEl = document.getElementById('booking-total');
                 if (totalEl) totalEl.value = '';
-                // Dates cleared → hide the picker
+                // Dates cleared → hide the picker + drop extras/voucher state
                 const card = document.getElementById('booking-offer-card');
                 if (card) card.style.display = 'none';
                 const offerIdEl = document.getElementById('booking-offer-id');
                 if (offerIdEl) offerIdEl.value = '';
+                _resetBookingExtrasState();
             }
             _bookingCalRenderGrid();
         }
@@ -71180,8 +71218,234 @@ const promo = await fetch('/api/v1/offers/validate', {
             const price = parseFloat(radio.dataset.price);
             const totalEl = document.getElementById('booking-total');
             const hidden = document.getElementById('booking-offer-id');
-            if (Number.isFinite(price) && totalEl) totalEl.value = price.toFixed(2);
+            if (Number.isFinite(price) && totalEl) {
+                // Offer picker resets the accommodation base; re-apply the
+                // extras + voucher deltas on top so booking-total stays in
+                // sync with what the operator sees selected in the UI.
+                totalEl.value = price.toFixed(2);
+                let extras = 0;
+                _bookingUpsellState.forEach(v => { extras += v.price * v.qty; });
+                const disc = _bookingVoucherState ? (_bookingVoucherState.discount || 0) : 0;
+                totalEl.value = Math.max(0, price + extras - disc).toFixed(2);
+            }
             if (hidden) hidden.value = radio.value || '';
+        }
+
+        // Add Booking modal — Extras (upsells) + Voucher state.
+        // Additive-delta model: toggling an upsell adds/subtracts its price to
+        // #booking-total; applying a voucher subtracts the validated discount.
+        // State is kept so we can undo cleanly on untoggle / clear voucher.
+        // Reset via _resetBookingExtrasState() when the room changes so a
+        // stale selection can't leak from one room to another.
+        let _bookingUpsellState = new Map();     // id → {price, qty, name}
+        let _bookingVoucherState = null;         // {code, discount, name}
+
+        function _resetBookingExtrasState() {
+            _bookingUpsellState = new Map();
+            _bookingVoucherState = null;
+            const list = document.getElementById('booking-upsell-list');
+            if (list) list.innerHTML = '';
+            const upCard = document.getElementById('booking-upsell-card');
+            if (upCard) upCard.style.display = 'none';
+            const upSum = document.getElementById('booking-upsell-summary');
+            if (upSum) upSum.textContent = '';
+            const vCard = document.getElementById('booking-voucher-card');
+            if (vCard) vCard.style.display = 'none';
+            const vCode = document.getElementById('booking-voucher-code');
+            if (vCode) vCode.value = '';
+            const vStatus = document.getElementById('booking-voucher-status');
+            if (vStatus) vStatus.innerHTML = '';
+            const vClear = document.getElementById('booking-voucher-clear');
+            if (vClear) vClear.style.display = 'none';
+        }
+
+        function _adjustBookingTotal(delta) {
+            const el = document.getElementById('booking-total');
+            if (!el) return;
+            const cur = parseFloat(el.value) || 0;
+            el.value = Math.max(0, cur + delta).toFixed(2);
+        }
+
+        function _renderBookingUpsellSummary() {
+            const el = document.getElementById('booking-upsell-summary');
+            if (!el) return;
+            if (_bookingUpsellState.size === 0) { el.textContent = ''; return; }
+            let sum = 0;
+            _bookingUpsellState.forEach(v => { sum += v.price * v.qty; });
+            const cur = _mobCalCurrencySymbol((_bookingCal && _bookingCal.currency) || '');
+            el.textContent = `+${cur}${sum.toFixed(2)} in extras`;
+        }
+
+        // Fetch upsells applicable to the picked room + render checkboxes.
+        // Mandatory items are pre-checked and locked; optional items are
+        // togglable. Toggling calls onToggleBookingUpsell → adjusts booking-total.
+        async function loadApplicableUpsells() {
+            const roomEl = document.getElementById('booking-room');
+            const card = document.getElementById('booking-upsell-card');
+            const vCard = document.getElementById('booking-voucher-card');
+            const list = document.getElementById('booking-upsell-list');
+            if (!card || !list) return;
+            const roomId = roomEl && roomEl.value ? parseInt(roomEl.value, 10) : null;
+            if (!roomId) { card.style.display = 'none'; if (vCard) vCard.style.display = 'none'; return; }
+            // Voucher card becomes available once a room is picked.
+            if (vCard) vCard.style.display = '';
+
+            const accountId = (typeof selectedAccountId !== 'undefined' && selectedAccountId)
+                            || window.selectedAccountId
+                            || (typeof currentAccount !== 'undefined' && currentAccount && currentAccount.id)
+                            || null;
+            if (!accountId) { card.style.display = 'none'; return; }
+
+            try {
+                const r = await fetch(`/api/admin/upsells/by-room?account_id=${accountId}`, { headers: authHeaders() });
+                const data = await r.json();
+                if (!data.success) { card.style.display = 'none'; return; }
+                const row = (data.rooms || []).find(x => x.room_id === roomId);
+                const items = row ? (row.upsells || []) : [];
+                if (!items.length) { card.style.display = 'none'; return; }
+
+                const cur = _mobCalCurrencySymbol((_bookingCal && _bookingCal.currency) || '');
+                const inEl = document.getElementById('booking-checkin');
+                const outEl = document.getElementById('booking-checkout');
+                const adultsEl = document.getElementById('booking-guests');
+                const childrenEl = document.getElementById('booking-children');
+                const nights = (inEl && outEl && inEl.value && outEl.value)
+                    ? Math.max(1, Math.round((new Date(outEl.value) - new Date(inEl.value)) / 86400000))
+                    : 1;
+                const guests = ((parseInt(adultsEl && adultsEl.value, 10) || 1))
+                             + ((parseInt(childrenEl && childrenEl.value, 10) || 0));
+                const qtyFor = (ct) => ct === 'per_night' ? nights
+                                     : ct === 'per_guest' ? guests
+                                     : ct === 'per_guest_per_night' ? guests * nights
+                                     : 1;
+
+                list.innerHTML = items.map(u => {
+                    const qty = qtyFor(u.charge_type);
+                    const price = parseFloat(u.price) || 0;
+                    const line = price * qty;
+                    const isMand = !!u.mandatory;
+                    const state = _bookingUpsellState.get(String(u.id));
+                    const isChecked = isMand || !!state;
+                    const safeName = String(u.name || '').replace(/</g, '&lt;');
+                    const ctLabel = u.charge_type && u.charge_type !== 'per_booking'
+                        ? ` <span style="color:#6b7280;font-size:0.75rem;">(${u.charge_type.replace(/_/g, ' ')}, ×${qty})</span>`
+                        : '';
+                    const mandBadge = isMand
+                        ? ' <span style="background:#dc2626;color:white;font-size:0.65rem;padding:1px 5px;border-radius:4px;margin-left:4px;">Mandatory</span>'
+                        : '';
+                    return `<label style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0.75rem; background:#fff; border:1px solid #d1fae5; border-radius:8px; cursor:${isMand ? 'not-allowed' : 'pointer'};">
+                        <input type="checkbox" ${isChecked ? 'checked' : ''} ${isMand ? 'disabled' : ''}
+                               data-id="${u.id}" data-price="${price}" data-qty="${qty}" data-name="${safeName}"
+                               onchange="onToggleBookingUpsell(this)" style="width:18px;height:18px;">
+                        <div style="flex:1;">
+                            <div style="font-weight:600; color:#065f46;">${safeName}${mandBadge}${ctLabel}</div>
+                            <div style="color:#047857; font-size:0.85rem;">${cur}${price.toFixed(2)}${qty > 1 ? ' × ' + qty + ' = ' + cur + line.toFixed(2) : ''}</div>
+                        </div>
+                    </label>`;
+                }).join('');
+                card.style.display = '';
+
+                // Auto-apply mandatory items — but only ADD the delta if it
+                // wasn't already in state (idempotent across re-renders).
+                for (const u of items) {
+                    if (!u.mandatory) continue;
+                    const key = String(u.id);
+                    if (_bookingUpsellState.has(key)) continue;
+                    const qty = qtyFor(u.charge_type);
+                    const price = parseFloat(u.price) || 0;
+                    _bookingUpsellState.set(key, { price, qty, name: u.name });
+                    _adjustBookingTotal(price * qty);
+                }
+                _renderBookingUpsellSummary();
+            } catch (e) {
+                card.style.display = 'none';
+            }
+        }
+
+        function onToggleBookingUpsell(cb) {
+            const id = String(cb.dataset.id);
+            const price = parseFloat(cb.dataset.price) || 0;
+            const qty = parseInt(cb.dataset.qty, 10) || 1;
+            const name = cb.dataset.name || 'Extra';
+            const line = price * qty;
+            if (cb.checked) {
+                if (!_bookingUpsellState.has(id)) {
+                    _bookingUpsellState.set(id, { price, qty, name });
+                    _adjustBookingTotal(line);
+                }
+            } else {
+                if (_bookingUpsellState.has(id)) {
+                    _bookingUpsellState.delete(id);
+                    _adjustBookingTotal(-line);
+                }
+            }
+            _renderBookingUpsellSummary();
+        }
+
+        async function applyBookingVoucher() {
+            const codeEl = document.getElementById('booking-voucher-code');
+            const statusEl = document.getElementById('booking-voucher-status');
+            const clearBtn = document.getElementById('booking-voucher-clear');
+            if (!codeEl || !statusEl) return;
+            const code = (codeEl.value || '').trim().toUpperCase();
+            if (!code) { statusEl.innerHTML = '<span style="color:#9a3412;">Enter a code first.</span>'; return; }
+            // Undo any prior voucher first so the delta accounting stays clean.
+            if (_bookingVoucherState) clearBookingVoucher();
+
+            const propertyId = document.getElementById('booking-property')?.value;
+            const roomId = document.getElementById('booking-room')?.value;
+            const checkIn = document.getElementById('booking-checkin')?.value;
+            const checkOut = document.getElementById('booking-checkout')?.value;
+            if (!propertyId || !roomId || !checkIn || !checkOut) {
+                statusEl.innerHTML = '<span style="color:#b91c1c;">Pick a property, room and dates before applying a voucher.</span>';
+                return;
+            }
+            // Accommodation base = booking-total minus already-selected extras.
+            const totalEl = document.getElementById('booking-total');
+            let accom = parseFloat(totalEl?.value) || 0;
+            _bookingUpsellState.forEach(v => { accom -= v.price * v.qty; });
+            if (accom < 0) accom = 0;
+
+            statusEl.innerHTML = '<span style="color:#6b7280;">Validating…</span>';
+            try {
+                const r = await fetch('/api/admin/vouchers/validate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        code, property_id: propertyId, room_id: roomId,
+                        check_in: checkIn, check_out: checkOut,
+                        accommodation_amount: accom,
+                    }),
+                });
+                const data = await r.json();
+                if (!data.success) {
+                    statusEl.innerHTML = `<span style="color:#b91c1c;">${(data.error || 'Voucher validation failed').replace(/</g, '&lt;')}</span>`;
+                    return;
+                }
+                const v = data.voucher || {};
+                const disc = parseFloat(v.discount) || 0;
+                _bookingVoucherState = { code: v.code, discount: disc, name: v.name || v.code };
+                _adjustBookingTotal(-disc);
+                const cur = _mobCalCurrencySymbol((_bookingCal && _bookingCal.currency) || '');
+                statusEl.innerHTML = `<span style="color:#065f46;">✔ Applied <strong>${String(v.code).replace(/</g,'&lt;')}</strong> — −${cur}${disc.toFixed(2)}</span>`;
+                if (clearBtn) clearBtn.style.display = '';
+                codeEl.value = v.code;
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:#b91c1c;">${e.message.replace(/</g,'&lt;')}</span>`;
+            }
+        }
+
+        function clearBookingVoucher() {
+            if (_bookingVoucherState) {
+                _adjustBookingTotal(_bookingVoucherState.discount);
+                _bookingVoucherState = null;
+            }
+            const codeEl = document.getElementById('booking-voucher-code');
+            if (codeEl) codeEl.value = '';
+            const statusEl = document.getElementById('booking-voucher-status');
+            if (statusEl) statusEl.innerHTML = '';
+            const clearBtn = document.getElementById('booking-voucher-clear');
+            if (clearBtn) clearBtn.style.display = 'none';
         }
         function _bookingCalRenderGrid() {
             const gridEl = document.getElementById('booking-cal-grid');
@@ -71856,6 +72120,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             const takeCardEl = document.getElementById('booking-take-card');
             const takeCard = !!(takeCardEl && takeCardEl.checked && _bookingSelectedProvider);
             const saveCard = !!document.getElementById('booking-save-card')?.checked;
+            // Extras (upsells) + voucher — mirror what a website booking sends.
+            // Server persists to booking_extras + bookings.voucher_code /
+            // voucher_discount and re-validates the voucher (invalid ⇒ rollback).
+            const bookingUpsells = Array.from(_bookingUpsellState.entries())
+                .map(([id, v]) => ({ id: parseInt(id, 10), qty: v.qty }));
+            const bookingVoucherCode = _bookingVoucherState ? _bookingVoucherState.code : null;
             try {
                 let response;
                 if (takeCard) {
@@ -71928,6 +72198,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             provider,
                             booking_group_id: groupId,
                             applied_offer_id: appliedOfferId,
+                            upsells: bookingUpsells,
+                            voucher_code: bookingVoucherCode,
                             // Steve 2026-07-31 — admin modal explicitly
                             // allows booking over a blocked date (block
                             // stays for OTAs, booking serves direct guest).
@@ -71962,6 +72234,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             notes: notes,
                             sync_to_cm: syncCM,
                             applied_offer_id: appliedOfferId,
+                            upsells: bookingUpsells,
+                            voucher_code: bookingVoucherCode,
                             allow_over_block: true
                         })
                     });
