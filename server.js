@@ -76868,9 +76868,22 @@ async function _resolveAcceptedMethods(propertyId) {
   if (r.rows.length === 0) return [];
   let am = r.rows[0].accepted_methods;
   if (typeof am === 'string') { try { am = JSON.parse(am); } catch (_) { return []; } }
-  if (Array.isArray(am)) return am.map(String);
-  if (am && typeof am === 'object') return Object.keys(am).filter(k => am[k]);
-  return [];
+  let out;
+  if (Array.isArray(am)) out = am.map(String);
+  else if (am && typeof am === 'object') out = Object.keys(am).filter(k => am[k]);
+  else return [];
+  // 2026-08-13 — expand the generic 'card' label into the specific
+  // card-provider keys the payments/ adapters register under. 487 of the
+  // ~550 properties on the estate save accepted_methods as ["card"] via
+  // the UI/CM sync path but the resolver at payments/index.js:59-77 does
+  // a literal string match on provider keys (stripe / square), so 'card'
+  // never matched anything and the Add-Booking card widget silently
+  // hid on every one of them. Idempotent: if the caller already passes
+  // 'stripe' explicitly, the Set dedupes.
+  if (out.includes('card')) {
+    out = Array.from(new Set(out.filter(x => x !== 'card').concat(['stripe', 'square'])));
+  }
+  return out;
 }
 
 // New: multi-provider payment config for the property. Returns whichever
