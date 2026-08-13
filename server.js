@@ -147448,6 +147448,21 @@ async function proBuilderAuth(req) {
   return { accountId: session.rows[0].account_id, role: session.rows[0].role };
 }
 
+// 2026-08-13 — HTTP URL construction for pro-builder plugin calls.
+// Prefers custom_domain when set (Hebden: www.hebdenbridgehostel.org)
+// because nginx has a canonical-domain 301 redirect from site_url →
+// custom_domain, and Node's fetch downgrades POST→GET on redirects
+// so push-template + manage-page + push-css all returned 404 rest_no_route
+// (WP routes only accept POST). Falls back to site_url when no custom
+// domain is configured. Do NOT use this for DB lookups (WHERE site_url = $1)
+// per feedback_custom_domain_vs_site_url_lookup_key.md.
+function _proBuilderCanonicalSiteUrl(siteRow) {
+  const raw = (siteRow.custom_domain || siteRow.site_url || siteRow.domain || '').trim();
+  if (!raw) return '';
+  const host = raw.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  return 'https://' + host;
+}
+
 async function proBuilderFetchContent(blogId, pageId) {
   const site = await pool.query(
     'SELECT ds.*, a.subscription_tier FROM deployed_sites ds JOIN accounts a ON ds.account_id = a.id WHERE ds.blog_id = $1',
@@ -147456,8 +147471,8 @@ async function proBuilderFetchContent(blogId, pageId) {
   if (site.rows.length === 0) return { error: 'Site not found' };
 
   const siteRow = site.rows[0];
-  let siteUrl = (siteRow.site_url || '').replace(/\/+$/, '');
-  if (!siteUrl.startsWith('http')) siteUrl = 'https://' + siteUrl;
+  const siteUrl = _proBuilderCanonicalSiteUrl(siteRow);
+  if (!siteUrl) return { error: 'Site has no URL configured' };
 
   const license = await pool.query(
     "SELECT license_key FROM plugin_licenses WHERE account_id = $1 AND status = 'active' LIMIT 1",
@@ -147525,8 +147540,7 @@ async function proBuilderSiteLookup(blogId) {
     [siteRow.account_id]
   );
   const licenseKey = license.rows.length > 0 ? license.rows[0].license_key : '';
-  let siteUrl = (siteRow.site_url || siteRow.domain || '').replace(/\/+$/, '');
-  if (!siteUrl.startsWith('http')) siteUrl = 'https://' + siteUrl;
+  const siteUrl = _proBuilderCanonicalSiteUrl(siteRow);
 
   return { siteRow, siteUrl, licenseKey };
 }
