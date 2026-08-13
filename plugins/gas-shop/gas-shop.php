@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.6.2
+ * Version: 1.6.3
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -636,8 +636,54 @@ class GAS_Shop {
                 echo '<div style="font-size:0.85rem;color:#64748b;margin-top:-6px;margin-bottom:14px">Choose your arrival above, then click to book on the property page.</div>';
             }
             if ($offerBuyStandalone) {
-                echo '<button class="gas-shop-btn" id="gas-add-to-cart"'.$disabled.' onclick=\'gasShopAddToCart('.$product_json.')\'>Add to Cart</button>';
-                echo '<a href="'.esc_url(home_url('/shop/cart/')).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';margin-left:12px" id="gas-shop-go-cart">View Cart</a>';
+                // 2026-08-13 — variants (sizes / options with per-variant pricing).
+                // Only surfaced for standalone products. When product.variants
+                // has one or more entries, render one Add-to-Cart button per
+                // variant with the variant's price + label. When absent, fall
+                // back to the single-price Add to Cart (existing behaviour).
+                $variants = $p['variants'] ?? array();
+                if (is_string($variants)) {
+                    $decoded = json_decode($variants, true);
+                    $variants = is_array($decoded) ? $decoded : array();
+                }
+                $variants = array_values(array_filter((array)$variants, function($v) {
+                    return is_array($v) && !empty($v['label']) && isset($v['price']);
+                }));
+                $isStandalone = ($p['product_type'] ?? 'standalone') === 'standalone';
+                if ($isStandalone && !empty($variants)) {
+                    echo '<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">';
+                    foreach ($variants as $v) {
+                        $vLabel = esc_html($v['label']);
+                        $vPrice = number_format((float)$v['price'], 2);
+                        $vStock = isset($v['stock_qty']) ? intval($v['stock_qty']) : null;
+                        $vDisabled = ($vStock !== null && $vStock <= 0) ? ' disabled style="opacity:.5;cursor:not-allowed"' : '';
+                        // Build a product_json variant for the cart — same shape
+                        // as the base product but with variant-scoped id (product_id
+                        // + '::' + label) + name-with-variant + variant price.
+                        $vJson = wp_json_encode(array(
+                            'id' => $p['id'] . '::' . $v['label'],
+                            'product_id' => $p['id'],
+                            'slug' => $p['slug'],
+                            'name' => $name . ' — ' . $v['label'],
+                            'variant_label' => $v['label'],
+                            'price' => (float)$v['price'],
+                            'currency' => $curr,
+                            'image_url' => $p['image_thumbnail_url'] ?? $p['image_url'] ?? '',
+                            'stock_tracking' => $vStock !== null,
+                            'max_qty' => $vStock !== null ? $vStock : 0,
+                            'product_type' => 'standalone',
+                            'tax_exempt' => !empty($p['tax_exempt']),
+                            'tax_rate' => isset($p['tax_rate']) && $p['tax_rate'] !== null ? floatval($p['tax_rate']) : null,
+                            'delivery_fee' => isset($p['delivery_fee']) && $p['delivery_fee'] !== null ? floatval($p['delivery_fee']) : null,
+                        ), JSON_HEX_APOS | JSON_HEX_QUOT);
+                        echo '<button class="gas-shop-btn"'.$vDisabled.' onclick=\'gasShopAddToCart('.$vJson.')\' style="font-size:0.95rem;">Add '.$vLabel.' &middot; '.$curr.' '.$vPrice.'</button>';
+                    }
+                    echo '</div>';
+                    echo '<a href="'.esc_url(home_url('/shop/cart/')).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';" id="gas-shop-go-cart">View Cart</a>';
+                } else {
+                    echo '<button class="gas-shop-btn" id="gas-add-to-cart"'.$disabled.' onclick=\'gasShopAddToCart('.$product_json.')\'>Add to Cart</button>';
+                    echo '<a href="'.esc_url(home_url('/shop/cart/')).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';margin-left:12px" id="gas-shop-go-cart">View Cart</a>';
+                }
                 $rendered++;
             }
             // Suppress the generic "Book a room with this →" button when a

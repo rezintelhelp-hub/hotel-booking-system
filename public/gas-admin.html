@@ -20667,6 +20667,20 @@
                             </div>
                         </div>
 
+                        <!-- Variants (sizes / qty / options with per-variant pricing).
+                             Standalone products only. When at least one variant row is
+                             present, the shop replaces the single Add-to-Cart button with
+                             one button per variant, priced from the variant. Empty = use
+                             the base Price above (existing behaviour, no regression). -->
+                        <div id="shop-product-variants-wrap" style="margin-bottom: 1rem; padding: 0.75rem 1rem; background: var(--bg-secondary); border-radius: 8px;">
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 0.5rem;">
+                                <label style="font-weight: 600;">Sizes / Options <span style="color:#94a3b8;font-weight:normal;font-size:0.85rem;">(leave empty for a single-price product)</span></label>
+                                <button type="button" class="btn btn-secondary" onclick="addShopVariantRow()" style="font-size:0.85rem; padding: 0.35rem 0.75rem;">+ Add Size / Option</button>
+                            </div>
+                            <p style="color:#64748b; font-size:0.8rem; margin:0 0 0.5rem;">e.g. <em>Small</em> / <em>Large</em>, or <em>2oz</em> / <em>4oz</em>. Each gets its own price. Guest picks one at checkout.</p>
+                            <div id="shop-product-variants-list"></div>
+                        </div>
+
                         <!-- Image -->
                         <div style="margin-bottom: 1rem;">
                             <label class="form-label">Product Image</label>
@@ -117948,6 +117962,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         // uploads whatever's still in fileInput.files[0].
         document.getElementById('shop-product-image-file').value = '';
         document.getElementById('shop-product-delete-btn').style.display = 'none';
+        // Reset variants list — filled from product.variants in the edit branch.
+        _renderShopVariants([]);
         document.getElementById('shop-product-type').value = 'standalone';
         document.getElementById('shop-product-event-start').value = '';
         document.getElementById('shop-product-event-end').value = '';
@@ -118028,6 +118044,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('shop-product-active').checked = product.is_active !== false;
             document.getElementById('shop-product-image-url').value = product.image_url || '';
             document.getElementById('shop-product-delete-btn').style.display = 'block';
+            _renderShopVariants(Array.isArray(product.variants) ? product.variants : []);
 
             if (product.image_url) {
                 document.getElementById('shop-product-image-preview').innerHTML = '<img src="' + product.image_url + '" style="max-height: 120px; border-radius: 8px;">';
@@ -118377,6 +118394,50 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // Shop product Variants (sizes / options with per-variant pricing)
+    // ─────────────────────────────────────────────────────────────
+    function _renderShopVariants(variants) {
+        const list = document.getElementById('shop-product-variants-list');
+        if (!list) return;
+        list.innerHTML = '';
+        (variants || []).forEach(v => _addShopVariantRow(v));
+    }
+    function _addShopVariantRow(v) {
+        v = v || {};
+        const list = document.getElementById('shop-product-variants-list');
+        if (!list) return;
+        const row = document.createElement('div');
+        row.className = 'shop-variant-row';
+        row.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: end;';
+        row.innerHTML =
+            '<div><label class="form-label" style="font-size:0.75rem;">Label</label><input type="text" class="form-input shop-variant-label" placeholder="e.g. 2oz" maxlength="60" value="' + (v.label ? String(v.label).replace(/"/g, '&quot;') : '') + '"></div>' +
+            '<div><label class="form-label" style="font-size:0.75rem;">Price</label><input type="number" class="form-input shop-variant-price" min="0" max="999999.99" step="0.01" placeholder="0.00" value="' + (v.price != null ? v.price : '') + '"></div>' +
+            '<div><label class="form-label" style="font-size:0.75rem;">Stock <span style="color:#94a3b8;font-weight:normal;">(opt)</span></label><input type="number" class="form-input shop-variant-stock" min="0" placeholder="unlimited" value="' + (v.stock_qty != null ? v.stock_qty : '') + '"></div>' +
+            '<div><button type="button" class="btn btn-secondary" onclick="this.closest(\'.shop-variant-row\').remove()" style="padding: 0.35rem 0.6rem; font-size: 0.85rem;" title="Remove">🗑</button></div>';
+        list.appendChild(row);
+    }
+    function addShopVariantRow() { _addShopVariantRow({}); }
+    function _collectShopVariants() {
+        const rows = document.querySelectorAll('#shop-product-variants-list .shop-variant-row');
+        const out = [];
+        rows.forEach(row => {
+            const label = row.querySelector('.shop-variant-label')?.value.trim() || '';
+            const priceRaw = row.querySelector('.shop-variant-price')?.value;
+            const stockRaw = row.querySelector('.shop-variant-stock')?.value;
+            if (!label) return;
+            const price = parseFloat(priceRaw);
+            if (!Number.isFinite(price) || price < 0) return;
+            const entry = { label, price };
+            if (stockRaw !== '' && stockRaw != null) {
+                const sq = parseInt(stockRaw);
+                if (Number.isFinite(sq) && sq >= 0) entry.stock_qty = sq;
+            }
+            out.push(entry);
+        });
+        return out;
+    }
+
     async function saveShopProduct() {
         const id = document.getElementById('shop-product-id').value;
         const name = document.getElementById('shop-product-name').value.trim();
@@ -118409,6 +118470,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 ? pageSbSections['shop-product'] : [];
             formData.append('blocks', JSON.stringify(shopBlocks));
         } catch (e) { /* SB not initialised on this modal open — skip */ }
+        // Variants (sizes / options with per-variant pricing). Collect from
+        // the rows in #shop-product-variants-list. Server sanitises via
+        // persistShopVariants — invalid rows are dropped, empty label /
+        // non-numeric price = skipped. Only sent when at least one non-empty
+        // row exists, so products without variants stay untouched.
+        try {
+            const variants = _collectShopVariants();
+            formData.append('variants', JSON.stringify(variants));
+        } catch (e) { /* no rows — skip */ }
         formData.append('price', price);
         formData.append('currency', document.getElementById('shop-product-currency').value);
         formData.append('category', document.getElementById('shop-product-category').value);

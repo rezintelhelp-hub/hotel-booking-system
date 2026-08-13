@@ -149052,6 +149052,14 @@ app.listen(PORT, '0.0.0.0', async () => {
     // Product landing pages can render from these when present; falls back to
     // plain-text description otherwise. Marie / Lehmann fireside promo 2026-07-10.
     await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS blocks JSONB DEFAULT '[]'`);
+    // 2026-08-13 — variants for standalone products (sizes / quantities /
+    // options with per-variant pricing). JSONB array of {label, price} or
+    // {label, price, stock_qty}. When present + non-empty, the shop
+    // renders one "Add to cart" button per variant with the variant's
+    // price; base product price stays as the shop-grid display price.
+    // Only surfaced for product_type='standalone' — event / gift /
+    // external / booking_addon paths ignore variants.
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS variants JSONB DEFAULT '[]'`);
 
     // Specific-date availability window (Marie / Lehmann fireside promo
     // 2026-07-11) — replaces the month wrap-around range with a concrete
@@ -154014,6 +154022,8 @@ app.post('/api/admin/shop/products', upload.single('file'), async (req, res) => 
     await persistShopCrmEligibility(result.rows[0].id, req.body);
     // Section-Builder blocks — same pattern.
     await persistShopBlocks(result.rows[0].id, req.body);
+    // Variants (size / qty with per-variant price) — same pattern.
+    await persistShopVariants(result.rows[0].id, req.body);
 
     // Push event holds to Beds24 + mirror locally when this is a fixed-date
     // event with block-rooms enabled. Async to keep the admin save snappy;
@@ -154224,6 +154234,8 @@ app.put('/api/admin/shop/products/:id', upload.single('file'), async (req, res) 
     await persistShopCrmEligibility(result.rows[0].id, req.body);
     // Section-Builder blocks — same pattern.
     await persistShopBlocks(result.rows[0].id, req.body);
+    // Variants (size / qty with per-variant price) — same pattern.
+    await persistShopVariants(result.rows[0].id, req.body);
 
     // Event holds reconciliation — compare old vs new and fire create/release.
     // Cases:
@@ -154634,6 +154646,44 @@ async function persistShopBlocks(productId, body) {
       [JSON.stringify(blocks), productId]
     );
   } catch (e) { console.warn('[shop blocks] persist skipped:', e.message); }
+}
+
+// 2026-08-13 — variants persist helper. Same shape as persistShopBlocks.
+// Sanitises each entry to {label, price} (+ optional stock_qty). Rejects
+// entries with empty label or non-numeric price. Body key: `variants`,
+// either a JSON string or an array. Absent key = leave column untouched.
+async function persistShopVariants(productId, body) {
+  if (!productId) return;
+  if (body?.variants === undefined) return;
+  let variants = body.variants;
+  if (typeof variants === 'string') {
+    try { variants = JSON.parse(variants); } catch (e) {
+      console.warn('[shop variants] invalid JSON, skipping:', e.message);
+      return;
+    }
+  }
+  if (!Array.isArray(variants)) return;
+  const clean = [];
+  for (const v of variants) {
+    if (!v || typeof v !== 'object') continue;
+    const label = (v.label || '').toString().trim().slice(0, 60);
+    const price = parseFloat(v.price);
+    if (!label) continue;
+    if (!Number.isFinite(price) || price < 0 || price > 999999.99) continue;
+    const entry = { label, price: Math.round(price * 100) / 100 };
+    if (v.stock_qty != null && v.stock_qty !== '') {
+      const sq = parseInt(v.stock_qty);
+      if (Number.isFinite(sq) && sq >= 0) entry.stock_qty = sq;
+    }
+    clean.push(entry);
+    if (clean.length >= 20) break; // sanity cap
+  }
+  try {
+    await pool.query(
+      `UPDATE shop_products SET variants = $1::jsonb, updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(clean), productId]
+    );
+  } catch (e) { console.warn('[shop variants] persist skipped:', e.message); }
 }
 
 // POST /api/admin/shop/products/:id/image — upload product image
