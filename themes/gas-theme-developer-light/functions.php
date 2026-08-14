@@ -4249,6 +4249,44 @@ function developer_impressum_noindex() {
 add_action('wp_head', 'developer_impressum_noindex', 1);
 
 /**
+ * Redirect Privacy / Terms pages to the operator-configured External URL
+ * when both the "Use external URL" toggle is on AND a non-empty URL is set.
+ * See gas-theme-developer-dark/functions.php for full commentary — same fix
+ * in both themes so every multisite client gets the same behaviour.
+ */
+add_action('template_redirect', function() {
+    if (!is_singular('page')) return;
+    $tpl = get_post_meta(get_the_ID(), '_wp_page_template', true);
+    if ($tpl !== 'template-privacy.php' && $tpl !== 'template-terms.php') return;
+
+    $gas_api_url = get_option('gas_api_url', '');
+    $gas_client_id = get_option('gas_client_id', '');
+    if (!$gas_api_url || !$gas_client_id) return;
+
+    $cache_key = 'gas_site_config_' . $gas_client_id;
+    $site_config = get_transient($cache_key);
+    if ($site_config === false) {
+        $resp = wp_remote_get($gas_api_url . '/api/public/client/' . $gas_client_id . '/site-config', array(
+            'timeout' => 5, 'sslverify' => false
+        ));
+        if (is_wp_error($resp) || wp_remote_retrieve_response_code($resp) !== 200) return;
+        $body = json_decode(wp_remote_retrieve_body($resp), true);
+        if (!$body || empty($body['success'])) return;
+        $site_config = $body['config'];
+        set_transient($cache_key, $site_config, 30);
+    }
+
+    $section = ($tpl === 'template-privacy.php') ? 'page-privacy' : 'page-terms';
+    $wp = !empty($site_config['website'][$section]) ? $site_config['website'][$section] : array();
+    $use_ext = !empty($wp['use-external']);
+    $ext_url = isset($wp['external-url']) ? trim((string)$wp['external-url']) : '';
+    if ($use_ext && $ext_url !== '') {
+        wp_redirect(esc_url_raw($ext_url), 302);
+        exit;
+    }
+}, 5);
+
+/**
  * Helper: detect current page key from template
  */
 function developer_get_current_page_key() {
