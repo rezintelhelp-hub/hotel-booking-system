@@ -17545,6 +17545,18 @@
                                     <input type="email" id="myAccountReplyTo" class="form-input" placeholder="Leave blank to use the account Email above">
                                 </div>
 
+                                <div style="padding: 0.6rem 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+                                    <label style="display: flex; align-items: flex-start; gap: 0.55rem; cursor: pointer; font-size: 0.9rem; color: #1e293b; margin: 0;">
+                                        <input type="checkbox" id="myAccountNotifyMainEmail" checked style="margin-top: 3px;">
+                                        <span>
+                                            <strong>Send booking notifications to the main Email above</strong>
+                                            <div style="font-size: 0.78rem; color: #64748b; margin-top: 0.2rem; font-weight: 400;">
+                                                Untick if you don't want to be copied on every booking alert or guest email. Your Booking notifications CC (above) and any site-level Notification Email in Site Comms still fire. Use this when a team handles booking traffic and you want your inbox clear.
+                                            </div>
+                                        </span>
+                                    </label>
+                                </div>
+
                                 <div style="border-top: 1px solid #e2e8f0; padding-top: 1rem; margin-top: 0.5rem;">
                                     <label class="form-label">Preferred Contact Channel</label>
                                     <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.5rem;">How we'll reach you when something needs follow-up (e.g. AI couldn't answer your question, custom domain ready, etc.)</p>
@@ -43872,6 +43884,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (ccEl) ccEl.value = account.booking_cc_email || '';
                     const rtEl = document.getElementById('myAccountReplyTo');
                     if (rtEl) rtEl.value = account.reply_to_email || '';
+                    const nmEl = document.getElementById('myAccountNotifyMainEmail');
+                    if (nmEl) nmEl.checked = account.notify_main_email !== false;
                     document.getElementById('myAccountContactChannel').value = account.preferred_contact_channel || 'email';
                     document.getElementById('myAccountWhatsApp').value = account.contact_whatsapp || '';
                     
@@ -44687,7 +44701,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const response = await fetch(`/api/accounts/${targetAccountId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ name, email, phone, business_name, preferred_contact_channel, contact_whatsapp, booking_cc_email: document.getElementById('myAccountBookingCc')?.value.trim() || null, reply_to_email: document.getElementById('myAccountReplyTo')?.value.trim() || null })
+                    body: JSON.stringify({ name, email, phone, business_name, preferred_contact_channel, contact_whatsapp, booking_cc_email: document.getElementById('myAccountBookingCc')?.value.trim() || null, reply_to_email: document.getElementById('myAccountReplyTo')?.value.trim() || null, notify_main_email: document.getElementById('myAccountNotifyMainEmail')?.checked !== false })
                 });
                 
                 const data = await response.json();
