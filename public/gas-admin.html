@@ -95929,6 +95929,20 @@ const promo = await fetch('/api/v1/offers/validate', {
             return tmp;
         }
 
+        // Convert `.style.color` / `.style.backgroundColor` reads into a 6-char
+        // hex string that Pro Builder color pickers + hex text inputs can render.
+        // Browsers always return `rgb(r, g, b)` from JS style access — even when
+        // the CSS was authored as `#hex` — so hex fields displayed raw rgb() text.
+        // Handles: '', 'rgb(r,g,b)', 'rgba(r,g,b,a)', already-#hex, named-color no-op.
+        function _pbToHex(v, fallback) {
+            if (!v) return fallback;
+            const s = String(v).trim();
+            if (s.startsWith('#') && (s.length === 7 || s.length === 4)) return s;
+            const m = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+            if (m) return '#' + [m[1], m[2], m[3]].map(n => parseInt(n).toString(16).padStart(2, '0')).join('');
+            return fallback;
+        }
+
         function renderSectionEditor(index) {
             const section = proBuilderSections[index];
             if (!section) return '<div style="padding: 1rem; color: #ef4444;">Section not found</div>';
@@ -96006,7 +96020,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const contentCol = overlayCol || dom;
                         const hEl = contentCol.querySelector('h1, h2, h3, h4');
                         cvHeadHtml = hEl ? hEl.innerHTML : '';
-                        cvHeadColor = hEl ? (hEl.style.color || '#ffffff') : '#ffffff';
+                        cvHeadColor = _pbToHex(hEl && hEl.style.color, '#ffffff');
                         cvHeadLevel = hEl ? hEl.tagName.toLowerCase() : 'h2';
                         if (hEl) {
                             const hStyle = hEl.getAttribute('style') || '';
@@ -96023,7 +96037,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const pEl = pEls.length > 0 ? pEls[0] : null;
                         // Collect ALL paragraphs into one string separated by <br><br>
                         cvSubHtml = pEls.length > 0 ? Array.from(pEls).map(p => p.innerHTML).join('<br><br>') : '';
-                        cvSubColor = pEl ? (pEl.style.color || '#ffffff') : '#ffffff';
+                        cvSubColor = _pbToHex(pEl && pEl.style.color, '#ffffff');
                         if (pEl) {
                             const pStyle = pEl.getAttribute('style') || '';
                             const pFontMatch = pStyle.match(/font-family:\s*([^;!]+)/);
@@ -96036,14 +96050,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const btnEl = contentCol.querySelector('.wp-block-button__link');
                         cvBtnText = btnEl ? btnEl.textContent : '';
                         cvBtnLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
-                        cvBtnColor = btnEl ? (btnEl.style.backgroundColor || '#F97224') : '#F97224';
+                        cvBtnColor = _pbToHex(btnEl && btnEl.style.backgroundColor, '#F97224');
                         cvBtnNewTab = btnEl ? btnEl.getAttribute('target') === '_blank' : false;
                         if (btnEl) { const bStyle = btnEl.getAttribute('style') || ''; const bfs = bStyle.match(/font-size:\s*([\d.]+)rem/); if (bfs) { const fs = parseFloat(bfs[1]); cvBtnSize = fs <= 0.8 ? 'small' : fs >= 1.0 ? 'large' : 'medium'; } }
                     } else {
                         // Old simple cover — heading/subtitle/button from flat structure
                         const hEl = dom.querySelector('h1, h2, h3, h4');
                         cvHeadHtml = hEl ? hEl.innerHTML : '';
-                        cvHeadColor = hEl ? (hEl.style.color || '#ffffff') : '#ffffff';
+                        cvHeadColor = _pbToHex(hEl && hEl.style.color, '#ffffff');
                         cvHeadLevel = hEl ? hEl.tagName.toLowerCase() : 'h2';
                         if (hEl) {
                             const m = (hEl.getAttribute('style') || '').match(/text-align:\s*(left|center|right)/);
@@ -96051,7 +96065,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         }
                         const pEl = dom.querySelector('.wp-block-cover__inner-container p');
                         cvSubHtml = pEl ? pEl.innerHTML : '';
-                        cvSubColor = pEl ? (pEl.style.color || '#ffffff') : '#ffffff';
+                        cvSubColor = _pbToHex(pEl && pEl.style.color, '#ffffff');
                         if (pEl) {
                             const m = (pEl.getAttribute('style') || '').match(/text-align:\s*(left|center|right)/);
                             if (m) cvSubAlign = m[1];
@@ -96059,7 +96073,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const btnEl = dom.querySelector('.wp-block-button__link');
                         cvBtnText = btnEl ? btnEl.textContent : '';
                         cvBtnLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
-                        cvBtnColor = btnEl ? (btnEl.style.backgroundColor || '#F97224') : '#F97224';
+                        cvBtnColor = _pbToHex(btnEl && btnEl.style.backgroundColor, '#F97224');
                         cvBtnNewTab = btnEl ? btnEl.getAttribute('target') === '_blank' : false;
                     }
                     // Normalise RGB to hex — style.color returns rgb() not hex
@@ -96514,20 +96528,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                         }
                         const spHEl = textCol.querySelector('h1, h2, h3, h4, h5, h6');
                         const spHHtml = spHEl ? spHEl.innerHTML : '';
-                        const spHColor = spHEl ? (spHEl.style.color || '#ffffff') : '#ffffff';
+                        const spHColor = _pbToHex(spHEl && spHEl.style.color, '#ffffff');
                         const spHLevel = spHEl ? spHEl.tagName.toLowerCase() : 'h2';
                         const spHAMatch = spHEl ? ((spHEl.getAttribute('style') || '').match(/text-align:\s*(left|center|right)/)) : null;
                         const spHAlign = spHAMatch ? spHAMatch[1] : 'left';
                         const spPEl = textCol.querySelector('p');
                         const spPHtml = spPEl ? spPEl.innerHTML : '';
-                        const spPColor = spPEl ? (spPEl.style.color || '#ffffff') : '#ffffff';
+                        const spPColor = _pbToHex(spPEl && spPEl.style.color, '#ffffff');
                         const spPAMatch = spPEl ? ((spPEl.getAttribute('style') || '').match(/text-align:\s*(left|center|right)/)) : null;
                         const spPAlign = spPAMatch ? spPAMatch[1] : 'left';
                         const spBtnEl = textCol.querySelector('.wp-block-button__link');
                         const spBtnText = spBtnEl ? spBtnEl.textContent : '';
                         const spBtnLink = spBtnEl ? (spBtnEl.getAttribute('href') || '') : '';
                         const spBtnNewTab = spBtnEl ? spBtnEl.getAttribute('target') === '_blank' : false;
-                        let spBtnColor = spBtnEl ? (spBtnEl.style.backgroundColor || '#E8621A') : '#E8621A';
+                        let spBtnColor = _pbToHex(spBtnEl && spBtnEl.style.backgroundColor, '#E8621A');
                         if (!spBtnColor.startsWith('#')) {
                             const bm = spBtnColor.match(/(\d+)/g);
                             if (bm && bm.length >= 3) spBtnColor = '#' + bm.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
@@ -96728,7 +96742,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             const contentRoot = overlayColEl || innerEl || col;
                             const hEl = contentRoot.querySelector('h1, h2, h3, h4');
                             const dcHHtml = hEl ? hEl.innerHTML : '';
-                            let dcHColor = hEl ? (hEl.style.color || '#ffffff') : '#ffffff';
+                            let dcHColor = _pbToHex(hEl && hEl.style.color, '#ffffff');
                             if (!dcHColor.startsWith('#')) { const hcm = dcHColor.match(/(\d+)/g); if (hcm && hcm.length >= 3) dcHColor = '#' + hcm.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join(''); }
                             const dcHLevel = hEl ? hEl.tagName.toLowerCase() : 'h2';
                             // Heading font/size from inline style
@@ -96737,7 +96751,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             const dcHSize = (hStyle.match(/font-size:\s*(\d+)px/) || [])[1] || '';
                             const pEl = contentRoot.querySelector('p');
                             const dcSHtml = pEl ? pEl.innerHTML : '';
-                            let dcSColor = pEl ? (pEl.style.color || '#ffffff') : '#ffffff';
+                            let dcSColor = _pbToHex(pEl && pEl.style.color, '#ffffff');
                             if (!dcSColor.startsWith('#')) { const scm = dcSColor.match(/(\d+)/g); if (scm && scm.length >= 3) dcSColor = '#' + scm.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join(''); }
                             // Subtitle font/size from inline style
                             const pStyle = pEl ? (pEl.getAttribute('style') || '') : '';
@@ -96752,7 +96766,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             const dcBtnText = btnEl ? btnEl.textContent : '';
                             const dcBtnLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
                             const dcBtnNewTab = btnEl ? btnEl.getAttribute('target') === '_blank' : false;
-                            let dcBtnColor = btnEl ? (btnEl.style.backgroundColor || '#F97224') : '#F97224';
+                            let dcBtnColor = _pbToHex(btnEl && btnEl.style.backgroundColor, '#F97224');
                             if (!dcBtnColor.startsWith('#')) { const bm = dcBtnColor.match(/(\d+)/g); if (bm && bm.length >= 3) dcBtnColor = '#' + bm.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join(''); }
                             // Button size from inline style
                             const btnStyle = btnEl ? (btnEl.getAttribute('style') || '') : '';
@@ -96950,10 +96964,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     url: cdImg ? (cdImg.getAttribute('src') || '') : '',
                                     alt: cdImg ? (cdImg.getAttribute('alt') || '') : '',
                                     headingText: cdH ? cdH.innerHTML : '',
-                                    headingColor: cdH ? (cdH.style.color || '#1e293b') : '#1e293b',
+                                    headingColor: _pbToHex(cdH && cdH.style.color, '#1e293b'),
                                     headingLevel: cdH ? cdH.tagName.toLowerCase() : 'h3',
                                     bodyText: cdParas.map(p => p.innerHTML.trim().replace(/<\/?(h[4-6]|font|span)[^>]*>/gi, '')).join('<br><br>'),
-                                    bodyColor: cdParas.length ? (cdParas[0].style.color || '#374151') : '#374151',
+                                    bodyColor: _pbToHex(cdParas.length ? cdParas[0].style.color : null, '#374151'),
                                     bgColor: cdPBg3,
                                     bgOpacity: cdPBgOp3,
                                     borderColor: cdBorderMatch ? cdBorderMatch[2] : '#e2e8f0',
@@ -96962,8 +96976,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     btnText: cdBtn ? cdBtn.textContent : '',
                                     btnLink: cdBtn ? (cdBtn.getAttribute('href') || '') : '',
                                     btnNewTab: cdBtn ? cdBtn.getAttribute('target') === '_blank' : false,
-                                    btnColor: cdBtn ? (cdBtn.style.backgroundColor || '#F97224') : '#F97224',
-                                    btnTextColor: cdBtn ? (cdBtn.style.color || '#ffffff') : '#ffffff',
+                                    btnColor: _pbToHex(cdBtn && cdBtn.style.backgroundColor, '#F97224'),
+                                    btnTextColor: _pbToHex(cdBtn && cdBtn.style.color, '#ffffff'),
                                     btnRadius: cdBtn && cdBtn.style.borderRadius ? parseInt(cdBtn.style.borderRadius) : 6,
                                     btnSize: cdBtn ? ((cdBtn.getAttribute('style')||'').includes('14px 32px') ? 'large' : (cdBtn.getAttribute('style')||'').includes('6px 16px') ? 'small' : 'medium') : 'medium'
                                 });
@@ -96978,9 +96992,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 });
                                 const fqcM = faqEl.querySelector('summary');
                                 const facM = faqEl.querySelector('details p');
-                                const fqColor = fqcM?.style.color || '#1e293b';
-                                const faColor = facM?.style.color || '#374151';
-                                const fbgColor = faqEl.style.background || faqEl.style.backgroundColor || '#ffffff';
+                                const fqColor = _pbToHex(fqcM?.style.color, '#1e293b');
+                                const faColor = _pbToHex(facM?.style.color, '#374151');
+                                const fbgColor = _pbToHex(faqEl.style.background || faqEl.style.backgroundColor, '#ffffff');
                                 const fbrM = faqEl.querySelector('details');
                                 const fbrStyle = fbrM ? (fbrM.getAttribute('style') || '') : '';
                                 const fbrColor = fbrStyle.match(/border:\s*\d+px\s+solid\s+(#[0-9a-fA-F]+|[a-z]+)/)?.[1] || '#e2e8f0';
@@ -97043,7 +97057,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         blocks.push({ type: 'map', lat: parseFloat(el.dataset.lat) || 0, lng: parseFloat(el.dataset.lng) || 0, zoom: parseInt(el.dataset.zoom) || 15, mapHeight: parseInt(el.style.height) || 400, mapRadius: el.dataset.radius != null ? parseInt(el.dataset.radius) : 8, markerLabel: el.dataset.marker || '', address: '' });
                                     } else if (el.matches('h1,h2,h3,h4,h5,h6')) {
                                         _flushTxt();
-                                        blocks.push({ type: 'heading', text: el.innerHTML, color: el.style.color || '#1e293b', level: el.tagName.toLowerCase() });
+                                        blocks.push({ type: 'heading', text: el.innerHTML, color: _pbToHex(el.style.color, '#1e293b'), level: el.tagName.toLowerCase() });
                                     } else if (el.matches('ul,ol')) {
                                         // CRITICAL: must preserve <ul>/<ol> — without this branch
                                         // the parser drops them and a save destroys the list.
@@ -97051,7 +97065,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         blocks.push({ type: 'list', html: el.outerHTML, ordered: el.tagName.toLowerCase() === 'ol' });
                                     } else if ((el.matches('p') || el.matches('div:not(.wp-block-buttons):not(.wp-block-button):not(.wp-block-image):not([class*="wp-block"]):not(.pb-map)')) && !el.closest('.wp-block-button')) {
                                         const txt = el.textContent.trim();
-                                        if (txt) { _pendTxt.push(el.innerHTML.trim()); if (!_pendClr && el.style.color) _pendClr = el.style.color; }
+                                        if (txt) { _pendTxt.push(el.innerHTML.trim()); if (!_pendClr && el.style.color) _pendClr = _pbToHex(el.style.color, ''); }
                                     } else if (el.matches('figure.wp-block-image')) {
                                         _flushTxt();
                                         const img = el.querySelector('img');
@@ -97059,7 +97073,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     } else if (el.matches('.wp-block-buttons, .wp-block-button')) {
                                         _flushTxt();
                                         const link = el.querySelector('.wp-block-button__link') || el.querySelector('a');
-                                        if (link) blocks.push({ type: 'button', text: link.textContent, url: link.getAttribute('href') || '#', color: link.style.backgroundColor || '#E8621A', newTab: link.getAttribute('target') === '_blank' });
+                                        if (link) blocks.push({ type: 'button', text: link.textContent, url: link.getAttribute('href') || '#', color: _pbToHex(link.style.backgroundColor, '#E8621A'), newTab: link.getAttribute('target') === '_blank' });
                                     } else {
                                         // Unknown element type — preserve raw outerHTML so save
                                         // doesn't silently drop it. Editor shows a read-only
@@ -97305,9 +97319,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                             if (paras.length >= 1) revText = (paras[0].textContent || '').replace(/^"|"$/g, '').trim();
                             if (paras.length >= 2) revName = (paras[1].textContent || '').replace(/^\u2014\s*/, '').trim();
                             if (revText || revName) revItems.push({ name: revName, rating: stars || 5, text: revText });
-                            if (col.style.background || col.style.backgroundColor) rCardBg = col.style.background || col.style.backgroundColor;
-                            if (paras[0]?.style.color) rTextColor = paras[0].style.color;
-                            if (starEl?.style.color) rStarColor = starEl.style.color;
+                            if (col.style.background || col.style.backgroundColor) rCardBg = _pbToHex(col.style.background || col.style.backgroundColor, rCardBg);
+                            if (paras[0]?.style.color) rTextColor = _pbToHex(paras[0].style.color, rTextColor);
+                            if (starEl?.style.color) rStarColor = _pbToHex(starEl.style.color, rStarColor);
                         });
                         // Normalise RGB to hex
                         const rgbH = (c, f) => { if (c.startsWith('#')) return c; const m = c.match(/(\d+)/g); return (m && m.length >= 3) ? '#' + m.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('') : f; };
@@ -97478,10 +97492,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     url: cdImg ? (cdImg.getAttribute('src') || '') : '',
                                     alt: cdImg ? (cdImg.getAttribute('alt') || '') : '',
                                     headingText: cdH ? cdH.innerHTML : '',
-                                    headingColor: cdH ? (cdH.style.color || '#1e293b') : '#1e293b',
+                                    headingColor: _pbToHex(cdH && cdH.style.color, '#1e293b'),
                                     headingLevel: cdH ? cdH.tagName.toLowerCase() : 'h3',
                                     bodyText: cdParas.map(p => p.innerHTML.trim().replace(/<\/?(h[4-6]|font|span)[^>]*>/gi, '')).join('<br><br>'),
-                                    bodyColor: cdParas.length ? (cdParas[0].style.color || '#374151') : '#374151',
+                                    bodyColor: _pbToHex(cdParas.length ? cdParas[0].style.color : null, '#374151'),
                                     bgColor: cdPBg4,
                                     bgOpacity: cdPBgOp4,
                                     borderColor: cdBorderMatch2 ? cdBorderMatch2[2] : '#e2e8f0',
@@ -97490,8 +97504,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     btnText: cdBtn ? cdBtn.textContent : '',
                                     btnLink: cdBtn ? (cdBtn.getAttribute('href') || '') : '',
                                     btnNewTab: cdBtn ? cdBtn.getAttribute('target') === '_blank' : false,
-                                    btnColor: cdBtn ? (cdBtn.style.backgroundColor || '#F97224') : '#F97224',
-                                    btnTextColor: cdBtn ? (cdBtn.style.color || '#ffffff') : '#ffffff',
+                                    btnColor: _pbToHex(cdBtn && cdBtn.style.backgroundColor, '#F97224'),
+                                    btnTextColor: _pbToHex(cdBtn && cdBtn.style.color, '#ffffff'),
                                     btnRadius: cdBtn && cdBtn.style.borderRadius ? parseInt(cdBtn.style.borderRadius) : 6,
                                     btnSize: cdBtn ? ((cdBtn.getAttribute('style')||'').includes('14px 32px') ? 'large' : (cdBtn.getAttribute('style')||'').includes('6px 16px') ? 'small' : 'medium') : 'medium'
                                 });
@@ -97506,9 +97520,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 });
                                 const fqcM = faqEl.querySelector('summary');
                                 const facM = faqEl.querySelector('details p');
-                                const fqColor = fqcM?.style.color || '#1e293b';
-                                const faColor = facM?.style.color || '#374151';
-                                const fbgColor = faqEl.style.background || faqEl.style.backgroundColor || '#ffffff';
+                                const fqColor = _pbToHex(fqcM?.style.color, '#1e293b');
+                                const faColor = _pbToHex(facM?.style.color, '#374151');
+                                const fbgColor = _pbToHex(faqEl.style.background || faqEl.style.backgroundColor, '#ffffff');
                                 const fbrM = faqEl.querySelector('details');
                                 const fbrStyle = fbrM ? (fbrM.getAttribute('style') || '') : '';
                                 const fbrColor = fbrStyle.match(/border:\s*\d+px\s+solid\s+(#[0-9a-fA-F]+|[a-z]+)/)?.[1] || '#e2e8f0';
@@ -97554,19 +97568,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     if (el.matches('.pb-map')) {
                                         blocks.push({ type: 'map', lat: parseFloat(el.dataset.lat) || 0, lng: parseFloat(el.dataset.lng) || 0, zoom: parseInt(el.dataset.zoom) || 15, mapHeight: parseInt(el.style.height) || 400, mapRadius: el.dataset.radius != null ? parseInt(el.dataset.radius) : 8, markerLabel: el.dataset.marker || '', address: '' });
                                     } else if (el.matches('h1,h2,h3,h4,h5,h6')) {
-                                        blocks.push({ type: 'heading', text: el.innerHTML, color: el.style.color || '#1e293b', level: el.tagName.toLowerCase() });
+                                        blocks.push({ type: 'heading', text: el.innerHTML, color: _pbToHex(el.style.color, '#1e293b'), level: el.tagName.toLowerCase() });
                                     } else if (el.matches('ul,ol')) {
                                         // Preserve list content — otherwise save would drop it.
                                         blocks.push({ type: 'list', html: el.outerHTML, ordered: el.tagName.toLowerCase() === 'ol' });
                                     } else if ((el.matches('p') || el.matches('div:not(.wp-block-buttons):not(.wp-block-button):not(.wp-block-image):not([class*="wp-block"]):not(.pb-map)')) && !el.closest('.wp-block-button')) {
                                         const txt = el.textContent.trim();
-                                        if (txt) blocks.push({ type: 'text', text: el.innerHTML.trim(), color: el.style.color || '' });
+                                        if (txt) blocks.push({ type: 'text', text: el.innerHTML.trim(), color: _pbToHex(el.style.color, '') });
                                     } else if (el.matches('figure.wp-block-image, figure img')) {
                                         const img = el.matches('img') ? el : el.querySelector('img');
                                         if (img) blocks.push({ type: 'image', url: img.getAttribute('src') || '', alt: img.getAttribute('alt') || '' });
                                     } else if (el.matches('.wp-block-buttons, .wp-block-button')) {
                                         const link = el.querySelector('.wp-block-button__link') || el.querySelector('a');
-                                        if (link) blocks.push({ type: 'button', text: link.textContent, url: link.getAttribute('href') || '#', color: link.style.backgroundColor || '#E8621A', newTab: link.getAttribute('target') === '_blank' });
+                                        if (link) blocks.push({ type: 'button', text: link.textContent, url: link.getAttribute('href') || '#', color: _pbToHex(link.style.backgroundColor, '#E8621A'), newTab: link.getAttribute('target') === '_blank' });
                                     } else if (el.outerHTML && el.outerHTML.trim()) {
                                         // Catch-all: preserve unknown elements as raw HTML.
                                         blocks.push({ type: 'raw', html: el.outerHTML });
@@ -97731,7 +97745,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         // Collect all text elements (p, h4-h6, font — skip empty ones and those inside buttons)
                         const cdParas = cardEl ? Array.from(cardEl.querySelectorAll('p,h4,h5,h6,font')).filter(p => p.innerHTML.trim() && !p.closest('.wp-block-button') && !p.closest('.wp-block-buttons') && !p.closest('figure') && p !== cdH && !(cdH && cdH.contains(p))) : [];
                         const cdBodyHtml = cdParas.map(p => p.innerHTML.trim().replace(/<\/?(h[4-6]|font|span)[^>]*>/gi, '')).join('<br><br>');
-                        const cdBodyColor = cdParas.length ? (cdParas[0].style.color || '#374151') : '#374151';
+                        const cdBodyColor = _pbToHex(cdParas.length ? cdParas[0].style.color : null, '#374151');
                         const cdBtn = cardEl ? cardEl.querySelector('.wp-block-button__link') : null;
                         const cdStyleStr = cardEl ? (cardEl.getAttribute('style') || '') : '';
                         const cdBgMatch = cdStyleStr.match(/background-color:\s*(#[0-9a-fA-F]{6})/);
@@ -97748,7 +97762,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             url: cdImg ? (cdImg.getAttribute('src') || '') : '',
                             alt: cdImg ? (cdImg.getAttribute('alt') || '') : '',
                             headingText: cdH ? cdH.innerHTML : '',
-                            headingColor: cdH ? (cdH.style.color || '#1e293b') : '#1e293b',
+                            headingColor: _pbToHex(cdH && cdH.style.color, '#1e293b'),
                             headingLevel: cdH ? cdH.tagName.toLowerCase() : 'h3',
                             headingAlign: cdHAlignMatch ? cdHAlignMatch[1] : 'left',
                             bodyText: cdBodyHtml,
@@ -97761,8 +97775,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             borderRadius: cdRadiusMatch ? parseInt(cdRadiusMatch[1]) : 12,
                             btnText: cdBtn ? cdBtn.textContent : '',
                             btnLink: cdBtn ? (cdBtn.getAttribute('href') || '') : '',
-                            btnColor: cdBtn ? (cdBtn.style.backgroundColor || '#F97224') : '#F97224',
-                            btnTextColor: cdBtn ? (cdBtn.style.color || '#ffffff') : '#ffffff',
+                            btnColor: _pbToHex(cdBtn && cdBtn.style.backgroundColor, '#F97224'),
+                            btnTextColor: _pbToHex(cdBtn && cdBtn.style.color, '#ffffff'),
                             btnRadius: cdBtn && cdBtn.style.borderRadius ? parseInt(cdBtn.style.borderRadius) : 6,
                             btnSize: cdBtn ? ((cdBtn.getAttribute('style')||'').includes('14px 32px') ? 'large' : (cdBtn.getAttribute('style')||'').includes('6px 16px') ? 'small' : 'medium') : 'medium'
                         };
