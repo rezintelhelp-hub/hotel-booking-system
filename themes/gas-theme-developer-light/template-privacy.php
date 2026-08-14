@@ -700,6 +700,21 @@ $all_sections[] = [
 ];
 
 $use_api = true;
+
+// Custom Description override — see gas-theme-developer-dark/template-privacy.php
+// for full commentary. Same fix in both themes so any client on either
+// theme who fills in the Description field gets their content rendered
+// instead of the auto-generated GDPR boilerplate.
+$ext_heading = $ml ? $ml($wp, 'ext-heading', $lang) : (isset($wp['ext-heading-' . $lang]) ? $wp['ext-heading-' . $lang] : ($wp['ext-heading-en'] ?? ''));
+$ext_text    = $ml ? $ml($wp, 'ext-text',    $lang) : (isset($wp['ext-text-'    . $lang]) ? $wp['ext-text-'    . $lang] : ($wp['ext-text-en']    ?? ''));
+if (!empty(trim(strip_tags((string)$ext_text)))) {
+    $all_sections = array(array(
+        'title'      => $ext_heading ? $ext_heading : '',
+        'content'    => wp_kses_post($ext_text),
+        'html'       => true,
+        'no_heading' => empty($ext_heading),
+    ));
+}
 ?>
 
 <main id="primary" class="site-main">
@@ -725,7 +740,7 @@ $use_api = true;
         <section class="developer-section developer-privacy-section" style="background: <?php echo $bg_color; ?>; padding: 50px 0;">
             <div class="developer-container">
                 <div class="developer-privacy-content">
-                    <h2><?php echo esc_html($section['title']); ?></h2>
+                    <?php if (empty($section['no_heading']) && !empty($section['title'])) : ?><h2><?php echo esc_html($section['title']); ?></h2><?php endif; ?>
 
                     <?php if (!empty($section['content'])) : ?>
                     <div class="developer-privacy-text">
