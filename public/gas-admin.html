@@ -95950,7 +95950,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const isPbHero = section.raw_markup.includes('pb-hero');
                     let cvPos = 'left', cvWidth = 40, cvOlColor = '#000000', cvOlOpacity = 70;
                     let cvHeadHtml = '', cvHeadColor = '#ffffff', cvHeadLevel = 'h2', cvSubHtml = '', cvSubColor = '#ffffff';
-                    let cvBtnText = '', cvBtnLink = '', cvBtnColor = '#F97224';
+                    let cvBtnText = '', cvBtnLink = '', cvBtnColor = '#F97224', cvBtnNewTab = false;
                     let cvPadTop = '40', cvPadRight = '30', cvPadBot = '40', cvPadLeft = '30';
                     let cvHeadFont = '', cvHeadSize = '', cvSubFont = '', cvSubSize = '';
                     let cvHeadGap = '', cvBtnSize = 'medium';
@@ -96037,6 +96037,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         cvBtnText = btnEl ? btnEl.textContent : '';
                         cvBtnLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
                         cvBtnColor = btnEl ? (btnEl.style.backgroundColor || '#F97224') : '#F97224';
+                        cvBtnNewTab = btnEl ? btnEl.getAttribute('target') === '_blank' : false;
                         if (btnEl) { const bStyle = btnEl.getAttribute('style') || ''; const bfs = bStyle.match(/font-size:\s*([\d.]+)rem/); if (bfs) { const fs = parseFloat(bfs[1]); cvBtnSize = fs <= 0.8 ? 'small' : fs >= 1.0 ? 'large' : 'medium'; } }
                     } else {
                         // Old simple cover — heading/subtitle/button from flat structure
@@ -96059,6 +96060,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         cvBtnText = btnEl ? btnEl.textContent : '';
                         cvBtnLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
                         cvBtnColor = btnEl ? (btnEl.style.backgroundColor || '#F97224') : '#F97224';
+                        cvBtnNewTab = btnEl ? btnEl.getAttribute('target') === '_blank' : false;
                     }
                     // Normalise RGB to hex — style.color returns rgb() not hex
                     const rgbToHex = (c, fallback) => { if (c.startsWith('#')) return c; const m = c.match(/(\d+)/g); return (m && m.length >= 3) ? '#' + m.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('') : fallback; };
@@ -96215,6 +96217,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <div style="${row}">
                                     <span style="${lbl}">Button URL</span>
                                     <input type="text" id="pb-edit-${index}-cover-btn-link" value="${cvBtnLink.replace(/"/g, '&quot;')}" placeholder="/book-now" style="${ctrl} flex:1;">
+                                </div>
+                                <div style="${row}">
+                                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.85rem; color:#374151;">
+                                        <input type="checkbox" id="pb-edit-${index}-cover-btn-newtab" ${cvBtnNewTab ? 'checked' : ''}>
+                                        Open in new tab
+                                    </label>
                                 </div>
                                 <div style="${row}">
                                     <span style="${lbl}">Button Color</span>
@@ -96438,11 +96446,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const btnEl = dom.querySelector('.wp-block-button__link');
                     const bText = btnEl ? btnEl.textContent : '';
                     const bLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
+                    const bNewTab = btnEl ? btnEl.getAttribute('target') === '_blank' : false;
                     fieldsHtml = `
                         <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Button Text</label>
                             <input type="text" id="pb-edit-${index}-btn-text" value="${bText.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
                         <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Button Link</label>
                             <input type="text" id="pb-edit-${index}-btn-link" value="${bLink.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
+                        <div style="margin-bottom:0.75rem;">
+                            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.85rem; color:#374151;">
+                                <input type="checkbox" id="pb-edit-${index}-btn-newtab" ${bNewTab ? 'checked' : ''}>
+                                Open in new tab
+                            </label>
+                        </div>
                     `;
                     break;
                 }
@@ -96511,6 +96526,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const spBtnEl = textCol.querySelector('.wp-block-button__link');
                         const spBtnText = spBtnEl ? spBtnEl.textContent : '';
                         const spBtnLink = spBtnEl ? (spBtnEl.getAttribute('href') || '') : '';
+                        const spBtnNewTab = spBtnEl ? spBtnEl.getAttribute('target') === '_blank' : false;
                         let spBtnColor = spBtnEl ? (spBtnEl.style.backgroundColor || '#E8621A') : '#E8621A';
                         if (!spBtnColor.startsWith('#')) {
                             const bm = spBtnColor.match(/(\d+)/g);
@@ -96617,6 +96633,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <div style="${row}">
                                         <span style="${lbl}">Button URL</span>
                                         <input type="text" id="pb-edit-${index}-split-btn-link" value="${spBtnLink.replace(/"/g, '&quot;')}" placeholder="/book-now" style="${ctrl} flex:1;">
+                                    </div>
+                                    <div style="${row}">
+                                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.85rem; color:#374151;">
+                                            <input type="checkbox" id="pb-edit-${index}-split-btn-newtab" ${spBtnNewTab ? 'checked' : ''}>
+                                            Open in new tab
+                                        </label>
                                     </div>
                                     <div style="${row}">
                                         <span style="${lbl}">Btn Colour</span>
@@ -96729,6 +96751,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             const btnEl = contentRoot.querySelector('.wp-block-button__link');
                             const dcBtnText = btnEl ? btnEl.textContent : '';
                             const dcBtnLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
+                            const dcBtnNewTab = btnEl ? btnEl.getAttribute('target') === '_blank' : false;
                             let dcBtnColor = btnEl ? (btnEl.style.backgroundColor || '#F97224') : '#F97224';
                             if (!dcBtnColor.startsWith('#')) { const bm = dcBtnColor.match(/(\d+)/g); if (bm && bm.length >= 3) dcBtnColor = '#' + bm.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join(''); }
                             // Button size from inline style
@@ -96842,6 +96865,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <div style="${row}">
                                             <span style="${lbl}">URL</span>
                                             <input type="text" id="pb-edit-${index}-dc${ci}-btn-link" value="${dcBtnLink.replace(/"/g, '&quot;')}" placeholder="/book-now" style="${ctrl} flex:1;">
+                                            <label style="display:flex; align-items:center; gap:4px; font-size:0.72rem; color:#374151; cursor:pointer; margin-left:6px;">
+                                                <input type="checkbox" id="pb-edit-${index}-dc${ci}-btn-newtab" ${dcBtnNewTab ? 'checked' : ''}>
+                                                New tab
+                                            </label>
                                             <span style="${lbl} min-width:40px;">Color</span>
                                             <input type="color" id="pb-edit-${index}-dc${ci}-btn-color" value="${dcBtnColor}" onchange="document.getElementById('pb-edit-${index}-dc${ci}-btn-color-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;">
                                             <input type="text" id="pb-edit-${index}-dc${ci}-btn-color-hex" value="${dcBtnColor}" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pb-edit-${index}-dc${ci}-btn-color').value=this.value" style="${ctrl} width:70px; font-size:0.7rem;">
@@ -96934,6 +96961,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     borderRadius: cdRadiusMatch ? parseInt(cdRadiusMatch[1]) : 12,
                                     btnText: cdBtn ? cdBtn.textContent : '',
                                     btnLink: cdBtn ? (cdBtn.getAttribute('href') || '') : '',
+                                    btnNewTab: cdBtn ? cdBtn.getAttribute('target') === '_blank' : false,
                                     btnColor: cdBtn ? (cdBtn.style.backgroundColor || '#F97224') : '#F97224',
                                     btnTextColor: cdBtn ? (cdBtn.style.color || '#ffffff') : '#ffffff',
                                     btnRadius: cdBtn && cdBtn.style.borderRadius ? parseInt(cdBtn.style.borderRadius) : 6,
@@ -97031,7 +97059,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     } else if (el.matches('.wp-block-buttons, .wp-block-button')) {
                                         _flushTxt();
                                         const link = el.querySelector('.wp-block-button__link') || el.querySelector('a');
-                                        if (link) blocks.push({ type: 'button', text: link.textContent, url: link.getAttribute('href') || '#', color: link.style.backgroundColor || '#E8621A' });
+                                        if (link) blocks.push({ type: 'button', text: link.textContent, url: link.getAttribute('href') || '#', color: link.style.backgroundColor || '#E8621A', newTab: link.getAttribute('target') === '_blank' });
                                     } else {
                                         // Unknown element type — preserve raw outerHTML so save
                                         // doesn't silently drop it. Editor shows a read-only
@@ -97106,6 +97134,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 } else if (b.type === 'button') {
                                     gcHtml += `<div style="${row}"><span style="${lbl}">Text</span><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-text" value="${(b.text||'').replace(/"/g,'&quot;')}" style="${ctrl} flex:1;"></div>`;
                                     gcHtml += `<div style="${row}"><span style="${lbl}">URL</span><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-url" value="${(b.url||'').replace(/"/g,'&quot;')}" placeholder="/book-now" style="${ctrl} flex:1;"><span style="${lbl} min-width:40px;">Color</span><input type="color" id="pb-edit-${index}-gc${ci}-b${bi}-color" value="${b.color}" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;"></div>`;
+                                    gcHtml += `<div style="${row}"><label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.75rem; color:#374151;"><input type="checkbox" id="pb-edit-${index}-gc${ci}-b${bi}-newtab" ${b.newTab ? 'checked' : ''}> Open in new tab</label></div>`;
                                 } else if (b.type === 'card') {
                                     // Card block editor (image top + heading + text + button + card styling)
                                     const cdGrpS = 'font-weight:700; font-size:0.68rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:6px 0 3px; padding-top:4px; border-top:1px solid #e2e8f0;';
@@ -97122,6 +97151,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     gcHtml += `<div style="${cdGrpS}">Button</div>`;
                                     gcHtml += `<div style="${row}"><span style="${lbl}">Text</span><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-btntext" value="${(b.btnText||'').replace(/"/g,'&quot;')}" placeholder="Leave blank for no button" style="${ctrl} flex:1;"></div>`;
                                     gcHtml += `<div style="${row}"><span style="${lbl}">URL</span><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-btnlink" value="${(b.btnLink||'').replace(/"/g,'&quot;')}" placeholder="/book-now" style="${ctrl} flex:1;"><span style="${lbl} min-width:20px;">BG</span><input type="color" id="pb-edit-${index}-gc${ci}-b${bi}-btncolor" value="${b.btnColor||'#F97224'}" onchange="document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-btncolor-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;"><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-btncolor-hex" value="${b.btnColor||'#F97224'}" onchange="var c=this.value.startsWith('#')?this.value:'#'+this.value; document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-btncolor').value=c; this.value=c;" style="width:65px; padding:2px 4px; border:1px solid #d1d5db; border-radius:3px; font-size:0.72rem; font-family:monospace;"><span style="${lbl} min-width:20px; margin-left:6px;">Text</span><input type="color" id="pb-edit-${index}-gc${ci}-b${bi}-btntextcolor" value="${b.btnTextColor||'#ffffff'}" onchange="document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-btntextcolor-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;"><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-btntextcolor-hex" value="${b.btnTextColor||'#ffffff'}" onchange="var c=this.value.startsWith('#')?this.value:'#'+this.value; document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-btntextcolor').value=c; this.value=c;" style="width:65px; padding:2px 4px; border:1px solid #d1d5db; border-radius:3px; font-size:0.72rem; font-family:monospace;"></div>`;
+                                    gcHtml += `<div style="${row}"><label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.75rem; color:#374151;"><input type="checkbox" id="pb-edit-${index}-gc${ci}-b${bi}-btnnewtab" ${b.btnNewTab ? 'checked' : ''}> Open in new tab</label></div>`;
                                     gcHtml += `<div style="${row}"><span style="${lbl}">Radius</span><input type="number" id="pb-edit-${index}-gc${ci}-b${bi}-btnradius" value="${b.btnRadius!=null?b.btnRadius:6}" min="0" max="50" style="${ctrl} width:50px;"><span style="font-size:0.68rem; color:#94a3b8;">px</span><span style="${lbl} min-width:30px; margin-left:8px;">Size</span><select id="pb-edit-${index}-gc${ci}-b${bi}-btnsize" style="${ctrl} width:70px;"><option value="small"${(b.btnSize||'medium')==='small'?' selected':''}>Small</option><option value="medium"${(b.btnSize||'medium')==='medium'?' selected':''}>Medium</option><option value="large"${(b.btnSize||'medium')==='large'?' selected':''}>Large</option></select></div>`;
                                     gcHtml += `<div style="${cdGrpS}">Card Style</div>`;
                                     gcHtml += `<div style="${row}"><span style="${lbl}">BG</span><input type="color" id="pb-edit-${index}-gc${ci}-b${bi}-bgcolor" value="${b.bgColor||'#ffffff'}" onchange="document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-bgcolor-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;"><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-bgcolor-hex" value="${b.bgColor||'#ffffff'}" onchange="var c=this.value.startsWith('#')?this.value:'#'+this.value; document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-bgcolor').value=c; this.value=c;" style="width:65px; padding:2px 4px; border:1px solid #d1d5db; border-radius:3px; font-size:0.72rem; font-family:monospace;"><span style="${lbl} min-width:50px; margin-left:8px;">Opacity</span><input type="range" id="pb-edit-${index}-gc${ci}-b${bi}-bgopacity" value="${b.bgOpacity!=null?b.bgOpacity:100}" min="0" max="100" style="flex:1; max-width:100px; cursor:pointer;" oninput="document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-bgopacity-val').textContent=this.value+'%'"><span id="pb-edit-${index}-gc${ci}-b${bi}-bgopacity-val" style="font-size:0.68rem; color:#94a3b8; min-width:30px;">${b.bgOpacity!=null?b.bgOpacity:100}%</span></div>`;
@@ -97459,6 +97489,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     borderRadius: cdRadiusMatch2 ? parseInt(cdRadiusMatch2[1]) : 12,
                                     btnText: cdBtn ? cdBtn.textContent : '',
                                     btnLink: cdBtn ? (cdBtn.getAttribute('href') || '') : '',
+                                    btnNewTab: cdBtn ? cdBtn.getAttribute('target') === '_blank' : false,
                                     btnColor: cdBtn ? (cdBtn.style.backgroundColor || '#F97224') : '#F97224',
                                     btnTextColor: cdBtn ? (cdBtn.style.color || '#ffffff') : '#ffffff',
                                     btnRadius: cdBtn && cdBtn.style.borderRadius ? parseInt(cdBtn.style.borderRadius) : 6,
@@ -97535,7 +97566,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         if (img) blocks.push({ type: 'image', url: img.getAttribute('src') || '', alt: img.getAttribute('alt') || '' });
                                     } else if (el.matches('.wp-block-buttons, .wp-block-button')) {
                                         const link = el.querySelector('.wp-block-button__link') || el.querySelector('a');
-                                        if (link) blocks.push({ type: 'button', text: link.textContent, url: link.getAttribute('href') || '#', color: link.style.backgroundColor || '#E8621A' });
+                                        if (link) blocks.push({ type: 'button', text: link.textContent, url: link.getAttribute('href') || '#', color: link.style.backgroundColor || '#E8621A', newTab: link.getAttribute('target') === '_blank' });
                                     } else if (el.outerHTML && el.outerHTML.trim()) {
                                         // Catch-all: preserve unknown elements as raw HTML.
                                         blocks.push({ type: 'raw', html: el.outerHTML });
@@ -97584,6 +97615,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 } else if (b.type === 'button') {
                                     gcHtml += `<div style="${row}"><span style="${lbl}">Text</span><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-text" value="${(b.text||'').replace(/"/g,'&quot;')}" style="${ctrl} flex:1;"></div>`;
                                     gcHtml += `<div style="${row}"><span style="${lbl}">URL</span><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-url" value="${(b.url||'').replace(/"/g,'&quot;')}" placeholder="/book-now" style="${ctrl} flex:1;"><span style="${lbl} min-width:40px;">Color</span><input type="color" id="pb-edit-${index}-gc${ci}-b${bi}-color" value="${b.color}" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;"></div>`;
+                                    gcHtml += `<div style="${row}"><label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.75rem; color:#374151;"><input type="checkbox" id="pb-edit-${index}-gc${ci}-b${bi}-newtab" ${b.newTab ? 'checked' : ''}> Open in new tab</label></div>`;
                                 } else if (b.type === 'card') {
                                     const cdGrpS = 'font-weight:700; font-size:0.68rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:6px 0 3px; padding-top:4px; border-top:1px solid #e2e8f0;';
                                     gcHtml += `<div style="${cdGrpS} border-top:none; margin-top:0;">Image</div>`;
@@ -97599,6 +97631,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     gcHtml += `<div style="${cdGrpS}">Button</div>`;
                                     gcHtml += `<div style="${row}"><span style="${lbl}">Text</span><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-btntext" value="${(b.btnText||'').replace(/"/g,'&quot;')}" placeholder="Leave blank for no button" style="${ctrl} flex:1;"></div>`;
                                     gcHtml += `<div style="${row}"><span style="${lbl}">URL</span><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-btnlink" value="${(b.btnLink||'').replace(/"/g,'&quot;')}" placeholder="/book-now" style="${ctrl} flex:1;"><span style="${lbl} min-width:20px;">BG</span><input type="color" id="pb-edit-${index}-gc${ci}-b${bi}-btncolor" value="${b.btnColor||'#F97224'}" onchange="document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-btncolor-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;"><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-btncolor-hex" value="${b.btnColor||'#F97224'}" onchange="var c=this.value.startsWith('#')?this.value:'#'+this.value; document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-btncolor').value=c; this.value=c;" style="width:65px; padding:2px 4px; border:1px solid #d1d5db; border-radius:3px; font-size:0.72rem; font-family:monospace;"><span style="${lbl} min-width:20px; margin-left:6px;">Text</span><input type="color" id="pb-edit-${index}-gc${ci}-b${bi}-btntextcolor" value="${b.btnTextColor||'#ffffff'}" onchange="document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-btntextcolor-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;"><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-btntextcolor-hex" value="${b.btnTextColor||'#ffffff'}" onchange="var c=this.value.startsWith('#')?this.value:'#'+this.value; document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-btntextcolor').value=c; this.value=c;" style="width:65px; padding:2px 4px; border:1px solid #d1d5db; border-radius:3px; font-size:0.72rem; font-family:monospace;"></div>`;
+                                    gcHtml += `<div style="${row}"><label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.75rem; color:#374151;"><input type="checkbox" id="pb-edit-${index}-gc${ci}-b${bi}-btnnewtab" ${b.btnNewTab ? 'checked' : ''}> Open in new tab</label></div>`;
                                     gcHtml += `<div style="${row}"><span style="${lbl}">Radius</span><input type="number" id="pb-edit-${index}-gc${ci}-b${bi}-btnradius" value="${b.btnRadius!=null?b.btnRadius:6}" min="0" max="50" style="${ctrl} width:50px;"><span style="font-size:0.68rem; color:#94a3b8;">px</span><span style="${lbl} min-width:30px; margin-left:8px;">Size</span><select id="pb-edit-${index}-gc${ci}-b${bi}-btnsize" style="${ctrl} width:70px;"><option value="small"${(b.btnSize||'medium')==='small'?' selected':''}>Small</option><option value="medium"${(b.btnSize||'medium')==='medium'?' selected':''}>Medium</option><option value="large"${(b.btnSize||'medium')==='large'?' selected':''}>Large</option></select></div>`;
                                     gcHtml += `<div style="${cdGrpS}">Card Style</div>`;
                                     gcHtml += `<div style="${row}"><span style="${lbl}">BG</span><input type="color" id="pb-edit-${index}-gc${ci}-b${bi}-bgcolor" value="${b.bgColor||'#ffffff'}" onchange="document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-bgcolor-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;"><input type="text" id="pb-edit-${index}-gc${ci}-b${bi}-bgcolor-hex" value="${b.bgColor||'#ffffff'}" onchange="var c=this.value.startsWith('#')?this.value:'#'+this.value; document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-bgcolor').value=c; this.value=c;" style="width:65px; padding:2px 4px; border:1px solid #d1d5db; border-radius:3px; font-size:0.72rem; font-family:monospace;"><span style="${lbl} min-width:50px; margin-left:8px;">Opacity</span><input type="range" id="pb-edit-${index}-gc${ci}-b${bi}-bgopacity" value="${b.bgOpacity!=null?b.bgOpacity:100}" min="0" max="100" style="flex:1; max-width:100px; cursor:pointer;" oninput="document.getElementById('pb-edit-${index}-gc${ci}-b${bi}-bgopacity-val').textContent=this.value+'%'"><span id="pb-edit-${index}-gc${ci}-b${bi}-bgopacity-val" style="font-size:0.68rem; color:#94a3b8; min-width:30px;">${b.bgOpacity!=null?b.bgOpacity:100}%</span></div>`;
@@ -97757,6 +97790,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <div style="${cGrp}">Button</div>
                                 <div style="${cRow}"><span style="${cLbl}">Text</span><input type="text" id="pb-edit-${index}-card-btntext" value="${(cd.btnText||'').replace(/"/g,'&quot;')}" placeholder="Leave blank for no button" style="${cCtrl} flex:1;"></div>
                                 <div style="${cRow}"><span style="${cLbl}">URL</span><input type="text" id="pb-edit-${index}-card-btnlink" value="${(cd.btnLink||'').replace(/"/g,'&quot;')}" placeholder="/book-now" style="${cCtrl} flex:1;"><span style="${cLbl} min-width:20px;">BG</span><input type="color" id="pb-edit-${index}-card-btncolor" value="${cd.btnColor||'#F97224'}" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;"><span style="${cLbl} min-width:20px; margin-left:6px;">Text</span><input type="color" id="pb-edit-${index}-card-btntextcolor" value="${cd.btnTextColor||'#ffffff'}" onchange="document.getElementById('pb-edit-${index}-card-btntextcolor-hex').value=this.value" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;"><input type="text" id="pb-edit-${index}-card-btntextcolor-hex" value="${cd.btnTextColor||'#ffffff'}" onchange="var c=this.value.startsWith('#')?this.value:'#'+this.value; document.getElementById('pb-edit-${index}-card-btntextcolor').value=c; this.value=c;" style="width:65px; padding:2px 4px; border:1px solid #d1d5db; border-radius:3px; font-size:0.72rem; font-family:monospace;"></div>
+                                <div style="${cRow}"><label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.85rem; color:#374151;"><input type="checkbox" id="pb-edit-${index}-card-btnnewtab" ${cd.btnNewTab ? 'checked' : ''}> Open in new tab</label></div>
                                 <div style="${cRow}"><span style="${cLbl}">Radius</span><input type="number" id="pb-edit-${index}-card-btnradius" value="${cd.btnRadius!=null?cd.btnRadius:6}" min="0" max="50" style="${cCtrl} width:50px;"><span style="font-size:0.68rem; color:#94a3b8;">px</span><span style="${cLbl} min-width:30px; margin-left:8px;">Size</span><select id="pb-edit-${index}-card-btnsize" style="${cCtrl} width:70px;"><option value="small"${(cd.btnSize||'medium')==='small'?' selected':''}>Small</option><option value="medium"${(cd.btnSize||'medium')==='medium'?' selected':''}>Medium</option><option value="large"${(cd.btnSize||'medium')==='large'?' selected':''}>Large</option></select></div>
                                 <div style="${cGrp}">Card Style</div>
                                 <div style="${cRow}"><span style="${cLbl}">BG</span><input type="color" id="pb-edit-${index}-card-bgcolor" value="${cd.bgColor}" style="width:26px; height:24px; padding:0; border:1px solid #d1d5db; border-radius:3px; cursor:pointer;"><span style="${cLbl} min-width:50px; margin-left:8px;">Opacity</span><input type="range" id="pb-edit-${index}-card-bgopacity" value="${cd.bgOpacity!=null?cd.bgOpacity:100}" min="0" max="100" style="flex:1; max-width:100px; cursor:pointer;" oninput="document.getElementById('pb-edit-${index}-card-bgopacity-val').textContent=this.value+'%'"><span id="pb-edit-${index}-card-bgopacity-val" style="font-size:0.68rem; color:#94a3b8; min-width:30px;">${cd.bgOpacity!=null?cd.bgOpacity:100}%</span></div>
@@ -97900,6 +97934,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const cvBtnText = document.getElementById(`pb-edit-${index}-cover-btn-text`)?.value || '';
                     const cvBtnLink = document.getElementById(`pb-edit-${index}-cover-btn-link`)?.value || '';
                     const cvBtnColor = document.getElementById(`pb-edit-${index}-cover-btn-color`)?.value || '#F97224';
+                    const cvBtnNewTab = !!document.getElementById(`pb-edit-${index}-cover-btn-newtab`)?.checked;
                     const cvHeadLevel = document.getElementById(`pb-edit-${index}-cover-head-level`)?.value || 'h2';
                     const cvPadTop = document.getElementById(`pb-edit-${index}-cover-pad-top`)?.value || '40';
                     const cvPadRight = document.getElementById(`pb-edit-${index}-cover-pad-right`)?.value || '30';
@@ -97919,7 +97954,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         overlayColor: cvOlColor, overlayOpacity: parseInt(cvOlOpacity),
                         headingHtml: cvHeadHtml, headingColor: cvHeadColor, headingLevel: cvHeadLevel,
                         subtitleHtml: cvSubHtml, subtitleColor: cvSubColor,
-                        btnText: cvBtnText, btnLink: cvBtnLink, btnColor: cvBtnColor, btnSize: cvBtnSize,
+                        btnText: cvBtnText, btnLink: cvBtnLink, btnColor: cvBtnColor, btnSize: cvBtnSize, btnNewTab: cvBtnNewTab,
                         padTop: cvPadTop, padRight: cvPadRight, padBottom: cvPadBot, padLeft: cvPadLeft,
                         headingFont: cvHeadFont, headingSize: cvHeadSize, headingGap: cvHeadGap,
                         subtitleFont: cvSubFont, subtitleSize: cvSubSize,
@@ -97945,7 +97980,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 case 'buttons': {
                     const text = document.getElementById(`pb-edit-${index}-btn-text`)?.value || '';
                     const url = document.getElementById(`pb-edit-${index}-btn-link`)?.value || '';
-                    return blockToMarkup({ type: 'button', text: text, url: url });
+                    const newTab = !!document.getElementById(`pb-edit-${index}-btn-newtab`)?.checked;
+                    return blockToMarkup({ type: 'button', text: text, url: url, newTab: newTab });
                 }
                 case 'spacer': {
                     const h = document.getElementById(`pb-edit-${index}-spacer-h`)?.value || '40';
@@ -98002,6 +98038,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             const dcSubSize = document.getElementById(`pb-edit-${index}-dc${ci}-sub-size`)?.value || '';
                             const dcBtnText = document.getElementById(`pb-edit-${index}-dc${ci}-btn-text`)?.value || '';
                             const dcBtnLink = document.getElementById(`pb-edit-${index}-dc${ci}-btn-link`)?.value || '#';
+                            const dcBtnNewTab = !!document.getElementById(`pb-edit-${index}-dc${ci}-btn-newtab`)?.checked;
                             const dcBtnColor = document.getElementById(`pb-edit-${index}-dc${ci}-btn-color`)?.value || '#F97224';
                             const dcHeadGap = document.getElementById(`pb-edit-${index}-dc${ci}-head-gap`)?.value || '';
                             const dcBtnSize = document.getElementById(`pb-edit-${index}-dc${ci}-btn-size`)?.value || 'medium';
@@ -98016,7 +98053,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 headingFont: dcHeadFont, headingSize: dcHeadSize, headingGap: dcHeadGap,
                                 subtitleHtml: dcSubHtml, subtitleColor: dcSubColor,
                                 subtitleFont: dcSubFont, subtitleSize: dcSubSize,
-                                btnText: dcBtnText, btnLink: dcBtnLink, btnColor: dcBtnColor, btnSize: dcBtnSize,
+                                btnText: dcBtnText, btnLink: dcBtnLink, btnColor: dcBtnColor, btnSize: dcBtnSize, btnNewTab: dcBtnNewTab,
                                 headingAlign: dcHeadAlign, subtitleAlign: dcSubAlign
                             }, false);
                             const w = dcWidths[ci] || '50';
@@ -98075,7 +98112,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     const text = document.getElementById(`pb-edit-${index}-gc${ci}-b${bi}-text`)?.value || '';
                                     const url = document.getElementById(`pb-edit-${index}-gc${ci}-b${bi}-url`)?.value || '#';
                                     const color = document.getElementById(`pb-edit-${index}-gc${ci}-b${bi}-color`)?.value || '#E8621A';
-                                    innerMarkup += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${color}"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link has-background wp-element-button" style="background-color:${color}" href="${url}">${text}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
+                                    const newTab = !!document.getElementById(`pb-edit-${index}-gc${ci}-b${bi}-newtab`)?.checked;
+                                    const _tgtAttr = newTab ? ' target="_blank" rel="noopener noreferrer"' : '';
+                                    innerMarkup += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${color}"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link has-background wp-element-button" style="background-color:${color}" href="${url}"${_tgtAttr}>${text}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
                                 } else if (b.type === 'card') {
                                     // Fall back to original parsed data when DOM input is empty/missing
                                     const _gv = (id, fb) => { const el = document.getElementById(id); return (el && el.value !== undefined && el.value !== '') ? el.value : fb; };
@@ -98095,6 +98134,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         borderRadius: parseInt(_gv(`pb-edit-${index}-gc${ci}-b${bi}-radius`, b.borderRadius != null ? b.borderRadius : 12)),
                                         btnText: _gv(`pb-edit-${index}-gc${ci}-b${bi}-btntext`, b.btnText || ''),
                                         btnLink: _gv(`pb-edit-${index}-gc${ci}-b${bi}-btnlink`, b.btnLink || ''),
+                                        btnNewTab: !!document.getElementById(`pb-edit-${index}-gc${ci}-b${bi}-btnnewtab`)?.checked,
                                         btnColor: _gv(`pb-edit-${index}-gc${ci}-b${bi}-btncolor`, b.btnColor || '#F97224'),
                                         btnTextColor: _gv(`pb-edit-${index}-gc${ci}-b${bi}-btntextcolor`, b.btnTextColor || '#ffffff'),
                                         btnRadius: parseInt(_gv(`pb-edit-${index}-gc${ci}-b${bi}-btnradius`, b.btnRadius != null ? b.btnRadius : 6)),
@@ -98212,6 +98252,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const spPA = document.getElementById(`pb-edit-${index}-split-para-align`)?.value || 'left';
                     const spBT = document.getElementById(`pb-edit-${index}-split-btn-text`)?.value || '';
                     const spBL = document.getElementById(`pb-edit-${index}-split-btn-link`)?.value || '';
+                    const spBNT = !!document.getElementById(`pb-edit-${index}-split-btn-newtab`)?.checked;
                     const spBC = document.getElementById(`pb-edit-${index}-split-btn-color`)?.value || '#E8621A';
                     const spTW = 100 - parseInt(spCW);
 
@@ -98227,7 +98268,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const hNum = spHL.replace('h', '');
                     if (spHead) tc += `<!-- wp:heading {"level":${hNum},"style":{"color":{"text":"${spHC}"}}} -->\n<${spHL} class="wp-block-heading has-text-color" style="color:${spHC};text-align:${spHA} !important">${spHead}</${spHL}>\n<!-- /wp:heading -->`;
                     if (spPara) tc += `<!-- wp:paragraph {"style":{"color":{"text":"${spPC}"}}} -->\n<p class="has-text-color" style="color:${spPC};text-align:${spPA} !important">${spPara}</p>\n<!-- /wp:paragraph -->`;
-                    if (spBT) tc += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${spBC}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link has-background wp-element-button" style="border-radius:0px;background-color:${spBC}"${spBL ? ` href="${spBL}"` : ''}>${spBT}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->`;
+                    const spBNTAttr = spBNT ? ' target="_blank" rel="noopener noreferrer"' : '';
+                    if (spBT) tc += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${spBC}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link has-background wp-element-button" style="border-radius:0px;background-color:${spBC}"${spBL ? ` href="${spBL}"` : ''}${spBNTAttr}>${spBT}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->`;
                     const textCol = `<!-- wp:column {"width":"${spTW}%","style":{"color":{"background":"${spBg}"},"spacing":{"padding":{"top":"60px","bottom":"60px","left":"60px","right":"60px"}}}} -->\n<div class="wp-block-column has-background" style="background-color:${spBg};padding-top:60px;padding-right:60px;padding-bottom:60px;padding-left:60px;flex-basis:${spTW}%">${tc}</div>\n<!-- /wp:column -->`;
 
                     const first = spPos === 'left' ? coverCol : textCol;
@@ -98313,7 +98355,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     const text = document.getElementById(`pb-edit-${index}-gc${ci}-b${bi}-text`)?.value || '';
                                     const url = document.getElementById(`pb-edit-${index}-gc${ci}-b${bi}-url`)?.value || '#';
                                     const color = document.getElementById(`pb-edit-${index}-gc${ci}-b${bi}-color`)?.value || '#E8621A';
-                                    innerMarkup += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${color}"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link has-background wp-element-button" style="background-color:${color}" href="${url}">${text}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
+                                    const newTab = !!document.getElementById(`pb-edit-${index}-gc${ci}-b${bi}-newtab`)?.checked;
+                                    const _tgtAttr = newTab ? ' target="_blank" rel="noopener noreferrer"' : '';
+                                    innerMarkup += `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${color}"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link has-background wp-element-button" style="background-color:${color}" href="${url}"${_tgtAttr}>${text}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
                                 } else if (b.type === 'card') {
                                     // Fall back to original parsed data when DOM input is empty/missing
                                     const _gv = (id, fb) => { const el = document.getElementById(id); return (el && el.value !== undefined && el.value !== '') ? el.value : fb; };
@@ -98333,6 +98377,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         borderRadius: parseInt(_gv(`pb-edit-${index}-gc${ci}-b${bi}-radius`, b.borderRadius != null ? b.borderRadius : 12)),
                                         btnText: _gv(`pb-edit-${index}-gc${ci}-b${bi}-btntext`, b.btnText || ''),
                                         btnLink: _gv(`pb-edit-${index}-gc${ci}-b${bi}-btnlink`, b.btnLink || ''),
+                                        btnNewTab: !!document.getElementById(`pb-edit-${index}-gc${ci}-b${bi}-btnnewtab`)?.checked,
                                         btnColor: _gv(`pb-edit-${index}-gc${ci}-b${bi}-btncolor`, b.btnColor || '#F97224'),
                                         btnTextColor: _gv(`pb-edit-${index}-gc${ci}-b${bi}-btntextcolor`, b.btnTextColor || '#ffffff'),
                                         btnRadius: parseInt(_gv(`pb-edit-${index}-gc${ci}-b${bi}-btnradius`, b.btnRadius != null ? b.btnRadius : 6)),
@@ -98400,6 +98445,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             borderRadius: parseInt(document.getElementById(`pb-edit-${index}-card-radius`)?.value ?? 12),
                             btnText: document.getElementById(`pb-edit-${index}-card-btntext`)?.value || '',
                             btnLink: document.getElementById(`pb-edit-${index}-card-btnlink`)?.value || '',
+                            btnNewTab: !!document.getElementById(`pb-edit-${index}-card-btnnewtab`)?.checked,
                             btnColor: document.getElementById(`pb-edit-${index}-card-btncolor`)?.value || '#F97224',
                             btnTextColor: document.getElementById(`pb-edit-${index}-card-btntextcolor`)?.value || '#ffffff',
                             btnRadius: parseInt(document.getElementById(`pb-edit-${index}-card-btnradius`)?.value ?? 6),
