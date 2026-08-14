@@ -38605,12 +38605,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                             settings[key] = el.checked;
                         } else if (el.value !== undefined) {
                             let value = el.value;
-                            if (key.includes('color') || key.includes('bg') || key.includes('text')) {
-                                // Steve 2026-07-28: was slice(1) then replace, which
-                                // stripped one '#' at most. If the stored value was
-                                // ##317587 the sanitiser still let it through. Now
-                                // strip ALL non-hex chars (including any leading #s)
-                                // in one pass, then prepend exactly one '#'.
+                            // Colour sanitiser: STRICT — only actual <input type="color">
+                            // fields. Was matching any key containing 'color'/'bg'/'text',
+                            // which mangled every text field (brand-text-en:
+                            // "The IOU Hostel is managed by arts charity IOU Creation
+                            // Centre" collapsed to "eeaaed" — first 6 hex chars —
+                            // then prepended '#'). Steve 2026-08-14.
+                            if (el.type === 'color') {
                                 const hex = value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6);
                                 if (hex.length === 6) value = '#' + hex;
                             }
@@ -38687,10 +38688,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 el.value = value; // keep textarea in sync too
                             }
                         }
-                        // Sanitize color values - remove any invalid characters.
-                        // Strip ALL non-hex incl leading #s in one pass (was only
-                        // stripping one #, which let '##317587' through).
-                        if (key.includes('color') || key.includes('bg') || key.includes('text')) {
+                        // Colour sanitiser: STRICT — only actual <input type="color">
+                        // fields. Was matching any key containing 'color'/'bg'/'text'
+                        // which mangled every text field with 'text' in the id
+                        // (e.g. Hebden brand-text-en collapsed to '#eeaaed').
+                        // Steve 2026-08-14 — see fix in the styles branch above.
+                        if (el.type === 'color') {
                             const hex = value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6);
                             if (hex.length === 6) value = '#' + hex;
                         }
