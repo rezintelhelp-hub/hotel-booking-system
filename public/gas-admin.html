@@ -98975,6 +98975,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <span style="${cdLbl} min-width:40px;">Color</span>
                                 ${pbColorHex(colIdx, blockIdx, 'btnColor', cd.btnColor, '#F97224')}
                             </div>
+                            <div style="${cdRow}">
+                                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.75rem; color:#374151;">
+                                    <input type="checkbox" ${cd.btnNewTab ? 'checked' : ''} onchange="updateBlock(${colIdx},${blockIdx},'btnNewTab',this.checked)">
+                                    Open in new tab
+                                </label>
+                            </div>
                             <div style="${cdGrp}">Card Style</div>
                             <div style="${cdRow}">
                                 <span style="${cdLbl}">BG Color</span>
@@ -99094,6 +99100,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <span style="${csLbl} min-width:40px;">Color</span>
                                 ${pbColorHex(colIdx, blockIdx, 'btnColor', cs.btnColor, '#F97224')}
                             </div>
+                            <div style="${csRow}">
+                                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.75rem; color:#374151;">
+                                    <input type="checkbox" ${cs.btnNewTab ? 'checked' : ''} onchange="updateBlock(${colIdx},${blockIdx},'btnNewTab',this.checked)">
+                                    Open in new tab
+                                </label>
+                            </div>
                         </div>`;
                 }
                 case 'cover-hero': {
@@ -99195,6 +99207,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <input type="text" class="form-input" style="${chCtrl} flex:1;" placeholder="/book-now" value="${ch.btnLink || ''}" onchange="updateBlock(${colIdx},${blockIdx},'btnLink',this.value)">
                                 <span style="${chLbl} min-width:40px;">Color</span>
                                 ${pbColorHex(colIdx, blockIdx, 'btnColor', ch.btnColor, '#F97224')}
+                            </div>
+                            <div style="${chRow}">
+                                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.75rem; color:#374151;">
+                                    <input type="checkbox" ${ch.btnNewTab ? 'checked' : ''} onchange="updateBlock(${colIdx},${blockIdx},'btnNewTab',this.checked)">
+                                    Open in new tab
+                                </label>
                             </div>
                             <div style="${chGrp}">Search Bar</div>
                             <div style="${chRow}">
@@ -100425,12 +100443,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const cdBtnTextColor = block.btnTextColor || '#ffffff';
                         const cdBtnPad = cdBtnSize === 'small' ? 'padding:6px 16px !important;font-size:0.8rem !important' : cdBtnSize === 'large' ? 'padding:14px 32px !important;font-size:1.1rem !important' : '';
                         const cdBtnSizeStyle = cdBtnPad ? `;${cdBtnPad}` : '';
-                        cdInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"},"style":{"spacing":{"margin":{"left":"20px","right":"20px","bottom":"20px"}}}} -->\n<div class="wp-block-buttons" style="margin-left:20px;margin-right:20px;margin-bottom:20px"><!-- wp:button {"style":{"color":{"background":"${cdBtnColor}","text":"${cdBtnTextColor}"},"border":{"radius":"${cdBtnRadius}px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link has-background has-text-color wp-element-button" style="background-color:${cdBtnColor} !important;color:${cdBtnTextColor} !important;border-radius:${cdBtnRadius}px !important${cdBtnSizeStyle}" href="${cdBtnLink}">${cdBtnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
+                        const cdBtnTgt = block.btnNewTab ? ' target="_blank" rel="noopener noreferrer"' : '';
+                        cdInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"},"style":{"spacing":{"margin":{"left":"20px","right":"20px","bottom":"20px"}}}} -->\n<div class="wp-block-buttons" style="margin-left:20px;margin-right:20px;margin-bottom:20px"><!-- wp:button {"style":{"color":{"background":"${cdBtnColor}","text":"${cdBtnTextColor}"},"border":{"radius":"${cdBtnRadius}px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link has-background has-text-color wp-element-button" style="background-color:${cdBtnColor} !important;color:${cdBtnTextColor} !important;border-radius:${cdBtnRadius}px !important${cdBtnSizeStyle}" href="${cdBtnLink}"${cdBtnTgt}>${cdBtnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
                     }
                     return `<!-- wp:group {"className":"pb-card","style":{"border":{"radius":"${cdRadius}px","width":"${cdBorderW}px","color":"${cdBorderColor}"},"color":{"background":"${cdBg}"},"spacing":{"padding":{"top":"0","right":"0","bottom":"0","left":"0"}}}} -->\n<div class="wp-block-group pb-card has-background" style="${cdStyle};padding:0">\n${cdInner}</div>\n<!-- /wp:group -->`;
                 }
-                case 'button':
-                    return `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button -->\n<div class="wp-block-button"><a class="wp-block-button__link" href="${block.url || '#'}">${block.text || 'Click'}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->`;
+                case 'button': {
+                    const btnTgt = block.newTab ? ' target="_blank" rel="noopener noreferrer"' : '';
+                    return `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button -->\n<div class="wp-block-button"><a class="wp-block-button__link" href="${block.url || '#'}"${btnTgt}>${block.text || 'Click'}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->`;
+                }
                 case 'search':
                     return `<!-- wp:shortcode -->\n[gas_search layout="horizontal"]\n<!-- /wp:shortcode -->`;
                 case 'rooms': {
@@ -100534,7 +100555,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const btnSizeMap = { small: 'font-size:0.75rem !important;padding:6px 14px !important', medium: '', large: 'font-size:1.1rem !important;padding:14px 28px !important' };
                         const btnSizeStyle = btnSizeMap[csBtnSize] || '';
                         const btnExtraStyle = btnSizeStyle ? `;${btnSizeStyle}` : '';
-                        csContentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${csBtnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${csBtnLink}" style="background-color:${csBtnColor} !important;border-radius:0px !important${btnExtraStyle}">${csBtnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
+                        const csBtnTgt = block.btnNewTab ? ' target="_blank" rel="noopener noreferrer"' : '';
+                        csContentInner += `<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"left"}} -->\n<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"${csBtnColor}"},"border":{"radius":"0px"}}} -->\n<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="${csBtnLink}"${csBtnTgt} style="background-color:${csBtnColor} !important;border-radius:0px !important${btnExtraStyle}">${csBtnText}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->\n\n`;
                     }
 
                     const csOlBg = `rgba(${csOlR},${csOlG},${csOlB},${csOlA})`;
