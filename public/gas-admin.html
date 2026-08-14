@@ -23551,6 +23551,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <input type="text" class="form-input" id="wb-footer-newsletter-heading-en-pb" value="Sign up to our Newsletter" oninput="document.getElementById('wb-footer-newsletter-heading-en').value = this.value">
                             </div>
                             <p style="font-size: 0.8rem; color: #64748b; margin: 0.75rem 0 0;">Contact column (middle) uses the address / phone / email + social fields you already set below.</p>
+                            <div style="text-align: right; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0;">
+                                <button class="btn" onclick="if(proBuilderDeployedSiteId) selectedDeployedSiteId = proBuilderDeployedSiteId; saveWebsiteSection('footer', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white;">💾 Save Footer</button>
+                            </div>
                         </div>
                     </div>
 
