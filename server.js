@@ -1173,8 +1173,13 @@ async function resolveNotificationRecipients(accountId, siteId) {
       out.cc = splitList(s['notification-cc']);
     }
     if (out.to.length === 0 && accountId) {
-      const acct = await pool.query('SELECT email FROM accounts WHERE id = $1', [accountId]);
-      out.to = splitList(acct.rows[0]?.email);
+      // Fallback to accounts.email only when notify_main_email !== false.
+      // Owner-opt-out lets a client route all booking-notify traffic to a
+      // team/site-level address without the owner's inbox getting a copy.
+      const acct = await pool.query('SELECT email, notify_main_email FROM accounts WHERE id = $1', [accountId]);
+      if (acct.rows[0]?.notify_main_email !== false) {
+        out.to = splitList(acct.rows[0]?.email);
+      }
     }
   } catch (_) { /* fallback handled by empty arrays */ }
   return out;
@@ -1196,7 +1201,7 @@ async function resolveNotificationRecipients(accountId, siteId) {
 async function resolveOwnerBcc({ accountId, siteId, bookingId, to, cc }) {
   if (!accountId) return [];
   try {
-    const acct = await pool.query('SELECT email, settings FROM accounts WHERE id = $1', [accountId]);
+    const acct = await pool.query('SELECT email, notify_main_email, settings FROM accounts WHERE id = $1', [accountId]);
     const row = acct.rows[0];
     if (!row) return [];
     const mode = row.settings?.owner_copy_mode;
@@ -1218,7 +1223,11 @@ async function resolveOwnerBcc({ accountId, siteId, bookingId, to, cc }) {
       const recips = await resolveNotificationRecipients(accountId, resolvedSiteId);
       candidates = [...recips.to, ...recips.cc];
     }
-    if (candidates.length === 0 && row.email) candidates = [row.email];
+    // Fallback to accounts.email only when notify_main_email !== false.
+    // The owner opted out of receiving every guest-outbound as a BCC;
+    // site-level notification-email (via resolveNotificationRecipients above)
+    // is the intentional replacement.
+    if (candidates.length === 0 && row.email && row.notify_main_email !== false) candidates = [row.email];
 
     const flatten = v => Array.isArray(v) ? v : String(v || '').split(/[,;]+/);
     const already = new Set();
@@ -2866,6 +2875,12 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_email VARCHAR(255)`);
       await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS sent_to VARCHAR(500)`);
       await pool.query(`ALTER TABLE gas_billing_invoices ADD COLUMN IF NOT EXISTS sent_cc VARCHAR(500)`);
+      // notify_main_email — operator toggle. When FALSE, booking notifications
+      // (new-booking alert + owner-BCC on outbound guest emails) skip
+      // accounts.email. Site-level notification-email + notification-cc,
+      // booking_cc_email and agency owner_sub_account paths all still fire.
+      // Default TRUE preserves existing behaviour for every current account.
+      await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS notify_main_email BOOLEAN DEFAULT TRUE`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS min_advance_hours INTEGER DEFAULT NULL`);
       // Multi-room manual bookings — Steve 2026-07-12. All rooms in a single
       // '+ Add another room' group share this UUID so the Booking Detail /
@@ -24375,7 +24390,8 @@ app.put('/api/accounts/:id', async (req, res) => {
       vat_number, company_reg, vat_enabled, vat_rate, beds24_billing_enabled, website_billing_enabled,
       billing_currency, managed_by_id,
       preferred_contact_channel, contact_whatsapp,
-      booking_cc_email, reply_to_email, billing_email
+      booking_cc_email, reply_to_email, billing_email,
+      notify_main_email
     } = req.body;
 
     // Ensure columns exist
@@ -24432,6 +24448,10 @@ app.put('/api/accounts/:id', async (req, res) => {
     if (billing_email !== undefined) {
       updates.push(`billing_email = $${paramIndex++}`);
       values.push((billing_email || '').trim() || null);
+    }
+    if (notify_main_email !== undefined) {
+      updates.push(`notify_main_email = $${paramIndex++}`);
+      values.push(notify_main_email === false ? false : true);
     }
     if (contact_name !== undefined) {
       updates.push(`contact_name = $${paramIndex++}`);
@@ -108988,8 +109008,10 @@ app.post('/api/public/book', async (req, res) => {
         SELECT p.*,
                a.email as account_email,
                a.booking_cc_email as account_cc_email,
+               a.notify_main_email as account_notify_main_email,
                owner.email as owner_account_email,
                owner.booking_cc_email as owner_account_cc_email,
+               owner.notify_main_email as owner_notify_main_email,
                owner.name as owner_account_name
         FROM properties p
         LEFT JOIN accounts a ON p.account_id = a.id
@@ -109100,9 +109122,17 @@ app.post('/api/public/book', async (req, res) => {
       //     account's booking_cc_email — preserves single-site behaviour.
       // Both addresses get a single email via Mailgun's multi-To.
       const hasOwnerSub = property && property.owner_account_id && property.owner_account_email;
+      // Skip the account.email fallback when that account has opted out
+      // (notify_main_email = false). Site-level notification-email + agency
+      // owner_sub are respected in the same order as before. CC path below
+      // is untouched — booking_cc_email always fires when set.
+      const ownerSubActive = hasOwnerSub && property.owner_notify_main_email !== false;
+      const acctFallback = property && property.account_notify_main_email !== false
+                            ? property.account_email
+                            : null;
       const ownerEmail = emailBranding.notificationEmail
-                      || (hasOwnerSub ? property.owner_account_email : null)
-                      || property?.account_email;
+                      || (ownerSubActive ? property.owner_account_email : null)
+                      || acctFallback;
       const siteCcRaw = (emailBranding.notificationCc || '').trim();
       const ccRaw = siteCcRaw
                     || ((hasOwnerSub ? property.owner_account_cc_email : property?.account_cc_email) || '').trim();

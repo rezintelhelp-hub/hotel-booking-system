@@ -29337,6 +29337,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                         </div>
 
+                        <div style="display: grid; grid-template-columns: 1fr; gap: 0.75rem; margin-top: 0.75rem; padding: 0.6rem 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+                            <label style="display: flex; align-items: flex-start; gap: 0.55rem; cursor: pointer; font-size: 0.85rem; color: #1e293b; margin: 0;">
+                                <input type="checkbox" id="account-notify-main-email" checked style="margin-top: 3px;">
+                                <span>
+                                    <strong>Send booking notifications to the main Email above</strong>
+                                    <div style="font-size: 0.72rem; color: #64748b; margin-top: 0.2rem; font-weight: 400;">
+                                        Untick if the owner shouldn't be copied on booking alerts or guest emails. Site-level Notification Email + Notification CC (Site Comms) and the Booking CC address below still fire. Use when a team handles booking traffic and the owner wants their inbox clear.
+                                    </div>
+                                </span>
+                            </label>
+                        </div>
+
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.75rem;">
                             <div class="form-group" style="margin: 0;">
                                 <label style="font-size: 0.8rem;">Default Currency</label>
@@ -47675,6 +47687,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (_replyTo) _replyTo.value = account.reply_to_email || '';
                     const _billingEmail = document.getElementById('account-billing-email');
                     if (_billingEmail) _billingEmail.value = account.billing_email || '';
+                    const _notifyMain = document.getElementById('account-notify-main-email');
+                    if (_notifyMain) _notifyMain.checked = account.notify_main_email !== false;
                     document.getElementById('account-phone').value = account.phone || '';
                     const _waEl = document.getElementById('account-contact-whatsapp');
                     if (_waEl) _waEl.value = account.contact_whatsapp || '';
@@ -48001,6 +48015,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 email: document.getElementById('account-email').value,
                 reply_to_email: document.getElementById('account-reply-to-email')?.value || null,
                 billing_email: document.getElementById('account-billing-email')?.value || null,
+                notify_main_email: document.getElementById('account-notify-main-email')?.checked !== false,
                 phone: document.getElementById('account-phone').value,
                 contact_whatsapp: document.getElementById('account-contact-whatsapp')?.value || null,
                 address_line1: document.getElementById('account-address1').value,
