@@ -24997,16 +24997,19 @@ function generateSubscriptionInvoiceHtml({ invoice, account, lines, branding }) 
   // GAS's own billing entity — env-driven so Steve can adjust without a
   // redeploy. Multi-line address supported via literal \n in the env value.
   const gas = {
-    name:    process.env.PLATFORM_INVOICE_NAME    || 'GAS',
-    address: process.env.PLATFORM_INVOICE_ADDRESS || '',
-    vat:     process.env.PLATFORM_INVOICE_VAT     || '',
-    cif:     process.env.PLATFORM_INVOICE_CIF     || '',
-    iban:    process.env.PLATFORM_INVOICE_IBAN    || '',
-    email:   process.env.PLATFORM_INVOICE_EMAIL   || '',
-    phone:   process.env.PLATFORM_INVOICE_PHONE   || '',
+    name:      process.env.PLATFORM_INVOICE_NAME        || 'GAS',
+    address:   process.env.PLATFORM_INVOICE_ADDRESS     || '',
+    vat:       process.env.PLATFORM_INVOICE_VAT         || '',
+    cif:       process.env.PLATFORM_INVOICE_CIF         || '',
+    companyReg:process.env.PLATFORM_INVOICE_COMPANY_REG || '',
+    iban:      process.env.PLATFORM_INVOICE_IBAN        || '',
+    bic:       process.env.PLATFORM_INVOICE_BIC         || '',
+    email:     process.env.PLATFORM_INVOICE_EMAIL       || '',
+    phone:     process.env.PLATFORM_INVOICE_PHONE       || '',
   };
   const gasAddrHtml = gas.address ? esc(gas.address).replace(/\n/g, '<br>') : '';
   const gasMetaLines = [];
+  if (gas.companyReg) gasMetaLines.push(`Company Reg: ${esc(gas.companyReg)}`);
   if (gas.vat)   gasMetaLines.push(`VAT: ${esc(gas.vat)}`);
   if (gas.cif && gas.cif !== gas.vat) gasMetaLines.push(`CIF: ${esc(gas.cif)}`);
   if (gas.email) gasMetaLines.push(esc(gas.email));
@@ -25069,7 +25072,7 @@ function generateSubscriptionInvoiceHtml({ invoice, account, lines, branding }) 
               const dueLine = invoice.due_date
                 ? `Payment due by ${fmt(invoice.due_date)}.`
                 : 'Please pay on receipt.';
-              const ibanLine = gas.iban ? ` Please transfer to IBAN <strong>${esc(gas.iban)}</strong>.` : '';
+              const ibanLine = gas.iban ? ` Please transfer to IBAN <strong>${esc(gas.iban)}</strong>${gas.bic ? ' (BIC ' + esc(gas.bic) + ')' : ''}.` : '';
               const emailLine = gas.email ? ` Questions? ${esc(gas.email)}` : '';
               return dueLine + ibanLine + emailLine;
             })()}</p>
