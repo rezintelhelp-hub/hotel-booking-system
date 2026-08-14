@@ -16389,6 +16389,24 @@
                             </div>
                         </div>
                         <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Legal / Compliance Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span><small style="font-weight:400;color:#64748b;display:block;font-size:0.75rem;margin-top:0.15rem;">Renders as a full paragraph beneath the copyright line. Use for charity/company registration notices, trading names, etc.</small></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-footer-legal-text">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-footer-legal-text', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-footer-legal-text', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-footer-legal-text', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-footer-legal-text', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-footer-legal-text')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-input translation-input active" id="wb-footer-legal-text-en" data-lang="en" rows="4" placeholder="e.g. I.O.U. Limited is a registered charity (No. 273527)..."></textarea>
+                                    <textarea class="form-input translation-input" id="wb-footer-legal-text-fr" data-lang="fr" rows="4"></textarea>
+                                    <textarea class="form-input translation-input" id="wb-footer-legal-text-es" data-lang="es" rows="4"></textarea>
+                                    <textarea class="form-input translation-input" id="wb-footer-legal-text-nl" data-lang="nl" rows="4"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
                             <label class="form-label">Company Number Label <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
                             <div class="translation-field-wrapper" data-translation-group="wb-footer-company-number-label">
                                 <div class="translation-tabs">
@@ -23551,6 +23569,26 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <input type="text" class="form-input" id="wb-footer-newsletter-heading-en-pb" value="Sign up to our Newsletter" oninput="document.getElementById('wb-footer-newsletter-heading-en').value = this.value">
                             </div>
                             <p style="font-size: 0.8rem; color: #64748b; margin: 0.75rem 0 0;">Contact column (middle) uses the address / phone / email + social fields you already set below.</p>
+                            <div style="text-align: right; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0;">
+                                <button class="btn" onclick="if(proBuilderDeployedSiteId) selectedDeployedSiteId = proBuilderDeployedSiteId; saveWebsiteSection('footer', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white;">💾 Save Footer</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- LEGAL / COMPLIANCE TEXT — always visible regardless of
+                         layout. Renders as a paragraph beneath the copyright
+                         line at the bottom of every footer variant. Mirrored
+                         to the Web Builder ID so save/load stays consistent
+                         across both builders (same DB key). -->
+                    <div class="card" style="margin-bottom: 1.5rem;">
+                        <div class="card-header"><h3>Legal / Compliance Text</h3></div>
+                        <div class="card-body">
+                            <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">Renders as a full paragraph beneath the copyright line at the bottom of the footer. Use for charity/company registration notices, trading names, regulatory disclosures.</p>
+                            <div class="form-group">
+                                <label class="form-label">Legal text (English)</label>
+                                <textarea class="form-input" id="wb-footer-legal-text-en-pb" rows="5" placeholder="e.g. I.O.U. Limited is a registered charity (No. 273527) and a company limited by guarantee, registered in England and Wales (No. 01303657)..." oninput="if(document.getElementById('wb-footer-legal-text-en')) document.getElementById('wb-footer-legal-text-en').value = this.value"></textarea>
+                                <small style="color:#64748b; font-size:0.75rem;">Multilingual variants (FR / ES / NL) editable via Web Builder → Footer.</small>
+                            </div>
                             <div style="text-align: right; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0;">
                                 <button class="btn" onclick="if(proBuilderDeployedSiteId) selectedDeployedSiteId = proBuilderDeployedSiteId; saveWebsiteSection('footer', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white;">💾 Save Footer</button>
                             </div>
@@ -37541,6 +37579,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         mirror('wb-footer-brand-link', 'wb-footer-brand-link-pb');
                         mirror('wb-footer-show-newsletter', 'wb-footer-show-newsletter-pb');
                         mirror('wb-footer-newsletter-heading-en', 'wb-footer-newsletter-heading-en-pb');
+                        mirror('wb-footer-legal-text-en', 'wb-footer-legal-text-en-pb');
                     }, 50);
                 }
             } catch (error) {
