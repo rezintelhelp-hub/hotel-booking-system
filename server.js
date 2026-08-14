@@ -24998,6 +24998,7 @@ function generateSubscriptionInvoiceHtml({ invoice, account, lines, branding }) 
   // redeploy. Multi-line address supported via literal \n in the env value.
   const gas = {
     name:      process.env.PLATFORM_INVOICE_NAME        || 'GAS',
+    tradingAs: process.env.PLATFORM_INVOICE_TRADING_AS  || '',
     address:   process.env.PLATFORM_INVOICE_ADDRESS     || '',
     vat:       process.env.PLATFORM_INVOICE_VAT         || '',
     cif:       process.env.PLATFORM_INVOICE_CIF         || '',
@@ -25036,6 +25037,7 @@ function generateSubscriptionInvoiceHtml({ invoice, account, lines, branding }) 
                 <td valign="top" style="width:50%;font-size:12px;color:#64748b;">
                   <div style="text-transform:uppercase;font-size:10px;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">From</div>
                   <div style="color:#1e293b;font-size:14px;font-weight:600;">${esc(gas.name)}</div>
+                  ${gas.tradingAs ? `<div style="color:#475569;font-size:12px;font-style:italic;margin-top:1px;">${esc(gas.tradingAs)}</div>` : ''}
                   ${gasAddrHtml ? `<div style="margin-top:2px;line-height:1.5;">${gasAddrHtml}</div>` : ''}
                   ${gasMetaLines.length ? `<div style="margin-top:6px;line-height:1.5;">${gasMetaLines.join('<br>')}</div>` : ''}
                 </td>
