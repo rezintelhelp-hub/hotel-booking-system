@@ -3678,6 +3678,13 @@ function developer_developer_custom_css() {
     $page_title_size = $api['title_size'] ?? get_theme_mod('developer_page_title_size', '42');
     $subheading_size = $api['subheading_size'] ?? get_theme_mod('developer_subheading_size', '32');
     $body_text_size = $api['body_size'] ?? get_theme_mod('developer_body_text_size', '16');
+    // Global typography colours (Steve 2026-08-15). Defaults are the theme's
+    // long-standing implicit values so existing sites don't shift. Per-section
+    // title colours (hero, about, services, etc.) still override at their
+    // section level via inline styles — this is the fallback default.
+    $heading_color    = $api['heading_color']    ?? '#1e293b';
+    $subheading_color = $api['subheading_color'] ?? '#334155';
+    $body_color       = $api['body_color']       ?? '#334155';
     
     // Hero
     $hero_height = $api['hero_height'] ?? get_theme_mod('developer_hero_height', '90');
@@ -3736,7 +3743,17 @@ function developer_developer_custom_css() {
             --developer-radius-lg: ' . esc_attr($lg_radius) . 'px;
             --developer-link-color: ' . esc_attr($link_color) . ';
             --developer-section-spacing: ' . esc_attr($section_spacing) . 'px;
+            --developer-heading-color: ' . esc_attr($heading_color) . ';
+            --developer-subheading-color: ' . esc_attr($subheading_color) . ';
+            --developer-body-color: ' . esc_attr($body_color) . ';
         }
+        /* Global typography colours — Steve 2026-08-15. Per-section inline
+           title colours still win via cascade order (inline > class). */
+        body { color: var(--developer-body-color); }
+        h1, .developer-page-header h1, .developer-page-hero h1 { color: var(--developer-heading-color); }
+        .developer-section h2, .developer-hero h2, .developer-usp h2,
+        .developer-featured h2, .developer-about h2, .developer-services h2,
+        .developer-cta h2 { color: var(--developer-subheading-color); }
         
         /* Global Button Styles */
         .developer-btn {

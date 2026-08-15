@@ -16921,7 +16921,7 @@
                     <div class="card-header"><h3>Typography</h3></div>
                     <div class="card-body">
                         <div style="display: flex; flex-direction: column; gap: 1rem;">
-                            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; align-items: end;">
+                            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; align-items: end;">
                                 <div class="form-group" style="margin-bottom:0">
                                     <label class="form-label">Heading Font (H1)</label>
                                     <select class="form-select" id="wb-styles-heading-font">
@@ -16957,8 +16957,15 @@
                                     <label class="form-label">Size (px)</label>
                                     <select id="wb-styles-title-size" class="form-select"><option value="24">24</option><option value="28">28</option><option value="32">32</option><option value="36">36</option><option value="40">40</option><option value="44">44</option><option value="48" selected>48</option><option value="52">52</option><option value="56">56</option><option value="60">60</option><option value="64">64</option><option value="72">72</option></select>
                                 </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label class="form-label">Colour</label>
+                                    <div style="display: flex; gap: 6px; align-items: center;">
+                                        <input type="color" id="wb-styles-heading-color-picker" value="#1e293b" style="width: 40px; height: 36px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer;" onchange="document.getElementById('wb-styles-heading-color').value=this.value">
+                                        <input type="text" class="form-input" id="wb-styles-heading-color" value="#1e293b" style="flex:1; font-family: monospace; font-size: 12px;" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('wb-styles-heading-color-picker').value=this.value">
+                                    </div>
+                                </div>
                             </div>
-                            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; align-items: end;">
+                            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; align-items: end;">
                                 <div class="form-group" style="margin-bottom:0">
                                     <label class="form-label">Sub Heading Font (H2)</label>
                                     <select class="form-select" id="wb-styles-subheading-font">
@@ -16994,8 +17001,15 @@
                                     <label class="form-label">Size (px)</label>
                                     <select class="form-select" id="wb-styles-subheading-size"><option value="18">18</option><option value="20">20</option><option value="24">24</option><option value="28">28</option><option value="32" selected>32</option><option value="36">36</option><option value="40">40</option><option value="44">44</option><option value="48">48</option><option value="52">52</option><option value="56">56</option><option value="60">60</option></select>
                                 </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label class="form-label">Colour</label>
+                                    <div style="display: flex; gap: 6px; align-items: center;">
+                                        <input type="color" id="wb-styles-subheading-color-picker" value="#334155" style="width: 40px; height: 36px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer;" onchange="document.getElementById('wb-styles-subheading-color').value=this.value">
+                                        <input type="text" class="form-input" id="wb-styles-subheading-color" value="#334155" style="flex:1; font-family: monospace; font-size: 12px;" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('wb-styles-subheading-color-picker').value=this.value">
+                                    </div>
+                                </div>
                             </div>
-                            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; align-items: end;">
+                            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; align-items: end;">
                                 <div class="form-group" style="margin-bottom:0">
                                     <label class="form-label">Body Font</label>
                                     <select class="form-select" id="wb-styles-body-font">
@@ -17030,6 +17044,13 @@
                                 <div class="form-group" style="margin-bottom:0">
                                     <label class="form-label">Size (px)</label>
                                     <select id="wb-styles-body-size" class="form-select"><option value="14">14</option><option value="15">15</option><option value="16" selected>16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option></select>
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label class="form-label">Colour</label>
+                                    <div style="display: flex; gap: 6px; align-items: center;">
+                                        <input type="color" id="wb-styles-body-color-picker" value="#334155" style="width: 40px; height: 36px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer;" onchange="document.getElementById('wb-styles-body-color').value=this.value">
+                                        <input type="text" class="form-input" id="wb-styles-body-color" value="#334155" style="flex:1; font-family: monospace; font-size: 12px;" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('wb-styles-body-color-picker').value=this.value">
+                                    </div>
                                 </div>
                             </div>
                         </div>
