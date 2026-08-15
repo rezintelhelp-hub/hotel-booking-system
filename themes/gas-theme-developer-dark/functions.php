@@ -3110,6 +3110,8 @@ function developer_get_api_settings() {
         'rooms_show_filters' => $website_rooms['show-filters'] ?? true,
         'rooms_show_property_filter' => $website_rooms['show-property-filter'] ?? true,
         'rooms_show_date_filters' => $website_rooms['show-date-filters'] ?? true,
+        // See developer-light for full note (Steve 2026-08-15 fix).
+        'rooms_show_listing_price' => $website_rooms['show-listing-price'] ?? true,
         'rooms_show_guest_filter' => $website_rooms['show-guest-filter'] ?? true,
         'rooms_show_ref_search' => $website_rooms['show-ref-search'] ?? false,
         'rooms_filter_bg' => ($website['pro-settings'] ?? [])['filter-bg'] ?: ($website_rooms['filter-bg'] ?? null),

@@ -3247,6 +3247,13 @@ function developer_get_api_settings() {
         'rooms_show_filters' => $website_rooms['show-filters'] ?? true,
         'rooms_show_property_filter' => $website_rooms['show-property-filter'] ?? true,
         'rooms_show_date_filters' => $website_rooms['show-date-filters'] ?? true,
+        // Steve 2026-08-15 — was missing from the theme's export, so the
+        // plugin's array_key_exists check at gas-booking.php:6095 always
+        // failed on developer-light/dark sites and defaulted to true,
+        // ignoring the Web Builder toggle (Ala Kai symptom). Now defaults
+        // TRUE when unset — matches plugin fallback — and passes the
+        // stored FALSE through when the operator unticks the box.
+        'rooms_show_listing_price' => $website_rooms['show-listing-price'] ?? true,
         'rooms_show_guest_filter' => $website_rooms['show-guest-filter'] ?? true,
         'rooms_show_ref_search' => $website_rooms['show-ref-search'] ?? false,
         'rooms_filter_bg' => ($website['pro-settings'] ?? [])['filter-bg'] ?: ($website_rooms['filter-bg'] ?? null),
