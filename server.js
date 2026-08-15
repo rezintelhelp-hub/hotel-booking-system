@@ -127368,7 +127368,15 @@ app.get('/api/admin/media-library/property-images', async (req, res) => {
   }
 });
 
-// DELETE /api/admin/media-library/:id — delete media item
+// DELETE /api/admin/media-library/:id — delete media item.
+// Cascades:
+//   1. gas_media_library row (the tab reads from here)
+//   2. deployed_site_documents row (Link Builder tab reads from here — kept
+//      in sync via the mirror insert on upload; delete both sides so PDFs
+//      don't reappear in Link Builder after they're removed from Media)
+//   3. R2 object (avoids storage leak — R2 is billed on bytes stored)
+// R2 + sibling table failures are logged but never block the response so
+// a stuck row can still be cleared from the UI.
 app.delete('/api/admin/media-library/:id', async (req, res) => {
   try {
     const accountId = req.query.account_id || req.user?.account_id;
@@ -127377,6 +127385,30 @@ app.delete('/api/admin/media-library/:id', async (req, res) => {
       [req.params.id, accountId]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const row = result.rows[0];
+    const fileUrl = row.file_url || '';
+
+    // Mirror-delete from deployed_site_documents (PDFs live in both tables).
+    if (fileUrl) {
+      try {
+        await pool.query('DELETE FROM deployed_site_documents WHERE url = $1', [fileUrl]);
+      } catch (e) { console.warn('[media-library delete] documents mirror:', e.message); }
+    }
+
+    // Delete the R2 object. Key is the URL path after R2_PUBLIC_URL.
+    if (fileUrl && r2Client && process.env.R2_PUBLIC_URL) {
+      try {
+        const key = fileUrl.startsWith(process.env.R2_PUBLIC_URL + '/')
+          ? fileUrl.slice(process.env.R2_PUBLIC_URL.length + 1)
+          : null;
+        if (key) {
+          await r2Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+        } else {
+          console.warn('[media-library delete] cannot derive R2 key from url:', fileUrl);
+        }
+      } catch (e) { console.warn('[media-library delete] R2 delete:', e.message); }
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
