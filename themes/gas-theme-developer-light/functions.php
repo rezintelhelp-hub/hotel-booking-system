@@ -2923,6 +2923,7 @@ function developer_get_api_settings() {
         'header_transparent' => $website_header['transparent'] ?? null,
         'header_transparent_opacity' => $website_header['transparent-opacity'] ?? null,
         'header_layout' => $website_header['layout'] ?? null,
+        'header_padding' => $website_header['padding'] ?? null,
         'header_border' => $website_header['border'] ?? null,
         'header_border_style_color' => $website_header['border-style-color'] ?? null,
         'header_border_width' => $website_header['border-width'] ?? null,
@@ -3990,6 +3991,18 @@ function developer_developer_custom_css() {
             (!empty($header_lang_dd_color) ? '
             color: ' . esc_attr($header_lang_dd_color) . ';' : '') . '
             background: rgba(0,0,0,0.08);
+        }';
+    }
+
+    // Header vertical padding (Web Builder → Header → Vertical Padding).
+    // Adds symmetric top+bottom padding on the fixed-height inner row so
+    // the operator can thicken the header without touching CSS.
+    $header_padding = $api['header_padding'] ?? '';
+    if ($header_padding !== '' && $header_padding !== null && intval($header_padding) > 0) {
+        echo '
+        .developer-header-inner {
+            padding-top: ' . intval($header_padding) . 'px;
+            padding-bottom: ' . intval($header_padding) . 'px;
         }';
     }
 

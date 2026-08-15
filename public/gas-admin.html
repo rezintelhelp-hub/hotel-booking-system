@@ -14460,6 +14460,10 @@
                                 <option value="stacked">Stacked (Logo above Menu)</option>
                             </select>
                         </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Vertical Padding: <span id="wb-header-padding-value">0</span>px <span style="color: #9ca3af; font-size: 0.8rem;">(space above &amp; below the header row)</span></label>
+                            <input type="range" id="wb-header-padding" min="0" max="40" value="0" step="1" style="width: 100%;" oninput="document.getElementById('wb-header-padding-value').textContent = this.value">
+                        </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem;">
                             <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
                                 <input type="checkbox" id="wb-header-transparent" checked onchange="document.getElementById('wb-header-transparent-options').style.display = this.checked ? 'block' : 'none'; document.getElementById('wb-header-logo-light-group').style.display = this.checked ? 'block' : 'none'"> Transparent over Hero
