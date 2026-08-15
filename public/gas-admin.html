@@ -14753,15 +14753,67 @@
 
                 <!-- Badge Styling Card -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Badge Styling</h3></div>
+                    <div class="card-header"><h3>Badge</h3></div>
                     <div class="card-body">
                         <div class="form-group" style="margin-bottom: 1rem;">
                             <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" id="wb-hero-show-badge" onchange="document.getElementById('wb-hero-badge-options').style.display = this.checked ? 'grid' : 'none'"> Show Badge
+                                <input type="checkbox" id="wb-hero-show-badge" onchange="document.getElementById('wb-hero-badge-options').style.display = this.checked ? 'block' : 'none'"> Show Badge
                             </label>
-                            <small class="form-hint">The badge appears above the headline on the hero section</small>
+                            <small class="form-hint">The badge appears above the headline on the hero section. Upload a logo to render as an image, or leave it blank to use the text pill below.</small>
                         </div>
-                        <div id="wb-hero-badge-options" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                        <div id="wb-hero-badge-options" style="display: none;">
+                            <!-- Badge Text (multilingual) — falls back to
+                                 the theme default 'Welcome to Paradise' when
+                                 all languages are blank. Also used as the
+                                 alt text on the badge image if one is set. -->
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">Badge Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                                <div class="translation-field-wrapper" data-translation-group="wb-hero-badge-text-copy">
+                                    <div class="translation-tabs">
+                                        <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-hero-badge-text-copy', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                        <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-hero-badge-text-copy', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                        <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-hero-badge-text-copy', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                        <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-hero-badge-text-copy', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                        <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-hero-badge-text-copy')" title="Auto-translate from English">✨ Translate</button>
+                                    </div>
+                                    <div class="translation-input-group">
+                                        <input type="text" class="form-input translation-input active" id="wb-hero-badge-text-copy-en" data-lang="en" placeholder="e.g., Welcome to Paradise">
+                                        <input type="text" class="form-input translation-input" id="wb-hero-badge-text-copy-fr" data-lang="fr" placeholder="e.g., Bienvenue au Paradis">
+                                        <input type="text" class="form-input translation-input" id="wb-hero-badge-text-copy-es" data-lang="es" placeholder="e.g., Bienvenido al Paraíso">
+                                        <input type="text" class="form-input translation-input" id="wb-hero-badge-text-copy-nl" data-lang="nl" placeholder="e.g., Welkom in het Paradijs">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Badge Logo — when set, replaces the text pill
+                                 with an <img>. Same upload/library pattern as
+                                 other WB image slots. Empty = text badge. -->
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">Badge Logo <span style="color:#64748b; font-weight: normal;">(optional — image replaces the text pill)</span></label>
+                                <div id="wb-hero-badge-image-preview" style="width:220px; height:80px; background:#f1f5f9; border:2px dashed #e2e8f0; border-radius:8px; display:flex; align-items:center; justify-content:center; margin-bottom:6px; background-size:contain; background-position:center; background-repeat:no-repeat;"><span style="color:#94a3b8; font-size:0.8rem;">No badge logo</span></div>
+                                <input type="file" id="wb-hero-badge-image" accept="image/*" onchange="previewWebsiteImage('hero-badge')" style="font-size:0.8rem;">
+                                <button type="button" onclick="openMediaPicker(function(url){document.getElementById('wb-hero-badge-image-url').value=url; var p=document.getElementById('wb-hero-badge-image-preview'); if(p){p.style.backgroundImage='url('+url+')'; var s=p.querySelector('span'); if(s)s.style.display='none';}})" style="margin-top:6px; padding:6px 10px; background:#7c3aed; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:0.75rem;">📁 Choose from Library</button>
+                                <input type="hidden" id="wb-hero-badge-image-url">
+                                <button type="button" onclick="document.getElementById('wb-hero-badge-image-url').value=''; var p=document.getElementById('wb-hero-badge-image-preview'); if(p){p.style.backgroundImage=''; var s=p.querySelector('span'); if(s)s.style.display='';}" style="margin-top:6px; margin-left:6px; padding:6px 10px; background:#fee2e2; color:#991b1b; border:1px solid #fecaca; border-radius:6px; cursor:pointer; font-size:0.75rem;">× Clear</button>
+                            </div>
+
+                            <!-- Badge Link — wraps the badge (text or image)
+                                 in an <a href>. Empty = badge is not clickable. -->
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">Badge Link URL <span style="color:#64748b; font-weight: normal;">(optional)</span></label>
+                                <input type="text" class="form-input" id="wb-hero-badge-link" placeholder="/offers or https://…">
+                                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.85rem; color:#374151; margin-top:0.4rem;">
+                                    <input type="checkbox" id="wb-hero-badge-new-tab">
+                                    Open in new tab
+                                </label>
+                            </div>
+
+                            <div class="form-group" style="margin: 1rem 0 0.5rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0;">
+                                <div style="font-weight:600; font-size:0.78rem; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Styling</div>
+                                <small class="form-hint">Colours only apply to the text badge — ignored when a Badge Logo is set.</small>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
                                 <label class="form-label">Background Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
@@ -14787,6 +14839,7 @@
                                 <label class="form-label" style="margin-top: 0.5rem;">Opacity: <span id="wb-hero-badge-border-opacity-value">30</span>%</label>
                                 <input type="range" id="wb-hero-badge-border-opacity" min="0" max="100" value="30" step="5" style="width: 100%;" oninput="document.getElementById('wb-hero-badge-border-opacity-value').textContent = this.value; updateBadgeBorder()">
                             </div>
+                            </div><!-- /styling grid -->
                         </div>
                     </div>
                 </div>

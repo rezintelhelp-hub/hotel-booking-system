@@ -2843,9 +2843,14 @@ function developer_get_api_settings() {
         'hero_height' => $website_hero['height'] ?? null,
         'hero_title_color' => $website_hero['title-color'] ?? null,
         'hero_subtitle_color' => $website_hero['subtitle-color'] ?? null,
-        'hero_badge' => developer_get_ml_value($website_hero, 'button_text', $lang),
+        // Steve 2026-08-15 — Hero Badge fields (text/logo/link/new-tab) —
+        // matches developer-light. See that theme's mapping for full note.
+        'hero_badge' => developer_get_ml_value($website_hero, 'badge-text-copy', $lang)
+                        ?: developer_get_ml_value($website_hero, 'button_text', $lang),
+        'hero_badge_image' => $website_hero['badge-image-url'] ?? null,
         'hero_show_badge' => $website_hero['show-badge'] ?? true,
         'hero_badge_link' => $website_hero['badge-link'] ?? null,
+        'hero_badge_new_tab' => !empty($website_hero['badge-new-tab']),
         'hero_badge_bg' => $website_hero['badge-bg'] ?? null,
         'hero_badge_text' => $website_hero['badge-text'] ?? null,
         'hero_badge_border' => $website_hero['badge-border'] ?? null,

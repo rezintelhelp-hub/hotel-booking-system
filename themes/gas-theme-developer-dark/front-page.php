@@ -219,13 +219,26 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
     <div class="developer-hero-overlay" style="background: rgba(<?php echo "$r, $g, $b"; ?>, <?php echo esc_attr($overlay_opacity); ?>);"></div>
     
     <div class="developer-hero-content">
-        <?php if ($hero_badge) : ?>
-            <?php if ($hero_badge_link) : ?>
-                <a href="<?php echo esc_url($hero_badge_link); ?>" class="developer-hero-badge" style="background: <?php echo esc_attr($hero_badge_bg); ?>; color: <?php echo esc_attr($hero_badge_text); ?>; border-color: <?php echo esc_attr($hero_badge_border); ?>; text-decoration: none;"><?php echo esc_html($hero_badge); ?></a>
-            <?php else : ?>
-                <span class="developer-hero-badge" style="background: <?php echo esc_attr($hero_badge_bg); ?>; color: <?php echo esc_attr($hero_badge_text); ?>; border-color: <?php echo esc_attr($hero_badge_border); ?>;"><?php echo esc_html($hero_badge); ?></span>
-            <?php endif; ?>
-        <?php endif; ?>
+        <?php
+        // Steve 2026-08-15 — badge: optional logo + new-tab. See
+        // developer-light front-page.php for full commentary.
+        $hero_badge_image  = trim((string)($api['hero_badge_image'] ?? ''));
+        $hero_badge_newtab = !empty($api['hero_badge_new_tab']);
+        $show_badge_flag   = !empty($api['hero_show_badge']);
+        if ($show_badge_flag && ($hero_badge || $hero_badge_image)) :
+            $badge_target_attr = ($hero_badge_link && $hero_badge_newtab) ? ' target="_blank" rel="noopener noreferrer"' : '';
+            $badge_inner = $hero_badge_image
+                ? '<img src="' . esc_url($hero_badge_image) . '" alt="' . esc_attr($hero_badge) . '" style="max-height:60px; width:auto; display:block;">'
+                : esc_html($hero_badge);
+            $badge_wrap_style = $hero_badge_image
+                ? 'display:inline-block; text-decoration:none;'
+                : 'background: ' . esc_attr($hero_badge_bg) . '; color: ' . esc_attr($hero_badge_text) . '; border-color: ' . esc_attr($hero_badge_border) . '; text-decoration: none;';
+            if ($hero_badge_link) {
+                echo '<a href="' . esc_url($hero_badge_link) . '" class="developer-hero-badge" style="' . $badge_wrap_style . '"' . $badge_target_attr . '>' . $badge_inner . '</a>';
+            } else {
+                echo '<span class="developer-hero-badge" style="' . $badge_wrap_style . '">' . $badge_inner . '</span>';
+            }
+        endif; ?>
         
         <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;"><?php echo esc_html($hero_title); ?></h1>
         <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo esc_html($hero_subtitle); ?></p>

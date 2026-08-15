@@ -249,13 +249,34 @@ $homepage_sections = array(); // position => html
     <div class="developer-hero-overlay" style="background: rgba(<?php echo "$r, $g, $b"; ?>, <?php echo esc_attr($overlay_opacity); ?>);"></div>
     
     <div class="developer-hero-content">
-        <?php if ($hero_badge) : ?>
-            <?php if ($hero_badge_link) : ?>
-                <a href="<?php echo esc_url($hero_badge_link); ?>" class="developer-hero-badge" style="background: <?php echo esc_attr($hero_badge_bg); ?>; color: <?php echo esc_attr($hero_badge_text); ?>; border-color: <?php echo esc_attr($hero_badge_border); ?>; text-decoration: none;"><?php echo esc_html($hero_badge); ?></a>
-            <?php else : ?>
-                <span class="developer-hero-badge" style="background: <?php echo esc_attr($hero_badge_bg); ?>; color: <?php echo esc_attr($hero_badge_text); ?>; border-color: <?php echo esc_attr($hero_badge_border); ?>;"><?php echo esc_html($hero_badge); ?></span>
-            <?php endif; ?>
-        <?php endif; ?>
+        <?php
+        // Steve 2026-08-15 — badge now supports optional logo image + new-tab
+        // toggle on the link. Image REPLACES the text pill when set (styling
+        // colours are ignored in image mode). Toggle checkbox controls
+        // target=_blank when the badge is a link. Falls back to the text pill
+        // + colours from the Badge Styling card when no image is uploaded.
+        $hero_badge_image  = trim((string)($api['hero_badge_image'] ?? ''));
+        $hero_badge_newtab = !empty($api['hero_badge_new_tab']);
+        $show_badge_flag   = !empty($api['hero_show_badge']);
+        // Render if operator ticked "Show Badge" AND provided at least one of
+        // text or image. When Show Badge is off, hide it entirely regardless.
+        if ($show_badge_flag && ($hero_badge || $hero_badge_image)) :
+            $badge_target_attr = ($hero_badge_link && $hero_badge_newtab) ? ' target="_blank" rel="noopener noreferrer"' : '';
+            $badge_inner = $hero_badge_image
+                ? '<img src="' . esc_url($hero_badge_image) . '" alt="' . esc_attr($hero_badge) . '" style="max-height:60px; width:auto; display:block;">'
+                : esc_html($hero_badge);
+            // Text-mode wrapper uses the styled pill; image-mode drops the
+            // pill styles so the raw logo renders cleanly.
+            $badge_wrap_style = $hero_badge_image
+                ? 'display:inline-block; text-decoration:none;'
+                : 'background: ' . esc_attr($hero_badge_bg) . '; color: ' . esc_attr($hero_badge_text) . '; border-color: ' . esc_attr($hero_badge_border) . '; text-decoration: none;';
+            if ($hero_badge_link) {
+                echo '<a href="' . esc_url($hero_badge_link) . '" class="developer-hero-badge" style="' . $badge_wrap_style . '"' . $badge_target_attr . '>' . $badge_inner . '</a>';
+            } else {
+                $tag = $hero_badge_image ? 'span' : 'span';
+                echo '<' . $tag . ' class="developer-hero-badge" style="' . $badge_wrap_style . '">' . $badge_inner . '</' . $tag . '>';
+            }
+        endif; ?>
         
         <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;"><?php echo esc_html($hero_title); ?></h1>
         <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo nl2br(esc_html($hero_subtitle)); ?></p>
