@@ -127228,6 +127228,24 @@ app.post('/api/admin/website-builder/upload-image', (req, res, next) => {
           );
         } catch (e) { console.warn('[documents library insert]', e.message); }
       }
+      // Steve 2026-08-15 — also mirror to gas_media_library so PDFs show
+      // up in the Media tab (previously PDFs vanished — uploaded fine but
+      // only visible via the Link Builder tab that specifically reads
+      // deployed_site_documents). Best-effort insert.
+      try {
+        await pool.query(
+          `INSERT INTO gas_media_library
+             (account_id, deployed_site_id, file_url, file_name, file_type, file_size)
+           VALUES ($1, $2, $3, $4, 'pdf', $5)`,
+          [
+            parseInt(account_id, 10) || null,
+            _librarySiteId || null,
+            url,
+            req.file.originalname || safeName,
+            req.file.size || null,
+          ]
+        );
+      } catch (e) { console.warn('[gas_media_library pdf insert]', e.message); }
       return res.json({ success: true, url, urls: { original: url, large: url, medium: url, thumbnail: url } });
     }
 
