@@ -3283,6 +3283,11 @@ function developer_get_api_settings() {
         'footer_bg' => $website_footer['bg'] ?? $website_footer['bg-color'] ?? null,
         'footer_text' => $website_footer['text'] ?? $website_footer['text-color'] ?? null,
         'footer_layout' => $website_footer['layout'] ?? 'default',
+        // Steve 2026-08-15 — universal footer logo (Brand column, between
+        // title and social row). Distinct from footer_brand_image which is
+        // the BCN-layout-only parent-org logo.
+        'footer_logo_url' => $website_footer['logo-url'] ?? null,
+        'footer_logo_max_height' => intval($website_footer['logo-max-height'] ?? 60),
         // Brand + Contact + Newsletter (3-col) layout fields.
         // Only consumed when footer_layout === 'brand_contact_newsletter'.
         'footer_brand_image' => $website_footer['brand-image-url'] ?? '',

@@ -16375,6 +16375,24 @@
                             </div>
                         </div>
 
+                        <!-- Footer Logo — universal (all layouts). Renders in the
+                             Brand column between the business name / site title
+                             and the social row. Distinct from wb-footer-brand-image
+                             which is the BCN parent-org logo. Steve 2026-08-15. -->
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Footer Logo <small style="color:#64748b; font-weight: normal;">(optional — renders between title and social icons)</small></label>
+                            <div id="wb-footer-logo-preview" style="width: 200px; height: 80px; border: 2px dashed #e2e8f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; font-size: 0.85rem; color: #94a3b8; background-color: #fafafa; margin-bottom: 6px;" onclick="document.getElementById('wb-footer-logo').click()">Click to upload logo</div>
+                            <input type="file" id="wb-footer-logo" accept="image/*" onchange="previewWebsiteImage('footer-logo')" style="display: none;">
+                            <button type="button" onclick="openMediaPicker(function(url){document.getElementById('wb-footer-logo-url').value=url; var p=document.getElementById('wb-footer-logo-preview'); if(p){p.style.backgroundImage='url('+url+')'; p.textContent='';}})" style="padding:6px 10px; background:#7c3aed; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:0.8rem;">📁 Choose from Library</button>
+                            <button type="button" onclick="document.getElementById('wb-footer-logo-url').value=''; var p=document.getElementById('wb-footer-logo-preview'); if(p){p.style.backgroundImage=''; p.textContent='Click to upload logo';}" style="padding:6px 10px; background:#fee2e2; color:#991b1b; border:1px solid #fecaca; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-left:6px;">× Clear</button>
+                            <input type="hidden" id="wb-footer-logo-url">
+                            <div style="margin-top: 0.6rem;">
+                                <label style="font-size:0.8rem; color:#475569;">Logo max height</label>
+                                <input type="number" class="form-input" id="wb-footer-logo-max-height" value="60" min="20" max="240" step="10" style="width: 100px; margin-left: 6px;">
+                                <span style="font-size:0.75rem; color:#94a3b8;">px</span>
+                            </div>
+                        </div>
+
                         <!-- Brand + Contact + Newsletter layout fields. Only relevant for
                              the brand_contact_newsletter layout; hidden otherwise via
                              toggleFooterLayoutFields(). Brand column shows a parent-org

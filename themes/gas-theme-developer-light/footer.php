@@ -190,6 +190,14 @@ $all_links = array_merge($quick_links, $legal_links);
             <?php else : ?>
                 <h3 style="color: <?php echo esc_attr($footer_text); ?>; margin-bottom: 0.5rem;"><?php echo esc_html($business_name); ?></h3>
             <?php endif; ?>
+            <?php
+            // Steve 2026-08-15 — Footer Logo also renders in centered layout
+            // (below title, before social row).
+            $_footer_logo_c = trim((string)($api_settings['footer_logo_url'] ?? ''));
+            $_footer_logo_c_h = max(20, intval($api_settings['footer_logo_max_height'] ?? 60));
+            if ($_footer_logo_c) : ?>
+                <div style="margin: 0.75rem 0;"><img src="<?php echo esc_url($_footer_logo_c); ?>" alt="<?php echo esc_attr($business_name); ?>" style="max-height:<?php echo $_footer_logo_c_h; ?>px; width:auto; display:inline-block;"></div>
+            <?php endif; ?>
 
             <?php $_show_wifi_centered = !empty($api_settings['footer_show_wifi']); ?>
             <?php if ($facebook || $instagram || $twitter || $youtube || $linkedin || $tiktok || $pinterest || $tripadvisor || $_show_wifi_centered) : ?>
@@ -318,6 +326,15 @@ $all_links = array_merge($quick_links, $legal_links);
                     <?php the_custom_logo(); ?>
                 <?php else : ?>
                     <h3 style="color: <?php echo esc_attr($footer_text); ?>; margin-bottom: 0;"><?php echo esc_html($business_name); ?></h3>
+                <?php endif; ?>
+                <?php
+                // Steve 2026-08-15 — Footer Logo (Web Builder → Footer →
+                // Footer Logo). Renders between the title/custom-logo and
+                // the social row. Empty = nothing (backwards-compat).
+                $_footer_logo = trim((string)($api_settings['footer_logo_url'] ?? ''));
+                $_footer_logo_h = max(20, intval($api_settings['footer_logo_max_height'] ?? 60));
+                if ($_footer_logo) : ?>
+                    <div style="margin: 0.75rem 0;"><img src="<?php echo esc_url($_footer_logo); ?>" alt="<?php echo esc_attr($business_name); ?>" style="max-height:<?php echo $_footer_logo_h; ?>px; width:auto; display:block;"></div>
                 <?php endif; ?>
                 <?php if (!empty($api['footer_description'])) : ?>
                 <p style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($api['footer_description']); ?></p>
