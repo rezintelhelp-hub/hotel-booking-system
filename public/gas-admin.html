@@ -8780,6 +8780,9 @@
                     <button class="editor-tab" data-tab="email" onclick="switchEditorTab('email')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
                         ✉️ Email
                     </button>
+                    <button class="editor-tab" data-tab="media" onclick="switchEditorTab('media'); openMediaLibraryBrowse();" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
+                        📁 Media
+                    </button>
                     <button class="editor-tab" data-tab="linkbuilder" onclick="switchEditorTab('linkbuilder')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
                         🔗 Link Builder
                     </button>
@@ -13735,6 +13738,22 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Media Tab — opens the Media Library modal in browse
+                         mode. Modal itself lives in the openMediaPicker code
+                         path; this panel is a lightweight placeholder so the
+                         tab visually "does something" while the modal is up
+                         and after the operator closes it. -->
+                    <div id="editor-panel-media" class="editor-panel" style="display: none;">
+                        <div class="card">
+                            <div class="card-header"><h3>📁 Media Library</h3></div>
+                            <div class="card-body">
+                                <p style="color:#64748b; margin: 0 0 1rem;">Upload PDFs, images and videos for this site. Once uploaded, copy the URL from a tile to paste into a spark, email or link.</p>
+                                <button class="btn" onclick="openMediaLibraryBrowse()" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">📁 Open Media Library</button>
+                                <div style="margin-top: 0.75rem; font-size: 0.78rem; color: #94a3b8;">Accepts images, videos, PDFs — 10 MB max per file.</div>
                             </div>
                         </div>
                     </div>
@@ -38320,10 +38339,21 @@ const promo = await fetch('/api/v1/offers/validate', {
         // ============================================================
         let mediaPickerCallback = null;
         let mediaPickerFilter = 'all';
+        let mediaPickerBrowse = false;
+
+        // Standalone "Media Library" sidebar entry. Opens the picker in
+        // BROWSE mode — no callback (nothing to pipe a URL into), Select
+        // button hidden, per-tile Copy URL buttons shown so the operator
+        // can grab the R2 URL directly (e.g. to paste into a spark body,
+        // an email, a print-out).
+        function openMediaLibraryBrowse() {
+            openMediaPicker(null, { browse: true });
+        }
 
         function openMediaPicker(callback, options = {}) {
             mediaPickerCallback = callback;
             mediaPickerFilter = options.fileType || 'all';
+            mediaPickerBrowse = !!options.browse;
             const accountId = selectedAccountId || localStorage.getItem('gas_selected_account_id');
 
             // Create modal if it doesn't exist
@@ -38371,7 +38401,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.body.appendChild(modal);
             }
             modal.style.display = 'block';
-            mpSwitchTab('library');
+            // In browse mode (from the Web Builder → Media tab), start on
+            // Upload so the operator's default action is "drop new files".
+            // In pick mode (image slot), start on Library so they can pick
+            // an existing asset without an extra click.
+            mpSwitchTab(mediaPickerBrowse ? 'upload' : 'library');
         }
 
         function closeMediaPicker() {
@@ -38476,7 +38510,33 @@ const promo = await fetch('/api/v1/offers/validate', {
             el.style.borderColor = '#7c3aed';
             mpSelectedUrl = url;
             document.getElementById('mp-selected-info').textContent = url.split('/').pop();
-            document.getElementById('mp-select-btn').style.display = 'block';
+            const selBtn = document.getElementById('mp-select-btn');
+            if (mediaPickerBrowse) {
+                // No target field to pipe into — swap the Select button
+                // for a Copy URL action so operators can paste the R2 URL
+                // wherever they need it (sparks, emails, print material).
+                selBtn.textContent = '📋 Copy URL';
+                selBtn.onclick = () => mpCopyUrl(url);
+                selBtn.style.display = 'block';
+            } else {
+                selBtn.textContent = 'Select';
+                selBtn.onclick = mpSelectImage;
+                selBtn.style.display = 'block';
+            }
+        }
+
+        function mpCopyUrl(url) {
+            if (!url) return;
+            navigator.clipboard.writeText(url).then(() => {
+                const info = document.getElementById('mp-selected-info');
+                const prev = info.textContent;
+                info.textContent = '✓ URL copied — ' + prev;
+                info.style.color = '#059669';
+                setTimeout(() => { info.textContent = prev; info.style.color = '#64748b'; }, 1800);
+            }).catch(() => {
+                // Fallback for browsers/contexts without clipboard permission
+                window.prompt('Copy this URL:', url);
+            });
         }
 
         function mpSelectImage() {
