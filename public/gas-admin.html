@@ -38479,14 +38479,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                         let html = `<div style="font-size:0.85rem;color:#94a3b8;margin-bottom:0.75rem;">${data.total} file${data.total !== 1 ? 's' : ''}</div>`;
                         html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:0.75rem;">';
                         data.media.forEach(m => {
-                            if (m.file_type === 'image') {
-                                html += mpImageCard(m.thumbnail_url || m.file_url, m.file_url, m.file_name, m.id);
-                            } else {
-                                html += `<div class="mp-item" onclick="mpClickItem(this,'${m.file_url}')" style="border:2px solid transparent;border-radius:8px;padding:1rem;text-align:center;cursor:pointer;background:#f8fafc;">
-                                    <div style="font-size:2rem;">${m.file_type === 'video' ? '🎬' : '📄'}</div>
-                                    <div style="font-size:0.75rem;color:#475569;margin-top:0.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${m.file_name || 'File'}</div>
-                                </div>`;
-                            }
+                            // Route every type through mpImageCard — it now
+                            // paints image / PDF / video variants and always
+                            // renders the delete × so operators can prune the
+                            // library. Previous split branch skipped mpImageCard
+                            // entirely for PDFs so the × never appeared.
+                            html += mpImageCard(m.thumbnail_url || m.file_url, m.file_url, m.file_name || m.alt_text, m.id, m.file_type);
                         });
                         html += '</div>';
                         content.innerHTML = html;
@@ -38499,25 +38497,40 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        function mpImageCard(thumbUrl, fullUrl, alt, id) {
-            // Per-tile delete button (top-right, appears on hover). Guard rail:
-            // only rendered when the tile has a numeric gas_media_library id.
+        function mpImageCard(thumbUrl, fullUrl, alt, id, fileType) {
+            // Per-tile delete × — always visible so it's discoverable on
+            // desktop and works on touch. Only rendered when the tile has a
+            // numeric gas_media_library id (Property Images pass no id → no
+            // delete, correct: those are managed on the property side).
             const deleteBtn = id
-                ? `<button onclick="event.stopPropagation();mpDeleteItem(${id}, this)" title="Delete" style="position:absolute;top:4px;right:4px;width:22px;height:22px;border:none;border-radius:50%;background:rgba(220,38,38,0.9);color:white;font-size:0.85rem;font-weight:700;cursor:pointer;display:none;line-height:1;padding:0;z-index:2;">×</button>`
+                ? `<button onclick="event.stopPropagation();mpDeleteItem(${id}, this)" title="Delete file" style="position:absolute;top:4px;right:4px;width:22px;height:22px;border:none;border-radius:50%;background:rgba(220,38,38,0.92);color:white;font-size:0.9rem;font-weight:700;cursor:pointer;line-height:20px;padding:0;z-index:2;box-shadow:0 1px 3px rgba(0,0,0,0.3);">×</button>`
                 : '';
-            // PDF / non-image tiles — the R2 URL has no image to render,
-            // so paint a document icon + filename instead of a broken <img>.
-            const isPdf = /\.pdf($|\?)/i.test(fullUrl) || /\.pdf($|\?)/i.test(thumbUrl);
-            if (isPdf) {
-                const name = String(alt || fullUrl.split('/').pop() || 'document.pdf').replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i, '');
-                return `<div class="mp-item" onclick="mpClickItem(this,'${fullUrl}')" data-id="${id || ''}" onmouseover="this.querySelector('button')&&(this.querySelector('button').style.display='block')" onmouseout="this.querySelector('button')&&(this.querySelector('button').style.display='none')" style="position:relative;border:2px solid transparent;border-radius:8px;overflow:hidden;cursor:pointer;aspect-ratio:1;background:linear-gradient(135deg,#fef2f2,#fee2e2);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px;text-align:center;">
+            // Detect variant — prefer explicit fileType from DB, else fall
+            // back to URL sniffing (Property Images path passes no type).
+            const type = fileType || (/\.pdf($|\?)/i.test(fullUrl) ? 'pdf'
+                                    : /\.(mp4|webm|mov|m4v)($|\?)/i.test(fullUrl) ? 'video'
+                                    : 'image');
+            const displayName = String(alt || fullUrl.split('/').pop() || '')
+                .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i, '')
+                .replace(/</g, '&lt;');
+
+            if (type === 'pdf') {
+                return `<div class="mp-item" onclick="mpClickItem(this,'${fullUrl}')" data-id="${id || ''}" style="position:relative;border:2px solid transparent;border-radius:8px;overflow:hidden;cursor:pointer;aspect-ratio:1;background:linear-gradient(135deg,#fef2f2,#fee2e2);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px;text-align:center;">
                     ${deleteBtn}
                     <div style="font-size:2.2rem;line-height:1;margin-bottom:4px;">📄</div>
-                    <div style="font-size:0.68rem;color:#7f1d1d;font-weight:600;word-break:break-word;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${name.replace(/</g,'&lt;')}</div>
+                    <div style="font-size:0.68rem;color:#7f1d1d;font-weight:600;word-break:break-word;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${displayName || 'document.pdf'}</div>
                     <div style="font-size:0.6rem;color:#991b1b;opacity:0.7;margin-top:2px;">PDF</div>
                 </div>`;
             }
-            return `<div class="mp-item" onclick="mpClickItem(this,'${fullUrl}')" data-id="${id || ''}" onmouseover="this.querySelector('button')&&(this.querySelector('button').style.display='block')" onmouseout="this.querySelector('button')&&(this.querySelector('button').style.display='none')" style="position:relative;border:2px solid transparent;border-radius:8px;overflow:hidden;cursor:pointer;aspect-ratio:1;background:#f1f5f9;">
+            if (type === 'video') {
+                return `<div class="mp-item" onclick="mpClickItem(this,'${fullUrl}')" data-id="${id || ''}" style="position:relative;border:2px solid transparent;border-radius:8px;overflow:hidden;cursor:pointer;aspect-ratio:1;background:linear-gradient(135deg,#eef2ff,#e0e7ff);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px;text-align:center;">
+                    ${deleteBtn}
+                    <div style="font-size:2.2rem;line-height:1;margin-bottom:4px;">🎬</div>
+                    <div style="font-size:0.68rem;color:#3730a3;font-weight:600;word-break:break-word;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${displayName || 'video'}</div>
+                    <div style="font-size:0.6rem;color:#4338ca;opacity:0.7;margin-top:2px;">VIDEO</div>
+                </div>`;
+            }
+            return `<div class="mp-item" onclick="mpClickItem(this,'${fullUrl}')" data-id="${id || ''}" style="position:relative;border:2px solid transparent;border-radius:8px;overflow:hidden;cursor:pointer;aspect-ratio:1;background:#f1f5f9;">
                 ${deleteBtn}
                 <img src="${thumbUrl}" alt="${alt || ''}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">
             </div>`;
