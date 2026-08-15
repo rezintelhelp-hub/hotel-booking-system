@@ -1226,7 +1226,13 @@ for ($ir = 1; $ir <= 4; $ir++) {
     <section class="developer-section developer-image-row" style="padding: 40px 0; background: <?php echo esc_attr($ir_bg); ?>;">
         <div class="developer-container">
             <?php if ($ir_heading) : ?>
-                <h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 16px; text-align: center;"><?php echo esc_html($ir_heading); ?></h2>
+                <?php
+                // Steve 2026-08-15 — heading colour: per-row Heading Colour
+                // wins, else falls through to global Typography → Heading
+                // colour, else the old hardcoded #1e293b default.
+                $ir_heading_color = $api[$ir_prefix . 'heading_color'] ?? $_global_heading ?? '#1e293b';
+                ?>
+                <h2 style="font-size: 2rem; font-weight: 700; color: <?php echo esc_attr($ir_heading_color); ?>; margin: 0 0 16px; text-align: center;"><?php echo esc_html($ir_heading); ?></h2>
             <?php endif; ?>
             <?php
             $ir_desc = $api[$ir_prefix . 'description'] ?? '';
