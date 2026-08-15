@@ -58,14 +58,17 @@
     ?>
 </head>
 <?php
-$menu_layout = get_theme_mod('developer_menu_layout', 'logo-left');
-$header_sticky = get_theme_mod('developer_header_sticky', true);
-$nav_blog = get_theme_mod('developer_header_nav_blog', false);
-$nav_contact = get_theme_mod('developer_header_nav_contact', true);
-$nav_about = get_theme_mod('developer_header_nav_about', false);
-
 // Get CTA text from GAS API first, fallback to theme_mod
 $api_settings = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+
+// Header settings — prefer Web Builder values, fall back to theme_mod.
+// Fixed 2026-08-15: were theme_mod-only, so Web Builder was ignored live.
+$menu_layout = !empty($api_settings['header_layout'])
+    ? $api_settings['header_layout']
+    : get_theme_mod('developer_menu_layout', 'logo-left');
+$header_sticky = isset($api_settings['header_sticky'])
+    ? filter_var($api_settings['header_sticky'], FILTER_VALIDATE_BOOLEAN)
+    : get_theme_mod('developer_header_sticky', true);
 
 // DEBUG: Show menu title data if ?debug_menu=1
 if (isset($_GET['debug_menu']) && $_GET['debug_menu'] == '1') {
@@ -425,6 +428,29 @@ function developer_output_logo($api_logo_image, $site_name, $api_logo_light_imag
                 </button>
             </div>
             
+        <?php elseif ($menu_layout === 'menu-center') : ?>
+            <!-- Logo Left, Menu Centred, CTA Right (3-column grid) -->
+            <div class="developer-header-inner developer-header-menu-center">
+                <a href="<?php echo esc_url(home_url('/')); ?>" class="developer-logo">
+                    <?php developer_output_logo($api_logo_image, $site_name, $api_logo_light_image); ?>
+                </a>
+
+                <nav class="developer-nav developer-nav-center">
+                    <?php developer_output_nav_items($menu_items); ?>
+                </nav>
+
+                <div class="developer-header-right">
+                    <a href="<?php echo esc_url($cta_link); ?>" class="developer-nav-cta"<?php echo $cta_target; ?>><?php echo esc_html($cta_text); ?></a>
+                    <?php echo developer_language_switcher(); ?>
+                </div>
+
+                <button class="developer-menu-toggle" aria-label="Toggle menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+
         <?php elseif ($menu_layout === 'stacked') : ?>
             <!-- Stacked Layout -->
             <div class="developer-header-inner developer-header-stacked">

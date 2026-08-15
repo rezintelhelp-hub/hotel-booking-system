@@ -128,17 +128,17 @@ $all_links = array_merge($quick_links, $legal_links);
         <?php if ($footer_layout === 'centered') : ?>
         <!-- CENTERED LAYOUT -->
         <div style="text-align: center; padding: 2rem 0;">
-            <?php if (has_custom_logo()) : ?>
+            <?php
+            // Footer Logo replaces WP custom-logo/title when set.
+            $_footer_logo_c = trim((string)($api_settings['footer_logo_url'] ?? ''));
+            $_footer_logo_c_h = max(20, intval($api_settings['footer_logo_max_height'] ?? 60));
+            ?>
+            <?php if ($_footer_logo_c) : ?>
+                <div style="margin: 0 0 1rem;"><img src="<?php echo esc_url($_footer_logo_c); ?>" alt="" style="max-height:<?php echo $_footer_logo_c_h; ?>px; width:auto; display:inline-block;"></div>
+            <?php elseif (has_custom_logo()) : ?>
                 <div style="margin-bottom: 1rem;"><?php the_custom_logo(); ?></div>
             <?php else : ?>
                 <h3 style="color: <?php echo esc_attr($footer_text); ?>; margin-bottom: 0.5rem;"><?php echo esc_html($business_name); ?></h3>
-            <?php endif; ?>
-            <?php
-            // Steve 2026-08-15 — Footer Logo (centered layout).
-            $_footer_logo_c = trim((string)($api_settings['footer_logo_url'] ?? ''));
-            $_footer_logo_c_h = max(20, intval($api_settings['footer_logo_max_height'] ?? 60));
-            if ($_footer_logo_c) : ?>
-                <div style="margin: 0.75rem 0;"><img src="<?php echo esc_url($_footer_logo_c); ?>" alt="<?php echo esc_attr($business_name); ?>" style="max-height:<?php echo $_footer_logo_c_h; ?>px; width:auto; display:inline-block;"></div>
             <?php endif; ?>
 
             <?php if ($facebook || $instagram || $twitter || $youtube || $linkedin || $tiktok || $pinterest || $tripadvisor) : ?>
@@ -258,21 +258,28 @@ $all_links = array_merge($quick_links, $legal_links);
 
         <?php else : ?>
         <!-- DEFAULT 4-COLUMN LAYOUT (becomes 5-col when newsletter signup is on) -->
-        <?php $_show_newsletter_default = !empty($api_settings['footer_newsletter_enabled']); ?>
-        <div class="developer-footer-grid"<?php echo $_show_newsletter_default ? ' style="grid-template-columns: repeat(5, minmax(0, 1fr));"' : ''; ?>>
+        <?php
+        // Rendered column count — Contact + Newsletter are both conditional.
+        // Static repeat(5,1fr) left phantom gaps when Contact was skipped.
+        $_show_newsletter_default = !empty($api_settings['footer_newsletter_enabled']);
+        $_has_contact_col = ($phone || $email || $address);
+        $_col_count = 3 + ($_has_contact_col ? 1 : 0) + ($_show_newsletter_default ? 1 : 0);
+        ?>
+        <div class="developer-footer-grid" style="grid-template-columns: repeat(<?php echo intval($_col_count); ?>, minmax(0, 1fr));">
             <!-- Brand Column -->
             <div class="developer-footer-brand">
-                <?php if (has_custom_logo()) : ?>
+                <?php
+                // Steve 2026-08-15 — Footer Logo replaces WP custom-logo/title
+                // when set. See developer-light/footer.php for the full note.
+                $_footer_logo = trim((string)($api_settings['footer_logo_url'] ?? ''));
+                $_footer_logo_h = max(20, intval($api_settings['footer_logo_max_height'] ?? 60));
+                ?>
+                <?php if ($_footer_logo) : ?>
+                    <div style="margin: 0 0 0.75rem;"><img src="<?php echo esc_url($_footer_logo); ?>" alt="" style="max-height:<?php echo $_footer_logo_h; ?>px; width:auto; display:block;"></div>
+                <?php elseif (has_custom_logo()) : ?>
                     <?php the_custom_logo(); ?>
                 <?php else : ?>
                     <h3 style="color: <?php echo esc_attr($footer_text); ?>; margin-bottom: 0;"><?php echo esc_html($business_name); ?></h3>
-                <?php endif; ?>
-                <?php
-                // Steve 2026-08-15 — Footer Logo (see developer-light for note).
-                $_footer_logo = trim((string)($api_settings['footer_logo_url'] ?? ''));
-                $_footer_logo_h = max(20, intval($api_settings['footer_logo_max_height'] ?? 60));
-                if ($_footer_logo) : ?>
-                    <div style="margin: 0.75rem 0;"><img src="<?php echo esc_url($_footer_logo); ?>" alt="<?php echo esc_attr($business_name); ?>" style="max-height:<?php echo $_footer_logo_h; ?>px; width:auto; display:block;"></div>
                 <?php endif; ?>
                 <?php if (!empty($api['footer_description'])) : ?>
                 <p style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($api['footer_description']); ?></p>
