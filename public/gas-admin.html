@@ -14787,14 +14787,21 @@
 
                             <!-- Badge Logo — when set, replaces the text pill
                                  with an <img>. Same upload/library pattern as
-                                 other WB image slots. Empty = text badge. -->
+                                 other WB image slots. Empty = text badge. In
+                                 image mode we drop the .developer-hero-badge
+                                 class + all pill styling — image renders raw
+                                 at the requested max-height. -->
                             <div class="form-group" style="margin-bottom: 1rem;">
-                                <label class="form-label">Badge Logo <span style="color:#64748b; font-weight: normal;">(optional — image replaces the text pill)</span></label>
+                                <label class="form-label">Badge Logo <span style="color:#64748b; font-weight: normal;">(optional — image replaces the text pill; pill styling is dropped)</span></label>
                                 <div id="wb-hero-badge-image-preview" style="width:220px; height:80px; background:#f1f5f9; border:2px dashed #e2e8f0; border-radius:8px; display:flex; align-items:center; justify-content:center; margin-bottom:6px; background-size:contain; background-position:center; background-repeat:no-repeat;"><span style="color:#94a3b8; font-size:0.8rem;">No badge logo</span></div>
                                 <input type="file" id="wb-hero-badge-image" accept="image/*" onchange="previewWebsiteImage('hero-badge')" style="font-size:0.8rem;">
                                 <button type="button" onclick="openMediaPicker(function(url){document.getElementById('wb-hero-badge-image-url').value=url; var p=document.getElementById('wb-hero-badge-image-preview'); if(p){p.style.backgroundImage='url('+url+')'; var s=p.querySelector('span'); if(s)s.style.display='none';}})" style="margin-top:6px; padding:6px 10px; background:#7c3aed; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:0.75rem;">📁 Choose from Library</button>
                                 <input type="hidden" id="wb-hero-badge-image-url">
                                 <button type="button" onclick="document.getElementById('wb-hero-badge-image-url').value=''; var p=document.getElementById('wb-hero-badge-image-preview'); if(p){p.style.backgroundImage=''; var s=p.querySelector('span'); if(s)s.style.display='';}" style="margin-top:6px; margin-left:6px; padding:6px 10px; background:#fee2e2; color:#991b1b; border:1px solid #fecaca; border-radius:6px; cursor:pointer; font-size:0.75rem;">× Clear</button>
+                                <div style="margin-top: 0.75rem;">
+                                    <label class="form-label" style="font-size:0.85rem;">Badge Logo Size: <span id="wb-hero-badge-image-size-value">60</span>px max-height</label>
+                                    <input type="range" id="wb-hero-badge-image-size" min="40" max="240" value="60" step="10" style="width: 100%;" oninput="document.getElementById('wb-hero-badge-image-size-value').textContent = this.value">
+                                </div>
                             </div>
 
                             <!-- Badge Link — wraps the badge (text or image)
@@ -14848,6 +14855,12 @@
                 <div class="card" style="margin-top: 1rem;">
                     <div class="card-header"><h3>Trust Badges <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h3></div>
                     <div class="card-body">
+                        <div class="form-group" style="margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wb-hero-show-trust" checked> Show Trust Badges
+                            </label>
+                            <small class="form-hint">Trust badges are the tick-icon lines below the search bar on the hero. Untick to hide them entirely regardless of what's in the text fields below.</small>
+                        </div>
                         <div class="form-group">
                             <label class="form-label">Badge 1 <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
                             <div class="translation-field-wrapper" data-translation-group="wb-hero-trust-1">

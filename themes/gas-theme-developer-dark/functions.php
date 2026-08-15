@@ -2848,7 +2848,10 @@ function developer_get_api_settings() {
         'hero_badge' => developer_get_ml_value($website_hero, 'badge-text-copy', $lang)
                         ?: developer_get_ml_value($website_hero, 'button_text', $lang),
         'hero_badge_image' => $website_hero['badge-image-url'] ?? null,
+        'hero_badge_image_size' => intval($website_hero['badge-image-size'] ?? 60),
         'hero_show_badge' => $website_hero['show-badge'] ?? true,
+        // See developer-light for full note.
+        'hero_show_trust' => array_key_exists('show-trust', (array)$website_hero) ? !empty($website_hero['show-trust']) : true,
         'hero_badge_link' => $website_hero['badge-link'] ?? null,
         'hero_badge_new_tab' => !empty($website_hero['badge-new-tab']),
         'hero_badge_bg' => $website_hero['badge-bg'] ?? null,

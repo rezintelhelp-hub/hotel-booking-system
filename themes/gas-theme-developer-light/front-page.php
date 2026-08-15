@@ -256,25 +256,29 @@ $homepage_sections = array(); // position => html
         // target=_blank when the badge is a link. Falls back to the text pill
         // + colours from the Badge Styling card when no image is uploaded.
         $hero_badge_image  = trim((string)($api['hero_badge_image'] ?? ''));
+        $hero_badge_image_size = max(20, intval($api['hero_badge_image_size'] ?? 60));
         $hero_badge_newtab = !empty($api['hero_badge_new_tab']);
         $show_badge_flag   = !empty($api['hero_show_badge']);
-        // Render if operator ticked "Show Badge" AND provided at least one of
-        // text or image. When Show Badge is off, hide it entirely regardless.
         if ($show_badge_flag && ($hero_badge || $hero_badge_image)) :
             $badge_target_attr = ($hero_badge_link && $hero_badge_newtab) ? ' target="_blank" rel="noopener noreferrer"' : '';
             $badge_inner = $hero_badge_image
-                ? '<img src="' . esc_url($hero_badge_image) . '" alt="' . esc_attr($hero_badge) . '" style="max-height:60px; width:auto; display:block;">'
+                ? '<img src="' . esc_url($hero_badge_image) . '" alt="' . esc_attr($hero_badge) . '" style="max-height:' . $hero_badge_image_size . 'px; width:auto; display:block;">'
                 : esc_html($hero_badge);
-            // Text-mode wrapper uses the styled pill; image-mode drops the
-            // pill styles so the raw logo renders cleanly.
-            $badge_wrap_style = $hero_badge_image
-                ? 'display:inline-block; text-decoration:none;'
-                : 'background: ' . esc_attr($hero_badge_bg) . '; color: ' . esc_attr($hero_badge_text) . '; border-color: ' . esc_attr($hero_badge_border) . '; text-decoration: none;';
-            if ($hero_badge_link) {
-                echo '<a href="' . esc_url($hero_badge_link) . '" class="developer-hero-badge" style="' . $badge_wrap_style . '"' . $badge_target_attr . '>' . $badge_inner . '</a>';
+            // In IMAGE mode drop the .developer-hero-badge class entirely so
+            // the theme's pill CSS (padding, border-radius, border) doesn't
+            // apply. Steve 2026-08-15: operator wants a raw logo, not a
+            // logo-in-a-button. In TEXT mode keep the class + inline styles.
+            if ($hero_badge_image) {
+                $badge_wrap_class = 'developer-hero-badge-image';
+                $badge_wrap_style = 'display:inline-block; text-decoration:none; background:transparent; border:0; padding:0;';
             } else {
-                $tag = $hero_badge_image ? 'span' : 'span';
-                echo '<' . $tag . ' class="developer-hero-badge" style="' . $badge_wrap_style . '">' . $badge_inner . '</' . $tag . '>';
+                $badge_wrap_class = 'developer-hero-badge';
+                $badge_wrap_style = 'background: ' . esc_attr($hero_badge_bg) . '; color: ' . esc_attr($hero_badge_text) . '; border-color: ' . esc_attr($hero_badge_border) . '; text-decoration: none;';
+            }
+            if ($hero_badge_link) {
+                echo '<a href="' . esc_url($hero_badge_link) . '" class="' . $badge_wrap_class . '" style="' . $badge_wrap_style . '"' . $badge_target_attr . '>' . $badge_inner . '</a>';
+            } else {
+                echo '<span class="' . $badge_wrap_class . '" style="' . $badge_wrap_style . '">' . $badge_inner . '</span>';
             }
         endif; ?>
         
@@ -323,7 +327,13 @@ $homepage_sections = array(); // position => html
             <p class="developer-search-below-text"><?php echo esc_html($search_below_text); ?></p>
         <?php endif; ?>
 
-        <?php if ($hero_badge_1 || $hero_badge_2 || $hero_badge_3) : ?>
+        <?php
+        // Steve 2026-08-15 — Trust Badges hide toggle. Default was implicit-on
+        // (render whenever any of the 3 texts had content). Now honours the
+        // Show Trust Badges checkbox in Web Builder: off → nothing renders
+        // regardless of the trust-N field values.
+        $hero_show_trust = !isset($api['hero_show_trust']) || $api['hero_show_trust'];
+        if ($hero_show_trust && ($hero_badge_1 || $hero_badge_2 || $hero_badge_3)) : ?>
         <div class="developer-hero-features" style="color: <?php echo esc_attr($hero_trust_text_color); ?>;">
             <?php if ($hero_badge_1) : ?>
             <div class="developer-hero-feature">
