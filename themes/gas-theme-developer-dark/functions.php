@@ -3611,8 +3611,11 @@ function developer_developer_custom_css() {
     // Symmetric top+bottom on the fixed-height inner row.
     $header_padding = $api['header_padding'] ?? '';
     if ($header_padding !== '' && $header_padding !== null && intval($header_padding) > 0) {
+        // Override the fixed height:80px so padding grows the row.
         echo '
         .developer-header-inner {
+            height: auto;
+            min-height: 80px;
             padding-top: ' . intval($header_padding) . 'px;
             padding-bottom: ' . intval($header_padding) . 'px;
         }';

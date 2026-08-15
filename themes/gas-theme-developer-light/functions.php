@@ -3999,8 +3999,14 @@ function developer_developer_custom_css() {
     // the operator can thicken the header without touching CSS.
     $header_padding = $api['header_padding'] ?? '';
     if ($header_padding !== '' && $header_padding !== null && intval($header_padding) > 0) {
+        // Base rule fixes .developer-header-inner to height:80px so
+        // padding alone (with box-sizing:border-box) would shrink the
+        // content area instead of expanding the row. Switch to
+        // min-height so the box grows visibly.
         echo '
         .developer-header-inner {
+            height: auto;
+            min-height: 80px;
             padding-top: ' . intval($header_padding) . 'px;
             padding-bottom: ' . intval($header_padding) . 'px;
         }';
