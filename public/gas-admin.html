@@ -24781,7 +24781,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
                 <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
                     <button class="btn btn-secondary" onclick="closeModal('addRoomModal')">Cancel</button>
-                    <button class="btn" onclick="saveNewRoom(this)" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">Create Room</button>
+                    <button id="add-room-create-btn" class="btn" onclick="saveNewRoom(this)" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">Create Room</button>
                 </div>
             </div>
         </div>
@@ -49605,6 +49605,19 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('add-room-type').value = 'entire_home';
             document.getElementById('add-room-description').value = '';
             document.getElementById('add-room-external-url').value = '';
+            // Reset the submit button — modal is REUSED across opens, so a
+            // stale "⏳ Creating room…" from the prior success would leave
+            // the button disabled forever (Steve report 2026-08-15: after
+            // the first room was created, subsequent clicks did nothing
+            // because the spinner state persisted). The "DOM is gone"
+            // assumption in saveNewRoom's success branch was wrong.
+            const _createBtn = document.getElementById('add-room-create-btn');
+            if (_createBtn) {
+                _createBtn.disabled = false;
+                _createBtn.style.opacity = '';
+                _createBtn.style.cursor = '';
+                _createBtn.innerHTML = 'Create Room';
+            }
             openModal('addRoomModal');
         }
 
@@ -49645,6 +49658,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 if (data.success) {
                     showNotification('Room created: ' + name, 'success');
+                    // Restore button BEFORE closing so the modal is left in
+                    // a fresh state — otherwise the next open shows a stale
+                    // disabled spinner. openAddRoomModal also resets as a
+                    // belt-and-braces guard.
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.style.opacity = '';
+                        btn.style.cursor = '';
+                        btn.innerHTML = originalLabel;
+                    }
                     closeModal('addRoomModal');
                     loadRoomsForProperty();
                     loadProperties();
@@ -49667,9 +49690,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     btn.innerHTML = originalLabel;
                 }
             }
-            // On success the modal closes and the button DOM is gone — no
-            // restore needed. The next Add Room opens a fresh modal with
-            // a fresh button.
+            // Button restore on success is now handled inline above — the
+            // earlier "DOM is gone" assumption was wrong (modal reused
+            // across opens, not destroyed). See openAddRoomModal for the
+            // matching belt-and-braces reset.
         }
 
         async function loadProperties() {
