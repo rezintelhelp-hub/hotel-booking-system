@@ -366,6 +366,7 @@ function developer_developer_scripts() {
         'spectral'          => 'Spectral:wght@400;500;600;700',
         'oswald'            => 'Oswald:wght@400;500;600;700',
         'roboto'            => 'Roboto:wght@400;500;700',
+        'lobster'           => 'Lobster',
     );
     
     // Build Google Fonts URL
@@ -3709,6 +3710,7 @@ function developer_developer_custom_css() {
         'spectral'          => "'Spectral', Georgia, serif",
         'oswald'            => "'Oswald', sans-serif",
         'roboto'            => "'Roboto', sans-serif",
+        'lobster'           => "'Lobster', cursive",
     );
     
     $heading_family = isset($font_families[$heading_font]) ? $font_families[$heading_font] : $font_families['playfair'];
