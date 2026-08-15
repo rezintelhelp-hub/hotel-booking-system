@@ -40,6 +40,14 @@ $hero_opacity = $api['hero_overlay_opacity'] ?? get_theme_mod('developer_hero_op
 $hero_overlay_color = $api['hero_overlay_color'] ?? get_theme_mod('developer_hero_overlay_color', '#0f172a');
 $hero_title_color = $api['hero_title_color'] ?? '#ffffff';
 $hero_subtitle_color = $api['hero_subtitle_color'] ?? 'rgba(255,255,255,0.9)';
+// Steve 2026-08-15 — Global typography colours from Web Builder → Styles →
+// Typography. Every per-section title/subtitle/text fallback below falls
+// through to these first, and the hardcoded #1e293b / #64748b defaults
+// only fire if BOTH the section-specific value and the global are unset.
+// Operator per-section colour (when explicitly set) still wins first.
+$_global_heading = $api['heading_color'] ?? null;
+$_global_subheading = $api['subheading_color'] ?? null;
+$_global_body = $api['body_color'] ?? null;
 
 // Search widget settings (with API override)
 $search_bg = $api['hero_search_bg'] ?? get_theme_mod('developer_search_bg', '#ffffff');
@@ -79,7 +87,7 @@ $hero_trust_text_color = $api['hero_trust_text_color'] ?? get_theme_mod('develop
 // Intro section settings (with API override)
 $intro_enabled = $api['intro_enabled'] ?? get_theme_mod('developer_intro_enabled', true);
 $intro_bg = $api['intro_bg'] ?? get_theme_mod('developer_intro_bg', '#ffffff');
-$intro_text_color = $api['intro_text_color'] ?? get_theme_mod('developer_intro_text_color', '#1e293b');
+$intro_text_color = $api['intro_text_color'] ?? $_global_heading ?? get_theme_mod('developer_intro_text_color', '#1e293b');
 $intro_title = $api['intro_title'] ?? get_theme_mod('developer_intro_title', 'Welcome to Our Property');
 $intro_title_size = $api['intro_title_size'] ?? get_theme_mod('developer_intro_title_size', '36');
 $intro_text = $api['intro_text'] ?? get_theme_mod('developer_intro_text', 'We are delighted to have you here. Explore our beautiful accommodations and find your perfect stay.');
@@ -117,15 +125,15 @@ $featured_btn_url = $api['featured_btn_url'] ?? get_theme_mod('developer_feature
 $featured_btn_bg = $api['featured_btn_bg'] ?? $api['btn_primary_bg'] ?? get_theme_mod('developer_featured_btn_bg', '#2563eb');
 $featured_btn_text_color = $api['featured_btn_text_color'] ?? $api['btn_primary_text'] ?? get_theme_mod('developer_featured_btn_text_color', '#ffffff');
 $featured_bg = $api['featured_bg'] ?? get_theme_mod('developer_featured_bg', '#ffffff');
-$featured_title_color = $api['featured_title_color'] ?? get_theme_mod('developer_featured_title_color', '#1e293b');
-$featured_subtitle_color = $api['featured_subtitle_color'] ?? get_theme_mod('developer_featured_subtitle_color', '#64748b');
+$featured_title_color = $api['featured_title_color'] ?? $_global_heading ?? get_theme_mod('developer_featured_title_color', '#1e293b');
+$featured_subtitle_color = $api['featured_subtitle_color'] ?? $_global_subheading ?? get_theme_mod('developer_featured_subtitle_color', '#64748b');
 
 // USP "What We Offer" section settings (with API override)
 $usp_enabled = $api['usp_enabled'] ?? false;
 $usp_title = $api['usp_title'] ?? '';
 $usp_subtitle = $api['usp_subtitle'] ?? '';
 $usp_bg = $api['usp_bg'] ?? '#f1f0eb';
-$usp_title_color = $api['usp_title_color'] ?? '#1e293b';
+$usp_title_color = $api['usp_title_color'] ?? $_global_heading ?? '#1e293b';
 $usp_text_color = $api['usp_text_color'] ?? '#64748b';
 $usp_card_bg = $api['usp_card_bg'] ?? '#ffffff';
 $usp_bottom_bg = $api['usp_bottom_bg'] ?? '#ffffff';
@@ -163,8 +171,8 @@ $about_btn_url = $api['about_btn_url'] ?? get_theme_mod('developer_about_btn_url
 $about_btn_bg = $api['about_btn_bg'] ?? get_theme_mod('developer_about_btn_bg', '#2563eb');
 $about_btn_text_color = $api['about_btn_text_color'] ?? get_theme_mod('developer_about_btn_text_color', '#ffffff');
 $about_bg = $api['about_bg'] ?? get_theme_mod('developer_about_bg', '#f8fafc');
-$about_title_color = $api['about_title_color'] ?? get_theme_mod('developer_about_title_color', '#1e293b');
-$about_text_color = $api['about_text_color'] ?? get_theme_mod('developer_about_text_color', '#475569');
+$about_title_color = $api['about_title_color'] ?? $_global_heading ?? get_theme_mod('developer_about_title_color', '#1e293b');
+$about_text_color = $api['about_text_color'] ?? $_global_body ?? get_theme_mod('developer_about_text_color', '#475569');
 
 // About features (editable) - with API multilingual override
 $about_features_enabled = $api['about_features_enabled'] ?? true;
@@ -755,7 +763,7 @@ $services_enabled = $api['services_enabled'] ?? false;
 $services_title = $api['services_title'] ?? '';
 $services_heading = $api['services_heading'] ?? '';
 $services_bg = $api['services_bg'] ?? '#ffffff';
-$services_title_color = $api['services_title_color'] ?? '#1e293b';
+$services_title_color = $api['services_title_color'] ?? $_global_heading ?? '#1e293b';
 $services_card_bg = $api['services_card_bg'] ?? '#e8e4dd';
 $services_card_hover_bg = $api['services_card_hover_bg'] ?? '#d4cfc7';
 $services_card_text_color = $api['services_card_text_color'] ?? '#1e293b';

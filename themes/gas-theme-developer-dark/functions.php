@@ -2587,6 +2587,10 @@ function developer_get_api_settings() {
         'body_font' => $website_styles['body-font'] ?? null,
         'title_size' => $website_styles['title-size'] ?? null,
         'body_size' => $website_styles['body-size'] ?? null,
+        // Global typography colours — see developer-light.
+        'heading_color' => $website_styles['heading-color'] ?? null,
+        'subheading_color' => $website_styles['subheading-color'] ?? null,
+        'body_color' => $website_styles['body-color'] ?? null,
         'primary_color' => $website_styles['primary-color'] ?? null,
         'secondary_color' => $website_styles['secondary-color'] ?? null,
         'accent_color' => $website_styles['accent-color'] ?? null,
