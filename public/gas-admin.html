@@ -73578,7 +73578,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         // toward "just click Take payment" — that flow may loop
                         // through repeated declines (Charles House Aug 2026).
                         const _otaCaveat = _isOta
-                            ? `<div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:0.5rem; font-size:0.78rem; color:#78350f;">⚠️ ${b.booking_source} booking — auto-charge is off. If Take Payment declines, use <strong>Email guest for card</strong> to send them a link to add a fresh one.</div>`
+                            ? `<div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:0.5rem; font-size:0.78rem; color:#78350f;">⚠️ OTA auto payments are off. If Take Payment declines, use <strong>Email guest for card</strong> to send them a link to add a fresh one.</div>`
                             : '';
                         cardInfoEl.style.display = 'block';
                         cardInfoEl.innerHTML = `
