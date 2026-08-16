@@ -73472,7 +73472,29 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // has been captured, either via the direct booking widget's
                 // deposit=0 flow OR the new attach-card admin flow).
                 const cardInfoEl = document.getElementById('view-card-on-file');
-                if (cardInfoEl) {
+                // OTA / channel-imported bookings: GAS never charges these
+                // (OTA pre-collects OR passes a virtual card that only works
+                // on-property). 571931 Expedia @ Charles House 2026-08-15 was
+                // the driver — pm_ token from a SetupIntent was on file, so
+                // the "Take payment now" button lit up, Yvonne clicked it,
+                // Stripe declined the virtual card, no notification fired.
+                // Detect here + short-circuit both the info card and the
+                // Take-Payment button before any of the card-path branches.
+                const _OTA_SRC = new Set(['expedia','booking.com','booking','airbnb','agoda','vrbo','hostelworld','hostvana','channex','beds24','hostaway','hostfully','lodgify','smoobu']);
+                const _isOta = _OTA_SRC.has(String(b.booking_source || '').toLowerCase().trim())
+                            || _OTA_SRC.has(String(b.api_source || '').toLowerCase().trim());
+                if (cardInfoEl && _isOta) {
+                    const src = (b.booking_source || b.api_source || 'OTA').toString();
+                    const label = src.charAt(0).toUpperCase() + src.slice(1);
+                    cardInfoEl.style.display = 'block';
+                    cardInfoEl.innerHTML = `
+                        <div style="background:#eff6ff; border:1px solid #93c5fd; border-radius:10px; padding:1rem; margin-top:0.75rem;">
+                            <div style="font-weight:600; color:#1e40af; font-size:0.9rem; margin-bottom:0.4rem;">🔗 ${label} booking — GAS does not charge</div>
+                            <div style="font-size:0.8rem; color:#1e3a8a;">Payment is handled by ${label}. Either the OTA has already collected and will remit, or the guest's card is a virtual number that only works on-property. Do not attempt to charge from GAS — it will decline.</div>
+                        </div>`;
+                    const takeBtn = document.getElementById('edit-booking-take-payment-btn');
+                    if (takeBtn) takeBtn.style.display = 'none';
+                } else if (cardInfoEl) {
                     if (b.enigma_card_token) {
                         const cardType = (b.enigma_card_type || 'card').toUpperCase();
                         const lastFour = b.enigma_card_last_four || '****';

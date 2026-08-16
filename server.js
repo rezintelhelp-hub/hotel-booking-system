@@ -153472,7 +153472,7 @@ app.post('/api/admin/bookings/:id/charge-stripe-card', async (req, res) => {
       `SELECT b.id, b.property_id, b.stripe_customer_id, b.stripe_payment_method_id,
               b.balance_amount, b.deposit_amount, b.grand_total, b.balance_paid_at,
               b.payment_status, b.currency, b.guest_first_name, b.guest_last_name,
-              b.arrival_date, b.departure_date,
+              b.arrival_date, b.departure_date, b.booking_source, b.api_source,
               p.account_id, p.name AS property_name
          FROM bookings b JOIN properties p ON p.id = b.property_id
         WHERE b.id = $1`,
@@ -153482,6 +153482,20 @@ app.post('/api/admin/bookings/:id/charge-stripe-card', async (req, res) => {
     const booking = bkQ.rows[0];
     if (decoded.role !== 'master_admin' && booking.account_id !== (decoded.accountId || decoded.id)) {
       return res.status(403).json({ success: false, error: 'Not your booking' });
+    }
+    // OTA / channel-imported bookings never come with a GAS-chargeable card
+    // — either the OTA pre-collected (and remits to the hotel) or the OTA
+    // handed a virtual card that only works on-property. Off-session Stripe
+    // charges will decline 100% of the time. Booking 571931 (Emma Hope
+    // Expedia @ Charles House Windsor, 2026-08-15) was the driver — Yvonne
+    // hit "Take payment now", got a card_declined, no notification fired,
+    // and the booking silently rolled over with the balance uncollected.
+    if (_isOtaBooking(booking)) {
+      const src = booking.booking_source || booking.api_source || 'OTA';
+      return res.json({
+        success: false,
+        error: `This is a ${src} booking — GAS does not charge OTA cards. Collect via ${src} directly, or take a card at check-in.`
+      });
     }
     if (!booking.stripe_payment_method_id) {
       return res.json({ success: false, error: 'No Stripe card on file for this booking' });
@@ -159680,6 +159694,31 @@ async function resolveStripeCustomerForBooking(stripeClient, booking, pool) {
     throw new Error(`Could not resolve Stripe customer for booking ${bookingId}. Tried: ${reasons.join(' | ') || 'no PI/SI/PM on booking'}`);
 }
 
+// OTA booking detector — used by both auto-charge crons AND the manual
+// charge endpoint AND the admin "Take payment now" button gating.
+// OTA imports (Expedia, Booking.com, Airbnb, Agoda, VRBO, Hostelworld)
+// come either prepaid (OTA collects + remits) or with a virtual card
+// that only works on-property — GAS off-session charges always fail.
+// api_source captures channel-manager routing (Channex, Beds24 etc.),
+// booking_source captures the actual OTA. Either is enough to skip.
+const _OTA_SOURCES = new Set([
+  'expedia','booking.com','booking','airbnb','agoda','vrbo','hostelworld','hostvana',
+  'channex','beds24','hostaway','hostfully','lodgify','smoobu'
+]);
+function _isOtaBooking(b) {
+  const bs = String(b?.booking_source || '').toLowerCase().trim();
+  const as = String(b?.api_source || '').toLowerCase().trim();
+  if (bs && _OTA_SOURCES.has(bs)) return true;
+  if (as && _OTA_SOURCES.has(as)) return true;
+  return false;
+}
+// SQL fragment for cron queries — exclude any booking whose source
+// matches an OTA / channel manager. Kept as a string so both queries
+// stay literal (no dynamic building of the main WHERE).
+const _CRON_EXCLUDE_OTA_SQL = `
+  AND (b.booking_source IS NULL OR LOWER(b.booking_source) NOT IN ('expedia','booking.com','booking','airbnb','agoda','vrbo','hostelworld','hostvana','channex','beds24','hostaway','hostfully','lodgify','smoobu'))
+  AND (b.api_source IS NULL OR LOWER(b.api_source) NOT IN ('expedia','booking.com','booking','airbnb','agoda','vrbo','hostelworld','hostvana','channex','beds24','hostaway','hostfully','lodgify','smoobu'))`;
+
 // Square auto-charge branch — added 2026-08-16 to close the gap where
 // Casa Magnolia balances would never auto-collect (cron was Stripe-only).
 // Mirrors processAutoChargePayments' Stripe path but calls Square's
@@ -159735,6 +159774,7 @@ async function _processAutoChargeSquareBranch() {
           AND (b.payment_method IS NULL OR b.payment_method NOT IN ('card_guarantee','pay_at_property','bank_transfer','enigma'))
           AND (b.arrival_date - INTERVAL '1 day' * COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14))::date <= CURRENT_DATE
           AND b.arrival_date >= CURRENT_DATE
+          ${_CRON_EXCLUDE_OTA_SQL}
         ORDER BY b.id, b.arrival_date
     `);
 
@@ -160085,6 +160125,7 @@ async function processAutoChargePayments() {
             AND (b.payment_method IS NULL OR b.payment_method NOT IN ('card_guarantee','pay_at_property','bank_transfer','enigma'))
             AND (b.arrival_date - INTERVAL '1 day' * COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14))::date <= CURRENT_DATE
             AND b.arrival_date >= CURRENT_DATE
+            ${_CRON_EXCLUDE_OTA_SQL}
             ORDER BY b.id, b.arrival_date
         `);
 
@@ -163042,7 +163083,11 @@ async function runSquareAudit(pool, accountId = null) {
                    b.grand_total::numeric - COALESCE(b.deposit_amount::numeric,0)) > 0.01
       -- Only chase direct bookings; OTA channel imports have their own
       -- prepaid/collect flow and would spam the digest.
-      AND COALESCE(b.guest_email,'') !~* '(no-?email\.local|guest\.booking\.com|guest\.airbnb\.com|^beds24-)'
+      AND COALESCE(b.guest_email,'') !~* '(no-?email\.local|guest\.booking\.com|guest\.airbnb\.com|^beds24-|expediapartnercentral)'
+      -- Belt-and-braces: also exclude by booking_source/api_source (the
+      -- email regex misses some OTAs; source fields are the canonical signal).
+      AND (b.booking_source IS NULL OR LOWER(b.booking_source) NOT IN ('expedia','booking.com','booking','airbnb','agoda','vrbo','hostelworld','hostvana','channex','beds24','hostaway','hostfully','lodgify','smoobu'))
+      AND (b.api_source IS NULL OR LOWER(b.api_source) NOT IN ('expedia','booking.com','booking','airbnb','agoda','vrbo','hostelworld','hostvana','channex','beds24','hostaway','hostfully','lodgify','smoobu'))
       ${accountClause}
     ORDER BY b.arrival_date ASC
   `);
@@ -163111,7 +163156,11 @@ async function runSquareAudit(pool, accountId = null) {
       AND b.status IN ('confirmed','pending')
       AND COALESCE(b.balance_amount::numeric,
                    b.grand_total::numeric - COALESCE(b.deposit_amount::numeric,0)) > 0.01
-      AND COALESCE(b.guest_email,'') !~* '(no-?email\.local|guest\.booking\.com|guest\.airbnb\.com|^beds24-)'
+      AND COALESCE(b.guest_email,'') !~* '(no-?email\.local|guest\.booking\.com|guest\.airbnb\.com|^beds24-|expediapartnercentral)'
+      -- Belt-and-braces: also exclude by booking_source/api_source (the
+      -- email regex misses some OTAs; source fields are the canonical signal).
+      AND (b.booking_source IS NULL OR LOWER(b.booking_source) NOT IN ('expedia','booking.com','booking','airbnb','agoda','vrbo','hostelworld','hostvana','channex','beds24','hostaway','hostfully','lodgify','smoobu'))
+      AND (b.api_source IS NULL OR LOWER(b.api_source) NOT IN ('expedia','booking.com','booking','airbnb','agoda','vrbo','hostelworld','hostvana','channex','beds24','hostaway','hostfully','lodgify','smoobu'))
       ${accountClause}
     ORDER BY b.arrival_date DESC
   `);
