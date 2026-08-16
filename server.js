@@ -107262,6 +107262,47 @@ app.post('/api/public/book', async (req, res) => {
           }
         }
 
+        // Save the card on file BEFORE charging. Passing customer_id at
+        // payment time doesn't actually persist the card in Square (learned
+        // 2026-08-16: card_details.card.id in the payment response is the
+        // ephemeral payment card, not a reusable ccof_XXX token, and Square
+        // reports zero cards on file for the customer afterwards). To auto-
+        // charge the balance later, we need a real ccof_XXX card_id, which
+        // requires POST /v2/cards with the nonce + customer_id. The nonce is
+        // single-use, so we save first and then charge the SAVED card, not
+        // the nonce. Failure here is non-fatal — we fall back to charging
+        // the nonce so the deposit still lands, but no card will be saved.
+        let source_for_payment = square_source_id;
+        let ccof_card_id = null;
+        if (squareCustomerId) {
+          try {
+            const saveResp = await fetch(`${sq.apiBase}/v2/cards`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+                'Square-Version': '2024-12-18',
+              },
+              body: JSON.stringify({
+                idempotency_key: `savecard-${unit.rows[0].property_id}-${square_source_id}`.slice(0, 45),
+                source_id: square_source_id,
+                verification_token: square_verification_token || undefined,
+                card: { customer_id: squareCustomerId },
+              }),
+            });
+            const saveBody = await saveResp.json();
+            if (saveResp.ok && saveBody?.card?.id) {
+              ccof_card_id = saveBody.card.id;
+              source_for_payment = ccof_card_id;
+              console.log(`[Square Server] Saved card ${ccof_card_id} to customer ${squareCustomerId}`);
+            } else {
+              console.warn('[Square Server] POST /v2/cards failed, falling back to nonce charge:', saveBody?.errors);
+            }
+          } catch (saveErr) {
+            console.warn('[Square Server] Save card exception, falling back to nonce charge:', saveErr.message);
+          }
+        }
+
         const payResp = await fetch(`${sq.apiBase}/v2/payments`, {
           method: 'POST',
           headers: {
@@ -107270,15 +107311,18 @@ app.post('/api/public/book', async (req, res) => {
             'Square-Version': '2024-12-18',
           },
           body: JSON.stringify({
-            source_id: square_source_id,
+            // Prefer the saved ccof_XXX card if we managed to persist one
+            // above; falls back to the raw nonce if save failed.
+            source_id: source_for_payment,
             idempotency_key: idemKey,
             amount_money: { amount: amountMinor, currency },
             location_id: locationId,
             autocomplete: true,
-            verification_token: square_verification_token || undefined,
+            // Verification token was consumed by the save-card call above
+            // (single-use). Saved cards are SCA-exempt for on-file charges
+            // so this is fine. Only pass when we're charging the raw nonce.
+            verification_token: ccof_card_id ? undefined : (square_verification_token || undefined),
             buyer_email_address: guest_email,
-            // customer_id must be set for Square to attach the card to a saved
-            // customer (unlocks future off-session charges against card.id).
             customer_id: squareCustomerId || undefined,
             note: `GAS booking — property ${unit.rows[0].property_id} ${check_in}→${check_out}`,
             reference_id: `gas-${unit.rows[0].property_id}-${Date.now()}`,
@@ -107321,7 +107365,11 @@ app.post('/api/public/book', async (req, res) => {
         }
         square_payment_id = payment.id;
         square_customer_id = payment.customer_id || null;
-        square_card_id_captured = payment.card_details?.card?.id || null;
+        // Prefer the ccof_XXX card_id from POST /v2/cards above (the reusable
+        // saved-card token). Fall back to card_details.card.id (only present
+        // when Square happens to save the card as part of the payment flow —
+        // unreliable, but if it's there we take it).
+        square_card_id_captured = ccof_card_id || payment.card_details?.card?.id || null;
         square_location_id_used = locationId;
         console.log(`[Square Server] Payment ${square_payment_id} COMPLETED for property ${unit.rows[0].property_id}`);
       } catch (squareError) {
