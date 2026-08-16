@@ -72038,45 +72038,55 @@ const promo = await fetch('/api/v1/offers/validate', {
         let _attachCardBookingId = null;
         let _attachCardStripe = null;
         let _attachCardElement = null;
+        let _attachCardGateway = null;   // 'stripe' | 'square'
+        let _attachCardSquareCard = null;
 
         async function openAttachCardModal(bookingId, propertyId) {
             _attachCardBookingId = bookingId;
+            _attachCardGateway = null;
+            _attachCardStripe = null;
+            _attachCardElement = null;
+            _attachCardSquareCard = null;
             const loading = document.getElementById('attach-card-loading');
             const form = document.getElementById('attach-card-form');
             const errBlock = document.getElementById('attach-card-error-block');
             const errs = document.getElementById('attach-card-errors');
+            const mount = document.getElementById('attach-card-element');
             if (loading) loading.style.display = 'block';
             if (form) form.style.display = 'none';
             if (errBlock) { errBlock.style.display = 'none'; errBlock.textContent = ''; }
             if (errs) errs.textContent = '';
+            if (mount) mount.innerHTML = '';
             openModal('attachCardModal');
             try {
-                // Fetch the property's Stripe client config — publishable key
-                // + currency. Doesn't leak secrets.
                 const r = await fetch(`/api/admin/properties/${propertyId}/stripe-client-config`, { headers: authHeaders() });
                 const cfg = await r.json();
                 if (!cfg.success) {
                     if (loading) loading.style.display = 'none';
-                    if (errBlock) { errBlock.style.display = 'block'; errBlock.textContent = 'Cannot add a card — ' + (cfg.error || 'Property has no Stripe configuration.'); }
+                    if (errBlock) { errBlock.style.display = 'block'; errBlock.textContent = 'Cannot add a card — ' + (cfg.error || 'Property has no payment configuration.'); }
                     return;
                 }
-                await _ensureStripeJsLoaded();
-                const stripeOpts = cfg.stripe_account_id ? { stripeAccount: cfg.stripe_account_id } : {};
-                _attachCardStripe = Stripe(cfg.publishable_key, stripeOpts);
-                const elements = _attachCardStripe.elements();
-                if (_attachCardElement) { try { _attachCardElement.unmount(); } catch (_) {} }
-                // hidePostalCode:false forces the postcode/ZIP field visible
-                // even for non-US locales. Stripe uses it for AVS + CVC
-                // verification — some issuers reject transactions when it's
-                // missing. Steve 2026-07-12.
-                _attachCardElement = elements.create('card', {
-                    hidePostalCode: false,
-                    style: { base: { fontSize: '15px', color: '#0f172a' } }
-                });
-                _attachCardElement.mount('#attach-card-element');
-                _attachCardElement.on('change', ev => {
-                    if (errs) errs.textContent = (ev && ev.error) ? ev.error.message : '';
-                });
+                _attachCardGateway = cfg.gateway || 'stripe';
+
+                if (_attachCardGateway === 'square') {
+                    await _ensureSquareJsLoaded(cfg.environment);
+                    const sqPayments = window.Square.payments(cfg.application_id, cfg.location_id);
+                    _attachCardSquareCard = await sqPayments.card();
+                    await _attachCardSquareCard.attach('#attach-card-element');
+                } else {
+                    await _ensureStripeJsLoaded();
+                    const stripeOpts = cfg.stripe_account_id ? { stripeAccount: cfg.stripe_account_id } : {};
+                    _attachCardStripe = Stripe(cfg.publishable_key, stripeOpts);
+                    const elements = _attachCardStripe.elements();
+                    _attachCardElement = elements.create('card', {
+                        hidePostalCode: false,
+                        style: { base: { fontSize: '15px', color: '#0f172a' } }
+                    });
+                    _attachCardElement.mount('#attach-card-element');
+                    _attachCardElement.on('change', ev => {
+                        if (errs) errs.textContent = (ev && ev.error) ? ev.error.message : '';
+                    });
+                }
                 if (loading) loading.style.display = 'none';
                 if (form) form.style.display = '';
             } catch (e) {
@@ -72162,25 +72172,38 @@ const promo = await fetch('/api/v1/offers/validate', {
             const errBlock = document.getElementById('attach-card-error-block');
             if (errs) errs.textContent = '';
             if (errBlock) { errBlock.style.display = 'none'; errBlock.textContent = ''; }
-            if (!_attachCardStripe || !_attachCardElement || !_attachCardBookingId) {
+            if (!_attachCardBookingId || !_attachCardGateway) {
                 if (errs) errs.textContent = 'Card widget not ready — reopen the modal.';
                 return;
             }
             const origLabel = submitBtn ? submitBtn.innerHTML : '';
             if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '⏳ Saving…'; }
             try {
-                const { paymentMethod, error: pmErr } = await _attachCardStripe.createPaymentMethod({
-                    type: 'card',
-                    card: _attachCardElement,
-                });
-                if (pmErr) {
-                    if (errs) errs.textContent = pmErr.message || 'Could not tokenise card.';
-                    return;
+                let body;
+                if (_attachCardGateway === 'square') {
+                    if (!_attachCardSquareCard) { if (errs) errs.textContent = 'Card widget not ready.'; return; }
+                    const result = await _attachCardSquareCard.tokenize();
+                    if (result.status !== 'OK' || !result.token) {
+                        if (errs) errs.textContent = result.errors?.[0]?.message || 'Could not tokenise card.';
+                        return;
+                    }
+                    body = { provider: 'square', square_source_id: result.token, square_verification_token: result.verificationToken || undefined };
+                } else {
+                    if (!_attachCardStripe || !_attachCardElement) { if (errs) errs.textContent = 'Card widget not ready.'; return; }
+                    const { paymentMethod, error: pmErr } = await _attachCardStripe.createPaymentMethod({
+                        type: 'card',
+                        card: _attachCardElement,
+                    });
+                    if (pmErr) {
+                        if (errs) errs.textContent = pmErr.message || 'Could not tokenise card.';
+                        return;
+                    }
+                    body = { provider: 'stripe', payment_method_id: paymentMethod.id };
                 }
                 const r = await fetch(`/api/admin/bookings/${_attachCardBookingId}/attach-card`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ provider: 'stripe', payment_method_id: paymentMethod.id }),
+                    body: JSON.stringify(body),
                 });
                 const data = await r.json();
                 if (!data.success) {
