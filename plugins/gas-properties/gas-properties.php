@@ -18,7 +18,7 @@
  * Plugin Name: GAS Properties
  * Plugin URI: https://gas.travel
  * Description: Display multi-property portfolio from GAS with LodgingBusiness schema markup. Colors controlled via GAS Admin.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -155,11 +155,16 @@ class GAS_Properties {
             return '<p style="text-align:center;color:#64748b;padding:40px;">GAS Properties: No client ID configured.</p>';
         }
 
-        // Override button colours from Web Builder (page-properties settings) if available
+        // Override button colours + layout from Web Builder (page-properties settings) if available
         $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
         $wb_btn_bg = !empty($api['page_properties_btn_bg']) ? $api['page_properties_btn_bg'] : null;
         $wb_btn_text = !empty($api['page_properties_btn_text_color']) ? $api['page_properties_btn_text_color'] : null;
         $wb_btn_label = !empty($api['page_properties_btn_label']) ? $api['page_properties_btn_label'] : 'View Rooms';
+        // Cards per row — Web Builder setting overrides shortcode's columns
+        // attribute. Blank / null = auto-fill (default behaviour). 2/3/4 =
+        // explicit column count. Mobile always drops to 1 (media query).
+        $wb_columns_raw = $api['page_properties_columns'] ?? null;
+        $wb_columns = is_numeric($wb_columns_raw) ? max(1, min(4, intval($wb_columns_raw))) : 0;
 
         $accent = esc_attr($colors['accent']);
         $bg = esc_attr($colors['bg']);
@@ -178,7 +183,7 @@ class GAS_Properties {
         ?>
         <div class="gas-properties-wrap" translate="no" style="background:<?php echo $bg; ?>; font-family:<?php echo $body_font; ?>;">
             <style>
-                .gas-properties-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:24px; max-width:1200px; margin:0 auto; padding:0 20px; }
+                .gas-properties-grid { display:grid; grid-template-columns:<?php echo $wb_columns > 0 ? 'repeat(' . $wb_columns . ', minmax(0, 1fr))' : 'repeat(auto-fill, minmax(340px, 1fr))'; ?>; gap:24px; max-width:1200px; margin:0 auto; padding:0 20px; }
                 .gas-prop-card { background:<?php echo $card_bg; ?>; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); transition:transform 0.2s, box-shadow 0.2s; text-decoration:none; color:inherit; display:block; }
                 .gas-prop-card:hover { transform:translateY(-4px); box-shadow:0 10px 25px rgba(0,0,0,0.12); }
                 .gas-prop-img { width:100%; height:220px; object-fit:cover; }
