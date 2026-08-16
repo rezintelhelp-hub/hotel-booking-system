@@ -72131,7 +72131,36 @@ const promo = await fetch('/api/v1/offers/validate', {
                     let msg = data.error || 'Charge failed';
                     if (data.decline_code) msg += ` (decline: ${data.decline_code})`;
                     if (data.client_secret) msg += `\n\n3D-Secure required — this flow doesn't handle SCA yet, ask the guest to update their card via the capture link.`;
-                    alert('❌ ' + msg);
+
+                    // For Channex-imported bookings, prompt to send a fresh
+                    // payment link to the guest so they can add a new card.
+                    // Only Channex bookings — direct bookings have their own
+                    // add-card path already visible in the UI.
+                    if (data.is_channex_booking) {
+                        const guestName = [b.guest_first_name, b.guest_last_name].filter(Boolean).join(' ') || 'the guest';
+                        const doIt = confirm('❌ ' + msg + '\n\n───────────────\n\nCharge failed. Send ' + guestName + ' an email with a link to add a fresh card?');
+                        if (doIt) {
+                            // Skip the SEND/PREVIEW + note prompts — one-click
+                            // send with the charge-failed email copy.
+                            try {
+                                const sr = await fetch(`/api/admin/bookings/${bookingId}/send-card-capture-link`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                                    body: JSON.stringify({ context: 'charge_failed' })
+                                });
+                                const sd = await sr.json();
+                                if (sd.success) {
+                                    showNotification(`✅ Link sent to ${sd.sent_to}. Guest can add a fresh card; you can charge again once they do.`, 'success');
+                                } else {
+                                    alert('⚠ Could not send link: ' + (sd.error || 'unknown'));
+                                }
+                            } catch (linkErr) {
+                                alert('⚠ Could not send link: ' + linkErr.message);
+                            }
+                        }
+                    } else {
+                        alert('❌ ' + msg);
+                    }
                 }
             } catch (e) {
                 console.error('takePaymentNow', e);
@@ -73480,17 +73509,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Stripe declined the virtual card, no notification fired.
                 // Detect here + short-circuit both the info card and the
                 // Take-Payment button before any of the card-path branches.
-                const _OTA_SRC = new Set(['expedia','booking.com','booking','airbnb','agoda','vrbo','hostelworld','hostvana','channex','beds24','hostaway','hostfully','lodgify','smoobu']);
-                const _isOta = _OTA_SRC.has(String(b.booking_source || '').toLowerCase().trim())
-                            || _OTA_SRC.has(String(b.api_source || '').toLowerCase().trim());
-                if (cardInfoEl && _isOta) {
-                    const src = (b.booking_source || b.api_source || 'OTA').toString();
+                // OTA banner logic. Two flavours:
+                //   1. OTA + no card on file (571931 shape): show "GAS does
+                //      not charge" notice, but STILL offer the attach-card
+                //      button so operators like Barbara can enter a virtual
+                //      card manually if the OTA has issued one.
+                //   2. OTA + card on file (Barbara's VCC workflow): show a
+                //      caveat banner but LEAVE the take-payment / replace-
+                //      card buttons available.
+                // Auto-charge cron always skips OTAs regardless — VCC timing
+                // is inherently manual.
+                const _OTA_SRC = new Set(['expedia','booking','booking.com','airbnb','agoda','vrbo','hostelworld','marriott','hotelbeds','hrs','tripadvisor','trivago','tablethotels','trip','hostvana','beds24','hostfully']);
+                const _isOta = _OTA_SRC.has(String(b.booking_source || '').toLowerCase().trim());
+                const _hasCard = !!(b.stripe_payment_method_id || b.square_card_id || b.enigma_card_token);
+                if (cardInfoEl && _isOta && !_hasCard) {
+                    const src = (b.booking_source || 'OTA').toString();
                     const label = src.charAt(0).toUpperCase() + src.slice(1);
                     cardInfoEl.style.display = 'block';
                     cardInfoEl.innerHTML = `
                         <div style="background:#eff6ff; border:1px solid #93c5fd; border-radius:10px; padding:1rem; margin-top:0.75rem;">
-                            <div style="font-weight:600; color:#1e40af; font-size:0.9rem; margin-bottom:0.4rem;">🔗 ${label} booking — GAS does not charge</div>
-                            <div style="font-size:0.8rem; color:#1e3a8a;">Payment is handled by ${label}. Either the OTA has already collected and will remit, or the guest's card is a virtual number that only works on-property. Do not attempt to charge from GAS — it will decline.</div>
+                            <div style="font-weight:600; color:#1e40af; font-size:0.9rem; margin-bottom:0.4rem;">🔗 ${label} booking</div>
+                            <div style="font-size:0.8rem; color:#1e3a8a; margin-bottom:0.75rem;">Auto-charge is off for OTA bookings. If ${label} has issued a virtual credit card for you to charge, attach it below — then you can charge it manually.</div>
+                            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                                <button class="btn btn-small" onclick="openAttachCardModal(${b.id}, ${b.property_id})" style="background:#059669; color:white; font-size:0.8rem;">💳 Attach VCC / card</button>
+                            </div>
                         </div>`;
                     const takeBtn = document.getElementById('edit-booking-take-payment-btn');
                     if (takeBtn) takeBtn.style.display = 'none';
@@ -73527,17 +73569,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                         `;
                     } else if (b.stripe_payment_method_id) {
+                        // On OTA bookings, the card was manually attached (Barbara's
+                        // VCC workflow). Show a caveat that auto-charge doesn't fire
+                        // for OTAs — she needs to click Take Payment when ready.
+                        const _otaCaveat = _isOta
+                            ? `<div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:0.5rem; font-size:0.78rem; color:#78350f;">⚠️ ${b.booking_source} booking — auto-charge is off. Click <strong>Take payment now</strong> above to charge this VCC manually.</div>`
+                            : '';
                         cardInfoEl.style.display = 'block';
                         cardInfoEl.innerHTML = `
+                            ${_otaCaveat}
                             <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 1px solid #6ee7b7; border-radius: 10px; padding: 1rem; margin-top: 0.75rem;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                                     <span style="font-weight: 600; color: #047857; font-size: 0.9rem;">💳 Card on File (Stripe)</span>
-                                    <span style="font-size: 0.75rem; background: #dcfce7; color: #166534; padding: 0.15rem 0.5rem; border-radius: 8px;">Ready to charge</span>
+                                    <span style="font-size: 0.75rem; background: #dcfce7; color: #166534; padding: 0.15rem 0.5rem; border-radius: 8px;">${_isOta ? 'Manual charge only' : 'Ready to charge'}</span>
                                 </div>
-                                <div style="font-size: 0.8rem; color: #065f46; margin-bottom: 0.75rem;">Balance will auto-charge on the due date.</div>
+                                <div style="font-size: 0.8rem; color: #065f46; margin-bottom: 0.75rem;">${_isOta ? 'This card was attached manually for an OTA booking. GAS will only charge it when you click Take Payment.' : 'Balance will auto-charge on the due date.'}</div>
                                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                                     <button class="btn btn-small" onclick="openAttachCardModal(${b.id}, ${b.property_id})" style="background:#059669; color:white; font-size:0.8rem;">🔄 Replace card</button>
-                                    <button class="btn btn-small" onclick="sendCardCaptureLink(${b.id})" style="background:#0ea5e9; color:white; font-size:0.8rem;">📧 Send capture link to guest</button>
+                                    ${!_isOta ? `<button class="btn btn-small" onclick="sendCardCaptureLink(${b.id})" style="background:#0ea5e9; color:white; font-size:0.8rem;">📧 Send capture link to guest</button>` : ''}
                                 </div>
                             </div>
                         `;

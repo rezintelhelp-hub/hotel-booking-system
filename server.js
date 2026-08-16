@@ -77903,22 +77903,36 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
           .replace(/\n/g, '<br>')}</blockquote>`
       : '';
 
+    // Two email variants: default "please add your card" and a
+    // charge-failed variant triggered by the admin UI after a manual
+    // charge decline. The charge-failed copy tells the guest their
+    // original card was declined and to add a fresh one.
+    const isChargeFailed = String(req.body?.context || '') === 'charge_failed';
+    const subject = isChargeFailed
+      ? `Payment issue for your stay at ${propertyName} — please add a fresh card`
+      : `Payment details for your stay at ${propertyName}`;
+    const intro = isChargeFailed
+      ? `<p>We tried to take the payment of <strong>${currency} ${balance}</strong> for your stay at <strong>${propertyName}</strong>, but your card was declined by your bank.</p>
+         <p>Please add a fresh card below so we can complete the payment. This is often just your bank blocking an online charge — a new card, or the same one after authorising with your bank, will usually work.</p>`
+      : `<p>Please add your card details for your upcoming stay at <strong>${propertyName}</strong>.</p>
+         <p>The balance of <strong>${currency} ${balance}</strong> will be charged before your arrival — no charge today.</p>`;
+    const buttonLabel = isChargeFailed ? '💳 Add a fresh card' : '💳 Add my card';
+
     const result = await sendEmail({
       to: booking.guest_email,
-      subject: `Payment details for your stay at ${propertyName}`,
+      subject,
       html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
         <h2>Hi ${booking.guest_first_name || 'there'},</h2>
-        <p>Please add your card details for your upcoming stay at <strong>${propertyName}</strong>.</p>
-        <p>The balance of <strong>${currency} ${balance}</strong> will be charged before your arrival — no charge today.</p>
+        ${intro}
         ${noteHtml}
-        <p style="margin: 24px 0;"><a href="${captureUrl}" style="display:inline-block;background:#059669;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:500;">💳 Add my card</a></p>
+        <p style="margin: 24px 0;"><a href="${captureUrl}" style="display:inline-block;background:#059669;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:500;">${buttonLabel}</a></p>
         <p style="color:#666;font-size:13px;">Your card details go directly to our secure payment processor — the property never sees or stores your card number. This link is private to you and expires in 7 days.</p>
         <p style="color:#666;font-size:13px;">If you didn't request this, it's safe to ignore.</p>
       </body></html>`,
       context: {
         guestId: booking.guest_id,
         bookingId: booking.id,
-        eventType: 'card_capture_link',
+        eventType: isChargeFailed ? 'card_capture_link_after_decline' : 'card_capture_link',
         accountId: booking.account_id
       }
     });
@@ -153473,6 +153487,7 @@ app.post('/api/admin/bookings/:id/charge-stripe-card', async (req, res) => {
               b.balance_amount, b.deposit_amount, b.grand_total, b.balance_paid_at,
               b.payment_status, b.currency, b.guest_first_name, b.guest_last_name,
               b.arrival_date, b.departure_date, b.booking_source, b.api_source,
+              b.channex_booking_id,
               p.account_id, p.name AS property_name
          FROM bookings b JOIN properties p ON p.id = b.property_id
         WHERE b.id = $1`,
@@ -153480,25 +153495,29 @@ app.post('/api/admin/bookings/:id/charge-stripe-card', async (req, res) => {
     );
     if (!bkQ.rows[0]) return res.json({ success: false, error: 'Booking not found' });
     const booking = bkQ.rows[0];
+    // Signals to the client whether to offer the "send guest a fresh
+    // payment link" prompt on charge failure. Only shown for Channex-
+    // imported bookings — direct GAS bookings already surface the send
+    // link via their own UI path and don't need the prompt.
+    const _isChannex = !!booking.channex_booking_id;
     if (decoded.role !== 'master_admin' && booking.account_id !== (decoded.accountId || decoded.id)) {
       return res.status(403).json({ success: false, error: 'Not your booking' });
     }
-    // OTA / channel-imported bookings never come with a GAS-chargeable card
-    // — either the OTA pre-collected (and remits to the hotel) or the OTA
-    // handed a virtual card that only works on-property. Off-session Stripe
-    // charges will decline 100% of the time. Booking 571931 (Emma Hope
-    // Expedia @ Charles House Windsor, 2026-08-15) was the driver — Yvonne
-    // hit "Take payment now", got a card_declined, no notification fired,
-    // and the booking silently rolled over with the balance uncollected.
-    if (_isOtaBooking(booking)) {
-      const src = booking.booking_source || booking.api_source || 'OTA';
+    // OTA bookings ARE allowed to be charged IF a card is on file — this
+    // supports Barbara's Charles House workflow where she manually enters
+    // Expedia / Booking.com virtual credit cards into GAS and needs to
+    // charge them via Stripe. The auto-charge cron still skips OTAs (VCC
+    // timing is manual by nature) but the manual "Take payment now" path
+    // is intentionally open so long as a card token is present.
+    if (!booking.stripe_payment_method_id) {
+      const src = booking.booking_source || booking.api_source;
+      const isOta = src && ['expedia','booking','booking.com','airbnb','agoda','vrbo','hostelworld','marriott','hotelbeds','hrs','tripadvisor','trivago','tablethotels','trip','hostvana','beds24','hostfully'].includes(String(src).toLowerCase().trim());
       return res.json({
         success: false,
-        error: `This is a ${src} booking — GAS does not charge OTA cards. Collect via ${src} directly, or take a card at check-in.`
+        error: isOta
+          ? `No card on file. If ${src} has issued a virtual card, attach it via "Add card myself" first.`
+          : 'No Stripe card on file for this booking'
       });
-    }
-    if (!booking.stripe_payment_method_id) {
-      return res.json({ success: false, error: 'No Stripe card on file for this booking' });
     }
 
     // Amount priority:
@@ -153561,6 +153580,7 @@ app.post('/api/admin/bookings/:id/charge-stripe-card', async (req, res) => {
         decline_code: err.decline_code || null,
         payment_intent_id: rawPi?.id || null,
         client_secret: rawPi?.client_secret || null,
+        is_channex_booking: _isChannex,   // client uses this to prompt "send fresh link"
       });
     }
 
@@ -153570,6 +153590,7 @@ app.post('/api/admin/bookings/:id/charge-stripe-card', async (req, res) => {
         error: `Charge not succeeded: ${pi.status}`,
         payment_intent_id: pi.id,
         client_secret: pi.client_secret,
+        is_channex_booking: _isChannex,
       });
     }
 
@@ -159696,28 +159717,35 @@ async function resolveStripeCustomerForBooking(stripeClient, booking, pool) {
 
 // OTA booking detector — used by both auto-charge crons AND the manual
 // charge endpoint AND the admin "Take payment now" button gating.
-// OTA imports (Expedia, Booking.com, Airbnb, Agoda, VRBO, Hostelworld)
-// come either prepaid (OTA collects + remits) or with a virtual card
-// that only works on-property — GAS off-session charges always fail.
-// api_source captures channel-manager routing (Channex, Beds24 etc.),
-// booking_source captures the actual OTA. Either is enough to skip.
+//
+// Only booking_source is inspected. api_source is the ROUTING platform
+// (channex, beds24 CM) which is NOT a payment signal by itself —
+// bookings coming through Channex from a direct-website channel are
+// chargeable by GAS. The real OTA name lives in booking_source.
+//
+// Sources listed here are ones where GAS never collects: OTA owns
+// payment (they pre-collect or pass a virtual card that only works
+// on-property). Excludes:
+//   - true OTAs: expedia, booking, airbnb, vrbo, hostelworld, agoda,
+//                marriott, hotelbeds, hrs, tripadvisor, trivago,
+//                tablethotels, hostvana
+//   - channel-manager-as-source (imports without original OTA name):
+//     beds24 (10k+ estate rows, 0 with cards), hostfully (1.5k, 0 cards)
+// CHARGEABLE (not in this set):
+//   - direct, rezintel, googleads, enquiry, channex (reserved for
+//     Channex-direct), (null)
 const _OTA_SOURCES = new Set([
-  'expedia','booking.com','booking','airbnb','agoda','vrbo','hostelworld','hostvana',
-  'channex','beds24','hostaway','hostfully','lodgify','smoobu'
+  'expedia','booking','booking.com','airbnb','agoda','vrbo','hostelworld',
+  'marriott','hotelbeds','hrs','tripadvisor','trivago','tablethotels','trip',
+  'hostvana','beds24','hostfully'
 ]);
 function _isOtaBooking(b) {
   const bs = String(b?.booking_source || '').toLowerCase().trim();
-  const as = String(b?.api_source || '').toLowerCase().trim();
-  if (bs && _OTA_SOURCES.has(bs)) return true;
-  if (as && _OTA_SOURCES.has(as)) return true;
-  return false;
+  return !!bs && _OTA_SOURCES.has(bs);
 }
-// SQL fragment for cron queries — exclude any booking whose source
-// matches an OTA / channel manager. Kept as a string so both queries
-// stay literal (no dynamic building of the main WHERE).
+// SQL fragment for cron queries — matches _isOtaBooking exactly.
 const _CRON_EXCLUDE_OTA_SQL = `
-  AND (b.booking_source IS NULL OR LOWER(b.booking_source) NOT IN ('expedia','booking.com','booking','airbnb','agoda','vrbo','hostelworld','hostvana','channex','beds24','hostaway','hostfully','lodgify','smoobu'))
-  AND (b.api_source IS NULL OR LOWER(b.api_source) NOT IN ('expedia','booking.com','booking','airbnb','agoda','vrbo','hostelworld','hostvana','channex','beds24','hostaway','hostfully','lodgify','smoobu'))`;
+  AND (b.booking_source IS NULL OR LOWER(b.booking_source) NOT IN ('expedia','booking','booking.com','airbnb','agoda','vrbo','hostelworld','marriott','hotelbeds','hrs','tripadvisor','trivago','tablethotels','trip','hostvana','beds24','hostfully'))`;
 
 // Square auto-charge branch — added 2026-08-16 to close the gap where
 // Casa Magnolia balances would never auto-collect (cron was Stripe-only).
