@@ -18,7 +18,7 @@
  * Plugin Name: GAS Properties
  * Plugin URI: https://gas.travel
  * Description: Display multi-property portfolio from GAS with LodgingBusiness schema markup. Colors controlled via GAS Admin.
- * Version: 1.0.4
+ * Version: 1.0.5
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -165,9 +165,12 @@ class GAS_Properties {
         // explicit column count. Mobile always drops to 1 (media query).
         $wb_columns_raw = $api['page_properties_columns'] ?? null;
         $wb_columns = is_numeric($wb_columns_raw) ? max(1, min(4, intval($wb_columns_raw))) : 0;
-        // Show total count / map above the grid — Web Builder toggles.
-        $wb_show_total = !empty($api['page_properties_show_total']) && $api['page_properties_show_total'] !== 'false';
-        $wb_show_map   = !empty($api['page_properties_show_map']) && $api['page_properties_show_map'] !== 'false';
+        // Map beside grid (right sidebar) — Web Builder toggle.
+        $wb_show_map = !empty($api['page_properties_show_map']) && $api['page_properties_show_map'] !== 'false';
+        // Intro text (Page Content) — plain text with newlines preserved.
+        // WYSIWYG for this field is queued but not yet applied to Web
+        // Builder (per CLAUDE.md — Pro Site Builder is the trial).
+        $wb_intro = trim((string)($api['page_properties_content'] ?? ''));
 
         $accent = esc_attr($colors['accent']);
         $bg = esc_attr($colors['bg']);
@@ -186,11 +189,23 @@ class GAS_Properties {
         ?>
         <div class="gas-properties-wrap" translate="no" style="background:<?php echo $bg; ?>; font-family:<?php echo $body_font; ?>;">
             <style>
-                .gas-properties-total { max-width:1200px; margin:0 auto 16px; padding:0 20px; color:<?php echo $text; ?>; font-family:<?php echo $heading_font; ?>; font-size:1.05rem; font-weight:600; }
-                .gas-properties-total span { color:<?php echo $accent; ?>; }
-                .gas-properties-map { max-width:1200px; margin:0 auto 24px; padding:0 20px; }
-                .gas-properties-map-inner { height:400px; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
-                .gas-properties-grid { display:grid; grid-template-columns:<?php echo $wb_columns > 0 ? 'repeat(' . $wb_columns . ', minmax(0, 1fr))' : 'repeat(auto-fill, minmax(340px, 1fr))'; ?>; gap:24px; max-width:1200px; margin:0 auto; padding:0 20px; }
+                .gas-properties-intro { max-width:1200px; margin:0 auto 24px; padding:0 20px; color:<?php echo $text; ?>; font-family:<?php echo $body_font; ?>; font-size:1rem; line-height:1.55; white-space:pre-wrap; }
+                .gas-properties-intro h1, .gas-properties-intro h2, .gas-properties-intro h3 { font-family:<?php echo $heading_font; ?>; color:<?php echo $text; ?>; margin:0 0 8px; }
+                <?php if ($wb_show_map): ?>
+                /* 2-col shell — grid left, sticky map right. Collapses on mobile. */
+                .gas-properties-shell { display:grid; grid-template-columns: 1fr 400px; gap:24px; max-width:1200px; margin:0 auto; padding:0 20px; align-items:start; }
+                .gas-properties-map-col { position:sticky; top:100px; }
+                .gas-properties-map-inner { height:calc(100vh - 140px); max-height:640px; min-height:400px; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); background:#eef2f6; }
+                .gas-properties-grid { display:grid; grid-template-columns:<?php echo $wb_columns > 0 ? 'repeat(' . min($wb_columns, 2) . ', minmax(0, 1fr))' : 'repeat(auto-fill, minmax(280px, 1fr))'; ?>; gap:20px; }
+                @media (max-width: 968px) {
+                  .gas-properties-shell { grid-template-columns: 1fr; }
+                  .gas-properties-map-col { position:static; order:-1; }
+                  .gas-properties-map-inner { height:320px; min-height:280px; }
+                }
+                <?php else: ?>
+                .gas-properties-shell { max-width:1200px; margin:0 auto; padding:0 20px; }
+                .gas-properties-grid { display:grid; grid-template-columns:<?php echo $wb_columns > 0 ? 'repeat(' . $wb_columns . ', minmax(0, 1fr))' : 'repeat(auto-fill, minmax(340px, 1fr))'; ?>; gap:24px; }
+                <?php endif; ?>
                 .gas-prop-card { background:<?php echo $card_bg; ?>; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); transition:transform 0.2s, box-shadow 0.2s; text-decoration:none; color:inherit; display:block; }
                 .gas-prop-card:hover { transform:translateY(-4px); box-shadow:0 10px 25px rgba(0,0,0,0.12); }
                 .gas-prop-img { width:100%; height:220px; object-fit:cover; }
@@ -203,19 +218,23 @@ class GAS_Properties {
                 .gas-prop-avail span { color:<?php echo $accent; ?>; }
                 .gas-prop-price { font-size:0.95rem; font-weight:600; color:<?php echo $accent; ?>; margin:0 0 12px; }
                 .gas-prop-loading { text-align:center; padding:60px 20px; color:<?php echo $text2; ?>; }
-                @media (max-width:768px) { .gas-properties-grid { grid-template-columns:1fr; } }
+                @media (max-width:768px) { .gas-properties-grid { grid-template-columns:1fr !important; } }
             </style>
-            <?php if ($wb_show_total): ?>
-            <div class="gas-properties-total" id="gas-properties-total" aria-live="polite"></div>
+            <?php if ($wb_intro !== ''): ?>
+            <div class="gas-properties-intro"><?php echo wp_kses_post(wpautop($wb_intro)); ?></div>
             <?php endif; ?>
             <?php if ($wb_show_map): ?>
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-            <div class="gas-properties-map" id="gas-properties-map-wrap" style="display:none;">
-                <div id="gas-properties-map" class="gas-properties-map-inner"></div>
-            </div>
             <?php endif; ?>
-            <div class="gas-properties-grid" id="gas-properties-list">
-                <div class="gas-prop-loading" style="grid-column:1/-1;">Loading properties...</div>
+            <div class="gas-properties-shell">
+                <div class="gas-properties-grid" id="gas-properties-list">
+                    <div class="gas-prop-loading" style="grid-column:1/-1;">Loading properties...</div>
+                </div>
+                <?php if ($wb_show_map): ?>
+                <aside class="gas-properties-map-col" id="gas-properties-map-wrap" style="display:none;">
+                    <div id="gas-properties-map" class="gas-properties-map-inner"></div>
+                </aside>
+                <?php endif; ?>
             </div>
         </div>
         <script>
@@ -225,17 +244,16 @@ class GAS_Properties {
             var lang = <?php echo json_encode($lang); ?>;
             var limit = <?php echo $limit; ?>;
             var blogId = <?php echo json_encode(get_current_blog_id()); ?>;
-            var showTotal = <?php echo $wb_show_total ? 'true' : 'false'; ?>;
-            var showMap   = <?php echo $wb_show_map ? 'true' : 'false'; ?>;
+            var showMap = <?php echo $wb_show_map ? 'true' : 'false'; ?>;
             var translations = {
-                en: { from: 'From', night: '/night', viewDetails: '<?php echo esc_js($btn_label !== "View Rooms" ? $btn_label : "View Details"); ?>', availability: 'Availability', properties: 'properties', property: 'property' },
-                de: { from: 'Ab', night: '/Nacht', viewDetails: 'Details ansehen', availability: 'Verfügbarkeit', properties: 'Unterkünfte', property: 'Unterkunft' },
-                fr: { from: 'À partir de', night: '/nuit', viewDetails: 'Voir les détails', availability: 'Disponibilité', properties: 'propriétés', property: 'propriété' },
-                es: { from: 'Desde', night: '/noche', viewDetails: 'Ver detalles', availability: 'Disponibilidad', properties: 'propiedades', property: 'propiedad' },
-                nl: { from: 'Vanaf', night: '/nacht', viewDetails: 'Details bekijken', availability: 'Beschikbaarheid', properties: 'accommodaties', property: 'accommodatie' },
-                ja: { from: '', night: '/泊', viewDetails: '詳細を見る', availability: '空室状況', properties: '施設', property: '施設' },
-                it: { from: 'Da', night: '/notte', viewDetails: 'Vedi dettagli', availability: 'Disponibilità', properties: 'proprietà', property: 'proprietà' },
-                pt: { from: 'A partir de', night: '/noite', viewDetails: 'Ver detalhes', availability: 'Disponibilidade', properties: 'propriedades', property: 'propriedade' }
+                en: { from: 'From', night: '/night', viewDetails: '<?php echo esc_js($btn_label !== "View Rooms" ? $btn_label : "View Details"); ?>', availability: 'Availability' },
+                de: { from: 'Ab', night: '/Nacht', viewDetails: 'Details ansehen', availability: 'Verfügbarkeit' },
+                fr: { from: 'À partir de', night: '/nuit', viewDetails: 'Voir les détails', availability: 'Disponibilité' },
+                es: { from: 'Desde', night: '/noche', viewDetails: 'Ver detalles', availability: 'Disponibilidad' },
+                nl: { from: 'Vanaf', night: '/nacht', viewDetails: 'Details bekijken', availability: 'Beschikbaarheid' },
+                ja: { from: '', night: '/泊', viewDetails: '詳細を見る', availability: '空室状況' },
+                it: { from: 'Da', night: '/notte', viewDetails: 'Vedi dettagli', availability: 'Disponibilità' },
+                pt: { from: 'A partir de', night: '/noite', viewDetails: 'Ver detalhes', availability: 'Disponibilidade' }
             };
             var t = translations[lang] || translations['en'];
 
@@ -272,17 +290,6 @@ class GAS_Properties {
                     if (props.length === 0) {
                         container.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:#64748b;padding:40px;">No properties found.</p>';
                         return;
-                    }
-
-                    // Total row above the grid — "N properties · M rooms"
-                    if (showTotal) {
-                        var totalRooms = props.reduce(function(sum, p) { return sum + (parseInt(p.room_count) || 0); }, 0);
-                        var totalEl = document.getElementById('gas-properties-total');
-                        if (totalEl) {
-                            var line = props.length + ' ' + (props.length === 1 ? t.property : t.properties);
-                            if (totalRooms > 0) line += ' · <span>' + totalRooms + '</span> ' + t.availability.toLowerCase();
-                            totalEl.innerHTML = line;
-                        }
                     }
 
                     var html = '';
