@@ -159680,6 +159680,295 @@ async function resolveStripeCustomerForBooking(stripeClient, booking, pool) {
     throw new Error(`Could not resolve Stripe customer for booking ${bookingId}. Tried: ${reasons.join(' | ') || 'no PI/SI/PM on booking'}`);
 }
 
+// Square auto-charge branch — added 2026-08-16 to close the gap where
+// Casa Magnolia balances would never auto-collect (cron was Stripe-only).
+// Mirrors processAutoChargePayments' Stripe path but calls Square's
+// POST /v2/payments with the saved ccof_XXX card_id. Self-contained so
+// the Stripe path stays byte-for-byte untouched (no regression risk).
+async function _processAutoChargeSquareBranch() {
+    if (String(process.env.AUTO_CHARGE_PAUSED || '').toLowerCase() === 'true') return; // outer already logged
+    const result = await pool.query(`
+        SELECT DISTINCT ON (b.id)
+            b.id as booking_id,
+            p.account_id,
+            b.property_id,
+            b.guest_first_name,
+            b.guest_last_name,
+            b.guest_email,
+            b.arrival_date,
+            b.grand_total,
+            b.deposit_amount,
+            b.balance_amount,
+            b.square_card_id,
+            b.square_customer_id,
+            b.square_location_id,
+            b.square_payment_id,
+            b.payment_status,
+            b.currency,
+            COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14) AS effective_days_before,
+            p.currency as property_currency,
+            p.name as property_name,
+            a.email as owner_email,
+            a.square_environment,
+            dr.id as deposit_rule_id,
+            (b.arrival_date - INTERVAL '1 day' * COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14))::date AS trigger_date
+        FROM bookings b
+        JOIN properties p ON p.id = b.property_id
+        JOIN accounts a ON a.id = p.account_id
+        JOIN deposit_rules dr ON dr.id = COALESCE(
+            b.deposit_rule_id,
+            (
+                SELECT dr2.id FROM deposit_rules dr2
+                WHERE dr2.is_active = true
+                  AND (dr2.property_id = b.property_id OR (dr2.property_id IS NULL AND dr2.account_id = p.account_id))
+                ORDER BY (dr2.property_id IS NOT NULL) DESC, dr2.created_at DESC
+                LIMIT 1
+            )
+        )
+        WHERE a.square_status = 'active'
+          AND dr.is_active = true
+          AND (dr.schedule_mode IS NULL OR dr.schedule_mode != 'schedule')
+          AND b.square_card_id IS NOT NULL
+          AND b.payment_status != 'paid'
+          AND b.balance_amount > 0
+          AND b.status NOT IN ('cancelled', 'rejected')
+          AND (b.payment_method IS NULL OR b.payment_method NOT IN ('card_guarantee','pay_at_property','bank_transfer','enigma'))
+          AND (b.arrival_date - INTERVAL '1 day' * COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14))::date <= CURRENT_DATE
+          AND b.arrival_date >= CURRENT_DATE
+        ORDER BY b.id, b.arrival_date
+    `);
+
+    if (result.rows.length === 0) {
+        console.log('[AUTO-CHARGE SQUARE] No Square balances due');
+        return;
+    }
+    console.log(`[AUTO-CHARGE SQUARE] Found ${result.rows.length} Square bookings to charge`);
+
+    for (const booking of result.rows) {
+        const guestName = [booking.guest_first_name, booking.guest_last_name].filter(Boolean).join(' ');
+        const chargeCurrency = (booking.currency || booking.property_currency || 'USD').toUpperCase();
+
+        try {
+            // Three-belt ledger idempotency — same shape as the Stripe path.
+            // (a) prior auto-charge on this booking, (b) ledger already covers
+            // grand_total, (c) any Square charge in the last 24h.
+            const priorAuto = await pool.query(
+                `SELECT id, gateway_transaction_id, amount, created_at
+                   FROM payment_transactions
+                  WHERE booking_id = $1
+                    AND payment_gateway = 'square'
+                    AND status IN ('completed','succeeded')
+                    AND transaction_type IN ('balance','payment')
+                    AND (description LIKE 'Auto-charge balance%' OR description LIKE 'Balance payment%')
+                  LIMIT 1`,
+                [booking.booking_id]
+            );
+            if (priorAuto.rows.length > 0) {
+                const p = priorAuto.rows[0];
+                console.warn(`[AUTO-CHARGE SQUARE] SKIP booking ${booking.booking_id} — already auto-charged (tx ${p.id} sq=${p.gateway_transaction_id} ${p.amount} ${p.created_at.toISOString()})`);
+                continue;
+            }
+            const priorSumRes = await pool.query(
+                `SELECT COALESCE(SUM(amount), 0)::numeric AS paid
+                   FROM payment_transactions
+                  WHERE booking_id = $1
+                    AND payment_gateway = 'square'
+                    AND status IN ('completed','succeeded')
+                    AND transaction_type IN ('deposit','balance','payment','charge','capture')`,
+                [booking.booking_id]
+            );
+            const alreadyPaid = parseFloat(priorSumRes.rows[0]?.paid || 0);
+            const grandTotal  = parseFloat(booking.grand_total || 0);
+            if (grandTotal > 0 && alreadyPaid + 0.01 >= grandTotal) {
+                console.warn(`[AUTO-CHARGE SQUARE] SKIP booking ${booking.booking_id} — ledger shows ${alreadyPaid} paid vs grand_total ${grandTotal}. Refusing double-charge.`);
+                continue;
+            }
+            const recentRes = await pool.query(
+                `SELECT id, gateway_transaction_id, amount, created_at
+                   FROM payment_transactions
+                  WHERE booking_id = $1
+                    AND payment_gateway = 'square'
+                    AND status IN ('completed','succeeded')
+                    AND transaction_type IN ('deposit','balance','payment','charge','capture')
+                    AND created_at > NOW() - INTERVAL '24 hours'
+                  ORDER BY created_at DESC LIMIT 1`,
+                [booking.booking_id]
+            );
+            if (recentRes.rows.length > 0) {
+                const r = recentRes.rows[0];
+                console.warn(`[AUTO-CHARGE SQUARE] SKIP booking ${booking.booking_id} — Square charge tx ${r.id} sq=${r.gateway_transaction_id} amount=${r.amount} fired ${r.created_at.toISOString()} (< 24h). Refusing same-day double-tap.`);
+                continue;
+            }
+
+            // Compute outstanding from the ledger, not from booking.balance_amount
+            // (same defensive logic as the Stripe path — Mornington Rose shape).
+            const outstanding = Math.max(
+                0,
+                Math.round((grandTotal - alreadyPaid) * 100) / 100
+            );
+            if (outstanding <= 0.005) {
+                console.log(`[AUTO-CHARGE SQUARE] SKIP booking ${booking.booking_id} — outstanding ${outstanding.toFixed(2)}`);
+                continue;
+            }
+
+            const accessToken = await refreshSquareTokenIfNeeded(booking.account_id);
+            if (!accessToken) {
+                console.warn(`[AUTO-CHARGE SQUARE] SKIP booking ${booking.booking_id} — no Square access token for account ${booking.account_id}`);
+                continue;
+            }
+            const locationId = booking.square_location_id || (await getSquareLocationForAccount(booking.account_id))?.id;
+            if (!locationId) {
+                console.warn(`[AUTO-CHARGE SQUARE] SKIP booking ${booking.booking_id} — no square_location_id`);
+                continue;
+            }
+            const sq = (booking.square_environment === 'production')
+                ? { apiBase: 'https://connect.squareup.com' }
+                : { apiBase: 'https://connect.squareupsandbox.com' };
+
+            const amountMinor = Math.round(outstanding * 100);
+            const idempotencyKey = `auto-square-${booking.booking_id}-${new Date().toISOString().slice(0,10)}`;
+
+            console.log(`[AUTO-CHARGE SQUARE] booking ${booking.booking_id} charging ${chargeCurrency} ${outstanding.toFixed(2)} (grand ${grandTotal} - paid ${alreadyPaid}) via card ${booking.square_card_id}`);
+
+            const payResp = await fetch(`${sq.apiBase}/v2/payments`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    'Square-Version': '2024-12-18',
+                },
+                body: JSON.stringify({
+                    source_id: booking.square_card_id,
+                    customer_id: booking.square_customer_id || undefined,
+                    location_id: locationId,
+                    idempotency_key: idempotencyKey.slice(0, 45),
+                    amount_money: { amount: amountMinor, currency: chargeCurrency },
+                    autocomplete: true,
+                    note: `Auto balance charge · GAS booking ${booking.booking_id} · ${guestName} · arrival ${booking.arrival_date}`,
+                    reference_id: `gas-balance-${booking.booking_id}`,
+                }),
+            });
+            const payBody = await payResp.json();
+
+            if (!payResp.ok || payBody?.payment?.status !== 'COMPLETED') {
+                const firstErr = payBody?.errors?.[0] || {};
+                const errCode = firstErr.code || 'UNKNOWN';
+                const errDetail = firstErr.detail || `HTTP ${payResp.status}`;
+                // Terminal card-level errors → mark balance_failed + notify.
+                // Transient (5xx, rate limit, connection) → leave alone; next
+                // hourly tick will retry.
+                const terminalCodes = new Set([
+                    'CARD_DECLINED','CVV_FAILURE','INVALID_CARD','INVALID_EXPIRATION',
+                    'CARD_NOT_SUPPORTED','INSUFFICIENT_FUNDS','VERIFY_CVV_FAILURE',
+                    'VERIFY_AVS_FAILURE','GENERIC_DECLINE','CARD_TOKEN_USED','CARD_TOKEN_EXPIRED',
+                    'INVALID_ACCOUNT','ADDRESS_VERIFICATION_FAILURE','TRANSACTION_LIMIT'
+                ]);
+                const isTerminal = terminalCodes.has(errCode);
+
+                await pool.query(
+                    "UPDATE bookings SET last_charge_error = $2, last_charge_error_code = $3, last_charge_error_at = NOW(), updated_at = NOW()"
+                    + (isTerminal ? ", payment_status = 'balance_failed'" : '')
+                    + " WHERE id = $1",
+                    [booking.booking_id, String(errDetail).slice(0, 1000), errCode]
+                ).catch(() => {});
+
+                if (!isTerminal) {
+                    console.warn(`[AUTO-CHARGE SQUARE] Transient err on booking ${booking.booking_id} (${errCode}) — leaving payment_status; next tick will retry`);
+                    continue;
+                }
+
+                console.error(`[AUTO-CHARGE SQUARE] TERMINAL failure booking ${booking.booking_id}: ${errCode} — ${errDetail}`);
+
+                // Owner + Slack notifications (same shape as the Stripe path).
+                try {
+                    if (booking.owner_email) {
+                        await sendEmail({
+                            to: [booking.owner_email, 'development@gas.travel'],
+                            subject: `Balance Payment Failed — ${guestName} — ${booking.property_name || 'Booking #' + booking.booking_id}`,
+                            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                                <h2 style="color:#dc2626;">Balance Payment Failed (Square)</h2>
+                                <p>An automatic balance payment could not be charged:</p>
+                                <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+                                    <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Guest</td><td style="padding:8px;border:1px solid #e5e7eb;">${guestName} (${booking.guest_email})</td></tr>
+                                    <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Property</td><td style="padding:8px;border:1px solid #e5e7eb;">${booking.property_name || '-'}</td></tr>
+                                    <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Booking Ref</td><td style="padding:8px;border:1px solid #e5e7eb;">#${booking.booking_id}</td></tr>
+                                    <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Amount</td><td style="padding:8px;border:1px solid #e5e7eb;">${chargeCurrency} ${outstanding.toFixed(2)}</td></tr>
+                                    <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Check-in</td><td style="padding:8px;border:1px solid #e5e7eb;">${booking.arrival_date}</td></tr>
+                                    <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Error</td><td style="padding:8px;border:1px solid #e5e7eb;color:#dc2626;">${errCode} — ${errDetail}</td></tr>
+                                </table>
+                                <p style="color:#6b7280;font-size:13px;">You can manually collect this balance in Square, or send a new capture link from GAS Admin.</p>
+                            </div>`
+                        });
+                    }
+                } catch (emailErr) {
+                    console.error('[AUTO-CHARGE SQUARE] Could not send owner failure email:', emailErr.message);
+                }
+                if (process.env.SLACK_WEBHOOK_URL) {
+                    try {
+                        await axios.post(process.env.SLACK_WEBHOOK_URL, {
+                            text: `❌ *Balance Payment Failed (Square)*\nBooking #${booking.booking_id} — ${guestName}\nProperty: ${booking.property_name || '-'}\nAmount: ${chargeCurrency} ${outstanding.toFixed(2)}\nCheck-in: ${booking.arrival_date}\nError: ${errCode} — ${errDetail}`
+                        });
+                    } catch (_) {}
+                }
+                continue;
+            }
+
+            // Success path.
+            const payment = payBody.payment;
+            await pool.query(`
+                UPDATE bookings
+                SET payment_status = 'paid',
+                    balance_amount = 0,
+                    balance_paid_at = NOW(),
+                    square_payment_id = COALESCE(square_payment_id, $2),
+                    updated_at = NOW()
+                WHERE id = $1
+            `, [booking.booking_id, payment.id]);
+
+            // Cascade booking_extras 'reserved' → 'paid' (same as Stripe path).
+            try {
+                const upd = await pool.query(
+                    `UPDATE booking_extras SET status = 'paid', updated_at = NOW()
+                     WHERE booking_id = $1 AND status = 'reserved'`,
+                    [booking.booking_id]
+                );
+                if (upd.rowCount > 0) console.log(`[AUTO-CHARGE SQUARE extras] Flipped ${upd.rowCount} extras → paid for booking ${booking.booking_id}`);
+            } catch (extraErr) {
+                console.error(`[AUTO-CHARGE SQUARE extras] booking ${booking.booking_id}:`, extraErr.message);
+            }
+
+            // Ledger row. Idempotent via ON CONFLICT DO NOTHING against the
+            // gateway_transaction_id. If Square returned the same payment.id
+            // on a retry (idempotency_key match), this row won't duplicate.
+            try {
+                await pool.query(`
+                    INSERT INTO payment_transactions (
+                        booking_id, account_id, transaction_type, amount, currency,
+                        payment_gateway, gateway_transaction_id, status,
+                        payment_method_type, completed_at, description
+                    ) VALUES ($1, $2, 'balance', $3, $4, 'square', $5, 'completed', 'card', NOW(), $6)
+                    ON CONFLICT DO NOTHING
+                `, [
+                    booking.booking_id, booking.account_id,
+                    outstanding, chargeCurrency,
+                    payment.id,
+                    `Auto-charge balance · trigger ${booking.trigger_date} · days_before ${booking.effective_days_before}`
+                ]);
+            } catch (ledgerErr) {
+                console.error(`[AUTO-CHARGE SQUARE ledger] booking ${booking.booking_id} sq=${payment.id}:`, ledgerErr.message);
+            }
+
+            console.log(`[AUTO-CHARGE SQUARE] Successfully charged booking ${booking.booking_id} - ${guestName} sq=${payment.id}`);
+        } catch (chargeErr) {
+            console.error(`[AUTO-CHARGE SQUARE] Booking ${booking.booking_id} threw:`, chargeErr.message);
+            await pool.query(
+                `UPDATE bookings SET last_charge_error = $2, last_charge_error_code = 'exception', last_charge_error_at = NOW(), updated_at = NOW() WHERE id = $1`,
+                [booking.booking_id, String(chargeErr.message || '').slice(0, 1000)]
+            ).catch(() => {});
+        }
+    }
+}
+
 async function processAutoChargePayments() {
     // Emergency kill switch — Steve 2026-08-02. Set Railway env var
     // AUTO_CHARGE_PAUSED=true to halt auto-charging estate-wide instantly.
@@ -159691,6 +159980,19 @@ async function processAutoChargePayments() {
         return;
     }
     console.log('[AUTO-CHARGE] Running balance payment check...');
+
+    // ─── SQUARE BRANCH (added 2026-08-16) ────────────────────────────────
+    // Runs BEFORE the Stripe branch so both fire on each cron tick.
+    // Fully independent — Stripe code below is untouched. Casa Magnolia is
+    // the only Square account today; adding this closes the gap where
+    // Square deposits saved a card via the 08-16 fix but no cron ever
+    // charged the balance.
+    try {
+        await _processAutoChargeSquareBranch();
+    } catch (sqBranchErr) {
+        console.error('[AUTO-CHARGE SQUARE] Branch threw, continuing to Stripe:', sqBranchErr.message);
+    }
+
     try {
         // Match bookings whose trigger date is today OR earlier. The original
         // strict-equality version left bookings stranded any time the cron
