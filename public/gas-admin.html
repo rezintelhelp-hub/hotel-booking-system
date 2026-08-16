@@ -72145,10 +72145,20 @@ const promo = await fetch('/api/v1/offers/validate', {
             const choice = prompt('Send card capture link — type:\n  SEND  = email the guest (default)\n  PREVIEW = just show me the URL to test/copy\n', 'SEND');
             if (choice === null) return;
             const preview = String(choice).trim().toUpperCase() === 'PREVIEW';
+            let note = null;
+            if (!preview) {
+                // Optional personal note from the owner — rendered above
+                // the "Add my card" button in the guest email. Leave blank
+                // to skip. Multi-line is fine (newlines become <br>).
+                note = prompt('Add a personal note (optional — leave blank to skip):', '');
+                if (note === null) return;   // user hit cancel
+                note = String(note).trim();
+            }
             try {
                 const r = await fetch(`/api/admin/bookings/${bookingId}/send-card-capture-link${preview ? '?preview=1' : ''}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ note: note || undefined }),
                 });
                 const data = await r.json();
                 if (!data.success) {

@@ -77892,6 +77892,17 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
     const balance = parseFloat(booking.balance_amount || 0).toFixed(2);
     const propertyName = booking.property_name || 'your stay';
 
+    // Optional personal note from the owner. Escape HTML to prevent
+    // injection, then convert newlines to <br> so multi-line notes
+    // render as the operator typed them.
+    const rawNote = String(req.body?.note || '').trim();
+    const noteHtml = rawNote
+      ? `<blockquote style="margin: 20px 0; padding: 12px 18px; border-left: 3px solid #059669; background: #f0fdf4; color: #064e3b; font-style: italic; white-space: pre-wrap;">${rawNote
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+          .replace(/\n/g, '<br>')}</blockquote>`
+      : '';
+
     const result = await sendEmail({
       to: booking.guest_email,
       subject: `Payment details for your stay at ${propertyName}`,
@@ -77899,8 +77910,9 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
         <h2>Hi ${booking.guest_first_name || 'there'},</h2>
         <p>Please add your card details for your upcoming stay at <strong>${propertyName}</strong>.</p>
         <p>The balance of <strong>${currency} ${balance}</strong> will be charged before your arrival — no charge today.</p>
+        ${noteHtml}
         <p style="margin: 24px 0;"><a href="${captureUrl}" style="display:inline-block;background:#059669;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:500;">💳 Add my card</a></p>
-        <p style="color:#666;font-size:13px;">Your card details go directly to Stripe — the property never sees or stores your card number. This link is private to you and expires in 7 days.</p>
+        <p style="color:#666;font-size:13px;">Your card details go directly to our secure payment processor — the property never sees or stores your card number. This link is private to you and expires in 7 days.</p>
         <p style="color:#666;font-size:13px;">If you didn't request this, it's safe to ignore.</p>
       </body></html>`,
       context: {
