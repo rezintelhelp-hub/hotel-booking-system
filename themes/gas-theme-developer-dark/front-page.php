@@ -671,7 +671,15 @@ for ($i = 1; $i <= 8; $i++) {
             <?php
             $services_card_style = $api['services_card_style'] ?? 'icon';
             $services_card_style_class = $services_card_style === 'image' ? ' developer-services-card--image' : ' developer-services-card--icon';
-            foreach ($services_items as $item) : ?>
+            foreach ($services_items as $item) :
+                // Skip effectively-empty cards (no media, no title, no text
+                // once <br> and whitespace stripped). Dwellfort 2026-08-16.
+                $_has_media = !empty($item['image']) || !empty($item['icon']);
+                $_has_title = trim((string)($item['title'] ?? '')) !== '';
+                $_text_clean = trim(preg_replace('/<br\s*\/?>/i', '', (string)($item['text'] ?? '')));
+                $_has_text  = $_text_clean !== '';
+                if (!$_has_media && !$_has_title && !$_has_text) continue;
+            ?>
                 <div class="developer-services-card<?php echo $services_card_style_class; ?>" style="background: <?php echo esc_attr($services_card_bg); ?>; --card-hover-bg: <?php echo esc_attr($services_card_hover_bg); ?>;">
                     <?php if (!empty($item['image'])) : ?>
                         <img src="<?php echo esc_url($item['image']); ?>" alt="" class="developer-services-icon-img">
