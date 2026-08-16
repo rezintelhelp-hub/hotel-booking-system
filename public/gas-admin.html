@@ -73588,8 +73588,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <span style="font-weight: 600; color: #047857; font-size: 0.9rem;">💳 Card on File (Stripe)</span>
                                     <span style="font-size: 0.75rem; background: #dcfce7; color: #166534; padding: 0.15rem 0.5rem; border-radius: 8px;">${_isOta ? 'Manual charge only' : 'Ready to charge'}</span>
                                 </div>
-                                <div style="font-size: 0.8rem; color: #065f46; margin-bottom: 0.75rem;">${_isOta ? 'Card is on file for this OTA booking. GAS will only charge when you click Take Payment.' : 'Balance will auto-charge on the due date.'}</div>
+                                <div style="font-size: 0.8rem; color: #065f46; margin-bottom: 0.75rem;">${_isOta ? 'Card is on file for this OTA booking. Click Take Payment to charge — if it declines you\'ll get a prompt to email the guest for a fresh card.' : 'Balance will auto-charge on the due date.'}</div>
                                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                                    ${_isOta ? `<button class="btn btn-small" onclick="takePaymentNow()" style="background:#dc2626; color:white; font-size:0.8rem;">💳 Take payment now</button>` : ''}
                                     <button class="btn btn-small" onclick="openAttachCardModal(${b.id}, ${b.property_id})" style="background:#059669; color:white; font-size:0.8rem;">🔄 Replace card</button>
                                     <button class="btn btn-small" onclick="sendCardCaptureLink(${b.id})" style="background:#0ea5e9; color:white; font-size:0.8rem;">📧 ${_isOta ? 'Email guest for card' : 'Send capture link to guest'}</button>
                                 </div>
