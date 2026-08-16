@@ -77865,20 +77865,69 @@ app.get('/api/public/booking/verify-capture-card-token', async (req, res) => {
     }
     const bk = await pool.query(
       `SELECT b.id, b.guest_first_name, b.arrival_date, b.balance_amount, b.currency,
-              b.stripe_payment_method_id, p.id AS property_id, p.name AS property_name
-         FROM bookings b LEFT JOIN properties p ON p.id = b.property_id
+              b.stripe_payment_method_id, b.square_card_id,
+              p.id AS property_id, p.name AS property_name, p.account_id,
+              a.square_status
+         FROM bookings b
+         LEFT JOIN properties p ON p.id = b.property_id
+         LEFT JOIN accounts a ON a.id = p.account_id
         WHERE b.id = $1`,
       [verified.bookingId]
     );
     if (!bk.rows[0]) return res.json({ success: false, error: 'Booking not found' });
     const b = bk.rows[0];
+
+    // Gateway detection — Square if the account has an active Square
+    // connection, otherwise fall back to Stripe. Casa Magnolia (Aug 2026)
+    // was the driver: capture link was Stripe-only, so guests on Square-
+    // only accounts saw "no Stripe configuration".
+    if (b.square_status === 'active' && b.account_id) {
+      const accessToken = await refreshSquareTokenIfNeeded(b.account_id);
+      const loc = accessToken ? await getSquareLocationForAccount(b.account_id) : null;
+      if (accessToken && loc && loc.id) {
+        // Fetch merchant application_id — the Web Payments SDK needs it
+        // client-side alongside location_id.
+        const acctQ = await pool.query(
+          `SELECT square_merchant_id, square_environment FROM accounts WHERE id = $1`,
+          [b.account_id]
+        );
+        const env = acctQ.rows[0]?.square_environment || 'sandbox';
+        // Square Web Payments SDK app_id comes from the OAuth app, not
+        // per-merchant. Use the env-configured application id.
+        const appId = env === 'production'
+          ? process.env.SQUARE_APP_ID_PROD || process.env.SQUARE_CLIENT_ID
+          : process.env.SQUARE_APP_ID_SANDBOX || process.env.SQUARE_CLIENT_ID;
+        return res.json({
+          success: true,
+          gateway: 'square',
+          booking: {
+            id: b.id,
+            guest_first_name: b.guest_first_name,
+            arrival_date: b.arrival_date,
+            balance_amount: b.balance_amount,
+            currency: b.currency,
+            property_name: b.property_name,
+            has_card_already: !!b.square_card_id,
+          },
+          square: {
+            application_id: appId,
+            location_id: loc.id,
+            environment: env,
+          }
+        });
+      }
+      // Square active but token/location missing — fall through to Stripe
+      // (unlikely, but preserves original error path).
+    }
+
     // Fetch Stripe client config so the guest page can init Elements.
     const adapter = payments.forMethod('stripe');
     const cfg = adapter ? await adapter.loadConfig(pool, b.property_id, _paymentHelpers) : null;
     const clientCfg = cfg ? adapter.clientConfig(cfg) : null;
-    if (!clientCfg) return res.json({ success: false, error: 'Property has no Stripe configuration — please contact the host directly.' });
+    if (!clientCfg) return res.json({ success: false, error: 'Property has no payment configuration — please contact the host directly.' });
     res.json({
       success: true,
+      gateway: 'stripe',
       booking: {
         id: b.id,
         guest_first_name: b.guest_first_name,
@@ -77901,8 +77950,10 @@ app.get('/api/public/booking/verify-capture-card-token', async (req, res) => {
 // the admin attach-card endpoint uses. Response mirrors the admin path.
 app.post('/api/public/booking/capture-card', async (req, res) => {
   try {
-    const { token, payment_method_id } = req.body;
-    if (!token || !payment_method_id) return res.json({ success: false, error: 'Missing token or payment_method_id' });
+    const { token, payment_method_id, square_source_id, square_verification_token } = req.body;
+    if (!token || (!payment_method_id && !square_source_id)) {
+      return res.json({ success: false, error: 'Missing token or card token' });
+    }
     const peek = peekGuestToken(token);
     if (!peek || !peek.ok || peek.purpose !== GUEST_TOKEN_PURPOSES.CAPTURE_CARD || !peek.bookingId) {
       return res.json({ success: false, error: 'Invalid link' });
@@ -77916,16 +77967,103 @@ app.post('/api/public/booking/capture-card', async (req, res) => {
     const bookingId = verified.bookingId;
 
     const bkQ = await pool.query(
-      `SELECT id, property_id, guest_email, guest_first_name, guest_last_name, stripe_customer_id
-         FROM bookings WHERE id = $1`,
+      `SELECT b.id, b.property_id, b.guest_email, b.guest_first_name, b.guest_last_name,
+              b.stripe_customer_id, b.square_customer_id,
+              p.account_id, a.square_status, a.square_environment
+         FROM bookings b
+         LEFT JOIN properties p ON p.id = b.property_id
+         LEFT JOIN accounts a ON a.id = p.account_id
+        WHERE b.id = $1`,
       [bookingId]
     );
     if (!bkQ.rows[0]) return res.json({ success: false, error: 'Booking not found' });
     const booking = bkQ.rows[0];
 
+    // Square path — mirrors the /api/public/book save-card sequence:
+    // upsert Square customer (search by email, create if missing), then
+    // POST /v2/cards to persist the card, then update the booking with
+    // square_card_id + square_customer_id + square_location_id.
+    if (square_source_id && booking.square_status === 'active' && booking.account_id) {
+      const accessToken = await refreshSquareTokenIfNeeded(booking.account_id);
+      if (!accessToken) return res.json({ success: false, error: 'Square access token unavailable — operator must reconnect Square' });
+      const loc = await getSquareLocationForAccount(booking.account_id);
+      if (!loc || !loc.id) return res.json({ success: false, error: 'Square merchant has no location configured' });
+      const sq = (booking.square_environment === 'production')
+        ? { apiBase: 'https://connect.squareup.com' }
+        : { apiBase: 'https://connect.squareupsandbox.com' };
+
+      let squareCustomerId = booking.square_customer_id || null;
+      if (!squareCustomerId && booking.guest_email) {
+        try {
+          const searchResp = await fetch(`${sq.apiBase}/v2/customers/search`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'Square-Version': '2024-12-18' },
+            body: JSON.stringify({ query: { filter: { email_address: { exact: booking.guest_email } } }, limit: 1 })
+          });
+          const searchBody = await searchResp.json();
+          squareCustomerId = searchBody?.customers?.[0]?.id || null;
+          if (!squareCustomerId) {
+            const createResp = await fetch(`${sq.apiBase}/v2/customers`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'Square-Version': '2024-12-18' },
+              body: JSON.stringify({
+                idempotency_key: `guest-${bookingId}-${Date.now()}`.slice(0, 45),
+                email_address: booking.guest_email,
+                given_name: booking.guest_first_name || undefined,
+                family_name: booking.guest_last_name || undefined,
+              })
+            });
+            const createBody = await createResp.json();
+            squareCustomerId = createBody?.customer?.id || null;
+          }
+        } catch (custErr) {
+          console.warn('[capture-card square] customer upsert failed:', custErr.message);
+        }
+      }
+      if (!squareCustomerId) return res.json({ success: false, error: 'Could not create Square customer' });
+
+      const saveResp = await fetch(`${sq.apiBase}/v2/cards`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'Square-Version': '2024-12-18' },
+        body: JSON.stringify({
+          idempotency_key: `capture-${bookingId}-${square_source_id}`.slice(0, 45),
+          source_id: square_source_id,
+          verification_token: square_verification_token || undefined,
+          card: { customer_id: squareCustomerId },
+        }),
+      });
+      const saveBody = await saveResp.json();
+      if (!saveResp.ok || !saveBody?.card?.id) {
+        const firstErr = saveBody?.errors?.[0] || {};
+        return res.json({ success: false, error: firstErr.detail || 'Could not save card', debug: saveBody?.errors });
+      }
+      const card = saveBody.card;
+      await pool.query(
+        `UPDATE bookings
+            SET square_card_id       = $1,
+                square_customer_id   = COALESCE($2, square_customer_id),
+                square_location_id   = COALESCE($3, square_location_id),
+                card_last4           = COALESCE($4, card_last4),
+                payment_method       = 'square',
+                updated_at           = NOW()
+          WHERE id = $5`,
+        [card.id, squareCustomerId, loc.id, card.last_4 || null, bookingId]
+      );
+      return res.json({
+        success: true,
+        card: {
+          brand: card.card_brand,
+          last4: card.last_4,
+          exp_month: card.exp_month,
+          exp_year: card.exp_year,
+        }
+      });
+    }
+
+    // Stripe fallback (unchanged behaviour)
     const adapter = payments.forMethod('stripe');
     const cfg = await adapter.loadConfig(pool, booking.property_id, _paymentHelpers);
-    if (!cfg) return res.json({ success: false, error: 'Property has no Stripe configuration' });
+    if (!cfg) return res.json({ success: false, error: 'Property has no payment configuration — please contact the host directly.' });
 
     let storeResult;
     try {

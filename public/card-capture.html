@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>Add Card — Secure Payment</title>
-    <script src="https://js.stripe.com/v3/"></script>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -65,11 +64,12 @@
             color: #334155;
             margin: 0 0 6px;
         }
-        #card-element {
+        #card-element, #sq-card-container {
             padding: 12px;
             border: 1px solid #cbd5e1;
             border-radius: 8px;
             background: #fff;
+            min-height: 48px;
         }
         .error {
             color: #dc2626;
@@ -113,7 +113,7 @@
     <div class="container">
         <div class="header">
             <h1>💳 Add your card</h1>
-            <p>Secure payment via Stripe</p>
+            <p id="header-subtitle">Secure payment</p>
         </div>
         <div id="loading" class="loading">Verifying your link…</div>
         <div id="fatal" class="fatal" style="display:none;">
@@ -129,14 +129,14 @@
             <div id="info" class="info-block"></div>
             <form id="card-form">
                 <label class="field-label">Card details</label>
-                <div id="card-element"></div>
+                <!-- Stripe mount point -->
+                <div id="card-element" style="display:none;"></div>
+                <!-- Square Web Payments SDK mount point -->
+                <div id="sq-card-container" style="display:none;"></div>
                 <p id="card-errors" class="error"></p>
                 <button type="submit" class="primary" id="submit-btn">Save card</button>
             </form>
-            <p class="footer-note">
-                Your card is stored securely with Stripe.<br>
-                The property never sees your card number.
-            </p>
+            <p class="footer-note" id="footer-note"></p>
         </div>
     </div>
     <script>
@@ -154,6 +154,8 @@
             cardErrors: document.getElementById('card-errors'),
             submitBtn: document.getElementById('submit-btn'),
             form: document.getElementById('card-form'),
+            headerSubtitle: document.getElementById('header-subtitle'),
+            footerNote: document.getElementById('footer-note'),
         };
         function showFatal(msg) {
             el.loading.style.display = 'none';
@@ -165,8 +167,20 @@
             el.formWrap.style.display = 'none';
             el.success.style.display = 'block';
         }
+        let gateway = null;
         let stripe = null;
-        let cardElement = null;
+        let cardElement = null;    // Stripe
+        let sqCard = null;         // Square Web Payments SDK Card
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = resolve;
+                s.onerror = () => reject(new Error('Failed to load ' + src));
+                document.head.appendChild(s);
+            });
+        }
 
         (async () => {
             if (!token) return showFatal('This link is missing its access token.');
@@ -174,8 +188,8 @@
                 const r = await fetch('/api/public/booking/verify-capture-card-token?token=' + encodeURIComponent(token));
                 const data = await r.json();
                 if (!data.success) return showFatal(data.error || 'This link is invalid.');
+                gateway = data.gateway || 'stripe';
                 const b = data.booking || {};
-                const s = data.stripe || {};
                 const currency = b.currency || '';
                 const balance = parseFloat(b.balance_amount || 0).toFixed(2);
                 const arrival = b.arrival_date ? new Date(b.arrival_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
@@ -188,16 +202,37 @@
                     <p class="sub">Balance charged before arrival${arrival ? ' (' + arrival + ')' : ''}. No charge today.</p>
                     ${alreadyNote}
                 `;
-                stripe = Stripe(s.publishable_key);
-                const elements = stripe.elements();
-                cardElement = elements.create('card', {
-                    hidePostalCode: false,
-                    style: { base: { fontSize: '16px', color: '#0f172a' } }
-                });
-                cardElement.mount('#card-element');
-                cardElement.on('change', ev => {
-                    el.cardErrors.textContent = (ev && ev.error) ? ev.error.message : '';
-                });
+
+                if (gateway === 'square') {
+                    const s = data.square || {};
+                    const sdkUrl = s.environment === 'production'
+                        ? 'https://web.squarecdn.com/v1/square.js'
+                        : 'https://sandbox.web.squarecdn.com/v1/square.js';
+                    await loadScript(sdkUrl);
+                    const payments = window.Square.payments(s.application_id, s.location_id);
+                    sqCard = await payments.card();
+                    await sqCard.attach('#sq-card-container');
+                    document.getElementById('sq-card-container').style.display = 'block';
+                    el.headerSubtitle.textContent = 'Secure payment via Square';
+                    el.footerNote.innerHTML = 'Your card is stored securely with Square.<br>The property never sees your card number.';
+                } else {
+                    // Stripe path (unchanged behaviour)
+                    await loadScript('https://js.stripe.com/v3/');
+                    const s = data.stripe || {};
+                    stripe = Stripe(s.publishable_key);
+                    const elements = stripe.elements();
+                    cardElement = elements.create('card', {
+                        hidePostalCode: false,
+                        style: { base: { fontSize: '16px', color: '#0f172a' } }
+                    });
+                    cardElement.mount('#card-element');
+                    document.getElementById('card-element').style.display = 'block';
+                    cardElement.on('change', ev => {
+                        el.cardErrors.textContent = (ev && ev.error) ? ev.error.message : '';
+                    });
+                    el.headerSubtitle.textContent = 'Secure payment via Stripe';
+                    el.footerNote.innerHTML = 'Your card is stored securely with Stripe.<br>The property never sees your card number.';
+                }
                 el.loading.style.display = 'none';
                 el.formWrap.style.display = 'block';
             } catch (e) {
@@ -208,39 +243,47 @@
 
         el.form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (!stripe || !cardElement) return;
             el.cardErrors.textContent = '';
             el.submitBtn.disabled = true;
             el.submitBtn.textContent = 'Saving…';
+
+            const reset = () => { el.submitBtn.disabled = false; el.submitBtn.textContent = 'Save card'; };
+
             try {
-                const { paymentMethod, error: pmErr } = await stripe.createPaymentMethod({
-                    type: 'card',
-                    card: cardElement,
-                });
-                if (pmErr) {
-                    el.cardErrors.textContent = pmErr.message || 'Could not accept card.';
-                    el.submitBtn.disabled = false;
-                    el.submitBtn.textContent = 'Save card';
-                    return;
+                let body;
+                if (gateway === 'square') {
+                    if (!sqCard) { el.cardErrors.textContent = 'Card widget not ready — refresh and try again.'; reset(); return; }
+                    const result = await sqCard.tokenize();
+                    if (result.status !== 'OK' || !result.token) {
+                        const detail = result.errors?.[0]?.message || 'Could not accept card.';
+                        el.cardErrors.textContent = detail;
+                        reset(); return;
+                    }
+                    body = { token, square_source_id: result.token, square_verification_token: result.verificationToken || undefined };
+                } else {
+                    if (!stripe || !cardElement) return;
+                    const { paymentMethod, error: pmErr } = await stripe.createPaymentMethod({ type: 'card', card: cardElement });
+                    if (pmErr) {
+                        el.cardErrors.textContent = pmErr.message || 'Could not accept card.';
+                        reset(); return;
+                    }
+                    body = { token, payment_method_id: paymentMethod.id };
                 }
                 const r = await fetch('/api/public/booking/capture-card', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token, payment_method_id: paymentMethod.id })
+                    body: JSON.stringify(body)
                 });
                 const data = await r.json();
                 if (!data.success) {
                     el.cardErrors.textContent = data.error || 'Could not save card.';
-                    el.submitBtn.disabled = false;
-                    el.submitBtn.textContent = 'Save card';
-                    return;
+                    reset(); return;
                 }
                 showSuccess();
             } catch (err) {
                 console.error(err);
                 el.cardErrors.textContent = err.message || 'Something went wrong.';
-                el.submitBtn.disabled = false;
-                el.submitBtn.textContent = 'Save card';
+                reset();
             }
         });
     </script>
