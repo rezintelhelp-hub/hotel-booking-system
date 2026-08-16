@@ -162461,33 +162461,49 @@ async function runSquareAudit(pool, accountId = null) {
     ? `AND pr.account_id = ${parseInt(accountId, 10)}`
     : `AND a.square_status = 'active'`;
 
-  // 1. Card not saved on a future booking with balance owed
+  // 1. Card not saved on a future booking with balance owed. Uses
+  // balance_amount so bookings with payment_method=NULL (manual admin
+  // creations, half-completed direct bookings) still get caught — the
+  // earlier version only inspected payment_method='square' AND
+  // square_payment_id IS NOT NULL, which silently missed all the null-
+  // method rows Casa Magnolia was accumulating (Aug 2026 audit).
   const q1 = await pool.query(`
     SELECT b.id AS booking_id, b.guest_first_name, b.guest_last_name, b.guest_email,
-           b.arrival_date, b.grand_total, b.deposit_amount, b.currency,
+           b.arrival_date, b.grand_total, b.deposit_amount, b.balance_amount, b.currency,
+           b.payment_method, b.square_payment_id,
            pr.account_id, a.name AS account_name
     FROM bookings b
     JOIN properties pr ON pr.id = b.property_id
     JOIN accounts a ON a.id = pr.account_id
-    WHERE b.payment_method = 'square'
-      AND b.square_payment_id IS NOT NULL
-      AND b.square_card_id IS NULL
+    WHERE b.square_card_id IS NULL
+      AND (b.stripe_payment_method_id IS NULL OR b.payment_method != 'stripe')
       AND b.arrival_date >= CURRENT_DATE
       AND b.status IN ('confirmed','pending')
-      AND (COALESCE(b.grand_total::numeric,0) - COALESCE(b.deposit_amount::numeric,0)) > 0.01
+      AND COALESCE(b.balance_amount::numeric,
+                   b.grand_total::numeric - COALESCE(b.deposit_amount::numeric,0)) > 0.01
+      -- Only chase direct bookings; OTA channel imports have their own
+      -- prepaid/collect flow and would spam the digest.
+      AND COALESCE(b.guest_email,'') !~* '(no-?email\.local|guest\.booking\.com|guest\.airbnb\.com|^beds24-)'
       ${accountClause}
     ORDER BY b.arrival_date ASC
   `);
   for (const r of q1.rows) {
+    const balOwed = r.balance_amount !== null
+      ? parseFloat(r.balance_amount)
+      : Number((parseFloat(r.grand_total || 0) - parseFloat(r.deposit_amount || 0)).toFixed(2));
+    const depositTaken = r.square_payment_id || (parseFloat(r.deposit_amount || 0) > 0);
     findings.push({
-      category: 'SQUARE_CARD_NOT_SAVED', severity: 'HIGH',
+      category: depositTaken ? 'SQUARE_CARD_NOT_SAVED' : 'BALANCE_OWED_NO_CARD',
+      severity: 'HIGH',
       account_id: r.account_id, account_name: r.account_name,
       booking_id: r.booking_id,
       guest: `${r.guest_first_name || ''} ${r.guest_last_name || ''}`.trim(),
       arrival: r.arrival_date.toISOString().slice(0,10),
       currency: r.currency,
-      balance_owed: Number((parseFloat(r.grand_total) - parseFloat(r.deposit_amount)).toFixed(2)),
-      description: 'Deposit taken but card not saved on file. Auto-charge will fail on due date.',
+      balance_owed: balOwed,
+      description: depositTaken
+        ? 'Deposit taken but card not saved on file. Auto-charge will fail on due date.'
+        : 'Booking has balance owed and no card on file — no way to auto-collect.',
       action: 'Open booking → "📧 Send capture link to guest" (or take card at check-in).'
     });
   }
@@ -162521,30 +162537,37 @@ async function runSquareAudit(pool, accountId = null) {
     });
   }
 
-  // 3. Past arrival with balance still owed on a Square booking
+  // 3. Past arrival with balance still owed. Same broadening as Q1 —
+  // don't gate on payment_method='square', use balance_amount, exclude
+  // OTA email stubs. Bounded to 90 days past to keep the digest sized.
   const q3 = await pool.query(`
     SELECT b.id AS booking_id, b.guest_first_name, b.guest_last_name, b.arrival_date,
-           b.grand_total, b.deposit_amount, b.currency,
+           b.grand_total, b.deposit_amount, b.balance_amount, b.currency,
            pr.account_id, a.name AS account_name
     FROM bookings b
     JOIN properties pr ON pr.id = b.property_id
     JOIN accounts a ON a.id = pr.account_id
-    WHERE b.payment_method = 'square'
-      AND b.arrival_date < CURRENT_DATE
+    WHERE b.arrival_date < CURRENT_DATE
+      AND b.arrival_date >= CURRENT_DATE - INTERVAL '90 days'
       AND b.status IN ('confirmed','pending')
-      AND (COALESCE(b.grand_total::numeric,0) - COALESCE(b.deposit_amount::numeric,0)) > 0.01
+      AND COALESCE(b.balance_amount::numeric,
+                   b.grand_total::numeric - COALESCE(b.deposit_amount::numeric,0)) > 0.01
+      AND COALESCE(b.guest_email,'') !~* '(no-?email\.local|guest\.booking\.com|guest\.airbnb\.com|^beds24-)'
       ${accountClause}
     ORDER BY b.arrival_date DESC
   `);
   for (const r of q3.rows) {
+    const balOwed = r.balance_amount !== null
+      ? parseFloat(r.balance_amount)
+      : Number((parseFloat(r.grand_total || 0) - parseFloat(r.deposit_amount || 0)).toFixed(2));
     findings.push({
-      category: 'SQUARE_BALANCE_OVERDUE', severity: 'HIGH',
+      category: 'BALANCE_OVERDUE_PAST_ARRIVAL', severity: 'HIGH',
       account_id: r.account_id, account_name: r.account_name,
       booking_id: r.booking_id,
       guest: `${r.guest_first_name || ''} ${r.guest_last_name || ''}`.trim(),
       arrival: r.arrival_date.toISOString().slice(0,10),
       currency: r.currency,
-      balance_owed: Number((parseFloat(r.grand_total) - parseFloat(r.deposit_amount)).toFixed(2)),
+      balance_owed: balOwed,
       description: 'Guest has departed but balance still owed on the GAS record.',
       action: 'Contact guest — may have paid outside GAS (bank transfer, in-person). Reconcile.'
     });
@@ -162646,6 +162669,24 @@ async function runSquareAuditCron() {
 }
 setTimeout(runSquareAuditCron, 5 * 60 * 1000);          // 5 min after boot — surfaces existing issues fast
 setInterval(runSquareAuditCron, 24 * 60 * 60 * 1000);   // daily thereafter
+
+// Manual trigger for the daily digest — master-only. Fires the same code
+// path as the cron so we can verify email delivery on demand instead of
+// waiting 24h. Casa Magnolia Aug 2026: silent digest was masking ~£5.5k
+// of at-risk bookings for weeks.
+app.post('/api/admin/square/audit/run-now', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') {
+      return res.status(403).json({ success: false, error: 'Master admin only' });
+    }
+    await runSquareAuditCron();
+    res.json({ success: true, message: 'Audit ran — check server logs + inbox (silent if 0 findings).' });
+  } catch (e) {
+    console.error('[Square Audit manual trigger]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
 
 // =====================================================
 // HOSTFULLY WRITE-BACK DAILY DIGEST — Stage 4 of 2026-07-28 fix.
