@@ -163621,6 +163621,67 @@ async function runSquareAuditCron() {
 setTimeout(runSquareAuditCron, 5 * 60 * 1000);          // 5 min after boot — surfaces existing issues fast
 setInterval(runSquareAuditCron, 24 * 60 * 60 * 1000);   // daily thereafter
 
+// ─── AIRWALLEX KEEP-ALIVE PING ────────────────────────────────────────
+// Airwallex disables Admin API keys after 30 consecutive days without use
+// (announced Aug 2026). GAS creates Airwallex billing customers on new
+// account activations — quiet periods mean the keys drift dormant.
+// Solution: authenticated login every 14 days. The login endpoint itself
+// counts as API use, no payment/no cost. Silent on success; emails Steve
+// on failure so keys can be renewed before Airwallex hard-disables them.
+async function airwallexAuthPing() {
+  const clientId = process.env.AIRWALLEX_CLIENT_ID;
+  const apiKey = process.env.AIRWALLEX_API_KEY;
+  if (!clientId || !apiKey) {
+    console.warn('[Airwallex auth-ping] SKIP — AIRWALLEX_CLIENT_ID or AIRWALLEX_API_KEY not set');
+    return;
+  }
+  const base = process.env.AIRWALLEX_ENV === 'production'
+    ? 'https://api.airwallex.com'
+    : 'https://api-demo.airwallex.com';
+  try {
+    const resp = await fetch(`${base}/api/v1/authentication/login`, {
+      method: 'POST',
+      headers: {
+        'x-client-id': clientId,
+        'x-api-key': apiKey,
+        'Content-Type': 'application/json',
+      }
+    });
+    if (resp.ok) {
+      console.log('[Airwallex auth-ping] OK — Admin API keys still alive');
+      return;
+    }
+    const body = await resp.text().catch(() => '(no body)');
+    throw new Error(`HTTP ${resp.status} — ${body.slice(0, 300)}`);
+  } catch (err) {
+    console.error('[Airwallex auth-ping] FAILED:', err.message);
+    try {
+      await sendEmail({
+        to: ['rezintelhelp@gmail.com'],
+        subject: '⚠️ Airwallex auth-ping FAILED — keys may be dormant / disabled',
+        html: `<div style="font-family:system-ui,sans-serif;max-width:640px;padding:1.5rem;color:#1e293b;">
+          <h2 style="color:#dc2626;margin:0 0 0.75rem;">Airwallex auth-ping failed</h2>
+          <p>The 14-day scheduled Airwallex login (used to keep Admin API keys from going dormant) failed:</p>
+          <pre style="background:#fef2f2;padding:12px;border-radius:8px;color:#991b1b;overflow-x:auto;">${String(err.message).slice(0, 500).replace(/</g,'&lt;')}</pre>
+          <p><strong>Env vars on Railway:</strong><br>
+            AIRWALLEX_CLIENT_ID: ${clientId ? 'set (' + clientId.slice(0,8) + '...)' : '<span style="color:#dc2626;">NOT set</span>'}<br>
+            AIRWALLEX_ENV: ${process.env.AIRWALLEX_ENV || '(not set — defaulting to demo)'}
+          </p>
+          <p><strong>Action:</strong> log into Airwallex → Developer → API keys. Either reactivate the disabled keys (this cron then keeps them alive) or generate Scoped API keys and update the Railway env vars (their recommended long-term fix).</p>
+          <p style="color:#64748b;font-size:0.85rem;">Next auto-attempt: 14 days from now.</p>
+        </div>`
+      });
+    } catch (mailErr) {
+      console.error('[Airwallex auth-ping] Failed to send alert email:', mailErr.message);
+    }
+  }
+}
+// 10 min after boot (well after DB migrations settle), then every 14 days.
+// 14d is comfortably inside the 30-day dormancy window with margin for a
+// failed ping (next attempt still lands 2 weeks before expiry).
+setTimeout(airwallexAuthPing, 10 * 60 * 1000);
+setInterval(airwallexAuthPing, 14 * 24 * 60 * 60 * 1000);
+
 // Manual trigger for the daily digest — master-only. Fires the same code
 // path as the cron so we can verify email delivery on demand instead of
 // waiting 24h. Casa Magnolia Aug 2026: silent digest was masking ~£5.5k
