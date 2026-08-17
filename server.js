@@ -79444,8 +79444,11 @@ app.get('/api/admin/gas-crm/communications', async (req, res) => {
   try {
     const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
-    const accountId = parseInt(req.query.account_id) || decoded.accountId || decoded.id;
-    if (!accountId) return res.status(400).json({ success: false, error: 'account_id required' });
+    const requestedAccountId = parseInt(req.query.account_id) || decoded.accountId || decoded.id;
+    if (!requestedAccountId) return res.status(400).json({ success: false, error: 'account_id required' });
+    // Non-master users may only query their own account.
+    const callerAccountId = decoded.accountId || decoded.id;
+    const accountId = (decoded.role === 'master_admin') ? requestedAccountId : callerAccountId;
     const days = Math.max(0, Math.min(3650, parseInt(req.query.days) || 30));
     const q = (req.query.q || '').toString().trim().toLowerCase();
     const params = [accountId];

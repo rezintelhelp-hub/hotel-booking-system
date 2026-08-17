@@ -74796,7 +74796,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             const list = document.getElementById('comms-sent-list');
             if (!list) return;
             list.innerHTML = '<div style="padding: 2rem; text-align: center; color: #64748b;">Loading…</div>';
-            const accountId = getClientId();
+            // Master admins pick a client via the selector; non-master users
+            // (Barbara etc.) don't have a selector, so fall back to their own
+            // account. Without this the tab silently showed "Select an
+            // account…" for every client login and the whole Status / Actions
+            // panel appeared blank.
+            const accountId = getClientId() || currentAccount?.id;
             if (!accountId) {
                 list.innerHTML = '<div style="padding: 2rem; text-align: center; color: #94a3b8;">Select an account to view Comms Sent.</div>';
                 return;
