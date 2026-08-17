@@ -80626,10 +80626,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-property-min-advance-hours').value = (prop.min_advance_hours != null ? prop.min_advance_hours : '');
                     
                     // Wire the "Enable Stripe Connect" button — needs prop.id
-                    // in scope. Uses the existing _channexStripeConnect helper
-                    // that hits /api/admin/properties/:id/stripe/connect (OAuth).
+                    // in scope. Opens the OAuth flow in a new tab so the
+                    // property-edit modal state is preserved.
                     const _oauthBtn = document.getElementById('edit-property-stripe-oauth-btn');
-                    if (_oauthBtn) _oauthBtn.onclick = () => _channexStripeConnect(prop.id);
+                    if (_oauthBtn) _oauthBtn.onclick = () => _payStripeOAuthOpen(prop.id);
 
                     // Update Stripe status display — check property keys first, then account keys
                     const stripeStatus = document.getElementById('property-stripe-status');
@@ -108377,19 +108377,23 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        // Kick off Stripe Connect OAuth for the property currently loaded
-        // in the Payment Settings modal. Reads property_id from the hidden
-        // input the rest of this modal already uses. Redirects same-tab
-        // (Stripe brings the operator back to gas-admin.html on completion).
+        // Kick off Stripe Connect OAuth in a NEW TAB so the current
+        // admin session / modal state isn't lost when the operator
+        // navigates through Stripe's login. On completion Stripe
+        // redirects the popup to gas-admin.html — operator closes
+        // the tab and comes back to the original one. Steve 2026-08-17.
+        function _payStripeOAuthOpen(propertyId) {
+            if (!propertyId) { showNotification('No property loaded', 'error'); return; }
+            const token = localStorage.getItem('gas_token');
+            const url = `/api/admin/properties/${propertyId}/stripe/connect?token=${encodeURIComponent(token)}`;
+            window.open(url, '_blank', 'noopener');
+            showNotification('Opened Stripe in a new tab — approve there, then come back and refresh this modal.', 'info');
+        }
+
+        // Wrapper used by the Payment Setup dialog button.
         function _payStripeOAuth() {
             const propertyId = document.getElementById('payment-settings-property-id')?.value;
-            if (!propertyId) { showNotification('No property loaded', 'error'); return; }
-            if (typeof _channexStripeConnect === 'function') {
-                _channexStripeConnect(parseInt(propertyId, 10));
-            } else {
-                const token = localStorage.getItem('gas_token');
-                window.location = `/api/admin/properties/${propertyId}/stripe/connect?token=${encodeURIComponent(token)}`;
-            }
+            _payStripeOAuthOpen(propertyId ? parseInt(propertyId, 10) : null);
         }
 
         async function linkExistingStripe() {
