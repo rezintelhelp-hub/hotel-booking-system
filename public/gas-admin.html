@@ -70471,10 +70471,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                 }
                 
+                // Group badge — parse "(Room N/M)" from notes (stamped by
+                // /api/public/create-group-booking on every group row).
+                // Leader (1/M) gets a crown + green highlight so you can
+                // spot it in one glance; siblings get a subtler grey chip.
+                let groupBadge = '';
+                const gm = (booking.notes || '').match(/\(Room (\d+)\/(\d+)\)/);
+                if (gm) {
+                    const isLeader = gm[1] === '1';
+                    groupBadge = isLeader
+                        ? `<span title="Group leader — click here to charge/email the whole group" style="display:inline-block;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:4px;font-size:0.7rem;font-weight:700;margin-top:2px;">👑 Leader ${gm[1]}/${gm[2]}</span>`
+                        : `<span title="Sibling row — the leader (1/${gm[2]}) carries the payment" style="display:inline-block;background:#e2e8f0;color:#475569;padding:1px 6px;border-radius:4px;font-size:0.7rem;margin-top:2px;">Group ${gm[1]}/${gm[2]}</span>`;
+                }
+
                 html += `
                     <tr style="border-bottom: 1px solid var(--border); ${rowStyle}">
                         <td style="padding: 0.75rem;">
                             <small style="font-weight: 600; color: #2563eb;">${booking.booking_ref || 'GAS-' + String(booking.id).padStart(4, '0')}</small>
+                            ${groupBadge ? '<br>' + groupBadge : ''}
                         </td>
                         <td style="padding: 0.75rem;">
                             <strong>${guestName}</strong>
