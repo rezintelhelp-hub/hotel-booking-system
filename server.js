@@ -160083,6 +160083,236 @@ async function _processAutoChargeSquareBranch() {
     }
 }
 
+// Expedia VCC auto-charge — Charles House Aug 2026 driver. Fires on
+// Channex-imported OTA bookings marked ota_payment_collect='ota' from
+// their check-in date onwards. The card on file is a VCC funded by
+// Expedia (Path B in Steve's terminology), so charges are near-certain
+// to succeed (unlike guest-card decline pattern on Hotel Collect).
+//
+// Only fires on Stripe-backed accounts (not Stripe Connect specifically —
+// the Channex clone already ran and the pm_ lives on the client's own
+// Stripe account either way). Hotel Collect bookings are excluded here;
+// they stay manual because the guest's real card often declines and
+// Barbara needs to send a fresh-card link on failure (existing flow).
+async function _processAutoChargeExpediaVCCBranch() {
+    if (String(process.env.AUTO_CHARGE_PAUSED || '').toLowerCase() === 'true') return;
+    const result = await pool.query(`
+        SELECT DISTINCT ON (b.id)
+            b.id as booking_id,
+            p.account_id,
+            b.property_id,
+            b.guest_first_name,
+            b.guest_last_name,
+            b.guest_email,
+            b.arrival_date,
+            b.grand_total,
+            b.deposit_amount,
+            b.balance_amount,
+            b.stripe_payment_method_id,
+            b.stripe_customer_id,
+            b.payment_status,
+            b.currency,
+            b.booking_source,
+            b.card_last4,
+            b.card_brand,
+            COALESCE(p.stripe_secret_key, a.stripe_secret_key) as stripe_secret_key,
+            pc.credentials as payment_config_credentials,
+            p.currency as property_currency,
+            p.name as property_name,
+            a.email as owner_email
+        FROM bookings b
+        JOIN properties p ON p.id = b.property_id
+        JOIN accounts a ON a.id = p.account_id
+        LEFT JOIN payment_configurations pc ON (pc.property_id = b.property_id OR (pc.property_id IS NULL AND pc.account_id = p.account_id)) AND pc.provider = 'stripe' AND pc.is_enabled = true
+        WHERE b.ota_payment_collect = 'ota'
+          AND b.channex_booking_id IS NOT NULL
+          AND b.stripe_payment_method_id IS NOT NULL
+          AND b.payment_status != 'paid'
+          AND b.balance_amount > 0
+          AND b.status NOT IN ('cancelled', 'rejected')
+          AND b.arrival_date <= CURRENT_DATE          -- Expedia rule: charge ON check-in date or after
+          AND b.arrival_date >= CURRENT_DATE - INTERVAL '30 days'   -- don't churn ancient rows
+        ORDER BY b.id, b.arrival_date
+    `);
+
+    if (result.rows.length === 0) {
+        console.log('[AUTO-CHARGE EXPEDIA-VCC] No Expedia VCC balances due');
+        return;
+    }
+    console.log(`[AUTO-CHARGE EXPEDIA-VCC] Found ${result.rows.length} bookings to charge`);
+
+    for (const booking of result.rows) {
+        const guestName = [booking.guest_first_name, booking.guest_last_name].filter(Boolean).join(' ');
+        const chargeCurrency = (booking.currency || booking.property_currency || 'GBP').toLowerCase();
+
+        try {
+            // Three-belt idempotency (same shape as Stripe branch).
+            const priorAuto = await pool.query(
+                `SELECT id, gateway_transaction_id, amount, created_at
+                   FROM payment_transactions
+                  WHERE booking_id = $1
+                    AND payment_gateway = 'stripe'
+                    AND status IN ('completed','succeeded')
+                    AND transaction_type IN ('balance','payment')
+                    AND (description LIKE 'Auto-charge Expedia VCC%' OR description LIKE 'Auto-charge balance%')
+                  LIMIT 1`,
+                [booking.booking_id]
+            );
+            if (priorAuto.rows.length > 0) {
+                const p = priorAuto.rows[0];
+                console.warn(`[AUTO-CHARGE EXPEDIA-VCC] SKIP booking ${booking.booking_id} — already auto-charged (tx ${p.id} pi=${p.gateway_transaction_id} ${p.amount} ${p.created_at.toISOString()})`);
+                continue;
+            }
+            const priorSumRes = await pool.query(
+                `SELECT COALESCE(SUM(amount), 0)::numeric AS paid
+                   FROM payment_transactions
+                  WHERE booking_id = $1
+                    AND payment_gateway = 'stripe'
+                    AND status IN ('completed','succeeded')
+                    AND transaction_type IN ('deposit','balance','payment','charge','capture')`,
+                [booking.booking_id]
+            );
+            const alreadyPaid = parseFloat(priorSumRes.rows[0]?.paid || 0);
+            const grandTotal = parseFloat(booking.grand_total || 0);
+            if (grandTotal > 0 && alreadyPaid + 0.01 >= grandTotal) {
+                console.warn(`[AUTO-CHARGE EXPEDIA-VCC] SKIP booking ${booking.booking_id} — ledger already covers grand_total (${alreadyPaid} vs ${grandTotal})`);
+                continue;
+            }
+            const recentRes = await pool.query(
+                `SELECT id, gateway_transaction_id, amount, created_at
+                   FROM payment_transactions
+                  WHERE booking_id = $1
+                    AND payment_gateway = 'stripe'
+                    AND status IN ('completed','succeeded')
+                    AND transaction_type IN ('deposit','balance','payment','charge','capture')
+                    AND created_at > NOW() - INTERVAL '24 hours'
+                  ORDER BY created_at DESC LIMIT 1`,
+                [booking.booking_id]
+            );
+            if (recentRes.rows.length > 0) {
+                const r = recentRes.rows[0];
+                console.warn(`[AUTO-CHARGE EXPEDIA-VCC] SKIP booking ${booking.booking_id} — Stripe charge tx ${r.id} pi=${r.gateway_transaction_id} amount=${r.amount} fired ${r.created_at.toISOString()} (< 24h ago)`);
+                continue;
+            }
+
+            // Charge amount from balance_amount (Channex passes the net
+            // "amount to charge" as meta.payment_charge; our webhook
+            // populates balance_amount from grand_total which matches for
+            // Charles House. If future properties add separate taxes,
+            // switch to a stored ota_charge_amount column.)
+            const outstanding = Math.max(
+                0,
+                Math.round((grandTotal - alreadyPaid) * 100) / 100
+            );
+            if (outstanding <= 0.005) {
+                console.log(`[AUTO-CHARGE EXPEDIA-VCC] SKIP booking ${booking.booking_id} — outstanding ${outstanding}`);
+                continue;
+            }
+
+            const stripeKey = booking.payment_config_credentials?.secret_key || booking.stripe_secret_key || process.env.STRIPE_SECRET_KEY;
+            if (!stripeKey) {
+                console.warn(`[AUTO-CHARGE EXPEDIA-VCC] SKIP booking ${booking.booking_id} — no Stripe key`);
+                continue;
+            }
+            const stripeClient = require('stripe')(stripeKey);
+            const idempotencyKey = `auto-expvcc-${booking.booking_id}-${new Date().toISOString().slice(0,10)}`;
+
+            console.log(`[AUTO-CHARGE EXPEDIA-VCC] booking ${booking.booking_id} charging ${chargeCurrency.toUpperCase()} ${outstanding.toFixed(2)} · card ${booking.card_brand || '?'} ****${booking.card_last4 || '????'}`);
+
+            const paymentIntent = await stripeClient.paymentIntents.create({
+                amount: toStripeAmount(outstanding, chargeCurrency),
+                currency: chargeCurrency,
+                customer: booking.stripe_customer_id || undefined,
+                payment_method: booking.stripe_payment_method_id,
+                confirm: true,
+                off_session: true,
+                description: `Auto-charge Expedia VCC · booking ${booking.booking_id} · ${guestName} · check-in ${booking.arrival_date}`,
+                metadata: {
+                    booking_id: String(booking.booking_id),
+                    account_id: String(booking.account_id),
+                    type: 'expedia_vcc',
+                    source: booking.booking_source || 'expedia',
+                }
+            }, { idempotencyKey });
+
+            if (paymentIntent.status !== 'succeeded') {
+                throw new Error(`PaymentIntent status: ${paymentIntent.status}. PI: ${paymentIntent.id}, last_payment_error: ${paymentIntent.last_payment_error?.message || 'none'}`);
+            }
+
+            await pool.query(`
+                UPDATE bookings
+                SET payment_status = 'paid',
+                    balance_amount = 0,
+                    balance_paid_at = NOW(),
+                    stripe_payment_intent_id = COALESCE(stripe_payment_intent_id, $2),
+                    stripe_charge_id = COALESCE(stripe_charge_id, $3),
+                    updated_at = NOW()
+                WHERE id = $1
+            `, [booking.booking_id, paymentIntent.id, paymentIntent.latest_charge || null]);
+
+            try {
+                await pool.query(`
+                    INSERT INTO payment_transactions (
+                        booking_id, account_id, transaction_type, amount, currency,
+                        payment_gateway, gateway_transaction_id, status,
+                        payment_method_type, completed_at, description
+                    ) VALUES ($1, $2, 'balance', $3, $4, 'stripe', $5, 'completed', 'card', NOW(), $6)
+                    ON CONFLICT DO NOTHING
+                `, [
+                    booking.booking_id, booking.account_id,
+                    outstanding, chargeCurrency.toUpperCase(),
+                    paymentIntent.id,
+                    `Auto-charge Expedia VCC · check-in ${booking.arrival_date}`
+                ]);
+            } catch (ledgerErr) {
+                console.error(`[AUTO-CHARGE EXPEDIA-VCC ledger] booking ${booking.booking_id} pi=${paymentIntent.id}:`, ledgerErr.message);
+            }
+
+            console.log(`[AUTO-CHARGE EXPEDIA-VCC] Successfully charged booking ${booking.booking_id} - ${guestName} pi=${paymentIntent.id}`);
+        } catch (chargeErr) {
+            console.error(`[AUTO-CHARGE EXPEDIA-VCC] booking ${booking.booking_id}:`, chargeErr.message);
+            const errCode = chargeErr.code || chargeErr.raw?.code || chargeErr.raw?.decline_code || null;
+            const errType = chargeErr.type || chargeErr.raw?.type || null;
+            const terminalCodes = new Set([
+                'card_declined', 'expired_card', 'insufficient_funds',
+                'authentication_required', 'incorrect_cvc', 'processing_error',
+                'invalid_account', 'currency_not_supported'
+            ]);
+            const isTerminal = errCode ? terminalCodes.has(errCode)
+                : (errType === 'StripeCardError' || errType === 'card_error');
+            await pool.query(
+                "UPDATE bookings SET last_charge_error = $2, last_charge_error_code = $3, last_charge_error_at = NOW(), updated_at = NOW()"
+                + (isTerminal ? ", payment_status = 'balance_failed'" : '')
+                + " WHERE id = $1",
+                [booking.booking_id, String(chargeErr.message || '').slice(0, 1000), errCode || errType || 'unknown']
+            ).catch(() => {});
+            if (isTerminal && booking.owner_email) {
+                try {
+                    await sendEmail({
+                        to: [booking.owner_email, 'development@gas.travel'],
+                        subject: `Expedia VCC charge failed — ${guestName} — ${booking.property_name || 'Booking #' + booking.booking_id}`,
+                        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                            <h2 style="color:#dc2626;">Expedia VCC charge failed</h2>
+                            <p>An automatic charge on an Expedia Collect VCC could not be completed:</p>
+                            <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+                                <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Guest</td><td style="padding:8px;border:1px solid #e5e7eb;">${guestName}</td></tr>
+                                <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Property</td><td style="padding:8px;border:1px solid #e5e7eb;">${booking.property_name || '-'}</td></tr>
+                                <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Booking</td><td style="padding:8px;border:1px solid #e5e7eb;">#${booking.booking_id}</td></tr>
+                                <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Amount</td><td style="padding:8px;border:1px solid #e5e7eb;">${chargeCurrency.toUpperCase()} ${outstanding.toFixed(2)}</td></tr>
+                                <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Card</td><td style="padding:8px;border:1px solid #e5e7eb;">${booking.card_brand || '?'} ****${booking.card_last4 || '????'}</td></tr>
+                                <tr><td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold;">Error</td><td style="padding:8px;border:1px solid #e5e7eb;color:#dc2626;">${chargeErr.message}</td></tr>
+                            </table>
+                            <p style="color:#6b7280;font-size:13px;">Log into Expedia Partner Central for this booking and check the VCC status / charge window. You can retry manually from GAS Admin → Bookings → Take Payment.</p>
+                        </div>`
+                    });
+                } catch (emailErr) {
+                    console.error('[AUTO-CHARGE EXPEDIA-VCC email]', emailErr.message);
+                }
+            }
+        }
+    }
+}
+
 async function processAutoChargePayments() {
     // Emergency kill switch — Steve 2026-08-02. Set Railway env var
     // AUTO_CHARGE_PAUSED=true to halt auto-charging estate-wide instantly.
@@ -160105,6 +160335,19 @@ async function processAutoChargePayments() {
         await _processAutoChargeSquareBranch();
     } catch (sqBranchErr) {
         console.error('[AUTO-CHARGE SQUARE] Branch threw, continuing to Stripe:', sqBranchErr.message);
+    }
+
+    // ─── EXPEDIA VCC BRANCH (added 2026-08-17) ───────────────────────────
+    // Fires on Channex-imported bookings where ota_payment_collect='ota'
+    // (Expedia Collect via VCC — Expedia's own money, funded card). Trigger
+    // is the check-in date (Expedia's rule: "charge on the guest's check-in
+    // date"), not the standard deposit_rules balance_due_days. Hotel Collect
+    // (ota_payment_collect='property') stays manual — those cards are the
+    // guest's real personal cards and decline more often (Emma Hope shape).
+    try {
+        await _processAutoChargeExpediaVCCBranch();
+    } catch (vccErr) {
+        console.error('[AUTO-CHARGE EXPEDIA-VCC] Branch threw, continuing to Stripe:', vccErr.message);
     }
 
     try {
