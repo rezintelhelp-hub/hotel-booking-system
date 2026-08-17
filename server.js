@@ -23,6 +23,36 @@
 // - Background tiered sync for automatic updates
 require('dotenv').config();
 
+// Sentry — error monitoring. Must be initialised BEFORE any other
+// require() so its Express + HTTP instrumentation hooks in cleanly.
+// Silent no-op if SENTRY_DSN isn't set (dev machines, CI, etc.).
+// Steve 2026-08-17: added after the alreadyPaid ReferenceError silently
+// stranded 11 bookings across 3 accounts for 10 days. Every unhandled
+// exception now pages within seconds instead of hiding in a DB field.
+const Sentry = require('@sentry/node');
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'production',
+    release: process.env.RAILWAY_GIT_COMMIT_SHA || undefined,
+    // No performance tracing — we want error catching, not APM. Saves quota.
+    tracesSampleRate: 0.0,
+    // Filter out expected business errors so the free tier isn't burned
+    // by Stripe card declines etc. Real bugs still surface.
+    beforeSend(event, hint) {
+      const err = hint?.originalException;
+      if (!err) return event;
+      // Stripe card errors are business flow, not code bugs
+      if (err.type === 'StripeCardError' || err.type === 'card_error') return null;
+      if (typeof err.code === 'string' && ['card_declined','expired_card','insufficient_funds','incorrect_cvc'].includes(err.code)) return null;
+      return event;
+    },
+  });
+  console.log('[Sentry] initialised — DSN configured');
+} else {
+  console.log('[Sentry] SKIP — SENTRY_DSN not set');
+}
+
 // Last-resort safety nets — keep the process alive when a stray async
 // path leaks an unhandled rejection (e.g. a webhook handler that calls
 // pool.connect() after sending the 200 response and the DB throws).
@@ -31,9 +61,11 @@ require('dotenv').config();
 // request. Better to log and stay up.
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[unhandledRejection]', reason && reason.stack || reason);
+  if (process.env.SENTRY_DSN) Sentry.captureException(reason);
 });
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err && err.stack || err);
+  if (process.env.SENTRY_DSN) Sentry.captureException(err);
 });
 
 const express = require('express');
@@ -149719,6 +149751,14 @@ app.post('/api/test/beds24-v1-booking', async (req, res) => {
     });
   }
 });
+
+// Sentry Express error handler — MUST be added after all app.get/app.post
+// declarations so it catches errors thrown inside any route handler.
+// Safe no-op when SENTRY_DSN isn't set (Sentry.init was skipped).
+if (process.env.SENTRY_DSN) {
+  Sentry.setupExpressErrorHandler(app);
+  console.log('[Sentry] Express error handler attached');
+}
 
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('🚀 Server running on port ' + PORT);
