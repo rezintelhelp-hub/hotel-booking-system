@@ -72259,6 +72259,39 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        async function markBookingPaidOffline(bookingId) {
+            const method = prompt('Payment method (e.g. bank_transfer, cash, cheque):', 'bank_transfer');
+            if (method === null) return;
+            const note = prompt('Optional note (reference number, date, etc.):', '');
+            if (note === null) return;
+            if (!confirm('Mark this booking (and any group siblings) as PAID? This stops the chase and records a ledger row.')) return;
+            try {
+                const r = await fetch(`/api/admin/bookings/${bookingId}/mark-paid-offline`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ method: method.trim() || 'offline', note: note.trim() })
+                });
+                const data = await r.json();
+                if (!data.success) { showNotification(`⚠ ${data.error || 'Failed'}`, 'error'); return; }
+                showNotification(`✅ Marked ${data.updated} booking(s) paid offline${data.group ? ' (group)' : ''}. Chase stopped.`, 'success');
+                if (typeof loadBookingsView === 'function') setTimeout(loadBookingsView, 500);
+            } catch (e) { showNotification('⚠ ' + e.message, 'error'); }
+        }
+
+        async function stopChasingBooking(bookingId) {
+            if (!confirm('Stop the chase reminder emails for this booking? Booking remains unpaid.')) return;
+            try {
+                const r = await fetch(`/api/admin/bookings/${bookingId}/stop-chasing`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                const data = await r.json();
+                if (!data.success) { showNotification(`⚠ ${data.error || 'Failed'}`, 'error'); return; }
+                showNotification(`✅ Chase stopped on ${data.updated} row(s).`, 'success');
+                if (typeof loadBookingsView === 'function') setTimeout(loadBookingsView, 500);
+            } catch (e) { showNotification('⚠ ' + e.message, 'error'); }
+        }
+
         async function submitAttachCard(submitBtn) {
             const errs = document.getElementById('attach-card-errors');
             const errBlock = document.getElementById('attach-card-error-block');
@@ -73645,7 +73678,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                                     ${_isOta ? `<button class="btn btn-small" onclick="takePaymentNow()" style="background:#dc2626; color:white; font-size:0.8rem;">💳 Take payment now</button>` : ''}
                                     <button class="btn btn-small" onclick="openAttachCardModal(${b.id}, ${b.property_id})" style="background:#059669; color:white; font-size:0.8rem;">🔄 Replace card</button>
-                                    <button class="btn btn-small" onclick="sendCardCaptureLink(${b.id})" style="background:#0ea5e9; color:white; font-size:0.8rem;">📧 ${_isOta ? 'Email guest for card' : 'Send capture link to guest'}</button>
+                                    <button class="btn btn-small" onclick="sendCardCaptureLink(${b.id})" style="background:#0ea5e9; color:white; font-size:0.8rem;">📧 ${_isOta ? 'Email guest for card' : 'Send capture link to guest'}${b.group_booking_id ? ' (Group)' : ''}</button>
                                 </div>
                             </div>
                         `;
@@ -73674,8 +73707,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <div style="font-size:0.8rem; color:#64748b; margin-bottom:0.75rem;">Balance won't auto-charge until a card is attached. Take the card yourself, or email the guest a secure link so they add it on their device.</div>
                                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                                     <button class="btn btn-small" onclick="openAttachCardModal(${b.id}, ${b.property_id})" style="background:#059669; color:white; font-size:0.8rem;">💳 Add card myself</button>
-                                    <button class="btn btn-small" onclick="sendCardCaptureLink(${b.id})" style="background:#0ea5e9; color:white; font-size:0.8rem;">📧 Send capture link to guest</button>
+                                    <button class="btn btn-small" onclick="sendCardCaptureLink(${b.id})" style="background:#0ea5e9; color:white; font-size:0.8rem;">📧 Send capture link to guest${b.group_booking_id ? ' (Group)' : ''}</button>
+                                    ${b.payment_chase_status === 'chasing' ? `
+                                    <button class="btn btn-small" onclick="markBookingPaidOffline(${b.id})" style="background:#059669; color:white; font-size:0.8rem;">✅ Mark paid offline</button>
+                                    <button class="btn btn-small" onclick="stopChasingBooking(${b.id})" style="background:#64748b; color:white; font-size:0.8rem;">🔕 Stop chasing</button>
+                                    ` : ''}
                                 </div>
+                                ${b.payment_chase_status === 'chasing' ? `<div style="font-size:0.75rem;color:#0369a1;margin-top:0.5rem;">📨 Chase active — reminder ${b.payment_chase_send_count || 1}/5 sent${b.payment_chase_last_sent_at ? ' at ' + new Date(b.payment_chase_last_sent_at).toLocaleString() : ''}</div>` : ''}
                             </div>
                         `;
                         const takeBtn = document.getElementById('edit-booking-take-payment-btn');

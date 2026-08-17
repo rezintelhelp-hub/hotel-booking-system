@@ -2975,6 +2975,14 @@ async function runMigrations() {
       // the VCC. Store the Channex value as source of truth for the
       // Expedia VCC auto-charge cron.
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS ota_charge_amount_minor INTEGER`).catch(() => {});
+      // 2026-08-17 — chase-until-paid capture link. Set to 'chasing' by
+      // the admin send-card-capture-link endpoint; cron re-sends every
+      // 48h up to 5 times, then flips to 'stopped'. Auto-transitions to
+      // 'paid' when the payment lands, or 'stopped' if past arrival.
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_chase_status VARCHAR(16) DEFAULT 'none'`).catch(() => {});
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_chase_started_at TIMESTAMP`).catch(() => {});
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_chase_last_sent_at TIMESTAMP`).catch(() => {});
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_chase_send_count INTEGER DEFAULT 0`).catch(() => {});
       console.log('✅ Property Stripe keys columns ensured');
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
@@ -77900,13 +77908,42 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
     const bookingId = parseInt(req.params.id, 10);
     if (!bookingId) return res.json({ success: false, error: 'Invalid booking id' });
 
+    // Group-aware pivot — if this booking is part of a group_booking_id,
+    // send the link to the LEADER (MIN(id) in the group), not the sibling
+    // Steve clicked. Also sum the balance across the whole group so the
+    // email quotes the group total (£1,400) not one room's £350.
+    const initial = await pool.query(
+      `SELECT id, group_booking_id FROM bookings WHERE id = $1`,
+      [bookingId]
+    );
+    if (!initial.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    const groupId = initial.rows[0].group_booking_id;
+    let effectiveBookingId = bookingId;
+    let groupTotalBalance = null;
+    let groupSize = 1;
+    if (groupId) {
+      const groupRows = await pool.query(
+        `SELECT id, COALESCE(balance_amount, GREATEST(grand_total - COALESCE(deposit_paid, 0), 0)) AS bal
+           FROM bookings WHERE group_booking_id = $1 ORDER BY id ASC`,
+        [groupId]
+      );
+      if (groupRows.rows.length > 0) {
+        effectiveBookingId = groupRows.rows[0].id; // leader = MIN(id)
+        groupTotalBalance = groupRows.rows.reduce((s, r) => s + parseFloat(r.bal || 0), 0);
+        groupSize = groupRows.rows.length;
+      }
+    }
+
     const bk = await pool.query(
       `SELECT b.id, b.guest_id, b.guest_email, b.guest_first_name,
               b.arrival_date, b.balance_amount, b.currency,
-              p.name AS property_name, p.account_id
-         FROM bookings b LEFT JOIN properties p ON p.id = b.property_id
+              p.name AS property_name, p.account_id, p.contact_email AS property_contact_email,
+              a.reply_to_email AS account_reply_to, a.email AS account_email
+         FROM bookings b
+         LEFT JOIN properties p ON p.id = b.property_id
+         LEFT JOIN accounts a ON a.id = p.account_id
         WHERE b.id = $1`,
-      [bookingId]
+      [effectiveBookingId]
     );
     if (!bk.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
     const booking = bk.rows[0];
@@ -77941,8 +77978,9 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
     }
 
     const currency = booking.currency || 'GBP';
-    const balance = parseFloat(booking.balance_amount || 0).toFixed(2);
+    const balance = (groupTotalBalance != null ? groupTotalBalance : parseFloat(booking.balance_amount || 0)).toFixed(2);
     const propertyName = booking.property_name || 'your stay';
+    const isGroup = groupSize > 1;
 
     // Optional personal note from the owner. Escape HTML to prevent
     // injection, then convert newlines to <br> so multi-line notes
@@ -77955,31 +77993,52 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
           .replace(/\n/g, '<br>')}</blockquote>`
       : '';
 
-    // Two email variants: default "please add your card" and a
-    // charge-failed variant triggered by the admin UI after a manual
-    // charge decline. The charge-failed copy tells the guest their
-    // original card was declined and to add a fresh one.
+    // Three email variants:
+    //   - charge-failed: card was declined, ask for a fresh card
+    //   - group confirm: group booking with the "in order to confirm your
+    //                    booking" copy Steve requested; quotes group total
+    //   - default: single booking, "please add your card" copy
     const isChargeFailed = String(req.body?.context || '') === 'charge_failed';
     const subject = isChargeFailed
       ? `Payment issue for your stay at ${propertyName} — please add a fresh card`
-      : `Payment details for your stay at ${propertyName}`;
+      : (isGroup
+          ? `Please confirm your booking at ${propertyName}`
+          : `Payment details for your stay at ${propertyName}`);
     const intro = isChargeFailed
       ? `<p>We tried to take the payment of <strong>${currency} ${balance}</strong> for your stay at <strong>${propertyName}</strong>, but your card was declined by your bank.</p>
          <p>Please add a fresh card below so we can complete the payment. This is often just your bank blocking an online charge — a new card, or the same one after authorising with your bank, will usually work.</p>`
-      : `<p>Please add your card details for your upcoming stay at <strong>${propertyName}</strong>.</p>
-         <p>The balance of <strong>${currency} ${balance}</strong> will be charged before your arrival — no charge today.</p>`;
-    const buttonLabel = isChargeFailed ? '💳 Add a fresh card' : '💳 Add my card';
+      : (isGroup
+          ? `<p>In order to confirm your booking of <strong>${groupSize} rooms</strong> at <strong>${propertyName}</strong>, could you please follow this link to enter your credit card details.</p>
+             <p>The total of <strong>${currency} ${balance}</strong> will be charged to confirm your booking.</p>`
+          : `<p>Please add your card details for your upcoming stay at <strong>${propertyName}</strong>.</p>
+             <p>The balance of <strong>${currency} ${balance}</strong> will be charged before your arrival — no charge today.</p>`);
+    const buttonLabel = isChargeFailed
+      ? '💳 Add a fresh card'
+      : (isGroup ? '💳 Enter card to confirm booking' : '💳 Add my card');
+    const signOff = `<p style="margin-top:32px;">Regards,<br>Bookings Manager<br><strong>${propertyName}</strong></p>`;
+
+    // "Already paid another way?" — mailto link to the property's booking
+    // team so the guest can self-serve out of the chase. Falls through:
+    // properties.contact_email → accounts.reply_to_email → accounts.email.
+    const bookingsTeamEmail = booking.property_contact_email
+                           || booking.account_reply_to
+                           || booking.account_email
+                           || null;
+    const alreadyPaidBlock = bookingsTeamEmail
+      ? `<p style="font-size:13px;color:#666;margin-top:20px;">If you have already paid another way, please <a href="mailto:${bookingsTeamEmail}?subject=${encodeURIComponent('Booking payment already made — ' + propertyName)}&body=${encodeURIComponent('Hi,\n\nI have already paid for my booking at ' + propertyName + ' by another method. Please stop the reminder emails.\n\nGuest: ' + (booking.guest_first_name || '') + '\nBooking reference: GAS-' + booking.id + '\n\nThanks.')}" style="color:#0ea5e9;">click here to contact the booking team</a>.</p>`
+      : '';
 
     const result = await sendEmail({
       to: booking.guest_email,
       subject,
       html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
-        <h2>Hi ${booking.guest_first_name || 'there'},</h2>
+        <p>Dear ${booking.guest_first_name || 'Guest'},</p>
         ${intro}
         ${noteHtml}
         <p style="margin: 24px 0;"><a href="${captureUrl}" style="display:inline-block;background:#059669;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:500;">${buttonLabel}</a></p>
         <p style="color:#666;font-size:13px;">Your card details go directly to our secure payment processor — the property never sees or stores your card number. This link is private to you and expires in 7 days.</p>
-        <p style="color:#666;font-size:13px;">If you didn't request this, it's safe to ignore.</p>
+        ${alreadyPaidBlock}
+        ${signOff}
       </body></html>`,
       context: {
         guestId: booking.guest_id,
@@ -77990,9 +78049,123 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
     });
 
     if (!result.success) return res.status(502).json({ success: false, error: result.error });
+
+    // Start (or bump) the chase — sets state on the leader row + all group
+    // siblings so the chase cron picks them up 48h later. On group bookings
+    // we update all rows so the chase's exit conditions (payment_status
+    // becomes paid, or past arrival) apply uniformly.
+    try {
+      await pool.query(
+        `UPDATE bookings
+            SET payment_chase_status      = 'chasing',
+                payment_chase_started_at  = COALESCE(payment_chase_started_at, NOW()),
+                payment_chase_last_sent_at = NOW(),
+                payment_chase_send_count  = COALESCE(payment_chase_send_count, 0) + 1
+          WHERE id = $1
+             OR (group_booking_id IS NOT NULL
+                 AND group_booking_id = (SELECT group_booking_id FROM bookings WHERE id = $1))`,
+        [booking.id]
+      );
+    } catch (chaseErr) {
+      console.warn('[send-card-capture-link] chase state update failed:', chaseErr.message);
+    }
+
     res.json({ success: true, sent_to: booking.guest_email, expires_days: 7 });
   } catch (err) {
     console.error('send-card-capture-link error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/bookings/:id/mark-paid-offline — Steve 2026-08-17.
+// Client says the guest paid another way (bank transfer, cash, etc.).
+// Stops the chase, marks payment_status=paid, records a ledger row.
+// For groups, applies to all sibling rows in one call.
+app.post('/api/admin/bookings/:id/mark-paid-offline', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    const bookingId = parseInt(req.params.id, 10);
+    if (!bookingId) return res.json({ success: false, error: 'Invalid booking id' });
+    const method = String(req.body?.method || 'offline').slice(0, 32);
+    const note = String(req.body?.note || '').slice(0, 500);
+
+    const bkQ = await pool.query(
+      `SELECT b.id, b.group_booking_id, b.currency, b.balance_amount, b.grand_total, b.deposit_paid,
+              p.account_id
+         FROM bookings b LEFT JOIN properties p ON p.id = b.property_id
+        WHERE b.id = $1`, [bookingId]);
+    if (!bkQ.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    if (!isMaster && bkQ.rows[0].account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    // Rows to update — this booking plus any group siblings.
+    const rowsQ = await pool.query(
+      `SELECT id, currency, balance_amount, grand_total, deposit_paid
+         FROM bookings
+        WHERE id = $1
+           OR (group_booking_id IS NOT NULL
+               AND group_booking_id = (SELECT group_booking_id FROM bookings WHERE id = $1))`, [bookingId]);
+
+    let updated = 0;
+    for (const r of rowsQ.rows) {
+      const outstanding = parseFloat(r.balance_amount != null ? r.balance_amount : (r.grand_total - (r.deposit_paid || 0)));
+      await pool.query(`
+        UPDATE bookings
+           SET payment_status = 'paid',
+               balance_amount = 0,
+               balance_paid_at = COALESCE(balance_paid_at, NOW()),
+               deposit_paid   = COALESCE(deposit_paid, 0) + $2,
+               payment_chase_status = 'paid',
+               updated_at = NOW()
+         WHERE id = $1
+      `, [r.id, Math.max(0, outstanding)]);
+      if (outstanding > 0) {
+        await pool.query(`
+          INSERT INTO payment_transactions (booking_id, account_id, transaction_type, amount, currency,
+            payment_gateway, status, payment_method_type, completed_at, description)
+          VALUES ($1, $2, 'balance', $3, $4, $5, 'completed', $5, NOW(), $6)
+          ON CONFLICT DO NOTHING
+        `, [r.id, bkQ.rows[0].account_id, outstanding, (r.currency || 'GBP').toUpperCase(), method, `Marked paid offline${note ? ' — ' + note : ''}`]);
+      }
+      updated++;
+    }
+    res.json({ success: true, updated, group: rowsQ.rows.length > 1 });
+  } catch (err) {
+    console.error('mark-paid-offline error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/bookings/:id/stop-chasing — silence the reminder cron
+// without marking paid. For groups, applies to all sibling rows.
+app.post('/api/admin/bookings/:id/stop-chasing', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    const bookingId = parseInt(req.params.id, 10);
+    if (!bookingId) return res.json({ success: false, error: 'Invalid booking id' });
+
+    const own = await pool.query(
+      `SELECT p.account_id FROM bookings b LEFT JOIN properties p ON p.id = b.property_id WHERE b.id = $1`, [bookingId]);
+    if (!own.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    if (!isMaster && own.rows[0].account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    const r = await pool.query(`
+      UPDATE bookings SET payment_chase_status = 'stopped', updated_at = NOW()
+       WHERE (id = $1
+              OR (group_booking_id IS NOT NULL
+                  AND group_booking_id = (SELECT group_booking_id FROM bookings WHERE id = $1)))
+         AND payment_chase_status = 'chasing'
+    `, [bookingId]);
+    res.json({ success: true, updated: r.rowCount });
+  } catch (err) {
+    console.error('stop-chasing error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -78196,6 +78369,10 @@ app.post('/api/public/booking/capture-card', async (req, res) => {
         return res.json({ success: false, error: firstErr.detail || 'Could not save card', debug: saveBody?.errors });
       }
       const card = saveBody.card;
+      // Group-aware propagation — if the leader is in a group, copy the
+      // Square card onto every sibling row too. Each row keeps its own
+      // balance, so the auto-charge cron will fire per row separately.
+      // Without this, siblings would have no card and stay unpaid.
       await pool.query(
         `UPDATE bookings
             SET square_card_id       = $1,
@@ -78204,7 +78381,9 @@ app.post('/api/public/booking/capture-card', async (req, res) => {
                 card_last4           = COALESCE($4, card_last4),
                 payment_method       = 'square',
                 updated_at           = NOW()
-          WHERE id = $5`,
+          WHERE id = $5
+             OR (group_booking_id IS NOT NULL
+                 AND group_booking_id = (SELECT group_booking_id FROM bookings WHERE id = $5))`,
         [card.id, squareCustomerId, loc.id, card.last_4 || null, bookingId]
       );
       return res.json({
@@ -78246,6 +78425,10 @@ app.post('/api/public/booking/capture-card', async (req, res) => {
       });
     }
 
+    // Group-aware propagation — if this booking is in a group, copy the
+    // Stripe card onto every sibling too so each row's auto-charge fires
+    // separately with its own balance. Without this, siblings stay
+    // unpaid because only the leader has the card on file.
     await pool.query(
       `UPDATE bookings
           SET stripe_customer_id       = COALESCE($1, stripe_customer_id),
@@ -78253,7 +78436,9 @@ app.post('/api/public/booking/capture-card', async (req, res) => {
               stripe_setup_intent_id   = COALESCE($3, stripe_setup_intent_id),
               payment_method           = 'card',
               updated_at               = NOW()
-        WHERE id = $4`,
+        WHERE id = $4
+           OR (group_booking_id IS NOT NULL
+               AND group_booking_id = (SELECT group_booking_id FROM bookings WHERE id = $4))`,
       [storeResult.customer_id, storeResult.payment_method_id, storeResult.setup_intent_id, bookingId]
     );
 
@@ -160379,6 +160564,170 @@ async function _processAutoChargeExpediaVCCBranch() {
     }
 }
 
+// Chase-until-paid reminder cron. Steve 2026-08-17. Runs hourly; each
+// chased booking re-sends every 48h up to 5 times, then auto-stops.
+// Started manually by the admin "Send capture link" endpoint. Auto-stops
+// silently when payment lands or the booking's arrival passes.
+//
+// Group bookings: only the LEADER (MIN(id) per group_booking_id) is picked
+// so the guest gets ONE reminder for the whole group — not one per room.
+// The send-endpoint already sets chase state on all group rows so the
+// silent stop conditions (paid, past arrival) apply uniformly.
+async function processPaymentChaseReminders() {
+    if (String(process.env.PAYMENT_CHASE_PAUSED || '').toLowerCase() === 'true') {
+        console.log('[CHASE] paused via PAYMENT_CHASE_PAUSED env var');
+        return;
+    }
+
+    // Silent auto-stops before we look for due rows.
+    try {
+        await pool.query(`
+            UPDATE bookings
+               SET payment_chase_status = 'paid'
+             WHERE payment_chase_status = 'chasing'
+               AND payment_status IN ('paid','deposit_paid')
+        `);
+        await pool.query(`
+            UPDATE bookings
+               SET payment_chase_status = 'stopped'
+             WHERE payment_chase_status = 'chasing'
+               AND arrival_date <= CURRENT_DATE
+        `);
+    } catch (e) {
+        console.warn('[CHASE] auto-stop update failed:', e.message);
+    }
+
+    // Due rows — leader-only for groups; cap at 5 sends.
+    let due;
+    try {
+        due = await pool.query(`
+            SELECT b.id, b.group_booking_id, b.guest_id, b.guest_email, b.guest_first_name,
+                   b.currency, b.arrival_date, b.property_id, b.balance_amount,
+                   b.grand_total, b.deposit_paid,
+                   b.payment_chase_send_count
+              FROM bookings b
+             WHERE b.payment_chase_status = 'chasing'
+               AND COALESCE(b.payment_chase_send_count, 0) < 5
+               AND (b.payment_chase_last_sent_at IS NULL
+                    OR NOW() - b.payment_chase_last_sent_at >= INTERVAL '48 hours')
+               AND (b.group_booking_id IS NULL
+                    OR b.id = (SELECT MIN(id) FROM bookings WHERE group_booking_id = b.group_booking_id))
+             LIMIT 200
+        `);
+    } catch (e) {
+        console.error('[CHASE] due-query failed:', e.message);
+        return;
+    }
+
+    if (due.rows.length === 0) return;
+    console.log(`[CHASE] ${due.rows.length} due reminder(s)`);
+
+    for (const b of due.rows) {
+        try {
+            if (!b.guest_id || !b.guest_email) {
+                await pool.query(`UPDATE bookings SET payment_chase_status='stopped' WHERE id=$1`, [b.id]);
+                continue;
+            }
+
+            // Extra context — property + account for signature / mailto
+            const ctxQ = await pool.query(
+                `SELECT p.name AS property_name, p.contact_email AS property_contact_email,
+                        p.account_id, a.reply_to_email AS account_reply_to, a.email AS account_email
+                   FROM properties p LEFT JOIN accounts a ON a.id = p.account_id
+                  WHERE p.id = $1`, [b.property_id]);
+            const ctx = ctxQ.rows[0] || {};
+
+            // Group total (same shape as the send endpoint)
+            let balance = parseFloat(b.balance_amount || 0);
+            let groupSize = 1;
+            if (b.group_booking_id) {
+                const gr = await pool.query(
+                    `SELECT COALESCE(balance_amount, GREATEST(grand_total - COALESCE(deposit_paid, 0), 0)) AS bal
+                       FROM bookings WHERE group_booking_id = $1`, [b.group_booking_id]);
+                if (gr.rows.length > 0) {
+                    balance = gr.rows.reduce((s, r) => s + parseFloat(r.bal || 0), 0);
+                    groupSize = gr.rows.length;
+                }
+            }
+            balance = balance.toFixed(2);
+            const isGroup = groupSize > 1;
+            const currency = b.currency || 'GBP';
+            const propertyName = ctx.property_name || 'your stay';
+            const sendCount = (b.payment_chase_send_count || 0) + 1;
+
+            // Token
+            const guestQ = await pool.query('SELECT magic_link_secret FROM guests WHERE id = $1', [b.guest_id]);
+            if (!guestQ.rows[0]) {
+                await pool.query(`UPDATE bookings SET payment_chase_status='stopped' WHERE id=$1`, [b.id]);
+                continue;
+            }
+            const token = signGuestToken({
+                guestId: b.guest_id,
+                bookingId: b.id,
+                purpose: GUEST_TOKEN_PURPOSES.CAPTURE_CARD,
+                secret: guestQ.rows[0].magic_link_secret
+            });
+            const baseUrl = process.env.GAS_API_BASE_URL || 'https://admin.gas.travel';
+            const captureUrl = `${baseUrl}/card-capture.html#${token}`;
+
+            const bookingsTeamEmail = ctx.property_contact_email || ctx.account_reply_to || ctx.account_email || null;
+            const alreadyPaidBlock = bookingsTeamEmail
+              ? `<p style="font-size:13px;color:#666;margin-top:20px;">If you have already paid another way, please <a href="mailto:${bookingsTeamEmail}?subject=${encodeURIComponent('Booking payment already made — ' + propertyName)}&body=${encodeURIComponent('Hi,\n\nI have already paid for my booking at ' + propertyName + ' by another method. Please stop the reminder emails.\n\nGuest: ' + (b.guest_first_name || '') + '\nBooking reference: GAS-' + b.id + '\n\nThanks.')}" style="color:#0ea5e9;">click here to contact the booking team</a>.</p>`
+              : '';
+            const intro = isGroup
+              ? `<p>This is a friendly reminder — in order to confirm your booking of <strong>${groupSize} rooms</strong> at <strong>${propertyName}</strong>, could you please follow this link to enter your credit card details.</p>
+                 <p>The total of <strong>${currency} ${balance}</strong> will be charged to confirm your booking.</p>`
+              : `<p>This is a friendly reminder — please add your card details for your upcoming stay at <strong>${propertyName}</strong>.</p>
+                 <p>The balance of <strong>${currency} ${balance}</strong> will be charged before your arrival.</p>`;
+            const subject = isGroup
+              ? `Reminder: please confirm your booking at ${propertyName}`
+              : `Reminder: payment details for your stay at ${propertyName}`;
+            const buttonLabel = isGroup ? '💳 Enter card to confirm booking' : '💳 Add my card';
+            const signOff = `<p style="margin-top:32px;">Regards,<br>Bookings Manager<br><strong>${propertyName}</strong></p>`;
+
+            const emailR = await sendEmail({
+                to: b.guest_email,
+                subject,
+                html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
+                    <p>Dear ${b.guest_first_name || 'Guest'},</p>
+                    ${intro}
+                    <p style="margin: 24px 0;"><a href="${captureUrl}" style="display:inline-block;background:#059669;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:500;">${buttonLabel}</a></p>
+                    <p style="color:#666;font-size:13px;">Your card details go directly to our secure payment processor — the property never sees or stores your card number.</p>
+                    ${alreadyPaidBlock}
+                    ${signOff}
+                    </body></html>`,
+                context: {
+                    guestId: b.guest_id,
+                    bookingId: b.id,
+                    eventType: 'card_capture_link_chase',
+                    accountId: ctx.account_id
+                }
+            });
+            if (!emailR.success) {
+                console.warn(`[CHASE] send failed booking=${b.id}:`, emailR.error);
+                continue;
+            }
+
+            // Bump chase state on the leader + all group siblings so
+            // send_count caps uniformly across the group.
+            await pool.query(`
+                UPDATE bookings
+                   SET payment_chase_last_sent_at = NOW(),
+                       payment_chase_send_count   = COALESCE(payment_chase_send_count, 0) + 1,
+                       payment_chase_status       = CASE
+                           WHEN COALESCE(payment_chase_send_count, 0) + 1 >= 5 THEN 'stopped'
+                           ELSE payment_chase_status END
+                 WHERE id = $1
+                    OR (group_booking_id IS NOT NULL
+                        AND group_booking_id = (SELECT group_booking_id FROM bookings WHERE id = $1))
+            `, [b.id]);
+            console.log(`[CHASE] sent ${sendCount}/5 to ${b.guest_email} for booking ${b.id}${isGroup ? ` (group of ${groupSize})` : ''}`);
+        } catch (e) {
+            console.error(`[CHASE] booking ${b.id} failed:`, e.message);
+        }
+    }
+}
+
 async function processAutoChargePayments() {
     // Emergency kill switch — Steve 2026-08-02. Set Railway env var
     // AUTO_CHARGE_PAUSED=true to halt auto-charging estate-wide instantly.
@@ -163890,6 +164239,7 @@ app.get('/api/admin/hostfully/writeback-health', async (req, res) => {
 function fireDueCrons() {
     runCronIfDue('processBalanceChargeWarnings', 60 * 60, processBalanceChargeWarnings).catch(e => console.error('[CRON wrapper warnings]', e));
     runCronIfDue('processAutoChargePayments', 60 * 60, processAutoChargePayments).catch(e => console.error('[CRON wrapper auto-charge]', e));
+    runCronIfDue('processPaymentChaseReminders', 60 * 60, processPaymentChaseReminders).catch(e => console.error('[CRON wrapper chase]', e));
     runCronIfDue('processScheduledTierPayments', 60 * 60, processScheduledTierPayments).catch(e => console.error('[CRON wrapper tier]', e));
     runCronIfDue('processDailyPaymentDigest', 24 * 60 * 60, processDailyPaymentDigest).catch(e => console.error('[CRON wrapper digest]', e));
     runCronIfDue('processChannexOutbox', 60, processChannexOutbox).catch(e => console.error('[CRON wrapper channex-outbox]', e));
