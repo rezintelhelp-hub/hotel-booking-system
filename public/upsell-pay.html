@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Add-on Payment — Secure</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 480px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #fff;
+            padding: 32px 32px 24px;
+        }
+        .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
+        .header p { margin: 6px 0 0; font-size: 14px; opacity: 0.9; }
+        .body { padding: 24px 32px 32px; }
+        .info-block {
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 20px;
+        }
+        .info-block .label {
+            font-size: 12px;
+            color: #065f46;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin: 0 0 4px;
+            font-weight: 600;
+        }
+        .info-block .value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #064e3b;
+            margin: 0;
+        }
+        .info-block .sub {
+            font-size: 13px;
+            color: #065f46;
+            margin: 4px 0 0;
+        }
+        label.field-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            margin: 0 0 6px;
+        }
+        #card-element, #sq-card-container {
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #fff;
+            min-height: 48px;
+        }
+        .error { color: #dc2626; font-size: 13px; margin: 8px 0 0; }
+        button.primary {
+            width: 100%;
+            padding: 14px;
+            background: #059669;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button.primary:disabled { background: #94a3b8; cursor: not-allowed; }
+        .footer-note { font-size: 12px; color: #64748b; text-align: center; margin-top: 16px; line-height: 1.5; }
+        .success, .fatal { padding: 24px; text-align: center; }
+        .success { background: #ecfdf5; }
+        .fatal { background: #fef2f2; color: #991b1b; }
+        .success .icon, .fatal .icon { font-size: 42px; margin-bottom: 12px; }
+        .loading { text-align: center; padding: 40px 20px; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💳 Add-on payment</h1>
+            <p id="header-subtitle">Secure card charge</p>
+        </div>
+        <div id="loading" class="loading">Verifying your link…</div>
+        <div id="fatal" class="fatal" style="display:none;">
+            <div class="icon">⚠️</div>
+            <p id="fatal-text">This link is invalid or has expired.</p>
+        </div>
+        <div id="success" class="success" style="display:none;">
+            <div class="icon">✅</div>
+            <h2 style="margin:0; color:#065f46;">Payment received</h2>
+            <p id="success-text" style="color:#065f46; margin:8px 0 0;">Thanks — your add-on has been confirmed. You can close this window.</p>
+        </div>
+        <div id="already-paid" class="success" style="display:none; background:#fef3c7; color:#92400e;">
+            <div class="icon">ℹ️</div>
+            <h2 style="margin:0;">Already paid</h2>
+            <p style="margin:8px 0 0;">This add-on has already been paid. No action needed.</p>
+        </div>
+        <div id="form-wrap" class="body" style="display:none;">
+            <div id="info" class="info-block"></div>
+            <form id="card-form">
+                <label class="field-label">Card details</label>
+                <div id="card-element" style="display:none;"></div>
+                <div id="sq-card-container" style="display:none;"></div>
+                <p id="card-errors" class="error"></p>
+                <button type="submit" class="primary" id="submit-btn">Pay now</button>
+            </form>
+            <p class="footer-note" id="footer-note"></p>
+        </div>
+    </div>
+    <script>
+        const token = window.location.hash.slice(1);
+        const el = {
+            loading: document.getElementById('loading'),
+            fatal: document.getElementById('fatal'),
+            fatalText: document.getElementById('fatal-text'),
+            success: document.getElementById('success'),
+            successText: document.getElementById('success-text'),
+            alreadyPaid: document.getElementById('already-paid'),
+            formWrap: document.getElementById('form-wrap'),
+            info: document.getElementById('info'),
+            cardErrors: document.getElementById('card-errors'),
+            submitBtn: document.getElementById('submit-btn'),
+            form: document.getElementById('card-form'),
+            headerSubtitle: document.getElementById('header-subtitle'),
+            footerNote: document.getElementById('footer-note'),
+        };
+        function showFatal(msg) {
+            el.loading.style.display = 'none';
+            el.fatal.style.display = 'block';
+            if (msg) el.fatalText.textContent = msg;
+        }
+        function showSuccess(msg) {
+            el.loading.style.display = 'none';
+            el.formWrap.style.display = 'none';
+            el.success.style.display = 'block';
+            if (msg) el.successText.textContent = msg;
+        }
+        let gateway = null;
+        let stripe = null;
+        let cardElement = null;
+        let sqCard = null;
+        let payLabel = 'Pay now';
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = resolve;
+                s.onerror = () => reject(new Error('Failed to load ' + src));
+                document.head.appendChild(s);
+            });
+        }
+
+        (async () => {
+            if (!token) return showFatal('This link is missing its access token.');
+            try {
+                const r = await fetch('/api/public/booking/upsell-pay-info?token=' + encodeURIComponent(token));
+                const data = await r.json();
+                if (!data.success) return showFatal(data.error || 'This link is invalid.');
+                if (data.status === 'paid') {
+                    el.loading.style.display = 'none';
+                    el.alreadyPaid.style.display = 'block';
+                    return;
+                }
+                gateway = data.gateway;
+                const currency = data.currency || 'GBP';
+                const amountFmt = parseFloat(data.amount).toFixed(2);
+                payLabel = 'Pay ' + currency + ' ' + amountFmt;
+                el.submitBtn.textContent = payLabel;
+                el.info.innerHTML = `
+                    <p class="label">${data.property_name || 'Your stay'}</p>
+                    <p class="value">${currency} ${amountFmt}</p>
+                    <p class="sub">${data.description}</p>
+                `;
+
+                if (gateway === 'square') {
+                    const s = data.square || {};
+                    const sdkUrl = s.environment === 'production'
+                        ? 'https://web.squarecdn.com/v1/square.js'
+                        : 'https://sandbox.web.squarecdn.com/v1/square.js';
+                    await loadScript(sdkUrl);
+                    const payments = window.Square.payments(s.application_id, s.location_id);
+                    sqCard = await payments.card();
+                    await sqCard.attach('#sq-card-container');
+                    document.getElementById('sq-card-container').style.display = 'block';
+                    el.headerSubtitle.textContent = 'Secure payment via Square';
+                    el.footerNote.innerHTML = 'Your card details go directly to Square.<br>The property never sees your card number.';
+                } else {
+                    await loadScript('https://js.stripe.com/v3/');
+                    const s = data.stripe || {};
+                    stripe = Stripe(s.publishable_key);
+                    const elements = stripe.elements();
+                    cardElement = elements.create('card', {
+                        hidePostalCode: false,
+                        style: { base: { fontSize: '16px', color: '#0f172a' } }
+                    });
+                    cardElement.mount('#card-element');
+                    document.getElementById('card-element').style.display = 'block';
+                    cardElement.on('change', ev => {
+                        el.cardErrors.textContent = (ev && ev.error) ? ev.error.message : '';
+                    });
+                    el.headerSubtitle.textContent = 'Secure payment via Stripe';
+                    el.footerNote.innerHTML = 'Your card details go directly to Stripe.<br>The property never sees your card number.';
+                }
+                el.loading.style.display = 'none';
+                el.formWrap.style.display = 'block';
+            } catch (e) {
+                console.error(e);
+                showFatal('We could not load the payment form. Please try again in a minute.');
+            }
+        })();
+
+        el.form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            el.cardErrors.textContent = '';
+            el.submitBtn.disabled = true;
+            el.submitBtn.textContent = 'Charging…';
+            const reset = () => { el.submitBtn.disabled = false; el.submitBtn.textContent = payLabel; };
+
+            try {
+                let body;
+                if (gateway === 'square') {
+                    if (!sqCard) { el.cardErrors.textContent = 'Card widget not ready — refresh and try again.'; reset(); return; }
+                    const result = await sqCard.tokenize();
+                    if (result.status !== 'OK' || !result.token) {
+                        const detail = result.errors?.[0]?.message || 'Could not accept card.';
+                        el.cardErrors.textContent = detail; reset(); return;
+                    }
+                    body = { token, square_source_id: result.token, square_verification_token: result.verificationToken || undefined };
+                } else {
+                    if (!stripe || !cardElement) return;
+                    const { paymentMethod, error: pmErr } = await stripe.createPaymentMethod({ type: 'card', card: cardElement });
+                    if (pmErr) { el.cardErrors.textContent = pmErr.message || 'Could not accept card.'; reset(); return; }
+                    body = { token, payment_method_id: paymentMethod.id };
+                }
+                const r = await fetch('/api/public/booking/upsell-pay', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await r.json();
+                if (!data.success) {
+                    el.cardErrors.textContent = data.error || 'Payment declined.';
+                    reset(); return;
+                }
+                showSuccess('Thanks — we\'ve charged ' + data.currency + ' ' + parseFloat(data.amount).toFixed(2) + ' for ' + data.description + '. Your add-on is confirmed.');
+            } catch (err) {
+                console.error(err);
+                el.cardErrors.textContent = err.message || 'Something went wrong.';
+                reset();
+            }
+        });
+    </script>
+</body>
+</html>

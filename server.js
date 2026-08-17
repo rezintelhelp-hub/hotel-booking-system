@@ -2983,6 +2983,28 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_chase_started_at TIMESTAMP`).catch(() => {});
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_chase_last_sent_at TIMESTAMP`).catch(() => {});
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_chase_send_count INTEGER DEFAULT 0`).catch(() => {});
+      // 2026-08-17 — Upsell payment requests. One row per "please charge
+      // your card £X for [breakfast]" link sent to a guest. Amount stays
+      // server-side; the guest link only carries the request id, so the
+      // guest can't tamper with the amount by editing the URL. On
+      // successful charge, status→paid and a payment_transactions row is
+      // written (transaction_type='upsell') + booking_extras row.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS booking_upsell_requests (
+          id             SERIAL PRIMARY KEY,
+          booking_id     INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+          guest_id       INTEGER NOT NULL,
+          description    TEXT NOT NULL,
+          amount         NUMERIC(10,2) NOT NULL,
+          currency       VARCHAR(3) NOT NULL DEFAULT 'GBP',
+          status         VARCHAR(20) NOT NULL DEFAULT 'pending',
+          payment_transaction_id INTEGER,
+          created_by     INTEGER,
+          created_at     TIMESTAMP DEFAULT NOW(),
+          paid_at        TIMESTAMP
+        )
+      `).catch(() => {});
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_upsell_requests_booking ON booking_upsell_requests(booking_id)`).catch(() => {});
       console.log('✅ Property Stripe keys columns ensured');
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
@@ -78504,6 +78526,298 @@ app.get('/api/admin/properties/:id/stripe-client-config', async (req, res) => {
   }
 });
 
+// POST /api/admin/bookings/:id/send-upsell-link — Steve 2026-08-17.
+// Property staff emails the guest a link to pay for an add-on (breakfast,
+// late checkout, spa etc.). Fresh card entry required — the on-file card
+// might be an OTA VCC that only covers the room amount. Charge lands on
+// the property's own Stripe/Square, bypassing the OTA channel entirely.
+app.post('/api/admin/bookings/:id/send-upsell-link', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    const bookingId = parseInt(req.params.id, 10);
+    if (!bookingId) return res.json({ success: false, error: 'Invalid booking id' });
+
+    const description = String(req.body?.description || '').trim();
+    const amountRaw = parseFloat(req.body?.amount);
+    if (!description) return res.json({ success: false, error: 'Description required (e.g. "Breakfast × 2")' });
+    if (!amountRaw || amountRaw <= 0) return res.json({ success: false, error: 'Amount must be greater than 0' });
+    if (amountRaw > 5000) return res.json({ success: false, error: 'Amount too high — split into multiple upsells if needed' });
+
+    const bk = await pool.query(
+      `SELECT b.id, b.guest_id, b.guest_email, b.guest_direct_email, b.guest_first_name,
+              b.currency, p.name AS property_name, p.account_id, p.contact_email,
+              a.reply_to_email AS account_reply_to, a.email AS account_email
+         FROM bookings b
+         LEFT JOIN properties p ON p.id = b.property_id
+         LEFT JOIN accounts a ON a.id = p.account_id
+        WHERE b.id = $1`, [bookingId]);
+    if (!bk.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    const booking = bk.rows[0];
+    if (!isMaster && booking.account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+    if (!booking.guest_id) return res.json({ success: false, error: 'Booking is not linked to a guest yet' });
+    const sendTo = booking.guest_direct_email || booking.guest_email;
+    if (!sendTo) return res.json({ success: false, error: 'No email on booking' });
+
+    const amount = Math.round(amountRaw * 100) / 100;
+    const currency = (booking.currency || 'GBP').toUpperCase();
+
+    // Persist the request server-side so the guest URL only carries an id
+    // — amount tampering via URL edit is impossible.
+    const ins = await pool.query(
+      `INSERT INTO booking_upsell_requests (booking_id, guest_id, description, amount, currency, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [bookingId, booking.guest_id, description.slice(0, 500), amount, currency, decoded.id || null]
+    );
+    const upsellRequestId = ins.rows[0].id;
+
+    const guestRow = await pool.query('SELECT magic_link_secret FROM guests WHERE id = $1', [booking.guest_id]);
+    if (!guestRow.rows[0]) return res.json({ success: false, error: 'Guest not found' });
+    const token = signGuestToken({
+      guestId: booking.guest_id,
+      bookingId: upsellRequestId, // reuse the "b" payload slot for the upsell request id
+      purpose: GUEST_TOKEN_PURPOSES.UPSELL_PAY,
+      secret: guestRow.rows[0].magic_link_secret
+    });
+    const baseUrl = process.env.GAS_API_BASE_URL || 'https://admin.gas.travel';
+    const payUrl = `${baseUrl}/upsell-pay.html#${token}`;
+
+    if (String(req.query.preview) === '1' || req.body.preview === true) {
+      return res.json({ success: true, preview: true, pay_url: payUrl, upsell_request_id: upsellRequestId });
+    }
+
+    const propertyName = booking.property_name || 'your stay';
+    const signOff = `<p style="margin-top:32px;">Regards,<br>Bookings Manager<br><strong>${propertyName}</strong></p>`;
+    const result = await sendEmail({
+      to: sendTo,
+      subject: `Add-on for your stay at ${propertyName}: ${description}`,
+      html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
+        <p>Dear ${booking.guest_first_name || 'Guest'},</p>
+        <p>To add <strong>${description}</strong> to your booking at <strong>${propertyName}</strong>, please enter your card details below.</p>
+        <p>Your card will be charged <strong>${currency} ${amount.toFixed(2)}</strong> to confirm the add-on.</p>
+        <p style="margin: 24px 0;"><a href="${payUrl}" style="display:inline-block;background:#059669;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:500;">💳 Pay ${currency} ${amount.toFixed(2)}</a></p>
+        <p style="color:#666;font-size:13px;">Your card details go directly to our secure payment processor — the property never sees or stores your card number. This link expires in 14 days.</p>
+        ${signOff}
+        </body></html>`,
+      context: {
+        guestId: booking.guest_id,
+        bookingId: booking.id,
+        eventType: 'upsell_payment_link',
+        accountId: booking.account_id
+      }
+    });
+    if (!result.success) return res.status(502).json({ success: false, error: result.error });
+    res.json({ success: true, sent_to: sendTo, upsell_request_id: upsellRequestId, amount, currency, description });
+  } catch (err) {
+    console.error('send-upsell-link error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/public/booking/upsell-pay — verifies token, charges the guest's
+// fresh card via the property's Stripe/Square adapter, writes ledger +
+// booking_extras rows. Amount comes from the DB record, NOT the URL.
+app.post('/api/public/booking/upsell-pay', async (req, res) => {
+  try {
+    const { token, payment_method_id, square_source_id, square_verification_token } = req.body;
+    if (!token || (!payment_method_id && !square_source_id)) {
+      return res.json({ success: false, error: 'Missing token or card token' });
+    }
+    const peek = peekGuestToken(token);
+    if (!peek || !peek.ok || peek.purpose !== GUEST_TOKEN_PURPOSES.UPSELL_PAY || !peek.bookingId) {
+      return res.json({ success: false, error: 'Invalid link' });
+    }
+    const guestQ = await pool.query('SELECT magic_link_secret FROM guests WHERE id = $1', [peek.guestId]);
+    if (!guestQ.rows[0]) return res.json({ success: false, error: 'Invalid link' });
+    const verified = verifyGuestToken(token, guestQ.rows[0].magic_link_secret);
+    if (!verified || !verified.ok || verified.purpose !== GUEST_TOKEN_PURPOSES.UPSELL_PAY) {
+      return res.json({ success: false, error: 'Link expired or invalid' });
+    }
+
+    const upsellRequestId = verified.bookingId; // stored in "b" payload slot
+    const reqRow = await pool.query(
+      `SELECT ur.*, b.property_id, b.guest_email, b.guest_first_name, b.guest_last_name,
+              b.stripe_customer_id, b.square_customer_id,
+              p.account_id, a.square_status, a.square_environment
+         FROM booking_upsell_requests ur
+         JOIN bookings b ON b.id = ur.booking_id
+         LEFT JOIN properties p ON p.id = b.property_id
+         LEFT JOIN accounts a ON a.id = p.account_id
+        WHERE ur.id = $1`, [upsellRequestId]);
+    if (!reqRow.rows[0]) return res.json({ success: false, error: 'Upsell request not found' });
+    const ur = reqRow.rows[0];
+    if (ur.status !== 'pending') return res.json({ success: false, error: `This upsell has already been ${ur.status}` });
+
+    const amountMinor = Math.round(parseFloat(ur.amount) * 100);
+    const currency = (ur.currency || 'GBP').toUpperCase();
+
+    // Square path — charge directly via payments API (not stored card).
+    if (square_source_id && ur.square_status === 'active' && ur.account_id) {
+      const accessToken = await refreshSquareTokenIfNeeded(ur.account_id);
+      if (!accessToken) return res.json({ success: false, error: 'Square access token unavailable — property must reconnect Square' });
+      const loc = await getSquareLocationForAccount(ur.account_id);
+      if (!loc || !loc.id) return res.json({ success: false, error: 'Square merchant has no location configured' });
+      const sq = (ur.square_environment === 'production')
+        ? { apiBase: 'https://connect.squareup.com' }
+        : { apiBase: 'https://connect.squareupsandbox.com' };
+      const payResp = await fetch(`${sq.apiBase}/v2/payments`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'Square-Version': '2024-12-18' },
+        body: JSON.stringify({
+          idempotency_key: `upsell-${upsellRequestId}-${Date.now()}`.slice(0, 45),
+          source_id: square_source_id,
+          verification_token: square_verification_token || undefined,
+          amount_money: { amount: amountMinor, currency },
+          location_id: loc.id,
+          note: `Upsell: ${ur.description}`.slice(0, 500),
+          reference_id: `upsell-${upsellRequestId}`.slice(0, 40)
+        })
+      });
+      const payBody = await payResp.json();
+      if (!payResp.ok || payBody?.payment?.status !== 'COMPLETED') {
+        const firstErr = payBody?.errors?.[0] || {};
+        return res.json({ success: false, error: firstErr.detail || 'Payment declined' });
+      }
+      const gatewayId = payBody.payment.id;
+      const txIns = await pool.query(`
+        INSERT INTO payment_transactions (booking_id, account_id, transaction_type, amount, currency,
+          payment_gateway, gateway_transaction_id, status, payment_method_type, completed_at, description)
+        VALUES ($1, $2, 'upsell', $3, $4, 'square', $5, 'completed', 'card', NOW(), $6)
+        RETURNING id
+      `, [ur.booking_id, ur.account_id, ur.amount, currency, gatewayId, `Upsell · ${ur.description}`]);
+      await pool.query(`
+        INSERT INTO booking_extras (booking_id, source_type, source_id, name, qty, unit_price, currency, status, notes)
+        VALUES ($1, 'upsell', $2, $3, 1, $4, $5, 'paid', $6)
+      `, [ur.booking_id, String(upsellRequestId), ur.description, ur.amount, currency, `Paid via upsell link · square=${gatewayId}`]).catch(() => {});
+      await pool.query(`
+        UPDATE booking_upsell_requests SET status='paid', paid_at=NOW(), payment_transaction_id=$1 WHERE id=$2
+      `, [txIns.rows[0].id, upsellRequestId]);
+      return res.json({ success: true, amount: ur.amount, currency, description: ur.description });
+    }
+
+    // Stripe path — charge via PaymentIntent (fresh card, not saved).
+    const adapter = payments.forMethod('stripe');
+    const cfg = await adapter.loadConfig(pool, ur.property_id, _paymentHelpers);
+    if (!cfg) return res.json({ success: false, error: 'Property has no Stripe configuration' });
+    const stripe = new (require('stripe'))(cfg.credentials.secret_key || cfg.secret_key);
+    let pi;
+    try {
+      pi = await stripe.paymentIntents.create({
+        amount: amountMinor,
+        currency: currency.toLowerCase(),
+        payment_method: payment_method_id,
+        confirm: true,
+        // Present-session — the guest is on the /upsell-pay page entering
+        // a fresh card. Not off_session because we don't have prior
+        // authorisation for this specific payment method.
+        return_url: `${process.env.GAS_API_BASE_URL || 'https://admin.gas.travel'}/upsell-pay.html#done`,
+        description: `Upsell · booking ${ur.booking_id} · ${ur.description}`.slice(0, 350),
+        metadata: {
+          source: 'gas_upsell_link',
+          gas_booking_id: String(ur.booking_id),
+          gas_upsell_request_id: String(upsellRequestId)
+        }
+      }, { idempotencyKey: `upsell-${upsellRequestId}` });
+    } catch (chargeErr) {
+      return res.json({
+        success: false,
+        error: chargeErr.message,
+        code: chargeErr.code || null,
+        client_secret: chargeErr.raw?.payment_intent?.client_secret || null,
+        requires_action: chargeErr.code === 'authentication_required'
+      });
+    }
+    if (pi.status !== 'succeeded' && pi.status !== 'requires_capture') {
+      return res.json({
+        success: false,
+        error: `Payment status: ${pi.status}`,
+        client_secret: pi.client_secret,
+        requires_action: pi.status === 'requires_action'
+      });
+    }
+    const txIns = await pool.query(`
+      INSERT INTO payment_transactions (booking_id, account_id, transaction_type, amount, currency,
+        payment_gateway, gateway_transaction_id, status, payment_method_type, completed_at, description)
+      VALUES ($1, $2, 'upsell', $3, $4, 'stripe', $5, 'completed', 'card', NOW(), $6)
+      RETURNING id
+    `, [ur.booking_id, ur.account_id, ur.amount, currency, pi.id, `Upsell · ${ur.description}`]);
+    await pool.query(`
+      INSERT INTO booking_extras (booking_id, source_type, source_id, name, qty, unit_price, currency, status, notes)
+      VALUES ($1, 'upsell', $2, $3, 1, $4, $5, 'paid', $6)
+    `, [ur.booking_id, String(upsellRequestId), ur.description, ur.amount, currency, `Paid via upsell link · pi=${pi.id}`]).catch(() => {});
+    await pool.query(`
+      UPDATE booking_upsell_requests SET status='paid', paid_at=NOW(), payment_transaction_id=$1 WHERE id=$2
+    `, [txIns.rows[0].id, upsellRequestId]);
+    res.json({ success: true, amount: ur.amount, currency, description: ur.description });
+  } catch (err) {
+    console.error('[upsell-pay]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/public/booking/upsell-pay-info?token=… — page loader. Verifies
+// the token and returns the upsell details (description, amount, property
+// name, Stripe/Square gateway) so the guest sees exactly what they're
+// paying for BEFORE entering card details.
+app.get('/api/public/booking/upsell-pay-info', async (req, res) => {
+  try {
+    const token = String(req.query.token || '');
+    const peek = peekGuestToken(token);
+    if (!peek || !peek.ok || peek.purpose !== GUEST_TOKEN_PURPOSES.UPSELL_PAY || !peek.bookingId) {
+      return res.json({ success: false, error: 'Invalid link' });
+    }
+    const guestQ = await pool.query('SELECT magic_link_secret FROM guests WHERE id = $1', [peek.guestId]);
+    if (!guestQ.rows[0]) return res.json({ success: false, error: 'Invalid link' });
+    const verified = verifyGuestToken(token, guestQ.rows[0].magic_link_secret);
+    if (!verified || !verified.ok) return res.json({ success: false, error: 'Link expired or invalid' });
+    const upsellRequestId = verified.bookingId;
+    const r = await pool.query(
+      `SELECT ur.id, ur.description, ur.amount, ur.currency, ur.status,
+              b.property_id, p.name AS property_name,
+              a.square_status, a.square_environment, p.account_id
+         FROM booking_upsell_requests ur
+         JOIN bookings b ON b.id = ur.booking_id
+         LEFT JOIN properties p ON p.id = b.property_id
+         LEFT JOIN accounts a ON a.id = p.account_id
+        WHERE ur.id = $1`, [upsellRequestId]);
+    if (!r.rows[0]) return res.json({ success: false, error: 'Upsell request not found' });
+    const row = r.rows[0];
+
+    const base = {
+      success: true,
+      description: row.description,
+      amount: parseFloat(row.amount),
+      currency: row.currency,
+      status: row.status,
+      property_name: row.property_name,
+      property_id: row.property_id,
+    };
+
+    if (row.square_status === 'active' && row.account_id) {
+      const accessToken = await refreshSquareTokenIfNeeded(row.account_id);
+      const loc = accessToken ? await getSquareLocationForAccount(row.account_id) : null;
+      if (accessToken && loc && loc.id) {
+        const env = row.square_environment || 'sandbox';
+        const appId = env === 'production'
+          ? process.env.SQUARE_APP_ID_PROD || process.env.SQUARE_CLIENT_ID
+          : process.env.SQUARE_APP_ID_SANDBOX || process.env.SQUARE_CLIENT_ID;
+        return res.json({ ...base, gateway: 'square', square: { application_id: appId, location_id: loc.id, environment: env } });
+      }
+    }
+    const adapter = payments.forMethod('stripe');
+    const cfg = adapter ? await adapter.loadConfig(pool, row.property_id, _paymentHelpers) : null;
+    const clientCfg = cfg ? adapter.clientConfig(cfg) : null;
+    if (!clientCfg) return res.json({ success: false, error: 'Property has no payment configuration' });
+    res.json({ ...base, gateway: 'stripe', stripe: clientCfg });
+  } catch (err) {
+    console.error('[upsell-pay-info]', err);
+    res.json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/admin/bookings', async (req, res) => {
   // Phase 1 — make this the canonical "operator-creates-booking-in-GAS"
   // endpoint. Behaviour matches /api/public/book end-of-flow:
@@ -79643,6 +79957,10 @@ app.put('/api/bookings/:id', async (req, res) => {
     const { id } = req.params;
     const {
       guest_first_name, guest_last_name, guest_email, guest_phone,
+      // Direct email (Steve 2026-08-17) — the guest's real address,
+      // separate from the OTA-masked one. Marketing sends prefer this.
+      // null = clear the field, undefined = leave unchanged.
+      guest_direct_email,
       // Address fields (Steve 2026-07-31 — Edit modal now collects them).
       // All optional; empty string = COALESCE keeps existing value below.
       guest_address, guest_city, guest_state, guest_postcode, guest_country,
@@ -79698,6 +80016,9 @@ app.put('/api/bookings/:id', async (req, res) => {
         guest_state = COALESCE(NULLIF($19, ''), guest_state),
         guest_postcode = COALESCE(NULLIF($20, ''), guest_postcode),
         guest_country = COALESCE(NULLIF($21, ''), guest_country),
+        guest_direct_email = CASE WHEN $22::text IS NULL THEN guest_direct_email
+                                  WHEN $22 = '' THEN NULL
+                                  ELSE $22 END,
         updated_at = NOW()
       WHERE id = $15
     `, [
@@ -79707,7 +80028,8 @@ app.put('/api/bookings/:id', async (req, res) => {
       status, payment_status, notes,
       id, bookable_unit_id ? parseInt(bookable_unit_id) : null,
       guest_address || '', guest_city || '', guest_state || '',
-      guest_postcode || '', guest_country || ''
+      guest_postcode || '', guest_country || '',
+      guest_direct_email === undefined ? null : (guest_direct_email || '')
     ]);
     
     // Handle availability changes

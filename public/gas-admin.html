@@ -26953,11 +26953,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <div class="form-group" style="margin: 0;">
                             <label class="form-label">Email *</label>
                             <input type="email" class="form-input" id="edit-booking-email" required>
+                            <div style="font-size:0.7rem; color:#64748b; margin-top:2px;">OTA-masked email stays here — used for reservation comms.</div>
                         </div>
                         <div class="form-group" style="margin: 0;">
                             <label class="form-label">Phone</label>
                             <input type="tel" class="form-input" id="edit-booking-phone">
                         </div>
+                    </div>
+                    <!-- Direct email (Steve 2026-08-17) — capture the guest's
+                         REAL email separately from the OTA-masked one.
+                         Marketing/newsletter sends prefer this when set. -->
+                    <div style="margin-top: 0.85rem; padding-top: 0.85rem; border-top: 1px dashed #e5e7eb;">
+                        <label class="form-label" for="edit-booking-direct-email">Direct email (for marketing)</label>
+                        <input type="email" class="form-input" id="edit-booking-direct-email" placeholder="guest's real email — leave blank if unknown">
+                        <div style="font-size:0.7rem; color:#64748b; margin-top:2px;">If the guest gave you their real email (arrival form, chat, etc.), enter it here — future marketing sends use this instead of the OTA-masked address.</div>
                     </div>
                     <!-- Address (Steve 2026-07-31 — matches the Add Booking
                          modal so operators can enter/correct address info
@@ -72273,6 +72282,27 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        async function sendUpsellLink(bookingId) {
+            const description = prompt('What is the add-on? (e.g. "Breakfast × 2 nights", "Late checkout", "Spa treatment")', '');
+            if (description === null) return;
+            if (!description.trim()) { showNotification('⚠ Description required', 'error'); return; }
+            const amountStr = prompt('Amount to charge (e.g. 15.00). Currency will match the booking.', '');
+            if (amountStr === null) return;
+            const amount = parseFloat(amountStr);
+            if (!amount || amount <= 0) { showNotification('⚠ Amount must be greater than 0', 'error'); return; }
+            if (!confirm(`Send the guest a payment link for ${amount.toFixed(2)} — "${description}"?\n\nThey will enter a fresh card to pay for this add-on. The room payment is unaffected.`)) return;
+            try {
+                const r = await fetch(`/api/admin/bookings/${bookingId}/send-upsell-link`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ description: description.trim(), amount })
+                });
+                const data = await r.json();
+                if (!data.success) { showNotification(`⚠ ${data.error || 'Failed'}`, 'error'); return; }
+                showNotification(`✅ Upsell link sent to ${data.sent_to} for ${data.currency} ${parseFloat(data.amount).toFixed(2)}.`, 'success');
+            } catch (e) { showNotification('⚠ ' + e.message, 'error'); }
+        }
+
         async function markBookingPaidOffline(bookingId) {
             const method = prompt('Payment method (e.g. bank_transfer, cash, cheque):', 'bank_transfer');
             if (method === null) return;
@@ -73693,6 +73723,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     ${_isOta ? `<button class="btn btn-small" onclick="takePaymentNow()" style="background:#dc2626; color:white; font-size:0.8rem;">💳 Take payment now</button>` : ''}
                                     <button class="btn btn-small" onclick="openAttachCardModal(${b.id}, ${b.property_id})" style="background:#059669; color:white; font-size:0.8rem;">🔄 Replace card</button>
                                     <button class="btn btn-small" onclick="sendCardCaptureLink(${b.id})" style="background:#0ea5e9; color:white; font-size:0.8rem;">📧 ${_isOta ? 'Email guest for card' : 'Send capture link to guest'}${b.group_booking_id ? ' (Group)' : ''}</button>
+                                    <button class="btn btn-small" onclick="sendUpsellLink(${b.id})" style="background:#f59e0b; color:white; font-size:0.8rem;">💰 Send upsell link</button>
                                 </div>
                             </div>
                         `;
@@ -73722,6 +73753,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                                     <button class="btn btn-small" onclick="openAttachCardModal(${b.id}, ${b.property_id})" style="background:#059669; color:white; font-size:0.8rem;">💳 Add card myself</button>
                                     <button class="btn btn-small" onclick="sendCardCaptureLink(${b.id})" style="background:#0ea5e9; color:white; font-size:0.8rem;">📧 Send capture link to guest${b.group_booking_id ? ' (Group)' : ''}</button>
+                                    <button class="btn btn-small" onclick="sendUpsellLink(${b.id})" style="background:#f59e0b; color:white; font-size:0.8rem;">💰 Send upsell link</button>
                                     ${b.payment_chase_status === 'chasing' ? `
                                     <button class="btn btn-small" onclick="markBookingPaidOffline(${b.id})" style="background:#059669; color:white; font-size:0.8rem;">✅ Mark paid offline</button>
                                     <button class="btn btn-small" onclick="stopChasingBooking(${b.id})" style="background:#64748b; color:white; font-size:0.8rem;">🔕 Stop chasing</button>
@@ -74118,6 +74150,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.getElementById('edit-booking-first-name').value = booking.guest_first_name || '';
                 document.getElementById('edit-booking-last-name').value = booking.guest_last_name || '';
                 document.getElementById('edit-booking-email').value = booking.guest_email || '';
+                _a('edit-booking-direct-email', booking.guest_direct_email);
                 document.getElementById('edit-booking-phone').value = booking.guest_phone || '';
 
                 // Phase 1: link to canonical guest record if this booking is recognised.
@@ -75521,6 +75554,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     guest_first_name: document.getElementById('edit-booking-first-name').value,
                     guest_last_name: document.getElementById('edit-booking-last-name').value,
                     guest_email: document.getElementById('edit-booking-email').value,
+                    guest_direct_email: document.getElementById('edit-booking-direct-email')?.value || null,
                     guest_phone: document.getElementById('edit-booking-phone').value,
                     // Address fields (Steve 2026-07-31 — matches Add Booking).
                     guest_address: document.getElementById('edit-booking-address')?.value || '',
