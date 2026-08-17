@@ -31754,6 +31754,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
 
+                    <!-- Stripe Connect OAuth — needed for Channex OTA VCC auto-
+                         import. Paste-keys works for direct-website charges;
+                         OAuth adds the Connect relationship that lets Channex
+                         clone Expedia/Booking.com VCCs into this property's
+                         Stripe automatically. Barbara Charles House driver
+                         Aug 2026. -->
+                    <div style="background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 0.85rem; margin-bottom: 1rem;">
+                        <div style="font-size: 0.85rem; font-weight: 600; color: #3730a3; margin-bottom: 0.4rem;">🔗 Recommended: Connect via Stripe OAuth</div>
+                        <p style="font-size: 0.75rem; color: #4338ca; margin: 0 0 0.6rem 0;">One-click connect. Also enables automatic import of virtual credit cards from Channex-connected OTAs (Booking.com, Expedia). No key typing.</p>
+                        <button type="button" class="btn" onclick="_payStripeOAuth()" style="background: #635bff; color: white; width: 100%;">
+                            Connect Stripe (OAuth)
+                        </button>
+                    </div>
+
                     <details style="margin-bottom: 1rem;">
                         <summary style="cursor: pointer; font-size: 0.85rem; color: #64748b; padding: 0.25rem 0;">Or add a new Stripe account (paste keys)</summary>
                         <div style="margin-top: 0.75rem;">
@@ -108360,6 +108374,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                 wrap.style.display = '';
             } catch (e) {
                 console.warn('loadExistingStripeAccounts:', e.message);
+            }
+        }
+
+        // Kick off Stripe Connect OAuth for the property currently loaded
+        // in the Payment Settings modal. Reads property_id from the hidden
+        // input the rest of this modal already uses. Redirects same-tab
+        // (Stripe brings the operator back to gas-admin.html on completion).
+        function _payStripeOAuth() {
+            const propertyId = document.getElementById('payment-settings-property-id')?.value;
+            if (!propertyId) { showNotification('No property loaded', 'error'); return; }
+            if (typeof _channexStripeConnect === 'function') {
+                _channexStripeConnect(parseInt(propertyId, 10));
+            } else {
+                const token = localStorage.getItem('gas_token');
+                window.location = `/api/admin/properties/${propertyId}/stripe/connect?token=${encodeURIComponent(token)}`;
             }
         }
 
