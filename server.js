@@ -2923,6 +2923,18 @@ async function runMigrations() {
       // existed to catch stranded payments.
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS beds24_last_payment_sync_at TIMESTAMP`).catch(() => {});
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_bookings_beds24_payment_sync ON bookings(beds24_last_payment_sync_at) WHERE beds24_booking_id IS NOT NULL`).catch(() => {});
+      // 2026-08-17 — capture OTA-collect-model + card metadata from
+      // Channex/Expedia so we can distinguish "Expedia will remit" from
+      // "Barbara must charge" in the UI, and show card ****last4 next to
+      // the pm_ instead of hiding behind a blank card_last4. Charles
+      // House Aug 2026 driver — same class fix as feedback_schema_
+      // migrations_go_at_startup.
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS ota_payment_collect VARCHAR(20)`).catch(() => {});
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS card_brand VARCHAR(20)`).catch(() => {});
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS card_exp_month INTEGER`).catch(() => {});
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS card_exp_year INTEGER`).catch(() => {});
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS card_country VARCHAR(4)`).catch(() => {});
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS card_funding VARCHAR(16)`).catch(() => {});
       console.log('✅ Property Stripe keys columns ensured');
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
@@ -101006,6 +101018,13 @@ async function processChannexBookingNotification(payload) {
     console.warn('[Channex webhook] OTA prepay extract failed:', e.message);
   }
 
+  // 2026-08-17 — capture Channex's payment_collect classifier ('ota' =
+  // Expedia collects + remits, 'property' = hotel collects the card).
+  // Charles House audit showed this is the distinguishing signal for
+  // when Barbara needs to charge vs when she waits for Expedia remittance.
+  // Normalise to lowercase, null if not set.
+  const otaPaymentCollect = String(attrs.payment_collect || '').toLowerCase().trim() || null;
+
   // Steve 2026-07-12 — Ulrich Tiedemann's Airbnb booking came in with a
   // rich JSON payload in raw_message. My code was dumping the entire
   // payload into bookings.special_requests (a guest-facing field). Extract
@@ -101083,12 +101102,14 @@ async function processChannexBookingNotification(payload) {
       ota_prepaid, ota_commission_amount, ota_payout_amount, ota_charge_amount, ota_payout_method,
       status, payment_status, booking_source, api_source,
       special_requests, notes, raw_payload,
+      ota_payment_collect,
       created_at, updated_at, booking_time
     ) VALUES (
       $1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
       $16, $17, $18, $19, $19, $19, $25,
       $26, $27, $28, $29, $30,
       $20, $21, $22, 'channex', $23, $24, $31::jsonb,
+      $32,
       NOW(), NOW(), NOW()
     )
     ON CONFLICT (channex_booking_id) DO UPDATE SET
@@ -101107,6 +101128,7 @@ async function processChannexBookingNotification(payload) {
       ota_payout_amount = COALESCE(EXCLUDED.ota_payout_amount, bookings.ota_payout_amount),
       ota_charge_amount = COALESCE(EXCLUDED.ota_charge_amount, bookings.ota_charge_amount),
       ota_payout_method = COALESCE(EXCLUDED.ota_payout_method, bookings.ota_payout_method),
+      ota_payment_collect = COALESCE(EXCLUDED.ota_payment_collect, bookings.ota_payment_collect),
       guest_phone = COALESCE(NULLIF(EXCLUDED.guest_phone,''), bookings.guest_phone),
       guest_email = COALESCE(NULLIF(EXCLUDED.guest_email,''), bookings.guest_email),
       special_requests = EXCLUDED.special_requests,
@@ -101130,7 +101152,8 @@ async function processChannexBookingNotification(payload) {
     notesSummary,
     balanceAmount,
     otaPrepay.prepaid, otaPrepay.commission, otaPrepay.payoutAmount, otaPrepay.chargeAmount, otaPrepay.payoutMethod,
-    JSON.stringify(rawJson)
+    JSON.stringify(rawJson),
+    otaPaymentCollect
   ]);
   const gasBookingId = upsert.rows[0]?.id;
   console.log('[Channex webhook] upserted booking', bookingId, '→ GAS booking id', gasBookingId);
@@ -101404,11 +101427,34 @@ app.post('/api/webhooks/channex', async (req, res) => {
             ).catch(e => { console.warn('[Channex webhook] Stripe PM clone failed:', e.message); return null; });
             const clientPmId = cloned?.id;
             if (clientPmId) {
+              // 2026-08-17 — also persist the card metadata (brand /
+              // last4 / exp / country / funding) so the admin UI can
+              // show ****last4 next to the pm_ instead of blank. The
+              // cloned PM response includes .card with these fields
+              // already; no extra Stripe call needed.
+              const card = cloned?.card || {};
               await pool.query(
-                `UPDATE bookings SET stripe_payment_method_id = $2, updated_at = NOW() WHERE id = $1`,
-                [gasBookingId, clientPmId]
+                `UPDATE bookings SET
+                    stripe_payment_method_id = $2,
+                    card_last4    = COALESCE($3, card_last4),
+                    card_brand    = COALESCE($4, card_brand),
+                    card_exp_month = COALESCE($5, card_exp_month),
+                    card_exp_year  = COALESCE($6, card_exp_year),
+                    card_country   = COALESCE($7, card_country),
+                    card_funding   = COALESCE($8, card_funding),
+                    updated_at = NOW()
+                  WHERE id = $1`,
+                [
+                  gasBookingId, clientPmId,
+                  card.last4 || null,
+                  card.brand || null,
+                  card.exp_month || null,
+                  card.exp_year || null,
+                  card.country || null,
+                  card.funding || null,
+                ]
               );
-              console.log('[Channex webhook] cloned Stripe PM → client acct', clientAcct, '· booking', gasBookingId, '· pm', clientPmId);
+              console.log('[Channex webhook] cloned Stripe PM → client acct', clientAcct, '· booking', gasBookingId, '· pm', clientPmId, '·', card.brand, '****' + (card.last4 || '????'));
             }
           } else if (tokResp && tokResp.success !== false) {
             console.log('[Channex webhook] no Stripe token from Channex for booking', bookingId, '(app likely not installed or no card on OTA)');
