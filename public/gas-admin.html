@@ -31104,6 +31104,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                         ⚙️ Open Payment Setup
                     </button>
                     <small style="color: #64748b; display: block; margin-top: 0.5rem;">Manage Stripe keys and payment configuration via the Payment Setup panel</small>
+                    <!-- Stripe Connect OAuth upgrade — required for Channex OTA
+                         card auto-import (VCCs from Booking.com / Expedia get
+                         cloned into the property's Stripe automatically instead
+                         of the operator typing every card). Direct paste-keys
+                         work for direct-website charges but Channex's cross-
+                         account PM sharing needs a Connect OAuth relationship.
+                         Barbara Charles House Aug 2026 driver — this button
+                         was previously hidden inside the Channex wizard only. -->
+                    <button type="button" class="btn" id="edit-property-stripe-oauth-btn" style="width: 100%; margin-top: 0.75rem; background: #635bff; color: white;">
+                        🔗 Enable Stripe Connect (for Channex OTA auto-import)
+                    </button>
+                    <small style="color: #64748b; display: block; margin-top: 0.4rem;">Needed to auto-import virtual credit cards from Booking.com, Expedia and other Channex-connected OTAs. Redirects to Stripe to log in and approve.</small>
                 </div>
 
                 <!-- Owner (bailleur) — Steve 2026-08-03. Ties the property to
@@ -80599,6 +80611,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-property-same-day-cutoff-time').value = _sdc ? String(_sdc).slice(0, 5) : '';
                     document.getElementById('edit-property-min-advance-hours').value = (prop.min_advance_hours != null ? prop.min_advance_hours : '');
                     
+                    // Wire the "Enable Stripe Connect" button — needs prop.id
+                    // in scope. Uses the existing _channexStripeConnect helper
+                    // that hits /api/admin/properties/:id/stripe/connect (OAuth).
+                    const _oauthBtn = document.getElementById('edit-property-stripe-oauth-btn');
+                    if (_oauthBtn) _oauthBtn.onclick = () => _channexStripeConnect(prop.id);
+
                     // Update Stripe status display — check property keys first, then account keys
                     const stripeStatus = document.getElementById('property-stripe-status');
                     const hasPropertyStripe = prop.stripe_secret_key && prop.stripe_publishable_key;
