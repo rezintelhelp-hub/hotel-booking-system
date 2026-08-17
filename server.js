@@ -160480,6 +160480,15 @@ async function processAutoChargePayments() {
         console.log(`[AUTO-CHARGE] Found ${result.rows.length} bookings to charge`);
 
         for (const booking of result.rows) {
+            // Hoist ledger-derived values so they're accessible AFTER the
+            // inner idempotency try-block. Bug caught 2026-08-17 (Tracey /
+            // Cotswolds GAS-223885 natasha Jenkins) — previously declared
+            // with `const` inside the try block, then referenced outside
+            // at the outstanding-amount compute → ReferenceError swallowed
+            // by the outer catch, booking marked with last_charge_error
+            // "alreadyPaid is not defined" and no charge ever attempted.
+            let alreadyPaid = 0;
+            let grandTotal = parseFloat(booking.grand_total || 0);
             try {
                 // Ledger-based idempotency check (Steve 2026-07-31 — B531014
                 // Rebecca Dean triple-charge incident). The date-scoped Stripe
@@ -160533,8 +160542,8 @@ async function processAutoChargePayments() {
                             AND transaction_type IN ('deposit','balance','payment','charge','capture')`,
                         [booking.booking_id]
                     );
-                    const alreadyPaid = parseFloat(priorSumRes.rows[0]?.paid || 0);
-                    const grandTotal  = parseFloat(booking.grand_total || 0);
+                    alreadyPaid = parseFloat(priorSumRes.rows[0]?.paid || 0);
+                    // grandTotal already hoisted above from booking.grand_total
                     if (grandTotal > 0 && alreadyPaid + 0.01 >= grandTotal) {
                         console.warn(`[AUTO-CHARGE] SKIP booking ${booking.booking_id} — ledger shows ${alreadyPaid} already paid vs grand_total ${grandTotal}. booking.balance_amount=${booking.balance_amount} is stale. Not firing to avoid Janet Emery-shape double-charge.`);
                         continue;
