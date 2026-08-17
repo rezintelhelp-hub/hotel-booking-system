@@ -78099,6 +78099,38 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
   }
 });
 
+// POST /api/admin/bookings/:id/direct-email — Steve 2026-08-17. Tiny
+// dedicated endpoint so the View Booking modal can save the guest's real
+// email inline without needing the full PUT payload. Non-master users
+// can only touch their own account's bookings.
+app.post('/api/admin/bookings/:id/direct-email', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    if (!bookingId) return res.json({ success: false, error: 'Invalid booking id' });
+
+    const rawEmail = req.body?.guest_direct_email;
+    const email = (rawEmail == null || String(rawEmail).trim() === '') ? null : String(rawEmail).trim().slice(0, 255);
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.json({ success: false, error: 'Invalid email address' });
+    }
+
+    const own = await pool.query(
+      `SELECT p.account_id FROM bookings b LEFT JOIN properties p ON p.id = b.property_id WHERE b.id = $1`, [bookingId]);
+    if (!own.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    if (decoded.role !== 'master_admin' && own.rows[0].account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    await pool.query(`UPDATE bookings SET guest_direct_email = $1, updated_at = NOW() WHERE id = $2`, [email, bookingId]);
+    res.json({ success: true, guest_direct_email: email });
+  } catch (err) {
+    console.error('[direct-email]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/admin/bookings/:id/mark-paid-offline — Steve 2026-08-17.
 // Client says the guest paid another way (bank transfer, cash, etc.).
 // Stops the chase, marks payment_status=paid, records a ledger row.

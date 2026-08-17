@@ -30169,7 +30169,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <div style="font-size: 1.1rem; font-weight: 600; color: #1e293b;" id="view-guest-name">-</div>
                                 <div style="margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem;">
                                     <div style="display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 0.9rem;">
-                                        <span style="opacity:0.7;">✉</span> <span id="view-guest-email">-</span>
+                                        <span style="opacity:0.7;" title="OTA / reservation email — do not change">✉</span> <span id="view-guest-email">-</span>
+                                    </div>
+                                    <!-- Direct email — the guest's REAL address,
+                                         captured from the pre-arrival form or
+                                         entered by the owner. Used for
+                                         marketing sends. OTA email above stays
+                                         untouched. Save inline (blur or Enter). -->
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 0.9rem;">
+                                        <span style="opacity:0.7;" title="Direct email — used for marketing sends">💌</span>
+                                        <input type="email" id="view-guest-direct-email" placeholder="Direct email (for marketing) — click to add" style="flex:1; border:1px dashed #cbd5e1; border-radius:6px; padding:3px 8px; font-size:0.85rem; background:#fff; color:#334155;" onblur="saveViewDirectEmail()" onkeydown="if(event.key==='Enter'){this.blur();event.preventDefault();}">
+                                        <span id="view-guest-direct-email-status" style="font-size:0.7rem; color:#94a3b8;"></span>
                                     </div>
                                     <div style="display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 0.9rem;">
                                         <span style="opacity:0.7;">☎</span> <span id="view-guest-phone">-</span>
@@ -72282,6 +72292,33 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        // Inline save for the direct-email field on the View Booking modal.
+        // Owner types the guest's real address, tabs / clicks out → saved.
+        // No-op if the value hasn't changed from what loaded, so idle blur
+        // events don't flood the API.
+        async function saveViewDirectEmail() {
+            const el = document.getElementById('view-guest-direct-email');
+            if (!el) return;
+            const st = document.getElementById('view-guest-direct-email-status');
+            const bookingId = el.dataset.bookingId;
+            const orig = el.dataset.original || '';
+            const val = (el.value || '').trim();
+            if (val === orig) return;
+            if (!bookingId) return;
+            if (st) st.textContent = 'saving…';
+            try {
+                const r = await fetch(`/api/admin/bookings/${bookingId}/direct-email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ guest_direct_email: val || null })
+                });
+                const d = await r.json();
+                if (!d.success) { if (st) st.textContent = '⚠ ' + (d.error || 'save failed'); return; }
+                el.dataset.original = val;
+                if (st) st.textContent = val ? '✓ saved' : '(cleared)';
+            } catch (e) { if (st) st.textContent = '⚠ ' + e.message; }
+        }
+
         async function sendUpsellLink(bookingId) {
             const description = prompt('What is the add-on? (e.g. "Breakfast × 2 nights", "Late checkout", "Spa treatment")', '');
             if (description === null) return;
@@ -73306,6 +73343,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.getElementById('view-guest-name').textContent = guestName;
                 document.getElementById('view-guest-email').textContent = b.guest_email || '-';
                 document.getElementById('view-guest-phone').textContent = b.guest_phone || b.guest_mobile || '-';
+                // Direct email — populate inline field; owner can edit + save
+                // without leaving the View modal. Falls back to
+                // pre_arrival_captured_email so what the guest typed on the
+                // pre-arrival form is visible even if it hasn't been promoted
+                // to guest_direct_email yet.
+                const deEl = document.getElementById('view-guest-direct-email');
+                if (deEl) {
+                    deEl.value = b.guest_direct_email || b.pre_arrival_captured_email || '';
+                    deEl.dataset.bookingId = b.id;
+                    deEl.dataset.original = deEl.value;
+                    const st = document.getElementById('view-guest-direct-email-status');
+                    if (st) st.textContent = b.guest_direct_email ? '✓ saved' : (b.pre_arrival_captured_email ? '(from pre-arrival form)' : '');
+                }
 
                 // WhatsApp consent state. Hidden when there's no guest phone
                 // (chip irrelevant). When guest opted in via the checkout
