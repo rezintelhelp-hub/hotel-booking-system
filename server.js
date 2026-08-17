@@ -163594,6 +163594,16 @@ async function runSquareAudit(pool, accountId = null) {
   return findings;
 }
 
+// Sentry test — deliberately throws so we can prove end-to-end that
+// crashes reach Sentry. Master-only. Steve 2026-08-17. Same shape as
+// the alreadyPaid ReferenceError so the Sentry event looks familiar.
+app.get('/api/admin/sentry-test', async (req, res) => {
+  const decoded = await extractAccountFromToken(req).catch(() => null);
+  if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+  // Runtime ReferenceError — this variable doesn't exist.
+  res.json({ boom: nonexistent_variable_gas_sentry_smoke });
+});
+
 // On-demand: any logged-in user hits this for their own account; master
 // can pass ?account_id=N to check a specific one, or nothing for all.
 app.get('/api/admin/square/audit', async (req, res) => {
