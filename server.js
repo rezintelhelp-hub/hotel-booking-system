@@ -163594,13 +163594,14 @@ async function runSquareAudit(pool, accountId = null) {
   return findings;
 }
 
-// Sentry test — deliberately throws so we can prove end-to-end that
-// crashes reach Sentry. Master-only. Steve 2026-08-17. Same shape as
-// the alreadyPaid ReferenceError so the Sentry event looks familiar.
+// Sentry test — deliberately throws to prove end-to-end that crashes
+// reach Sentry. Gated behind a specific ?magic= param so random visits
+// / bots don't fire it. Steve 2026-08-17. Delete after smoke-testing.
 app.get('/api/admin/sentry-test', async (req, res) => {
-  const decoded = await extractAccountFromToken(req).catch(() => null);
-  if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
-  // Runtime ReferenceError — this variable doesn't exist.
+  if (req.query.magic !== 'gas-smoke-test-2026') {
+    return res.status(403).json({ success: false, error: 'Missing magic param' });
+  }
+  // Runtime ReferenceError — same shape as the alreadyPaid bug.
   res.json({ boom: nonexistent_variable_gas_sentry_smoke });
 });
 
