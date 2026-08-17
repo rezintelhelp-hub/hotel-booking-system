@@ -163594,17 +163594,6 @@ async function runSquareAudit(pool, accountId = null) {
   return findings;
 }
 
-// Sentry test — deliberately throws to prove end-to-end that crashes
-// reach Sentry. Gated behind a specific ?magic= param so random visits
-// / bots don't fire it. Steve 2026-08-17. Delete after smoke-testing.
-app.get('/api/admin/sentry-test', async (req, res) => {
-  if (req.query.magic !== 'gas-smoke-test-2026') {
-    return res.status(403).json({ success: false, error: 'Missing magic param' });
-  }
-  // Runtime ReferenceError — same shape as the alreadyPaid bug.
-  res.json({ boom: nonexistent_variable_gas_sentry_smoke });
-});
-
 // On-demand: any logged-in user hits this for their own account; master
 // can pass ?account_id=N to check a specific one, or nothing for all.
 app.get('/api/admin/square/audit', async (req, res) => {
