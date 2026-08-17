@@ -2935,6 +2935,14 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS card_exp_year INTEGER`).catch(() => {});
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS card_country VARCHAR(4)`).catch(() => {});
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS card_funding VARCHAR(16)`).catch(() => {});
+      // 2026-08-17 — safety net for VCC over-charge. Channex sends
+      // meta.payment_charge = net amount to charge on VCC (Expedia's
+      // commission already deducted). For Charles House today this
+      // equals grand_total, but for future properties where grand_total
+      // is the guest-facing gross, using grand_total would over-charge
+      // the VCC. Store the Channex value as source of truth for the
+      // Expedia VCC auto-charge cron.
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS ota_charge_amount_minor INTEGER`).catch(() => {});
       console.log('✅ Property Stripe keys columns ensured');
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
@@ -101024,6 +101032,14 @@ async function processChannexBookingNotification(payload) {
   // when Barbara needs to charge vs when she waits for Expedia remittance.
   // Normalise to lowercase, null if not set.
   const otaPaymentCollect = String(attrs.payment_collect || '').toLowerCase().trim() || null;
+  // 2026-08-17 — capture Channex meta.payment_charge (minor units) as
+  // source of truth for what to charge on Expedia Collect VCCs. For
+  // Charles House this equals grand_total; for future properties where
+  // grand_total is guest-facing gross this may be lower (Expedia
+  // commission already deducted). Auto-charge cron prefers this.
+  const otaChargeAmountMinor = (typeof attrs.meta?.payment_charge === 'number' && attrs.meta.payment_charge > 0)
+    ? Math.round(attrs.meta.payment_charge)
+    : null;
 
   // Steve 2026-07-12 — Ulrich Tiedemann's Airbnb booking came in with a
   // rich JSON payload in raw_message. My code was dumping the entire
@@ -101102,14 +101118,14 @@ async function processChannexBookingNotification(payload) {
       ota_prepaid, ota_commission_amount, ota_payout_amount, ota_charge_amount, ota_payout_method,
       status, payment_status, booking_source, api_source,
       special_requests, notes, raw_payload,
-      ota_payment_collect,
+      ota_payment_collect, ota_charge_amount_minor,
       created_at, updated_at, booking_time
     ) VALUES (
       $1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
       $16, $17, $18, $19, $19, $19, $25,
       $26, $27, $28, $29, $30,
       $20, $21, $22, 'channex', $23, $24, $31::jsonb,
-      $32,
+      $32, $33,
       NOW(), NOW(), NOW()
     )
     ON CONFLICT (channex_booking_id) DO UPDATE SET
@@ -101129,6 +101145,7 @@ async function processChannexBookingNotification(payload) {
       ota_charge_amount = COALESCE(EXCLUDED.ota_charge_amount, bookings.ota_charge_amount),
       ota_payout_method = COALESCE(EXCLUDED.ota_payout_method, bookings.ota_payout_method),
       ota_payment_collect = COALESCE(EXCLUDED.ota_payment_collect, bookings.ota_payment_collect),
+      ota_charge_amount_minor = COALESCE(EXCLUDED.ota_charge_amount_minor, bookings.ota_charge_amount_minor),
       guest_phone = COALESCE(NULLIF(EXCLUDED.guest_phone,''), bookings.guest_phone),
       guest_email = COALESCE(NULLIF(EXCLUDED.guest_email,''), bookings.guest_email),
       special_requests = EXCLUDED.special_requests,
@@ -101153,7 +101170,8 @@ async function processChannexBookingNotification(payload) {
     balanceAmount,
     otaPrepay.prepaid, otaPrepay.commission, otaPrepay.payoutAmount, otaPrepay.chargeAmount, otaPrepay.payoutMethod,
     JSON.stringify(rawJson),
-    otaPaymentCollect
+    otaPaymentCollect,
+    otaChargeAmountMinor
   ]);
   const gasBookingId = upsert.rows[0]?.id;
   console.log('[Channex webhook] upserted booking', bookingId, '→ GAS booking id', gasBookingId);
@@ -101416,10 +101434,15 @@ app.post('/api/webhooks/channex', async (req, res) => {
                         || cfg.rows[0]?.credentials?.account_id;
         if (clientAcct) {
           const tokResp = await adapter.getBookingStripeToken(bookingId, 'payment_method');
-          const platformPmId = tokResp?.data?.token
-                            || tokResp?.raw?.token
-                            || tokResp?.raw?.data?.token
-                            || null;
+          // Channex returns token EITHER as a string OR as an object
+          // {id: "pm_..."} depending on their internal state. Proved
+          // 2026-08-17 with Anabel Voysey — passing the object to Stripe
+          // returned "Invalid string" error. Handle both shapes.
+          const _rawTok = tokResp?.data?.token
+                       || tokResp?.raw?.token
+                       || tokResp?.raw?.data?.token
+                       || null;
+          const platformPmId = typeof _rawTok === 'string' ? _rawTok : (_rawTok?.id || null);
           if (platformPmId) {
             const cloned = await stripe.paymentMethods.create(
               { payment_method: platformPmId },
@@ -160115,6 +160138,7 @@ async function _processAutoChargeExpediaVCCBranch() {
             b.booking_source,
             b.card_last4,
             b.card_brand,
+            b.ota_charge_amount_minor,
             COALESCE(p.stripe_secret_key, a.stripe_secret_key) as stripe_secret_key,
             pc.credentials as payment_config_credentials,
             p.currency as property_currency,
@@ -160195,14 +160219,16 @@ async function _processAutoChargeExpediaVCCBranch() {
                 continue;
             }
 
-            // Charge amount from balance_amount (Channex passes the net
-            // "amount to charge" as meta.payment_charge; our webhook
-            // populates balance_amount from grand_total which matches for
-            // Charles House. If future properties add separate taxes,
-            // switch to a stored ota_charge_amount column.)
+            // Charge amount — prefer ota_charge_amount_minor (Channex's
+            // meta.payment_charge = net VCC amount after Expedia commission).
+            // Falls back to grand_total for legacy rows without the minor
+            // column populated. Both cases still subtract prior payments
+            // via alreadyPaid so we never over-charge across retries.
+            const otaChargeMinor = parseInt(booking.ota_charge_amount_minor || 0);
+            const otaChargeGross = otaChargeMinor > 0 ? otaChargeMinor / 100 : grandTotal;
             const outstanding = Math.max(
                 0,
-                Math.round((grandTotal - alreadyPaid) * 100) / 100
+                Math.round((otaChargeGross - alreadyPaid) * 100) / 100
             );
             if (outstanding <= 0.005) {
                 console.log(`[AUTO-CHARGE EXPEDIA-VCC] SKIP booking ${booking.booking_id} — outstanding ${outstanding}`);
