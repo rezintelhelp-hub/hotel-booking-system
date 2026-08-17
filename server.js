@@ -101537,7 +101537,16 @@ async function processChannexBookingNotification(payload) {
   const cancelled = attrs.is_cancelled || attrs.status === 'cancelled' || attrs.status === 'cancellation';
   const status = cancelled ? 'cancelled' : 'confirmed';
   const rawMsg = String(attrs.raw_message || '');
-  const paymentStatus = /PRE-PAID/i.test(rawMsg) || (attrs.meta?.payment_charge > 0) ? 'paid' : 'pending';
+  // Airbnb ALWAYS collects from the guest at booking time — there is no
+  // "pay at property" option on Airbnb. So any confirmed Airbnb booking
+  // is prepaid, regardless of whether Channex's raw_message happened to
+  // include "PRE-PAID" text or meta.payment_charge. Charles House audit
+  // 2026-08-17 — Jane Law (#723772) was landing as 'pending' + not
+  // prepaid, making Barbara chase money that Airbnb had already taken.
+  const paymentStatus = (/PRE-PAID/i.test(rawMsg)
+                         || (attrs.meta?.payment_charge > 0)
+                         || (bookingSource === 'airbnb' && !cancelled))
+    ? 'paid' : 'pending';
 
   // Extract OTA prepay + commission metadata from the raw payload. BDC + Airbnb
   // both put this in raw_message JSON but with different key paths. Populates
@@ -101594,6 +101603,21 @@ async function processChannexBookingNotification(payload) {
     }
     // Fallback — if PRE-PAID text detected but nothing structured, still mark
     if (!otaPrepay.prepaid && /PRE-PAID/i.test(rawMsg)) otaPrepay.prepaid = true;
+    // Airbnb catch-all — even without raw_message JSON, any confirmed
+    // Airbnb booking is prepaid (Airbnb collects from guest at booking).
+    // Payout method defaults to "Airbnb payout" for the UI badge.
+    if (!otaPrepay.prepaid && bookingSource === 'airbnb' && !cancelled) {
+      otaPrepay.prepaid = true;
+      if (!otaPrepay.payoutMethod) otaPrepay.payoutMethod = 'Airbnb payout';
+    }
+    // Expedia Collect catch-all — payment_collect='ota' means Expedia is
+    // collecting + remitting. Treat as prepaid so the UI stops showing
+    // "UNPAID" chase state for Expedia Collect bookings.
+    const _pc = String(attrs.payment_collect || '').toLowerCase();
+    if (!otaPrepay.prepaid && bookingSource === 'expedia' && _pc === 'ota' && !cancelled) {
+      otaPrepay.prepaid = true;
+      if (!otaPrepay.payoutMethod) otaPrepay.payoutMethod = 'Expedia payout';
+    }
     // Charge amount fallback — use grand_total if not extracted
     if (otaPrepay.prepaid && otaPrepay.chargeAmount == null) otaPrepay.chargeAmount = total;
   } catch (e) {
