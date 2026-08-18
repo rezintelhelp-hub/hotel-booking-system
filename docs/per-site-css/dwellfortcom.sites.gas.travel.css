@@ -167,7 +167,7 @@
     letter-spacing: 0.05em !important;
     border-radius: 0 100px 100px 0 !important;
     padding: 0 40px !important;
-    margin: -4px 0 !important;
+    margin: -4px 0 -4px -12px !important;   /* -12px left = swallow the previous field's padding gap */
     align-self: stretch !important;
     border-left: none !important;
     display: inline-flex !important;
@@ -227,4 +227,54 @@
         border-radius: 8px !important;
         min-height: 48px !important;
     }
+}
+
+/* =================================================================
+   INTRO SECTION (.developer-intro) — Web Builder's intro block that
+   sits below the search pill shell. Adds a top padding so the title
+   clears the overhanging pill. Desktop only — mobile has the pill
+   in normal flow so no extra clearance needed.
+   ================================================================= */
+@media (min-width: 769px) {
+    .developer-intro {
+        padding-top: 150px !important;
+    }
+}
+
+/* -- Intro heading: Lora 24 400 charcoal (matches Anton's h2 spec)
+      + force a 2-line split at exactly "AND" via a pseudo-element
+      that renders replacement text (the theme's esc_html blocks a
+      literal <br> in the title field). ------------------------------ */
+.developer-intro h2 {
+    font-family: 'Lora', serif !important;
+    font-size: 0 !important;                /* hide the original single-line text */
+    line-height: 1.3 !important;
+    margin: 0 auto !important;
+}
+.developer-intro h2::before {
+    content: "EXPERIENCE THE BEAUTY\A AND HISTORY OF PRAGUE WITH DWELLFORT";
+    white-space: pre;
+    font-family: 'Lora', serif;
+    font-size: 24px;
+    font-weight: 400;
+    color: #252317;
+    display: block;
+    text-align: center;
+}
+
+/* -- Intro body text: Muli 16 400 charcoal (matches Anton's spec) -- */
+.developer-intro p,
+.developer-intro td,
+.developer-intro div,
+.developer-intro th,
+.developer-intro label,
+.developer-intro legend,
+.developer-intro li,
+.developer-intro .developer-intro-text,
+.developer-intro .Caption_Below_Image .caption,
+.developer-intro .Caption_Below_Image .caption strong {
+    font-family: 'Muli', sans-serif !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+    color: #252317 !important;
 }
