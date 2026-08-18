@@ -1,5 +1,5 @@
 /* Dwellfort — per-site header + hero tweaks (2026-08-18)
-   Palette + styling extracted from Anton's bespoke SetSeed theme7 CSS. */
+   Palette + styling from Anton's SetSeed global_design_mode_theme7. */
 @import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600&family=Muli:wght@300;400;600;700&display=swap');
 
 /* -- HIDE CART ---------------------------------------------------- */
@@ -11,26 +11,41 @@
 /* -- NAV UNDERLINE OFF -------------------------------------------- */
 .developer-nav a::after { display: none !important; content: none !important; }
 
-/* -- NAV BUTTONS: BLACK, 5PX RADIUS, SPACED APART ----------------- */
+/* -- NAV — regular items are TEXT ONLY (dark, uppercase, spaced) -- */
 .developer-nav { gap: 8px !important; }
 .developer-nav a {
     font-size: 14px !important;
     font-weight: 700 !important;
-    color: #ffffff !important;
-    background: #000000 !important;
+    color: #444 !important;
+    background: transparent !important;
     border-radius: 5px !important;
-    padding: 8px 15px !important;
+    padding: 8px 20px !important;
+    min-width: 72px !important;
+    text-align: center !important;
     text-transform: uppercase !important;
     text-decoration: none !important;
     border-bottom: none !important;
 }
+/* Nail every state so browser :visited default (a warm brown) can't
+   sneak in past the theme's rules. */
+.developer-nav a,
+.developer-nav a:link,
+.developer-nav a:visited { color: #444 !important; background: transparent !important; }
 .developer-nav a:hover,
-.developer-nav a.active {
-    background: #333333 !important;
+.developer-nav a:focus,
+.developer-nav a:active { color: #e7e0db !important; background: transparent !important; }
+
+/* -- ONLY the ACTIVE (current page) shows as a black button ------- */
+.developer-nav a.active,
+.developer-nav a.active:link,
+.developer-nav a.active:visited,
+.developer-nav a.active:hover,
+.developer-nav a.active:focus {
+    background: #000000 !important;
     color: #ffffff !important;
 }
 
-/* -- BOOK NOW: NO RADIUS ------------------------------------------ */
+/* -- BOOK NOW: black, no radius (square corners) ------------------ */
 .developer-nav-cta,
 .developer-header-cta,
 .developer-header .btn-primary {
@@ -88,6 +103,6 @@
 .gas-search-submit:hover,
 .developer-search-submit:hover { background: #4f4f47 !important; }
 
-/* -- WARM PANELS ----------------------------------------------------- */
+/* -- WARM PANELS -------------------------------------------------- */
 .developer-section-panel,
 .warm-panel { background: #e7e0db !important; }
