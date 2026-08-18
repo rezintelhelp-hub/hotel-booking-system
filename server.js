@@ -40777,9 +40777,35 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         if (!rooms || !Array.isArray(rooms) || rooms.length === 0) {
             return res.status(400).json({ success: false, error: 'No rooms provided' });
         }
-        
+
         if (!checkin || !checkout) {
             return res.status(400).json({ success: false, error: 'Check-in and check-out dates required' });
+        }
+
+        // GUARD (Steve 2026-08-18) — same shape as /api/public/book. Reject
+        // group bookings that claim a deposit but include no charge intent.
+        // Diana Wackerbarth Christmas group (£1,400 across 4 rooms, no card)
+        // driver — plugin submitted payment_method='property' fallback when
+        // Stripe tokenisation failed, server accepted with 4 unpaid rows.
+        {
+            const _payAtProperty = (payment_method === 'property' || payment_method === 'pay_at_property');
+            const _payByBank     = (payment_method === 'bank' || payment_method === 'bank_transfer');
+            const _hasChargeIntent =
+                 !!stripe_payment_intent_id
+              || !!stripe_setup_intent_id
+              || !!stripe_payment_method_id
+              || !!enigma_reference_id;
+            const _depositExpected = parseFloat(deposit_amount || 0) > 0;
+            if (_depositExpected && !_hasChargeIntent && !_payAtProperty && !_payByBank) {
+                console.error('[public/create-group-booking] REJECTED — deposit_amount', deposit_amount,
+                    'claimed but no charge intent + not pay-at-property/bank. payment_method:',
+                    payment_method, 'rooms:', rooms?.length);
+                return res.status(400).json({
+                    success: false,
+                    error: 'Payment could not be verified. Please try again — if the issue persists, contact the property directly.',
+                    code: 'no_charge_intent'
+                });
+            }
         }
 
         // Same-day booking cutoff (Beds24-sourced rule). Resolve property from first room.
@@ -66179,8 +66205,19 @@ async function buildBeds24InvoiceItemsForBooking(pool, booking) {
   }
 
   // Payment — Beds24 V2 accepts { type: 'payment' } inside invoiceItems.
-  // deposit_amount is our canonical "amount paid so far" column.
-  const paidAmount = parseFloat(booking.deposit_amount || 0);
+  // Steve 2026-08-18 (Casa Magnolia Timothy Kilpatrick 736700) — was
+  // pushing booking.deposit_amount (the EXPECTED deposit) as a payment
+  // line even when we never actually charged. Beds24 then treated the
+  // booking as deposit-paid, and the sync-back reconciler wrote a fake
+  // deposit_paid into GAS. Only push a payment line when we've genuinely
+  // taken money: payment_status is 'paid' / 'deposit_paid' AND a
+  // deposit_paid > 0 is on the row. Fallback to deposit_amount only for
+  // legacy rows where deposit_paid is NULL but the status flags paid.
+  const _statusPaid = (booking.payment_status === 'paid'
+                    || booking.payment_status === 'deposit_paid');
+  const paidAmount = _statusPaid
+    ? parseFloat(booking.deposit_paid || booking.deposit_amount || 0)
+    : parseFloat(booking.deposit_paid || 0);
   if (paidAmount > 0) {
     items.push({
       type: 'payment',
@@ -67834,9 +67871,36 @@ async function _processBeds24Booking(b, conn, roomMap, counters) {
         tax_amount = EXCLUDED.tax_amount,
         commission_amount = EXCLUDED.commission_amount,
         deposit_amount = EXCLUDED.deposit_amount,
-        deposit_paid = EXCLUDED.deposit_paid,
+        -- Steve 2026-08-18 — DO NOT trust Beds24's deposit_paid /
+        -- payment_status blindly. If GAS has actual payment_transactions
+        -- rows for this booking, keep GAS's existing deposit_paid /
+        -- payment_status (they were set by the reconciler further down
+        -- based on real ledger). Only accept Beds24's values when GAS
+        -- has NO transactions AND the Beds24 value is 0 — otherwise the
+        -- Casa Magnolia Timothy Kilpatrick shape recurs: Beds24 sends a
+        -- fake "50% paid" state and we overwrite the correct unpaid
+        -- state with it.
+        deposit_paid = CASE
+          WHEN (SELECT COUNT(*) FROM payment_transactions pt
+                 WHERE pt.booking_id = bookings.id
+                   AND pt.status IN ('succeeded','completed')
+                   AND pt.transaction_type IN ('deposit','balance','payment','charge','capture')) > 0
+            THEN bookings.deposit_paid
+          WHEN COALESCE(EXCLUDED.deposit_paid, 0) = 0
+            THEN 0
+          ELSE bookings.deposit_paid
+        END,
         balance_due = EXCLUDED.balance_due,
-        payment_status = EXCLUDED.payment_status,
+        payment_status = CASE
+          WHEN (SELECT COUNT(*) FROM payment_transactions pt
+                 WHERE pt.booking_id = bookings.id
+                   AND pt.status IN ('succeeded','completed')
+                   AND pt.transaction_type IN ('deposit','balance','payment','charge','capture')) > 0
+            THEN bookings.payment_status
+          WHEN COALESCE(EXCLUDED.deposit_paid, 0) = 0
+            THEN COALESCE(bookings.payment_status, EXCLUDED.payment_status)
+          ELSE bookings.payment_status
+        END,
         notes = EXCLUDED.notes,
         comments = EXCLUDED.comments,
         rate_description = EXCLUDED.rate_description,
@@ -107669,6 +107733,36 @@ app.post('/api/public/book', async (req, res) => {
     // Validate required fields
     if (!unit_id || !check_in || !check_out || !guest_first_name || !guest_last_name || !guest_email) {
       return res.json({ success: false, error: 'Missing required fields' });
+    }
+
+    // GUARD (Steve 2026-08-18) — reject bookings that claim a deposit
+    // but include NO charge intent. Prevents the Casa Magnolia (Timothy
+    // Kilpatrick 736700) / Diana-group class of bug where the client-
+    // side payment SDK fails silently to tokenise + the server accepts
+    // the booking with deposit_amount populated but no actual charge,
+    // which then gets round-tripped through Beds24 as a fake "paid"
+    // state. Pay-at-property and bank-transfer flows explicitly allowed
+    // (they legitimately have no charge intent at booking time).
+    const _hasChargeIntent =
+         !!stripe_payment_intent_id
+      || !!stripe_setup_intent_id
+      || !!payment_method_id
+      || !!stripe_payment_method_id
+      || !!square_source_id
+      || !!worldpay_session
+      || !!enigma_reference_id;
+    const _payAtProperty = (payment_method === 'property' || payment_method === 'pay_at_property');
+    const _payByBank     = (payment_method === 'bank' || payment_method === 'bank_transfer');
+    const _depositExpected = parseFloat(deposit_amount || 0) > 0;
+    if (_depositExpected && !_hasChargeIntent && !_payAtProperty && !_payByBank) {
+      console.error('[public/book] REJECTED — deposit_amount', deposit_amount,
+        'claimed but no charge intent + not pay-at-property/bank. payment_method:',
+        payment_method, 'body keys:', Object.keys(req.body).join(','));
+      return res.status(400).json({
+        success: false,
+        error: 'Payment could not be verified. Please try again — if the issue persists, contact the property directly.',
+        code: 'no_charge_intent'
+      });
     }
 
     // Get unit and property info
