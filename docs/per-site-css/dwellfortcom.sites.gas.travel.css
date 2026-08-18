@@ -26,8 +26,6 @@
     text-decoration: none !important;
     border-bottom: none !important;
 }
-/* Nail every state so browser :visited default (a warm brown) can't
-   sneak in past the theme's rules. */
 .developer-nav a,
 .developer-nav a:link,
 .developer-nav a:visited { color: #444 !important; background: transparent !important; }
@@ -78,19 +76,32 @@
     margin-top: 15px !important;
 }
 
-/* -- SEARCH BAR: WHITE PILL, WIDER TO MATCH ANTON'S ORIGINAL ------ */
-/* Anton's live site uses #content_bar_2 .styleBox with border-radius
-   100px, padding 25px, white bg, 0 0 10px rgba(0,0,0,.1) shadow, and
-   the wrapper spans nearly full hero width. Bumping max-width from
-   800px → 1200px + applying his pill style. */
+/* -- Unbox hero content max-width so the search pill can go wide -- */
+.developer-hero-content { max-width: none !important; width: 100% !important; }
+.developer-hero .developer-container { max-width: none !important; padding: 0 !important; }
+.developer-hero { padding-left: 24px !important; padding-right: 24px !important; position: relative !important; }
+
+/* -- SEARCH PILL: white bg, 1px border, 20px solid white outer halo,
+      soft drop shadow. Left/right 15px from viewport edges, sits
+      slightly below the hero fold. ---------------------------------- */
 .developer-search-wrapper {
-    max-width: 1400px !important;
-    width: 92% !important;
-    padding: 8px 25px !important;
+    max-width: none !important;
+    width: auto !important;
+    padding: 4px 0 4px 20px !important;
     background: #ffffff !important;
     border-radius: 100px !important;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1) !important;
-    overflow: visible !important;
+    border: 1px solid #d0d0d0 !important;
+    box-shadow:
+        0 0 0 20px #ffffff,
+        0 6px 24px rgba(0,0,0,0.15) !important;
+    overflow: hidden !important;
+    position: absolute !important;
+    left: 15px !important;
+    right: 15px !important;
+    bottom: -100px !important;
+    transform: none !important;
+    margin: 0 !important;
+    z-index: 20 !important;
 }
 .developer-search-wrapper .gas-search-widget,
 .developer-search,
@@ -100,22 +111,74 @@
     box-shadow: none !important;
     border-radius: 0 !important;
     padding: 0 !important;
+    border: none !important;
 }
 
-/* -- SEARCH BUTTON: DARK GREY-BROWN #69695e ----------------------- */
+/* Kill per-field boxes — plain fields inside the pill, hairline
+   divider on the right of each (except last + button). */
+.developer-search-wrapper .gas-search-field,
+.developer-search-wrapper .gas-search-field > * {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+}
+.developer-search-wrapper .gas-search-field {
+    border-right: 1px solid #e5e5e5 !important;
+    padding: 4px 12px !important;
+}
+.developer-search-wrapper .gas-search-field:last-of-type,
+.developer-search-wrapper .gas-search-field.gas-search-submit {
+    border-right: none !important;
+}
+.developer-search-wrapper .gas-search-field input,
+.developer-search-wrapper .gas-search-field select {
+    background: transparent !important;
+    border: none !important;
+    padding: 2px 0 !important;
+    font-size: 15px !important;
+    color: #252317 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    font-family: 'Muli', sans-serif !important;
+    font-weight: 600 !important;
+}
+.developer-search-wrapper .gas-search-field label {
+    font-family: 'Muli', sans-serif !important;
+    font-size: 12px !important;
+    color: #999 !important;
+    text-transform: none !important;
+    font-weight: 400 !important;
+    letter-spacing: 0 !important;
+    margin: 0 0 2px 0 !important;
+    display: block !important;
+}
+
+/* -- SEARCH BUTTON: BLACK END-CAP ON THE PILL --------------------- */
 .gas-search-submit,
 .developer-search-submit,
-.gas-btn-primary.gas-search-submit {
-    background: #69695e !important;
+.gas-btn-primary.gas-search-submit,
+.developer-search-wrapper .gas-search-field.gas-search-submit {
+    background: #000000 !important;
     color: #ffffff !important;
     font-weight: 700 !important;
     font-size: 13px !important;
     text-transform: uppercase !important;
-    border-radius: 100px !important;
-    padding: 13px 40px !important;
+    letter-spacing: 0.05em !important;
+    border-radius: 0 100px 100px 0 !important;
+    padding: 0 40px !important;
+    margin: -4px 0 !important;
+    align-self: stretch !important;
+    border-left: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    min-height: 100% !important;
 }
 .gas-search-submit:hover,
-.developer-search-submit:hover { background: #4f4f47 !important; }
+.developer-search-submit:hover,
+.gas-btn-primary.gas-search-submit:hover { background: #333333 !important; }
 
 /* -- WARM PANELS -------------------------------------------------- */
 .developer-section-panel,
