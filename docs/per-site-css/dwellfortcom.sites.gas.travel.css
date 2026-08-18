@@ -78,14 +78,28 @@
     margin-top: 15px !important;
 }
 
-/* -- SEARCH BAR: WHITE PILL WITH SUBTLE SHADOW -------------------- */
+/* -- SEARCH BAR: WHITE PILL, WIDER TO MATCH ANTON'S ORIGINAL ------ */
+/* Anton's live site uses #content_bar_2 .styleBox with border-radius
+   100px, padding 25px, white bg, 0 0 10px rgba(0,0,0,.1) shadow, and
+   the wrapper spans nearly full hero width. Bumping max-width from
+   800px → 1200px + applying his pill style. */
+.developer-search-wrapper {
+    max-width: 1400px !important;
+    width: 92% !important;
+    padding: 8px 25px !important;
+    background: #ffffff !important;
+    border-radius: 100px !important;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1) !important;
+    overflow: visible !important;
+}
+.developer-search-wrapper .gas-search-widget,
 .developer-search,
 .gas-search,
 .gas-search-form {
-    border-radius: 100px !important;
-    background: #ffffff !important;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1) !important;
-    padding: 8px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
 }
 
 /* -- SEARCH BUTTON: DARK GREY-BROWN #69695e ----------------------- */
