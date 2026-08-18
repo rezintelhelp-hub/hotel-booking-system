@@ -184,22 +184,6 @@
 .developer-section-panel,
 .warm-panel { background: #e7e0db !important; }
 
-/* -- Push the intro section's HEADING down below the pill (desktop only).
-      Uses margin-top on the h2 itself — doesn't touch the section
-      container so nothing above the section moves. */
-@media (min-width: 769px) {
-    .developer-hero + section h1:first-child,
-    .developer-hero + section h2:first-child,
-    .developer-hero + section h3:first-child,
-    .developer-hero + div h1:first-child,
-    .developer-hero + div h2:first-child,
-    .developer-hero + div h3:first-child,
-    .developer-hero + section > :first-child,
-    .developer-hero + div > :first-child {
-        margin-top: 160px !important;
-    }
-}
-
 /* ================================================================= */
 /* MOBILE ≤ 768px — pill stacks vertical, sits BELOW hero, no halo   */
 /* ================================================================= */
@@ -243,7 +227,4 @@
         border-radius: 8px !important;
         min-height: 48px !important;
     }
-    /* Reset heading nudge — pill's in normal flow now, no clearance needed */
-    .developer-hero + section > :first-child,
-    .developer-hero + div > :first-child { margin-top: 24px !important; }
 }
