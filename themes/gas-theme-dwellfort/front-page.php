@@ -44,12 +44,16 @@ $hero_cta_url  = get_theme_mod('df_hero_cta_url',   home_url('/book-now/'));
             <?php echo wp_kses_post(get_theme_mod('df_rooms_intro', 'Boutique apartments in the heart of Prague — each individually designed for quality and comfort.')); ?>
         </div>
         <?php
-        // GAS booking plugin renders the room grid. Falls back to
-        // a placeholder if the plugin isn't loaded on this site.
-        if (shortcode_exists('gas_room_grid')) {
-            echo do_shortcode('[gas_room_grid columns="3"]');
+        // Dwellfort has multiple boutique residences (Encore, Hidden Art,
+        // Prague Tales, etc.) — each a property with its own rooms. The
+        // properties grid is the right shortcode for the "Our Apartments"
+        // section on the homepage. Rooms live INSIDE each property.
+        if (shortcode_exists('gas_properties')) {
+            echo do_shortcode('[gas_properties columns="3"]');
+        } elseif (shortcode_exists('gas_rooms')) {
+            echo do_shortcode('[gas_rooms columns="3"]');
         } else {
-            echo '<p class="df-placeholder">[gas_room_grid] shortcode not active — activate the GAS Booking plugin to render rooms here.</p>';
+            echo '<p class="df-placeholder">Activate the GAS Booking plugin — [gas_properties] shortcode renders the residences here.</p>';
         }
         ?>
     </div>

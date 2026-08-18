@@ -354,3 +354,114 @@ p { margin: 0 0 var(--df-space-2); }
 
 /* Small helpers */
 .df-placeholder { padding: var(--df-space-3); border: 1px dashed var(--df-hairline); color: var(--df-muted); text-align: center; font-family: monospace; }
+
+/* Short hero variant — used by Book Now / Properties inner pages. */
+.df-hero--short { min-height: 320px; }
+
+/* ==========================================================================
+   GAS Booking plugin — style rebrand into Dwellfort palette
+   ========================================================================== */
+/* Property + room cards */
+.gas-property-card,
+.gas-room-card,
+.gas-properties-grid .property-item,
+.gas-rooms-grid .room-item {
+    background: var(--df-white);
+    border: 1px solid var(--df-hairline);
+    border-radius: 0;    /* Elegant theme = square corners */
+    overflow: hidden;
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+.gas-property-card:hover,
+.gas-room-card:hover,
+.gas-properties-grid .property-item:hover,
+.gas-rooms-grid .room-item:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+}
+.gas-property-card h3,
+.gas-room-card h3,
+.gas-property-card .property-title,
+.gas-room-card .room-title {
+    font-family: var(--df-font-heading);
+    font-weight: 400;
+    color: var(--df-charcoal);
+    letter-spacing: 0.05em;
+}
+.gas-property-card .price,
+.gas-room-card .price,
+.gas-price { color: var(--df-charcoal); font-family: var(--df-font-heading); }
+
+/* Search widget + form controls */
+.gas-search-form,
+.gas-booking-form,
+.gas-checkout-form {
+    font-family: var(--df-font-body);
+}
+.gas-search-form input,
+.gas-search-form select,
+.gas-booking-form input,
+.gas-booking-form select,
+.gas-checkout-form input,
+.gas-checkout-form select,
+.gas-checkout-form textarea {
+    font-family: var(--df-font-body);
+    font-size: var(--df-fs-body);
+    padding: 12px 14px;
+    border: 1px solid var(--df-hairline);
+    border-radius: 0;
+    background: var(--df-white);
+    color: var(--df-body);
+}
+.gas-search-form input:focus,
+.gas-booking-form input:focus,
+.gas-checkout-form input:focus {
+    outline: none;
+    border-color: var(--df-charcoal);
+}
+
+/* All plugin primary buttons — book now, search, pay, etc. */
+.gas-btn,
+.gas-btn-primary,
+.gas-book-now,
+.gas-search-submit,
+.gas-checkout-submit,
+button.gas-primary {
+    background: var(--df-charcoal) !important;
+    color: var(--df-white) !important;
+    padding: 12px 28px;
+    font-family: var(--df-font-body);
+    font-size: var(--df-fs-body);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+.gas-btn:hover,
+.gas-btn-primary:hover,
+.gas-book-now:hover,
+.gas-search-submit:hover,
+.gas-checkout-submit:hover,
+button.gas-primary:hover {
+    background: var(--df-sand) !important;
+    color: var(--df-charcoal) !important;
+}
+
+/* Grid gap — matches Dwellfort's spacing rhythm */
+.gas-properties-grid,
+.gas-rooms-grid,
+.gas-room-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--df-space-3);
+    margin-top: var(--df-space-3);
+}
+@media (max-width: 900px) {
+    .gas-properties-grid, .gas-rooms-grid, .gas-room-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+    .gas-properties-grid, .gas-rooms-grid, .gas-room-grid { grid-template-columns: 1fr; }
+}
