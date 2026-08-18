@@ -78015,6 +78015,13 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
           .replace(/\n/g, '<br>')}</blockquote>`
       : '';
 
+    // Operator-composed override — if the send-card-capture composer
+    // supplies a custom subject/body, honour them verbatim. Adds the
+    // capture link button + "already paid another way" mailto below the
+    // body so those affordances aren't lost. Steve 2026-08-18.
+    const customSubject = String(req.body?.subject || '').trim();
+    const customBody = String(req.body?.body || '').trim();
+
     // Three email variants:
     //   - charge-failed: card was declined, ask for a fresh card
     //   - group confirm: group booking with the "in order to confirm your
@@ -78050,17 +78057,25 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
       ? `<p style="font-size:13px;color:#666;margin-top:20px;">If you have already paid another way, please <a href="mailto:${bookingsTeamEmail}?subject=${encodeURIComponent('Booking payment already made — ' + propertyName)}&body=${encodeURIComponent('Hi,\n\nI have already paid for my booking at ' + propertyName + ' by another method. Please stop the reminder emails.\n\nGuest: ' + (booking.guest_first_name || '') + '\nBooking reference: GAS-' + booking.id + '\n\nThanks.')}" style="color:#0ea5e9;">click here to contact the booking team</a>.</p>`
       : '';
 
+    // Custom body overrides the templated intro/signoff. HTML-escape the
+    // operator's text then convert newlines to <br> so paragraph breaks
+    // render as typed. The card-capture button + already-paid link are
+    // always appended below so the operator can't accidentally drop them.
+    const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const finalSubject = customSubject || subject;
+    const bodyHtml = customBody
+      ? `<div style="white-space:pre-wrap;">${escapeHtml(customBody).replace(/\n/g, '<br>')}</div>`
+      : `<p>Dear ${booking.guest_first_name || 'Guest'},</p>${intro}${noteHtml}`;
+
     const result = await sendEmail({
       to: booking.guest_email,
-      subject,
+      subject: finalSubject,
       html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
-        <p>Dear ${booking.guest_first_name || 'Guest'},</p>
-        ${intro}
-        ${noteHtml}
+        ${bodyHtml}
         <p style="margin: 24px 0;"><a href="${captureUrl}" style="display:inline-block;background:#059669;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:500;">${buttonLabel}</a></p>
         <p style="color:#666;font-size:13px;">Your card details go directly to our secure payment processor — the property never sees or stores your card number. This link is private to you and expires in 7 days.</p>
         ${alreadyPaidBlock}
-        ${signOff}
+        ${customBody ? '' : signOff}
       </body></html>`,
       context: {
         guestId: booking.guest_id,

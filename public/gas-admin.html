@@ -30155,6 +30155,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                      booking_group_id and sibling rooms exist. Steve 2026-07-12. -->
                 <div id="view-booking-group" style="display: none; padding: 0.75rem 1.5rem; background: #ede9fe; border-bottom: 1px solid #c4b5fd;"></div>
 
+                <!-- Source + payment-model banner (Steve 2026-08-18). Colour +
+                     copy driven by booking_source + ota_prepaid + payment_status.
+                     Populated by _renderSourceBanner() during viewBooking(). -->
+                <div id="view-booking-source-banner" style="display: none; padding: 0.85rem 1.5rem; border-bottom: 1px solid #e5e7eb;"></div>
+
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0;">
                     
                     <!-- Left Column -->
@@ -72256,40 +72261,108 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        // Opens a proper composer for the card-capture email. Prefills the
+        // "Dear {Guest}, in order to confirm..." template with the
+        // property signature; operator can edit subject + body per guest
+        // before hitting Send. Preview button returns the URL only (no
+        // email sent) so the operator can test the link.
         async function sendCardCaptureLink(bookingId) {
-            const choice = prompt('Send card capture link — type:\n  SEND  = email the guest (default)\n  PREVIEW = just show me the URL to test/copy\n', 'SEND');
-            if (choice === null) return;
-            const preview = String(choice).trim().toUpperCase() === 'PREVIEW';
-            let note = null;
-            if (!preview) {
-                // Optional personal note from the owner — rendered above
-                // the "Add my card" button in the guest email. Leave blank
-                // to skip. Multi-line is fine (newlines become <br>).
-                note = prompt('Add a personal note (optional — leave blank to skip):', '');
-                if (note === null) return;   // user hit cancel
-                note = String(note).trim();
-            }
+            // Pull booking + property context to prefill the template
+            let ctx = { guestName: 'Guest', propertyName: 'your stay', currency: 'GBP', balance: '0.00', guestEmail: '', isGroup: false, groupSize: 1 };
             try {
-                const r = await fetch(`/api/admin/bookings/${bookingId}/send-card-capture-link${preview ? '?preview=1' : ''}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ note: note || undefined }),
-                });
-                const data = await r.json();
-                if (!data.success) {
-                    showNotification(`⚠ ${data.error || 'Failed'}`, 'error');
-                    return;
+                const r = await fetch(`/api/bookings/${bookingId}`);
+                const d = await r.json();
+                if (d.success && d.booking) {
+                    const b = d.booking;
+                    ctx.guestName = b.guest_first_name || 'Guest';
+                    ctx.propertyName = b.property_name || 'your stay';
+                    ctx.currency = b.currency || 'GBP';
+                    ctx.balance = parseFloat(b.balance_amount || 0).toFixed(2);
+                    ctx.guestEmail = b.guest_email || '';
+                    ctx.isGroup = !!b.group_booking_id;
                 }
-                if (data.preview && data.capture_url) {
-                    // Show URL in a prompt so operator can copy/open it.
-                    prompt('Preview URL (click OK then paste into your browser):', data.capture_url);
-                    return;
+            } catch (_) { /* non-fatal — modal still opens with placeholders */ }
+
+            const defaultSubject = ctx.isGroup
+                ? `Please confirm your booking at ${ctx.propertyName}`
+                : `Payment details for your stay at ${ctx.propertyName}`;
+            const defaultBody = ctx.isGroup
+                ? `Dear ${ctx.guestName},\n\nIn order to confirm your booking could you please follow the link below to enter your credit card details.\n\nRegards,\nBookings Manager\n${ctx.propertyName}`
+                : `Dear ${ctx.guestName},\n\nTo confirm your upcoming stay at ${ctx.propertyName}, please follow the link below to enter your credit card details. Your balance of ${ctx.currency} ${ctx.balance} will be charged before your arrival.\n\nRegards,\nBookings Manager\n${ctx.propertyName}`;
+
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.6); display:flex; align-items:center; justify-content:center; z-index:10050; padding:20px;';
+            overlay.innerHTML = `
+                <div style="background:#fff; border-radius:14px; width:100%; max-width:640px; max-height:92vh; overflow:auto; box-shadow:0 20px 50px rgba(0,0,0,0.35);">
+                    <div style="padding:1rem 1.25rem; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center;">
+                        <h3 style="margin:0; font-size:1.05rem;">📧 Compose card capture email</h3>
+                        <button id="cclComposeClose" style="background:none; border:none; font-size:1.4rem; cursor:pointer; color:#64748b;">×</button>
+                    </div>
+                    <div style="padding:1rem 1.25rem; display:flex; flex-direction:column; gap:0.85rem;">
+                        <div>
+                            <label style="font-size:0.75rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.03em;">To</label>
+                            <input type="text" value="${(ctx.guestEmail || '').replace(/"/g,'&quot;')}" readonly style="width:100%; padding:0.5rem 0.75rem; border:1px solid #e5e7eb; border-radius:8px; background:#f8fafc; color:#334155; font-size:0.9rem; margin-top:2px;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.75rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.03em;">Subject</label>
+                            <input type="text" id="cclComposeSubject" style="width:100%; padding:0.5rem 0.75rem; border:1px solid #cbd5e1; border-radius:8px; font-size:0.9rem; margin-top:2px;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.75rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.03em;">Message</label>
+                            <textarea id="cclComposeBody" rows="10" style="width:100%; padding:0.6rem 0.75rem; border:1px solid #cbd5e1; border-radius:8px; font-size:0.9rem; font-family:inherit; margin-top:2px; resize:vertical;"></textarea>
+                            <div style="font-size:0.7rem; color:#94a3b8; margin-top:4px;">The secure "Add my card" button + "already paid another way" link are automatically appended below your message.</div>
+                        </div>
+                        <div style="display:flex; gap:0.5rem; justify-content:flex-end; padding-top:0.5rem; border-top:1px solid #f1f5f9;">
+                            <button id="cclComposeCancel" class="btn btn-secondary" style="font-size:0.85rem;">Cancel</button>
+                            <button id="cclComposePreview" class="btn btn-secondary" style="font-size:0.85rem;">🔗 Preview URL</button>
+                            <button id="cclComposeSend" class="btn" style="background:#059669; color:#fff; font-size:0.85rem;">📧 Send email</button>
+                        </div>
+                        <div id="cclComposeStatus" style="font-size:0.8rem; color:#64748b;"></div>
+                    </div>
+                </div>`;
+            document.body.appendChild(overlay);
+            const $ = (id) => overlay.querySelector('#' + id);
+            $('cclComposeSubject').value = defaultSubject;
+            $('cclComposeBody').value = defaultBody;
+
+            const close = () => overlay.remove();
+            $('cclComposeClose').onclick = close;
+            $('cclComposeCancel').onclick = close;
+
+            $('cclComposePreview').onclick = async () => {
+                try {
+                    const r = await fetch(`/api/admin/bookings/${bookingId}/send-card-capture-link?preview=1`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({})
+                    });
+                    const d = await r.json();
+                    if (!d.success) { $('cclComposeStatus').textContent = '⚠ ' + (d.error || 'Preview failed'); return; }
+                    prompt('Preview URL (copy + paste into your browser):', d.capture_url);
+                } catch (e) { $('cclComposeStatus').textContent = '⚠ ' + e.message; }
+            };
+
+            $('cclComposeSend').onclick = async () => {
+                const subject = $('cclComposeSubject').value.trim();
+                const body = $('cclComposeBody').value.trim();
+                if (!subject || !body) { $('cclComposeStatus').textContent = '⚠ Subject and message are both required'; return; }
+                $('cclComposeSend').disabled = true;
+                $('cclComposeStatus').textContent = 'Sending…';
+                try {
+                    const r = await fetch(`/api/admin/bookings/${bookingId}/send-card-capture-link`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ subject, body })
+                    });
+                    const d = await r.json();
+                    if (!d.success) { $('cclComposeStatus').textContent = '⚠ ' + (d.error || 'Failed'); $('cclComposeSend').disabled = false; return; }
+                    close();
+                    showNotification(`✅ Card capture link sent to ${d.sent_to}. Expires in ${d.expires_days || 7} days.`, 'success');
+                } catch (e) {
+                    $('cclComposeStatus').textContent = '⚠ ' + e.message;
+                    $('cclComposeSend').disabled = false;
                 }
-                showNotification(`✅ Card capture link sent to ${data.sent_to}. Expires in ${data.expires_days || 7} days.`, 'success');
-            } catch (e) {
-                console.error('sendCardCaptureLink', e);
-                showNotification('⚠ ' + e.message, 'error');
-            }
+            };
         }
 
         // Inline save for the direct-email field on the View Booking modal.
@@ -73190,6 +73263,89 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        // Classify a booking by (source, ota_prepaid, payment_state, card
+        // on file) and produce the top banner content. Returns { colour,
+        // icon, title, body } — colour drives the pill background.
+        function _classifyBookingSource(b) {
+            const src = String(b.booking_source || '').toLowerCase();
+            const otaPrepaid = b.ota_prepaid === true;
+            const paid = b.payment_status === 'paid' || b.payment_status === 'deposit_paid';
+            const hasCard = !!(b.stripe_payment_method_id || b.square_card_id);
+            const hasVCC = !!(b.stripe_payment_method_id && (String(b.booking_source||'').toLowerCase() === 'expedia' || b.ota_payment_collect === 'ota'));
+            const total = (b.currency || 'GBP') + ' ' + parseFloat(b.grand_total || 0).toFixed(2);
+
+            if (src === 'hostelworld') return {
+                colour: { bg:'#fff7ed', bd:'#fdba74', fg:'#9a3412' },
+                icon: '🟠', title: 'HOSTELWORLD · pay at property',
+                body: `Hostelworld already took ~15% commission as deposit at booking. The guest owes <strong>${total}</strong> in cash or card at reception. No online action required unless you want to pre-charge — use "Email guest for card".`
+            };
+            if (src === 'airbnb') return {
+                colour: { bg:'#f0fdf4', bd:'#86efac', fg:'#166534' },
+                icon: '🟢', title: 'AIRBNB · prepaid',
+                body: `Guest paid Airbnb <strong>${total}</strong> at booking. Airbnb pays you into your bank ~24h after check-in. <strong>Nothing to collect.</strong>`
+            };
+            if (src === 'expedia' && b.ota_payment_collect === 'ota') return {
+                colour: { bg:'#f0fdf4', bd:'#86efac', fg:'#166534' },
+                icon: '🟢', title: 'EXPEDIA COLLECT · prepaid VCC',
+                body: `Expedia collected <strong>${total}</strong> from the guest. GAS auto-charges the VCC on check-in day. ${hasVCC ? '<strong>VCC on file.</strong>' : '<strong style="color:#b45309;">VCC NOT yet attached — grab it from Expedia extranet.</strong>'}`
+            };
+            if (src === 'expedia') return {
+                colour: { bg:'#fef9c3', bd:'#fde047', fg:'#854d0e' },
+                icon: '🟡', title: 'EXPEDIA HOTEL COLLECT · you charge',
+                body: `Guest's real card is on file. ${paid ? 'Already charged.' : `You must charge <strong>${total}</strong> yourself — auto-charge is OFF for OTA bookings. Use Take Payment button.`}`
+            };
+            if (src === 'booking' || src === 'bookingcom') return otaPrepaid ? {
+                colour: { bg:'#f0fdf4', bd:'#86efac', fg:'#166534' },
+                icon: '🟢', title: 'BOOKING.COM · prepaid',
+                body: `BDC collected from the guest. Payout <strong>${b.ota_payout_amount ? (b.currency||'') + ' ' + parseFloat(b.ota_payout_amount).toFixed(2) : 'as scheduled'}</strong> — no action needed.`
+            } : {
+                colour: { bg:'#fef9c3', bd:'#fde047', fg:'#854d0e' },
+                icon: '🟡', title: 'BOOKING.COM · you charge',
+                body: `Guest's real card should be on file. Deposit ${b.deposit_paid > 0 ? 'taken' : 'due'}. Balance of <strong>${total}</strong> ${hasCard ? 'auto-charges on due date' : '— NO card on file, chase needed'}.`
+            };
+            if (src === 'direct') {
+                if (paid) return {
+                    colour: { bg:'#f0fdf4', bd:'#86efac', fg:'#166534' },
+                    icon: '🟢', title: 'DIRECT WEBSITE · paid',
+                    body: `Guest paid direct on your booking form. ${hasCard ? 'Card on file for the balance.' : 'Deposit only — no card saved.'}`
+                };
+                if (hasCard) return {
+                    colour: { bg:'#f0fdf4', bd:'#86efac', fg:'#166534' },
+                    icon: '🟢', title: 'DIRECT WEBSITE · card on file',
+                    body: `Card saved via booking form. Balance of <strong>${total}</strong> will auto-charge on due date.`
+                };
+                return {
+                    colour: { bg:'#fef2f2', bd:'#fca5a5', fg:'#991b1b' },
+                    icon: '🔴', title: 'DIRECT WEBSITE · unpaid + no card',
+                    body: `<strong>${total}</strong> owed and NO card on file. This is a real chase case — use "Email guest for card" or "Send capture link".`
+                };
+            }
+            // Everything else — channex-routed with unknown OTA, hostaway, hostfully etc.
+            const label = src ? src.toUpperCase() : 'UNKNOWN SOURCE';
+            return {
+                colour: { bg:'#f1f5f9', bd:'#cbd5e1', fg:'#334155' },
+                icon: '⚪', title: `${label}`,
+                body: `${paid ? 'Marked paid.' : `<strong>${total}</strong> outstanding.`} ${otaPrepaid ? 'OTA-collected.' : (hasCard ? 'Card on file.' : 'No card on file.')}`
+            };
+        }
+        function _renderSourceBanner(b) {
+            const el = document.getElementById('view-booking-source-banner');
+            if (!el) return;
+            const c = _classifyBookingSource(b);
+            el.style.background = c.colour.bg;
+            el.style.borderColor = c.colour.bd;
+            el.style.borderLeft = `4px solid ${c.colour.bd}`;
+            el.style.display = 'block';
+            el.innerHTML = `
+                <div style="display:flex; gap:0.75rem; align-items:flex-start;">
+                    <div style="font-size:1.3rem; line-height:1;">${c.icon}</div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-weight:700; color:${c.colour.fg}; letter-spacing:0.02em; text-transform:uppercase; font-size:0.8rem;">${c.title}</div>
+                        <div style="color:${c.colour.fg}; font-size:0.9rem; margin-top:2px;">${c.body}</div>
+                    </div>
+                </div>`;
+        }
+
         async function viewBooking(id) {
             currentViewingBookingId = id;
             // Fire the Channex thread lookup in parallel (no await — it renders
@@ -73315,6 +73471,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                         groupBox.innerHTML = '';
                     }
                 }
+
+                // Source + payment-model banner — replaces the "hunt for the
+                // OTA source at the bottom of the modal" pain. Colour + copy
+                // tell Hebden/Barbara AT A GLANCE what the payment model is
+                // and whether they need to act.
+                _renderSourceBanner(b);
 
                 // Alert banner for overdue
                 const alertBanner = document.getElementById('view-booking-alert');
