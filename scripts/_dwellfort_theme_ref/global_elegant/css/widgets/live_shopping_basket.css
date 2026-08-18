@@ -1,0 +1,79 @@
+	#miniBasket2 .removeCell {
+		float: right;
+	}
+	#miniBasket2 > p {
+		padding:10px;
+	}
+	#miniBasket2 p {
+		margin:0;
+	}
+	#miniBasket2 form {
+		margin:0;
+	}
+	#miniBasket2 {
+		margin:0px 0 20px;
+		background:#f4f4f4;
+		padding-bottom: 10px;
+		border-radius:5px;
+		-webkit-border-radius:5px;
+		-moz-border-radius:5px;
+	}
+	#miniBasket2 #miniTotals {
+		margin:10px 0 10px 0;
+		font-size: 16px;
+		padding:4px 10px;
+		border-bottom:1px solid #fff;
+		border-top:1px solid #fff;
+	}
+	
+	#miniBasket2 .quantityWrapper {
+		font-size:12px;
+		line-height: 16px;
+		color:#777;
+		display: block;
+		clear:both;
+		margin: 0;
+	}
+	#miniBasket2 .quantity {
+		display: inline;
+		margin-top:4px;
+	}
+	#miniBasket2 #miniUpdateQuantities {
+		margin:8px 10px 10px;
+		text-align: right;
+	}
+	p#miniCheckoutButton.Button_Large {
+		margin:2px 10px 0px;
+		text-align: center;
+		padding:0;
+	}
+	p#miniCheckoutButton.Button_Large a{
+		display: block;
+	}
+	#miniBasket2 .quantityWrapper input {
+		border:none;
+		width: 20px;
+		border-radius:5px;
+		-webkit-border-radius:5px;
+		-moz-border-radius:5px;	
+		color:#000;
+		font-size: 10px;
+		padding:0px 5px;
+		line-height: 13px;
+		vertical-align:top;
+		margin-top: 1px;
+	}
+	.miniBasketItem p a {
+		border: none;
+	}
+	.miniBasketItem {
+		padding:10px;
+		border-bottom:1px solid #fff;
+	}
+	.miniBasketItem img {
+		border-radius:5px;
+		-webkit-border-radius:5px;
+		-moz-border-radius:5px;	
+		float:left;
+		margin-right: 5px; 
+	}

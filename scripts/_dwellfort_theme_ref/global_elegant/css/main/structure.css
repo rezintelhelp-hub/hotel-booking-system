@@ -1,0 +1,157 @@
+#ad {
+	z-index:1000;
+	position:fixed;
+	bottom:0;
+	left:0;
+	width:100%;
+	transform:translateY(100px);
+	-webkit-transform:translateY(100px);
+	-moz-transform:translateY(100px);
+	transition:all 1.5s;
+	-moz-transition:all 1.5s;
+	-webkit-transition:all 1.5s;
+}
+.js #ad {
+	transform:translateY(0px);
+	-webkit-transform:translateY(0px);
+	-moz-transform:translateY(0px);
+}
+#ad a {
+	transition:all 0.5s;
+	-moz-transition:all 0.5s;
+	-webkit-transition:all 0.5s;
+	display:block;
+	padding:15px 5px;
+	text-align:center;
+	text-decoration:none;
+	font-weight:500;
+	font-size:20px;
+	background:#ABD04F;
+	color:#000;
+}
+#ad a:hover {
+	background:#FF6A00;
+}
+body.withAd {
+	padding-bottom:80px;
+}
+body,.withBigBG #bg {
+	background: #313131;
+}
+#main.withSidebarNav {
+	float:right;
+	width:80%;
+	overflow: hidden;
+}
+#sidebarNav {
+	float:right;
+	width:20%;
+	overflow: hidden;
+}
+@media (max-width: 767px) {
+	#sidebarInner {
+		margin-right: 0
+	}
+	#sidebarNav,#main.withSidebarNav {
+		width: 100%;
+		float:none;
+	}
+}
+.container {
+	position: relative;
+	width:960px;
+	margin:0 auto;
+}
+.withBigBG .container {
+	width:850px;
+}
+.withBigBG #bg {
+	max-width: 960px;
+	margin:0 auto;
+	padding-bottom: 1px;
+}
+#centerBg {
+	padding:30px 0;
+}
+#mainBg {
+	background: #fff;
+}
+#footers {
+	padding-bottom:120px;
+}
+#mainFooter,#closing {
+	color:#fff;
+	background:rgb(49, 49, 49);
+	background:rgba(49, 49, 49, 0.8);
+}
+#mainFooter {	
+	padding-top: 20px;
+}
+#closing {
+	
+}
+#footers .container {
+	padding-bottom:1px;
+}
+#closing .container {
+	border-top: 1px solid #888;
+	padding-top: 10px;
+}
+
+.container:after { content: "\0020"; display: block; height: 0; clear: both; visibility: hidden; }
+
+@media only screen and (min-width: 1300px) {
+	.container {
+		width:1100px;
+	}
+	.withBigBG .container {
+		width:1040px;
+	}
+	.withBigBG #bg {
+		max-width: 1100px;
+	}
+}
+@media only screen and (min-width: 768px) and (max-width: 1000px) {
+	.container {
+		width:728px;
+	}
+	.withBigBG .container {
+		width:678px;
+	}
+	.withBigBG #bg {
+		max-width: 728px;
+	}
+}
+@media only screen and (max-width: 767px) {
+	.container {
+		width:500px;
+	}
+	.withBigBG .container {
+		width:450px;
+	}
+	.withBigBG #bg {
+		max-width: 550px;
+	}
+}
+@media only screen and (min-width: 480px) and (max-width: 600px) {
+	.container {
+		width:420px;
+	}
+	.withBigBG .container {
+		width:380px;
+	}
+	.withBigBG #bg {
+		max-width: 420px;
+	}
+}
+@media only screen and (max-width: 480px) {
+	.container {
+		width:280px;
+	}
+	.withBigBG .container {
+		width:270px;
+	}
+	.withBigBG #bg {
+		max-width: 280px;
+	}
+}

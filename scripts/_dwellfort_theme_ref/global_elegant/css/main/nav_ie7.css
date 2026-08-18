@@ -1,0 +1,45 @@
+.ie *
+ {
+	zoom:1;
+}
+.ie7 #expandNav {padding:0;}
+.ie7 #expandNav a {
+	text-decoration: none;
+}
+.ie7 #nav li ul {
+	display: none;
+	clear:both;
+	float:left;
+	margin-top: -1px;
+}
+.ie7 #nav li a {
+	float:left;
+}
+.ie7 #nav li {
+	padding-top: 1px;
+}
+.ie7 #nav li:hover ul {
+	display: block;
+}
+.ie7 #searchFormSmall {
+	position: relative;
+	top:-10px;
+}
+.ie7 .focusSwapWrap {
+	position: relative;
+	height:32px;
+	overflow: hidden;
+}
+.ie7 .focusSwapLabel {
+	margin:0;
+	position: absolute;
+	top:0;
+	left:0;
+	background: none;
+	line-height: 20px;
+	font-weight: normal;
+	padding:5px;
+}
+.ie7 .focus .focusSwapLabel {
+	left:-100%;
+}

@@ -1,0 +1,1 @@
+<div id="miniBasket2"></div>

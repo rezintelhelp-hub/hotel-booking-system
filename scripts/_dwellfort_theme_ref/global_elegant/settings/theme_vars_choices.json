@@ -1,0 +1,228 @@
+[
+	{
+		"type": "title"
+		,"value":"Product display options"
+	}
+	,{
+		"display_name":"Hide stock level"
+		,"variable_name": "hide_stock_threshold"
+		,"default_value": "1000"
+		,"info": "Stock level won't be shown if stock level is higher than the number entered here."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Warning stock level"
+		,"variable_name": "warning_stock_threshold"
+		,"default_value": "5"
+		,"info": "Low stock warning will show with 'add to basket' button if a product stock is lower than the number entered here."
+		,"type": "text"
+	}
+	,{
+		"type": "title"
+		,"value":"Contact and Social"
+	}
+	,{
+		"display_name":"Show contact bar"
+		,"variable_name": "contactbar"
+		,"default_value": "1"
+		,"type": "tick"
+	}
+	,{
+		"type": "rule"
+	}
+	,{
+		"display_name":"Phone number"
+		,"variable_name": "phone_number"
+		,"default_value": "01234 123123"
+		,"info": "Please enter your phone number to be displayed automatically in your template. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Email address"
+		,"variable_name": "email_address"
+		,"default_value": "info@example.com"
+		,"info": "Please enter your email address. This will be encrypted to help protect against spam bots. "
+		,"type": "text"
+	}
+	,{
+		"type": "rule"
+	}
+	
+	,{
+		"display_name":"Twitter username"
+		,"variable_name": "twitter_user_name"
+		,"default_value": "Twitter"
+		,"info": "Please enter your Twitter username (without the @ symbol). This will be used to display your recent tweets and for social media icons."
+		,"type": "text"
+	}
+	,{
+		"display_name":"YouTube link"
+		,"variable_name": "youtube_link"
+		,"info": "Please enter your YouTube link URL. This will be used for the YouTube social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Facebook link"
+		,"variable_name": "facebook_link"
+		,"info": "Please enter your Facebook page link. This will be used for the Facebook social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Vimeo link"
+		,"variable_name": "vimeo_link"
+		,"info": "Please enter your Vimeo page link. This will be used for the Vimeo social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"LinkedIn link"
+		,"variable_name": "linkedin_link"
+		,"default_value": "https://www.linkedin.com/company/1337"
+		,"info": "Please enter your LinkedIn page link. This will be used for the LinkedIn social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Google+ link"
+		,"variable_name": "gplus_link"
+		,"default_value": "https://plus.google.com/+GoogleUK/posts"
+		,"info": "Please enter your Google+ page link. This will be used for the Google+ social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Pinterest link"
+		,"variable_name": "pinterest_link"
+		,"info": "Please enter your Pinterest page link. This will be used for the Pinterest social media icon."
+		,"type": "text"
+	}
+
+	,{
+		"type": "title"
+		,"value":"General Settings"
+	}
+	,{
+		"display_name":"Number of recent blog articles"
+		,"variable_name": "recent_blog_articles"
+		,"default_value": "3"
+		,"info": "Please enter the number of recent blog articles to show when using the Recent Blog Articles 'Extra Core' item."
+		,"type": "text"
+	}
+	,{
+		"type": "rule"
+	}
+	,{
+		"display_name":"Sidebar sub-page menu"
+		,"variable_name": "sidebar_menu"
+		,"default_value": "2level"
+		,"type": "string"
+		,"options": 
+			[
+				{ "display_value":"No sidebar sub-page menu","value":"none" }
+				,{ "display_value":"1 level visible","value":"1level" }
+				,{ "display_value":"2 levels visible","value":"2level" }
+				,{ "display_value":"3 levels visible","value":"3level" }
+			]
+	}
+	,{
+		"display_name":"Main menu size"
+		,"variable_name": "main_menu_size"
+		,"type": "string"
+		,"default_value": "2"
+		,"options": 
+			[
+				{ "display_value":"Small (for lots of pages)","value":"1" }
+				,{ "display_value":"Medium (for fewer pages)","value":"2" }
+				,{ "display_value":"Large (for a few pages)","value":"3" }				
+			]
+	}
+	,{
+		"type": "title"
+		,"value":"Logo and background"
+	}
+	,{
+		"display_name":"Logo text"
+		,"variable_name": "logo_text"
+		,"default_value": "ELEGANT"
+		,"info": "Please enter your logo text here. This will be ignored if you upload a custom logo graphic."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Meta title append"
+		,"variable_name": "meta_title_append"
+		,"default_value": ""
+		,"info": "By default pages create meta titles automatically. The text you enter here will be added to the end of that text. If you add a meta title to an individual page it will override the automatically created title."
+		,"type": "text"
+	}
+	,{
+		"type": "rule"
+	}
+	,{
+		"display_name":"Upload custom logo graphic"
+		,"variable_name": "logo"
+		,"type": "image"
+	}
+	,{
+		"type": "rule"
+	}
+	,{
+		"display_name":"Logo size"
+		,"variable_name": "logo_size"
+		,"default_value": "medium"
+		,"type": "string"
+		,"options": 
+			[
+				{ "display_value":"Small","value":"small" }
+				,{ "display_value":"Medium","value":"medium" }
+				,{ "display_value":"Large","value":"large" }				
+			]
+	}
+	,{
+		"type": "rule"
+	}
+	,{
+		"display_name":"Upload window background"
+		,"variable_name": "windowbgimage"
+		,"type": "image"
+	}
+	,{
+		"display_name":"Background mode"
+		,"variable_name": "background_mode"
+		,"default_value": "stretch"
+		,"type": "string"
+		,"options": 
+			[
+				{ "display_value":"Stretch","value":"stretch" }
+				,{ "display_value":"Tile","value":"tile" }
+			]
+	}
+	,{
+		"type": "rule"
+	}
+	,{
+		"display_name":"Upload footer background"
+		,"variable_name": "footerbgimage"
+		,"type": "image"
+	}
+	,{
+		"display_name":"Background mode"
+		,"variable_name": "footer_background_mode"
+		,"default_value": "stretch"
+		,"type": "string"
+		,"options": 
+			[
+				{ "display_value":"Stretch","value":"stretch" }
+				,{ "display_value":"Tile","value":"tile" }
+			]
+	}
+	,{
+		"type": "rule"
+	}
+	,{
+		"display_name":"Upload Favicon"
+		,"variable_name": "favicon"
+		,"type": "image"
+	}
+	,{
+		"display_name":"Upload Apple Web Clip icon"
+		,"variable_name": "apple_touch"
+		,"type": "image"
+	}
+]

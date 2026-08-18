@@ -1,0 +1,18 @@
+[
+	{
+		"display_name":"Creative montage"
+		,"style_variable_value": "montage"
+	}
+	,{
+		"display_name":"Slideshow"
+		,"style_variable_value": "single_slideshow"
+	}
+	,{
+		"display_name":"Slideshow (multi)"
+		,"style_variable_value": "multi_slideshow"
+	},{
+		"display_name":"Gallery (thumbs)"
+		,"style_variable_value": "thumbs_gallery"
+	}
+
+]

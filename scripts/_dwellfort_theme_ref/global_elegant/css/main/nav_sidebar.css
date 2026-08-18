@@ -1,0 +1,43 @@
+nav#sidebarNav {
+	-moz-border-radius:2px;
+	-webkit-border-radius:2px;
+	border-radius:2px;
+}
+#sidebarInner h4 {
+	padding:0 15px;
+}
+#sidebarInner {
+	padding:10px 0px 0;
+	margin-right: 20px;
+	background: #F3F3F3;
+}
+#sidebarNav ul {
+	margin: 0;	
+	border-top:1px solid #ddd;
+	list-style: none;
+}
+#sidebarNav ul li {
+	margin:0;
+}
+#sidebarNav ul a{
+	display: block;
+	padding:10px 15px;
+	border-bottom:1px solid #ddd;
+}
+#sidebarNav ul li:last-child a {
+	border:none;
+}
+
+#sidebarNav ul li.currentParent > a,#sidebarNav ul li.current a,#sidebarNav ul li.currentSubSub a,#sidebarNav ul li a:hover {
+	background: #e8e8e8;
+}
+#sidebarNav ul ul {
+	border-top:0;
+	border-bottom:1px solid #ddd;
+}
+#sidebarNav ul ul a{
+	padding-left:25px;
+}
+#sidebarNav ul ul ul a{
+	padding-left:35px;
+}

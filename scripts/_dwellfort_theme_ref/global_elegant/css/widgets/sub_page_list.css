@@ -1,0 +1,78 @@
+
+	/* Sub page grid */
+	.subPageIndexGrid {
+		list-style:none;
+		margin:0;
+	}
+	.subPageIndexGrid li.lastOf4 {
+		margin-right:0;
+	}
+	.subPageIndexGrid li {
+		
+		float:left;
+		width:24.25%;
+		height:125px;
+		padding:0 0px 0;
+		position:relative;
+		margin:0 1% 10px 0;
+		overflow:hidden;
+		background: #ccc;
+		border-radius:2px;
+		-webkit-border-radius:2px;
+		-moz-border-radius:2px;	
+	}
+	@media (max-width: 960px) {
+		.subPageIndexGrid li.lastOf4 {
+			margin-right: 1%;
+		}
+		.subPageIndexGrid li.lastOf3 {
+			margin-right: 0;
+		}
+		.subPageIndexGrid li {
+			width:32.66%;
+		}
+	}
+	@media (max-width: 600px) {
+		.subPageIndexGrid li.lastOf3.lastOf2,.subPageIndexGrid li.lastOf2,.subPageIndexGrid li.lastOf4 {
+			margin-right: 0;
+		}
+		.subPageIndexGrid li.lastOf3 {
+			margin-right: 1%;
+		}
+		.subPageIndexGrid li {
+			width:49.50%;
+		}
+	}
+	.subPageIndexGrid li img {
+		border-radius:2px;
+		-webkit-border-radius:2px;
+		-moz-border-radius:2px;	
+		width:100%;
+	}
+	.subPageIndexGrid li a {
+		width:100%;
+		height:125px;
+		display:block;
+		position:absolute;
+		top:0;
+		left:0;
+		border-radius:5px;
+		-webkit-border-radius:5px;
+		-moz-border-radius:5px;	
+		
+	}
+	.subPageIndexGrid li span {
+		position:absolute;
+		bottom:0;
+		left:0px;
+		background:#fff;
+		color:#000;
+		text-align:center;
+		font-size:16px;
+		font-weight:bold;
+		width:100%;
+		display:block;
+		opacity:0.7;
+		padding:10px;
+	}
+	

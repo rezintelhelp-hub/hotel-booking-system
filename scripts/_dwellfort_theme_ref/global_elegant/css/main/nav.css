@@ -1,0 +1,367 @@
+#expandNav {
+    padding-left:260px;
+}
+#expandNav.with_logo_size_small {
+    padding-left:170px;
+    padding-top:0;
+}
+#expandNav.with_logo_size_large {
+    padding-left:270px;
+    padding-top: 7px;
+}
+#expandNav.with_logo_size_medium {
+    padding-top: 7px;
+}
+@media (max-width: 767px) {
+    #expandNav,#expandNav.with_logo_size_small,#expandNav.with_logo_size_large {
+        position: relative;
+        padding-left: 0;
+    }
+}
+#nav {
+    padding-top: 20px;
+}
+#nav:target {
+    background: #ebebeb;
+}
+#topbar > .container {
+	padding-top: 12px;
+	margin-bottom: 12px;
+	height:36px;
+    overflow: hidden;
+}
+@media (max-width: 768px) { 
+	#topbar > .container {
+		height:auto;
+	}
+}
+@media (max-width: 480px) {
+    #topbar > .container{
+        max-height: 0;
+        padding-bottom: 0;
+        padding-top: 0;
+    }    
+}
+#topbar:target {
+     background: #ebebeb;   
+}
+#topbar:target > .container {
+    padding-top: 10px;
+    max-height: 300px;
+    padding-bottom: 20px;
+}
+    .navToggle,.contactBarToggle
+    {
+        display: none;
+        margin-left: 5px;
+    }
+
+    #nav li
+    {
+        position: relative;
+    }
+        #nav li a
+        {
+            display: block;
+        }
+        #expandNav > ul > li:hover > a:active,#expandNav > ul > li > a:active
+        {
+            background-color: #222;
+            color:#fff;
+        }
+
+    #nav span:after
+    {
+        width: 0;
+        height: 0;
+        border: 0.313em solid transparent; /* 5 */
+        border-bottom: none;
+        border-top-color: #ccc;
+        content: '';
+        vertical-align: middle;
+        display: inline-block;
+        *display: inline;
+        position: relative;
+        right: -0.313em; /* 5 */
+    }
+
+    /* first level */
+
+    #expandNav > ul
+    {
+        margin:0;
+        padding:0;
+        position: relative;
+        z-index: 1;
+        margin:0;
+        text-align: right;
+    }
+        #expandNav > ul > li
+        {
+
+            position: relative;
+            z-index: 1;
+            display: inline-block;
+            *display: inline; /* IE Fix */
+			vertical-align:top;
+        }
+        #searchFormSmall {
+            display: inline-block;
+            *display: inline; /* IE Fix */
+            padding: 0 0 0 20px;
+            margin:0px 0 0px;
+        }
+        #searchFormSmall input {
+            width: 120px;
+        }
+            #expandNav > ul:hover {
+                z-index: 2;
+            }
+            #expandNav > ul > li > a
+            {
+                height: 100%;
+                padding:7px 20px;
+                
+            }
+            #expandNav.size_1 > ul > li > a {
+                padding:7px 5px;   
+                font-size:16px;
+            }
+            #expandNav.size_2 > ul > li > a {
+                padding:7px 10px; 
+                font-size:18px;
+            }
+            #expandNav.size_3 > ul > li > a {
+                padding:7px 15px;   
+                font-size:20px;
+            }
+            @media only screen and (max-width: 1000px) {
+                #expandNav > ul > li > a {
+                    padding:7px 10px;
+                }
+                #searchFormSmall {
+                    padding:0 10px;
+                }
+            }
+                #expandNav > ul > li:not( :last-child ) > a
+                {
+                    /*
+                    Uncomment below to add border between menu items.
+                    */
+                    /*border-right: 1px solid #cc470d;*/
+                }
+                #expandNav > ul > li:hover {
+                    position: relative;
+                    z-index: 2;
+                }
+                #expandNav > ul > li.current > a{
+                    background: #F3F3F3;
+                }
+                #expandNav > ul > li:hover > a,
+                #expandNav > ul:not( :hover ) > li.active > a
+                {
+                    /* Hover State */
+                    background: #F3F3F3;
+                }
+
+
+        /* second level */
+
+        #nav li ul
+        {
+            text-align: left;
+            background-color: #fff;
+            max-height: 0;
+            position: absolute;
+            display: block;
+            overflow: hidden;
+            top: 100%;
+            margin:0;
+            min-width: 200px;
+        }
+
+            #nav li:hover ul
+            {
+                
+                max-height: 2000px;
+                background-color: #F3F3F3;
+                padding:10px 0;
+            }
+                #nav li ul a
+                {
+                    /* Uncomment below to add border in drop downs */
+                    /* border-top: 1px solid #e15a1f;*/
+                    padding: 3px 20px;
+                }
+                    #nav li ul li a:hover,
+                    #nav li ul:not( :hover ) li.active a
+                    {
+                        /* hover */
+                    }
+
+
+@media only screen and ( max-width: 767px ) 
+{
+    #nav
+    {
+        position: static;
+    }
+    #nav ul ul {
+        text-align: left;
+    }
+    #expandNav > ul {
+        margin-left:-20px;
+        clear:both;
+        text-align: center;
+    }
+    
+}
+
+@media only screen and ( max-width: 480px ) 
+{
+
+    
+        #expandNav,#expandNav > ul
+        {
+            width: 100%
+        }
+        .navToggle
+        {
+            float:right;
+            width: 40px; 
+            height: 40px; 
+            text-align: center;
+            text-indent: -1000px;
+            overflow: hidden;
+            background-color: #444;
+            position: relative;
+        }
+            .navToggle:before
+            {
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+                font-family: "icomoon";
+                content:"d";
+                position: absolute;
+                text-indent: 0;
+                font-size: 22px;
+                line-height: 40px;
+                left:10px;
+                top:-2px;
+                color:#fff;   
+            }
+            #nav:target .navToggle:before {
+                content:"u";
+            }
+
+        #nav:not( :target ) .navToggle.show,
+        #nav:target .navToggle.hide
+        {
+            display: block;
+        }
+
+        .contactBarToggle
+        {
+            float:right;
+            width: 40px; 
+            height: 40px; 
+            text-align: center;
+            text-indent: -1000px;
+            overflow: hidden;
+            background-color: #999;
+            position: relative;
+        }
+            .contactBarToggle:before
+            {
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+                font-family: "icomoon";
+                content:"B";
+                position: absolute;
+                text-indent: 0;
+                font-size: 22px;
+                line-height: 40px;
+                left:9px;
+                top:0px;
+                color:#fff;   
+            }
+            #topbar:target .contactBarToggle.hide:before {
+                content:"z";
+            }
+
+        #topbar:not( :target ) .contactBarToggle.show,
+        #topbar:target .contactBarToggle.hide
+        {
+            display: block;
+        }
+
+
+    /* first level */
+    #nav {
+        margin:0;
+        padding:0;
+    }
+    #nav #expandNav
+    {
+        max-height: 0px;
+        overflow: hidden;
+    }
+    #searchFormSmall {
+        display: block;
+        margin:20px 0 0;
+    }
+    #searchFormSmall input {
+        width: 100%;
+    }
+        #nav:target #expandNav
+        {
+            max-height: 500px;
+        }
+        #expandNav > ul {
+            margin:0 0 20px;
+            border-top:1px solid #ccc;
+        }
+        #expandNav > ul > li
+        {
+            margin:0;
+            display: block;
+            float: none;
+        }
+        #expandNav > ul > li:after {
+            content: "."; 
+            display: block; 
+            height: 0; 
+            clear: both; 
+            visibility: hidden;
+        }
+        
+        #searchFormSmall {
+            padding:0;
+        }
+            #expandNav > ul > li > a
+            ,#expandNav.size_1 > ul > li > a
+            ,#expandNav.size_2 > ul > li > a
+            ,#expandNav.size_3 > ul > li > a
+            {
+                height: auto;
+                text-align: left;
+                padding: 10px 0px;
+                border-bottom:1px solid #ccc;
+            }
+                #expandNav > ul > li:not( :last-child ) > a
+                {
+                    
+                }
+
+
+        /* second level */
+
+        #nav li ul
+        {
+            position: static;
+            margin:0;
+            padding:0;
+            float:left;
+            width: 100%;
+        }
+}

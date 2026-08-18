@@ -1,0 +1,163 @@
+
+/* Calendar */
+.calendar {
+	margin:0 1px 20px 0;
+}
+h1.calMonth {
+	text-align:center;
+	margin:0 auto 10px;
+	font-size:20px;
+	width:220px;
+}
+.calTable {
+	width:auto;
+	width:100%;
+}
+.calTable,.calTableBlog {
+	border-collapse:collapse;
+}
+.calTableBlog {
+	width:100%;
+}
+.calTable th {
+	text-align:center;
+	font-weight:bold;
+	background:#FFFFFF;
+	color:#000;
+	text-transform:uppercase;
+	font-size:10px;
+	padding:2px 3px 0;
+}
+.calTable td {
+	border:1px solid #c7c7c7;
+	background:#fff;
+	text-align:right;
+	color:#666;
+	padding:2px 3px 0;
+	height:80px;
+	width:14.28%;
+}
+.calTable td.weekend {
+	background:#F3F3F3;
+}
+.calTable td .event {
+	color:#000;
+}
+.next_month {
+	width:24px;
+	height:24px;
+	position: relative;
+	float:right;
+	
+}
+.next_month:after {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	content:">";
+	float:right;
+	font-size: 25px;
+	position: absolute;
+	top:0px;
+	right:0px;
+}
+.prev_month {
+	
+	width:24px;
+	height:24px;
+	position: relative;
+	float:left;
+}
+.prev_month:after {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	content:"<";
+	float:right;
+	font-size: 25px;
+	position: absolute;
+	top:0px;
+	right:0px;
+}
+.cal_th_tablet,.cal_th_mobile {
+	display: none;
+}
+@media (max-width: 768px) {
+	.cal_th_desktop {
+		display: none;
+	}
+	.cal_th_tablet {
+		display: inline;
+	}
+	.calTable td { 
+		height:auto;
+	}
+	.event {
+		display:none;
+	}
+	#eventPopup .event {
+		display:block;
+	}
+	.calTable td.hasEvents {
+		position: relative;
+		background: #f5dcd0;
+	}
+	.hasEvents:after {
+		position: absolute;
+		top:3px;
+		left:3px;
+		content:"";
+		width:5px;
+		height:5px;
+		background-color: #f55400;
+		border-radius:5px;
+		-webkit-border-radius:5px;
+		-moz-border-radius:5px;	
+	}
+}
+@media (max-width: 480px) {
+	.cal_th_tablet {
+		display: none;
+	}
+
+	.cal_th_mobile {
+		display: inline;
+	}
+}
+#eventPopupWrapper {
+	position: fixed;
+	top:30px;
+	left:0;
+	right:0;
+	top:0;
+	bottom:0;
+	background: #000;
+	background: rgba(0,0,0,0.7);
+	z-index: 3000;
+}
+#eventPopup {
+	overflow: auto;
+	max-height: 80%;
+	width:290px;
+	margin:50% auto 0;
+	position: relative;
+	top:-50%;
+	padding:20px;
+	background: #fff;
+	border-radius:5px;
+	-webkit-border-radius:5px;
+	-moz-border-radius:5px;	
+	border:1px solid #ddd;
+}
+#closeEventPopup {
+	position: absolute;
+	top:5px;
+	right:10px;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	font-size: 20px;
+	line-height: 25px;
+	cursor: pointer;
+}
+/* End Calendar */

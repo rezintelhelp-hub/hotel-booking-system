@@ -1,0 +1,33 @@
+#topbar > .container
+,#expandNav
+,.contactBarToggle
+,.navToggle
+,.owl-theme .owl-controls 
+,#sidebarNav
+,#sidebar {
+	display: none !important;
+}
+.owl-wrapper,.owl-item {
+	display: block !important;
+	width:auto !important;
+	height:auto !important;
+}
+.owl-item {
+	width:100% !important;
+}
+footer * {
+	color:#000;
+}
+footer a {
+	color:#000;
+}
+.button a,
+.Button_Small a,
+.Button_Medium a,
+.Button_Large a {
+	border:1px solid #000;
+}
+#main.withSidebarNav {
+	width:auto;
+	float:none;
+}

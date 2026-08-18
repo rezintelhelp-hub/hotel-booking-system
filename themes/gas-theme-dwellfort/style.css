@@ -1,0 +1,172 @@
+/*
+Theme Name: GAS Dwellfort
+Theme URI: https://gas.travel
+Author: GAS Booking
+Author URI: https://gas.travel
+Description: Bespoke theme for Dwellfort — port of the SetSeed global_elegant design into GAS. Preserves Anton's original palette + typography + section rhythm while sitting on the GAS booking + platform stack.
+Version: 0.1.0
+License: GNU General Public License v2 or later
+License URI: http://www.gnu.org/licenses/gpl-2.0.html
+Text Domain: gas-theme-dwellfort
+Tags: vacation-rental, hotel, boutique, custom-colors, custom-logo, featured-images, full-width-template
+Requires at least: 5.9
+Tested up to: 6.4
+Requires PHP: 7.4
+*/
+/* Copyright (c) 2026 GAS - Global Accommodation System. All rights reserved.
+   Proprietary — licensed for GAS platform use only. Bespoke build for
+   Dwellfort based on their original SetSeed global_elegant theme design.
+   Do NOT deploy to any site other than dwellfort.com. */
+
+/* ==========================================================================
+   Design tokens — extracted from global_elegant + live dwellfort.com
+
+   Source: scripts/_dwellfort_theme_ref/DESIGN_SPEC.md
+   ========================================================================== */
+:root {
+    /* Palette — Anton's signature warm neutrals + accent */
+    --df-charcoal:   #252317;   /* primary dark — headings, footer */
+    --df-warm-white: #e7e0db;   /* secondary background, cards */
+    --df-sand:       #d0b58e;   /* accent — badges, hover, dividers */
+    --df-black:      #0e0e0e;   /* text darkest */
+    --df-body:       #444;      /* body copy */
+    --df-muted:      #7d7e7d;   /* subdued text */
+    --df-hairline:   #ddd;      /* rules, borders */
+    --df-panel:      #f3f3f3;   /* subtle panel bg */
+    --df-white:      #fff;
+    --df-link:       #0093ef;   /* legacy blue link accent — used sparingly */
+
+    /* Overlays for hero + image treatments */
+    --df-overlay-10: rgba(0,0,0,.1);
+    --df-overlay-30: rgba(0,0,0,.3);
+    --df-overlay-50: rgba(0,0,0,.5);
+    --df-overlay-80: rgba(0,0,0,.8);
+
+    /* Typography — Lora (serif headings) + Muli (sans body)
+       Preserved from Anton's original type pair. */
+    --df-font-heading: 'Lora', Georgia, 'Times New Roman', serif;
+    --df-font-body:    'Muli', 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --df-font-accent:  'Fjord One', Georgia, serif;
+
+    /* Scale — matches the 12/13/14/16/18/30 rhythm from base.css */
+    --df-fs-sm:    13px;
+    --df-fs-body:  16px;
+    --df-fs-lead:  18px;
+    --df-fs-h3:    22px;
+    --df-fs-h2:    26px;
+    --df-fs-h1:    30px;
+    --df-fs-hero:  48px;
+
+    /* Spacing rhythm — matches Skeleton 20px baseline */
+    --df-space-1:  10px;
+    --df-space-2:  20px;
+    --df-space-3:  30px;
+    --df-space-4:  40px;
+    --df-space-6:  60px;
+    --df-space-8:  80px;
+
+    /* Container widths */
+    --df-container:      1200px;
+    --df-container-narrow: 900px;
+}
+
+/* ==========================================================================
+   Reset (light — modern browsers, no need for full Meyer)
+   ========================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+img, picture, video { max-width: 100%; height: auto; display: block; }
+a { color: var(--df-link); text-decoration: none; }
+a:hover { color: var(--df-charcoal); }
+ol, ul { margin: 0; padding: 0; }
+
+/* ==========================================================================
+   Base typography
+   ========================================================================== */
+body {
+    font-family: var(--df-font-body);
+    font-size: var(--df-fs-body);
+    line-height: 1.6;
+    color: var(--df-body);
+    background: var(--df-white);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--df-font-heading);
+    color: var(--df-charcoal);
+    font-weight: 400;
+    line-height: 1.25;
+    margin: 0 0 var(--df-space-2);
+}
+h1 { font-size: var(--df-fs-h1); }
+h2 { font-size: var(--df-fs-h2); }
+h3 { font-size: var(--df-fs-h3); }
+h4 { font-size: var(--df-fs-lead); }
+
+p { margin: 0 0 var(--df-space-2); }
+
+/* ==========================================================================
+   Layout — container + row (Skeleton's grid replaced with flexbox)
+   ========================================================================== */
+.df-container {
+    max-width: var(--df-container);
+    margin: 0 auto;
+    padding: 0 var(--df-space-2);
+}
+.df-container--narrow { max-width: var(--df-container-narrow); }
+
+.df-section {
+    padding: var(--df-space-6) 0;
+}
+.df-section--dark {
+    background: var(--df-charcoal);
+    color: var(--df-warm-white);
+}
+.df-section--dark h1,
+.df-section--dark h2,
+.df-section--dark h3 { color: var(--df-white); }
+
+/* ==========================================================================
+   Buttons — matches the theme's primary CTA look
+   ========================================================================== */
+.df-btn {
+    display: inline-block;
+    padding: 12px 28px;
+    font-family: var(--df-font-body);
+    font-size: var(--df-fs-body);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: var(--df-charcoal);
+    color: var(--df-white);
+    border: none;
+    border-radius: 0;   /* Elegant theme uses square-cornered CTAs */
+    cursor: pointer;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+.df-btn:hover {
+    background: var(--df-sand);
+    color: var(--df-charcoal);
+}
+.df-btn--outline {
+    background: transparent;
+    color: var(--df-charcoal);
+    border: 1px solid var(--df-charcoal);
+}
+.df-btn--outline:hover {
+    background: var(--df-charcoal);
+    color: var(--df-white);
+}
+
+/* ==========================================================================
+   Header + nav (skeleton — full markup goes into header.php Phase 3)
+   ========================================================================== */
+.df-header {
+    padding: var(--df-space-2) 0;
+    background: var(--df-white);
+    border-bottom: 1px solid var(--df-hairline);
+}
+
+/* Placeholder — real hero + section CSS lands in Phase 3 alongside
+   the templates. This file is deliberately scaffold-only for Phase 2. */

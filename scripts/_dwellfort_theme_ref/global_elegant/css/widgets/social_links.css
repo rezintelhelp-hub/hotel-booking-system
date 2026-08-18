@@ -1,0 +1,36 @@
+
+/* Social links */
+.social_links {
+	margin-top:20px;
+}
+.social_links ul {
+	list-style:none;
+	margin-left:0;
+}
+.social_links li a,.social_links li a:hover {
+	font-weight: normal;
+	display:inline-block;
+	border: none;
+	padding:8px 0 15px 45px;
+}
+.social_links li.facebook_link a {
+	background:url("../graphics/social-med-facebook.png") no-repeat 0 0;
+}
+.social_links li.twitter_link a {
+	background:url("../graphics/social-med-twitter.png") no-repeat 0 0;
+}
+.social_links li.gplus_link a {
+	background:url("../graphics/social-med-gplus.png") no-repeat 0 0;
+}
+.social_links li.youtube_link a {
+	background:url("../graphics/social-med-youtube.png") no-repeat 0 0;
+}
+.social_links li.vimeo_link a {
+	background:url("../graphics/social-med-vimeo.png") no-repeat 0 0;
+}
+.social_links li.pinterest_link a {
+	background:url("../graphics/social-med-pinterest.png") no-repeat 0 0;
+}
+.social_links li.linkedin_link a {
+	background:url("../graphics/social-med-linkedin.png") no-repeat 0 0;
+}

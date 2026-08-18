@@ -1,0 +1,177 @@
+
+/* #Products
+================================================= */
+
+
+	/* Products */
+	
+	.productWithForm .stockAndPrice {
+		padding-left:155px;
+		margin:0;
+	}
+	.productWithForm .small .stockAndPrice {
+		padding-left:0;
+	}
+	span.price {
+		font-weight: bold;
+		margin-bottom: 10px;
+		display: block;
+	}
+	span.stock {
+		display: block;
+	}
+	.donation .donationInput {
+		padding:4px;
+		border-radius: 5px;
+		border:1px solid #888;
+		font-size: 16px;
+		background: #fef9d9;
+		font-weight: bold;
+		width:140px;
+	}
+	.productTitle {
+		font-weight:bold;
+		font-size:15px;
+	 	margin:7px 0;
+	}
+	.multi select {
+		font-size:14px;
+	}
+
+	.addToBasketForm.multi select {
+		margin:0px 10px 10px 0;
+	}
+	.multiChoice {
+		margin-bottom: 20px
+	}
+	.productBox {
+		float:left;
+		width:170px;
+		margin-right:15px;
+		overflow:hidden;
+		background:#F3F3F3;
+		border-radius:5px;
+		-webkit-border-radius:5px;
+		-moz-border-radius:5px;
+		padding:1px 10px 5px;
+		margin:0px 15px 20px 0;
+	}
+	.productBox .simpleProduct {
+		margin:5px 0 5px;
+		padding:0 0 5px;
+		width:auto;
+	}
+	.productBox .stock {
+		display:none;
+	}
+	.productBox h2,.productBox h3,.productBox h4,.productBox p,.productBox .bpe_image {
+		margin-top:5px;
+		margin-bottom:5px;
+	}
+	.productBox.last {
+		margin-right:0;
+	}
+	.addToBasketForm {
+		
+		margin:0px 0 20px;
+	}
+	.addToBasketForm.montageProductForm.shopGalleryVariant {
+		margin:0;
+		float:none;
+		background:#fff;
+	}
+	.montageCheckbox,.slideshowCheckbox {
+		position: absolute;
+		bottom:10px;
+		right:10px;
+		padding:10px;
+		background:#fff;
+		background:rgba(255,255,255,0.8);	
+		width:43px;
+		height:40px;
+		border-radius:5px;
+		-webkit-border-radius:5px;
+		-moz-border-radius:5px;
+		display:none;
+	}
+	.montageCheckbox:after,.slideshowCheckbox:after {
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		font-family: "icomoon";
+		content:"t";
+		font-size: 30px;
+		line-height: 25px;
+		position: relative;
+		left:-3px;
+		color:#000;
+		top:-2px;
+		text-align: center;
+	}
+	.montage-pic.selected .montageCheckbox,.current .slideshowCheckbox {
+		display: block
+	}
+	.montageProductWrapper {
+		background:#F3F3F3;
+		border-radius:5px;
+		-webkit-border-radius:5px;
+		-moz-border-radius:5px;
+		margin:0px 0 20px;
+		min-height:19px;
+		padding:10px;
+		border:1px solid #c8c8c8;
+	}
+	.montageProductWrapper .addToBasketForm.montageProductForm.shopGalleryVariant .stockAndPrice .stock {
+		padding-left:10px;
+	}
+	.montageProductWrapper .addToBasketForm.montageProductForm.shopGalleryVariant .stockAndPrice {
+		float:right;
+	}
+	.montageProductWrapper .addToBasketForm.montageProductForm.shopGalleryVariant .productInner {
+		width:auto;
+	}
+	.montageProductWrapper .addToBasketForm.montageProductForm.shopGalleryVariant {
+		border:none;
+		background: none;
+		width:auto;
+		padding:0;
+	}
+	.subPageProducts .montageProductWrapper {
+		background: #fff;
+	}
+	.montage-pic {
+		position: relative;
+	}
+	.with-product .montage-pic {
+		cursor: pointer;
+	}
+	.addToBasketForm.montageProductForm.shopGalleryVariant p {
+		margin:0;
+	}
+	#lightboxShop .addToBasketForm {
+		margin:0;
+	}
+
+	.multi .Button {
+		margin:0;
+	}
+	.productWithForm .Button {
+		margin:5px 0 0;
+	}
+	.simpleProduct .Button {
+		margin-right:10px;
+	}
+	#loading {
+		z-index: 1002;
+		display:none;
+		position:fixed;
+		-moz-border-radius:6px;
+		-webkit-border-radius:6px;
+		border-radius:6px;
+		top:50%;
+		left:50%;
+		margin:-50px 0 0 -50px;
+		width:100px;
+		height:100px;
+		background:#686868 url("../graphics/loading.gif") no-repeat 50% 50%;
+		background:rgba(104,104,104,0.90) url("../graphics/loading.gif") no-repeat 50% 50%;
+	}

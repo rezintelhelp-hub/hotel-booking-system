@@ -1,0 +1,12 @@
+.ie7 #blogContent {
+	margin:0;
+}
+.ie7 .blogItemLoop:first-child {
+	margin-top: 0;
+}
+.ie7 .blogItemLoop {
+	margin:20px 0 0;
+}
+.ie7 #paginate {
+	padding-top:20px;
+}

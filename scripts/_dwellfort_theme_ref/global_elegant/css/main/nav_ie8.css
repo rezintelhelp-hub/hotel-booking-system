@@ -1,0 +1,6 @@
+.ie8 #expandNav a {
+	text-decoration: none;
+}
+.ie8 #searchFormSmall {
+	width:140px;
+}

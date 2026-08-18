@@ -1,0 +1,48 @@
+[
+	{
+		"name":"Small"
+		,"width": "120"
+		,"height": "auto"
+	}
+	,{
+		"name":"Medium"
+		,"width": "200"
+		,"height": "auto"
+		,"default": "true"
+	}
+	,{
+		"name":"Large"
+		,"width": "300"
+		,"height": "auto"
+	}
+	,{
+		"name":"Extra Large"
+		,"width": "800"
+		,"height": "auto"
+	}
+	,{
+		"name":"Small Square"
+		,"width": "120"
+		,"height": "120"
+		,"shrink": "false"
+	}
+	,{
+		"name":"Medium Square"
+		,"width": "200"
+		,"height": "200"
+		,"shrink": "false"
+	}
+	,{
+		"name":"Large Square"
+		,"width": "300"
+		,"height": "300"
+		,"shrink": "false"
+	}
+	,{
+		"name":"Extra Large Square"
+		,"width": "800"
+		,"height": "800"
+		,"shrink": "false"
+	}
+	
+]

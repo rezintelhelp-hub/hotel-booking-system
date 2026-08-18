@@ -1,0 +1,47 @@
+.testimonial {
+	background: #F3F3F3;
+	padding-bottom: 10px
+}
+.testimonial .text {
+	padding:10px 15px 0px 50px;
+	position: relative;
+	margin: 0px;
+}
+.column .testimonial .text {
+	padding:10px 10px 10px 50px;
+	margin:0;
+}
+.testimonial .text * {
+	font-size: 120%;
+}
+.testimonial .text:before {
+	content:"“";
+	position: absolute;
+	top:7px;
+	left:7px;
+	font-size: 80px;
+	line-height: 70px;
+	color:#ddd;
+}
+footer .testimonial .text:before {
+	color:#444;
+}
+footer .testimonial {
+	background: #292929;
+}
+.testimonial .author {
+	padding:10px 15px 10px;
+}
+.column .testimonial .author {
+	padding:10px 10px 0px;	
+}
+.testimonial .author > * {
+	float:right;
+	border-top:2px solid #ddd;
+	text-align: right !important;
+	font-style: italic;
+	color:#888;
+	margin-right: 15px;
+	padding-left: 15px;
+	max-width: 100%;
+}

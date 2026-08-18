@@ -1,0 +1,21 @@
+.callout {
+	padding:15px 15px 1px;
+	background: #fff89c;
+	-moz-border-radius:2px;
+	border-top:3px solid #888;
+	-webkit-border-radius:2px;
+	border-radius:2px;
+	margin-bottom: 30px;
+}
+.callout .button a,
+.callout .Button_Small a,
+.callout .Button_Medium a,
+.callout .Button_Large a,
+.callout button,
+.callout input[type="submit"],
+.callout input[type="reset"],
+.callout input[type="button"]
+{
+	background: #444;
+	color:#fff;
+}

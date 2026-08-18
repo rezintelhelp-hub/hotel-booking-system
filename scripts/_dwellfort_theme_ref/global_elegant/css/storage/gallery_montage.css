@@ -1,0 +1,63 @@
+/* Montage */
+.montageSlideshow {
+	margin:0 0 20px 0;
+	position:relative;
+	width:100%;
+}
+.montageSlideshow img {
+	max-width:100%;
+	float:left;
+}
+.imagesInMontage2 .item1 {
+	float:left;
+	width:42.2%;
+}
+.imagesInMontage2 .item2 {
+	float:right;
+	width:56%;
+}
+.imagesInMontage3 .item1 {
+	float:left;
+	width:60%;
+}
+.imagesInMontage3 .item2 {
+	position:absolute;
+	top:0;
+	right:0;
+	width:37%;
+}
+.imagesInMontage3 .item3 {
+	position:absolute;
+	width:37%;
+	bottom:0;
+	right:0;
+}
+.imagesInMontage4 .item1 img,.imagesInMontage4 .item2 img {
+	float:left;
+}
+.imagesInMontage4 .item1 {
+	float:left;
+	width:42.2%;
+}
+.imagesInMontage4 .item2 {
+	float:right;
+	width:56.4%;
+}
+
+.imagesInMontage4 .item4 {
+	float:right;
+	width:42.2%;
+	margin-top:20px;
+}
+.imagesInMontage4 .item3 {
+	float:left;
+	margin-top:20px;
+	width:56%;
+}
+.montageSlideshow .item1.last,.montageSlideshow .item3.last {
+	width:100% !important; 
+}
+
+img {
+	max-width:100%;
+}

@@ -1,0 +1,201 @@
+
+.galleryThumb {
+	float: left;
+	width: 20%;
+	text-align: center;
+	display: table;
+	height: 180px;
+}
+.withSidebarNav .galleryThumb {
+	width: 25%;
+}
+.column .galleryThumb {
+	width:180px !important;
+}
+.thumbInner {
+	height: 180px;
+	display: table-cell;
+	vertical-align: middle;
+}
+.galleryThumb img {
+	padding: 7px;
+	border: 1px solid #c7c7c7;
+	-webkit-box-shadow: 0 0 5px rgba(0,0,0,0.5);
+	-moz-box-shadow: 0 0 10px rgba(0,0,0,0.5);
+	box-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
+
+@media only screen and (min-width: 768px) and (max-width: 1000px) {
+	.withSidebarNav .galleryThumb {
+		width:33.3333333%;
+	}
+	.galleryThumb {
+		width:25%;
+	}
+}
+@media only screen and (min-width: 600px) and (max-width: 767px) {
+	
+	.withSidebarNav .galleryThumb,.fullWidth .galleryThumb {
+		width:33.33333%;
+		height:165px;
+	}
+	.withSidebarNav .thumbInner,.fullWidth .thumbInner {
+		height: 165px;
+	}
+	.withSidebarNav .galleryThumb img ,.fullWidth .galleryThumb img {
+		padding: 3px;
+		max-width: 140px;
+		max-height: 140px;
+	}
+
+}
+@media only screen and (min-width: 480px) and (max-width: 600px) {
+	.withSidebarNav .galleryThumb {
+		width:50%;
+	}
+	.fullWidth .galleryThumb {
+		width:33.33333%;
+		height:148px;
+	}
+	.fullWidth .thumbInner {
+		height: 148px;
+	}
+	.fullWidth .galleryThumb img {
+		padding: 3px;
+		max-width: 120px;
+		max-height: 120px;
+	}
+}
+@media only screen and (max-width: 480px) {
+	.withSidebarNav .galleryThumb, .fullWidth .galleryThumb {
+		width:50%;
+		height:135px;
+	}
+	.withSidebarNav .thumbInner, .fullWidth .thumbInner {
+		height: 135px;
+	}
+	.withSidebarNav .galleryThumb img, .fullWidth .galleryThumb img {
+		padding: 3px;
+		max-width: 110px;
+		max-height: 110px;
+	}
+
+
+}
+#lightboxOverlay {
+	background:#000;
+	opacity:0.4;filter:alpha(opacity=40);
+	position:fixed;
+	top:0;
+	left:0;
+	bottom:0;
+	right:0;
+	z-index: 3;
+}
+#lightboxOuter * {
+	-webkit-box-sizing: content-box; /* Safari/Chrome, other WebKit */
+	-moz-box-sizing: content-box;    /* Firefox, other Gecko */
+	box-sizing: content-box;         /* Opera/IE 8+ */
+}
+#lightboxOuter {
+	position:absolute;
+	left:0;
+	top:100px;
+	width:100%;
+	z-index: 4;
+}
+#lightboxContainer {
+	display:none;
+	margin: auto;
+	padding:40px 20px 10px;
+	width:400px;
+	height:400px;
+	position:relative;
+	background:#fff;	
+}
+#lightboxInner,#lightboxExtra1,#lightboxExtra2,#lightboxExtra3 {
+	height:100%;
+}
+#lightboxClose {
+	position:absolute;
+	top:2px;
+	cursor:pointer;
+	right:15px;
+	display:none;
+	width:36px;
+	height:36px;
+	background: #fff;
+	text-align: center;
+}
+#lightboxClose {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	font-size: 25px;
+	line-height: 36px;
+}
+#lightboxPrev {
+	bottom:-36px;
+	margin-top:-25px;
+	left:10px;
+	display:none;;
+	position:absolute;
+	cursor:pointer;
+	width:36px;
+	height:36px;
+	background: #fff;
+	text-align: center;
+}
+#lightboxPrev {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	font-size: 30px;
+	line-height: 36px;
+}
+#lightboxNext {
+	bottom:-36px;
+	display:none;
+	margin-top:-25px;
+	left:56px;
+	position:absolute;
+	cursor:pointer;
+	width:36px;
+	height:36px;
+	background: #fff;
+	text-align: center;
+}
+#lightboxNext {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	font-size: 30px;
+	line-height: 36px;
+}
+#lightboxCaption p {
+	float:left;
+	margin:0;
+}
+#lightboxStuff:after {
+    content: "."; 
+    display: block; 
+    height: 0; 
+    clear: both; 
+    visibility: hidden;
+}
+
+#lightboxStuff {display: inline-block;}
+#lightboxStuff {
+	display:none;
+	margin:0 auto;
+	padding:40px 20px 15px;
+	background:#fff;
+}
+#lightboxCaption {
+	font-size: 18px;
+	font-weight: bold;
+}
+#lightboxShop {
+	float:right;
+	margin-top: -40px;
+}
