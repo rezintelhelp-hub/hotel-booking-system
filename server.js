@@ -147513,8 +147513,14 @@ app.get('/api/oauth/facebook/start', async (req, res) => {
     const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID;
     const REDIRECT_URI = 'https://admin.gas.travel/api/oauth/facebook/callback';
     
-    // Permissions needed for posting to pages
-    const scopes = 'pages_manage_posts,pages_read_engagement,pages_show_list';
+    // Permissions needed for posting to pages. pages_read_engagement was
+    // in the earlier scope list but no code path actually READS engagement
+    // (no /insights, /reactions or /comments calls anywhere). Meta rejects
+    // any permission the reviewer can't see being used, so we request only
+    // what we demonstrably use: list pages + publish posts. Add
+    // pages_read_engagement back once the engagement-read feature (cron +
+    // UI showing likes/comments per post) is built. Steve 2026-08-18.
+    const scopes = 'pages_manage_posts,pages_show_list';
     
     // Store account_id in state parameter so we know who's connecting
     const state = Buffer.from(JSON.stringify({ account_id: accountId })).toString('base64');
