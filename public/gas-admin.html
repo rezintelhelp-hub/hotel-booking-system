@@ -73773,7 +73773,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // ignoring it left cancelled bookings showing £X owed
                 // when nothing was due. (GAS-206321 2026-06-08).
                 const refunded = parseFloat(b.refund_amount || 0);
-                const depositPaid = parseFloat(b.deposit_amount || 0);
+                // Steve 2026-08-18 (Casa Magnolia Timothy Kilpatrick 736700):
+                // was reading b.deposit_amount (the EXPECTED deposit) as if
+                // it were the paid amount, so the "DEPOSIT PAID · X OWED"
+                // pill fired even when nothing was actually collected.
+                // deposit_paid is the real "money in" column.
+                const depositPaid = parseFloat(b.deposit_paid || 0);
                 const netDeposit = Math.max(0, depositPaid - refunded);
                 const depositText = refunded > 0
                     ? currency + netDeposit.toFixed(2) + ' (was ' + currency + depositPaid.toFixed(2) + ', refunded ' + currency + refunded.toFixed(2) + ')'
