@@ -1,0 +1,93 @@
+/* Dwellfort — per-site header + hero tweaks (2026-08-18)
+   Palette + styling extracted from Anton's bespoke SetSeed theme7 CSS. */
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600&family=Muli:wght@300;400;600;700&display=swap');
+
+/* -- HIDE CART ---------------------------------------------------- */
+.developer-nav a[href*="/cart/"],
+.developer-nav a[href*="/shop"],
+.developer-header .gas-mini-basket,
+.developer-header .cart-count { display: none !important; }
+
+/* -- NAV UNDERLINE OFF -------------------------------------------- */
+.developer-nav a::after { display: none !important; content: none !important; }
+
+/* -- NAV BUTTONS: BLACK, 5PX RADIUS, SPACED APART ----------------- */
+.developer-nav { gap: 8px !important; }
+.developer-nav a {
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    background: #000000 !important;
+    border-radius: 5px !important;
+    padding: 8px 15px !important;
+    text-transform: uppercase !important;
+    text-decoration: none !important;
+    border-bottom: none !important;
+}
+.developer-nav a:hover,
+.developer-nav a.active {
+    background: #333333 !important;
+    color: #ffffff !important;
+}
+
+/* -- BOOK NOW: NO RADIUS ------------------------------------------ */
+.developer-nav-cta,
+.developer-header-cta,
+.developer-header .btn-primary {
+    border-radius: 0 !important;
+    background: #000000 !important;
+    color: #ffffff !important;
+    padding: 8px 20px !important;
+    font-weight: 700 !important;
+}
+
+/* -- HERO TITLE: LORA 44 400 WHITE UPPERCASE + SHADOW ------------- */
+.developer-hero-content h1 {
+    font-family: 'Lora', serif !important;
+    font-size: 44px !important;
+    font-weight: 400 !important;
+    color: #ffffff !important;
+    line-height: 1.2 !important;
+    margin-bottom: 15px !important;
+    text-shadow: 1px 1px 10px rgba(0,0,0,0.2) !important;
+    text-transform: uppercase !important;
+}
+
+/* -- HERO SUBTITLE: MULI 20 400 UPPERCASE ------------------------- */
+.developer-hero-subtitle {
+    font-family: 'Muli', sans-serif !important;
+    font-size: 20px !important;
+    font-weight: 400 !important;
+    text-transform: uppercase !important;
+    text-shadow: 1px 1px 10px rgba(0,0,0,0.2) !important;
+    margin-top: 15px !important;
+}
+
+/* -- SEARCH BAR: WHITE PILL WITH SUBTLE SHADOW -------------------- */
+.developer-search,
+.gas-search,
+.gas-search-form {
+    border-radius: 100px !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1) !important;
+    padding: 8px !important;
+}
+
+/* -- SEARCH BUTTON: DARK GREY-BROWN #69695e ----------------------- */
+.gas-search-submit,
+.developer-search-submit,
+.gas-btn-primary.gas-search-submit {
+    background: #69695e !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    text-transform: uppercase !important;
+    border-radius: 100px !important;
+    padding: 13px 40px !important;
+}
+.gas-search-submit:hover,
+.developer-search-submit:hover { background: #4f4f47 !important; }
+
+/* -- WARM PANELS ----------------------------------------------------- */
+.developer-section-panel,
+.warm-panel { background: #e7e0db !important; }
