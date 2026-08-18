@@ -56,6 +56,13 @@ function gas_dwellfort_enqueue_assets() {
         array('gas-dwellfort-fonts'),
         GAS_DWELLFORT_VERSION
     );
+    wp_enqueue_script(
+        'gas-dwellfort-nav',
+        get_template_directory_uri() . '/assets/nav.js',
+        array(),
+        GAS_DWELLFORT_VERSION,
+        true
+    );
 }
 add_action('wp_enqueue_scripts', 'gas_dwellfort_enqueue_assets');
 
