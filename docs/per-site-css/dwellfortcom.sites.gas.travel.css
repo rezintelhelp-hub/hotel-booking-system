@@ -183,3 +183,67 @@
 /* -- WARM PANELS -------------------------------------------------- */
 .developer-section-panel,
 .warm-panel { background: #e7e0db !important; }
+
+/* -- Push the intro section's HEADING down below the pill (desktop only).
+      Uses margin-top on the h2 itself — doesn't touch the section
+      container so nothing above the section moves. */
+@media (min-width: 769px) {
+    .developer-hero + section h1:first-child,
+    .developer-hero + section h2:first-child,
+    .developer-hero + section h3:first-child,
+    .developer-hero + div h1:first-child,
+    .developer-hero + div h2:first-child,
+    .developer-hero + div h3:first-child,
+    .developer-hero + section > :first-child,
+    .developer-hero + div > :first-child {
+        margin-top: 160px !important;
+    }
+}
+
+/* ================================================================= */
+/* MOBILE ≤ 768px — pill stacks vertical, sits BELOW hero, no halo   */
+/* ================================================================= */
+@media (max-width: 768px) {
+    .developer-search-wrapper {
+        position: relative !important;
+        left: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        width: calc(100% - 24px) !important;
+        margin: 20px auto 0 !important;
+        padding: 12px !important;
+        border-radius: 16px !important;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.15) !important;
+        overflow: visible !important;
+    }
+    .developer-search-wrapper .gas-search-fields {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+    }
+    .developer-search-wrapper .gas-search-field {
+        border-right: none !important;
+        border-bottom: 1px solid #eee !important;
+        padding: 8px 12px !important;
+    }
+    .developer-search-wrapper .gas-search-field:last-of-type,
+    .developer-search-wrapper .gas-search-field.gas-search-submit {
+        border-bottom: none !important;
+    }
+    .developer-search-wrapper .gas-search-field.gas-search-submit {
+        margin: 8px 0 0 0 !important;
+        padding: 0 !important;
+    }
+    .gas-search-submit,
+    .developer-search-submit,
+    .gas-btn-primary.gas-search-submit,
+    .developer-search-wrapper .gas-search-field.gas-search-submit {
+        width: 100% !important;
+        height: 48px !important;
+        border-radius: 8px !important;
+        min-height: 48px !important;
+    }
+    /* Reset heading nudge — pill's in normal flow now, no clearance needed */
+    .developer-hero + section > :first-child,
+    .developer-hero + div > :first-child { margin-top: 24px !important; }
+}
