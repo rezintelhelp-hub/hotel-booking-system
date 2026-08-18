@@ -72267,8 +72267,22 @@ const promo = await fetch('/api/v1/offers/validate', {
         // before hitting Send. Preview button returns the URL only (no
         // email sent) so the operator can test the link.
         async function sendCardCaptureLink(bookingId) {
-            // Pull booking + property context to prefill the template
-            let ctx = { guestName: 'Guest', propertyName: 'your stay', currency: 'GBP', balance: '0.00', guestEmail: '', isGroup: false, groupSize: 1 };
+            // Pull booking + property context to prefill the template. For
+            // groups, also sum the whole group's total + collect room list
+            // so the guest sees exactly what they're paying for in the email.
+            let ctx = {
+                guestName: 'Guest', propertyName: 'your stay',
+                currency: 'GBP', total: '0.00',
+                guestEmail: '', isGroup: false, groupSize: 1,
+                checkin: '', checkout: '', nights: 0,
+                roomName: '', groupRooms: []
+            };
+            const _fmtDate = (d) => {
+                if (!d) return '';
+                const dt = new Date(d);
+                if (isNaN(dt)) return '';
+                return dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+            };
             try {
                 const r = await fetch(`/api/bookings/${bookingId}`);
                 const d = await r.json();
@@ -72277,18 +72291,56 @@ const promo = await fetch('/api/v1/offers/validate', {
                     ctx.guestName = b.guest_first_name || 'Guest';
                     ctx.propertyName = b.property_name || 'your stay';
                     ctx.currency = b.currency || 'GBP';
-                    ctx.balance = parseFloat(b.balance_amount || 0).toFixed(2);
+                    ctx.total = parseFloat(b.grand_total || 0).toFixed(2);
                     ctx.guestEmail = b.guest_email || '';
-                    ctx.isGroup = !!b.group_booking_id;
+                    // Two possible group columns: group_booking_id (VARCHAR,
+                    // from public /create-group-booking endpoint — Diana's
+                    // case) OR booking_group_id (UUID, from the post-hoc
+                    // matcher that stitches same-guest-same-property
+                    // adjacent-date bookings). Either means "this is part
+                    // of a group".
+                    ctx.isGroup = !!(b.group_booking_id || b.booking_group_id);
+                    ctx.checkin = _fmtDate(b.arrival_date);
+                    ctx.checkout = _fmtDate(b.departure_date);
+                    ctx.nights = b.arrival_date && b.departure_date
+                        ? Math.max(1, Math.round((new Date(b.departure_date) - new Date(b.arrival_date)) / 86400000))
+                        : 0;
+                    ctx.roomName = b.room_name || b.unit_name || '';
+                    // /api/bookings/:id returns group_siblings — every OTHER
+                    // row in the same booking_group_id. Sum the leader's
+                    // grand_total + all siblings' grand_totals to get the
+                    // real group total; collect room names for the "Your
+                    // booking" bullet list.
+                    if (ctx.isGroup && Array.isArray(d.group_siblings)) {
+                        const sibs = d.group_siblings;
+                        ctx.groupSize = sibs.length + 1;
+                        const sumTotal = sibs.reduce((s, m) => s + parseFloat(m.grand_total || 0), 0) + parseFloat(b.grand_total || 0);
+                        ctx.total = sumTotal.toFixed(2);
+                        const leaderRoom = ctx.roomName ? [ctx.roomName] : [];
+                        ctx.groupRooms = leaderRoom.concat(sibs.map(m => m.unit_name || m.room_name || 'Room').filter(Boolean));
+                    }
                 }
             } catch (_) { /* non-fatal — modal still opens with placeholders */ }
 
             const defaultSubject = ctx.isGroup
                 ? `Please confirm your booking at ${ctx.propertyName}`
-                : `Payment details for your stay at ${ctx.propertyName}`;
-            const defaultBody = ctx.isGroup
-                ? `Dear ${ctx.guestName},\n\nIn order to confirm your booking could you please follow the link below to enter your credit card details.\n\nRegards,\nBookings Manager\n${ctx.propertyName}`
-                : `Dear ${ctx.guestName},\n\nTo confirm your upcoming stay at ${ctx.propertyName}, please follow the link below to enter your credit card details. Your balance of ${ctx.currency} ${ctx.balance} will be charged before your arrival.\n\nRegards,\nBookings Manager\n${ctx.propertyName}`;
+                : `Please confirm your booking at ${ctx.propertyName}`;
+            // Build a "Your booking is for" block — show room name(s), dates,
+            // nights, total. Same shape for group + single so the guest
+            // always sees what they're being asked to pay for.
+            const roomLines = ctx.isGroup
+                ? (ctx.groupRooms.length ? ctx.groupRooms.map(n => `  • ${n}`).join('\n') : `  • ${ctx.groupSize} rooms`)
+                : (ctx.roomName ? `  • ${ctx.roomName}` : '');
+            const bookingBlock = [
+                'Your booking:',
+                roomLines,
+                ctx.checkin ? `  • Check-in: ${ctx.checkin}` : '',
+                ctx.checkout ? `  • Check-out: ${ctx.checkout}` : '',
+                ctx.nights ? `  • Nights: ${ctx.nights}` : '',
+                `  • Total: ${ctx.currency} ${ctx.total}`
+            ].filter(Boolean).join('\n');
+
+            const defaultBody = `Dear ${ctx.guestName},\n\nThank you for your booking${ctx.isGroup ? ` of ${ctx.groupSize} rooms` : ''} at ${ctx.propertyName}.\n\n${bookingBlock}\n\nIn order to confirm your booking could you please follow the link below to enter your credit card details.\n\nRegards,\nBookings Manager\n${ctx.propertyName}`;
 
             const overlay = document.createElement('div');
             overlay.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.6); display:flex; align-items:center; justify-content:center; z-index:10050; padding:20px;';
