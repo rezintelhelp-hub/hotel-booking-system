@@ -1,0 +1,283 @@
+.nav ul {
+	margin:0;
+	list-style:none;
+	position:relative;
+}
+.page-preview {
+	position:relative;
+	top:100%;
+	background:#fff;
+	margin-top:-1px;
+	display:none;
+}
+.page-preview-inner {
+	padding:20px;
+}
+.inverted .page-preview {
+	background:#000;
+}
+.nav li {
+	margin:0;
+	float:left;
+	margin-right:10px;
+	-webkit-box-sizing: content-box;
+	 -moz-box-sizing: content-box;
+	 box-sizing: content-box;
+	 position:relative;
+	 margin-bottom:0;
+	 z-index:5;
+}
+.nav.centered > ul > li {
+	float:none;
+	display:inline-block;
+	margin-left:5px;
+	margin-right:5px;
+}
+.nav.align-justify.style-justify > ul,
+.nav.align-justify.style-equal > ul {
+	display:flex;
+}
+.nav.style-equal > ul > li  {
+	flex-grow:1;
+}
+.nav.style-justify > ul > li {
+	flex:1 1 auto;
+}
+.nav li:hover {
+	z-index:10;
+}
+.nav li ul {
+	width:100%;
+	min-width:200px;
+	position:absolute;
+	top:100%;
+	left:0px;
+	display:none;
+	padding:5px 0;
+	box-shadow:5px 5px 5px rgba(0,0,0,0.2);
+}
+.rounded .nav li ul {
+	-webkit-border-radius: 5px;
+	-webkit-border-top-left-radius: 0;
+	-moz-border-radius: 5px;
+	-moz-border-radius-topleft: 0;
+	border-radius: 5px;
+	border-top-left-radius: 0;
+}
+
+.nav li.second-half > ul {
+	left:auto;
+	right:0;
+}
+.rounded .nav li.second-half > ul {
+	-webkit-border-radius: 5px;
+	-webkit-border-top-right-radius: 0;
+	-moz-border-radius: 5px;
+	-moz-border-radius-topright: 0;
+	border-radius: 5px;
+	border-top-right-radius: 0;
+}
+.nav li ul li ul {
+	display:none;
+	position:absolute;
+	left:100%;
+	top:0;
+}
+.nav li.second-half ul li ul { 
+	left:auto;
+	right:100%;
+
+}
+.rounded .nav li.second-half ul li ul { 
+	-webkit-border-radius: 5px;
+	-webkit-border-top-right-radius: 0;
+	-moz-border-radius: 5px;
+	-moz-border-radius-topright: 0;
+	border-radius: 5px;
+	border-top-right-radius: 0;
+}
+.loaded .nav > ul > li:hover > ul {
+	display:block;
+}
+.loaded .nav > ul > li > ul > li:hover ul {
+	display:block;
+}
+.nav li ul li {
+	display:block;
+	float:none;
+	margin:0;
+}
+.nav li ul li a,.nav li:hover ul li a,.nav li.has-subs:hover ul li a {
+	display:block;
+	float:none;
+	text-align:left;
+}
+.rounded .nav li ul li a,.rounded .nav li:hover ul li a,.rounded .nav li.has-subs:hover ul li a {
+	border-radius:0;
+	-webkit-border-radius:0;
+	-moz-border-radius:0;
+}
+/*
+.inverted .nav li ul li a:hover {
+	background:rgba(255,255,255,0.1);
+}
+
+.inverted .nav li ul li a:hover {
+	background:rgba(0,0,0,0.1);
+}
+*/
+/*
+.inverted .nav li.current > a {
+	background:rgba(255,255,255,0.1);
+}
+*/
+.nav li:last-child {
+	margin-right:0px;
+}
+.nav a {
+	font-size:18px;
+	line-height:115%;
+	text-decoration:none;
+	padding:5px 10px;
+	display:block;
+	text-align:center;
+	-webkit-box-sizing: content-box;
+	  -moz-box-sizing: content-box;
+	  box-sizing: content-box;
+}
+.rounded .nav a {
+	border-radius:5px;
+}
+
+.rounded .nav ul li.has-subs:hover a {
+	border-radius:0;
+	-webkit-border-radius:0;
+	-moz-border-radius:0;
+	-webkit-border-top-left-radius: 5px;
+	-webkit-border-top-right-radius: 5px;
+	-moz-border-radius-topleft: 5px;
+	-moz-border-radius-topright: 5px;
+	border-top-left-radius: 5px;
+	border-top-right-radius: 5px;
+}
+.rounded .nav ul li.hover-preview a {
+	border-radius:0;
+	-webkit-border-radius:0;
+	-moz-border-radius:0;
+	-webkit-border-top-left-radius: 5px;
+	-webkit-border-top-right-radius: 5px;
+	-moz-border-radius-topleft: 5px;
+	-moz-border-radius-topright: 5px;
+	border-top-left-radius: 5px;
+	border-top-right-radius: 5px;
+}
+.nav.align-center ul {
+	text-align:center;
+}
+.nav.align-left > ul >li {
+	margin-right:10px;
+}
+#nav-search a:before {
+	content:"s";
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	margin-right:5px;
+	position:relative;
+	top:1px;
+}
+#nav-search.nav-search-style-icon a:before {
+	margin-right:0;
+}
+#nav-search a.active {
+	background:#adadad;
+	color:#fff;
+}
+.style-space #nav-search-input {
+	max-width:120px;
+}
+.style-space .flexibreak1 #nav-search-input {
+	max-width:100px;
+}
+.style-space .flexibreak2 #nav-search-input {
+	max-width:80px;
+}
+.style-space .flexibreak3 #nav-search-input {
+	max-width:70px;
+}
+input::-webkit-input-placeholder {
+	font-size:18px;
+	border:none;
+	line-height:normal;
+}
+#nav-search-input:focus {
+	outline:none;
+	box-shadow:none;
+}
+#nav-logo a  {
+	background:none !important;
+}
+#nav-logo img {
+	max-width:300px;
+	height:auto;
+}
+.style-padding #nav-logo img {
+	max-width:200px;
+	width:100%;
+}
+.flexibreak1 #nav-logo img {
+	max-width:250px;
+}
+.flexibreak2 #nav-logo img {
+	max-width:200px;
+}
+.flexibreak3 #nav-logo img {
+	max-width:160px;
+}
+.rowscale1 .nav a,.nav .flexibreak1 a
+,.flexibreak1 #nav-search-input
+,.flexibreak1 .search-module .search-input, .rowscale1 .search-module .search-input 
+{
+	font-size:16px;
+}
+.rowscale2 .nav a,.nav .flexibreak2 a
+, .flexibreak2 #nav-search-input
+,.flexibreak2 .search-module .search-input, .rowscale2 .search-module .search-input 
+{
+	font-size:14px;
+}
+.rowscale3 .nav a,.nav .flexibreak3 a
+,.flexibreak3 #nav-search-input
+,.flexibreak3 .search-module .search-input,.rowscale3 .search-module .search-input
+{
+	font-size:12px;
+}
+.flexibreak1 input::placeholder,
+.flexibreak1 .search-module .search-input::placeholder,
+.rowscale1 .search-module .search-input::placeholder {
+font-size:16px;
+}
+.flexibreak2 input::placeholder
+,.flexibreak2 .search-module .search-input::placeholder 
+,.rowscale2 .search-module .search-input::placeholder {
+font-size:14px;
+}
+.flexibreak3 input::placeholder
+,.flexibreak3 .search-module .search-input::placeholder
+,.rowscale3 .search-module .search-input::placeholder {
+font-size:12px;
+}
+.rowscale1 .nav a,.nav .flexibreak1 a 
+,.rowscale1 .search-module .search-input,.nav .flexibreak1 .search-module .search-input 
+{
+	padding:5px 8px;
+}
+.rowscale2 .nav a,.nav .flexibreak2 a,
+.rowscale2 .search-module .search-input, .flexibreak2 .search-module .search-input {
+	padding:5px 6px;
+}
+.rowscale3 .nav a,.nav .flexibreak3 a 
+,.rowscale3 .search-module .search-input ,.flexibreak3 .search-module .search-input
+{
+	padding:3px 4px;
+}

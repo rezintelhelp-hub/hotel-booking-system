@@ -1,0 +1,156 @@
+.shop-pages-next {
+	float:right;
+}
+.shopTitle {
+	padding-top:10px;
+	float:left;
+	margin-bottom:0;
+}
+.shop-variant {
+	color:#777;
+	margin-top:-20px;
+}
+.shop-price {
+	margin-bottom:0;
+	padding-top:10px;
+	float:right;
+}
+.shop_grid .shop-article {
+	width:24%;
+	float:left;
+	margin-bottom:1em;
+	margin-right:1%;
+}
+.shop_grid .shop-article.last-of-four {
+	margin-right:0;
+}
+#relatedProducts .owl-wrapper {
+margin-bottom:10px;
+}
+#relatedProducts .owl-next {
+	position: absolute;
+	right: -3px;
+	bottom: -2px;
+	padding:4px;
+}
+#relatedProducts .owl-prev {
+	padding:4px;
+	position: absolute;
+	left: -4px;
+	bottom: -2px;
+}
+.shop #sidebarNav {
+	float:left;
+}
+.shop .content-block-with-sidebar {
+	float:left;
+}
+.shop .showcats {
+	display:none;
+	padding:5px 15px;
+	text-align:center;
+}
+@media (max-width:650px) {
+	.shop #sidebarInner {
+		margin:0 0 20px;
+	}
+	.shop #sidebarNav {
+		float:none;
+		width:auto;
+		margin:10px 0;
+		display:none;
+	}
+	.shop .content-block-with-sidebar {
+		margin:10px 0;
+		float:none;
+		width:auto;
+	}
+	.shop .showcats {
+		display:block;
+	}
+}
+.shop-related-products .shop-article.last-of-four,
+.shop-related-products .shop-article {
+	float:none;
+	margin:0  5px 0 0;
+	width:auto;
+}
+#sidebarInner .sidebar-shop-search {
+	padding:10px 15px;
+}
+.mini-shop-feed-with-image {
+	margin-left:170px;
+}
+.shop_grid .shop-index-with-image { 
+	margin-left:0px;
+}
+.shop-index-image img {
+	width:150px;
+}
+.shop_grid .shop-index-image img {
+	width:auto;
+}
+.shop-index-with-image {
+	margin-left:170px;
+}
+.shop_grid .shop-index-with-image {
+	margin-left:0px;
+}
+.shop-index-image {
+	float:left;
+}
+.shop_grid .shop-index-image {
+	float:none;
+}
+@media (max-width:800px) {
+	.shop_grid .shop-article {
+		width:49%;
+		margin-right:0;
+	}
+	.shop_grid .shop-article.middle-of-three {
+		margin-right:0%;
+		margin-left:0%;
+	}
+	.shop_grid .shop-article.odd {
+		margin-right:2%;
+		
+	}
+	.shop_grid .shop-related-products .shop-article.last-of-four, .shop_grid .shop-related-products .shop-article {
+		float: none;
+		margin: 0 5px 0 0;
+		width: auto;
+	}
+}
+.shop_grid .shop-article .placeholderimage {
+	background: rgb(241,241,241);
+	background: radial-gradient(circle, rgba(241,241,241,1) 0%, rgba(221,221,221,1) 100%);
+}
+.shop_grid .shop-article .placeholderimage img {
+	width:100%;
+	height:auto;
+}
+.shop_grid .shop-title-and-date .bpe_image {
+	max-height:225px;
+	overflow:hidden;
+}
+.shop_grid .shop-title-and-date .bpe_image img {
+	width:100%;
+}
+.avatar {
+	width: 50px;
+	float: left;
+	overflow: hidden;
+	margin: -4px 10px 10px -4px;
+}
+.rounded .avatar {
+	border-radius: 10px;
+}
+.mini-shop-feed .bpe_image {
+	margin-bottom:0;
+}
+.mini-shop-feed + p {
+	margin-top:0;
+}
+.mini-shop-feed h4.with-date {
+	margin-bottom:0px;
+}

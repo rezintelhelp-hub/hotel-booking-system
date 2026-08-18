@@ -1,0 +1,36 @@
+.trainingpc div {
+	float:left;
+	height:10px;
+}
+.trainingpc .trainingcorrect {
+	background:#00cc00;
+}
+.trainingpc .trainingfail {
+	background:#f00;
+}
+.training-score {
+	color:#fff;
+	padding:20px;
+	float:left;
+}
+.rounded .training-score {
+	border-radius:5px;
+}
+.training-score span {
+	font-size:50px;
+	display:block;
+}
+.pass.training-score {
+	background:#00cc00;
+}
+.fail.training-score {
+	background:#f00;
+}
+.trainingpc {
+	background:#ccc;
+	overflow:hidden;
+	border-radius:10px;
+}
+.reset-test {
+	float:right;
+}

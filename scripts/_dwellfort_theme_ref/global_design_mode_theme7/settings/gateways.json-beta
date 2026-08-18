@@ -1,0 +1,65 @@
+[
+	{
+		"display_name":"PayPal"
+		,"value":"paypal"
+		,"credential1_display_name":"PayPal Email Address"
+		,"credential2_display_name":"Merchant ID"
+		,"credential3_display_name":""
+		,"show_credential_2":true
+		,"show_credential_3":false
+	},
+	{
+		"display_name":"Authorize.net"
+		,"value":"authnet"
+		,"credential1_display_name":"Authorize.net API Login"
+		,"credential2_display_name":"Transaction Key"
+		,"credential3_display_name":""
+		,"show_credential_2":true
+		,"show_credential_3":false
+	},
+	{
+		"display_name":"Pay Later"
+		,"value":"paylater"
+		,"credential1_display_name":"Name of payment method"
+		,"credential2_display_name":"-"
+		,"credential3_display_name":"Success message"
+		,"show_credential_2":true
+		,"show_credential_3":true
+	},
+	{
+		"display_name":"eWAY"
+		,"value":"eway"
+		,"credential1_display_name":"API Key"
+		,"credential2_display_name":"Password"
+		,"credential3_display_name":""
+		,"show_credential_2":true
+		,"show_credential_3":false
+	},
+	{
+		"display_name":"Payment Express"
+		,"value":"paymentexpress"
+		,"credential1_display_name":"PxPay UserID"
+		,"credential2_display_name":"PxPay Key"
+		,"credential3_display_name":""
+		,"show_credential_2":true
+		,"show_credential_3":false
+	}
+	,{
+		"display_name":"Oxipay"
+		,"value":"oxipay"
+		,"credential1_display_name":"Merchant number"
+		,"credential2_display_name":"API Key"
+		,"credential3_display_name":""
+		,"show_credential_2":true
+		,"show_credential_3":false
+	},
+	{
+		"display_name":"Swish"
+		,"value":"swish"
+		,"credential1_display_name":"Swish number"
+		,"credential2_display_name":"Key"
+		,"credential3_display_name":""
+		,"show_credential_2":true
+		,"show_credential_3":false
+	}
+]

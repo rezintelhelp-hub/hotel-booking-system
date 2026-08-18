@@ -1,0 +1,10 @@
+#PushNotAvailable,
+#PushNotifBlocked {
+	display:none;
+}
+#addToHomeScreen {
+	display:none;
+}
+@media all and (display-mode: standalone) {
+#addToHomeScreen { display:none !important ; }
+}

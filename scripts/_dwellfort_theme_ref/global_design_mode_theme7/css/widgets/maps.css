@@ -1,0 +1,96 @@
+#marker-map-wrap {
+	position:relative;
+}
+#marker-map {
+	height:500px;
+}
+#marker-overlay {
+	position:absolute;
+	top:10px;
+	left:10px;
+	bottom:30px;
+	overflow:auto;
+	width:30%;
+	background:#fff;
+	padding:30px 20px 20px;
+	display:none;
+	box-shadow: rgba(0, 0, 0, 0.3) 0px 1px 4px -1px;
+}
+.rounded #marker-overlay {
+	border-radius: 2px;
+}
+@media (max-width:600px){
+	#marker-overlay {
+		width:100%;
+		bottom:60%;
+	}
+}
+#close-overlay {
+	position:absolute;
+	top:5px;
+	right:5px;
+	content:"x";
+	cursor:pointer;
+}
+#close-overlay:after {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	line-height:30px;
+	font-size: 25px;
+	content:"X";
+}
+#marker-groups {
+	position:absolute;
+	bottom:30px;
+	left:10px;
+	overflow:auto;
+	float:left;
+	background:#fff;
+	padding:18px 20px;
+	display:none;
+	box-shadow: rgba(0, 0, 0, 0.3) 0px 1px 4px -1px;
+}
+.rounded #marker-groups {
+	border-radius: 2px;
+}
+
+.with-menu #marker-groups {
+	left:auto;
+	bottom:auto;
+	top: 10px;
+	right:60px;
+}
+#maps-menu {
+	position:absolute;
+	top:60px;
+	left:10px;
+	bottom:30px;
+	overflow:auto;
+	float:left;
+	border-radius:2px;
+	background:#fff;
+	box-shadow: rgba(0, 0, 0, 0.3) 0px 1px 4px -1px;
+}
+.rounded #maps-menu {
+	border-radius: 2px;
+}
+#maps-menu div {
+	padding:6px 20px;
+	font-size:14px;
+	min-width:125px;
+	border-bottom:1px solid #ccc;
+	cursor:pointer;
+}
+#maps-menu div:hover {
+	background:#e7e7e7;
+}
+.marker-col {
+	width:15px;
+	height:15px;
+	float:left;
+	margin-top:6px;
+}
+.rounded .marker-col {
+	border-radius:5px;
+}

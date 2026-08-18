@@ -1,0 +1,27 @@
+.instagram-mini-feed {
+	overflow:auto;
+	position:absolute;
+	top:0;left:0;right:0;bottom:0;
+	width:100%;height:100%;
+}
+.instagram-mini-feed-post {
+	padding:4px 0;
+/*	width:33.3%;
+	float:left;
+	*/
+}
+.instagram-mini-feed-post:last-child {
+	margin-bottom:0;
+	border-bottom:0;
+}
+.instagram-column {
+	width:30%;
+	float:left;
+	margin:0 ;
+}
+.instagram-column:first-child {
+	margin-right:5%;
+}
+.instagram-column:last-child {
+	margin-left:5%;
+}

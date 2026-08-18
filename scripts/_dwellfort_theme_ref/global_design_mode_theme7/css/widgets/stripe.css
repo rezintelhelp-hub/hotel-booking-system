@@ -1,0 +1,148 @@
+/**
+ * The CSS shown here will not be introduced in the Quickstart guide, but shows
+ * how you can use CSS to style your Element's container.
+ */
+.StripeElement {
+  box-sizing: border-box;
+
+  height: 40px;
+
+  padding: 10px 12px;
+
+  border: 1px solid transparent;
+  background-color: white;
+
+  box-shadow: 0 1px 3px 0 #e6ebf1;
+  -webkit-transition: box-shadow 150ms ease;
+  transition: box-shadow 150ms ease;
+  margin:0 0 20px 0;
+}
+.rounded .StripeElement {
+  border-radius: 4px;
+ }
+
+.StripeElement--focus {
+  box-shadow: 0 1px 3px 0 #cfd7df;
+}
+
+.StripeElement--invalid {
+  border-color: #fa755a;
+}
+
+.StripeElement--webkit-autofill {
+  background-color: #fefde5 !important;
+}
+.subscription-product { 
+	margin-bottom:20px;
+}
+.subscription-product .Icon_Tick {
+	float:left;
+}
+.subscription-product p {
+	margin-top:0px;
+}
+.subscription-product-price {
+	margin-bottom:10px;
+	font-size:12px;
+}
+.subscription-cancel-button {
+	margin:10px 0;
+clear:both;
+}
+.subscription-cancel-button a ,
+.payment-method-button a
+{
+	padding:1px 10px;
+	background:#999;
+	font-size:14px;	
+	color:#fff;
+	text-decoration:none;
+}
+.rounded .subscription-cancel-button a ,
+.rounded .payment-method-button a
+{
+	border-radius:15px;
+}
+.payment-method-button a{
+	float:none;
+}
+.subscription-product-price-button {
+	min-width:150px;
+	width:100%;
+	max-width:300px;
+}
+.subscription-product-price-button .Button_Medium {
+clear:both;
+}
+.proratedinfo {
+font-size:13px;
+display:block;
+}
+.Greyed_Out_Button a{
+	opacity:0.4;
+	cursor:default;
+}
+#subscribe-confirm-mask {
+position:fixed;
+top:0;
+left:0;
+right:0;
+bottom:0;
+width:100%;
+height:100%;
+z-index:1000000;
+background:rgba(0,0,0,0.5);
+}
+#subscribe-confirm{
+position:fixed;
+top:50%;
+z-index:1000001;
+left:50%;
+transform:translate(-50%,-50%);
+background:#fff;
+padding:30px;
+max-width:500px;
+}
+.rounded #subscribe-confirm{
+border-radius:10px;
+}
+#subscription-confirm-buttons {
+clear:both;
+padding-top:15px;
+}
+.loading #subscription-confirm 
+,.loading #subscription-end 
+,.loading #subscription-cancel {
+	opacity:0.4;
+	cursor:default;
+}
+#subscription-confirm,
+#subscription-end {
+display:inline-block;
+font-size:15px;
+padding:8px 15px;
+background:#33cc33;
+color:#fff;
+float:right;
+text-decoration:none;
+margin-left:15px;
+}
+.rounded #subscription-confirm,
+.rounded #subscription-end {
+border-radius:5px;
+}
+#subscription-end {
+	background:#e60000;
+}
+#subscription-cancel {
+float:right;
+font-size:15px;
+text-decoration:none;
+display:inline-block;
+padding:8px 15px;
+border-radius:5px;
+background:#ccc;
+}
+.rounded #subscription-cancel {
+border-radius:5px;
+}

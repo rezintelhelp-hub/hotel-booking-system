@@ -1,0 +1,36 @@
+[
+	{
+		"display_name":"Default with visible captions"
+		,"style_variable_value": "showcaptions"
+	},{
+		"display_name":"Creative montage"
+		,"style_variable_value": "montage"
+	}
+	,{
+		"display_name":"Slideshow"
+		,"style_variable_value": "single_slideshow"
+	}
+	,{
+		"display_name":"Slideshow (Crop landscape)"
+		,"style_variable_value": "single_slideshow_crop"
+	}
+	,{
+		"display_name":"Slideshow (multi)"
+		,"style_variable_value": "multi_slideshow"
+	},{
+		"display_name":"Gallery (square thumbs)"
+		,"style_variable_value": "thumbs_gallery"
+	},{
+		"display_name":"Gallery (square thumbs, crop main image landscape)"
+		,"style_variable_value": "thumbs_gallery_crop"
+	}
+	,{
+		"display_name":"Gallery (landscape thumbs)"
+		,"style_variable_value": "thumbs_gallery_landscape"
+	}
+	,{
+		"display_name":"Gallery (landscape thumbs, crop main image landscape)"
+		,"style_variable_value": "thumbs_gallery_landscape_crop"
+	}
+
+]

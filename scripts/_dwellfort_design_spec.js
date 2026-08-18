@@ -6,8 +6,8 @@ const path = require('path');
 
 const ROOT = '/Users/stevedriver/hotel-booking-system/scripts/_dwellfort_theme_ref';
 const CSS_DIRS = [
-  path.join(ROOT, 'global_elegant/css/main'),
-  path.join(ROOT, 'global_elegant/css/widgets'),
+  path.join(ROOT, 'global_design_mode_theme7/css/main'),
+  path.join(ROOT, 'global_design_mode_theme7/css/widgets'),
 ];
 const HTML_DIR = path.join(ROOT, 'live_pages');
 const OUT = path.join(ROOT, 'DESIGN_SPEC.md');
@@ -80,7 +80,7 @@ while ((m = buttonRe.exec(allCss))) {
 const sortByCount = (map, limit = 30) => [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
 
 let out = `# Dwellfort Design Spec\n\n`;
-out += `**Source:** \`global_elegant\` SetSeed theme (2011 Skeleton-based) + live www.dwellfort.com pages\n`;
+out += `**Source:** \`global_design_mode_theme7\` SetSeed theme (2011 Skeleton-based) + live www.dwellfort.com pages\n`;
 out += `**Extracted:** ${new Date().toISOString()}\n\n`;
 
 out += `## Palette (most-used colours)\n\n`;

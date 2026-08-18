@@ -1,0 +1,35 @@
+.walkthrough_checkbox {
+	margin-bottom:0.75em;
+	cursor:pointer;
+}
+.walkthrough_checkbox.checked:before,.walkthrough_checkbox.checked:hover:before {
+	color:#fff;
+	background:#7FF600;
+	border:2px solid #7FF600;
+}
+.walkthrough_checkbox:before {
+	width:30px;
+	height:30px;
+	border:2px solid #444;
+	content:"";
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	font-size: 30px;
+	line-height: 32px;
+	color:#444;
+	margin-top:-0.15em;
+	text-align: center;
+	float:left;
+	margin-right:10px;
+}
+.rounded .walkthrough_checkbox:before {
+	border-radius:4px;
+}
+.walkthrough_checkbox.checked:before {
+	content:"t";
+}
+.walkthrough_checkbox:hover:before {
+	content:"t";
+	color:rgba(100,100,100,0.5);
+}

@@ -1,0 +1,447 @@
+[
+    {
+  		"value":"Ngan Luong Integration"
+  		,"type":"title"
+		,"lang_value":"Ngan_Luong_Integration"
+  	}
+	,{
+		"display_name":"Merchant Pass"
+		,"variable_name": "merchant_pass"
+		,"default_value": ""
+		,"info": "Enter your merchant pass here."
+		,"type": "text"
+	}
+    ,{
+  		"value":"Coupon Codes"
+  		,"type":"title"
+		,"lang_value":"Coupon_Codes"
+  	}
+	,{
+		"display_name":"Enable Coupon Codes in Checkout"
+		,"variable_name": "enabled_coupons"
+		,"type": "tick"
+		,"default_value": "0"
+	}
+	,{
+		"type":"rule"
+	}
+	
+	,{
+		"display_name":"Discount 1 Codes"
+		,"variable_name": "discount_1_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 1 Percentage"
+		,"variable_name": "percentage_1_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	
+	,{
+		"display_name":"Discount 2 Codes"
+		,"variable_name": "discount_2_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 2 Percentage"
+		,"variable_name": "percentage_2_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Discount 3 Codes"
+		,"variable_name": "discount_3_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 3 Percentage"
+		,"variable_name": "percentage_3_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Discount 4 Codes"
+		,"variable_name": "discount_4_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 4 Percentage"
+		,"variable_name": "percentage_4_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Discount 5 Codes"
+		,"variable_name": "discount_5_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 5 Percentage"
+		,"variable_name": "percentage_5_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+    ,{
+  		"value":"Shipping"
+  		,"type":"title"
+		,"lang_value":"Shipping"
+  	}
+	,{
+		"display_name":"Enable shipping costs in checkout"
+		,"variable_name": "enable_shipping"
+		,"type": "tick"
+		,"default_value": "0"
+	}
+	,{
+		"display_name":"Shipping Name"
+		,"variable_name": "shipping_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping selection. For example: 'Shipping and Handling'."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 1 name"
+		,"variable_name": "shipping_tier_1_option_1_name"
+		,"default_value": ""
+		,"info": "Enter the name for your first shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 1 price"
+		,"variable_name": "shipping_tier_1_option_1_price"
+		,"default_value": ""
+		,"info": "Enter the price for your first shipping rate  (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 1 free code"
+		,"variable_name": "shipping_tier_1_option_1_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 2 name"
+		,"variable_name": "shipping_tier_1_option_2_name"
+		,"default_value": ""
+		,"info": "Enter the name for your second shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 2 price"
+		,"variable_name": "shipping_tier_1_option_2_price"
+		,"default_value": ""
+		,"info": "Enter the price for your second shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 2 free code"
+		,"variable_name": "shipping_tier_1_option_2_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 3 name"
+		,"variable_name": "shipping_tier_1_option_3_name"
+		,"default_value": ""
+		,"info": "Enter the name for your third shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 3 price"
+		,"variable_name": "shipping_tier_1_option_3_price"
+		,"default_value": ""
+		,"info": "Enter the price for your third shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 3 free code"
+		,"variable_name": "shipping_tier_1_option_3_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Enable tier 2 shipping options"
+		,"variable_name": "enable_shipping_tier_2"
+		,"type": "tick"
+		,"default_value": "0"
+	}
+	,{
+		"display_name":"Shipping tier 2 threshold"
+		,"variable_name": "shipping_tier_2_threshold"
+		,"default_value": ""
+		,"info": "Enter the basket total required to enable shipping tier 2"
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 1 name"
+		,"variable_name": "shipping_tier_2_option_1_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 2 first shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 1 price"
+		,"variable_name": "shipping_tier_2_option_1_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 2 first shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 1 free code"
+		,"variable_name": "shipping_tier_2_option_1_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 2 name"
+		,"variable_name": "shipping_tier_2_option_2_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 2 second shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 2 price"
+		,"variable_name": "shipping_tier_2_option_2_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 2 second shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 2 free code"
+		,"variable_name": "shipping_tier_2_option_2_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 3 name"
+		,"variable_name": "shipping_tier_2_option_3_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 2 third shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 3 price"
+		,"variable_name": "shipping_tier_2_option_3_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 2 third shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 3 free code"
+		,"variable_name": "shipping_tier_2_option_3_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+  	,{
+		"value":"Template Settings"
+		,"lang_value":"Template_Settings"
+		,"type":"title"
+	}
+	,{
+		"display_name":"Website Title"
+		,"variable_name": "site_title"
+		,"info": "Please enter the name of your website or company. This will be used to generate social sharing meta data."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Append string to meta title"
+		,"variable_name": "meta_title_append"
+		,"info": "Please enter text to be automatically appended to every meta title value on the website. This could be your company name, location and slogan."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Show blog comments"
+		,"variable_name": "show_blog_comments"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"display_name":"Show blog intro text in recent articles widget"
+		,"variable_name": "show_blog_recart_intro"
+		,"type": "tick"
+		,"default_value": "0"
+	}
+    ,{
+  		"value":"Booking Products"
+  		,"type":"title"
+		,"lang_value":"Booking_Products"
+  	}
+	,{
+		"display_name":"Show month at a time"
+		,"variable_name": "month_at_a_time"
+		,"type": "tick"
+		,"default_value": "0"
+	}
+    ,{
+  		"value":"Social and contact"
+  		,"type":"title"
+		,"lang_value":	"Social_Contact"
+  	}
+	,{
+		"display_name":"Twitter link"
+		,"variable_name": "twitter_link"
+		,"info": "Please enter your Twitter profile link. This will be used for the Twitter social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"YouTube link"
+		,"variable_name": "youtube_link"
+		,"info": "Please enter your YouTube link URL. This will be used for the YouTube social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Facebook link"
+		,"variable_name": "facebook_link"
+		,"info": "Please enter your Facebook page link. This will be used for the Facebook social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Vimeo link"
+		,"variable_name": "vimeo_link"
+		,"info": "Please enter your Vimeo page link. This will be used for the Vimeo social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Flikr link"
+		,"variable_name": "flikr_link"
+		,"info": "Please enter your Flikr page link. This will be used for the Flikr social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Yelp link"
+		,"variable_name": "yelp_link"
+		,"info": "Please enter your Yelp page link. This will be used for the Yelp social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Trip Advisor link"
+		,"variable_name": "tripadvisor_link"
+		,"info": "Please enter your Trip Advisor page link. This will be used for the Trip Advisor social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Tumblr link"
+		,"variable_name": "tumblr_link"
+		,"info": "Please enter your Tumblr page link. This will be used for the Tumblr social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"LinkedIn link"
+		,"variable_name": "linkedin_link"
+		,"info": "Please enter your LinkedIn page link. This will be used for the LinkedIn social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Google+ link"
+		,"variable_name": "gplus_link"
+		,"info": "Please enter your Google+ page link. This will be used for the Google+ social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Pinterest link"
+		,"variable_name": "pinterest_link"
+		,"info": "Please enter your Pinterest page link. This will be used for the Pinterest social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Instagram link"
+		,"variable_name": "instagram_link"
+		,"info": "Please enter your Instagram page link. This will be used for the Instagram social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Blogger link"
+		,"variable_name": "blogger_link"
+		,"info": "Please enter your Blogger page link. This will be used for the Blogger social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Houzz link"
+		,"variable_name": "houzz_link"
+		,"info": "Please enter your Houzz page link. This will be used for the Houzz social media icon."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Phone number"
+		,"variable_name": "phone_number"
+		,"info": "Please enter a phone number to display in the social icons list."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Email Link"
+		,"variable_name": "email_link"
+		,"info": "Please enter your email address here to add an email link to the social icons list."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Show livechat icon in social icons list"
+		,"variable_name": "include_livechat"
+		,"type": "tick"
+		,"default_value": "0"
+	}
+	
+]

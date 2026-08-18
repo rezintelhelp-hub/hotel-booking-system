@@ -1,0 +1,47 @@
+.countdown-show-after {
+display:none;
+
+	margin: 20px 0;
+}
+.content ul.countdownclock {
+	list-style: none;
+	margin: 20px 0;
+	padding: 0;
+	display: block;
+	text-align: center;
+}
+ul.countdownclock li {
+	display: inline-block;
+}
+ul.countdownclock li span {
+	font-size: 80px;
+	font-weight: 300;
+	line-height: 80px;
+}
+ul.countdownclock li.seperator {
+	font-size: 80px;
+	line-height: 100px;
+	margin-top:0;
+	vertical-align: top;
+}
+.content .module ul.countdownclock li p {
+	opacity:0.6;
+	line-height:20px;
+	font-size: 18px;
+}
+@media (max-width:480px) {
+	ul.countdownclock li span {
+		font-size: 40px;
+		font-weight: 300;
+		line-height: 40px;
+	}
+	ul.countdownclock li.seperator {
+		font-size: 40px;
+		line-height: 60px;
+	}
+	.content .module ul.countdownclock li p {
+		font-size: 11px;
+		line-height:18px;
+		margin-top:0px;
+	}
+}

@@ -1,0 +1,28 @@
+.user-bookmarks-add {display:none;}
+.user-bookmark-show-add a {
+	padding:1px 10px;
+	background:#999;
+	font-size:14px;	
+	color:#fff;
+	text-decoration:none;
+}
+.rounded .user-bookmark-show-add a {
+	border-radius:15px;
+}
+.remove-bookmark {
+	padding:1px 10px;
+	background:#999;
+	font-size:12px;	
+	color:#fff;
+	margin-top:3px;
+	text-decoration:none;
+	float:right;
+	display:none;
+}
+.rounded .remove-bookmark {
+	border-radius:15px;
+}
+
+.user-bookmark:hover .remove-bookmark {
+	display:block;
+}

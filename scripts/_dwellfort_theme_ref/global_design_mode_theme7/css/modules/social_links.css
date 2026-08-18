@@ -1,0 +1,322 @@
+.style-icons.size-large.social-links .social-link.social-links-intro {
+	float:left;
+	color:#000;
+	line-height:42px;
+	padding:0 20px 0 0 ;
+	width:auto;
+}
+.style-icons.size-medium.social-links .social-link.social-links-intro {
+	float:left;
+	color:#000;
+	font-size:13px;
+	line-height:20px;
+	padding:0 10px 0 0 ;
+	width:auto;
+}
+.social-links.align-left .social-link {
+	margin-right:4px;
+}
+.social-links.align-right .social-link {
+	margin-left:0px;
+}
+.social-links.align-right > div {
+	float:right;
+}
+.social-links.align-center .social-link,.social-links.align-center #livechat {
+	margin-right:4px;
+}
+.social-links.align-center .social-link:last-child,.social-links.align-center #livechat:last-child {
+	margin-right:0;
+}
+.social-links.align-justify .social-link,.social-links.align-justify #livechat {
+	margin:0 4px;
+}
+.social-links.align-justify .social-link:first-child,.social-links.align-justify #livechat:first-child {
+	margin-left:0;
+}
+.social-links.align-justify .social-link:last-child,.social-links.align-justify #livechat:last-child {
+	margin-right:0;
+}
+.social-links #livechat {
+	float:left;
+}
+.style-icons.social-links .social-link {
+	width:21px;
+	padding-left:21px;
+	height:21px;
+	overflow:hidden;
+}
+.style-text.social-links .social-link {
+	padding-left:0;
+	padding-top:0;
+	padding-bottom:0;
+}
+.style-text.social-links .social-link:before {
+	display:none;
+}
+.social-links.size-large .social-link {
+	margin-right:10px;
+	position:relative;
+	float:left;
+	padding-left:42px;
+}
+.social-links .social-link {
+	margin-right:10px;
+	position:relative;
+	float:left;
+	padding-left:21px;
+}
+.align-center.social-links .social-link {
+	float:none;
+	display:inline-block;
+}
+.style-icons.social-links .social-link:before {
+	font-size: 16px;
+	line-height:16px;
+}
+.social-links .social-link:before {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	position:absolute;
+	top:0px;
+	padding-top:0px;
+	padding-bottom:0px;
+	left:0px;
+	text-align:center;
+}
+
+
+
+/* NORMAL */
+.social-links .social-link:before {
+	padding-left:21px;
+}
+.size-large.social-links .social-link:before {
+	padding-left:42px;
+}
+/*  NORMAL TWEAKS */
+.social-links .social-link.social-link-livechat:before {
+	content:"C";
+}
+.social-links.style-icons .social-link.social-link-livechat:before {
+	color:#fff;
+	background:#3fd7a6;
+	font-size:12px;
+	top:-2px;
+}
+
+.social-links .social-link:before {
+	content:"";
+
+}
+/* Default style */
+.social-links .social-link.social-link-facebook:before { background-image:url("/graphics/social/Facebookmed.png"); }
+.social-links .social-link.social-link-instagram:before { background-image:url("/graphics/social/Instagrammed.png"); }
+.social-links .social-link.social-link-houzz:before { background-image:url("/graphics/social/Houzzmed.png"); }
+.social-links .social-link.social-link-blogger:before { background-image:url("/graphics/social/Bloggermed.png"); }
+.social-links .social-link.social-link-twitter:before { background-image:url("/graphics/social/Twittermed.png"); }
+.social-links .social-link.social-link-youtube:before { background-image:url("/graphics/social/YouTubemed.png"); }
+.social-links .social-link.social-link-vimeo:before { background-image:url("/graphics/social/Vimeomed.png"); }
+.social-links .social-link.social-link-flikr:before { background-image:url("/graphics/social/Flickrmed.png"); }
+.social-links .social-link.social-link-tumblr:before { background-image:url("/graphics/social/Tumblrmed.png"); }
+.social-links .social-link.social-link-yelp:before { background-image:url("/graphics/social/Yelpmed.png");}
+.social-links .social-link.social-link-tripadvisor:before { background-image:url("/graphics/social/TripAdvisormed.png"); }
+.social-links .social-link.social-link-linkedin:before { background-image:url("/graphics/social/LinkedInmed.png"); }
+.social-links .social-link.social-link-pinterest:before { background-image:url("/graphics/social/Pinterestmed.png"); }
+.social-links .social-link.social-link-whatsapp:before { background-image:url("/graphics/social/WhatsAppmed.png"); }
+.social-links .social-link.social-link-phone:before { background-image:url("/graphics/social/Phonemed.png"); }
+.social-links .social-link.social-link-email:before { background-image:url("/graphics/social/Emailmed.png"); }
+
+/* Transparent style */
+.icon-style--Transparent.social-links .social-link.social-link-facebook:before { background-image:url("/graphics/social/Facebook-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-instagram:before { background-image:url("/graphics/social/Instagram-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-houzz:before { background-image:url("/graphics/social/Houzz-Transparentmed.png");} 
+.icon-style--Transparent.social-links .social-link.social-link-blogger:before { background-image:url("/graphics/social/Blogger-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-twitter:before { background-image:url("/graphics/social/Twitter-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-youtube:before { background-image:url("/graphics/social/YouTube-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-vimeo:before { background-image:url("/graphics/social/Vimeo-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-flikr:before { background-image:url("/graphics/social/Flickr-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-tumblr:before { background-image:url("/graphics/social/Tumblr-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-yelp:before { background-image:url("/graphics/social/Yelp-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-tripadvisor:before { background-image:url("/graphics/social/TripAdvisor-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-linkedin:before { background-image:url("/graphics/social/LinkedIn-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-pinterest:before { background-image:url("/graphics/social/Pinterest-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-whatsapp:before { background-image:url("/graphics/social/WhatsApp-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-phone:before { background-image:url("/graphics/social/Phone-Transparentmed.png"); }
+.icon-style--Transparent.social-links .social-link.social-link-email:before { background-image:url("/graphics/social/Email-Transparentmed.png"); }
+
+/* Black-Mon style */
+.icon-style--Black-Mon.social-links .social-link.social-link-facebook:before { background-image:url("/graphics/social/Facebook-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-instagram:before { background-image:url("/graphics/social/Instagram-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-houzz:before { background-image:url("/graphics/social/Houzz-Black-Monmed.png");} 
+.icon-style--Black-Mon.social-links .social-link.social-link-blogger:before { background-image:url("/graphics/social/Blogger-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-twitter:before { background-image:url("/graphics/social/Twitter-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-youtube:before { background-image:url("/graphics/social/YouTube-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-vimeo:before { background-image:url("/graphics/social/Vimeo-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-flikr:before { background-image:url("/graphics/social/Flickr-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-tumblr:before { background-image:url("/graphics/social/Tumblr-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-yelp:before { background-image:url("/graphics/social/Yelp-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-tripadvisor:before { background-image:url("/graphics/social/TripAdvisor-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-linkedin:before { background-image:url("/graphics/social/LinkedIn-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-pinterest:before { background-image:url("/graphics/social/Pinterest-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-whatsapp:before { background-image:url("/graphics/social/WhatsApp-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-phone:before { background-image:url("/graphics/social/Phone-Black-Monmed.png"); }
+.icon-style--Black-Mon.social-links .social-link.social-link-email:before { background-image:url("/graphics/social/Email-Black-Monmed.png"); }
+
+
+/* White-Mon style */
+.icon-style--White-Mon.social-links .social-link.social-link-facebook:before { background-image:url("/graphics/social/Facebook-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-instagram:before { background-image:url("/graphics/social/Instagram-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-houzz:before { background-image:url("/graphics/social/Houzz-White-Monmed.png");} 
+.icon-style--White-Mon.social-links .social-link.social-link-blogger:before { background-image:url("/graphics/social/Blogger-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-twitter:before { background-image:url("/graphics/social/Twitter-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-youtube:before { background-image:url("/graphics/social/YouTube-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-vimeo:before { background-image:url("/graphics/social/Vimeo-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-flikr:before { background-image:url("/graphics/social/Flickr-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-tumblr:before { background-image:url("/graphics/social/Tumblr-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-yelp:before { background-image:url("/graphics/social/Yelp-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-tripadvisor:before { background-image:url("/graphics/social/TripAdvisor-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-linkedin:before { background-image:url("/graphics/social/LinkedIn-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-pinterest:before { background-image:url("/graphics/social/Pinterest-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-whatsapp:before { background-image:url("/graphics/social/WhatsApp-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-phone:before { background-image:url("/graphics/social/Phone-White-Monmed.png"); }
+.icon-style--White-Mon.social-links .social-link.social-link-email:before { background-image:url("/graphics/social/Email-White-Monmed.png"); }
+
+/* Transparent-White style */
+.icon-style--Transparent-White.social-links .social-link.social-link-facebook:before { background-image:url("/graphics/social/Facebook-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-instagram:before { background-image:url("/graphics/social/Instagram-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-houzz:before { background-image:url("/graphics/social/Houzz-Transparent-Whitemed.png");} 
+.icon-style--Transparent-White.social-links .social-link.social-link-blogger:before { background-image:url("/graphics/social/Blogger-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-twitter:before { background-image:url("/graphics/social/Twitter-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-youtube:before { background-image:url("/graphics/social/YouTube-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-vimeo:before { background-image:url("/graphics/social/Vimeo-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-flikr:before { background-image:url("/graphics/social/Flickr-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-tumblr:before { background-image:url("/graphics/social/Tumblr-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-yelp:before { background-image:url("/graphics/social/Yelp-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-tripadvisor:before { background-image:url("/graphics/social/TripAdvisor-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-linkedin:before { background-image:url("/graphics/social/LinkedIn-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-pinterest:before { background-image:url("/graphics/social/Pinterest-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-whatsapp:before { background-image:url("/graphics/social/WhatsApp-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-phone:before { background-image:url("/graphics/social/Phone-Transparent-Whitemed.png"); }
+.icon-style--Transparent-White.social-links .social-link.social-link-email:before { background-image:url("/graphics/social/Email-Transparent-Whitemed.png"); }
+
+/* Transparent-Black style */
+.icon-style--Transparent-Black.social-links .social-link.social-link-facebook:before { background-image:url("/graphics/social/Facebook-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-instagram:before { background-image:url("/graphics/social/Instagram-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-houzz:before { background-image:url("/graphics/social/Houzz-Transparent-Blackmed.png");} 
+.icon-style--Transparent-Black.social-links .social-link.social-link-blogger:before { background-image:url("/graphics/social/Blogger-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-twitter:before { background-image:url("/graphics/social/Twitter-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-youtube:before { background-image:url("/graphics/social/YouTube-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-vimeo:before { background-image:url("/graphics/social/Vimeo-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-flikr:before { background-image:url("/graphics/social/Flickr-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-tumblr:before { background-image:url("/graphics/social/Tumblr-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-yelp:before { background-image:url("/graphics/social/Yelp-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-tripadvisor:before { background-image:url("/graphics/social/TripAdvisor-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-linkedin:before { background-image:url("/graphics/social/LinkedIn-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-pinterest:before { background-image:url("/graphics/social/Pinterest-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-whatsapp:before { background-image:url("/graphics/social/WhatsApp-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-phone:before { background-image:url("/graphics/social/Phone-Transparent-Blackmed.png"); }
+.icon-style--Transparent-Black.social-links .social-link.social-link-email:before { background-image:url("/graphics/social/Email-Transparent-Blackmed.png"); }
+
+/* Circ style */
+.icon-style--Circ.social-links .social-link.social-link-facebook:before { background-image:url("/graphics/social/Facebook-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-instagram:before { background-image:url("/graphics/social/Instagram-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-houzz:before { background-image:url("/graphics/social/Houzz-Circmed.png");} 
+.icon-style--Circ.social-links .social-link.social-link-blogger:before { background-image:url("/graphics/social/Blogger-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-twitter:before { background-image:url("/graphics/social/Twitter-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-youtube:before { background-image:url("/graphics/social/YouTube-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-vimeo:before { background-image:url("/graphics/social/Vimeo-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-flikr:before { background-image:url("/graphics/social/Flickr-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-tumblr:before { background-image:url("/graphics/social/Tumblr-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-yelp:before { background-image:url("/graphics/social/Yelp-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-tripadvisor:before { background-image:url("/graphics/social/TripAdvisor-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-linkedin:before { background-image:url("/graphics/social/LinkedIn-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-pinterest:before { background-image:url("/graphics/social/Pinterest-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-whatsapp:before { background-image:url("/graphics/social/WhatsApp-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-phone:before { background-image:url("/graphics/social/Phone-Circmed.png"); }
+.icon-style--Circ.social-links .social-link.social-link-email:before { background-image:url("/graphics/social/Email-Circmed.png"); }
+
+/* Circ-Grey style */
+.icon-style--Circ-Grey.social-links .social-link.social-link-facebook:before { background-image:url("/graphics/social/Facebook-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-instagram:before { background-image:url("/graphics/social/Instagram-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-houzz:before { background-image:url("/graphics/social/Houzz-Circ-Greymed.png");} 
+.icon-style--Circ-Grey.social-links .social-link.social-link-blogger:before { background-image:url("/graphics/social/Blogger-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-twitter:before { background-image:url("/graphics/social/Twitter-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-youtube:before { background-image:url("/graphics/social/YouTube-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-vimeo:before { background-image:url("/graphics/social/Vimeo-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-flikr:before { background-image:url("/graphics/social/Flickr-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-tumblr:before { background-image:url("/graphics/social/Tumblr-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-yelp:before { background-image:url("/graphics/social/Yelp-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-tripadvisor:before { background-image:url("/graphics/social/TripAdvisor-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-linkedin:before { background-image:url("/graphics/social/LinkedIn-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-pinterest:before { background-image:url("/graphics/social/Pinterest-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-whatsapp:before { background-image:url("/graphics/social/WhatsApp-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-phone:before { background-image:url("/graphics/social/Phone-Circ-Greymed.png"); }
+.icon-style--Circ-Grey.social-links .social-link.social-link-email:before { background-image:url("/graphics/social/Email-Circ-Greymed.png"); }
+
+
+.social-links .social-link:before,
+.icon-style--Transparent.size-small.style-icons.social-links .social-link:before,
+.icon-style--Black-Mon.size-small.style-icons.social-links .social-link:before,
+.icon-style--White-Mon.size-small.style-icons.social-links .social-link:before,
+.icon-style--Transparent-White.size-small.style-icons.social-links .social-link:before,
+.icon-style--Transparent-Black.size-small.style-icons.social-links .social-link:before,
+.icon-style--Circ.size-small.style-icons.social-links .social-link:before,
+.icon-style--Circ-Grey.size-small.style-icons.social-links .social-link:before {
+	background-size:21px 21px;
+	height:21px;
+}
+.size-large.social-links .social-link:before,
+.icon-style--Transparent.size-large.style-icons.social-links .social-link:before,
+.icon-style--Black-Mon.size-large.style-icons.social-links .social-link:before,
+.icon-style--White-Mon.size-large.style-icons.social-links .social-link:before,
+.icon-style--Transparent-White.size-large.style-icons.social-links .social-link:before,
+.icon-style--Transparent-Black.size-large.style-icons.social-links .social-link:before,
+.icon-style--Circ.size-large.style-icons.social-links .social-link:before,
+.icon-style--Circ-Grey.size-large.style-icons.social-links .social-link:before {
+	background-size:42px 42px;
+	height:42px;
+}
+/* LARGE */
+
+.size-large.social-links .social-link:before {
+	font-size:150%;
+	line-height:100%;
+	width:auto;
+}
+
+
+.social-links.size-large .social-link {
+	line-height:42px;
+}
+.style-icons.size-large.social-links .social-link:before {
+	font-size: 26px;
+	line-height:18px;
+	top:0px;
+	padding-top:9px;
+	padding-bottom:9px;
+	left:0px;
+	width:35px;
+}
+.size-large.social-links.style-icons .social-link:before {
+	width:42px;
+	height:100%;
+}
+.style-icons.size-large.social-links .social-link {
+	padding-top:5px;
+	padding-bottom:5px;
+	width:42px;
+	padding-left:42px;
+	height:42px;
+	overflow:hidden;
+}
+
+
+/* LARGE TWEAKS */
+.style-icons.size-large.social-links .social-link.social-link-livechat:before {
+	padding-top:12px;
+}
+.style-icons.size-large.social-links .social-link.social-link-phone:before {
+		padding-top:11px;
+}

@@ -1,0 +1,22 @@
+.recent-pages-feed-item .bpe_image {
+        max-width:150px;
+}
+.recent-pages-feed.grid-mode .recent-pages-feed-item.middle-of-three {
+margin-right: 1.5%;
+margin-left: 1.5%;
+}
+.recent-pages-feed.grid-mode .recent-pages-feed-item {
+width: 32.3%;
+float: left;
+margin-bottom: 1em;
+}
+.recent-pages-feed.grid-mode .recent-pages-feed-item .bpe_image {
+	max-width:100%;
+}
+.recent-pages-date a{
+	text-decoration:none;
+}
+
+.recent-pages-feed.grid-mode .recent-pages-feed-item img{
+	width:100%;
+}

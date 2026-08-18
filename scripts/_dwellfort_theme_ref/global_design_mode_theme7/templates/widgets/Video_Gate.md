@@ -1,0 +1,1 @@
+This widget allows you to display content to logged in users only if they have fully watched a video. Use the Video widget to display the video to the user, either on this page or another one, then select the same video in this widget to use that video's watch status to display this widget's content.

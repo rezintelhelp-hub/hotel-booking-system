@@ -1,0 +1,240 @@
+		/* magnifying glass icon */
+		.zoom:after {
+			content:'';
+			display:block; 
+			width:33px; 
+			height:33px; 
+			position:absolute; 
+			top:0;
+			right:0;
+			background:url(icon.png);
+		}
+
+		.zoom img {
+			display: block;
+		}
+
+		.zoom img::selection { background-color: transparent; }
+
+.showcaptionwrap {
+	display:table;
+	text-align:center;
+	width:100%;
+}
+.galleryThumb {
+	float: left;
+	width: 20%;
+	text-align: center;
+	display: table;
+	margin-bottom:15px;
+}
+.withSidebarNav .galleryThumb {
+	width: 25%;
+}
+.column .galleryThumb {
+	width:180px !important;
+}
+.thumbInner {
+	height: 180px;
+	display: table-cell;
+	vertical-align: middle;
+}
+.galleryThumb img {
+}
+.galleryThumb img {
+	max-width:150px;
+	max-height:150px;
+}
+
+.owl-item .item {
+	text-align:center;
+}
+.galleryWithThumbs .enlarge {
+	text-align:center;
+}
+.galleryWithThumbs .owl-gallery-thumbs.owl-carousel {
+
+}
+.slick-slide > div {
+}
+@media only screen and (min-width: 768px) and (max-width: 1000px) {
+	.withSidebarNav .galleryThumb {
+		width:33.3333333%;
+	}
+	.galleryThumb {
+		width:25%;
+	}
+}
+@media only screen and (min-width: 600px) and (max-width: 767px) {
+	
+	.withSidebarNav .galleryThumb,.fullWidth .galleryThumb {
+		width:33.33333%;
+		height:165px;
+	}
+	.withSidebarNav .thumbInner,.fullWidth .thumbInner {
+		height: 165px;
+	}
+	.withSidebarNav .galleryThumb img ,.fullWidth .galleryThumb img {
+		padding: 3px;
+		max-width: 140px;
+		max-height: 140px;
+	}
+
+}
+@media only screen and (min-width: 480px) and (max-width: 600px) {
+	.withSidebarNav .galleryThumb {
+		width:50%;
+	}
+	.fullWidth .galleryThumb {
+		width:33.33333%;
+		height:148px;
+	}
+	.fullWidth .thumbInner {
+		height: 148px;
+	}
+	.fullWidth .galleryThumb img {
+		padding: 3px;
+		max-width: 120px;
+		max-height: 120px;
+	}
+}
+@media only screen and (max-width: 480px) {
+	.withSidebarNav .galleryThumb, .fullWidth .galleryThumb {
+		width:50%;
+		height:135px;
+	}
+	.withSidebarNav .thumbInner, .fullWidth .thumbInner {
+		height: 135px;
+	}
+	.withSidebarNav .galleryThumb img, .fullWidth .galleryThumb img {
+		padding: 3px;
+		max-width: 110px;
+		max-height: 110px;
+	}
+
+
+}
+#lightboxOverlay {
+	background:rgba(0,0,0,0.9);
+	position:fixed;
+	top:0;
+	left:0;
+	bottom:0;
+	right:0;
+	z-index: 20;
+}
+/*
+#lightboxOuter * {
+	-webkit-box-sizing: content-box; 
+	-moz-box-sizing: content-box;   
+	box-sizing: content-box;       
+}
+*/
+#lightboxOuter {
+	position:fixed;
+	left:0;
+	top:0px;
+	bottom:0px;
+	width:100%;
+	z-index: 21;
+}
+#lightboxContainer {
+	display:none;
+	margin: auto;
+	position:absolute;
+	left:50%;
+	top:50%;
+	transform:translate(-50%,-50%);
+}
+#lightboxInner,#lightboxExtra1,#lightboxExtra2,#lightboxExtra3 {
+	height:100%;
+}
+#lightboxClose {
+	position:absolute;
+	top:10px;
+	cursor:pointer;
+	right:10px;
+	display:none;
+	width:36px;
+	height:36px;
+	text-align: center;
+}
+#lightboxClose {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	font-size: 25px;
+	line-height: 36px;
+	color:#fff;
+}
+#lightboxPrev {
+	top:50%;
+	left:-40px;
+	display:none;;
+	position:absolute;
+	cursor:pointer;
+	width:36px;
+	height:36px;
+	text-align: center;
+}
+#lightboxPrev {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	font-size: 30px;
+	line-height: 36px;
+	color:#fff;
+}
+#lightboxNext {
+	top:50%;
+	display:none;
+	margin-top:-25px;
+	right:-40px;
+	position:absolute;
+	cursor:pointer;
+	width:36px;
+	height:36px;
+	text-align: center;
+	color:#fff;
+}
+#lightboxNext {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	font-size: 30px;
+	line-height: 36px;
+}
+#lightboxInner img {
+	max-height:100%;
+	max-width:100%;
+}
+#lightboxCaption p {
+	float:left;
+	margin:0;
+}
+#lightboxStuff:after {
+    content: "."; 
+    display: block; 
+    height: 0; 
+    clear: both; 
+    visibility: hidden;
+}
+
+#lightboxStuff {display: inline-block;}
+#lightboxStuff {
+	display:none;
+	margin:0 auto;
+	padding:15px 20px ;
+	background:#333;
+}
+#lightboxCaption {
+	font-size: 18px;
+	font-weight: bold;
+}
+#lightboxCaption p {
+	color:#fff;
+}
+#lightboxShop {
+	float:right;
+	margin-top: -40px;
+}

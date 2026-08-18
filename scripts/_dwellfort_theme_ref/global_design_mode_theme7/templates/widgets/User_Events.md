@@ -1,0 +1,1 @@
+The User Events widget lets logged in users add items to any of the calendars in your system. When you add the widget to your page, choose one of your calendars so new events get added to a calendar. Users will be able to remove the events they add. You can also remove events directly from the 'manage events' area yourself.  

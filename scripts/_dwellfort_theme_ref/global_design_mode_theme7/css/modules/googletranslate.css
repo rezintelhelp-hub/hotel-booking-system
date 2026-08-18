@@ -1,0 +1,14 @@
+
+input[type=submit].gtbutton {
+	float:left;
+	font-size:12px;
+	padding:4px 5px;
+	margin-top:-1px;
+	margin-left:5px;
+}
+#gtform select {
+	font-size:11px;
+	float:left;
+	width:150px;
+	font-size:13px;
+}

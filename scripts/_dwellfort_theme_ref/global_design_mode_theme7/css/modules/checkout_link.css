@@ -1,0 +1,48 @@
+.checkout-link p a {
+	position:relative;
+	display:inline-block;
+	padding-right:18px;
+}
+.icononly.checkout-link p a {
+	padding-right:0;
+}
+.checkout-link p a:before {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	font-size: 120%;
+	margin-right:5px;
+	line-height:85%;
+	float:left;
+}
+.checkoutstyle_bag .checkout-link p a:before {
+	content:"4";
+}
+.checkoutstyle_cart .checkout-link p a:before {
+	content:"h"
+}
+.checkoutstyle_basket .checkout-link p a:before {
+	content:"q";
+	top:-2px;position:relative;
+}
+.chekoutcount {
+	position:absolute;
+	top:-5px;
+	right:0px;
+	background:#333;
+	color:#fff;
+	border-radius:50px;
+	width:13px;
+	height:13px;
+	text-align:center;
+	line-height:12px;
+	font-size:8px;
+}
+#mobile-menu-behind .chekoutcount {
+  position:relative;
+  float: right;
+  top: 2px;
+}
+.chekoutcount .order-count-brackets {
+	display:none;
+}

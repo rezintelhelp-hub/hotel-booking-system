@@ -1,0 +1,53 @@
+{literal}{
+  "name": "{/literal}{$name}{literal}",
+  "short_name": "{/literal}{$name}{literal}",
+  "lang": "en-US",
+  "scope": "/",
+  "start_url": "./{/literal}{$start_page}{literal}",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "{/literal}{$icon_57}{literal}",
+      "sizes": "57x57",
+      "type": "image/png",
+      "density": "1"
+    },
+    {
+      "src": "{/literal}{$icon_76}{literal}",
+      "sizes": "76x76",
+      "type": "image/png",
+      "density": "1"
+    },{
+      "src": "{/literal}{$icon_96}{literal}",
+      "sizes": "96x96",
+      "type": "image/png",
+      "density": "1"
+    },{
+      "src": "{/literal}{$icon_120}{literal}",
+      "sizes": "120x120",
+      "type": "image/png",
+      "density": "1"
+    },{
+      "src": "{/literal}{$icon_144}{literal}",
+      "sizes": "144x144",
+      "type": "image/png",
+      "density": "1"
+    },{
+      "src": "{/literal}{$icon_152}{literal}",
+      "sizes": "152x152",
+      "type": "image/png",
+      "density": "1"
+    },{
+      "src": "{/literal}{$icon_192}{literal}",
+      "sizes": "192x192",
+      "type": "image/png",
+      "density": "1"
+    },{
+      "src": "{/literal}{$icon_240}{literal}",
+      "sizes": "240x240",
+      "type": "image/png",
+      "density": "1"
+    }
+  ]
+}
+{/literal}

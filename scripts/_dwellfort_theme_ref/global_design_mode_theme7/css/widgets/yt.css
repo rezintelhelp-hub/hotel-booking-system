@@ -1,0 +1,20 @@
+.yt-check-consent {
+	position:relative;
+}
+.yt-consent-in-player {
+	max-width:480px;
+	position:absolute;
+	top:50%;
+	left:50%;
+	transform:translateX(-50%) translateY(-50%);
+}
+.gm-check-consent {
+	position:relative;
+}
+.gm-consent-in-player {
+	max-width:480px;
+	position:absolute;
+	top:50%;
+	left:50%;
+	transform:translateX(-50%) translateY(-50%);
+}

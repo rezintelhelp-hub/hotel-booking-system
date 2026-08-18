@@ -1,0 +1,2783 @@
+[
+    {
+  		"value":"Stripe"
+  		,"type":"title"
+		,"require":"PRODUCTS"
+  	},{
+		"display_name":"Stripe API key (publishable)"
+		,"variable_name": "stripe_key_publishable"
+		,"default_value": ""
+		,"info": "Enter your Stripe publishable key here"
+		,"type": "text"
+	},{
+		"display_name":"Stripe API key (secret)"
+		,"variable_name": "stripe_key_secret"
+		,"default_value": ""
+		,"info": "Enter your Stripe secret key here"
+		,"type": "text"
+	},{
+		"display_name":"Allowed shipping countries"
+		,"variable_name": "stripe_allowed_countries"
+		,"default_value": "GB,NZ,US,AU"
+		,"info": "Enter a comma seperated list of countries that you allow as shipping addresses here."
+		,"type": "text"
+	},{
+		"type":"rule"
+	},{
+  		"value":"Push Notifications"
+  		,"type":"title"
+  	},{
+		"display_name":"Public key"
+		,"variable_name": "push_notif_public_key"
+		,"default_value": ""
+		,"info": "Enter the public key for push notification service here."
+		,"type": "text"
+	},{
+		"display_name":"Private key"
+		,"variable_name": "push_notif_private_key"
+		,"default_value": ""
+		,"info": "Enter the private key for push notification service here."
+		,"type": "text"
+	},{
+		"type":"rule"
+	},{
+  		"value":"Unleashed Integration"
+  		,"type":"title"
+		,"require":"PRODUCTS"
+  	},{
+		"display_name":"Unleashed API ID"
+		,"variable_name": "unleashed_id"
+		,"default_value": ""
+		,"info": "Enter your Unleashed publishable key here"
+		,"type": "text"
+	},{
+		"display_name":"Unleashed API Key"
+		,"variable_name": "unleashed_key"
+		,"default_value": ""
+		,"info": "Enter your Unleashed secret key here"
+		,"type": "text"
+	},{
+		"display_name":"Tax code USD"
+		,"variable_name": "unleashed_tax_usd"
+		,"default_value": ""
+		,"info": "Enter the tax code for orders here. This will match the codes in Unleashed: System > Tax"
+		,"type": "text"
+	},{
+		"display_name":"Tax rate USD"
+		,"variable_name": "unleashed_tax_rate_usd"
+		,"default_value": "0"
+		,"info": "Enter the tax rate for orders here. "
+		,"type": "text"
+	},{
+		"display_name":"Tax code NZD"
+		,"variable_name": "unleashed_tax_nzd"
+		,"default_value": ""
+		,"info": "Enter the tax code for orders here. This will match the codes in Unleashed: System > Tax"
+		,"type": "text"
+	},{
+		"display_name":"Tax rate NZD"
+		,"variable_name": "unleashed_tax_rate_nzd"
+		,"default_value": "0"
+		,"info": "Enter the tax rate for orders here. "
+		,"type": "text"
+	},{
+		"display_name":"Tax code GBP"
+		,"variable_name": "unleashed_tax_gbp"
+		,"default_value": ""
+		,"info": "Enter the tax code for orders here. This will match the codes in Unleashed: System > Tax"
+		,"type": "text"
+	},{
+		"display_name":"Tax rate GBP"
+		,"variable_name": "unleashed_tax_rate_gbp"
+		,"default_value": "0"
+		,"info": "Enter the tax rate for orders here. "
+		,"type": "text"
+	},{
+		"display_name":"Tax code AUD"
+		,"variable_name": "unleashed_tax_aud"
+		,"default_value": ""
+		,"info": "Enter the tax code for orders here. This will match the codes in Unleashed: System > Tax"
+		,"type": "text"
+	},{
+		"display_name":"Tax rate AUD"
+		,"variable_name": "unleashed_tax_rate_aud"
+		,"default_value": "0"
+		,"info": "Enter the tax rate for orders here. "
+		,"type": "text"
+	},{
+		"display_name":"Tax code EUR"
+		,"variable_name": "unleashed_tax_eur"
+		,"default_value": ""
+		,"info": "Enter the tax code for orders here. This will match the codes in Unleashed: System > Tax"
+		,"type": "text"
+	},{
+		"display_name":"Tax rate EUR"
+		,"variable_name": "unleashed_tax_rate_eur"
+		,"default_value": "0"
+		,"info": "Enter the tax rate for orders here. "
+		,"type": "text"
+	},{
+		"display_name":"Tax code Default"
+		,"variable_name": "unleashed_tax_default"
+		,"default_value": ""
+		,"info": "Enter the default tax code for orders here. This will match the codes in Unleashed: System > Tax"
+		,"type": "text"
+	},{
+		"display_name":"Tax rate Default"
+		,"variable_name": "unleashed_tax_rate_default"
+		,"default_value": "0"
+		,"info": "Enter the default tax rate for orders here. "
+		,"type": "text"
+	},{
+		"display_name":"Default payment term"
+		,"variable_name": "unleashed_default_term"
+		,"default_value": "Prepaid"
+		,"info": "Enter the default payment term here"
+		,"type": "text"
+	},{
+		"display_name":"Default Sales Order Group"
+		,"variable_name": "unleashed_default_salesordergroup"
+		,"default_value": ""
+		,"info": "Enter the default sales order group here"
+		,"type": "text"
+	},{
+		"display_name":"Default Sales Account "
+		,"variable_name": "unleashed_default_salesaccount"
+		,"default_value": ""
+		,"info": "Enter the default sales account here"
+		,"type": "text"
+	},{
+		"type":"rule"
+	},{
+		"display_name":"Price tier 1 currency"
+		,"variable_name": "tier1cur"
+		,"type": "string"
+		,"default_value": "NZD"
+		,"options":
+		 [
+			 {"display_value":"USD","value":"USD"}
+			 ,{"display_value":"NZD","value":"NZD"} 
+			 ,{"display_value":"GBP","value":"GBP"} 
+			 ,{"display_value":"AUD","value":"AUD"} 
+			 ,{"display_value":"EUR","value":"EUR"} 
+		]
+	},{
+		"display_name":"Price tier 2 currency"
+		,"variable_name": "tier2cur"
+		,"type": "string"
+		,"default_value": "NZD"
+		,"options":
+		 [
+			 {"display_value":"USD","value":"USD"}
+			 ,{"display_value":"NZD","value":"NZD"} 
+			 ,{"display_value":"GBP","value":"GBP"} 
+			 ,{"display_value":"AUD","value":"AUD"} 
+			 ,{"display_value":"EUR","value":"EUR"} 
+		]
+	},{
+		"display_name":"Price tier 3 currency"
+		,"variable_name": "tier3cur"
+		,"type": "string"
+		,"default_value": "NZD"
+		,"options":
+		 [
+			 {"display_value":"USD","value":"USD"}
+			 ,{"display_value":"NZD","value":"NZD"} 
+			 ,{"display_value":"GBP","value":"GBP"} 
+			 ,{"display_value":"AUD","value":"AUD"} 
+			 ,{"display_value":"EUR","value":"EUR"} 
+		]
+	},{
+		"display_name":"Price tier 4 currency"
+		,"variable_name": "tier4cur"
+		,"type": "string"
+		,"default_value": "NZD"
+		,"options":
+		 [
+			 {"display_value":"USD","value":"USD"}
+			 ,{"display_value":"NZD","value":"NZD"} 
+			 ,{"display_value":"GBP","value":"GBP"} 
+			 ,{"display_value":"AUD","value":"AUD"} 
+			 ,{"display_value":"EUR","value":"EUR"} 
+		]
+	},{
+		"display_name":"Price tier 5 currency"
+		,"variable_name": "tier5cur"
+		,"type": "string"
+		,"default_value": "NZD"
+		,"options":
+		 [
+			 {"display_value":"USD","value":"USD"}
+			 ,{"display_value":"NZD","value":"NZD"} 
+			 ,{"display_value":"GBP","value":"GBP"} 
+			 ,{"display_value":"AUD","value":"AUD"} 
+			 ,{"display_value":"EUR","value":"EUR"} 
+		]
+	},{
+		"display_name":"Price tier 6 currency"
+		,"variable_name": "tier6cur"
+		,"type": "string"
+		,"default_value": "NZD"
+		,"options":
+		 [
+			 {"display_value":"USD","value":"USD"}
+			 ,{"display_value":"NZD","value":"NZD"} 
+			 ,{"display_value":"GBP","value":"GBP"} 
+			 ,{"display_value":"AUD","value":"AUD"} 
+			 ,{"display_value":"EUR","value":"EUR"} 
+		]
+	},{
+		"display_name":"Price tier 7 currency"
+		,"variable_name": "tier7cur"
+		,"type": "string"
+		,"default_value": "NZD"
+		,"options":
+		 [
+			 {"display_value":"USD","value":"USD"}
+			 ,{"display_value":"NZD","value":"NZD"} 
+			 ,{"display_value":"GBP","value":"GBP"} 
+			 ,{"display_value":"AUD","value":"AUD"} 
+			 ,{"display_value":"EUR","value":"EUR"} 
+		]
+	},{
+		"display_name":"Price tier 8 currency"
+		,"variable_name": "tier8cur"
+		,"type": "string"
+		,"default_value": "NZD"
+		,"options":
+		 [
+			 {"display_value":"USD","value":"USD"}
+			 ,{"display_value":"NZD","value":"NZD"} 
+			 ,{"display_value":"GBP","value":"GBP"} 
+			 ,{"display_value":"AUD","value":"AUD"} 
+			 ,{"display_value":"EUR","value":"EUR"} 
+		]
+	},{
+		"display_name":"Price tier 9 currency"
+		,"variable_name": "tier9cur"
+		,"type": "string"
+		,"default_value": "NZD"
+		,"options":
+		 [
+			 {"display_value":"USD","value":"USD"}
+			 ,{"display_value":"NZD","value":"NZD"} 
+			 ,{"display_value":"GBP","value":"GBP"} 
+			 ,{"display_value":"AUD","value":"AUD"} 
+			 ,{"display_value":"EUR","value":"EUR"} 
+		]
+	},{
+		"display_name":"Price tier 10 currency"
+		,"variable_name": "tier10cur"
+		,"type": "string"
+		,"default_value": "NZD"
+		,"options":
+		 [
+			 {"display_value":"USD","value":"USD"}
+			 ,{"display_value":"NZD","value":"NZD"} 
+			 ,{"display_value":"GBP","value":"GBP"} 
+			 ,{"display_value":"AUD","value":"AUD"} 
+			 ,{"display_value":"EUR","value":"EUR"} 
+		]
+	},{
+		"type":"rule"
+	},{
+		"display_name":"Default tier for USD currency"
+		,"variable_name": "default_usd"
+		,"type": "string"
+		,"default_value": "1"
+		,"options":
+		 [
+			 {"display_value":"Default","value":"0"},
+			 {"display_value":"Tier 1","value":"1"},
+			 {"display_value":"Tier 2","value":"2"},
+			 {"display_value":"Tier 3","value":"3"},
+			 {"display_value":"Tier 4","value":"4"},
+			 {"display_value":"Tier 5","value":"5"},
+			 {"display_value":"Tier 6","value":"6"},
+			 {"display_value":"Tier 7","value":"7"},
+			 {"display_value":"Tier 8","value":"8"},
+			 {"display_value":"Tier 9","value":"9"},
+			 {"display_value":"Tier 10","value":"10"}
+		]
+	},{
+		"display_name":"Default tier for EUR currency"
+		,"variable_name": "default_eur"
+		,"type": "string"
+		,"default_value": "2"
+		,"options":
+		 [
+			 {"display_value":"Default","value":"0"},
+			 {"display_value":"Tier 1","value":"1"},
+			 {"display_value":"Tier 2","value":"2"},
+			 {"display_value":"Tier 3","value":"3"},
+			 {"display_value":"Tier 4","value":"4"},
+			 {"display_value":"Tier 5","value":"5"},
+			 {"display_value":"Tier 6","value":"6"},
+			 {"display_value":"Tier 7","value":"7"},
+			 {"display_value":"Tier 8","value":"8"},
+			 {"display_value":"Tier 9","value":"9"},
+			 {"display_value":"Tier 10","value":"10"}
+		]
+	},{
+		"display_name":"Default tier for NZD currency"
+		,"variable_name": "default_nzd"
+		,"type": "string"
+		,"default_value": "3"
+		,"options":
+		 [
+			 {"display_value":"Default","value":"0"},
+			 {"display_value":"Tier 1","value":"1"},
+			 {"display_value":"Tier 2","value":"2"},
+			 {"display_value":"Tier 3","value":"3"},
+			 {"display_value":"Tier 4","value":"4"},
+			 {"display_value":"Tier 5","value":"5"},
+			 {"display_value":"Tier 6","value":"6"},
+			 {"display_value":"Tier 7","value":"7"},
+			 {"display_value":"Tier 8","value":"8"},
+			 {"display_value":"Tier 9","value":"9"},
+			 {"display_value":"Tier 10","value":"10"}
+		]
+	},{
+		"display_name":"Default tier for AUD currency"
+		,"variable_name": "default_aud"
+		,"type": "string"
+		,"default_value": "4"
+		,"options":
+		 [
+			 {"display_value":"Tier 1","value":"1"},
+			 {"display_value":"Tier 2","value":"2"},
+			 {"display_value":"Tier 3","value":"3"},
+			 {"display_value":"Tier 4","value":"4"},
+			 {"display_value":"Tier 5","value":"5"},
+			 {"display_value":"Tier 6","value":"6"},
+			 {"display_value":"Tier 7","value":"7"},
+			 {"display_value":"Tier 8","value":"8"},
+			 {"display_value":"Tier 9","value":"9"},
+			 {"display_value":"Tier 10","value":"10"}
+		]
+	},{
+		"display_name":"Default tier for GBP currency"
+		,"variable_name": "default_gbp"
+		,"type": "string"
+		,"default_value": "5"
+		,"options":
+		 [
+			 {"display_value":"Tier 1","value":"1"},
+			 {"display_value":"Tier 2","value":"2"},
+			 {"display_value":"Tier 3","value":"3"},
+			 {"display_value":"Tier 4","value":"4"},
+			 {"display_value":"Tier 5","value":"5"},
+			 {"display_value":"Tier 6","value":"6"},
+			 {"display_value":"Tier 7","value":"7"},
+			 {"display_value":"Tier 8","value":"8"},
+			 {"display_value":"Tier 9","value":"9"},
+			 {"display_value":"Tier 10","value":"10"}
+		]
+	},{
+		"type":"rule"
+	},{
+		"display_name":"Default customer type for USD"
+		,"variable_name": "usd_customer_type"
+		,"default_value": ""
+		,"info": "Enter a default customer type for new customers created with USD currency"
+		,"type": "text"
+	},{
+		"display_name":"Default customer type for EUR"
+		,"variable_name": "eur_customer_type"
+		,"default_value": ""
+		,"info": "Enter a default customer type for new customers created with EUR currency"
+		,"type": "text"
+	},{
+		"display_name":"Default customer type for NZD"
+		,"variable_name": "nzd_customer_type"
+		,"default_value": ""
+		,"info": "Enter a default customer type for new customers created with NZD currency"
+		,"type": "text"
+	},{
+		"display_name":"Default customer type for AUD"
+		,"variable_name": "aud_customer_type"
+		,"default_value": ""
+		,"info": "Enter a default customer type for new customers created with AUD currency"
+		,"type": "text"
+	},{
+		"display_name":"Default customer type for GBP"
+		,"variable_name": "gbp_customer_type"
+		,"default_value": ""
+		,"info": "Enter a default customer type for new customers created with GBP currency"
+		,"type": "text"
+	},{
+		"type":"rule"
+	},{
+		"display_name":"Import contacts from Unleashed"
+		,"variable_name": "import_unleashed_contacts"
+		,"type": "tick"
+		,"default_value": "1"
+	},{
+		"display_name":"Add Sales Orders to Unleashed"
+		,"variable_name": "add_sales_orders"
+		,"type": "tick"
+		,"default_value": "1"
+	},{
+		"type":"rule"
+  	},{
+  		"value":"Coupon Codes"
+  		,"type":"title"
+		,"lang_value":"Coupon_Codes"
+		,"require":"PRODUCTS"
+  	},{
+		"display_name":"Enable coupon codes in checkout"
+		,"variable_name": "enabled_coupons"
+		,"type": "tick"
+		,"default_value": "0"
+	},{
+		"display_name":"Discount 1 codes"
+		,"variable_name": "discount_1_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 1 percentage"
+		,"variable_name": "percentage_1_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 1 fixed amount"
+		,"variable_name": "fixed_1_discount"
+		,"default_value": "0"
+		,"info": "Enter a fixed discount amount to apply for these codes. Leave as 0 to use percentage value from above."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Restrict to product categories"
+		,"variable_name": "percentage_1_restrict"
+		,"default_value": ""
+		,"info": "Enter a list of product categories, separated by commas, to restrict this discount to. Only products in the listed categories will receive the discount."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Expire on date"
+		,"variable_name": "coupon_1_expire"
+		,"default_value": ""
+		,"info": "Enter a date after which the codes in this discount will stop working. Format must be: YYYY-MM-DD. Leave empty for no expiry."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	
+	,{
+		"display_name":"Discount 2 codes"
+		,"variable_name": "discount_2_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 2 percentage"
+		,"variable_name": "percentage_2_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 2 fixed amount"
+		,"variable_name": "fixed_2_discount"
+		,"default_value": "0"
+		,"info": "Enter a fixed discount amount to apply for these codes. Leave as 0 to use percentage value from above."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Restrict to product categories"
+		,"variable_name": "percentage_2_restrict"
+		,"default_value": ""
+		,"info": "Enter a list of product categories, separated by commas, to restrict this discount to. Only products in the listed categories will receive the discount."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Expire on date"
+		,"variable_name": "coupon_2_expire"
+		,"default_value": ""
+		,"info": "Enter a date after which the codes in this discount will stop working. Format must be: YYYY-MM-DD. Leave empty for no expiry."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Discount 3 codes"
+		,"variable_name": "discount_3_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 3 percentage"
+		,"variable_name": "percentage_3_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 3 fixed amount"
+		,"variable_name": "fixed_3_discount"
+		,"default_value": "0"
+		,"info": "Enter a fixed discount amount to apply for these codes. Leave as 0 to use percentage value from above."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Restrict to product categories"
+		,"variable_name": "percentage_3_restrict"
+		,"default_value": ""
+		,"info": "Enter a list of product categories, separated by commas, to restrict this discount to. Only products in the listed categories will receive the discount."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Expire on date"
+		,"variable_name": "coupon_3_expire"
+		,"default_value": ""
+		,"info": "Enter a date after which the codes in this discount will stop working. Format must be: YYYY-MM-DD. Leave empty for no expiry."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Discount 4 codes"
+		,"variable_name": "discount_4_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 4 percentage"
+		,"variable_name": "percentage_4_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 4 fixed amount"
+		,"variable_name": "fixed_4_discount"
+		,"default_value": "0"
+		,"info": "Enter a fixed discount amount to apply for these codes. Leave as 0 to use percentage value from above."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Restrict to product categories"
+		,"variable_name": "percentage_4_restrict"
+		,"default_value": ""
+		,"info": "Enter a list of product categories, separated by commas, to restrict this discount to. Only products in the listed categories will receive the discount."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Expire on date"
+		,"variable_name": "coupon_4_expire"
+		,"default_value": ""
+		,"info": "Enter a date after which the codes in this discount will stop working. Format must be: YYYY-MM-DD. Leave empty for no expiry."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Discount 5 codes"
+		,"variable_name": "discount_5_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 5 percentage"
+		,"variable_name": "percentage_5_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 5 fixed amount"
+		,"variable_name": "fixed_5_discount"
+		,"default_value": "0"
+		,"info": "Enter a fixed discount amount to apply for these codes. Leave as 0 to use percentage value from above."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Restrict to product categories"
+		,"variable_name": "percentage_5_restrict"
+		,"default_value": ""
+		,"info": "Enter a list of product categories, separated by commas, to restrict this discount to. Only products in the listed categories will receive the discount."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Expire on date"
+		,"variable_name": "coupon_5_expire"
+		,"default_value": ""
+		,"info": "Enter a date after which the codes in this discount will stop working. Format must be: YYYY-MM-DD. Leave empty for no expiry."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	
+	,{
+		"display_name":"Discount 6 codes"
+		,"variable_name": "discount_6_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 6 percentage"
+		,"variable_name": "percentage_6_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 6 fixed amount"
+		,"variable_name": "fixed_6_discount"
+		,"default_value": "0"
+		,"info": "Enter a fixed discount amount to apply for these codes. Leave as 0 to use percentage value from above."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Restrict to product categories"
+		,"variable_name": "percentage_6_restrict"
+		,"default_value": ""
+		,"info": "Enter a list of product categories, separated by commas, to restrict this discount to. Only products in the listed categories will receive the discount."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Expire on date"
+		,"variable_name": "coupon_6_expire"
+		,"default_value": ""
+		,"info": "Enter a date after which the codes in this discount will stop working. Format must be: YYYY-MM-DD. Leave empty for no expiry."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	
+	,{
+		"display_name":"Discount 7 codes"
+		,"variable_name": "discount_7_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 7 percentage"
+		,"variable_name": "percentage_7_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 7 fixed amount"
+		,"variable_name": "fixed_7_discount"
+		,"default_value": "0"
+		,"info": "Enter a fixed discount amount to apply for these codes. Leave as 0 to use percentage value from above."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Restrict to product categories"
+		,"variable_name": "percentage_7_restrict"
+		,"default_value": ""
+		,"info": "Enter a list of product categories, separated by commas, to restrict this discount to. Only products in the listed categories will receive the discount."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Expire on date"
+		,"variable_name": "coupon_7_expire"
+		,"default_value": ""
+		,"info": "Enter a date after which the codes in this discount will stop working. Format must be: YYYY-MM-DD. Leave empty for no expiry."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Discount 8 codes"
+		,"variable_name": "discount_8_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 8 percentage"
+		,"variable_name": "percentage_8_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 8 fixed amount"
+		,"variable_name": "fixed_8_discount"
+		,"default_value": "0"
+		,"info": "Enter a fixed discount amount to apply for these codes. Leave as 0 to use percentage value from above."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Restrict to product categories"
+		,"variable_name": "percentage_8_restrict"
+		,"default_value": ""
+		,"info": "Enter a list of product categories, separated by commas, to restrict this discount to. Only products in the listed categories will receive the discount."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Expire on date"
+		,"variable_name": "coupon_8_expire"
+		,"default_value": ""
+		,"info": "Enter a date after which the codes in this discount will stop working. Format must be: YYYY-MM-DD. Leave empty for no expiry."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Discount 9 codes"
+		,"variable_name": "discount_9_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 9 percentage"
+		,"variable_name": "percentage_9_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 9 fixed amount"
+		,"variable_name": "fixed_9_discount"
+		,"default_value": "0"
+		,"info": "Enter a fixed discount amount to apply for these codes. Leave as 0 to use percentage value from above."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Restrict to product categories"
+		,"variable_name": "percentage_9_restrict"
+		,"default_value": ""
+		,"info": "Enter a list of product categories, separated by commas, to restrict this discount to. Only products in the listed categories will receive the discount."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Expire on date"
+		,"variable_name": "coupon_9_expire"
+		,"default_value": ""
+		,"info": "Enter a date after which the codes in this discount will stop working. Format must be: YYYY-MM-DD. Leave empty for no expiry."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Discount 10 codes"
+		,"variable_name": "discount_10_codes"
+		,"default_value": ""
+		,"info": "Enter a series of one or more codes separated by commas here. "
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 10 percentage"
+		,"variable_name": "percentage_10_discount"
+		,"default_value": "10"
+		,"info": "Enter a percent discount to apply for these codes."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Discount 10 fixed amount"
+		,"variable_name": "fixed_10_discount"
+		,"default_value": "0"
+		,"info": "Enter a fixed discount amount to apply for these codes. Leave as 0 to use percentage value from above."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Restrict to product categories"
+		,"variable_name": "percentage_10_restrict"
+		,"default_value": ""
+		,"info": "Enter a list of product categories, separated by commas, to restrict this discount to. Only products in the listed categories will receive the discount."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Expire on date"
+		,"variable_name": "coupon_10_expire"
+		,"default_value": ""
+		,"info": "Enter a date after which the codes in this discount will stop working. Format must be: YYYY-MM-DD. Leave empty for no expiry."
+		,"type": "text"
+	}
+    ,{
+  		"value":"Shipping"
+  		,"type":"title"
+		,"lang_value":"Shipping"
+		,"require":"PRODUCTS"
+  	},{
+		"display_name":"Enable address autocomplete"
+		,"variable_name": "enable_autocomplete"
+		,"type": "tick"
+		,"default_value": "0"
+	},{
+		"display_name":"Autocomplete countries"
+		,"variable_name": "autocomplete_countries"
+		,"default_value": "\"gb\",\"nz\",\"us\",\"au\""
+		,"info": "Enter a comma seperated list of countries to use with the address lookup."
+		,"type": "text"
+	},{
+		"type":"rule"
+	},{
+		"display_name":"Add per-order shipping costs"
+		,"variable_name": "enable_shipping"
+		,"type": "tick"
+		,"default_value": "0"
+	},{
+		"display_name":"Hide unless currency match region"
+		,"variable_name": "enable_shipping_explicit"
+		,"type": "tick"
+		,"default_value": "0"
+	},{
+		"display_name":"Shipping Name"
+		,"variable_name": "shipping_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping selection. For example: 'Shipping and Handling'."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 1 name"
+		,"variable_name": "shipping_tier_1_option_1_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 1 price"
+		,"variable_name": "shipping_tier_1_option_1_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate  (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 1 free code"
+		,"variable_name": "shipping_tier_1_option_1_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_1_option_1_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 2 name"
+		,"variable_name": "shipping_tier_1_option_2_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 2 price"
+		,"variable_name": "shipping_tier_1_option_2_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 2 free code"
+		,"variable_name": "shipping_tier_1_option_2_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_1_option_2_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 3 name"
+		,"variable_name": "shipping_tier_1_option_3_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 3 price"
+		,"variable_name": "shipping_tier_1_option_3_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 3 free code"
+		,"variable_name": "shipping_tier_1_option_3_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_1_option_3_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 4 name"
+		,"variable_name": "shipping_tier_1_option_4_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 4 price"
+		,"variable_name": "shipping_tier_1_option_4_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 4 free code"
+		,"variable_name": "shipping_tier_1_option_4_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_1_option_4_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 5 name"
+		,"variable_name": "shipping_tier_1_option_5_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 5 price"
+		,"variable_name": "shipping_tier_1_option_5_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 5 free code"
+		,"variable_name": "shipping_tier_1_option_5_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_1_option_5_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 6 name"
+		,"variable_name": "shipping_tier_1_option_6_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 6 price"
+		,"variable_name": "shipping_tier_1_option_6_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 6 free code"
+		,"variable_name": "shipping_tier_1_option_6_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_1_option_6_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 7 name"
+		,"variable_name": "shipping_tier_1_option_7_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 7 price"
+		,"variable_name": "shipping_tier_1_option_7_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 7 free code"
+		,"variable_name": "shipping_tier_1_option_7_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_1_option_7_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 8 name"
+		,"variable_name": "shipping_tier_1_option_8_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 8 price"
+		,"variable_name": "shipping_tier_1_option_8_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 8 free code"
+		,"variable_name": "shipping_tier_1_option_8_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_1_option_8_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 9 name"
+		,"variable_name": "shipping_tier_1_option_9_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 9 price"
+		,"variable_name": "shipping_tier_1_option_9_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 9 free code"
+		,"variable_name": "shipping_tier_1_option_9_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_1_option_9_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 10 name"
+		,"variable_name": "shipping_tier_1_option_10_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 10 price"
+		,"variable_name": "shipping_tier_1_option_10_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 1 option 10 free code"
+		,"variable_name": "shipping_tier_1_option_10_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_1_option_10_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Enable tier 2 shipping options"
+		,"variable_name": "enable_shipping_tier_2"
+		,"type": "tick"
+		,"default_value": "0"
+	}
+	,{
+		"display_name":"Shipping tier 2 threshold"
+		,"variable_name": "shipping_tier_2_threshold"
+		,"default_value": ""
+		,"info": "Enter the basket total required to enable shipping tier 2"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 volume threshold"
+		,"variable_name": "shipping_tier_2_threshold_volume"
+		,"default_value": ""
+		,"info": "Enter the basket total volume required to enable shipping tier 2"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 weight threshold"
+		,"variable_name": "shipping_tier_2_threshold_weight"
+		,"default_value": ""
+		,"info": "Enter the basket total weight required to enable shipping tier 2"
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 1 name"
+		,"variable_name": "shipping_tier_2_option_1_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 2 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 1 price"
+		,"variable_name": "shipping_tier_2_option_1_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 2 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 1 free code"
+		,"variable_name": "shipping_tier_2_option_1_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_2_option_1_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 2 name"
+		,"variable_name": "shipping_tier_2_option_2_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 2 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 2 price"
+		,"variable_name": "shipping_tier_2_option_2_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 2 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 2 free code"
+		,"variable_name": "shipping_tier_2_option_2_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_2_option_2_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 3 name"
+		,"variable_name": "shipping_tier_2_option_3_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 2 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 3 price"
+		,"variable_name": "shipping_tier_2_option_3_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 2 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 3 free code"
+		,"variable_name": "shipping_tier_2_option_3_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_2_option_3_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 4 name"
+		,"variable_name": "shipping_tier_2_option_4_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 2 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 4 price"
+		,"variable_name": "shipping_tier_2_option_4_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 2 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 4 free code"
+		,"variable_name": "shipping_tier_2_option_4_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_2_option_4_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 5 name"
+		,"variable_name": "shipping_tier_2_option_5_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 2 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 5 price"
+		,"variable_name": "shipping_tier_2_option_5_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 2 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 5 free code"
+		,"variable_name": "shipping_tier_2_option_5_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_2_option_5_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 6 name"
+		,"variable_name": "shipping_tier_2_option_6_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 2 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 6 price"
+		,"variable_name": "shipping_tier_2_option_6_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 2 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 6 free code"
+		,"variable_name": "shipping_tier_2_option_6_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_2_option_6_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 7 name"
+		,"variable_name": "shipping_tier_2_option_7_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 7 price"
+		,"variable_name": "shipping_tier_2_option_7_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 7 free code"
+		,"variable_name": "shipping_tier_2_option_7_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_2_option_7_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 8 name"
+		,"variable_name": "shipping_tier_2_option_8_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 8 price"
+		,"variable_name": "shipping_tier_2_option_8_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 8 free code"
+		,"variable_name": "shipping_tier_2_option_8_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_2_option_8_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 9 name"
+		,"variable_name": "shipping_tier_2_option_9_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 9 price"
+		,"variable_name": "shipping_tier_2_option_9_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 9 free code"
+		,"variable_name": "shipping_tier_2_option_9_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_2_option_9_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 10 name"
+		,"variable_name": "shipping_tier_2_option_10_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 10 price"
+		,"variable_name": "shipping_tier_2_option_10_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 2 option 10 free code"
+		,"variable_name": "shipping_tier_2_option_10_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_2_option_10_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Enable tier 3 shipping options"
+		,"variable_name": "enable_shipping_tier_3"
+		,"type": "tick"
+		,"default_value": "0"
+	}
+	,{
+		"display_name":"Shipping tier 3 threshold"
+		,"variable_name": "shipping_tier_3_threshold"
+		,"default_value": ""
+		,"info": "Enter the basket total required to enable shipping tier 3"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 volume threshold"
+		,"variable_name": "shipping_tier_3_threshold_volume"
+		,"default_value": ""
+		,"info": "Enter the basket total volume required to enable shipping tier 3"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 weight threshold"
+		,"variable_name": "shipping_tier_3_threshold_weight"
+		,"default_value": ""
+		,"info": "Enter the basket total weight required to enable shipping tier 3"
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 1 name"
+		,"variable_name": "shipping_tier_3_option_1_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 3 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 1 price"
+		,"variable_name": "shipping_tier_3_option_1_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 3 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 1 free code"
+		,"variable_name": "shipping_tier_3_option_1_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_3_option_1_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 2 name"
+		,"variable_name": "shipping_tier_3_option_2_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 3 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 2 price"
+		,"variable_name": "shipping_tier_3_option_2_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 3 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 2 free code"
+		,"variable_name": "shipping_tier_3_option_2_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_3_option_2_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 3 name"
+		,"variable_name": "shipping_tier_3_option_3_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 3 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 3 price"
+		,"variable_name": "shipping_tier_3_option_3_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 3 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 3 free code"
+		,"variable_name": "shipping_tier_3_option_3_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_3_option_3_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 4 name"
+		,"variable_name": "shipping_tier_3_option_4_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 3 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 4 price"
+		,"variable_name": "shipping_tier_3_option_4_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 3 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 4 free code"
+		,"variable_name": "shipping_tier_3_option_4_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_3_option_4_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 5 name"
+		,"variable_name": "shipping_tier_3_option_5_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 3 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 5 price"
+		,"variable_name": "shipping_tier_3_option_5_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 3 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 5 free code"
+		,"variable_name": "shipping_tier_3_option_5_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_3_option_5_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 6 name"
+		,"variable_name": "shipping_tier_3_option_6_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 3 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 6 price"
+		,"variable_name": "shipping_tier_3_option_6_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 3 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 6 free code"
+		,"variable_name": "shipping_tier_3_option_6_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_3_option_6_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 7 name"
+		,"variable_name": "shipping_tier_3_option_7_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 7 price"
+		,"variable_name": "shipping_tier_3_option_7_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 7 free code"
+		,"variable_name": "shipping_tier_3_option_7_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_3_option_7_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 8 name"
+		,"variable_name": "shipping_tier_3_option_8_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 8 price"
+		,"variable_name": "shipping_tier_3_option_8_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 8 free code"
+		,"variable_name": "shipping_tier_3_option_8_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_3_option_8_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 9 name"
+		,"variable_name": "shipping_tier_3_option_9_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 9 price"
+		,"variable_name": "shipping_tier_3_option_9_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 9 free code"
+		,"variable_name": "shipping_tier_3_option_9_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_3_option_9_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 10 name"
+		,"variable_name": "shipping_tier_3_option_10_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 10 price"
+		,"variable_name": "shipping_tier_3_option_10_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 3 option 10 free code"
+		,"variable_name": "shipping_tier_3_option_10_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_3_option_10_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Enable tier 4 shipping options"
+		,"variable_name": "enable_shipping_tier_4"
+		,"type": "tick"
+		,"default_value": "0"
+	}
+	,{
+		"display_name":"Shipping tier 4 threshold"
+		,"variable_name": "shipping_tier_4_threshold"
+		,"default_value": ""
+		,"info": "Enter the basket total required to enable shipping tier 4"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 volume threshold"
+		,"variable_name": "shipping_tier_4_threshold_volume"
+		,"default_value": ""
+		,"info": "Enter the basket total volume required to enable shipping tier 4"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 weight threshold"
+		,"variable_name": "shipping_tier_4_threshold_weight"
+		,"default_value": ""
+		,"info": "Enter the basket total weight required to enable shipping tier 4"
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 1 name"
+		,"variable_name": "shipping_tier_4_option_1_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 4 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 1 price"
+		,"variable_name": "shipping_tier_4_option_1_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 4 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 1 free code"
+		,"variable_name": "shipping_tier_4_option_1_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_4_option_1_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 2 name"
+		,"variable_name": "shipping_tier_4_option_2_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 4 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 2 price"
+		,"variable_name": "shipping_tier_4_option_2_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 4 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 2 free code"
+		,"variable_name": "shipping_tier_4_option_2_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_4_option_2_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 3 name"
+		,"variable_name": "shipping_tier_4_option_3_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 4 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 3 price"
+		,"variable_name": "shipping_tier_4_option_3_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 4 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 3 free code"
+		,"variable_name": "shipping_tier_4_option_3_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_4_option_3_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 4 name"
+		,"variable_name": "shipping_tier_4_option_4_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 4 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 4 price"
+		,"variable_name": "shipping_tier_4_option_4_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 4 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 4 free code"
+		,"variable_name": "shipping_tier_4_option_4_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_4_option_4_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 5 name"
+		,"variable_name": "shipping_tier_4_option_5_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 4 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 5 price"
+		,"variable_name": "shipping_tier_4_option_5_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 4 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 5 free code"
+		,"variable_name": "shipping_tier_4_option_5_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_4_option_5_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 6 name"
+		,"variable_name": "shipping_tier_4_option_6_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 4 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 6 price"
+		,"variable_name": "shipping_tier_4_option_6_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 4 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 6 free code"
+		,"variable_name": "shipping_tier_4_option_6_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_4_option_6_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 7 name"
+		,"variable_name": "shipping_tier_4_option_7_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 7 price"
+		,"variable_name": "shipping_tier_4_option_7_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 7 free code"
+		,"variable_name": "shipping_tier_4_option_7_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_4_option_7_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 8 name"
+		,"variable_name": "shipping_tier_4_option_8_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 8 price"
+		,"variable_name": "shipping_tier_4_option_8_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 8 free code"
+		,"variable_name": "shipping_tier_4_option_8_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_4_option_8_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 9 name"
+		,"variable_name": "shipping_tier_4_option_9_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 9 price"
+		,"variable_name": "shipping_tier_4_option_9_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 9 free code"
+		,"variable_name": "shipping_tier_4_option_9_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_4_option_9_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 10 name"
+		,"variable_name": "shipping_tier_4_option_10_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 10 price"
+		,"variable_name": "shipping_tier_4_option_10_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 4 option 10 free code"
+		,"variable_name": "shipping_tier_4_option_10_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_4_option_10_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Enable tier 5 shipping options"
+		,"variable_name": "enable_shipping_tier_5"
+		,"type": "tick"
+		,"default_value": "0"
+	}
+	,{
+		"display_name":"Shipping tier 5 threshold"
+		,"variable_name": "shipping_tier_5_threshold"
+		,"default_value": ""
+		,"info": "Enter the basket total required to enable shipping tier 5"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 volume threshold"
+		,"variable_name": "shipping_tier_5_threshold_volume"
+		,"default_value": ""
+		,"info": "Enter the basket total volume required to enable shipping tier 5"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 weight threshold"
+		,"variable_name": "shipping_tier_5_threshold_weight"
+		,"default_value": ""
+		,"info": "Enter the basket total weight required to enable shipping tier 5"
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 1 name"
+		,"variable_name": "shipping_tier_5_option_1_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 5 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 1 price"
+		,"variable_name": "shipping_tier_5_option_1_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 5 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 1 free code"
+		,"variable_name": "shipping_tier_5_option_1_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_5_option_1_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 2 name"
+		,"variable_name": "shipping_tier_5_option_2_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 5 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 2 price"
+		,"variable_name": "shipping_tier_5_option_2_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 5 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 2 free code"
+		,"variable_name": "shipping_tier_5_option_2_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_5_option_2_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 3 name"
+		,"variable_name": "shipping_tier_5_option_3_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 5 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 3 price"
+		,"variable_name": "shipping_tier_5_option_3_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 5 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 3 free code"
+		,"variable_name": "shipping_tier_5_option_3_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_5_option_3_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 4 name"
+		,"variable_name": "shipping_tier_5_option_4_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 5 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 4 price"
+		,"variable_name": "shipping_tier_5_option_4_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 5 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 4 free code"
+		,"variable_name": "shipping_tier_5_option_4_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_5_option_4_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 5 name"
+		,"variable_name": "shipping_tier_5_option_5_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 5 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 5 price"
+		,"variable_name": "shipping_tier_5_option_5_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 5 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 5 free code"
+		,"variable_name": "shipping_tier_5_option_5_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_5_option_5_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 6 name"
+		,"variable_name": "shipping_tier_5_option_6_name"
+		,"default_value": ""
+		,"info": "Enter the name for your tier 5 shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 6 price"
+		,"variable_name": "shipping_tier_5_option_6_price"
+		,"default_value": ""
+		,"info": "Enter the price for your tier 5 shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 6 free code"
+		,"variable_name": "shipping_tier_5_option_6_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_5_option_6_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 7 name"
+		,"variable_name": "shipping_tier_5_option_7_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 7 price"
+		,"variable_name": "shipping_tier_5_option_7_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 7 free code"
+		,"variable_name": "shipping_tier_5_option_7_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_5_option_7_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 8 name"
+		,"variable_name": "shipping_tier_5_option_8_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 8 price"
+		,"variable_name": "shipping_tier_5_option_8_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 8 free code"
+		,"variable_name": "shipping_tier_5_option_8_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_5_option_8_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 9 name"
+		,"variable_name": "shipping_tier_5_option_9_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 9 price"
+		,"variable_name": "shipping_tier_5_option_9_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 9 free code"
+		,"variable_name": "shipping_tier_5_option_9_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_5_option_9_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 10 name"
+		,"variable_name": "shipping_tier_5_option_10_name"
+		,"default_value": ""
+		,"info": "Enter the name for your shipping rate"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 10 price"
+		,"variable_name": "shipping_tier_5_option_10_price"
+		,"default_value": ""
+		,"info": "Enter the price for your shipping rate (enter 0 for 'Free')"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Shipping tier 5 option 10 free code"
+		,"variable_name": "shipping_tier_5_option_10_free_code"
+		,"default_value": ""
+		,"info": "Enter a coupon code here to allow users to enter this code to get this shipping option free"
+		,"type": "text"
+	}
+	,{
+		"display_name":"Charge sales tax"
+		,"variable_name": "enable_shipping_tier_5_option_10_sales_tax"
+		,"type": "tick"
+		,"default_value": "1"
+	}
+  	,{
+		"value":"Template Settings"
+		,"lang_value":"Template_Settings"
+		,"type":"title"
+	}
+	,{
+		"display_name":"Website title"
+		,"variable_name": "site_title"
+		,"info": "Please enter the name of your website or company. This will be used to generate social sharing meta data."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Append string to meta title"
+		,"variable_name": "meta_title_append"
+		,"info": "Please enter text to be automatically appended to every meta title value on the website. This could be your company name, location and slogan."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"App title"
+		,"variable_name": "app_title"
+		,"info": "Please enter the name of the app as is should appear when users add the website to their homescreens."
+		,"type": "text"
+	}
+	,{
+		"display_name":"App start page"
+		,"variable_name": "app_start_page"
+		,"info": "Please enter the path to use as the app start page. Omit the first slash, leave blank to use the homepage."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Insert code into 'head' section"
+		,"variable_name": "head_code_global"
+		,"info": "Paste code in here to add it at the end of the <head> block section of your HTML template."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Insert code into 'body' section"
+		,"variable_name": "body_code_global"
+		,"info": "Paste code in here to add it at the end of the <body> block section of your HTML template."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Insert code into 'head' section (non-admin)"
+		,"variable_name": "head_code_global_non_admin"
+		,"info": "Paste code in here to add it at the end of the <head> block section of your HTML template. This code will not show for anyone who has logged in to the CMS. This is useful for things like Google Analytics that you don’t want to track your activity."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Insert code into 'body' section (non-admin)"
+		,"variable_name": "body_code_global_non_admin"
+		,"info": "Paste code in here to add it at the end of the <body> block section of your HTML template. This code will not show for anyone who has logged in to the CMS. This is useful for things like Google Analytics that you don’t want to track your activity."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Slideshow speed"
+		,"variable_name": "slide_autoscroll_speed"
+		,"info": "Please enter a speed for carousel slides to autoscroll in seconds."
+		,"type": "text"
+		,"default_value":"3"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Popup delay"
+		,"variable_name": "popup_delay"
+		,"info": "Please enter a delay in whole seconds. Any popup widgets will show after this delay."
+		,"type": "text"
+		,"default_value":"0"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Prevent single words on last lines"
+		,"variable_name": "prevent_orphans"
+		,"type": "tick"
+		,"default_value":"0"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Show sidebar sub menu"
+		,"variable_name": "show_sidebar"
+		,"type": "tick"
+		,"default_value": "0"
+	
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Hide product stock levels"
+		,"variable_name": "hide_stock_levels"
+		,"type": "tick"
+		,"default_value": "0"
+		,"require":"PRODUCTS"
+	}
+	,{
+		"display_name":"Show Humm price with products"
+		,"variable_name": "show_oxipay_prices"
+		,"type": "tick"
+		,"default_value": "0"
+		,"require":"PRODUCTS"
+	}
+    ,{
+  		"value":"Booking Products"
+  		,"type":"title"
+		,"lang_value":"Booking_Products"
+		,"require":"BOOKING_PRODUCTS"
+  	}
+	,{
+			"display_name":"Style"
+			,"variable_name": "month_at_a_time"
+			,"type": "string"
+			,"default_value": "0"
+			,"options":
+			 [
+				 {"display_value":"Scrolling row","value":"0"} 
+				 ,{"display_value":"Full month grid","value":"1"}
+				 ,{"display_value":"Radio buttons for all available dates","value":"2"}
+			]
+	}
+    ,{
+  		"value":"Consent Banner"
+  		,"type":"title"
+		,"lang_value":	"Personal_Data_Consent"
+  	}
+	,{
+		"display_name":"Enable Consent Banner"
+		,"variable_name": "consent_mode"
+		,"type": "tick"
+		,"default_value": "0"
+	}
+	,{
+		"display_name":"Consent mode info"
+		,"variable_name": "consent_info"
+		,"info": "Enter text to display in the consent banner."
+		,"default_value": "We or our partners want to place cookies on your computer for performance, functionality, or advertising. You can opt in or out below."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Permormance category title"
+		,"variable_name": "performance_consent_title"
+		,"info": "Enter a short title for this consent role."
+		,"type": "text"
+		,"default_value": "Performance"
+	}
+	,{
+		"display_name":"Performance explanation"
+		,"variable_name": "performance_consent_explanation"
+		,"info": "Describe what you want to do with this consent so your visitors know what they're agreeing to (i.e allow a third party embed code or tracking cookie). You should include links to the third partys' privacy policies using the CMS link shortcode."
+		,"type": "text"
+		,"default_value": "We use these cookies to provide statistical information about our website. They are used for performance measurement and improvement."
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Functional category title"
+		,"variable_name": "functional_consent_title"
+		,"default_value": "Functional"
+		,"info": "Enter a short title for this consent role."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Functional explanation"
+		,"variable_name": "functional_consent_explanation"
+		,"info": "Describe what you want to do with this consent so your visitors know what they're agreeing to (i.e allow a third party embed code or tracking cookie). You should include links to the third partys' privacy policies using the CMS link shortcode."
+		,"type": "text"
+		,"default_value": "We use these cookies to enhance the function of the website. They are used for things like video, maps and social media."
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Advertising category title"
+		,"variable_name": "advertising_consent_title"
+		,"default_value": "Advertising"
+		,"info": "Enter a short title for this consent role."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Advertising explanation"
+		,"variable_name": "advertising_explanation"
+		,"info": "Describe what you want to do with this consent so your visitors know what they're agreeing to (i.e allow a third party embed code or tracking cookie). You should include links to the third partys' privacy policies using the CMS link shortcode."
+		,"default_value": "These cookies are set by this website or third parties and are used for showing you relevant ads on other sites."
+		,"type": "text"
+	}
+    ,{
+  		"value":"Social and Contact"
+  		,"type":"title"
+		,"lang_value":	"Social_Contact"
+  	}
+	,{
+		"display_name":"X link"
+		,"variable_name": "twitter_link"
+		,"info": "Please enter your X profile link. This will be used for the X social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"YouTube link"
+		,"variable_name": "youtube_link"
+		,"info": "Please enter your YouTube link URL. This will be used for the YouTube social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Facebook link"
+		,"variable_name": "facebook_link"
+		,"info": "Please enter your Facebook page link. This will be used for the Facebook social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Vimeo link"
+		,"variable_name": "vimeo_link"
+		,"info": "Please enter your Vimeo page link. This will be used for the Vimeo social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Flikr link"
+		,"variable_name": "flikr_link"
+		,"info": "Please enter your Flikr page link. This will be used for the Flikr social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Yelp link"
+		,"variable_name": "yelp_link"
+		,"info": "Please enter your Yelp page link. This will be used for the Yelp social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Trip Advisor link"
+		,"variable_name": "tripadvisor_link"
+		,"info": "Please enter your Trip Advisor page link. This will be used for the Trip Advisor social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Tumblr link"
+		,"variable_name": "tumblr_link"
+		,"info": "Please enter your Tumblr page link. This will be used for the Tumblr social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"LinkedIn link"
+		,"variable_name": "linkedin_link"
+		,"info": "Please enter your LinkedIn page link. This will be used for the LinkedIn social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Pinterest link"
+		,"variable_name": "pinterest_link"
+		,"info": "Please enter your Pinterest page link. This will be used for the Pinterest social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Instagram link"
+		,"variable_name": "instagram_link"
+		,"info": "Please enter your Instagram page link. This will be used for the Instagram social media icon."
+		,"type": "text"
+	}
+	,{
+		"display_name":"Houzz link"
+		,"variable_name": "houzz_link"
+		,"info": "Please enter your Houzz page link. This will be used for the Houzz social media icon."
+		,"type": "text"
+	}
+	 ,{
+                 "display_name":"WhatsApp number"
+                 ,"variable_name": "whatsapp_number"
+                 ,"info": "Please enter the phone number you use with WhatsApp to use to create a WhatsApp message link. Enter it without spaces, brackets or dashes. The number should be in international format starting with country code (without + symbol)."
+                 ,"type": "text"
+         }
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Phone number"
+		,"variable_name": "phone_number"
+		,"info": "Please enter a phone number to display in the social icons list."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Email link"
+		,"variable_name": "email_link"
+		,"info": "Please enter your email address here to add an email link to the social icons list."
+		,"type": "text"
+	}
+	,{
+		"type":"rule"
+	}
+	,{
+		"display_name":"Show livechat icon in social icons list"
+		,"variable_name": "include_livechat"
+		,"type": "tick"
+		,"default_value": "0"
+		,"require":"LIVECHAT"
+	}	
+]

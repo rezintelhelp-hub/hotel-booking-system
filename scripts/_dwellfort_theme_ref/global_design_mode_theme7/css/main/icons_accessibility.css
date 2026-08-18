@@ -1,0 +1,38 @@
+
+.Icon_Tick,.inverted .Icon_Tick {
+	padding:4px;
+	background: #e9ffd8;
+	color:#000;
+	border-radius:2px;
+ 	-moz-border-radius:2px;
+ 	-webkit-border-radius:2px;
+}
+.Icon_Blocked,.inverted .Icon_Blocked {
+	padding:4px;
+	background: #ffefe7;
+	color:#000;
+	border-radius:2px;
+ 	-moz-border-radius:2px;
+ 	-webkit-border-radius:2px;
+}
+.Icon_Info, .inverted .Icon_Info {
+	padding:4px;
+	background: #fffce5;
+	color:#000;
+	border-radius:2px;
+ 	-moz-border-radius:2px;
+ 	-webkit-border-radius:2px;
+}
+.Icon_Question..inverted .Icon_Question {
+	padding:4px;
+	background: #e5fff6;
+	color:#000;
+	border-radius:2px;
+ 	-moz-border-radius:2px;
+ 	-webkit-border-radius:2px;
+}
+.Icon_Alert
+,.stock.warning{
+	padding:4px;
+	color: #810012;
+}

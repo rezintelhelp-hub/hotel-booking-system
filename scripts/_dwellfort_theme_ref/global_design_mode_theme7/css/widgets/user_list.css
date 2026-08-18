@@ -1,0 +1,34 @@
+.user_list .img {
+ text-align:center;
+}
+.magic-heights-wrap .user_list {
+	float:left;
+	width:49%;
+}
+.magic-heights-wrap .user_list:nth-child(odd)
+{
+	margin-right:2%;
+}
+.user_list img {
+	margin:0;
+	overflow:hidden;
+}
+.rounded .user_list img {
+	border-radius:2px;
+}
+.user_list h4 {
+	margin-top:0;
+	text-align:center;
+}
+.user_list_name_pic {
+	border-radius:5px;
+	width:150px;
+	padding :15px 10px 10px;
+	margin:0 auto;
+}
+.user_list_bio {
+	max-width:1000px;
+	border-top:1px solid #ccc;
+	padding-top:15px;
+	margin:25px auto;
+}

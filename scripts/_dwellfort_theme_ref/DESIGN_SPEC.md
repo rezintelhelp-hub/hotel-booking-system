@@ -1,68 +1,67 @@
 # Dwellfort Design Spec
 
-**Source:** `global_elegant` SetSeed theme (2011 Skeleton-based) + live www.dwellfort.com pages
-**Extracted:** 2026-08-18T09:23:42.184Z
+**Source:** `global_design_mode_theme7` SetSeed theme (2011 Skeleton-based) + live www.dwellfort.com pages
+**Extracted:** 2026-08-18T10:08:13.319Z
 
 ## Palette (most-used colours)
 
 | Colour | Usage count |
 |---|---|
-| `#fff` | 870 |
-| `#000` | 354 |
-| `#ccc` | 229 |
+| `#fff` | 911 |
+| `#000` | 373 |
+| `#ccc` | 237 |
 | `#ffffff` | 170 |
-| `#444` | 97 |
+| `#444` | 100 |
 | `rgba(0,0,0,.5)` | 96 |
-| `#ddd` | 87 |
+| `#ddd` | 89 |
 | `rgba(0,0,0,.1)` | 78 |
 | `rgba(0,0,0,.2)` | 78 |
-| `#333` | 68 |
+| `#333` | 70 |
 | `rgba(0,0,0,.3)` | 60 |
 | `rgba(255,255,255,0.6)` | 60 |
-| `#999` | 49 |
-| `#f3f3f3` | 48 |
-| `#7d7e7d` | 48 |
+| `#7d7e7d` | 56 |
+| `#999` | 52 |
+| `#0e0e0e` | 49 |
 | `#252317` | 48 |
-| `#0e0e0e` | 42 |
-| `#888` | 40 |
-| `#c7c7c7` | 36 |
+| `#f3f3f3` | 46 |
+| `#c7c7c7` | 41 |
+| `#888` | 39 |
+| `rgba(0,0,0,0.8)` | 38 |
 | `rgba(0,0,0,0.6)` | 36 |
-| `rgba(0,0,0,0.8)` | 36 |
-| `#777` | 33 |
+| `#777` | 35 |
+| `#e7e7e7` | 28 |
 | `#f4f4f4` | 26 |
 | `#555` | 25 |
 | `#0093ef` | 24 |
-| `#e7e7e7` | 24 |
 | `#e7e0db` | 24 |
 | `rgba(255,255,255,.1)` | 24 |
 | `rgba(255,255,255,.3)` | 24 |
 | `rgba(255,255,255,.8)` | 24 |
+| `rgba(0,0,0,0.1)` | 22 |
+| `rgb(241,241,241)` | 20 |
+| `rgba(241,241,241,1)` | 20 |
+| `rgba(221,221,221,1)` | 20 |
 | `#c4c4c4` | 18 |
 | `#666` | 18 |
 | `#06c` | 18 |
 | `#dc3545` | 18 |
 | `#0c0` | 18 |
 | `#d0b58e` | 18 |
-| `rgba(0,0,0,.4)` | 18 |
-| `rgb(241,241,241)` | 18 |
-| `rgba(241,241,241,1)` | 18 |
-| `rgba(221,221,221,1)` | 18 |
 
 ## Font families
 
 | Family | Usage count |
 |---|---|
-| "icomoon" | 245 |
+| "icomoon" | 258 |
 | 'Lora' | 24 |
 | 'Muli' | 24 |
 | 'Lora', serif | 24 |
-| 'icomoon' | 13 |
+| 'icomoon' | 14 |
 | 'Muli', sans-serif | 12 |
+| icomoon | 7 |
+| "kbfont" | 7 |
 | "Open Sans", sans-serif !important | 6 |
-| icomoon | 6 |
-| "kbfont" | 6 |
 | arial,sans-serif | 6 |
-| 'Fjord One', serif | 1 |
 
 ### Google Fonts loaded on live site
 
@@ -72,33 +71,33 @@
 
 | Size | Usage count |
 |---|---|
-| 12px | 275 |
-| 14px | 255 |
-| 16px | 199 |
-| 13px | 96 |
-| 30px | 80 |
-| 18px | 80 |
+| 12px | 289 |
+| 14px | 264 |
+| 16px | 203 |
+| 13px | 105 |
+| 30px | 85 |
+| 18px | 84 |
 | 20px | 77 |
-| 15px | 72 |
-| 11px | 66 |
-| 25px | 60 |
-| 22px | 50 |
-| 120% | 32 |
-| 19px | 30 |
-| 40px | 25 |
+| 15px | 77 |
+| 11px | 73 |
+| 25px | 66 |
+| 22px | 53 |
+| 19px | 34 |
+| 120% | 33 |
+| 40px | 28 |
+| 24px | 27 |
 | 80% | 25 |
-| 24px | 24 |
-| 26px | 19 |
-| 80px | 19 |
-| 100% | 13 |
-| 90% | 13 |
+| 80px | 21 |
+| 26px | 20 |
+| 100% | 14 |
+| 90% | 14 |
+| 9px | 14 |
+| 3vw | 14 |
+| .8em | 13 |
+| 75% | 13 |
 | 150% | 13 |
-| 10px | 13 |
-| 70% | 12 |
-| .8em | 12 |
-| 75% | 12 |
 
-## Button rules (11)
+## Button rules (35)
 
 
 ### `/* ==== base.css ==== */
@@ -112,6 +111,7 @@
 */
 
 
+
 /* Table of Content
 ==================================================
 	#Reset & Basics
@@ -122,26 +122,34 @@
 	#Images
 	#Buttons
 	#Misc */
-
+ 
 
 /* #Reset & Basics (Inspired by E. Meyers)
 ================================================== */
-
-	@font-face`
+	.admin_info`
 ```css
-font-family: 'icomoon';
-		src:url('iconfont/icomoon.eot');
-		src:url('iconfont/icomoon.eot?#iefix') format('embedded-opentype'),
-			url('iconfont/icomoon.woff') format('woff'),
-			url('iconfont/icomoon.ttf') format('truetype'),
-			url('iconfont/icomoon.svg#icomoon') format('svg');
-		font-weight: normal;
-		font-style: normal;
+background:#fc5603;
+		color:#fff;
+		padding:0px 9px;
+		font-size:11px;
 ```
 
 ### `/* #Buttons
 ================================================== */
-	.Button_Small`
+	.SSO_Button a`
+```css
+display:inline-block;
+		padding:8px 15px 8px 8px;
+		text-decoration:none;
+		font-size:13px;
+		box-shadow:1px 1px 3px rgba(0,0,0,0.4);
+		background:#fff;
+		color:#444;
+		width:320px;
+		max-width:100%;
+```
+
+### `.Button_Small`
 ```css
 padding:0px 0;
 ```
@@ -149,6 +157,20 @@ padding:0px 0;
 ### `.Button_Large`
 ```css
 padding:6px 0;
+```
+
+### `.rounded .button a,
+	.rounded .Button_Small a,
+	.rounded .Button_Medium a,
+	.rounded .Button_Large a,
+	.rounded button,
+	.rounded input[type="submit"],
+	.rounded input[type="reset"],
+	.rounded input[type="button"]`
+```css
+-moz-border-radius:2px;
+	  -webkit-border-radius:2px;
+	  border-radius:2px;
 ```
 
 ### `#commentFormForm input[type="submit"]
@@ -180,19 +202,7 @@ font-size: 16px;
 	input[type="reset"]:hover,
 	input[type="button"]:hover`
 ```css
-background: #c14200;
-```
-
-### `footer .button a:hover,
-	footer .Button_Small a:hover,
-	footer .Button_Medium a:hover,
-	footer .Button_Large a:hover,
-	footer button:hover,
-	footer input[type="submit"]:hover,
-	footer input[type="reset"]:hover,
-	footer input[type="button"]:hover`
-```css
-background: #4d4d4d;
+box-shadow:inset 0 0 4px rgba(0,0,0,0.5);
 ```
 
 ### `/* Fix for odd Mozilla border & padding issues */
@@ -203,36 +213,39 @@ border: 0;
     padding: 0;
 ```
 
-### `#fullWidthBanner .button a,
-#fullWidthBanner .Button_Small a,
-#fullWidthBanner .Button_Medium a,
-#fullWidthBanner .Button_Large a,
-#fullWidthBanner button,
-#fullWidthBanner input[type="submit"],
-#fullWidthBanner input[type="reset"],
-#fullWidthBanner input[type="button"]`
+### `.consent_button,.consent_button:hover`
 ```css
-background: #fff;
-	background: rgba(255,255,255,0.8);
-	text-decoration: underline;
+position:relative;
+	padding:6px 15px 5px 50px;
+	line-height:14px;
+	border-radius:50px;
+	background:none;
+	font-weight:normal;
+	color:#000;
+	box-shadow:none;
 ```
 
-### `.callout .button a,
-.callout .Button_Small a,
-.callout .Button_Medium a,
-.callout .Button_Large a,
-.callout button,
-.callout input[type="submit"],
-.callout input[type="reset"],
-.callout input[type="button"]`
+### `.consent_button.on:hover:after`
 ```css
-background: #444;
-	color:#fff;
+width:17px;
 ```
 
-### `p#miniCheckoutButton.Button_Large`
+### `.consent-disabled .consent_button.on`
 ```css
-margin:2px 10px 0px;
-		text-align: center;
-		padding:0;
+cursor:default;
+```
+
+### `.consent_button.on:before`
+```css
+background:#41BE00;
+```
+
+### `.consent_button.on:after`
+```css
+left:19px;
+```
+
+### `.consent_button`
+```css
+font-size:11px;
 ```

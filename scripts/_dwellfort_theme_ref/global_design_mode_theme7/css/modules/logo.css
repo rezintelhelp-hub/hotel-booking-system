@@ -1,0 +1,40 @@
+#branding.width {
+	padding:0 30px;
+	text-align:center;
+}
+#branding.width.align-left {
+	padding-left:0;
+	text-align:left;
+}
+#branding.width.align-right {
+	padding-right:0;
+	text-align:right;
+}
+#branding img,#branding a {
+	display:inline-block;
+}
+#branding {
+	font-size:0;
+	line-height:0;
+}
+
+#branding img {
+
+	max-width:100%;
+	float:left;
+	height:auto;
+}
+.width#branding img {
+	width:100%;
+}
+.align-center#branding img {
+	float:none;
+}
+.align-right#branding img {
+	float:right;
+}
+.flexibreak-small #branding.align-left img
+,.flexibreak-small #branding.align-center img
+,.flexibreak-small #branding.align-right img  {
+	max-width:70%;
+}

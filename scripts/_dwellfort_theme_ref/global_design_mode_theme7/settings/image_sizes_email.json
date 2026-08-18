@@ -1,0 +1,30 @@
+[
+	{
+		"name":"Small"
+		,"width": "120"
+		,"height": "auto"
+	}
+	,{
+		"name":"Medium"
+		,"width": "200"
+		,"height": "auto"
+	}
+	,{
+		"name":"Large"
+		,"width": "405"
+		,"height": "auto"
+	}
+	,{
+		"name":"Full"
+		,"width": "540"
+		,"height": "auto"
+		,"default": "true"
+	}
+	,{
+		"name":"Banner"
+		,"width": "540"
+		,"height": "200"
+		,"shrink": "false"
+	}
+
+]

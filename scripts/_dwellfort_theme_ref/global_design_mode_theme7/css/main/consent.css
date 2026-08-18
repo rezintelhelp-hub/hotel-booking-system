@@ -1,0 +1,129 @@
+#consent_banner {
+	display:none;
+	position:fixed;
+	bottom:40px;
+	left:40px;
+	box-shadow:10px 10px 40px rgba(0,0,0,0.8);
+	padding:20px;
+	background:#fff;
+	z-index:1000000;
+	max-width:400px;
+}
+#consent_banner h5 {
+	margin-top:0;
+}
+#consent_banner p {
+	font-size:14px;
+}
+#consent_allow,
+#consent_current {
+	margin:0;
+	display:block;
+	width:48%;
+	padding:15px 0;
+	font-size:16px;
+	font-weight:bold;
+}
+#consent_allow {
+	float:right;
+}
+.consent-purpose {
+	font-weight:bold;
+	float:left;
+	width:50%;
+	padding:0px 0;
+	margin-bottom:20px;
+}
+.close-consent {
+	line-height:200px;
+	width:30px;height:30px;
+	float:right;
+	position:relative;
+}
+.close-consent:after {
+	text-align:center;
+	position:absolute;top:0;left:0;
+	width:30px;
+	content:"X";
+	font-family:icomoon;
+	font-size:24px;line-height:30px;
+}
+.rounded #consent_banner {
+	border-radius:6px;
+}
+.consent_button,.consent_button:hover {
+	position:relative;
+	padding:6px 15px 5px 50px;
+	line-height:14px;
+	border-radius:50px;
+	background:none;
+	font-weight:normal;
+	color:#000;
+	box-shadow:none;
+}
+.consent_button:hover:after {
+	transition:all 0.2s ease-in-out;
+	width:28px;
+}
+.consent_button.on:hover:after {
+	width:17px;
+}
+.consent_button:before {
+	content:"";
+	position:absolute;
+	top:2px;
+	left:0px;
+	width:38px;
+	height:21px;
+	background:#D6D4D8;
+	border-radius:50px;
+}
+.consent-disabled .consent_button.on {
+	cursor:default;
+}
+.consent-disabled{
+	opacity:0.6;
+}
+.consent_button.on:before {
+	background:#41BE00;
+}
+.consent_button:after {
+	content:"";
+	position:absolute;
+	top:4px;
+	left:2px;
+	width:17px;
+	height:17px;
+	background:#fff;
+	border-radius:50px;
+	transition:all 0.5s ease-in-out;
+}
+.consent_button.on:after {
+	left:19px;
+}
+@media (max-width:470px){
+	#consent_banner,
+	.rounded #consent_banner {
+		left:0;
+		bottom:0;
+		width:100%;
+		max-width:100%;
+		border-radius:0;
+	}
+	#consent_banner p {
+		font-size:12px;
+	}
+	.consent-purpose {
+		font-weight:bold;
+		font-size:14px;
+		margin-bottom:10px;
+	}
+	.consent_button { 
+		font-size:11px;
+	}
+	#consent_allow,
+	#consent_current {
+		font-size:12px;
+		padding:10px 0;
+	}
+}

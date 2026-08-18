@@ -1,0 +1,14 @@
+.livechat-link p a {
+	display:inline-block;
+}
+.livechat-link p a:before {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	font-size: 120%;
+	margin-top:-2px;
+	margin-right:5px;
+	float:left;
+	content:"C";
+
+}

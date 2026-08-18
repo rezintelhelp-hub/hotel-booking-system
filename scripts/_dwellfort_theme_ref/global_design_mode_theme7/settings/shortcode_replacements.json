@@ -1,0 +1,95 @@
+
+[
+	{
+		"shortcode":"[red:%]"
+		,"replace": "<span style=\"color:#f00;\">%</span>"
+	},
+	{
+		"shortcode":"[silver:%]"
+		,"replace": "<span style=\"color:#C0C0C0;\">%</span>"
+	},
+	{
+		"shortcode":"[darkgrey:%]"
+		,"replace": "<span style=\"color:rgb(58, 58, 58);\">%</span>"
+	},
+	{
+		"shortcode":"[lightgrey:%]"
+		,"replace": "<span style=\"color:rgb(181, 181, 181);\">%</span>"
+	},
+	{
+		"shortcode":"[grey:%]"
+		,"replace": "<span style=\"color:rgb(119, 119, 119);\">%</span>"
+	},
+	{
+		"shortcode":"[maroon:%]"
+		,"replace": "<span style=\"color:#800000;\">%</span>"
+	},
+	{
+		"shortcode":"[yellow:%]"
+		,"replace": "<span style=\"color:#FFFF00;\">%</span>"
+	},
+	{
+		"shortcode":"[orange:%]"
+		,"replace": "<span style=\"color:rgb(215, 144, 48);\">%</span>"
+	},
+	{
+		"shortcode":"[olive:%]"
+		,"replace": "<span style=\"color:#808000;\">%</span>"
+	},
+	{
+		"shortcode":"[lime:%]"
+		,"replace": "<span style=\"color:#00FF00;\">%</span>"
+	},
+	{
+		"shortcode":"[avacado:%]"
+		,"replace": "<span style=\"color:rgb(205,215,101);\">%</span>"
+	},
+	{
+		"shortcode":"[green:%]"
+		,"replace": "<span style=\"color:#008000;\">%</span>"
+	},
+	{
+		"shortcode":"[aqua:%]"
+		,"replace": "<span style=\"color:#00FFFF;\">%</span>"
+	},
+	{
+		"shortcode":"[teal:%]"
+		,"replace": "<span style=\"color:#008080;\">%</span>"
+	},
+	{
+		"shortcode":"[blue:%]"
+		,"replace": "<span style=\"color:#0000FF;\">%</span>"
+	},
+	{
+		"shortcode":"[turquoise:%]"
+		,"replace": "<span style=\"color:rgb(125, 181, 177);\">%</span>"
+	},
+	{
+		"shortcode":"[navy:%]"
+		,"replace": "<span style=\"color:#000080;\">%</span>"
+	},
+	{
+		"shortcode":"[fuchsia:%]"
+		,"replace": "<span style=\"color:#FF00FF;\">%</span>"
+	},
+	{
+		"shortcode":"[purple:%]"
+		,"replace": "<span style=\"color:#800080;\">%</span>"
+	},
+	{
+		"shortcode":"[palepurple:%]"
+		,"replace": "<span style=\"color:rgb(154,110,168);\">%</span>"
+	},
+	{
+		"shortcode":"[black:%]"
+		,"replace": "<span style=\"color:#000;\">%</span>"
+	},
+	{
+		"shortcode":"[white:%]"
+		,"replace": "<span style=\"color:#FFF;\">%</span>"
+	},
+	{
+	"shortcode":"[nobreak:%]"
+	,"replace": "<span style=\"white-space: nowrap;\">%</span>"
+	}
+]

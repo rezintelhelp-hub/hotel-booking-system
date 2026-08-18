@@ -1,0 +1,108 @@
+.smiley_feedback {
+	position:relative;
+	display:inline-block;
+}
+.rounded .smiley_feedback {
+	border-radius:6px;
+}
+.smiley_score {
+	width:100px;
+	height:100px;
+	background:rgba(0,0,0,0.1);
+	margin:0 10px 0 0;
+	float:left;
+	text-align:center;
+	cursor:pointer;
+}
+.rounded .smiley_score {
+	border-radius:6px;
+}
+.smiley_score.smiley_score_score4 {
+	margin-right:0px;
+}
+.smiley_score:after {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-family: "icomoon";
+	line-height:100px;
+	font-size: 55px;
+}
+.smiley_score.smiley_score_score0:after {
+	content:"N";
+	color:#F21C1B;
+}
+.smiley_score.smiley_score_score1:after {
+	content:";";
+	color:#EA5615;
+}
+.smiley_score.smiley_score_score2:after {
+	content:"K";
+	color:#FFB80F;
+}
+.smiley_score.smiley_score_score3:after {
+	content:"7";
+	color:#7CCA53;
+}
+.smiley_score.smiley_score_score4:after {
+	content:":";
+	color:#4BB714;
+}
+.smiley_score.smiley_score_score0:hover:after,
+.smiley_score.smiley_score_score1:hover:after,
+.smiley_score.smiley_score_score2:hover:after,
+.smiley_score.smiley_score_score3:hover:after,
+.smiley_score.smiley_score_score4:hover:after,
+.smiley_score.smiley_score_score0.score_clicked:after,
+.smiley_score.smiley_score_score1.score_clicked:after,
+.smiley_score.smiley_score_score2.score_clicked:after,
+.smiley_score.smiley_score_score3.score_clicked:after,
+.smiley_score.smiley_score_score4.score_clicked:after
+{
+	color:#fff;
+}
+.smiley_score.smiley_score_score0:hover ,
+.smiley_score.smiley_score_score0.score_clicked {
+	background:#F21C1B;
+}
+.smiley_score.smiley_score_score1:hover ,
+.smiley_score.smiley_score_score1.score_clicked {
+	background:#EA5615;
+}
+.smiley_score.smiley_score_score2:hover ,
+.smiley_score.smiley_score_score2.score_clicked {
+	background:#FFB80F;
+}
+.smiley_score.smiley_score_score3:hover ,
+.smiley_score.smiley_score_score3.score_clicked {
+	background:#7CCA53;
+}
+.smiley_score.smiley_score_score4:hover ,
+.smiley_score.smiley_score_score4.score_clicked {
+	background:#4BB714;
+}
+.save_score_done {
+	position:absolute;
+	top:0;
+	right:0;
+	bottom:0;
+	left:0;
+	display:none;
+	background:rgba(255,255,255,0.8);
+	text-align:center;
+	line-height:100px;
+}
+@media (max-width:600px) {
+	.smiley_score {
+		width:40px;
+		height:40px;
+	}
+	.smiley_score:after {
+		line-height:40px;
+		font-size: 30px;
+	}
+	.save_score_done {
+		line-height:30px;
+		font-size:12px;
+	}
+
+}

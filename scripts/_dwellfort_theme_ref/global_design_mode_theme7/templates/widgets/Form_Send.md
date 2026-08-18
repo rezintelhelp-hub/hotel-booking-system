@@ -1,0 +1,1 @@
+Enter a name for this instance of the contact form widget. This type of form uses normal page building tools to allow you to add fiels using colums and other page layout widgets. Drop in Form Field widgets into the editable zone once you add this widget to your page. You can use Groups to move your fields into layout widgets.

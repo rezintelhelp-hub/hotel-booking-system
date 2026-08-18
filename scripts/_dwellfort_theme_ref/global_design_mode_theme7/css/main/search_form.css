@@ -1,0 +1,82 @@
+.js #search-form-popdown {
+    -webkit-transform: -webkit-translateY(-10px);
+     -moz-transform:    -moz-translateY(-10px);
+     -ms-transform:     -ms-translateY(-10px);
+     -o-transform:      -o-translateY(-10px);
+     transform:         translateY(-10px);
+	 position:absolute;
+	 width:320px;
+	 background:#333;
+	 opacity:0;
+	 box-shadow:3px 3px 4px rgba(0,0,0,0.5);
+	 z-index:9999;
+	 padding:4px;
+	 max-height:0;
+	 max-width:0;
+	 top:-100px;
+	 left:0;
+}
+.rounded.js #search-form-popdown {
+	 border-radius:5px;
+}
+#search-form-popdown .tri {
+	width:1px;
+	height:1px;
+	position:absolute;
+	top:-12px;
+	left:50%;
+	margin-left:-3px;
+	border:6px solid transparent;
+	border-bottom:6px solid #333;
+}
+
+#search-form-popdown.animate {
+	-webkit-transition:-webkit-transform 0.3s ease,opacity 0.3s ease;
+	-moz-transition:-moz-transform 0.3s ease,opacity 0.3s ease;
+	-o-transition:-o-transform 0.3s ease,opacity 0.3s ease;
+	transition:transform 0.3s ease,opacity 0.3s ease;
+	 max-height:none;
+	 max-width:none;
+}
+#search-form-popdown.visible {
+	opacity:1;
+    -webkit-transform: -webkit-translateY(0px);
+     -moz-transform:    -moz-translateY(0px);
+     -ms-transform:     -ms-translateY(0px);
+     -o-transform:      -o-translateY(0px);
+     transform:         translateY(0px);
+}
+#search-form-popdown form {
+	margin:0;
+}
+#search-form-popdown input {
+	padding-right:100px;
+	-webkit-appearance: none;
+	margin:0;
+}
+#search-form-popdown-button a {
+	background:#bfbfbf;
+	text-transform:uppercase;
+	color:#fff;
+	padding:3px 6px;
+	font-size:13px;
+	text-decoration:none;
+	color:#fff;
+	max-width:100px;
+}
+.rounded #search-form-popdown-button a {
+	border-radius:3px;
+}
+#search-form-popdown-button {
+	margin:0;
+	float:right;
+	position:absolute;
+	top:8px;
+	right:9px;
+}
+#pagesearch {
+	margin-bottom:4px;
+}
+.js .search-form-hide-with-js {
+	display:none !important;
+}
