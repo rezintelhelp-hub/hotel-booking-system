@@ -19,14 +19,8 @@ if (!defined('ABSPATH')) exit;
 
 <header class="df-header" role="banner">
     <div class="df-container df-header__inner">
-        <a class="df-logo" href="<?php echo esc_url(home_url('/')); ?>" aria-label="<?php echo esc_attr(get_bloginfo('name')); ?>">
-            <?php if (has_custom_logo()) {
-                the_custom_logo();
-            } else { ?>
-                <span class="df-logo__text"><?php bloginfo('name'); ?></span>
-            <?php } ?>
-        </a>
-
+        <!-- Anton's live site has no logo — just a centred nav with Cart +
+             Book Now on the right. Mirroring that pattern here. -->
         <button class="df-burger" aria-label="Open menu" aria-expanded="false" aria-controls="df-primary-menu" type="button">
             <span></span><span></span><span></span>
         </button>
@@ -38,15 +32,13 @@ if (!defined('ABSPATH')) exit;
                 'container'      => false,
                 'menu_class'     => 'df-nav__list',
                 'fallback_cb'    => function() {
-                    // Fallback list matches Anton's live site nav.
                     echo '<ul class="df-nav__list">';
                     foreach (array(
-                        '/'           => 'Home',
-                        '/properties/' => 'Apartments',
-                        '/about-us/'  => 'About',
-                        '/faq/'       => 'FAQ',
-                        '/contact-us/' => 'Contact',
-                        '/book-now/'  => 'Book now',
+                        '/'            => 'Home',
+                        '/about-us/'   => 'About us',
+                        '/properties/' => 'Residences',
+                        '/faq/'        => 'FAQ',
+                        '/contact-us/' => 'Contact us',
                     ) as $url => $label) {
                         echo '<li class="df-nav__item"><a href="' . esc_url(home_url($url)) . '">' . esc_html($label) . '</a></li>';
                     }
@@ -55,6 +47,11 @@ if (!defined('ABSPATH')) exit;
             ));
             ?>
         </nav>
+
+        <div class="df-header__actions">
+            <a class="df-header__cart" href="<?php echo esc_url(home_url('/cart/')); ?>">Cart</a>
+            <a class="df-header__cta" href="<?php echo esc_url(home_url('/book-now/')); ?>">Book Now</a>
+        </div>
     </div>
 </header>
 

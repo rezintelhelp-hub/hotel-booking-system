@@ -169,90 +169,199 @@ p { margin: 0 0 var(--df-space-2); }
 }
 
 /* ==========================================================================
-   Header + primary nav
+   Header + primary nav — matches Anton's live layout: no logo, nav
+   centred/left, Cart pill + Book Now dark button on the right.
    ========================================================================== */
+.df-header {
+    padding: var(--df-space-2) 0;
+    background: var(--df-white);
+    border-bottom: 1px solid var(--df-hairline);
+}
 .df-header__inner {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: var(--df-space-3);
 }
-.df-logo {
-    font-family: var(--df-font-heading);
-    font-size: 24px;
-    letter-spacing: 0.15em;
-    color: var(--df-charcoal);
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-}
-.df-logo img { max-height: 60px; width: auto; }
-.df-logo__text { text-transform: uppercase; }
-
 .df-nav__list {
     display: flex;
-    gap: var(--df-space-3);
+    gap: var(--df-space-4);
     list-style: none;
     margin: 0;
     padding: 0;
+    flex: 1;
+    justify-content: center;
 }
 .df-nav__item a {
     color: var(--df-charcoal);
     font-family: var(--df-font-body);
-    font-size: var(--df-fs-sm);
-    letter-spacing: 0.1em;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     text-decoration: none;
     transition: color 0.2s ease;
+    padding: 8px 4px;
 }
 .df-nav__item a:hover { color: var(--df-sand); }
 
-.df-burger { display: none; background: none; border: 0; cursor: pointer; padding: 8px; }
+.df-header__actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.df-header__cart {
+    background: var(--df-panel);
+    color: var(--df-charcoal);
+    padding: 10px 24px;
+    border-radius: 999px;
+    font-family: var(--df-font-body);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    text-transform: none;
+    transition: background 0.2s ease;
+}
+.df-header__cart:hover { background: var(--df-hairline); color: var(--df-charcoal); }
+
+.df-header__cta {
+    background: var(--df-charcoal);
+    color: var(--df-white) !important;
+    padding: 10px 26px;
+    border-radius: 999px;
+    font-family: var(--df-font-body);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.2s ease;
+}
+.df-header__cta:hover { background: var(--df-sand); color: var(--df-charcoal) !important; }
+
+.df-burger { display: none; background: none; border: 0; cursor: pointer; padding: 8px; margin-right: auto; }
 .df-burger span { display: block; width: 26px; height: 2px; background: var(--df-charcoal); margin: 5px 0; transition: transform 0.3s ease, opacity 0.2s ease; }
 
 @media (max-width: 860px) {
     .df-burger { display: block; }
-    .df-nav { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--df-white); box-shadow: 0 6px 20px rgba(0,0,0,.08); padding: var(--df-space-2) 0; }
+    .df-nav { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--df-white); box-shadow: 0 6px 20px rgba(0,0,0,.08); padding: var(--df-space-2) 0; z-index: 100; }
     .df-nav.is-open { display: block; }
-    .df-nav__list { flex-direction: column; gap: var(--df-space-2); padding: 0 var(--df-space-2); }
+    .df-nav__list { flex-direction: column; gap: var(--df-space-2); padding: 0 var(--df-space-2); justify-content: flex-start; }
     .df-header { position: relative; }
+    .df-header__cart { display: none; }
 }
 
 /* ==========================================================================
-   Hero
+   Hero — DARK text over the image, no dark overlay. Matches Anton's
+   live layout. Subtle text-shadow keeps title readable on busy photos.
    ========================================================================== */
 .df-hero {
-    min-height: 560px;
+    min-height: 480px;
     background-size: cover;
     background-position: center;
     display: flex;
     align-items: center;
-    color: var(--df-white);
+    color: var(--df-charcoal);
     text-align: center;
-    padding: var(--df-space-8) var(--df-space-2);
+    padding: var(--df-space-8) var(--df-space-2) 120px;
+    position: relative;
 }
 .df-hero__inner { width: 100%; }
 .df-hero__title {
     font-family: var(--df-font-heading);
-    font-size: var(--df-fs-hero);
-    letter-spacing: 0.25em;
-    color: var(--df-white);
+    font-size: 60px;
+    letter-spacing: 0.28em;
+    color: var(--df-charcoal);
     text-transform: uppercase;
     margin: 0 0 var(--df-space-2);
+    text-shadow: 0 1px 2px rgba(255,255,255,0.35);
 }
 .df-hero__subtitle {
     font-family: var(--df-font-body);
-    font-size: var(--df-fs-lead);
-    letter-spacing: 0.08em;
-    margin: 0 0 var(--df-space-3);
-    color: rgba(255,255,255,0.92);
-}
-.df-btn--hero {
-    background: var(--df-white);
+    font-size: 18px;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin: 0;
     color: var(--df-charcoal);
-    padding: 14px 36px;
+    text-shadow: 0 1px 2px rgba(255,255,255,0.35);
 }
-.df-btn--hero:hover { background: var(--df-sand); }
+
+/* ==========================================================================
+   Search bar — floating white card straddling hero-to-content boundary.
+   Fields: destination, check-in, check-out, guests + big SEARCH button.
+   ========================================================================== */
+.df-search-wrap {
+    position: relative;
+    margin-top: -60px;    /* pulls the card over the hero's bottom edge */
+    z-index: 5;
+    padding: 0 var(--df-space-2);
+}
+.df-search {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr 1fr auto;
+    gap: 0;
+    background: var(--df-white);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    border-radius: 12px;
+    overflow: hidden;
+    padding: 8px;
+    align-items: stretch;
+}
+.df-search__field {
+    padding: 10px 16px;
+    border-right: 1px solid var(--df-hairline);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+.df-search__field:last-of-type { border-right: none; }
+.df-search__field label {
+    font-family: var(--df-font-body);
+    font-size: 12px;
+    color: var(--df-muted);
+    text-transform: none;
+    letter-spacing: 0.02em;
+}
+.df-search__field input,
+.df-search__field select {
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: var(--df-font-body);
+    font-size: 15px;
+    color: var(--df-charcoal);
+    font-weight: 600;
+    padding: 0;
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+}
+.df-search__field input::placeholder { color: var(--df-muted); font-weight: 400; }
+.df-search__submit {
+    background: var(--df-charcoal);
+    color: var(--df-white);
+    border: none;
+    padding: 0 40px;
+    font-family: var(--df-font-body);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.2s ease, color 0.2s ease;
+    min-width: 140px;
+}
+.df-search__submit:hover { background: var(--df-sand); color: var(--df-charcoal); }
+
+@media (max-width: 820px) {
+    .df-search { grid-template-columns: 1fr; }
+    .df-search__field { border-right: none; border-bottom: 1px solid var(--df-hairline); }
+    .df-search__field:last-of-type { border-bottom: none; }
+    .df-search__submit { padding: 16px 40px; margin: 8px; border-radius: 6px; }
+    .df-hero { padding-bottom: 60px; }
+    .df-hero__title { font-size: 40px; letter-spacing: 0.2em; }
+    .df-search-wrap { margin-top: -30px; }
+}
 
 /* ==========================================================================
    Sections

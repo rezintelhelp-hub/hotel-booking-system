@@ -21,19 +21,50 @@ if (!defined('ABSPATH')) exit;
 get_header();
 
 $hero_title    = get_theme_mod('df_hero_title',    'DWELLFORT');
-$hero_subtitle = get_theme_mod('df_hero_subtitle', 'Quality Accommodation in Prague');
+$hero_subtitle = get_theme_mod('df_hero_subtitle', 'QUALITY ACCOMMODATION IN PRAGUE');
 $hero_image    = get_theme_mod('df_hero_image',    get_template_directory_uri() . '/assets/hero-placeholder.jpg');
-$hero_cta      = get_theme_mod('df_hero_cta_label', 'Book now');
-$hero_cta_url  = get_theme_mod('df_hero_cta_url',   home_url('/book-now/'));
 ?>
 
-<section class="df-hero" style="background-image: linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.5)), url('<?php echo esc_url($hero_image); ?>');">
+<!-- Hero — DARK text over image (no overlay), matching Anton's live layout.
+     Search bar floats over the bottom edge via negative margin. -->
+<section class="df-hero" style="background-image: url('<?php echo esc_url($hero_image); ?>');">
     <div class="df-container df-hero__inner">
         <h1 class="df-hero__title"><?php echo esc_html($hero_title); ?></h1>
         <p class="df-hero__subtitle"><?php echo esc_html($hero_subtitle); ?></p>
-        <?php if ($hero_cta && $hero_cta_url) : ?>
-            <a class="df-btn df-btn--hero" href="<?php echo esc_url($hero_cta_url); ?>"><?php echo esc_html($hero_cta); ?></a>
-        <?php endif; ?>
+    </div>
+</section>
+
+<!-- Booking search bar — 4 fields + SEARCH button, white card floating
+     over the hero-to-content boundary. Uses [gas_search] shortcode if
+     the booking plugin exposes it inline; otherwise renders a native
+     GET form that hands off to /book-now/. -->
+<section class="df-search-wrap" aria-label="Search availability">
+    <div class="df-container">
+        <?php if (shortcode_exists('gas_search')) {
+            echo '<div class="df-search-inline">' . do_shortcode('[gas_search layout="inline"]') . '</div>';
+        } else { ?>
+            <form class="df-search" method="get" action="<?php echo esc_url(home_url('/book-now/')); ?>">
+                <div class="df-search__field">
+                    <label>Where to go?</label>
+                    <input type="text" name="destination" placeholder="Prague" value="Prague">
+                </div>
+                <div class="df-search__field">
+                    <label>Check in</label>
+                    <input type="date" name="checkin" value="<?php echo esc_attr(date('Y-m-d')); ?>">
+                </div>
+                <div class="df-search__field">
+                    <label>Check out</label>
+                    <input type="date" name="checkout" value="<?php echo esc_attr(date('Y-m-d', strtotime('+1 day'))); ?>">
+                </div>
+                <div class="df-search__field">
+                    <label>Guests</label>
+                    <select name="guests">
+                        <?php for ($i = 1; $i <= 8; $i++) echo '<option value="' . $i . '">' . $i . ' guest' . ($i > 1 ? 's' : '') . '</option>'; ?>
+                    </select>
+                </div>
+                <button type="submit" class="df-search__submit">SEARCH</button>
+            </form>
+        <?php } ?>
     </div>
 </section>
 
