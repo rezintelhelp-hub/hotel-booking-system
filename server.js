@@ -124582,19 +124582,46 @@ app.get('/api/admin/seo/site-urls', async (req, res) => {
 
         const urls = [];
 
-        // Sitemap URLs
+        // Sitemap URLs — walk index-of-sitemaps too. WP sites usually
+        // serve /sitemap.xml as an index pointing at sub-sitemaps
+        // (posts, pages, categories etc.); we need to fetch each and
+        // extract the actual page URLs. Also try /wp-sitemap.xml as
+        // a fallback (WP core's default). Steve 2026-08-19 — picker
+        // was empty for /about-us/ because sitemap.xml was just
+        // pointing at sub-sitemaps and we never followed them.
+        const fetchSitemap = async (smUrl) => {
+            try {
+                const r = await fetch(smUrl, { redirect: 'follow', headers: { 'User-Agent': 'GAS-URLPicker/1.0' } });
+                if (!r.ok) return { pages: [], subs: [] };
+                const txt = await r.text();
+                const isIndex = /<sitemapindex[\s>]/i.test(txt) || (!/<urlset[\s>]/i.test(txt) && /<sitemap[\s>]/i.test(txt));
+                const locs = (txt.match(/<loc>([^<]+)<\/loc>/g) || []).map(m => m.replace(/<\/?loc>/g, '').trim());
+                return isIndex ? { pages: [], subs: locs } : { pages: locs, subs: [] };
+            } catch (_) { return { pages: [], subs: [] }; }
+        };
         try {
-            const smResp = await fetch(new URL('/sitemap.xml', site_url).href, { redirect: 'follow', headers: { 'User-Agent': 'GAS-URLPicker/1.0' } });
-            if (smResp.ok) {
-                const smText = await smResp.text();
-                const matches = smText.match(/<loc>([^<]+)<\/loc>/g) || [];
-                matches.forEach(m => {
-                    try {
-                        const path = new URL(m.replace(/<\/?loc>/g, '')).pathname;
-                        urls.push({ path, label: path, type: 'page', source: 'sitemap' });
-                    } catch (_) {}
-                });
+            const rootCandidates = [
+                new URL('/sitemap.xml', site_url).href,
+                new URL('/wp-sitemap.xml', site_url).href,
+                new URL('/sitemap_index.xml', site_url).href,
+            ];
+            const collected = new Set();
+            const visited = new Set();
+            const queue = [...rootCandidates];
+            while (queue.length && visited.size < 25) {
+                const cur = queue.shift();
+                if (visited.has(cur)) continue;
+                visited.add(cur);
+                const { pages, subs } = await fetchSitemap(cur);
+                pages.forEach(p => collected.add(p));
+                subs.forEach(s => { if (!visited.has(s)) queue.push(s); });
             }
+            collected.forEach(u => {
+                try {
+                    const path = new URL(u).pathname;
+                    urls.push({ path, label: path, type: 'page', source: 'sitemap' });
+                } catch (_) {}
+            });
         } catch (_) {}
 
         // Room URLs (bookable_units → /room/?unit_id=X)
