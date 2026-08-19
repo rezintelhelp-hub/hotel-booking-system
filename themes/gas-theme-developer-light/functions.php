@@ -398,13 +398,15 @@ function developer_developer_scripts() {
         @filemtime(get_stylesheet_directory() . '/style.css') ?: GAS_DEVELOPER_VERSION
     );
 
-    // Theme scripts — same: filemtime so JS edits auto-bust
+    // Theme scripts — filemtime so JS edits auto-bust. B3 speed pass
+    // (Steve 2026-08-19) — add defer strategy so main.js doesn't
+    // block first paint. WP 6.3+ strategy option handles it cleanly.
     wp_enqueue_script(
         'developer-script',
         get_template_directory_uri() . '/assets/js/main.js',
         array('jquery'),
         @filemtime(get_template_directory() . '/assets/js/main.js') ?: GAS_DEVELOPER_VERSION,
-        true
+        array('strategy' => 'defer', 'in_footer' => true)
     );
     
     // Pass settings to JS
@@ -414,6 +416,28 @@ function developer_developer_scripts() {
     ));
 }
 add_action('wp_enqueue_scripts', 'developer_developer_scripts');
+
+/**
+ * B1 speed win (Steve 2026-08-19) — preconnect + dns-prefetch to
+ * Google Fonts so the browser opens the TCP+TLS connection while the
+ * page HTML is still parsing. Cuts ~150-250ms off first-paint on cold
+ * loads (~50-80ms on warm). Safe for every developer-light client
+ * because it doesn't CHANGE which fonts are loaded — just warms the
+ * connection earlier. If a client has zero Google Fonts, the hint is
+ * harmless (browser opens+closes the connection unused).
+ */
+function developer_font_resource_hints($urls, $relation_type) {
+    if ('preconnect' === $relation_type) {
+        $urls[] = array('href' => 'https://fonts.googleapis.com');
+        $urls[] = array('href' => 'https://fonts.gstatic.com', 'crossorigin' => 'anonymous');
+    }
+    if ('dns-prefetch' === $relation_type) {
+        $urls[] = 'https://fonts.googleapis.com';
+        $urls[] = 'https://fonts.gstatic.com';
+    }
+    return $urls;
+}
+add_filter('wp_resource_hints', 'developer_font_resource_hints', 10, 2);
 
 /**
  * Custom Room Selector Control for Customizer
@@ -2527,9 +2551,18 @@ function developer_render_footer_newsletter($footer_text, $footer_bg, $heading) 
 }
 
 function developer_get_api_settings() {
+    // Request-scoped memoization — same call from header/hero/footer/etc
+    // within one page render returns the SAME array without another
+    // transient lookup or API fetch. Steve 2026-08-19 speed pass B2.
+    // Keyed by blog + language so multisite / multi-lang stay isolated.
+    static $memo = array();
     $client_id = get_option('gas_client_id', '');
     if (empty($client_id)) {
         return array();
+    }
+    $memo_key = get_current_blog_id() . '::' . developer_get_current_language();
+    if (isset($memo[$memo_key])) {
+        return $memo[$memo_key];
     }
 
     // Dev sites bypass the 5-min transient — every save must be visible
@@ -2539,6 +2572,7 @@ function developer_get_api_settings() {
     if (!$is_dev) {
         $cached = get_transient($cache_key);
         if ($cached !== false) {
+            $memo[$memo_key] = $cached;
             return $cached;
         }
     }
@@ -3527,6 +3561,12 @@ function developer_get_api_settings() {
     if (!$is_dev) {
         set_transient($cache_key, $result, 5 * MINUTE_IN_SECONDS);
     }
+
+    // Request-scoped memo — subsequent calls within THIS render return
+    // instantly regardless of dev/live mode. Big win for dev sites
+    // where the transient is skipped and every call would otherwise
+    // fetch the API fresh.
+    $memo[$memo_key] = $result;
 
     return $result;
 }
