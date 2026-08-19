@@ -117826,9 +117826,17 @@ app.get('/api/admin/seo/sites', async (req, res) => {
 // which one has data. Master-only. Add ?site=moonriverbedandbreakfast.com
 // (bare host — we test all variants). Steve 2026-08-19 — Moonriver
 // dashboard shows blanks despite verified/sitemap-live for 40+ days.
+// This endpoint deliberately BYPASSES the dead-token cache — it's a
+// diagnostic tool, and it should probe the live token state fresh
+// even when the cache says the token was dead 30s ago.
 app.get('/api/admin/seo/debug-site', async (req, res) => {
     try {
-        const sc = await getSearchConsoleClient();
+        // Force-clear dead cache so we probe the actual current token
+        clearUserOAuthDeadCache();
+        const userAuth = await getUserAuthClient();
+        const sc = userAuth
+            ? google.searchconsole({ version: 'v1', auth: userAuth })
+            : searchConsole;
         if (!sc) return res.json({ error: 'Google APIs not configured' });
         const bareHost = (req.query.site || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
         if (!bareHost) return res.json({ error: 'pass ?site=hostname (no protocol)' });
@@ -118298,6 +118306,14 @@ app.get('/api/admin/google-oauth/callback', async (req, res) => {
         console.error('OAuth callback error:', e);
         res.status(500).send('OAuth failed: ' + e.message);
     }
+});
+
+// Manual dead-cache clear — useful when the cache lingers stale
+// after an out-of-band token refresh, or when debugging (Steve
+// 2026-08-19). Master-only in practice (behind gas-admin auth).
+app.get('/api/admin/google-oauth/clear-dead-cache', async (req, res) => {
+    clearUserOAuthDeadCache();
+    res.json({ success: true, message: 'user OAuth dead-token cache cleared' });
 });
 
 // Connection status — used by the UI to show "Connected as X" badge.
