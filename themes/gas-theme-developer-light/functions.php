@@ -440,6 +440,36 @@ function developer_font_resource_hints($urls, $relation_type) {
 add_filter('wp_resource_hints', 'developer_font_resource_hints', 10, 2);
 
 /**
+ * Speed win (Steve 2026-08-19) — preload the hero image on the front
+ * page so the browser starts fetching it BEFORE it has parsed the CSS
+ * that references it as background-image. Big LCP win — the hero is
+ * usually the Largest Contentful Paint element, and background-image
+ * URLs aren't discovered until after CSS is parsed, so the fetch
+ * normally starts too late.
+ *
+ * Video hero: skip (video is loaded async anyway). Slider hero:
+ * preload slide 1 only. Image hero (default): preload the bg.
+ *
+ * Only fires on the front page. Cheap — api settings are memoized
+ * in-request.
+ */
+function developer_preload_hero_image() {
+    if (!is_front_page()) return;
+    $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+    $type = $api['hero_background_type'] ?? get_theme_mod('developer_hero_background_type', 'image');
+    if ($type === 'video') return;
+    $url = ($type === 'slider')
+        ? ($api['hero_slide_1'] ?? get_theme_mod('developer_hero_slide_1', ''))
+        : ($api['hero_image']   ?? get_theme_mod('developer_hero_bg',    ''));
+    if (empty($url)) return;
+    printf(
+        '<link rel="preload" as="image" href="%s" fetchpriority="high">' . "\n",
+        esc_url($url)
+    );
+}
+add_action('wp_head', 'developer_preload_hero_image', 2);
+
+/**
  * Custom Room Selector Control for Customizer
  */
 if (class_exists('WP_Customize_Control')) {

@@ -5329,15 +5329,25 @@ jQuery(document).ready(function($) {
 
         // Apply per-account default sort. The server writes it onto
         // #gas-rooms-container; we mirror it to the dropdown and run
-        // sortRooms() after the price fetch settles so cards have their
-        // real data-price values. Always run sortRooms (even in
-        // 'default' mode) so the data-pin-to-end guard fires and whole-
-        // property listings like Exclusive Hire drop to the bottom
-        // instead of appearing at the top of the raw DOM order.
+        // sortRooms() so the data-pin-to-end guard fires (Exclusive
+        // Hire etc. drop to the bottom instead of appearing at the top
+        // of the raw DOM order).
+        //
+        // If a date search is running, checkAllAvailability's poll fires
+        // reorderRooms() (which sorts) the moment all price checks land
+        // — usually ~300ms. The old unconditional 1.5s setTimeout used
+        // to fire a SECOND sort after that, making cards visibly re-
+        // shuffle. Skipped now when dates are present. When no dates
+        // are provided, prices are already server-rendered in the DOM,
+        // so sort immediately — no delay needed.
         var $cont = $('#gas-rooms-container');
         var defaultSort = $cont.data('default-sort') || 'default';
         $('.gas-sort-select').val(defaultSort);
-        setTimeout(function() { sortRooms(defaultSort); }, 1500);
+        var hasDateSearch = typeof gasRoomsConfig !== 'undefined'
+            && gasRoomsConfig.checkin && gasRoomsConfig.checkout;
+        if (!hasDateSearch) {
+            sortRooms(defaultSort);
+        }
     });
     
     // Load offers for all room cards and update display
