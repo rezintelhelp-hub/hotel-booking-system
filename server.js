@@ -124339,6 +124339,141 @@ app.get('/api/admin/seo/ga4-stats', async (req, res) => {
 });
 
 /**
+ * Bounce audit — for each high-bounce page on this site, fetch it,
+ * detect why it's bouncing (404, stale multilingual variant, missing
+ * trailing slash, old asset, etc.), and suggest a redirect target.
+ *
+ * Steve 2026-08-19 — Cotswolds bounce list showed a bunch of stale
+ * `-en` URLs, old download paths, missing-slash duplicates etc.
+ * Every migrated GAS site has similar migration cruft that Google
+ * still remembers. This endpoint is the diagnostic; Phase 2 will
+ * add one-click "apply redirect" via a site_redirects table.
+ *
+ * Only queries pages with sessions >= 3 AND bounceRate >= 0.9 (i.e.
+ * real signal, not noise). Fetches each URL with a short HEAD to
+ * detect status code. Suggestions come from rule-based pattern
+ * matching first, then fuzzy-match against the site's sitemap.
+ */
+app.get('/api/admin/seo/bounce-audit', async (req, res) => {
+    try {
+        const { site_url } = req.query;
+        const days = Math.max(7, Math.min(90, parseInt(req.query.days || '28', 10)));
+        if (!site_url) return res.json({ success: false, error: 'site_url is required' });
+
+        const siteResult = await pool.query(
+            'SELECT ga4_property_id FROM deployed_sites WHERE site_url = $1 LIMIT 1',
+            [site_url]
+        );
+        if (!siteResult.rows[0]?.ga4_property_id) {
+            return res.json({ success: false, error: 'No GA4 property linked to this site' });
+        }
+        const propertyId = siteResult.rows[0].ga4_property_id;
+        const picked = await pickGa4DataClient(propertyId);
+        if (!picked) return res.json({ success: false, error: 'GA4 not accessible for this property' });
+
+        // Pull high-bounce pages from GA4
+        const startDate = `${days}daysAgo`;
+        const ga4Resp = await picked.client.properties.runReport({
+            property: propertyId,
+            requestBody: {
+                dateRanges: [{ startDate, endDate: 'today' }],
+                dimensions: [{ name: 'pagePath' }],
+                metrics: [{ name: 'sessions' }, { name: 'bounceRate' }],
+                orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+                limit: 100
+            }
+        });
+        const bouncing = (ga4Resp.data.rows || [])
+            .map(r => ({
+                path: r.dimensionValues[0].value,
+                sessions: parseInt(r.metricValues[0].value || 0),
+                bounceRate: parseFloat(r.metricValues[1].value || 0),
+            }))
+            .filter(r => r.sessions >= 3 && r.bounceRate >= 0.9)
+            .slice(0, 30); // cap so HTTP checks don't take forever
+
+        if (bouncing.length === 0) {
+            return res.json({ success: true, results: [], sitemap_urls: 0, period_days: days });
+        }
+
+        // Fetch sitemap for fuzzy-matching suggestions later
+        let sitemapUrls = [];
+        try {
+            const smResp = await fetch(new URL('/sitemap.xml', site_url).href, { redirect: 'follow', headers: { 'User-Agent': 'GAS-BounceAudit/1.0' } });
+            if (smResp.ok) {
+                const smText = await smResp.text();
+                const matches = smText.match(/<loc>([^<]+)<\/loc>/g) || [];
+                sitemapUrls = matches
+                    .map(m => m.replace(/<\/?loc>/g, ''))
+                    .map(u => { try { return new URL(u).pathname; } catch { return u; } });
+            }
+        } catch (_) { /* sitemap optional */ }
+
+        // Pattern-based suggestions (fast, deterministic)
+        const suggest = (path) => {
+            // Strip stale multilingual `-en/` suffix (Cotswolds pattern)
+            if (/-en\/?$/.test(path)) {
+                const stripped = path.replace(/\/[^/]+-en\/?$/, '');
+                const shortened = path.replace(/-en(\/?)$/, '$1');
+                return { pattern: 'stale-lang-suffix', suggested: shortened, why: `Trailing "-en" suffix looks like a leftover multilingual variant. Try ${shortened} (or ${stripped} if that\'s the parent).` };
+            }
+            // Old mobile subpath
+            if (path.startsWith('/m/')) {
+                return { pattern: 'legacy-mobile-path', suggested: path.replace(/^\/m\//, '/'), why: 'Legacy /m/ mobile subpath. Modern sites are responsive — redirect to the equivalent desktop URL.' };
+            }
+            // Old-year dated asset
+            const dated = path.match(/\/(19|20)\d{2}[_-]/);
+            if (dated) {
+                return { pattern: 'dated-asset', suggested: null, why: `Path contains a year (${dated[0].replace(/[/_-]/g,'')}). Likely an old download/asset. Consider removing inbound links or 301 to the current version.` };
+            }
+            // Trailing slash mismatch — check sitemap for the other variant
+            const withSlash = path.endsWith('/') ? path : path + '/';
+            const noSlash = path.replace(/\/$/, '');
+            if (sitemapUrls.includes(withSlash) && !sitemapUrls.includes(noSlash)) {
+                return { pattern: 'missing-trailing-slash', suggested: withSlash, why: 'Sitemap has this URL with a trailing slash. Canonicalise via 301.' };
+            }
+            if (sitemapUrls.includes(noSlash) && !sitemapUrls.includes(withSlash)) {
+                return { pattern: 'extra-trailing-slash', suggested: noSlash, why: 'Sitemap has this URL without a trailing slash. Canonicalise via 301.' };
+            }
+            return null;
+        };
+
+        // Probe each URL — HEAD to check status
+        const results = await Promise.all(bouncing.map(async (b) => {
+            const target = new URL(b.path, site_url).href;
+            let status = null, finalUrl = null, contentSize = null;
+            try {
+                const r = await fetch(target, { method: 'HEAD', redirect: 'follow', headers: { 'User-Agent': 'GAS-BounceAudit/1.0' } });
+                status = r.status;
+                finalUrl = r.url;
+                contentSize = parseInt(r.headers.get('content-length') || 0) || null;
+            } catch (e) {
+                status = 'network_error';
+            }
+            const patternSuggestion = suggest(b.path) || {};
+            // If HEAD returned redirect chain landing somewhere else, note that
+            const redirectedTo = (finalUrl && new URL(finalUrl).pathname !== b.path) ? new URL(finalUrl).pathname : null;
+            return {
+                path: b.path,
+                sessions: b.sessions,
+                bounceRate: Math.round(b.bounceRate * 100),
+                status,
+                redirected_to: redirectedTo,
+                content_size: contentSize,
+                pattern: patternSuggestion.pattern || (status === 404 ? '404-dead' : status === 200 ? 'live-thin-content' : null),
+                suggested_redirect: patternSuggestion.suggested || null,
+                why: patternSuggestion.why || (status === 404 ? 'Returns 404. If there are still inbound links, redirect to the closest live equivalent.' : status === 200 ? 'Page loads but 100% of visitors bounce. Content or design issue — check load time, CTA above fold, page relevance to the query that brought them here.' : status === 'network_error' ? 'Could not reach URL. Check DNS + server status.' : null),
+            };
+        }));
+
+        res.json({ success: true, results, sitemap_urls: sitemapUrls.length, period_days: days });
+    } catch (error) {
+        console.error('bounce-audit error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+/**
  * Website performance dashboard.
  *
  * Two data sources, each playing to their strength:
