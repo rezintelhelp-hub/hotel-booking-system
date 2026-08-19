@@ -93807,7 +93807,13 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         // Shown-any-SC-call-returned-needs_reauth banner. Any SC loader
         // that gets { needs_reauth: true } from the API should call this.
+        // MASTER-ONLY — clients would panic seeing "Google session
+        // expired"; only Steve can actually fix it. Silent no-op for
+        // client-role users; their SEO boxes just render empty (same as
+        // before this fix). Steve 2026-08-19.
         function showSeoReauthBanner() {
+            const isMasterAdmin = currentAccount && currentAccount.role === 'master_admin';
+            if (!isMasterAdmin) return;
             const banner = document.getElementById('seo-reauth-banner');
             if (banner) banner.style.display = 'block';
         }
