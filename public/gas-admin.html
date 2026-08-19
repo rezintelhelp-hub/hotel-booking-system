@@ -94303,6 +94303,122 @@ const promo = await fetch('/api/v1/offers/validate', {
             loadGrowthFeaturesAudit(siteUrl);
         }
 
+        // Drill-in modal for a Direct Booking Health tile — renders the
+        // status, why it scored that way, and 2-4 concrete next steps
+        // per feature key. Steve 2026-08-19 — turns the audit from
+        // "here's a number" into "here's what to do about it".
+        function openGrowthFeatureDrillIn(idx) {
+            const features = window._lastGrowthFeatures || [];
+            const f = features[idx];
+            if (!f) return;
+            const icon = { good: '✅', improve: '⚠️', missing: '❌' };
+            const colour = { good: '#10b981', improve: '#f59e0b', missing: '#ef4444' };
+            const bg = { good: '#dcfce7', improve: '#fef3c7', missing: '#fee2e2' };
+
+            const recs = buildFeatureRecommendations(f);
+            const detailHtml = f.detail
+                ? `<div style="margin-top:1rem;padding:0.75rem;background:#f8fafc;border-radius:6px;font-size:0.85rem;">
+                     <div style="font-weight:600;color:#475569;margin-bottom:0.35rem;">Why this scored ${f.status}:</div>
+                     ${Object.entries(f.detail).map(([k, v]) => `<div style="color:#64748b;">• <code style="background:#e2e8f0;padding:1px 5px;border-radius:3px;">${k.replace(/_/g,' ')}</code>: <strong>${v === true ? 'yes' : v === false ? 'no' : v}</strong></div>`).join('')}
+                   </div>`
+                : '';
+            const recsHtml = recs.length ? `
+                <div style="margin-top:1.25rem;">
+                    <div style="font-weight:700;font-size:0.95rem;color:#1e293b;margin-bottom:0.6rem;">Recommended next steps</div>
+                    ${recs.map(r => `
+                        <div style="display:flex;gap:0.75rem;padding:0.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.5rem;">
+                            <div style="font-size:1.5rem;flex-shrink:0;">${r.icon}</div>
+                            <div style="flex:1;">
+                                <div style="font-weight:600;color:#1e293b;">${r.title}</div>
+                                <div style="font-size:0.85rem;color:#64748b;margin-top:2px;">${r.desc}</div>
+                                ${r.action ? `<button onclick="closeModal('growthDrillInModal');${r.action.onclick || `showView('${r.action.view}')`}" style="margin-top:6px;background:#3b82f6;color:#fff;border:none;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:0.8rem;font-weight:600;">${r.action.label} →</button>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>` : '';
+
+            let modal = document.getElementById('growthDrillInModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'growthDrillInModal';
+                modal.className = 'modal';
+                modal.style.display = 'none';
+                document.body.appendChild(modal);
+            }
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width:600px;">
+                    <div class="modal-header" style="background:${bg[f.status]};color:${colour[f.status]};padding:1rem 1.5rem;border-radius:12px 12px 0 0;">
+                        <h3 class="modal-title" style="margin:0;font-size:1.05rem;">${icon[f.status]} ${f.label}</h3>
+                        <button class="modal-close" onclick="closeModal('growthDrillInModal')" style="color:${colour[f.status]};font-size:1.5rem;">&times;</button>
+                    </div>
+                    <div style="padding:1.5rem;max-height:70vh;overflow-y:auto;">
+                        <div style="font-size:0.9rem;color:#475569;line-height:1.5;">${f.help || ''}</div>
+                        ${detailHtml}
+                        ${recsHtml}
+                    </div>
+                </div>`;
+            modal.style.display = 'flex';
+        }
+
+        // Per-feature recommendation library. Kept on the frontend so we
+        // can iterate wording without a redeploy — the audit's status +
+        // count drives which recs fire. Keep each recommendation short
+        // and actionable, and provide an action button when there's a
+        // GAS view that fixes it directly.
+        function buildFeatureRecommendations(f) {
+            const recs = [];
+            switch (f.key) {
+                case 'blog':
+                    if (f.status === 'missing') {
+                        recs.push({ icon: '📝', title: 'Publish your first posts', desc: 'Long-tail SEO takes months to compound. Start with 3 posts about your area/property. Use GAS Fire to bootstrap AI drafts you can edit.', action: { label: 'Open Blog', view: 'app-blog' } });
+                    } else if (f.status === 'improve') {
+                        recs.push({ icon: '🎯', title: 'Push to 6+ posts', desc: 'You have ' + f.count + '. Google favours consistency. Aim for 6+ published, then 1-2 new per month.', action: { label: 'Open Blog', view: 'app-blog' } });
+                    } else {
+                        recs.push({ icon: '🚀', title: 'Keep the cadence', desc: 'Strong coverage. Aim for 1-2 new posts per month to maintain freshness signal.' });
+                    }
+                    recs.push({ icon: '🤖', title: 'Auto-generate drafts with GAS Fire', desc: 'AI-generated drafts based on your property + local area. You review, edit, publish.', action: { label: 'GAS Fire settings', view: 'app-blog-settings' } });
+                    break;
+                case 'attractions':
+                    if (f.status !== 'good') recs.push({ icon: '📍', title: 'Add 4+ local attractions', desc: 'Restaurants, landmarks, walks, events — with coordinates so they render on the map. Local SEO signal + guest value.', action: { label: 'Open Attractions', view: 'app-attractions' } });
+                    else recs.push({ icon: '🗺️', title: 'Consider seasonal updates', desc: 'Refresh attractions each quarter (summer walks, winter markets etc.) to keep the page relevant.' });
+                    break;
+                case 'upsells':
+                    if (f.status !== 'good') recs.push({ icon: '🥐', title: 'Add breakfast, late check-out, parking', desc: 'The default trio raises AOV by ~15% on average. Each takes 60s to configure.', action: { label: 'Open Upsells', view: 'app-upsells' } });
+                    else recs.push({ icon: '💡', title: 'Experiment with seasonal extras', desc: 'Winter: hot chocolate hamper. Summer: bike rental. Test what converts.' });
+                    break;
+                case 'reviews':
+                    if (f.status === 'missing') {
+                        recs.push({ icon: '⭐', title: 'Connect Repuso', desc: 'Import your Google + TripAdvisor + Airbnb reviews to one widget. Free tier available.', action: { label: 'Repuso setup', view: 'app-reviews' } });
+                        recs.push({ icon: '✉️', title: 'Set up review-request emails', desc: 'Auto-send a review request 3 days after checkout. Doubles review-rate on average.' });
+                    } else if (f.status === 'improve') {
+                        recs.push({ icon: '📈', title: 'Import more sources', desc: 'You have some reviews. Connect additional review platforms via Repuso for higher volume + freshness.', action: { label: 'Manage reviews', view: 'app-reviews' } });
+                    } else {
+                        recs.push({ icon: '🎨', title: 'A/B test widget position', desc: 'Try above-fold on room pages vs bottom of homepage. Track conversion diff via GA4.' });
+                    }
+                    break;
+                case 'offers':
+                    if (f.status !== 'good') {
+                        recs.push({ icon: '🏷️', title: 'Create a direct-only offer', desc: '10% off for direct bookings breaks OTA rate parity legally. Immediate reason for guests to book here not on OTAs.', action: { label: 'Open Offers', view: 'app-offers' } });
+                        recs.push({ icon: '⏰', title: 'Add an early-bird / last-minute variety', desc: 'Different discounts for different guest types. Compare conversion.' });
+                    }
+                    break;
+                case 'contact_form':
+                    if (f.status === 'missing') recs.push({ icon: '📞', title: 'Re-enable the contact form', desc: 'It\'s currently switched off in Web Builder → Contact Page. Enquiries from visitors not ready to book are being lost.', action: { label: 'Web Builder', view: 'web-builder' } });
+                    else recs.push({ icon: '👍', title: 'Working', desc: 'Contact form is live. Consider adding auto-reply email + booking-team notification.' });
+                    break;
+                case 'lead_forms':
+                    if (f.status !== 'good') recs.push({ icon: '📋', title: 'Add a quote-request form', desc: 'For events / group bookings / long-stay enquiries. Captures intent that doesn\'t immediately book.', action: { label: 'Open Forms', view: 'app-forms' } });
+                    break;
+                case 'shop':
+                    if (f.status !== 'good') recs.push({ icon: '🎁', title: 'Add gift vouchers', desc: 'Free direct revenue at zero marginal cost — 30% of vouchers are never redeemed.', action: { label: 'Open Shop', view: 'app-shop' } });
+                    break;
+                case 'pages':
+                    if (f.status !== 'good') recs.push({ icon: '🌆', title: 'Add local marketing landing pages', desc: 'A "Best restaurants near [town]" page targets a specific long-tail search that\'s much easier to rank for than "hotel in [town]".', action: { label: 'Pro Builder', view: 'pro-builder' } });
+                    break;
+            }
+            return recs;
+        }
+
         async function loadGrowthFeaturesAudit(siteUrl) {
             const container = document.getElementById('dashboard-growth-features');
             if (!container) return;
@@ -94315,8 +94431,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
                 const icon = { good: '✅', improve: '⚠️', missing: '❌' };
                 const colour = { good: '#10b981', improve: '#f59e0b', missing: '#ef4444' };
-                container.innerHTML = data.features.map(f => `
-                    <div style="background: white; border: 1px solid ${colour[f.status]}40; border-left: 4px solid ${colour[f.status]}; border-radius: 8px; padding: 0.65rem 0.85rem;" title="${(f.help || '').replace(/"/g,'&quot;')}">
+                // Stash the payload so the drill-in modal doesn't need
+                // another API round-trip.
+                window._lastGrowthFeatures = data.features;
+                container.innerHTML = data.features.map((f, idx) => `
+                    <div onclick="openGrowthFeatureDrillIn(${idx})" style="background: white; border: 1px solid ${colour[f.status]}40; border-left: 4px solid ${colour[f.status]}; border-radius: 8px; padding: 0.65rem 0.85rem; cursor: pointer; transition: transform 0.1s, box-shadow 0.15s;" title="Click for details + next steps" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 8px rgba(0,0,0,0.06)';" onmouseout="this.style.transform='';this.style.boxShadow='';">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <span style="font-size: 0.82rem; color: #475569; font-weight: 600;">${icon[f.status]} ${f.label}</span>
                             <span style="font-size: 1.1rem; font-weight: 700; color: ${colour[f.status]};">${f.count}</span>
