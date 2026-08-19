@@ -405,14 +405,31 @@ async function getSearchConsoleClient() {
 }
 
 // Central helper for the four SC endpoints — same detection everywhere.
-// Marks the user OAuth token dead on invalid_grant / 4xx auth errors
-// (so the next dashboard load hits the cache and skips the round-trip)
-// and returns a shape the frontend can react to with a banner.
+// Distinguishes:
+//   (a) TOKEN DEAD (invalid_grant / invalid_request / 401 unauthorized)
+//       → user needs to reconnect. Marks cache, returns needs_reauth.
+//   (b) PROPERTY NOT ACCESSIBLE (403 "sufficient permission" — the
+//       token is FINE, the user just isn't added as a user on that
+//       specific GSC property) → returns a clean "no access" error,
+//       does NOT mark the token dead, does NOT show reauth banner.
+//   (c) OTHER errors → passthrough to the caller's own handler.
 function _scAuthError(res, error) {
   const msg = error?.message || '';
+  const status = String(error?.code || error?.response?.status || '');
+
+  // Property-permission error — token valid, just no access to THIS site
+  if (/sufficient permission/i.test(msg) || (status === '403' && !/invalid_grant|invalid_request|unauthorized/i.test(msg))) {
+    return res.json({
+      success: false,
+      no_property_access: true,
+      error: 'This Google account (' + (currentGoogleEmail() || 'connected user') + ') is not added as a user on this site\'s Search Console property. Add them in GSC → Users and permissions, or reconnect GAS with an account that has access.',
+    });
+  }
+
+  // Real token-dead / auth-failure — mark cache + tell frontend to reauth
   const looksAuthDead = error?.needsReauth
     || /invalid_grant|invalid_request|unauthorized/i.test(msg)
-    || ['400', '401', '403'].includes(String(error?.code || error?.response?.status || ''));
+    || status === '401';
   if (looksAuthDead) {
     markUserOAuthDead();
     return res.json({
@@ -422,6 +439,18 @@ function _scAuthError(res, error) {
     });
   }
   return null;
+}
+
+// Tiny helper — cached-in-request-scope email lookup for error msgs.
+// Cheap because google_oauth_tokens is a single row.
+let _currentGoogleEmailCache = { at: 0, val: null };
+function currentGoogleEmail() {
+  if (Date.now() - _currentGoogleEmailCache.at < 30000) return _currentGoogleEmailCache.val;
+  // fire-and-forget; on first call returns null, populates for next
+  pool.query(`SELECT email FROM google_oauth_tokens WHERE refresh_token IS NOT NULL ORDER BY updated_at DESC LIMIT 1`)
+    .then(r => { _currentGoogleEmailCache = { at: Date.now(), val: r.rows[0]?.email || null }; })
+    .catch(() => {});
+  return _currentGoogleEmailCache.val;
 }
 
 // Short-lived cache: when user OAuth fails with invalid_grant, skip the
