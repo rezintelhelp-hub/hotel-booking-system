@@ -124180,13 +124180,48 @@ app.get('/api/admin/seo/pagespeed', async (req, res) => {
             });
         }
 
+        // Pull the top failing audits per category so the drill-in
+        // modal can show exactly what to fix (Steve 2026-08-19).
+        // Lighthouse ranks audits with a score 0-1; we surface any
+        // audit with score < 0.9 that has a real title + description.
+        const extractCategoryFails = (data, categoryKey) => {
+            const cat = data.lighthouseResult?.categories?.[categoryKey];
+            const audits = data.lighthouseResult?.audits || {};
+            if (!cat) return [];
+            return (cat.auditRefs || [])
+                .map(ref => {
+                    const a = audits[ref.id];
+                    if (!a) return null;
+                    const score = a.score;
+                    if (score === null || score === undefined) return null;
+                    if (score >= 0.9) return null;
+                    return {
+                        id: ref.id,
+                        title: a.title,
+                        description: (a.description || '').replace(/\[Learn.*?\)/g, '').trim(),
+                        score: Math.round(score * 100),
+                        weight: ref.weight || 0,
+                        displayValue: a.displayValue || null
+                    };
+                })
+                .filter(Boolean)
+                .sort((a, b) => (b.weight || 0) - (a.weight || 0))
+                .slice(0, 8);
+        };
+
         const extractScores = (data) => {
             const categories = data.lighthouseResult?.categories || {};
             return {
                 performance: Math.round((categories.performance?.score || 0) * 100),
                 accessibility: Math.round((categories.accessibility?.score || 0) * 100),
                 bestPractices: Math.round((categories['best-practices']?.score || 0) * 100),
-                seo: Math.round((categories.seo?.score || 0) * 100)
+                seo: Math.round((categories.seo?.score || 0) * 100),
+                fails: {
+                    performance: extractCategoryFails(data, 'performance'),
+                    accessibility: extractCategoryFails(data, 'accessibility'),
+                    bestPractices: extractCategoryFails(data, 'best-practices'),
+                    seo: extractCategoryFails(data, 'seo')
+                }
             };
         };
 
