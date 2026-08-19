@@ -95475,7 +95475,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     `;
                 } else {
-                    container.innerHTML = `<div style="text-align: center; padding: 2rem; color: #ea4335;"><p>Error: ${data.error}</p></div>`;
+                    // Transient Lighthouse errors — offer retry + manual link so
+                    // the operator has an actionable next step instead of a dead
+                    // end. Steve 2026-08-19 — Cotswolds hit "Something went wrong".
+                    const manualLink = data.manual_link
+                        ? `<div style="margin-top: 0.75rem;"><a href="${data.manual_link}" target="_blank" style="color:#4285f4;text-decoration:underline;">Run manually on Google's own PageSpeed tool ↗</a></div>`
+                        : '';
+                    const hint = data.hint
+                        ? `<div style="margin-top: 0.5rem; font-size: 0.85rem; color: #64748b;">${data.hint}</div>`
+                        : '';
+                    const retryBtn = data.transient
+                        ? `<button onclick="loadSiteHealth()" style="margin-top: 0.75rem; background:#4285f4;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">Try again</button>`
+                        : '';
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 1.5rem; color: #ea4335;">
+                            <p style="font-weight: 600; margin: 0;">${data.error || 'PageSpeed check failed'}</p>
+                            ${hint}
+                            ${retryBtn}
+                            ${manualLink}
+                        </div>`;
                 }
             } catch (error) {
                 container.innerHTML = `<div style="text-align: center; padding: 2rem; color: #ea4335;"><p>Error loading PageSpeed data</p></div>`;

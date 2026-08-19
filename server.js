@@ -124124,11 +124124,11 @@ app.post('/api/admin/seo/backfill-all', async (req, res) => {
 app.get('/api/admin/seo/pagespeed', async (req, res) => {
     try {
         const { url } = req.query;
-        
+
         if (!url) {
             return res.json({ success: false, error: 'url is required' });
         }
-        
+
         console.log(`Running PageSpeed analysis for: ${url}`);
 
         // Use a Google Cloud API key with PageSpeed Insights API enabled.
@@ -124139,23 +124139,44 @@ app.get('/api/admin/seo/pagespeed', async (req, res) => {
         const keyParam = apiKey ? `&key=${apiKey}` : '';
         const categories = 'category=PERFORMANCE&category=ACCESSIBILITY&category=BEST_PRACTICES&category=SEO';
         const base = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed';
-        const [mobileResponse, desktopResponse] = await Promise.all([
-            fetch(`${base}?url=${encodeURIComponent(url)}&strategy=mobile&${categories}${keyParam}`),
-            fetch(`${base}?url=${encodeURIComponent(url)}&strategy=desktop&${categories}${keyParam}`)
-        ]);
 
-        const mobileData = await mobileResponse.json();
-        const desktopData = await desktopResponse.json();
+        // Google's Lighthouse can fail transiently ("Something went wrong",
+        // ERRORED_DOCUMENT_REQUEST, LANTERN_FAILED). Auto-retry once with
+        // a small backoff before giving up. Slow client sites are the
+        // usual culprit — a second try often succeeds. Steve 2026-08-19.
+        const runOne = async (strategy) => {
+            const targetUrl = `${base}?url=${encodeURIComponent(url)}&strategy=${strategy}&${categories}${keyParam}`;
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                const resp = await fetch(targetUrl);
+                const data = await resp.json();
+                if (!data.error) return data;
+                // Retry only on transient Lighthouse errors (not quota/config)
+                const errStr = (data.error?.message || '') + ' ' + (data.error?.status || '');
+                const transient = /Something went wrong|ERRORED_DOCUMENT_REQUEST|LANTERN|timeout|timed out|internal/i.test(errStr);
+                if (!transient || attempt === 2) return data;
+                await new Promise(r => setTimeout(r, 3000));
+            }
+        };
+
+        const [mobileData, desktopData] = await Promise.all([
+            runOne('mobile'),
+            runOne('desktop')
+        ]);
 
         // Bubble up Google's quota / config errors so the UI can show a real
         // message instead of silently rendering zeros.
         if (mobileData.error || desktopData.error) {
             const err = mobileData.error || desktopData.error;
+            const transient = /Something went wrong|ERRORED_DOCUMENT_REQUEST|LANTERN|timeout|timed out|internal/i.test(err.message || '');
             return res.json({
                 success: false,
                 code: err.status || err.code,
                 error: err.message,
-                hint: apiKey ? null : 'Set PAGESPEED_API_KEY env var with a Google Cloud API key that has PageSpeed Insights API enabled.',
+                transient,
+                manual_link: `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(url)}`,
+                hint: transient
+                    ? 'Google\'s Lighthouse hit a transient error even after auto-retry. Common on slow / heavy pages. Try again in a minute, or run it manually via the link.'
+                    : (apiKey ? null : 'Set PAGESPEED_API_KEY env var with a Google Cloud API key that has PageSpeed Insights API enabled.'),
             });
         }
 
