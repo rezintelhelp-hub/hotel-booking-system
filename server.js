@@ -390,12 +390,10 @@ async function getUserAuthClient() {
 }
 
 async function getSearchConsoleClient() {
-  // Service-account FIRST (Steve 2026-08-19 migration off user OAuth).
-  // The service account never expires, doesn't need re-consent, and
-  // isn't tied to Steve juggling multiple Google accounts. Data access
-  // is opt-in per property: add gas-platform-service@... as a user on
-  // each Search Console property, and GAS reads immediately work.
-  // Legacy user-OAuth kept as fallback for properties not yet migrated.
+  // Legacy — returns whichever single client is available. Kept for
+  // any older caller. New code should use _scQueryWithFallback below
+  // which tries service account first, falls back to user OAuth on
+  // per-property "sufficient permission" errors.
   if (searchConsole) return searchConsole;
   if (isUserOAuthRecentlyDead()) {
     const err = new Error('Google Search Console session expired — click Reconnect Google');
@@ -405,6 +403,69 @@ async function getSearchConsoleClient() {
   const userAuth = await getUserAuthClient();
   if (userAuth) return google.searchconsole({ version: 'v1', auth: userAuth });
   throw new Error('No Google auth configured');
+}
+
+// Query wrapper — tries service account first (permanent creds,
+// never expires), falls back to user OAuth on 403 "sufficient
+// permission" errors (service account not yet added as user on this
+// specific property). Both auth paths coexist during the SA
+// migration so sites not yet opted-in still work via user OAuth.
+async function _scQueryWithFallback(siteUrl, requestBody) {
+  let saErr = null;
+  if (searchConsole) {
+    try {
+      return await searchConsole.searchanalytics.query({ siteUrl, requestBody });
+    } catch (e) {
+      // Property-permission error → fall through to user OAuth.
+      // Any other error (429 rate-limit, network, etc.) → rethrow.
+      if (!/sufficient permission/i.test(e?.message || '')) throw e;
+      saErr = e;
+    }
+  }
+  // Service account has no access to this property → try user OAuth
+  if (isUserOAuthRecentlyDead()) {
+    const err = new Error('Google Search Console session expired — click Reconnect Google');
+    err.needsReauth = true;
+    throw err;
+  }
+  const userAuth = await getUserAuthClient();
+  if (!userAuth) {
+    // Neither auth path can reach this property. Rethrow the SA
+    // error so _scAuthError shows the "add service account as user"
+    // banner with the exact email.
+    throw saErr || new Error('No Google auth configured');
+  }
+  const userSc = google.searchconsole({ version: 'v1', auth: userAuth });
+  try {
+    return await userSc.searchanalytics.query({ siteUrl, requestBody });
+  } catch (uErr) {
+    // Detect dead user token → mark cache so we skip user OAuth
+    // for the next 5 min. Rethrow so caller handles the response.
+    if (/invalid_grant|invalid_request/i.test(uErr?.message || '')) markUserOAuthDead();
+    throw uErr;
+  }
+}
+
+// Same fallback pattern for sites.list() (used by /api/admin/seo/sites)
+async function _scSitesListWithFallback() {
+  const seen = new Map();
+  if (searchConsole) {
+    try {
+      const r = await searchConsole.sites.list();
+      (r.data.siteEntry || []).forEach(s => seen.set(s.siteUrl, { url: s.siteUrl, permission: s.permissionLevel, via: 'service_account' }));
+    } catch (_) { /* fall through */ }
+  }
+  try {
+    const userAuth = await getUserAuthClient();
+    if (userAuth) {
+      const uSc = google.searchconsole({ version: 'v1', auth: userAuth });
+      const r = await uSc.sites.list();
+      (r.data.siteEntry || []).forEach(s => {
+        if (!seen.has(s.siteUrl)) seen.set(s.siteUrl, { url: s.siteUrl, permission: s.permissionLevel, via: 'user_oauth' });
+      });
+    }
+  } catch (_) { /* swallow */ }
+  return Array.from(seen.values());
 }
 
 // Central helper for the four SC endpoints — same detection everywhere.
@@ -117650,17 +117711,14 @@ app.get('/api/admin/seo/keywords', async (req, res) => {
         const endDate = end_date || new Date().toISOString().split('T')[0];
         const startDate = start_date || new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        const response = await sc.searchanalytics.query({
-            siteUrl: site_url,
-            requestBody: {
-                startDate: startDate,
-                endDate: endDate,
-                dimensions: ['query'],
-                rowLimit: parseInt(limit),
-                dataState: 'final'
-            }
+        const response = await _scQueryWithFallback(site_url, {
+            startDate: startDate,
+            endDate: endDate,
+            dimensions: ['query'],
+            rowLimit: parseInt(limit),
+            dataState: 'final'
         });
-        
+
         const keywords = (response.data.rows || []).map(row => ({
             keyword: row.keys[0],
             clicks: row.clicks,
@@ -117699,17 +117757,14 @@ app.get('/api/admin/seo/pages', async (req, res) => {
         const endDate = end_date || new Date().toISOString().split('T')[0];
         const startDate = start_date || new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        const response = await sc.searchanalytics.query({
-            siteUrl: site_url,
-            requestBody: {
-                startDate: startDate,
-                endDate: endDate,
-                dimensions: ['page'],
-                rowLimit: parseInt(limit),
-                dataState: 'final'
-            }
+        const response = await _scQueryWithFallback(site_url, {
+            startDate: startDate,
+            endDate: endDate,
+            dimensions: ['page'],
+            rowLimit: parseInt(limit),
+            dataState: 'final'
         });
-        
+
         const pages = (response.data.rows || []).map(row => ({
             page: row.keys[0],
             clicks: row.clicks,
@@ -117749,13 +117804,10 @@ app.get('/api/admin/seo/summary', async (req, res) => {
         const startDate = start_date || new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
         // Get current period
-        const currentResponse = await sc.searchanalytics.query({
-            siteUrl: site_url,
-            requestBody: {
-                startDate: startDate,
-                endDate: endDate,
-                dataState: 'final'
-            }
+        const currentResponse = await _scQueryWithFallback(site_url, {
+            startDate: startDate,
+            endDate: endDate,
+            dataState: 'final'
         });
 
         // Get previous period for comparison
@@ -117763,13 +117815,10 @@ app.get('/api/admin/seo/summary', async (req, res) => {
         const prevEndDate = new Date(new Date(startDate).getTime() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         const prevStartDate = new Date(new Date(prevEndDate).getTime() - daysDiff * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        const prevResponse = await sc.searchanalytics.query({
-            siteUrl: site_url,
-            requestBody: {
-                startDate: prevStartDate,
-                endDate: prevEndDate,
-                dataState: 'final'
-            }
+        const prevResponse = await _scQueryWithFallback(site_url, {
+            startDate: prevStartDate,
+            endDate: prevEndDate,
+            dataState: 'final'
         });
         
         const current = currentResponse.data.rows?.[0] || { clicks: 0, impressions: 0, ctr: 0, position: 0 };
@@ -117965,17 +118014,14 @@ app.get('/api/admin/seo/opportunities', async (req, res) => {
         const endDate = new Date().toISOString().split('T')[0];
         const startDate = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        const response = await sc.searchanalytics.query({
-            siteUrl: site_url,
-            requestBody: {
-                startDate: startDate,
-                endDate: endDate,
-                dimensions: ['query'],
-                rowLimit: 500,
-                dataState: 'final'
-            }
+        const response = await _scQueryWithFallback(site_url, {
+            startDate: startDate,
+            endDate: endDate,
+            dimensions: ['query'],
+            rowLimit: 500,
+            dataState: 'final'
         });
-        
+
         // Filter for opportunities: position 5-20 with decent impressions
         const opportunities = (response.data.rows || [])
             .filter(row => row.position >= 5 && row.position <= 20 && row.impressions >= 10)
