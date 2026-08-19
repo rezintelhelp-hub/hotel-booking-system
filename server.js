@@ -117790,6 +117790,68 @@ app.get('/api/admin/seo/sites', async (req, res) => {
     }
 });
 
+// Diagnostic: dump every GSC property + probe each URL variant to see
+// which one has data. Master-only. Add ?site=moonriverbedandbreakfast.com
+// (bare host — we test all variants). Steve 2026-08-19 — Moonriver
+// dashboard shows blanks despite verified/sitemap-live for 40+ days.
+app.get('/api/admin/seo/debug-site', async (req, res) => {
+    try {
+        const sc = await getSearchConsoleClient();
+        if (!sc) return res.json({ error: 'Google APIs not configured' });
+        const bareHost = (req.query.site || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+        if (!bareHost) return res.json({ error: 'pass ?site=hostname (no protocol)' });
+
+        // 1. All properties this OAuth account can see (UNFILTERED)
+        const sitesList = await sc.sites.list();
+        const allProps = (sitesList.data.siteEntry || []).map(s => ({
+            url: s.siteUrl,
+            permission: s.permissionLevel,
+        }));
+
+        // 2. Just the ones matching this host (any variant)
+        const matching = allProps.filter(p => p.url.includes(bareHost));
+
+        // 3. Probe every URL variant with a 90-day searchanalytics query
+        const endDate = new Date().toISOString().split('T')[0];
+        const startDate = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
+        const variants = [
+            `https://${bareHost}/`,
+            `https://${bareHost}`,
+            `http://${bareHost}/`,
+            `https://www.${bareHost}/`,
+            `sc-domain:${bareHost}`,
+        ];
+        const probes = [];
+        for (const v of variants) {
+            try {
+                const r = await sc.searchanalytics.query({
+                    siteUrl: v,
+                    requestBody: { startDate, endDate, dimensions: ['query'], rowLimit: 3, dataState: 'final' },
+                });
+                probes.push({
+                    variant: v,
+                    ok: true,
+                    rowCount: (r.data.rows || []).length,
+                    sampleTopKeyword: r.data.rows?.[0]?.keys?.[0] || null,
+                    totalClicks: (r.data.rows || []).reduce((n, row) => n + (row.clicks || 0), 0),
+                });
+            } catch (e) {
+                probes.push({ variant: v, ok: false, error: e.message });
+            }
+        }
+
+        res.json({
+            bareHost,
+            allProps,
+            matching,
+            probes,
+            period: { start: startDate, end: endDate },
+        });
+    } catch (e) {
+        res.json({ error: e.message });
+    }
+});
+
 // Get SEO opportunities (keywords ranking 5-20 with high impressions)
 app.get('/api/admin/seo/opportunities', async (req, res) => {
     try {
