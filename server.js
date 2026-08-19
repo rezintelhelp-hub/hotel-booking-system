@@ -125005,7 +125005,37 @@ app.get('/api/admin/seo/growth-features', async (req, res) => {
             AND p.pg->>'slug' <> ALL($2::text[])
         `;
 
-        const [blogCount, attractionCount, upsellCount, reviewCount, offerCount, formCount, shopCount, customPageCount] = await Promise.all([
+        // Contact-form check — Web Builder's default contact page has
+        // a form enabled unless the operator explicitly turned it off
+        // in page-contact settings. This is DIFFERENT from custom
+        // lead-capture forms in the lead_forms table (Steve 2026-08-19
+        // — was conflated before; sites with the default contact form
+        // were showing "Lead forms: 0" as if they had no form at all).
+        const contactSettingsSql = `
+          SELECT COALESCE(settings->>'show-form', 'true') AS show_form
+          FROM website_settings
+          WHERE deployed_site_id = $1 AND section = 'page-contact'
+          LIMIT 1
+        `;
+        const safeVal = async (sql, params, fallback) => {
+            try {
+                const r = await pool.query(sql, params);
+                return r.rows[0] || fallback;
+            } catch (e) {
+                console.warn('growth-features val failed:', e.message);
+                return fallback;
+            }
+        };
+
+        // Reviews-widget check — Repuso integration. If configured,
+        // the site is displaying reviews from Repuso even when the
+        // reviews table itself is empty. Also count repuso_reviews
+        // as an alternate source (some accounts import there).
+        const [
+            blogCount, attractionCount, upsellCount, reviewCount, offerCount,
+            formCount, shopCount, customPageCount,
+            contactSettings, repusoAccountRow, repusoReviewCount
+        ] = await Promise.all([
             safe(`SELECT COUNT(*) FROM blog_posts WHERE client_id = $1 AND is_published = true`, [accountId]),
             safe(`SELECT COUNT(*) FROM attractions WHERE client_id = $1 AND is_published = true`, [accountId]),
             safe(`SELECT COUNT(*) FROM upsells WHERE property_id = ANY($1) AND active = true`, [propScope]),
@@ -125013,24 +125043,62 @@ app.get('/api/admin/seo/growth-features', async (req, res) => {
             safe(`SELECT COUNT(*) FROM offers WHERE account_id = $1 AND active = true`, [accountId]),
             safe(`SELECT COUNT(*) FROM lead_forms WHERE account_id = $1 AND active = true`, [accountId]),
             safe(`SELECT COUNT(*) FROM shop_products WHERE account_id = $1 AND is_active = true`, [accountId]),
-            safe(customPagesSql, [deployedSiteId, excluded])
+            safe(customPagesSql, [deployedSiteId, excluded]),
+            safeVal(contactSettingsSql, [deployedSiteId], { show_form: 'true' }),
+            safeVal(`SELECT repuso_widget_key, repuso_connected FROM accounts WHERE id = $1`, [accountId], {}),
+            safe(`SELECT COUNT(*) FROM repuso_reviews WHERE account_id = $1`, [accountId], 0)
         ]);
 
-        // Status thresholds — green = doing well, amber = some content but could grow,
-        // red = nothing at all (the easiest win for direct booking growth).
+        // Derived signals
+        const contactFormEnabled = contactSettings.show_form !== 'false' && contactSettings.show_form !== false;
+        const hasReviewsWidget = !!(repusoAccountRow.repuso_widget_key) || repusoAccountRow.repuso_connected === true;
+        const anyReviewSource = reviewCount + repusoReviewCount;
+        const reviewsShown = anyReviewSource > 0 || hasReviewsWidget;
+        const anyForm = contactFormEnabled || formCount > 0;
+
+        // Status thresholds — green = doing well, amber = some content
+        // but could grow, red = nothing at all.
         const status = (n, good, improve) => n >= good ? 'good' : (n >= improve ? 'improve' : 'missing');
 
         res.json({
             success: true,
             features: [
-                { key: 'blog',        label: 'Blog posts',      count: blogCount,       status: status(blogCount, 6, 1),  link: 'app-blog',      help: 'Long-tail SEO content — write about your area, your hotel, your guests.' },
-                { key: 'attractions', label: 'Attractions',     count: attractionCount, status: status(attractionCount, 4, 1), link: 'app-attractions', help: 'Local landmarks + things to do near your property — strong local SEO signal.' },
-                { key: 'upsells',     label: 'Upsells / extras', count: upsellCount,    status: status(upsellCount, 3, 1), link: 'app-upsells',   help: 'Breakfast, late check-out, parking — raise AOV on every direct booking.' },
-                { key: 'reviews',     label: 'Reviews',         count: reviewCount,     status: status(reviewCount, 10, 1), link: 'app-reviews',    help: 'Social proof = higher conversion. Display real guest reviews on the site.' },
-                { key: 'offers',      label: 'Active offers',   count: offerCount,      status: status(offerCount, 2, 1),  link: 'app-offers',    help: 'Direct-only discounts beat OTA rate parity rules and give guests a reason to book here.' },
-                { key: 'forms',       label: 'Lead forms',      count: formCount,       status: status(formCount, 1, 1),   link: 'app-forms',     help: 'Capture enquiries from visitors not ready to book — long-tail revenue.' },
-                { key: 'shop',        label: 'Shop products',   count: shopCount,       status: status(shopCount, 3, 1),   link: 'app-shop',      help: 'Vouchers, merch, experiences — extra direct revenue beyond room rate.' },
-                { key: 'pages',       label: 'Custom pages',    count: customPageCount, status: status(customPageCount, 3, 1), link: null,           help: 'Marketing landing pages (city guides, event pages) target specific search terms.' }
+                { key: 'blog',        label: 'Blog posts',       count: blogCount,       status: status(blogCount, 6, 1),  link: 'app-blog',        help: 'Long-tail SEO content — write about your area, your hotel, your guests.' },
+                { key: 'attractions', label: 'Attractions',      count: attractionCount, status: status(attractionCount, 4, 1), link: 'app-attractions', help: 'Local landmarks + things to do near your property — strong local SEO signal.' },
+                { key: 'upsells',     label: 'Upsells / extras', count: upsellCount,     status: status(upsellCount, 3, 1), link: 'app-upsells',     help: 'Breakfast, late check-out, parking — raise AOV on every direct booking.' },
+                {
+                    key: 'reviews',
+                    label: 'Reviews shown',
+                    count: anyReviewSource,
+                    status: reviewsShown ? (anyReviewSource >= 10 ? 'good' : 'improve') : 'missing',
+                    link: 'app-reviews',
+                    help: 'Social proof drives conversion. Green if EITHER (a) reviews are in the GAS reviews table, (b) Repuso reviews imported, or (c) Repuso widget configured for this account.',
+                    detail: {
+                        reviews_table_count: reviewCount,
+                        repuso_reviews_count: repusoReviewCount,
+                        repuso_widget_configured: hasReviewsWidget
+                    }
+                },
+                { key: 'offers',      label: 'Active offers',    count: offerCount,      status: status(offerCount, 2, 1),  link: 'app-offers',      help: 'Direct-only discounts beat OTA rate parity rules and give guests a reason to book here.' },
+                {
+                    key: 'contact_form',
+                    label: 'Contact form',
+                    count: contactFormEnabled ? 1 : 0,
+                    status: contactFormEnabled ? 'good' : 'missing',
+                    link: null,
+                    help: 'The built-in Web Builder contact page. Enabled by default; only red if you explicitly turned it off.',
+                    detail: { show_form_setting: contactSettings.show_form }
+                },
+                {
+                    key: 'lead_forms',
+                    label: 'Custom lead forms',
+                    count: formCount,
+                    status: status(formCount, 1, 1),
+                    link: 'app-forms',
+                    help: 'Extra lead-capture forms beyond the default contact page (quote requests, subscribe, download-a-guide etc.). Not the same as the contact form.'
+                },
+                { key: 'shop',        label: 'Shop products',    count: shopCount,       status: status(shopCount, 3, 1),   link: 'app-shop',        help: 'Vouchers, merch, experiences — extra direct revenue beyond room rate.' },
+                { key: 'pages',       label: 'Custom pages',     count: customPageCount, status: status(customPageCount, 3, 1), link: null,             help: 'Marketing landing pages (city guides, event pages) target specific search terms.' }
             ]
         });
     } catch (error) {
