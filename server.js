@@ -2914,6 +2914,13 @@ async function runMigrations() {
       // Default TRUE preserves existing behaviour for every current account.
       await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS notify_main_email BOOLEAN DEFAULT TRUE`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS min_advance_hours INTEGER DEFAULT NULL`);
+      // Moved here from /api/public/client/:clientId/blog handler
+      // (Steve 2026-08-19 speed pass) — was firing on every public blog
+      // page load, small but 100% wasted after the first invocation
+      // per deploy. Column is needed by the WHERE clause that filters
+      // GAS Fire drafts (is_unlisted=true) out of the operator-curated
+      // /blog listing. Direct-slug endpoint intentionally shows them.
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS is_unlisted BOOLEAN DEFAULT false`).catch(() => {});
       // Multi-room manual bookings — Steve 2026-07-12. All rooms in a single
       // '+ Add another room' group share this UUID so the Booking Detail /
       // list views can render them together. Nullable = single-room booking.
@@ -127466,13 +127473,9 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
         const { category, property_id, limit = 10, offset = 0, lang = 'en' } = req.query;
         
         console.log('Public blog API called:', { clientId, property_id, category, limit, lang });
-        
-        // Guarantee is_unlisted column exists before filtering on it.
-        // Migration was inside /setup-accounts-billing which requires a
-        // manual hit — Moonriver's public /blog went blank because the
-        // filter referenced a column that didn't exist yet (2026-07-14).
-        // Idempotent, silently no-ops if already applied.
-        await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS is_unlisted BOOLEAN DEFAULT false`).catch(() => {});
+        // is_unlisted column is guaranteed by the startup schema block —
+        // moved out of this handler to save a DB metadata round-trip on
+        // every public /blog hit (Steve 2026-08-19 speed pass).
         // LEFT JOIN so site-wide posts (no property_id) still appear.
         // is_unlisted filter: GAS Fire drafts default to unlisted so they
         // stay out of the operator's curated /blog listing while still
@@ -127543,6 +127546,13 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
         const parsedOffset = parseInt(offset);
         const hasMore = (parsedOffset + parsedLimit) < total;
 
+        // Speed pass (Steve 2026-08-19) — 30s browser cache + 60s
+        // stale-while-revalidate. Blog content doesn't change second
+        // by second; editor edits show up within 30s of save. Big
+        // repeat-visitor + subpage-nav win. Vary by lang because the
+        // response body is language-specific.
+        res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+        res.set('Vary', 'Accept-Language');
         res.json({ success: true, posts, total, has_more: hasMore });
     } catch (error) {
         console.error('Public blog API error:', error);
@@ -127579,6 +127589,9 @@ app.get('/api/public/client/:clientId/blog/:slug', async (req, res) => {
             meta_description: post.meta_description_ml?.[lang] || post.meta_description_ml?.en || post.meta_description
         };
         
+        // Speed pass — 30s cache + 60s SWR (matches blog list endpoint).
+        res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+        res.set('Vary', 'Accept-Language');
         res.json({ success: true, post: localizedPost });
     } catch (error) {
         res.json({ success: false, error: error.message });
@@ -127690,6 +127703,8 @@ app.get('/api/public/client/:clientId/attractions', async (req, res) => {
         }));
 
         const hasMore = (parsedOffset + parsedLimit) < total;
+        res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+        res.set('Vary', 'Accept-Language');
         res.json({ success: true, attractions, total, has_more: hasMore });
     } catch (error) {
         res.json({ success: false, error: error.message });
@@ -127733,6 +127748,8 @@ app.get('/api/public/client/:clientId/attractions/:slug', async (req, res) => {
             images: imagesResult.rows
         };
         
+        res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+        res.set('Vary', 'Accept-Language');
         res.json({ success: true, attraction });
     } catch (error) {
         res.json({ success: false, error: error.message });
@@ -152688,7 +152705,11 @@ app.get('/api/public/client/:clientId/reviews', async (req, res) => {
         query += ` ORDER BY r.review_date DESC NULLS LAST, r.created_at DESC LIMIT ${reviewLimit}`;
         
         const reviewsResult = await pool.query(query, params);
-        
+
+        // Speed pass — reviews change slowly (new OTA reviews sync
+        // hourly-daily); 30s cache + 60s SWR gives instant repeat
+        // visits without hiding fresh reviews for long.
+        res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
         res.json({
             success: true,
             reviews: reviewsResult.rows.map(r => ({
