@@ -5054,7 +5054,15 @@ jQuery(document).ready(function($) {
             
             // First check if room can accommodate the guests
             if (selectedGuests > maxGuests) {
-                $room.removeClass('available').addClass('unavailable guest-exceeded');
+                // MUST removeClass('checking') here too. PHP renders
+                // every card with .checking when dates are in the URL
+                // (line 7194/7414 in gas-booking.php). Guest-exceeded
+                // rooms return early without firing ajax, so if we
+                // don't clear .checking, tryReorder's poll never sees
+                // zero .checking and the spinner runs to the 10s cap.
+                // Common on Hebden: any 4-guest search + a single-bed
+                // room = stuck spinner. Steve 2026-08-19 second report.
+                $room.removeClass('available checking').addClass('unavailable guest-exceeded');
                 $room.find('.gas-room-price, .gas-room-row-price').html('<span class="gas-too-small">' + t('booking', 'max_guests', 'Max %s guests').replace('%s', maxGuests) + '</span>');
                 $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#9ca3af', 'pointer-events': 'none'}).text(t('booking', 'not_available', 'Not Available'));
                 return; // Skip availability check
@@ -5238,13 +5246,22 @@ jQuery(document).ready(function($) {
             }
         }
         
-        // Poll every 500ms until all rooms are checked, max 10 seconds
-        reorderTimer = setInterval(tryReorder, 500);
+        // Poll every 250ms until all rooms are checked. Force-hide the
+        // spinner after 3s regardless (was 10s until 2026-08-19). The
+        // .checking-sentinel bugs shipped earlier today made the 10s
+        // cap the actual UX — the real "all done" event usually fires
+        // in ~300ms, and a defensive 3s cap keeps worst-case within
+        // reason if a future leak ever slips through.
+        reorderTimer = setInterval(tryReorder, 250);
         setTimeout(function() {
             clearInterval(reorderTimer);
-            reorderRooms(); // Force reorder after 10s regardless
+            // Force-clear any remaining .checking so future runs of
+            // tryReorder don't see stale sentinels. This is a defence-
+            // in-depth net for any not-yet-caught leak path.
+            $('.gas-room-card.checking, .gas-room-row.checking').removeClass('checking');
+            reorderRooms();
             $('.gas-loading-spinner').remove();
-        }, 10000);
+        }, 3000);
     }
     
     // Reorder rooms - unavailable at bottom, always show ALL available rooms
