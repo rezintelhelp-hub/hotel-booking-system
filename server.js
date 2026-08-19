@@ -3048,6 +3048,28 @@ async function runMigrations() {
       // GAS Fire drafts (is_unlisted=true) out of the operator-curated
       // /blog listing. Direct-slug endpoint intentionally shows them.
       await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS is_unlisted BOOLEAN DEFAULT false`).catch(() => {});
+      // Site redirects — Bounce Audit Phase 2 (Steve 2026-08-19). Per-
+      // deployed-site 301/302 redirects. Populated from the bounce
+      // audit "Apply redirect" flow. Consumed by the gas-booking plugin
+      // on WP 404s via /api/public/redirects — no nginx config needed.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS site_redirects (
+          id           SERIAL PRIMARY KEY,
+          deployed_site_id INTEGER NOT NULL REFERENCES deployed_sites(id) ON DELETE CASCADE,
+          from_path    TEXT NOT NULL,
+          to_path      TEXT NOT NULL,
+          status_code  INTEGER NOT NULL DEFAULT 301,
+          source       VARCHAR(50) DEFAULT 'manual',
+          notes        TEXT,
+          hit_count    INTEGER DEFAULT 0,
+          last_hit_at  TIMESTAMPTZ,
+          created_by   INTEGER,
+          created_at   TIMESTAMPTZ DEFAULT NOW(),
+          updated_at   TIMESTAMPTZ DEFAULT NOW(),
+          UNIQUE(deployed_site_id, from_path)
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_site_redirects_site ON site_redirects(deployed_site_id)`);
       // Multi-room manual bookings — Steve 2026-07-12. All rooms in a single
       // '+ Add another room' group share this UUID so the Booking Detail /
       // list views can render them together. Nullable = single-room booking.
@@ -124535,6 +124557,209 @@ app.get('/api/admin/seo/bounce-audit', async (req, res) => {
     } catch (error) {
         console.error('bounce-audit error:', error);
         res.json({ success: false, error: error.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Bounce Audit Phase 2 — redirects + URL search picker
+// Steve 2026-08-19. Turns audit suggestions into applied redirects.
+// ─────────────────────────────────────────────────────────────────
+
+// Search all URLs on a site — sitemap + rooms (with unit_id shape) +
+// blog posts + attractions + custom pages. Used by the redirect
+// picker so operators can find the actual live URL to redirect TO.
+app.get('/api/admin/seo/site-urls', async (req, res) => {
+    try {
+        const { site_url, q = '' } = req.query;
+        if (!site_url) return res.json({ success: false, error: 'site_url required' });
+        const qLc = q.toLowerCase();
+        const siteRow = await pool.query(
+            'SELECT id, account_id FROM deployed_sites WHERE site_url = $1 LIMIT 1',
+            [site_url]
+        );
+        if (!siteRow.rows[0]) return res.json({ success: false, error: 'Site not found' });
+        const { account_id: accountId } = siteRow.rows[0];
+
+        const urls = [];
+
+        // Sitemap URLs
+        try {
+            const smResp = await fetch(new URL('/sitemap.xml', site_url).href, { redirect: 'follow', headers: { 'User-Agent': 'GAS-URLPicker/1.0' } });
+            if (smResp.ok) {
+                const smText = await smResp.text();
+                const matches = smText.match(/<loc>([^<]+)<\/loc>/g) || [];
+                matches.forEach(m => {
+                    try {
+                        const path = new URL(m.replace(/<\/?loc>/g, '')).pathname;
+                        urls.push({ path, label: path, type: 'page', source: 'sitemap' });
+                    } catch (_) {}
+                });
+            }
+        } catch (_) {}
+
+        // Room URLs (bookable_units → /room/?unit_id=X)
+        try {
+            const rooms = await pool.query(
+                `SELECT bu.id, bu.name FROM bookable_units bu
+                 JOIN properties p ON p.id = bu.property_id
+                 WHERE p.account_id = $1 ORDER BY bu.name LIMIT 200`,
+                [accountId]
+            );
+            rooms.rows.forEach(r => {
+                urls.push({
+                    path: `/room/?unit_id=${r.id}`,
+                    label: `/room/?unit_id=${r.id} — ${r.name}`,
+                    type: 'room',
+                    source: 'gas'
+                });
+            });
+        } catch (_) {}
+
+        // Blog posts
+        try {
+            const blogs = await pool.query(
+                `SELECT slug, title FROM blog_posts WHERE client_id = $1 AND is_published = true ORDER BY published_at DESC LIMIT 100`,
+                [accountId]
+            );
+            blogs.rows.forEach(b => {
+                urls.push({ path: `/blog/${b.slug}/`, label: `/blog/${b.slug}/ — ${b.title}`, type: 'blog', source: 'gas' });
+            });
+        } catch (_) {}
+
+        // Attractions
+        try {
+            const atts = await pool.query(
+                `SELECT slug, name FROM attractions WHERE client_id = $1 AND is_published = true ORDER BY display_order LIMIT 100`,
+                [accountId]
+            );
+            atts.rows.forEach(a => {
+                urls.push({ path: `/attractions/${a.slug}/`, label: `/attractions/${a.slug}/ — ${a.name}`, type: 'attraction', source: 'gas' });
+            });
+        } catch (_) {}
+
+        // Dedupe by path
+        const seen = new Set();
+        const unique = urls.filter(u => (seen.has(u.path) ? false : seen.add(u.path)));
+
+        // Optional filter
+        const filtered = qLc
+            ? unique.filter(u => u.path.toLowerCase().includes(qLc) || u.label.toLowerCase().includes(qLc))
+            : unique;
+
+        res.json({ success: true, urls: filtered.slice(0, 100), total: filtered.length });
+    } catch (e) {
+        console.error('site-urls error:', e);
+        res.json({ success: false, error: e.message });
+    }
+});
+
+// List redirects for a site
+app.get('/api/admin/seo/redirects', async (req, res) => {
+    try {
+        const { site_url } = req.query;
+        if (!site_url) return res.json({ success: false, error: 'site_url required' });
+        const siteRow = await pool.query('SELECT id FROM deployed_sites WHERE site_url = $1 LIMIT 1', [site_url]);
+        if (!siteRow.rows[0]) return res.json({ success: false, error: 'Site not found' });
+        const r = await pool.query(
+            `SELECT id, from_path, to_path, status_code, source, notes, hit_count, last_hit_at, created_at
+             FROM site_redirects WHERE deployed_site_id = $1 ORDER BY created_at DESC`,
+            [siteRow.rows[0].id]
+        );
+        res.json({ success: true, redirects: r.rows });
+    } catch (e) {
+        res.json({ success: false, error: e.message });
+    }
+});
+
+// Create a redirect
+app.post('/api/admin/seo/redirects', async (req, res) => {
+    try {
+        const { site_url, from_path, to_path, status_code = 301, source = 'manual', notes } = req.body;
+        if (!site_url || !from_path || !to_path) return res.json({ success: false, error: 'site_url, from_path, to_path required' });
+        const siteRow = await pool.query('SELECT id FROM deployed_sites WHERE site_url = $1 LIMIT 1', [site_url]);
+        if (!siteRow.rows[0]) return res.json({ success: false, error: 'Site not found' });
+        // Normalize paths: ensure they start with /, don't include origin
+        const normalize = (p) => {
+            try {
+                if (/^https?:/i.test(p)) return new URL(p).pathname + (new URL(p).search || '');
+            } catch (_) {}
+            return p.startsWith('/') ? p : '/' + p;
+        };
+        const fp = normalize(from_path);
+        const tp = normalize(to_path);
+        const sc = [301, 302, 307, 308].includes(parseInt(status_code)) ? parseInt(status_code) : 301;
+
+        const r = await pool.query(
+            `INSERT INTO site_redirects (deployed_site_id, from_path, to_path, status_code, source, notes)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (deployed_site_id, from_path) DO UPDATE SET
+               to_path = EXCLUDED.to_path,
+               status_code = EXCLUDED.status_code,
+               source = EXCLUDED.source,
+               notes = EXCLUDED.notes,
+               updated_at = NOW()
+             RETURNING id, from_path, to_path, status_code`,
+            [siteRow.rows[0].id, fp, tp, sc, source, notes || null]
+        );
+        res.json({ success: true, redirect: r.rows[0] });
+    } catch (e) {
+        console.error('POST redirects error:', e);
+        res.json({ success: false, error: e.message });
+    }
+});
+
+// Delete a redirect
+app.delete('/api/admin/seo/redirects/:id', async (req, res) => {
+    try {
+        await pool.query('DELETE FROM site_redirects WHERE id = $1', [parseInt(req.params.id)]);
+        res.json({ success: true });
+    } catch (e) {
+        res.json({ success: false, error: e.message });
+    }
+});
+
+// PUBLIC endpoint — the gas-booking WP plugin calls this from its
+// 404 handler. Returns all active redirects for the calling site
+// so the plugin can send a 301 without a per-request DB round-trip
+// (plugin caches for 5 min). Fires-and-forgets a hit-count increment
+// so the "Manage redirects" UI can show which are actually catching
+// traffic.
+app.get('/api/public/redirects', async (req, res) => {
+    try {
+        const { site_url } = req.query;
+        if (!site_url) return res.json({ success: false, error: 'site_url required' });
+        const siteRow = await pool.query('SELECT id FROM deployed_sites WHERE site_url = $1 LIMIT 1', [site_url]);
+        if (!siteRow.rows[0]) return res.json({ success: true, redirects: [] });
+        const r = await pool.query(
+            `SELECT from_path, to_path, status_code
+             FROM site_redirects WHERE deployed_site_id = $1`,
+            [siteRow.rows[0].id]
+        );
+        // 5-min cache header — plugin will re-fetch after that
+        res.set('Cache-Control', 'public, max-age=300');
+        res.json({ success: true, redirects: r.rows });
+    } catch (e) {
+        res.json({ success: false, error: e.message });
+    }
+});
+
+// PUBLIC endpoint — plugin fires-and-forgets a hit when it actually
+// serves a redirect. Lets the admin UI show "this redirect caught
+// 47 requests last week" — proof the audit work is paying off.
+app.post('/api/public/redirects/hit', async (req, res) => {
+    try {
+        const { site_url, from_path } = req.body;
+        if (!site_url || !from_path) return res.json({ success: false });
+        const siteRow = await pool.query('SELECT id FROM deployed_sites WHERE site_url = $1 LIMIT 1', [site_url]);
+        if (!siteRow.rows[0]) return res.json({ success: false });
+        await pool.query(
+            `UPDATE site_redirects SET hit_count = hit_count + 1, last_hit_at = NOW()
+             WHERE deployed_site_id = $1 AND from_path = $2`,
+            [siteRow.rows[0].id, from_path]
+        );
+        res.json({ success: true });
+    } catch (_) {
+        res.json({ success: false });
     }
 });
 

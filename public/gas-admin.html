@@ -93978,6 +93978,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                             ${p.why ? `<div style="margin-top:4px;font-size:0.75rem;color:#64748b;line-height:1.35;">${p.why}</div>` : ''}
                             ${p.suggested_redirect ? `<div style="margin-top:4px;font-size:0.75rem;"><span style="color:#16a34a;">→ Suggest 301 to</span> <code style="background:#dcfce7;padding:1px 6px;border-radius:3px;font-size:0.72rem;">${p.suggested_redirect}</code></div>` : ''}
                             ${p.redirected_to ? `<div style="margin-top:2px;font-size:0.7rem;color:#94a3b8;">Currently redirects to <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">${p.redirected_to}</code></div>` : ''}
+                            <div style="margin-top:6px;display:flex;gap:6px;">
+                                ${p.suggested_redirect ? `<button onclick="applySuggestedRedirect(${JSON.stringify(p.path).replace(/"/g,'&quot;')}, ${JSON.stringify(p.suggested_redirect).replace(/"/g,'&quot;')}, ${JSON.stringify(p.pattern || 'audit').replace(/"/g,'&quot;')})" style="background:#16a34a;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:0.72rem;font-weight:600;">Apply suggested →</button>` : ''}
+                                <button onclick="openRedirectPicker(${JSON.stringify(p.path).replace(/"/g,'&quot;')})" style="background:#3b82f6;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:0.72rem;font-weight:600;">Pick target…</button>
+                            </div>
                         </td>
                         <td style="padding:0.55rem 0.5rem;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:600;color:#ef4444;">${p.bounceRate}%</td>
                         <td style="padding:0.55rem 0.5rem;border-bottom:1px solid #f1f5f9;text-align:right;color:#64748b;">${_fmtNumber(p.sessions)}</td>
@@ -95583,6 +95587,101 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>`;
             modal.style.display = 'flex';
+        }
+
+        // Apply the audit-suggested 301 straight away — one-click.
+        async function applySuggestedRedirect(fromPath, toPath, source) {
+            const siteUrl = window._seoCurrentSiteUrl || document.getElementById('seo-site-select')?.value;
+            if (!siteUrl) { alert('Pick a site first'); return; }
+            if (!confirm(`Apply 301 redirect?\n\nFrom: ${fromPath}\nTo: ${toPath}\n\nTakes effect within 5 minutes (WP cache TTL).`)) return;
+            try {
+                const r = await fetch('/api/admin/seo/redirects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ site_url: siteUrl, from_path: fromPath, to_path: toPath, status_code: 301, source: 'audit-' + source })
+                });
+                const d = await r.json();
+                if (!d.success) { alert('Failed: ' + d.error); return; }
+                alert('✓ Redirect saved. Live within 5 minutes.');
+                showBouncingPagesModal();
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        // Full picker — search all URLs on the site, select target, save.
+        async function openRedirectPicker(fromPath) {
+            const siteUrl = window._seoCurrentSiteUrl || document.getElementById('seo-site-select')?.value;
+            if (!siteUrl) { alert('Pick a site first'); return; }
+            let modal = document.getElementById('redirectPickerModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'redirectPickerModal';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+                document.body.appendChild(modal);
+                modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+            }
+            modal.innerHTML = `
+                <div style="background:#fff;border-radius:12px;max-width:640px;width:100%;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;">
+                    <div style="padding:1rem 1.25rem;border-bottom:1px solid #e2e8f0;">
+                        <div style="display:flex;justify-content:space-between;align-items:start;">
+                            <div>
+                                <h3 style="margin:0;font-size:1.05rem;color:#0f172a;">Pick redirect target</h3>
+                                <p style="margin:0.35rem 0 0;font-size:0.8rem;color:#64748b;">Redirect <code style="background:#f1f5f9;padding:1px 6px;border-radius:3px;">${fromPath}</code> →</p>
+                            </div>
+                            <button onclick="document.getElementById('redirectPickerModal').remove()" style="background:none;border:none;font-size:1.5rem;color:#64748b;cursor:pointer;">&times;</button>
+                        </div>
+                        <input id="redirectPickerSearch" placeholder="Search rooms, blog posts, attractions, pages…" style="margin-top:0.75rem;width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.9rem;">
+                    </div>
+                    <div id="redirectPickerResults" style="padding:0.75rem 0.5rem;overflow-y:auto;flex:1;">
+                        <div style="text-align:center;color:#64748b;padding:1rem;">Loading URLs…</div>
+                    </div>
+                    <div style="padding:0.75rem 1.25rem;border-top:1px solid #e2e8f0;background:#f8fafc;">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <span style="font-size:0.8rem;color:#64748b;flex-shrink:0;">Or paste any URL:</span>
+                            <input id="redirectPickerFreeform" placeholder="/some-path/ or https://…" style="flex:1;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+                            <button onclick="savePickedRedirect('${fromPath.replace(/'/g,"\\'")}', document.getElementById('redirectPickerFreeform').value, 'freeform')" style="background:#3b82f6;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;">Save</button>
+                        </div>
+                    </div>
+                </div>`;
+            // Load URL list
+            const loadUrls = async (q = '') => {
+                const listEl = document.getElementById('redirectPickerResults');
+                try {
+                    const r = await fetch(`/api/admin/seo/site-urls?site_url=${encodeURIComponent(siteUrl)}&q=${encodeURIComponent(q)}`, { headers: authHeaders() });
+                    const d = await r.json();
+                    if (!d.success) { listEl.innerHTML = `<div style="padding:1rem;color:#dc2626;">${d.error}</div>`; return; }
+                    if (!d.urls.length) { listEl.innerHTML = `<div style="padding:1rem;color:#64748b;font-size:0.85rem;">No matches — paste a URL below.</div>`; return; }
+                    const typeColour = { room:'#3b82f6', blog:'#10b981', attraction:'#f59e0b', page:'#64748b', default:'#94a3b8' };
+                    listEl.innerHTML = d.urls.map(u => `
+                        <div onclick="savePickedRedirect('${fromPath.replace(/'/g,"\\'")}', '${u.path.replace(/'/g,"\\'")}', 'picker-${u.type}')" style="padding:0.5rem 0.75rem;border-radius:6px;cursor:pointer;display:flex;gap:8px;align-items:center;transition:background 0.1s;" onmouseover="this.style.background='#f1f5f9';" onmouseout="this.style.background='';">
+                            <span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:${typeColour[u.type]||typeColour.default}20;color:${typeColour[u.type]||typeColour.default};font-weight:600;text-transform:uppercase;flex-shrink:0;">${u.type}</span>
+                            <code style="font-size:0.82rem;color:#0f172a;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${u.label}</code>
+                        </div>
+                    `).join('');
+                } catch (e) { listEl.innerHTML = `<div style="padding:1rem;color:#dc2626;">${e.message}</div>`; }
+            };
+            loadUrls();
+            let debounce;
+            document.getElementById('redirectPickerSearch').addEventListener('input', (e) => {
+                clearTimeout(debounce);
+                debounce = setTimeout(() => loadUrls(e.target.value), 200);
+            });
+        }
+
+        async function savePickedRedirect(fromPath, toPath, source) {
+            const siteUrl = window._seoCurrentSiteUrl || document.getElementById('seo-site-select')?.value;
+            if (!toPath) { alert('Pick or paste a target URL first'); return; }
+            try {
+                const r = await fetch('/api/admin/seo/redirects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ site_url: siteUrl, from_path: fromPath, to_path: toPath, status_code: 301, source })
+                });
+                const d = await r.json();
+                if (!d.success) { alert('Failed: ' + d.error); return; }
+                document.getElementById('redirectPickerModal')?.remove();
+                alert('✓ Redirect saved. Live within 5 minutes.');
+                showBouncingPagesModal();
+            } catch (e) { alert('Error: ' + e.message); }
         }
 
         async function loadBounceAudit() {

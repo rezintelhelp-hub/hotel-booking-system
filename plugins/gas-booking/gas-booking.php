@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.34
+ * Version: 4.3.35
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.34');
+define('GAS_BOOKING_VERSION', '4.3.35');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -184,6 +184,13 @@ class GAS_Booking {
         // Fires only after WP has determined the URL doesn't match a real
         // post/page, so we never collide with the Web Builder pages.
         add_action('template_redirect', array($this, 'gas_spark_render_or_redirect'), 1);
+
+        // Bounce Audit Phase 2 (Steve 2026-08-19) — apply operator-
+        // configured 301/302 redirects on 404s. Runs BEFORE the Spark
+        // handler at priority 0 so genuine redirects win over the
+        // Spark fallback. Redirects fetched from admin.gas.travel and
+        // cached in a WP transient for 5 minutes.
+        add_action('template_redirect', array($this, 'gas_apply_configured_redirects'), 0);
 
         // SEO — serve unified sitemap + IndexNow key + robots.txt pointer.
         // Disable WP core sitemap (it only knows about WP-native posts/pages; our
@@ -4373,6 +4380,68 @@ class GAS_Booking {
      * Inject SEO Meta Tags, Schema, and Analytics
      * This runs early in wp_head to ensure meta tags are near the top
      */
+    /**
+     * Bounce Audit Phase 2 — apply operator-configured redirects.
+     * Fires on every request; only acts when the requested URL matches
+     * a redirect stored via /api/admin/seo/redirects. Redirects are
+     * pulled from admin.gas.travel and cached in a WP transient for
+     * 5 minutes. Fire-and-forget hit-count so the admin UI can show
+     * which redirects are catching real traffic.
+     */
+    public function gas_apply_configured_redirects() {
+        // Only apply on WP 404s (real pages take priority)
+        if (!is_404()) return;
+        $req_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        $req_query = parse_url($_SERVER['REQUEST_URI'], PHP_URL_QUERY);
+
+        $api_url  = get_option('gas_api_url', 'https://admin.gas.travel');
+        $site_url = home_url('/');
+        $cache_key = 'gas_redirects_' . get_current_blog_id();
+        $redirects = get_transient($cache_key);
+
+        if ($redirects === false) {
+            $resp = wp_remote_get(
+                rtrim($api_url, '/') . '/api/public/redirects?site_url=' . urlencode($site_url),
+                array('timeout' => 4)
+            );
+            if (is_wp_error($resp)) return;
+            $data = json_decode(wp_remote_retrieve_body($resp), true);
+            $redirects = (is_array($data) && !empty($data['success']) && is_array($data['redirects']))
+                ? $data['redirects'] : array();
+            set_transient($cache_key, $redirects, 5 * MINUTE_IN_SECONDS);
+        }
+
+        if (empty($redirects)) return;
+
+        // Compare against BOTH the bare path and the path+query. The
+        // audit stores exact paths, so operators can distinguish
+        // /old-page from /old-page?utm=x if they want.
+        $req_with_query = $req_query ? ($req_path . '?' . $req_query) : $req_path;
+        $match = null;
+        foreach ($redirects as $r) {
+            if ($r['from_path'] === $req_path || $r['from_path'] === $req_with_query) { $match = $r; break; }
+        }
+        if (!$match) return;
+
+        // Fire-and-forget hit count (background — don't slow the 301)
+        wp_remote_post(
+            rtrim($api_url, '/') . '/api/public/redirects/hit',
+            array(
+                'timeout' => 1,
+                'blocking' => false,
+                'headers' => array('Content-Type' => 'application/json'),
+                'body' => wp_json_encode(array('site_url' => $site_url, 'from_path' => $match['from_path'])),
+            )
+        );
+
+        $to = $match['to_path'];
+        // Convert relative to_path to absolute so wp_redirect handles all cases
+        if (strpos($to, '/') === 0) $to = home_url($to);
+        $status = intval($match['status_code']) ?: 301;
+        wp_redirect($to, in_array($status, array(301, 302, 307, 308)) ? $status : 301);
+        exit;
+    }
+
     /**
      * ⚡ GAS Spark renderer — catches root-level slugs that WP doesn't recognise
      * and either redirects (301) or renders a Spark landing page.
