@@ -5190,14 +5190,22 @@ jQuery(document).ready(function($) {
                             $room.find('.gas-room-price, .gas-room-row-price').html('<span class="gas-min-stay-label" style="color:#b45309;font-weight:600;">Min ' + response.min_stay_required + ' ' + nightsWord + '</span>');
                             $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#f59e0b', 'pointer-events': ''}).text(t('booking', 'view_book', 'View & Book'));
                         } else {
-                            $room.removeClass('available').addClass('unavailable dates-blocked');
+                            // MUST removeClass('checking') here — tryReorder's
+                            // "all done" poll uses .checking as the sentinel.
+                            // Missing this made the spinner sit for the full
+                            // 10s timeout on any search where a room came back
+                            // "dates blocked" (i.e. almost every real search).
+                            $room.removeClass('available checking').addClass('unavailable dates-blocked');
                             $room.find('.gas-pool-left-pill').remove();
                             $room.find('.gas-room-price, .gas-room-row-price').html('—');
                             $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#9ca3af', 'pointer-events': ''}).text(t('booking', 'view_calendar', 'View Calendar')).attr('title', t('booking', 'check_other_dates', 'Check other dates'));
                         }
                     },
                     error: function() {
-                        // On error, show dash — no fallback to base price
+                        // On error, show dash — no fallback to base price.
+                        // Same removeClass('checking') requirement as the
+                        // dates-blocked branch above.
+                        $room.removeClass('checking').addClass('unavailable');
                         $room.find('.gas-room-price, .gas-room-row-price').html('—');
                     }
                 });
