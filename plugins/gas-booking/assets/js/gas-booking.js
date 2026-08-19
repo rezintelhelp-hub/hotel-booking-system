@@ -5040,12 +5040,20 @@ jQuery(document).ready(function($) {
     
     function checkAllAvailability(checkin, checkout, guests) {
         var $rooms = $('.gas-room-card, .gas-room-row');
-        
+
         // Show fixed spinner at top of page
         $('.gas-loading-spinner').remove();
         var spinHtml2 = buildSpinnerHtml();
         if (spinHtml2) $('body').append(spinHtml2);
         var selectedGuests = parseInt(guests) || 1;
+
+        // Force-clear .checking from any room already in a terminal
+        // state (guest-exceeded, unavailable, min-stay-warning). PHP
+        // renders every card with .checking on dates-in-URL pages;
+        // filterByGuests / other pre-passes may have set a terminal
+        // state without knowing to clear .checking. We're about to
+        // re-establish the sentinel below on rooms we actually check.
+        $rooms.filter('.guest-exceeded, .min-stay-warning').removeClass('checking');
         
         $rooms.each(function() {
             var $room = $(this);
@@ -5313,7 +5321,11 @@ jQuery(document).ready(function($) {
                 console.log('Room max guests:', maxGuests, 'Selected:', guests, 'Attr:', maxGuestsAttr);
                 
                 if (guests > maxGuests) {
-                    $room.addClass('unavailable guest-exceeded');
+                    // Also clear .checking here so the spinner's poll
+                    // doesn't wait on a guest-exceeded card that will
+                    // never fire an ajax response. PHP initial-renders
+                    // .checking on every card when dates are in URL.
+                    $room.removeClass('checking').addClass('unavailable guest-exceeded');
                     $room.find('.gas-room-price').html('<span class="gas-too-small">' + t('booking', 'max_guests', 'Max %s guests').replace('%s', maxGuests) + '</span>');
                     $room.find('.gas-view-btn').css({'background': '#9ca3af', 'pointer-events': 'none'});
                 }
