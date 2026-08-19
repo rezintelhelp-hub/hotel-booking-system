@@ -21232,6 +21232,20 @@
                     <button onclick="reconnectGoogleFromBanner()" style="margin-left:10px; background:#dc2626; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:600;">Reconnect Google</button>
                 </div>
 
+                <!-- No-access banner — GAS's service account isn't a user
+                     on this specific site's Search Console property yet.
+                     Shows the exact email to copy. One-time per site.
+                     (Steve 2026-08-19 service-account migration.) -->
+                <div id="seo-no-access-banner" style="display:none; margin-bottom:1rem; padding:14px 18px; background:#fef3c7; border:1px solid #f59e0b; border-radius:8px; color:#78350f;">
+                    <strong>📎 GAS needs access to this site's Search Console property.</strong>
+                    <div style="margin-top:6px;">Open <a id="seo-no-access-gsc-link" href="https://search.google.com/search-console" target="_blank" style="color:#78350f;text-decoration:underline;">Google Search Console</a>, pick this site, then <strong>Settings → Users and permissions → Add user</strong>:</div>
+                    <div style="display:flex;gap:6px;align-items:center;margin-top:8px;">
+                        <code id="seo-no-access-email" style="background:#fff;padding:6px 10px;border-radius:4px;border:1px solid #e5e7eb;font-size:0.9rem;flex:1;">gas-platform-service@zippy-chariot-313210.iam.gserviceaccount.com</code>
+                        <button onclick="copySeoServiceAccountEmail()" style="background:#f59e0b;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600;">Copy</button>
+                    </div>
+                    <div style="margin-top:6px;font-size:0.85rem;opacity:0.85;">Set permission to <strong>Full</strong>. One-time per site — never expires, no future reconnects.</div>
+                </div>
+
                 <!-- Site Selector -->
                 <div class="card" style="margin-bottom: 1rem;">
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
@@ -93789,10 +93803,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             const endDate = new Date().toISOString().split('T')[0];
             const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-            // Hide reauth banner up-front; individual loaders will re-show
-            // it if any Search Console call comes back with needs_reauth.
+            // Hide reauth + no-access banners up-front; individual loaders
+            // will re-show whichever is triggered by their API response.
             const banner = document.getElementById('seo-reauth-banner');
             if (banner) banner.style.display = 'none';
+            const noAccessBanner = document.getElementById('seo-no-access-banner');
+            if (noAccessBanner) noAccessBanner.style.display = 'none';
 
             // Load all data in parallel
             await Promise.all([
@@ -93823,6 +93839,31 @@ const promo = await fetch('/api/v1/offers/validate', {
         // the next dashboard load picks up fresh data.
         function reconnectGoogleFromBanner() {
             window.location.href = '/api/admin/google-oauth/start';
+        }
+
+        // No-access banner — shown when a specific site's SC property
+        // hasn't had the service-account email added yet.
+        function showSeoNoAccessBanner(serviceAccountEmail) {
+            const isMasterAdmin = currentAccount && currentAccount.role === 'master_admin';
+            if (!isMasterAdmin) return;
+            const banner = document.getElementById('seo-no-access-banner');
+            if (!banner) return;
+            if (serviceAccountEmail) {
+                const emailEl = document.getElementById('seo-no-access-email');
+                if (emailEl) emailEl.textContent = serviceAccountEmail;
+            }
+            banner.style.display = 'block';
+        }
+
+        function copySeoServiceAccountEmail() {
+            const emailEl = document.getElementById('seo-no-access-email');
+            if (!emailEl) return;
+            navigator.clipboard.writeText(emailEl.textContent.trim()).then(() => {
+                const btn = event.target;
+                const orig = btn.textContent;
+                btn.textContent = '✓ Copied';
+                setTimeout(() => { btn.textContent = orig; }, 1500);
+            });
         }
 
         // Chart.js instances kept on window so re-renders dispose properly
@@ -94293,6 +94334,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.needs_reauth) showSeoReauthBanner();
+                if (data.no_property_access) showSeoNoAccessBanner(data.service_account_email);
                 if (data.success) {
                     document.getElementById('seo-total-clicks').textContent = data.current.clicks.toLocaleString();
                     document.getElementById('seo-total-impressions').textContent = data.current.impressions.toLocaleString();
@@ -94328,6 +94370,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
 
                 if (data.needs_reauth) showSeoReauthBanner();
+                if (data.no_property_access) showSeoNoAccessBanner(data.service_account_email);
 
                 const container = document.getElementById('seo-keywords-list');
                 if (!container) return;
@@ -94375,6 +94418,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
 
                 if (data.needs_reauth) showSeoReauthBanner();
+                if (data.no_property_access) showSeoNoAccessBanner(data.service_account_email);
 
                 const container = document.getElementById('seo-pages-list');
                 if (!container) return;
@@ -94425,6 +94469,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
 
                 if (data.needs_reauth) showSeoReauthBanner();
+                if (data.no_property_access) showSeoNoAccessBanner(data.service_account_email);
 
                 const container = document.getElementById('seo-opportunities-list');
                 if (!container) return;

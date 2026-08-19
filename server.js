@@ -390,10 +390,13 @@ async function getUserAuthClient() {
 }
 
 async function getSearchConsoleClient() {
-  // Skip probing user OAuth if it's been failing recently — was
-  // 1-3s per doomed refresh × every SEO endpoint on the dashboard.
-  // Throws a needs-reauth error so callers surface a clean banner
-  // instead of showing empty boxes with no explanation.
+  // Service-account FIRST (Steve 2026-08-19 migration off user OAuth).
+  // The service account never expires, doesn't need re-consent, and
+  // isn't tied to Steve juggling multiple Google accounts. Data access
+  // is opt-in per property: add gas-platform-service@... as a user on
+  // each Search Console property, and GAS reads immediately work.
+  // Legacy user-OAuth kept as fallback for properties not yet migrated.
+  if (searchConsole) return searchConsole;
   if (isUserOAuthRecentlyDead()) {
     const err = new Error('Google Search Console session expired — click Reconnect Google');
     err.needsReauth = true;
@@ -401,7 +404,7 @@ async function getSearchConsoleClient() {
   }
   const userAuth = await getUserAuthClient();
   if (userAuth) return google.searchconsole({ version: 'v1', auth: userAuth });
-  return searchConsole;
+  throw new Error('No Google auth configured');
 }
 
 // Central helper for the four SC endpoints — same detection everywhere.
@@ -417,12 +420,17 @@ function _scAuthError(res, error) {
   const msg = error?.message || '';
   const status = String(error?.code || error?.response?.status || '');
 
-  // Property-permission error — token valid, just no access to THIS site
+  // Property-permission error — auth is FINE, GAS just isn't a user on
+  // this specific Search Console property. Since we now prefer the
+  // service account (never expires, no user-OAuth juggling), the fix
+  // is always "add the service-account email as a user on this GSC
+  // property" — one-time per site, works forever.
   if (/sufficient permission/i.test(msg) || (status === '403' && !/invalid_grant|invalid_request|unauthorized/i.test(msg))) {
     return res.json({
       success: false,
       no_property_access: true,
-      error: 'This Google account (' + (currentGoogleEmail() || 'connected user') + ') is not added as a user on this site\'s Search Console property. Add them in GSC → Users and permissions, or reconnect GAS with an account that has access.',
+      service_account_email: googleServiceAccountEmail,
+      error: 'GAS is not added as a user on this site\'s Search Console property. Fix: open the property in Google Search Console → Settings → Users and permissions → Add user: ' + (googleServiceAccountEmail || 'gas-platform-service@zippy-chariot-313210.iam.gserviceaccount.com') + ' → Full → Save. One-time per site, then GAS reads work forever.',
     });
   }
 
@@ -117805,19 +117813,38 @@ app.get('/api/admin/seo/sites', async (req, res) => {
         if (!searchConsole) {
             return res.json({ success: false, error: 'Google APIs not configured' });
         }
-        
+
         const { account_id } = req.query;
-        
-        const response = await searchConsole.sites.list();
-        
-        let sites = (response.data.siteEntry || []).map(site => ({
-            url: site.siteUrl,
-            permission: site.permissionLevel
-        }));
-        
-        // Filter out domain properties and parent domains (only keep actual site URLs)
-        sites = sites.filter(site => 
-            !site.url.startsWith('sc-domain:') && 
+
+        // Query both auth sources and merge — service account first
+        // (owns properties it created), user OAuth as fallback (owns
+        // properties Steve imported/verified himself). De-dupe on URL.
+        const collected = new Map();
+        try {
+            const saResp = await searchConsole.sites.list();
+            (saResp.data.siteEntry || []).forEach(s => {
+                collected.set(s.siteUrl, { url: s.siteUrl, permission: s.permissionLevel, via: 'service_account' });
+            });
+        } catch (e) { /* swallow — user OAuth may still have properties */ }
+        try {
+            const userAuth = await getUserAuthClient();
+            if (userAuth) {
+                const userSc = google.searchconsole({ version: 'v1', auth: userAuth });
+                const uResp = await userSc.sites.list();
+                (uResp.data.siteEntry || []).forEach(s => {
+                    if (!collected.has(s.siteUrl)) {
+                        collected.set(s.siteUrl, { url: s.siteUrl, permission: s.permissionLevel, via: 'user_oauth' });
+                    }
+                });
+            }
+        } catch (e) { /* swallow — service-account list may already cover it */ }
+
+        let sites = Array.from(collected.values());
+
+        // Filter out only sites.gas.travel parent — keep sc-domain:
+        // properties so domain-verified sites appear in the dropdown.
+        // (Previous filter dropped them silently; Steve 2026-08-19.)
+        sites = sites.filter(site =>
             site.url !== 'https://sites.gas.travel/' &&
             site.url !== 'https://sites.gas.travel'
         );
