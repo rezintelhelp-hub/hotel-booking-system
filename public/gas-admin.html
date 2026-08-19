@@ -21223,6 +21223,15 @@
                     </div>
                 </div>
 
+                <!-- Google reconnect banner — toggled by loadSeo* when API
+                     returns needs_reauth. Fixes silent-empty-boxes symptom
+                     when the global OAuth refresh token dies (Steve 2026-08-19). -->
+                <div id="seo-reauth-banner" style="display:none; margin-bottom:1rem; padding:14px 18px; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; color:#7f1d1d;">
+                    <strong>⚠️ Google Search Console session expired.</strong>
+                    Keywords, clicks, impressions and page data won't populate until you reconnect.
+                    <button onclick="reconnectGoogleFromBanner()" style="margin-left:10px; background:#dc2626; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:600;">Reconnect Google</button>
+                </div>
+
                 <!-- Site Selector -->
                 <div class="card" style="margin-bottom: 1rem;">
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
@@ -93780,6 +93789,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             const endDate = new Date().toISOString().split('T')[0];
             const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+            // Hide reauth banner up-front; individual loaders will re-show
+            // it if any Search Console call comes back with needs_reauth.
+            const banner = document.getElementById('seo-reauth-banner');
+            if (banner) banner.style.display = 'none';
+
             // Load all data in parallel
             await Promise.all([
                 loadSeoStatus(siteUrl),
@@ -93789,6 +93803,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                 loadSeoOpportunities(siteUrl),
                 loadPerformanceDashboard(siteUrl, days)
             ]);
+        }
+
+        // Shown-any-SC-call-returned-needs_reauth banner. Any SC loader
+        // that gets { needs_reauth: true } from the API should call this.
+        function showSeoReauthBanner() {
+            const banner = document.getElementById('seo-reauth-banner');
+            if (banner) banner.style.display = 'block';
+        }
+
+        // Reconnect button in the banner — jumps to the OAuth start URL.
+        // On success the connect handler clears the dead-token cache and
+        // the next dashboard load picks up fresh data.
+        function reconnectGoogleFromBanner() {
+            window.location.href = '/api/admin/google-oauth/start';
         }
 
         // Chart.js instances kept on window so re-renders dispose properly
@@ -94258,12 +94286,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const response = await fetch(`/api/admin/seo/summary?site_url=${encodeURIComponent(siteUrl)}&start_date=${startDate}&end_date=${endDate}`);
                 const data = await response.json();
                 
+                if (data.needs_reauth) showSeoReauthBanner();
                 if (data.success) {
                     document.getElementById('seo-total-clicks').textContent = data.current.clicks.toLocaleString();
                     document.getElementById('seo-total-impressions').textContent = data.current.impressions.toLocaleString();
                     document.getElementById('seo-avg-ctr').textContent = data.current.ctr + '%';
                     document.getElementById('seo-avg-position').textContent = data.current.position;
-                    
+
                     // Show change indicators
                     updateChangeIndicator('seo-clicks-change', data.change.clicks, '');
                     updateChangeIndicator('seo-impressions-change', data.change.impressions, '');
@@ -94291,10 +94320,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 const response = await fetch(`/api/admin/seo/keywords?site_url=${encodeURIComponent(siteUrl)}&start_date=${startDate}&end_date=${endDate}&limit=50`);
                 const data = await response.json();
-                
+
+                if (data.needs_reauth) showSeoReauthBanner();
+
                 const container = document.getElementById('seo-keywords-list');
                 if (!container) return;
-                
+
                 if (data.success && data.keywords && data.keywords.length > 0) {
                     container.innerHTML = `
                         <table>
@@ -94336,10 +94367,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 const response = await fetch(`/api/admin/seo/pages?site_url=${encodeURIComponent(siteUrl)}&start_date=${startDate}&end_date=${endDate}&limit=30`);
                 const data = await response.json();
-                
+
+                if (data.needs_reauth) showSeoReauthBanner();
+
                 const container = document.getElementById('seo-pages-list');
                 if (!container) return;
-                
+
                 if (data.success && data.pages && data.pages.length > 0) {
                     container.innerHTML = `
                         <table>
@@ -94384,10 +94417,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 const response = await fetch(`/api/admin/seo/opportunities?site_url=${encodeURIComponent(siteUrl)}`);
                 const data = await response.json();
-                
+
+                if (data.needs_reauth) showSeoReauthBanner();
+
                 const container = document.getElementById('seo-opportunities-list');
                 if (!container) return;
-                
+
                 if (data.success && data.opportunities && data.opportunities.length > 0) {
                     container.innerHTML = `
                         <div style="background: #fef3c7; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">

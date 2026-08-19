@@ -390,9 +390,38 @@ async function getUserAuthClient() {
 }
 
 async function getSearchConsoleClient() {
+  // Skip probing user OAuth if it's been failing recently — was
+  // 1-3s per doomed refresh × every SEO endpoint on the dashboard.
+  // Throws a needs-reauth error so callers surface a clean banner
+  // instead of showing empty boxes with no explanation.
+  if (isUserOAuthRecentlyDead()) {
+    const err = new Error('Google Search Console session expired — click Reconnect Google');
+    err.needsReauth = true;
+    throw err;
+  }
   const userAuth = await getUserAuthClient();
   if (userAuth) return google.searchconsole({ version: 'v1', auth: userAuth });
   return searchConsole;
+}
+
+// Central helper for the four SC endpoints — same detection everywhere.
+// Marks the user OAuth token dead on invalid_grant / 4xx auth errors
+// (so the next dashboard load hits the cache and skips the round-trip)
+// and returns a shape the frontend can react to with a banner.
+function _scAuthError(res, error) {
+  const msg = error?.message || '';
+  const looksAuthDead = error?.needsReauth
+    || /invalid_grant|invalid_request|unauthorized/i.test(msg)
+    || ['400', '401', '403'].includes(String(error?.code || error?.response?.status || ''));
+  if (looksAuthDead) {
+    markUserOAuthDead();
+    return res.json({
+      success: false,
+      needs_reauth: true,
+      error: 'Google Search Console session expired — click Reconnect Google to fix.',
+    });
+  }
+  return null;
 }
 
 // Short-lived cache: when user OAuth fails with invalid_grant, skip the
@@ -117603,14 +117632,15 @@ app.get('/api/admin/seo/keywords', async (req, res) => {
             position: row.position.toFixed(1)
         }));
         
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             keywords,
             period: { start: startDate, end: endDate },
             total: keywords.length
         });
     } catch (error) {
         console.error('Search Console keywords error:', error);
+        if (_scAuthError(res, error)) return;
         res.json({ success: false, error: error.message });
     }
 });
@@ -117659,6 +117689,7 @@ app.get('/api/admin/seo/pages', async (req, res) => {
         });
     } catch (error) {
         console.error('Search Console pages error:', error);
+        if (_scAuthError(res, error)) return;
         res.json({ success: false, error: error.message });
     }
 });
@@ -117734,6 +117765,7 @@ app.get('/api/admin/seo/summary', async (req, res) => {
         });
     } catch (error) {
         console.error('Search Console summary error:', error);
+        if (_scAuthError(res, error)) return;
         res.json({ success: false, error: error.message });
     }
 });
@@ -117901,6 +117933,7 @@ app.get('/api/admin/seo/opportunities', async (req, res) => {
         });
     } catch (error) {
         console.error('Search Console opportunities error:', error);
+        if (_scAuthError(res, error)) return;
         res.json({ success: false, error: error.message });
     }
 });
