@@ -124409,8 +124409,60 @@ app.get('/api/admin/seo/bounce-audit', async (req, res) => {
             }
         } catch (_) { /* sitemap optional */ }
 
-        // Pattern-based suggestions (fast, deterministic)
-        const suggest = (path) => {
+        // Small Levenshtein for fuzzy sitemap matching. Bounded — we
+        // early-out when strings are wildly different lengths.
+        const levenshtein = (a, b) => {
+            if (Math.abs(a.length - b.length) > 20) return 999;
+            const m = a.length, n = b.length;
+            if (!m) return n;
+            if (!n) return m;
+            let prev = new Array(n + 1);
+            for (let j = 0; j <= n; j++) prev[j] = j;
+            for (let i = 1; i <= m; i++) {
+                const curr = [i];
+                for (let j = 1; j <= n; j++) {
+                    curr[j] = a[i - 1] === b[j - 1]
+                        ? prev[j - 1]
+                        : 1 + Math.min(prev[j - 1], prev[j], curr[j - 1]);
+                }
+                prev = curr;
+            }
+            return prev[n];
+        };
+
+        // Fuzzy-match a 404 path against sitemap URLs. Returns the best
+        // candidate if similarity > threshold, else null. Weighted by
+        // (a) shared last-segment slug words, (b) full-path edit dist.
+        const fuzzyMatch = (path) => {
+            if (!sitemapUrls.length) return null;
+            const cleaned = path.replace(/^\/|\/$/g, '');
+            const pathWords = new Set(cleaned.split(/[-/]+/).filter(w => w.length > 1));
+            let best = { url: null, score: 0 };
+            for (const smUrl of sitemapUrls) {
+                const smCleaned = smUrl.replace(/^\/|\/$/g, '');
+                if (!smCleaned) continue;
+                // Substring containment gets a big boost (e.g. /about-us/ vs /about/)
+                let containBoost = 0;
+                if (smCleaned.includes(cleaned) || cleaned.includes(smCleaned)) containBoost = 0.35;
+                // Word overlap (Jaccard-like)
+                const smWords = new Set(smCleaned.split(/[-/]+/).filter(w => w.length > 1));
+                let common = 0;
+                for (const w of pathWords) if (smWords.has(w)) common++;
+                const denom = Math.max(pathWords.size, smWords.size, 1);
+                const wordScore = common / denom;
+                // Edit distance normalized
+                const maxLen = Math.max(cleaned.length, smCleaned.length);
+                const editScore = maxLen ? 1 - (levenshtein(cleaned, smCleaned) / maxLen) : 0;
+                const score = Math.min(1, wordScore * 0.5 + editScore * 0.5 + containBoost);
+                if (score > best.score) best = { url: smUrl, score };
+            }
+            return best.score >= 0.5 ? best : null;
+        };
+
+        // Pattern-based suggestions (fast, deterministic) — fall back
+        // to fuzzy sitemap match for 404s that don't match a known
+        // pattern.
+        const suggest = (path, status) => {
             // Strip stale multilingual `-en/` suffix (Cotswolds pattern)
             if (/-en\/?$/.test(path)) {
                 const stripped = path.replace(/\/[^/]+-en\/?$/, '');
@@ -124426,14 +124478,27 @@ app.get('/api/admin/seo/bounce-audit', async (req, res) => {
             if (dated) {
                 return { pattern: 'dated-asset', suggested: null, why: `Path contains a year (${dated[0].replace(/[/_-]/g,'')}). Likely an old download/asset. Consider removing inbound links or 301 to the current version.` };
             }
-            // Trailing slash mismatch — check sitemap for the other variant
+            // Trailing slash mismatch — only meaningful if the path
+            // ISN'T already in the sitemap-canonical form. Bug fixed
+            // 2026-08-19: was suggesting the URL to itself.
             const withSlash = path.endsWith('/') ? path : path + '/';
             const noSlash = path.replace(/\/$/, '');
-            if (sitemapUrls.includes(withSlash) && !sitemapUrls.includes(noSlash)) {
+            if (!path.endsWith('/') && sitemapUrls.includes(withSlash) && !sitemapUrls.includes(path)) {
                 return { pattern: 'missing-trailing-slash', suggested: withSlash, why: 'Sitemap has this URL with a trailing slash. Canonicalise via 301.' };
             }
-            if (sitemapUrls.includes(noSlash) && !sitemapUrls.includes(withSlash)) {
+            if (path.endsWith('/') && sitemapUrls.includes(noSlash) && !sitemapUrls.includes(path)) {
                 return { pattern: 'extra-trailing-slash', suggested: noSlash, why: 'Sitemap has this URL without a trailing slash. Canonicalise via 301.' };
+            }
+            // Fuzzy match against sitemap — best for 404s where the
+            // slug is close to a live one (e.g. /about-us/ vs /about/,
+            // /properties/the-waterfront vs /properties/waterfront-lodge)
+            const fuzzy = fuzzyMatch(path);
+            if (fuzzy && (status === 404 || status === 'network_error')) {
+                return {
+                    pattern: 'fuzzy-sitemap-match',
+                    suggested: fuzzy.url,
+                    why: `Closest live URL in the sitemap is ${fuzzy.url} (similarity ${Math.round(fuzzy.score * 100)}%). Likely candidate for a 301 — verify it's the correct target before applying.`
+                };
             }
             return null;
         };
@@ -124450,7 +124515,7 @@ app.get('/api/admin/seo/bounce-audit', async (req, res) => {
             } catch (e) {
                 status = 'network_error';
             }
-            const patternSuggestion = suggest(b.path) || {};
+            const patternSuggestion = suggest(b.path, status) || {};
             // If HEAD returned redirect chain landing somewhere else, note that
             const redirectedTo = (finalUrl && new URL(finalUrl).pathname !== b.path) ? new URL(finalUrl).pathname : null;
             return {
