@@ -2963,10 +2963,14 @@ jQuery(document).ready(function($) {
         var html = '';
         var mainUrl = galleryTiles[0].img.url || galleryTiles[0].img.image_url || '';
 
-        // Main large image — data-index points to original position for lightbox
-        html += '<img class="gas-gallery-main" src="' + mainUrl + '" alt="Room image" data-index="' + galleryTiles[0].origIndex + '">';
+        // Main large image — LCP element on /room/ pages. fetchpriority
+        // high tells the browser to grab it before anything below the
+        // fold. eager loading is the default; explicit for clarity.
+        html += '<img class="gas-gallery-main" src="' + mainUrl + '" alt="Room image" data-index="' + galleryTiles[0].origIndex + '" fetchpriority="high" loading="eager" decoding="async">';
 
-        // Grid of up to 4 smaller images
+        // Grid of up to 4 smaller images. Thumbs get loading=lazy +
+        // async decode — they're side-by-side with the main image so
+        // often below the fold on phones, and never LCP.
         if (galleryTiles.length > 1) {
             html += '<div class="gas-gallery-grid">';
             for (var i = 1; i < galleryTiles.length; i++) {
@@ -2974,11 +2978,11 @@ jQuery(document).ready(function($) {
                 var origIdx = galleryTiles[i].origIndex;
                 if (i === 4 && images.length > 5) {
                     html += '<div class="gas-gallery-more" data-index="' + origIdx + '">';
-                    html += '<img class="gas-gallery-thumb" src="' + url + '" alt="Thumbnail">';
+                    html += '<img class="gas-gallery-thumb" src="' + url + '" alt="Thumbnail" loading="lazy" decoding="async">';
                     html += '<div class="gas-gallery-more-overlay">View all ' + images.length + ' images</div>';
                     html += '</div>';
                 } else {
-                    html += '<img class="gas-gallery-thumb" src="' + url + '" alt="Thumbnail" data-index="' + origIdx + '">';
+                    html += '<img class="gas-gallery-thumb" src="' + url + '" alt="Thumbnail" data-index="' + origIdx + '" loading="lazy" decoding="async">';
                 }
             }
             html += '</div>';

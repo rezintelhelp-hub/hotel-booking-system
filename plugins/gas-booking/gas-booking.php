@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.31
+ * Version: 4.3.32
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.31');
+define('GAS_BOOKING_VERSION', '4.3.32');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -10532,7 +10532,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 }
                 container.innerHTML = posts.map(function(p) {
                     var date = p.published_at ? new Date(p.published_at).toLocaleDateString(lang, {year:'numeric',month:'long',day:'numeric'}) : '';
-                    var img = p.featured_image_url ? '<img src="' + p.featured_image_url + '" alt="' + (p.title||'').replace(/"/g,'&quot;') + '">' : '';
+                    // Blog page can render 12+ cards. Native lazy-load
+                    // + async decode drops initial paint payload from
+                    // "all 12 images" to "just the ones in viewport".
+                    var img = p.featured_image_url ? '<img src="' + p.featured_image_url + '" alt="' + (p.title||'').replace(/"/g,'&quot;') + '" loading="lazy" decoding="async">' : '';
                     return '<a href="?p=' + p.slug + '&lang=' + lang + '" class="gas-blog-card">'
                         + img
                         + '<div class="gas-blog-card-body">'
@@ -10631,7 +10634,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     return;
                 }
                 container.innerHTML = items.map(function(a) {
-                    var img = a.featured_image_url ? '<img src="' + a.featured_image_url + '" alt="' + (a.name||'').replace(/"/g,'&quot;') + '">' : '';
+                    // Attraction cards — same lazy-load pattern as blog.
+                    var img = a.featured_image_url ? '<img src="' + a.featured_image_url + '" alt="' + (a.name||'').replace(/"/g,'&quot;') + '" loading="lazy" decoding="async">' : '';
                     var desc = a.short_description || '';
                     if (desc.length > 150) desc = desc.substring(0,150) + '...';
                     var meta = '';
