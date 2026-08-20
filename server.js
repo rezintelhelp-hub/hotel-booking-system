@@ -522,6 +522,12 @@ function currentGoogleEmail() {
   return _currentGoogleEmailCache.val;
 }
 
+// PageSpeed cache — 6h TTL per site_url. Lighthouse takes 10-20s and
+// its scores don't move minute-to-minute. Steve 2026-08-20 — monthly
+// report was tripping Railway's upstream timeout when Lighthouse was
+// slow; caching lets warm requests return in <1s.
+const _pageSpeedCache = new Map();
+
 // Short-lived cache: when user OAuth fails with invalid_grant, skip the
 // user-side probe for the next 5 minutes. Otherwise every dashboard load
 // re-does a doomed Google token-refresh round-trip (~1-3s each). Cleared
@@ -125878,8 +125884,14 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
 
         // ─── PageSpeed / Site Health (mobile + desktop scores) ──
         // Reuses the same Lighthouse API call as the on-demand health
-        // check. Slower (10-20s) but only fires once per report.
+        // check. Cached in-memory 6h per site — Lighthouse scores don't
+        // move minute-to-minute and the API takes 10-20s (right at
+        // Railway's upstream-timeout edge). Steve 2026-08-20 —
+        // report was timing out on Railway when Lighthouse was slow.
         const pageSpeed = await safeReport(async () => {
+            const cacheKey = 'ps:' + site_url;
+            const cached = _pageSpeedCache.get(cacheKey);
+            if (cached && (Date.now() - cached.at) < 6 * 60 * 60 * 1000) return cached.data;
             const apiKey = process.env.PAGESPEED_API_KEY || process.env.GOOGLE_API_KEY || '';
             const keyParam = apiKey ? `&key=${apiKey}` : '';
             const cats = 'category=PERFORMANCE&category=ACCESSIBILITY&category=BEST_PRACTICES&category=SEO';
@@ -125899,7 +125911,9 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
             };
             const [mobile, desktop] = await Promise.all([runOne('mobile'), runOne('desktop')]);
             if (!mobile && !desktop) return null;
-            return { mobile, desktop };
+            const data = { mobile, desktop };
+            _pageSpeedCache.set(cacheKey, { at: Date.now(), data });
+            return data;
         }, null);
 
         // ─── Actions taken this month (DB queries) ───────────────
