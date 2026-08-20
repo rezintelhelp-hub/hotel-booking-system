@@ -126092,13 +126092,17 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
     td { padding: 0.5rem; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9; }
     .empty { color: #94a3b8; font-style: italic; font-size: 0.9rem; }
     .footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; font-size: 0.75rem; color: #94a3b8; text-align: center; }
+    .download-btn { position: fixed; top: 1rem; right: 1rem; background: #16a34a; color: #fff; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 100; }
+    .download-btn:hover { background: #15803d; }
     @media print {
         body { background: #fff; padding: 0; }
         .page { box-shadow: none; padding: 1.5rem; }
+        .download-btn { display: none; }
     }
 </style>
 </head>
 <body>
+<button class="download-btn" onclick="window.print()">📥 Download PDF</button>
 <div class="page">
     <h1>${site.site_name || site.account_name || 'SEO Report'}</h1>
     <div class="subtitle">SEO performance report · ${monthLabel} · ${site_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</div>
@@ -126444,6 +126448,7 @@ app.get('/api/admin/seo/counter-report', async (req, res) => {
 </style>
 </head>
 <body>
+<button class="download-btn" onclick="window.print()">📥 Download PDF</button>
 <div class="page">
     <h1>${displayName} — SEO Report Review</h1>
     <div class="subtitle">Independent review of a third-party SEO audit · ${bareHost} · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
