@@ -21263,6 +21263,21 @@
                                 <option value="90">Last 90 days</option>
                             </select>
                         </div>
+                        <div class="master-only">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;" title="Where bookings actually happen. Drives report copy: 'gas' shows Direct Bookings section; external engines show Book-Now clicks as intent metric.">Booking engine</label>
+                            <select id="seo-booking-engine-select" class="form-input" onchange="saveBookingEngine()" style="min-width: 140px;">
+                                <option value="gas">GAS (native)</option>
+                                <option value="resnexus">ResNexus</option>
+                                <option value="cloudbeds">Cloudbeds</option>
+                                <option value="mews">Mews</option>
+                                <option value="siteminder">SiteMinder</option>
+                                <option value="little-hotelier">Little Hotelier</option>
+                                <option value="innroad">InnRoad</option>
+                                <option value="bookingcom">Booking.com</option>
+                                <option value="airbnb-only">Airbnb only</option>
+                                <option value="external">Other external</option>
+                            </select>
+                        </div>
                         <div class="master-only" style="align-self: flex-end;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">&nbsp;</label>
                             <button class="btn" onclick="openMonthlyReport()" style="background: #16a34a; padding: 0.5rem 1rem; margin-right: 0.5rem;">📄 Monthly Report</button>
@@ -93825,7 +93840,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 loadSeoKeywords(siteUrl, startDate, endDate),
                 loadSeoPages(siteUrl, startDate, endDate),
                 loadSeoOpportunities(siteUrl),
-                loadPerformanceDashboard(siteUrl, days)
+                loadPerformanceDashboard(siteUrl, days),
+                loadBookingEngineForSite(siteUrl)
             ]);
         }
 
@@ -94460,6 +94476,48 @@ const promo = await fetch('/api/v1/offers/validate', {
                     break;
             }
             return recs;
+        }
+
+        // Booking-engine dropdown — lets Steve set which booker owns
+        // the sale flow so reports show the right narrative. Steve
+        // 2026-08-20 — Moonriver uses ResNexus.
+        window._currentDeployedSiteId = null;
+        async function loadBookingEngineForSite(siteUrl) {
+            const sel = document.getElementById('seo-booking-engine-select');
+            if (!sel || !siteUrl) return;
+            try {
+                const r = await fetch(`/api/admin/deployed-sites/by-url/booking-engine?site_url=${encodeURIComponent(siteUrl)}`, { headers: authHeaders() });
+                const d = await r.json();
+                if (d.success) {
+                    window._currentDeployedSiteId = d.deployed_site_id;
+                    // If the current value isn't in the fixed list, add it as an option
+                    if (![...sel.options].some(o => o.value === d.booking_engine)) {
+                        const o = document.createElement('option');
+                        o.value = d.booking_engine; o.textContent = d.booking_engine;
+                        sel.appendChild(o);
+                    }
+                    sel.value = d.booking_engine;
+                }
+            } catch (_) {}
+        }
+        async function saveBookingEngine() {
+            const sel = document.getElementById('seo-booking-engine-select');
+            const id = window._currentDeployedSiteId;
+            if (!sel || !id) return;
+            try {
+                const r = await fetch(`/api/admin/deployed-sites/${id}/booking-engine`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ booking_engine: sel.value })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    sel.style.background = '#dcfce7';
+                    setTimeout(() => { sel.style.background = ''; }, 800);
+                } else {
+                    alert('Save failed: ' + d.error);
+                }
+            } catch (e) { alert('Error: ' + e.message); }
         }
 
         // Open the counter-report — the "your 3rd-party SEO report is

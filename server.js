@@ -126263,6 +126263,8 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
 // 'bookingcom', 'airbnb-only'. Drives report copy. Steve 2026-08-20.
 app.put('/api/admin/deployed-sites/:id/booking-engine', async (req, res) => {
     try {
+        const user = await extractAccountFromToken(req);
+        if (!user || user.role !== 'master_admin') return res.status(403).json({ success: false, error: 'master admin only' });
         const { booking_engine } = req.body;
         if (!booking_engine) return res.json({ success: false, error: 'booking_engine required' });
         const clean = String(booking_engine).toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 50);
@@ -126271,6 +126273,24 @@ app.put('/api/admin/deployed-sites/:id/booking-engine', async (req, res) => {
             [clean || 'gas', parseInt(req.params.id)]
         );
         res.json({ success: true, booking_engine: clean || 'gas' });
+    } catch (e) {
+        res.json({ success: false, error: e.message });
+    }
+});
+
+// Read helper — used by the SEO Analytics dropdown to show the
+// current value so the operator can see what's set without picking
+// blind. Also serves as the id-from-siteUrl lookup.
+app.get('/api/admin/deployed-sites/by-url/booking-engine', async (req, res) => {
+    try {
+        const { site_url } = req.query;
+        if (!site_url) return res.json({ success: false, error: 'site_url required' });
+        const r = await pool.query(
+            `SELECT id, COALESCE(booking_engine, 'gas') AS booking_engine FROM deployed_sites WHERE site_url = $1 LIMIT 1`,
+            [site_url]
+        );
+        if (!r.rows[0]) return res.json({ success: false, error: 'Site not found' });
+        res.json({ success: true, deployed_site_id: r.rows[0].id, booking_engine: r.rows[0].booking_engine });
     } catch (e) {
         res.json({ success: false, error: e.message });
     }
