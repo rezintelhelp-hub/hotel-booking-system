@@ -4220,6 +4220,14 @@ async function runMigrations() {
     try {
       await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS ga4_measurement_id VARCHAR(50)`);
       await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS ga4_property_id VARCHAR(100)`);
+      // Booking engine — 'gas' when the booking flow stays in GAS, or
+      // an external identifier (resnexus, cloudbeds, mews, etc.) when
+      // Book Now takes the visitor to a third-party booking engine.
+      // Drives the report copy: external-booking sites get "book-now
+      // clicks" as the intent metric instead of "direct bookings".
+      // Steve 2026-08-20 — Moonriver uses ResNexus so GAS can't
+      // attribute the sale; showing intent instead of bookings.
+      await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS booking_engine VARCHAR(50) DEFAULT 'gas'`);
       console.log('✅ deployed_sites GA4 columns ensured');
     } catch (ga4ColError) {
       console.log('ℹ️  deployed_sites GA4 columns:', ga4ColError.message);
@@ -125720,9 +125728,14 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
         const fmtDate = d => d.toISOString().split('T')[0];
         const monthLabel = periodStart.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 
-        // Look up site + account
+        // Look up site + account. booking_engine drives which report
+        // narrative fires — 'gas' = direct-booking flow lives in GAS
+        // so we can attribute revenue; anything else = external booker
+        // (ResNexus / Cloudbeds / Mews etc.) where we show intent
+        // metrics (book-now clicks) instead.
         const siteRow = await pool.query(
             `SELECT ds.id, ds.account_id, ds.site_name, ds.ga4_property_id,
+                    COALESCE(ds.booking_engine, 'gas') AS booking_engine,
                     a.name AS account_name, a.email AS account_email
              FROM deployed_sites ds
              LEFT JOIN accounts a ON a.id = ds.account_id
@@ -125731,6 +125744,7 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
         );
         if (!siteRow.rows[0]) return res.status(404).send('Site not found');
         const site = siteRow.rows[0];
+        const isExternalBooking = site.booking_engine !== 'gas';
 
         // Small helpers to swallow any single-source failure — a report
         // that renders partial data is better than a 500.
@@ -125792,7 +125806,29 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
             const topPages = (topPagesResp.data.rows || []).map(r => ({
                 page: r.dimensionValues[0].value, views: parseInt(r.metricValues[0].value)
             }));
-            return { current, previous, trend, topPages };
+
+            // Book-Now click count — the intent metric for external-
+            // booking sites. Fired by plugin JS as `gas_book_now_click`.
+            // Falls back gracefully if GA4 hasn't seen this event yet.
+            const runBookNowCount = async (startDate, endDate) => {
+                try {
+                    const r = await picked.client.properties.runReport({
+                        property: site.ga4_property_id,
+                        requestBody: {
+                            dateRanges: [{ startDate, endDate }],
+                            metrics: [{ name: 'eventCount' }],
+                            dimensionFilter: {
+                                filter: { fieldName: 'eventName', stringFilter: { value: 'gas_book_now_click' } }
+                            }
+                        }
+                    });
+                    return parseInt(r.data.rows?.[0]?.metricValues?.[0]?.value || 0);
+                } catch (_) { return 0; }
+            };
+            const bookNowClicksCur = await runBookNowCount(fmtDate(periodStart), fmtDate(periodEnd));
+            const bookNowClicksPrev = await runBookNowCount(fmtDate(prevPeriodStart), fmtDate(prevPeriodEnd));
+
+            return { current, previous, trend, topPages, bookNowClicksCur, bookNowClicksPrev };
         }, null);
 
         // ─── Search Console: keywords + change vs prior month ────
@@ -125915,6 +125951,10 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
         }
         if (gscStats?.current) {
             summaryBits.push(`<strong>${fmtNum(gscStats.current.clicks)}</strong> clicks from Google Search`);
+        }
+        // External booking sites: surface book-now clicks as intent
+        if (isExternalBooking && ga4Stats?.bookNowClicksCur > 0) {
+            summaryBits.push(`<strong>${fmtNum(ga4Stats.bookNowClicksCur)}</strong> ready-to-book visitors sent to your ${site.booking_engine} booking system`);
         }
         if (actionsThisMonth.redirects.length) {
             const totalHits = actionsThisMonth.redirects.reduce((n, r) => n + (r.hit_count || 0), 0);
@@ -126078,7 +126118,18 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
                 <div class="kpi-label">Google clicks</div>
                 <div class="kpi-delta">${arrow(pctChange(gscStats.current.clicks, gscStats.previous.clicks))}</div>
             </div>` : ''}
+            ${isExternalBooking && (ga4Stats.bookNowClicksCur > 0 || ga4Stats.bookNowClicksPrev > 0) ? `
+            <div class="kpi" style="background:#dcfce7;">
+                <div class="kpi-value" style="color:#166534;">${fmtNum(ga4Stats.bookNowClicksCur)}</div>
+                <div class="kpi-label"><strong>Book Now clicks →</strong><br>${site.booking_engine}</div>
+                <div class="kpi-delta">${arrow(pctChange(ga4Stats.bookNowClicksCur, ga4Stats.bookNowClicksPrev))}</div>
+            </div>` : ''}
         </div>
+        ${isExternalBooking ? `
+            <div style="margin-top:0.75rem;padding:0.75rem;background:#eff6ff;border-radius:6px;font-size:0.85rem;color:#1e3a8a;">
+                💡 Your booking flow uses <strong>${site.booking_engine}</strong>, so bookings are captured in their system — GAS tracks the intent (Book Now clicks) as the leading indicator. The higher this number, the more ready-to-book visitors GAS is delivering to your booker.
+            </div>
+        ` : ''}
     </div>` : ''}
 
     ${ga4Stats?.trend?.length > 1 ? `
@@ -126207,6 +126258,24 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
     }
 });
 
+// Set the booking_engine per deployed site. Values: 'gas' (default),
+// or an external engine like 'resnexus', 'cloudbeds', 'mews',
+// 'bookingcom', 'airbnb-only'. Drives report copy. Steve 2026-08-20.
+app.put('/api/admin/deployed-sites/:id/booking-engine', async (req, res) => {
+    try {
+        const { booking_engine } = req.body;
+        if (!booking_engine) return res.json({ success: false, error: 'booking_engine required' });
+        const clean = String(booking_engine).toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 50);
+        await pool.query(
+            `UPDATE deployed_sites SET booking_engine = $1 WHERE id = $2`,
+            [clean || 'gas', parseInt(req.params.id)]
+        );
+        res.json({ success: true, booking_engine: clean || 'gas' });
+    } catch (e) {
+        res.json({ success: false, error: e.message });
+    }
+});
+
 /**
  * Counter-Report — the response document Steve sends clients who
  * received a "your site is broken, 21 problems, hire us to fix"
@@ -126230,7 +126299,9 @@ app.get('/api/admin/seo/counter-report', async (req, res) => {
         if (!site_url) return res.status(400).send('site_url is required');
 
         const siteRow = await pool.query(
-            `SELECT ds.id, ds.account_id, ds.site_name, a.name AS account_name
+            `SELECT ds.id, ds.account_id, ds.site_name,
+                    COALESCE(ds.booking_engine, 'gas') AS booking_engine,
+                    a.name AS account_name
              FROM deployed_sites ds
              LEFT JOIN accounts a ON a.id = ds.account_id
              WHERE ds.site_url = $1 LIMIT 1`,
@@ -126240,6 +126311,7 @@ app.get('/api/admin/seo/counter-report', async (req, res) => {
         const site = siteRow.rows[0];
         const displayName = site.site_name || site.account_name || 'your site';
         const bareHost = site_url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        const isExternalBooking = site.booking_engine !== 'gas';
 
         const safeR = async (fn, fallback) => { try { return await fn(); } catch (_) { return fallback; } };
 
@@ -126441,8 +126513,10 @@ app.get('/api/admin/seo/counter-report', async (req, res) => {
     <p>Third-party "SEO audit" reports are <strong>sales lead-generation documents</strong>, not audits. They're structured to make any website look broken, then offer to fix it for a monthly fee.</p>
     <p><strong>Your reality:</strong></p>
     <ul>
-        ${rankings.top.length ? `<li>Ranking in top 3 for ${rankings.top.length} search terms already</li>` : ''}
+        ${rankings.top.length ? `<li>Ranking in top 5 for ${rankings.top.length} search terms already</li>` : ''}
+        ${rankings.runners.length ? `<li>${rankings.runners.length} more search terms on the edge of page 1 — real growth opportunity</li>` : ''}
         <li>Modern technical stack (HTTPS, HTTP/2, WebP, cache headers, schema, compression) — all correct</li>
+        ${isExternalBooking ? `<li>GAS is delivering search traffic + ready-to-book visitors into your <strong>${site.booking_engine}</strong> booking system (which GAS doesn't own, so bookings show up there — but GAS tracks the intent).</li>` : ''}
         <li>Roughly one hour of legitimate small fixes to close</li>
     </ul>
     <p><strong>Not needed:</strong> LinkedIn/X profiles, Facebook Pixel (unless running ads), llms.txt, AMP, "reducing unused JavaScript".</p>

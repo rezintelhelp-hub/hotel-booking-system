@@ -14,6 +14,59 @@
  */
 jQuery(document).ready(function($) {
 
+    // ─── Book-Now intent tracking (Steve 2026-08-20) ─────────────────────
+    // When the site's booking flow is external (ResNexus, Cloudbeds, Mews,
+    // etc.), GAS can't attribute the sale — but we can track that the
+    // visitor was ready to book. Fires a `gas_book_now_click` GA4 event
+    // whenever an outbound-domain link is clicked, or a button labelled
+    // 'Book Now' / 'Book' / 'Reserve' is triggered. The monthly + counter
+    // reports read this as the intent metric for external-booking sites.
+    (function initBookNowIntentTracking() {
+        var currentHost = location.hostname;
+        var bookNowRegex = /book\s*now|reserve|book\s+direct|check\s+availability/i;
+        document.addEventListener('click', function (e) {
+            var a = e.target.closest('a[href]');
+            var btn = e.target.closest('button, [role="button"]');
+            var url = null;
+            var label = '';
+            if (a) {
+                url = a.href;
+                label = (a.textContent || '').trim().slice(0, 60);
+            } else if (btn) {
+                label = (btn.textContent || '').trim().slice(0, 60);
+                url = btn.getAttribute('data-href') || btn.getAttribute('data-url') || '';
+            }
+            if (!label && !url) return;
+            var isOutbound = false;
+            try {
+                if (url) {
+                    var target = new URL(url, location.href);
+                    isOutbound = target.hostname && target.hostname !== currentHost
+                        && !target.hostname.endsWith('.' + currentHost.replace(/^www\./, ''));
+                }
+            } catch (_) {}
+            var looksBookish = bookNowRegex.test(label);
+            if (!isOutbound && !looksBookish) return;
+            // Fire GA4 event if gtag or dataLayer is available
+            try {
+                if (typeof gtag === 'function') {
+                    gtag('event', 'gas_book_now_click', {
+                        destination: url ? (new URL(url, location.href)).hostname : '',
+                        label: label,
+                        outbound: isOutbound
+                    });
+                } else if (window.dataLayer && typeof window.dataLayer.push === 'function') {
+                    window.dataLayer.push({
+                        event: 'gas_book_now_click',
+                        destination: url ? (new URL(url, location.href)).hostname : '',
+                        label: label,
+                        outbound: isOutbound
+                    });
+                }
+            } catch (_) { /* never break navigation over analytics */ }
+        }, true); // capture — fire before navigation
+    })();
+
     // ─── GAS Search widget: location dropdown ────────────────────────────
     // Populate every .gas-location-input <select> on the page with the
     // account's distinct property locations. Only fires once even if
