@@ -150755,13 +150755,19 @@ app.put('/api/inbox/messages/bulk-status', async (req, res) => {
 // GET /api/inbox/unread-count/:accountId — lightweight unread count for sidebar badge
 app.get('/api/inbox/unread-count/:accountId', async (req, res) => {
   try {
-    const user = await authenticateUser(req, res);
+    // Silent auth — this is a background badge poll on every admin
+    // page load. authenticateUser would auto-send a 401 on missing
+    // token, then this endpoint's `if (!user)` would try to send
+    // { count: 0 } as a SECOND response = 'Cannot set headers after
+    // they are sent to the client' (Sentry 599cd171, Steve 2026-08-20).
+    // For a badge, silently returning 0 to unauthed callers is better UX.
+    const user = await extractAccountFromToken(req);
     if (!user || user.role !== 'master_admin') return res.json({ count: 0 });
 
     const result = await pool.query('SELECT COUNT(*) FROM inbox_messages WHERE account_id = $1 AND status = $2', [req.params.accountId, 'unread']);
     res.json({ count: parseInt(result.rows[0].count) });
   } catch (error) {
-    res.json({ count: 0 });
+    if (!res.headersSent) res.json({ count: 0 });
   }
 });
 
