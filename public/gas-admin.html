@@ -21301,6 +21301,12 @@
                         <div id="dashboard-ota-channels" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.6rem;"></div>
                     </div>
 
+                    <!-- Priority Actions — rolls up every red/amber signal
+                         from Direct Booking Health, Bounce Audit, and Site
+                         Health into a "do these this week" list. Master-
+                         only, hidden until any signal fires. Steve 2026-08-20. -->
+                    <div id="dashboard-priority-actions" style="display: none; margin-bottom: 1.25rem;"></div>
+
                     <!-- Direct Booking Health: audit of growth features in use -->
                     <div style="background: #fffbeb; border: 1px solid #fcd34d; border-radius: 10px; padding: 1rem; margin-bottom: 1.25rem;">
                         <div style="font-weight: 600; color: #92400e; margin-bottom: 0.5rem; font-size: 0.95rem;">🚀 Direct Booking Health — features driving direct conversions</div>
@@ -94343,8 +94349,9 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             // Direct Booking Health audit — fire in parallel, render
             // independently. Failure of this section must not break the
-            // headline KPIs above.
-            loadGrowthFeaturesAudit(siteUrl);
+            // headline KPIs above. Priority actions runs AFTER the
+            // growth-features audit so it can roll up its results.
+            loadGrowthFeaturesAudit(siteUrl).then(() => loadPriorityActions(siteUrl));
         }
 
         // Drill-in modal for a Direct Booking Health tile — renders the
@@ -94461,6 +94468,96 @@ const promo = await fetch('/api/v1/offers/validate', {
                     break;
             }
             return recs;
+        }
+
+        // Priority Actions panel — rolls up EVERY red/amber signal from
+        // the audits into a single "this week's punch list", scored by
+        // (impact × ease). Steve 2026-08-20 — turn scattered warnings
+        // into an actionable weekly plan. Master-only; silent when
+        // there's nothing to fix.
+        async function loadPriorityActions(siteUrl) {
+            const panel = document.getElementById('dashboard-priority-actions');
+            if (!panel) return;
+            const isMasterAdmin = currentAccount && currentAccount.role === 'master_admin';
+            if (!isMasterAdmin) return;
+            const items = [];
+
+            // Growth-features audit — every non-good tile becomes an item
+            const gf = window._lastGrowthFeatures || [];
+            gf.filter(f => f.status !== 'good').forEach(f => {
+                items.push({
+                    key: 'gf-' + f.key,
+                    label: f.label,
+                    status: f.status,
+                    // Impact scoring: missing > improve. Reviews / offers
+                    // / contact form have biggest direct-booking impact.
+                    impact: f.status === 'missing'
+                        ? (['reviews', 'offers', 'contact_form', 'blog'].includes(f.key) ? 9 : 6)
+                        : 3,
+                    ease: 5, // most are one-click / few-minute setup
+                    reason: f.help || '',
+                    action_label: 'Fix in ' + f.label,
+                    action_fn: () => openGrowthFeatureDrillIn(gf.indexOf(f)),
+                });
+            });
+
+            // Bounce audit — high-bounce URLs without an active redirect
+            try {
+                const r = await fetch(`/api/admin/seo/bounce-audit?site_url=${encodeURIComponent(siteUrl)}`, { headers: authHeaders() });
+                const d = await r.json();
+                if (d.success && Array.isArray(d.results)) {
+                    const unfixed = d.results.filter(x => !x.fixed);
+                    if (unfixed.length > 0) {
+                        const lostSessions = unfixed.reduce((n, x) => n + (x.sessions || 0), 0);
+                        items.push({
+                            key: 'bounce-audit',
+                            label: `${unfixed.length} bouncing page${unfixed.length === 1 ? '' : 's'} without redirects`,
+                            status: 'missing',
+                            impact: Math.min(10, 3 + Math.floor(lostSessions / 10)),
+                            ease: 8, // one-click apply for confident suggestions
+                            reason: `~${lostSessions} lost session${lostSessions === 1 ? '' : 's'} in the last 28 days. Apply 301 redirects to recover this traffic.`,
+                            action_label: 'Open bounce audit',
+                            action_fn: () => showBouncingPagesModal(),
+                        });
+                    }
+                }
+            } catch (_) {}
+
+            if (items.length === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+
+            // Sort by (impact × ease) descending. Cap at 5 items — this
+            // is a weekly plan, not an intimidating dump.
+            items.sort((a, b) => (b.impact * b.ease) - (a.impact * a.ease));
+            const top = items.slice(0, 5);
+
+            const statusColour = { missing: '#dc2626', improve: '#f59e0b' };
+            panel.innerHTML = `
+                <div style="background: linear-gradient(135deg,#1e293b 0%,#0f172a 100%); color:#fff; border-radius:12px; padding:1.25rem 1.5rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                        <div style="font-weight:700;font-size:1.05rem;">🎯 Priority Actions This Week</div>
+                        <div style="font-size:0.75rem;color:#94a3b8;">Top ${top.length} highest-impact fixes · scored by impact × ease</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                        ${top.map((it, i) => `
+                            <div onclick="(window._priorityActionFns=window._priorityActionFns||{});window._priorityActionFns['${it.key}']&&window._priorityActionFns['${it.key}']()" style="background:rgba(255,255,255,0.06);border-left:3px solid ${statusColour[it.status]||'#94a3b8'};padding:0.65rem 0.85rem;border-radius:6px;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.11)';" onmouseout="this.style.background='rgba(255,255,255,0.06)';">
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                                    <div style="flex:1;">
+                                        <div style="font-weight:600;color:#fff;">${i + 1}. ${it.label}</div>
+                                        <div style="font-size:0.8rem;color:#cbd5e1;margin-top:2px;">${it.reason}</div>
+                                    </div>
+                                    <button style="background:#3b82f6;color:#fff;border:none;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:0.78rem;font-weight:600;flex-shrink:0;">${it.action_label} →</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+            // Wire the action functions after render (onclick strings can't hold closures)
+            window._priorityActionFns = {};
+            top.forEach(it => { window._priorityActionFns[it.key] = it.action_fn; });
+            panel.style.display = 'block';
         }
 
         async function loadGrowthFeaturesAudit(siteUrl) {
