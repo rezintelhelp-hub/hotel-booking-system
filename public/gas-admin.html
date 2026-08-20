@@ -21266,6 +21266,7 @@
                         <div class="master-only" style="align-self: flex-end;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">&nbsp;</label>
                             <button class="btn" onclick="openMonthlyReport()" style="background: #16a34a; padding: 0.5rem 1rem; margin-right: 0.5rem;">📄 Monthly Report</button>
+                            <button class="btn" onclick="openCounterReport()" style="background: #8b5cf6; padding: 0.5rem 1rem; margin-right: 0.5rem;" title="Debunk a 3rd-party SEO report for this client">🛡 Counter-Report</button>
                             <button class="btn" onclick="deleteSeoSite()" style="background: #ef4444; padding: 0.5rem 1rem;"> Remove Site</button>
                         </div>
                     </div>
@@ -94459,6 +94460,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                     break;
             }
             return recs;
+        }
+
+        // Open the counter-report — the "your 3rd-party SEO report is
+        // mostly bollocks" client-facing debunk with real live tech
+        // checks + real GSC rankings for this specific site.
+        function openCounterReport() {
+            const siteUrl = document.getElementById('seo-site-select')?.value;
+            if (!siteUrl) { alert('Pick a site first'); return; }
+            window.open(`/api/admin/seo/counter-report?site_url=${encodeURIComponent(siteUrl)}`, '_blank');
         }
 
         // Open the monthly SEO report — opens the HTML report endpoint
