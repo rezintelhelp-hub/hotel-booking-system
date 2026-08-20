@@ -125774,6 +125774,20 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
             const totalsPrev = await scQuery(fmtDate(prevPeriodStart), fmtDate(prevPeriodEnd));
             const kwsCur = await scQuery(fmtDate(periodStart), fmtDate(periodEnd), ['query']);
             const kwsPrev = await scQuery(fmtDate(prevPeriodStart), fmtDate(prevPeriodEnd), ['query']);
+
+            // 12-month trend for GSC (mirror the GA4 trend shape)
+            const trendStart = new Date(year, month0 - 11, 1);
+            const trendResp = await scQuery(fmtDate(trendStart), fmtDate(periodEnd), ['date']);
+            const trendMonths = [];
+            (trendResp.data.rows || []).forEach(row => {
+                const dateStr = row.keys[0]; // YYYY-MM-DD
+                const ym = dateStr.slice(0, 4) + dateStr.slice(5, 7);
+                let bucket = trendMonths.find(m => m.yearMonth === ym);
+                if (!bucket) { bucket = { yearMonth: ym, clicks: 0, impressions: 0 }; trendMonths.push(bucket); }
+                bucket.clicks += row.clicks || 0;
+                bucket.impressions += row.impressions || 0;
+            });
+            trendMonths.sort((a, b) => a.yearMonth.localeCompare(b.yearMonth));
             const sumRow = r => (r.data.rows?.[0] || { clicks: 0, impressions: 0, ctr: 0, position: 0 });
             const mapKws = r => (r.data.rows || []).map(row => ({
                 keyword: row.keys[0], clicks: row.clicks, impressions: row.impressions,
@@ -125792,7 +125806,33 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
                 .filter(k => k.position_delta > 0.5)
                 .sort((a, b) => b.position_delta - a.position_delta)
                 .slice(0, 5);
-            return { current: sumRow(totalsCur), previous: sumRow(totalsPrev), keywords: cur.slice(0, 15), movers };
+            return { current: sumRow(totalsCur), previous: sumRow(totalsPrev), keywords: cur.slice(0, 15), movers, trendMonths };
+        }, null);
+
+        // ─── PageSpeed / Site Health (mobile + desktop scores) ──
+        // Reuses the same Lighthouse API call as the on-demand health
+        // check. Slower (10-20s) but only fires once per report.
+        const pageSpeed = await safeReport(async () => {
+            const apiKey = process.env.PAGESPEED_API_KEY || process.env.GOOGLE_API_KEY || '';
+            const keyParam = apiKey ? `&key=${apiKey}` : '';
+            const cats = 'category=PERFORMANCE&category=ACCESSIBILITY&category=BEST_PRACTICES&category=SEO';
+            const base = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed';
+            const runOne = async (strategy) => {
+                const targetUrl = `${base}?url=${encodeURIComponent(site_url)}&strategy=${strategy}&${cats}${keyParam}`;
+                const resp = await fetch(targetUrl);
+                const data = await resp.json();
+                if (data.error) return null;
+                const c = data.lighthouseResult?.categories || {};
+                return {
+                    performance: Math.round((c.performance?.score || 0) * 100),
+                    accessibility: Math.round((c.accessibility?.score || 0) * 100),
+                    bestPractices: Math.round((c['best-practices']?.score || 0) * 100),
+                    seo: Math.round((c.seo?.score || 0) * 100),
+                };
+            };
+            const [mobile, desktop] = await Promise.all([runOne('mobile'), runOne('desktop')]);
+            if (!mobile && !desktop) return null;
+            return { mobile, desktop };
         }, null);
 
         // ─── Actions taken this month (DB queries) ───────────────
@@ -125856,15 +125896,84 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
             ? summaryBits.join(' · ') + '.'
             : 'Not enough data collected yet — check back next month.';
 
-        // Trend chart data (inline SVG so no dep on external libs)
-        const trendSvg = (data, key, colour) => {
+        // Trend chart — SVG with month labels along x-axis, value labels
+        // above each point, and a soft baseline. `yearMonth` field is
+        // YYYYMM from GA4; we render "Sep" etc. `xLabelFn` optional for
+        // GSC data (which uses date strings not yearMonth).
+        const trendSvg = (data, key, colour, xLabelFn) => {
             if (!data || !data.length) return '';
-            const w = 480, h = 100, pad = 20;
+            const w = 640, h = 180, padL = 30, padR = 20, padT = 25, padB = 30;
+            const innerW = w - padL - padR;
+            const innerH = h - padT - padB;
             const max = Math.max(...data.map(d => d[key] || 0), 1);
-            const step = (w - pad * 2) / Math.max(data.length - 1, 1);
-            const pts = data.map((d, i) => `${pad + i * step},${h - pad - ((d[key] || 0) / max) * (h - pad * 2)}`).join(' ');
-            const bars = data.map((d, i) => `<circle cx="${pad + i * step}" cy="${h - pad - ((d[key] || 0) / max) * (h - pad * 2)}" r="3" fill="${colour}"/>`).join('');
-            return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;background:#f8fafc;border-radius:6px;"><polyline points="${pts}" fill="none" stroke="${colour}" stroke-width="2"/>${bars}</svg>`;
+            const step = data.length > 1 ? innerW / (data.length - 1) : 0;
+            const pointX = i => padL + i * step;
+            const pointY = v => padT + innerH - ((v || 0) / max) * innerH;
+            const pts = data.map((d, i) => `${pointX(i)},${pointY(d[key])}`).join(' ');
+            const monthShort = ym => {
+                if (xLabelFn) return xLabelFn(ym);
+                // GA4 yearMonth format: "202608" → "Aug"
+                const s = String(ym || '');
+                if (s.length !== 6) return s;
+                const m = parseInt(s.slice(4, 6));
+                return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1] || '';
+            };
+            const fmtVal = v => (v || 0) >= 1000 ? Math.round((v || 0) / 100) / 10 + 'k' : String(v || 0);
+            const dots = data.map((d, i) => {
+                const x = pointX(i), y = pointY(d[key]);
+                return `<circle cx="${x}" cy="${y}" r="3.5" fill="${colour}"/>
+                    <text x="${x}" y="${y - 8}" text-anchor="middle" font-size="10" fill="#1e293b" font-weight="600">${fmtVal(d[key])}</text>`;
+            }).join('');
+            const xLabels = data.map((d, i) => {
+                return `<text x="${pointX(i)}" y="${h - 8}" text-anchor="middle" font-size="10" fill="#64748b">${monthShort(d.yearMonth)}</text>`;
+            }).join('');
+            // Baseline
+            const baseY = padT + innerH;
+            return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;background:#f8fafc;border-radius:6px;">
+                <line x1="${padL}" y1="${baseY}" x2="${w - padR}" y2="${baseY}" stroke="#e2e8f0" stroke-width="1"/>
+                <polyline points="${pts}" fill="none" stroke="${colour}" stroke-width="2"/>
+                ${dots}
+                ${xLabels}
+            </svg>`;
+        };
+
+        // Build a monthly comparison table — last 6 months of the
+        // headline metrics side-by-side. Better for at-a-glance number
+        // reading than the trend chart.
+        const buildMonthlyTable = () => {
+            if (!ga4Stats?.trend?.length) return '';
+            const rows = ga4Stats.trend.slice(-6);
+            const gscByMonth = new Map((gscStats?.trendMonths || []).map(m => [m.yearMonth, m]));
+            const monthLabel = ym => {
+                const s = String(ym || '');
+                if (s.length !== 6) return s;
+                const y = s.slice(0, 4), m = parseInt(s.slice(4, 6));
+                return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1] + ' ' + y;
+            };
+            return `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th style="text-align:right;">Users</th>
+                            <th style="text-align:right;">Sessions</th>
+                            <th style="text-align:right;">Google Clicks</th>
+                            <th style="text-align:right;">Impressions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows.map(r => {
+                            const g = gscByMonth.get(r.yearMonth) || {};
+                            return `<tr>
+                                <td><strong>${monthLabel(r.yearMonth)}</strong></td>
+                                <td style="text-align:right;">${fmtNum(r.users)}</td>
+                                <td style="text-align:right;">${fmtNum(r.sessions)}</td>
+                                <td style="text-align:right;">${g.clicks !== undefined ? fmtNum(g.clicks) : '—'}</td>
+                                <td style="text-align:right;">${g.impressions !== undefined ? fmtNum(g.impressions) : '—'}</td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>`;
         };
 
         // ─── Render HTML ─────────────────────────────────────────
@@ -125944,10 +126053,47 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
     ${ga4Stats?.trend?.length > 1 ? `
     <div class="section">
         <h2>📈 12-Month Growth</h2>
-        <div style="font-size:0.85rem;color:#64748b;margin-bottom:0.5rem;">Users per month</div>
+        <div style="font-size:0.85rem;color:#64748b;margin-bottom:0.5rem;font-weight:600;">Users per month</div>
         ${trendSvg(ga4Stats.trend, 'users', '#3b82f6')}
-        <div style="font-size:0.85rem;color:#64748b;margin-top:1rem;margin-bottom:0.5rem;">Sessions per month</div>
+        <div style="font-size:0.85rem;color:#64748b;margin-top:1.25rem;margin-bottom:0.5rem;font-weight:600;">Sessions per month</div>
         ${trendSvg(ga4Stats.trend, 'sessions', '#10b981')}
+        ${gscStats?.trendMonths?.length > 1 ? `
+            <div style="font-size:0.85rem;color:#64748b;margin-top:1.25rem;margin-bottom:0.5rem;font-weight:600;">Google Search clicks per month</div>
+            ${trendSvg(gscStats.trendMonths, 'clicks', '#f59e0b')}
+            <div style="font-size:0.85rem;color:#64748b;margin-top:1.25rem;margin-bottom:0.5rem;font-weight:600;">Google Search impressions per month</div>
+            ${trendSvg(gscStats.trendMonths, 'impressions', '#8b5cf6')}
+        ` : ''}
+    </div>
+    <div class="section">
+        <h2>📅 Last 6 Months Side-by-Side</h2>
+        ${buildMonthlyTable()}
+    </div>` : ''}
+
+    ${pageSpeed ? `
+    <div class="section">
+        <h2>⚡ Site Speed & Health</h2>
+        <div style="font-size:0.85rem;color:#64748b;margin-bottom:0.75rem;">Google Lighthouse scores. Accessibility, Best Practices and SEO are what Google actually uses for ranking. Performance depends on device / network — even Booking.com's mobile score is ~40.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            ${['mobile', 'desktop'].map(k => pageSpeed[k] ? `
+                <div style="background:#f8fafc;border-radius:8px;padding:1rem;">
+                    <div style="font-weight:700;font-size:0.9rem;margin-bottom:0.75rem;text-align:center;color:#1e293b;">${k === 'mobile' ? '📱 Mobile' : '🖥 Desktop'}</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+                        ${[
+                            ['Performance', pageSpeed[k].performance],
+                            ['Accessibility', pageSpeed[k].accessibility],
+                            ['Best Practices', pageSpeed[k].bestPractices],
+                            ['SEO', pageSpeed[k].seo]
+                        ].map(([label, score]) => {
+                            const c = score >= 90 ? '#16a34a' : score >= 50 ? '#f59e0b' : '#dc2626';
+                            return `<div style="text-align:center;padding:0.5rem;background:#fff;border-radius:6px;">
+                                <div style="font-size:1.5rem;font-weight:700;color:${c};">${score}<span style="font-size:0.75rem;color:#94a3b8;font-weight:500;">/100</span></div>
+                                <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">${label}</div>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            ` : '').join('')}
+        </div>
     </div>` : ''}
 
     <div class="section">
