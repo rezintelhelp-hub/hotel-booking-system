@@ -125692,7 +125692,7 @@ app.get('/api/admin/seo/monthly-report', async (req, res) => {
         // Look up site + account
         const siteRow = await pool.query(
             `SELECT ds.id, ds.account_id, ds.site_name, ds.ga4_property_id,
-                    a.name AS account_name, a.contact_email
+                    a.name AS account_name, a.email AS account_email
              FROM deployed_sites ds
              LEFT JOIN accounts a ON a.id = ds.account_id
              WHERE ds.site_url = $1 LIMIT 1`,
