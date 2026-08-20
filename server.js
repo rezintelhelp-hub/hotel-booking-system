@@ -124524,11 +124524,16 @@ app.get('/api/admin/seo/bounce-audit', async (req, res) => {
             if (path.endsWith('/') && sitemapUrls.includes(noSlash) && !sitemapUrls.includes(path)) {
                 return { pattern: 'extra-trailing-slash', suggested: noSlash, why: 'Sitemap has this URL without a trailing slash. Canonicalise via 301.' };
             }
-            // Fuzzy match against sitemap — best for 404s where the
+            // Fuzzy match against sitemap — best for 404s / 500s /
+            // network errors where the URL is effectively dead and the
             // slug is close to a live one (e.g. /about-us/ vs /about/,
-            // /properties/the-waterfront vs /properties/waterfront-lodge)
+            // /properties/the-waterfront vs /properties/waterfront-lodge).
+            // 500 counts as dead here — Homega had 30 URLs returning
+            // 500 (broken rewrite rules on legacy paths); they should
+            // get suggestions just like 404s do. Steve 2026-08-20.
             const fuzzy = fuzzyMatch(path);
-            if (fuzzy && (status === 404 || status === 'network_error')) {
+            const isDead = status === 404 || status === 500 || status === 502 || status === 503 || status === 'network_error';
+            if (fuzzy && isDead) {
                 return {
                     pattern: 'fuzzy-sitemap-match',
                     suggested: fuzzy.url,
@@ -124568,9 +124573,9 @@ app.get('/api/admin/seo/bounce-audit', async (req, res) => {
                 status,
                 redirected_to: redirectedTo,
                 content_size: contentSize,
-                pattern: patternSuggestion.pattern || (status === 404 ? '404-dead' : status === 200 ? 'live-thin-content' : null),
+                pattern: patternSuggestion.pattern || (status === 404 ? '404-dead' : (status === 500 || status === 502 || status === 503) ? 'server-error-dead' : status === 200 ? 'live-thin-content' : null),
                 suggested_redirect: patternSuggestion.suggested || null,
-                why: patternSuggestion.why || (status === 404 ? 'Returns 404. If there are still inbound links, redirect to the closest live equivalent.' : status === 200 ? 'Page loads but 100% of visitors bounce. Content or design issue — check load time, CTA above fold, page relevance to the query that brought them here.' : status === 'network_error' ? 'Could not reach URL. Check DNS + server status.' : null),
+                why: patternSuggestion.why || (status === 404 ? 'Returns 404. If there are still inbound links, redirect to the closest live equivalent.' : (status === 500 || status === 502 || status === 503) ? `Server error (${status}) — URL is dead to visitors and Google. Almost certainly a broken rewrite rule from a site migration. Pick a live target below.` : status === 200 ? 'Page loads but 100% of visitors bounce. Content or design issue — check load time, CTA above fold, page relevance to the query that brought them here.' : status === 'network_error' ? 'Could not reach URL. Check DNS + server status.' : null),
                 fixed: !!existingRedirect,
                 fixed_to: existingRedirect?.to_path || null,
                 fixed_hit_count: existingRedirect?.hit_count || 0,
