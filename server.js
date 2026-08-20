@@ -87559,7 +87559,36 @@ app.get('/api/public/upload-tokens/:token/info', async (req, res) => {
 // Public upload endpoint. Validates token, uploads to R2 via the existing
 // processAndUploadImage helper, inserts as is_active=false so the operator
 // approves in the Pending Review strip.
-app.post('/api/public/upload-tokens/:token/images', upload.array('images', 10), async (req, res) => {
+//
+// Multer wrapper: guest uploads from phones frequently exceed the 10MB
+// default (modern camera photos are 5-15MB). Uses a dedicated multer
+// instance with 20MB limit + catches MulterError as JSON instead of
+// throwing an uncaught exception into Express (Sentry bb715bce).
+const guestImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB — accommodates phone camera output
+  fileFilter: (req, file, cb) => {
+    if ((file.mimetype || '').startsWith('image/')) cb(null, true);
+    else cb(new Error('image_only'), false);
+  },
+});
+const guestImageUploadMw = (req, res, next) => {
+  guestImageUpload.array('images', 10)(req, res, (err) => {
+    if (!err) return next();
+    if (err && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ success: false, error: 'file_too_large', message: 'Each image must be under 20MB. Try reducing quality on your phone camera.' });
+    }
+    if (err && err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(413).json({ success: false, error: 'too_many_files', message: 'Upload at most 10 images at once.' });
+    }
+    if (err && err.message === 'image_only') {
+      return res.status(415).json({ success: false, error: 'image_only', message: 'Only image files allowed.' });
+    }
+    return res.status(400).json({ success: false, error: 'upload_failed', message: err.message });
+  });
+};
+
+app.post('/api/public/upload-tokens/:token/images', guestImageUploadMw, async (req, res) => {
   try {
     const files = req.files || [];
     if (files.length === 0) return res.json({ success: false, error: 'no files' });
@@ -87584,7 +87613,9 @@ app.post('/api/public/upload-tokens/:token/images', upload.array('images', 10), 
     const saved = [];
     for (const file of files) {
       try {
-        // 20MB per-file cap (matches multer default here). Skip larger.
+        // Belt-and-braces size check. guestImageUploadMw above already
+        // rejects >20MB at multer level, so this branch is unreachable
+        // in normal flow — kept for defence-in-depth.
         if (file.size > 20 * 1024 * 1024) { saved.push({ name: file.originalname, error: 'too_large' }); continue; }
         const entityType = t.scope === 'room' ? 'rooms' : 'properties';
         const entityId = t.scope === 'room' ? t.room_id : t.property_id;
