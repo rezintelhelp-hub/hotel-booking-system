@@ -126254,12 +126254,19 @@ app.get('/api/admin/seo/counter-report', async (req, res) => {
                 keyword: row.keys[0], impressions: row.impressions,
                 clicks: row.clicks, position: row.position,
             }));
-            // Top rankings — position <= 3 with any traffic
-            const top = rows.filter(k => k.position <= 3 && k.impressions >= 5)
+            // Top rankings — position <= 5 with real impressions.
+            // Positions 1-5 all get meaningful CTR (pos 1 ~30%,
+            // pos 5 ~5%). Loosened from <=3 after Steve tested with
+            // Moonriver 2026-08-20 which had pos 2.2 for its brand
+            // term but nothing at pos 1-3 exactly.
+            const top = rows.filter(k => k.position <= 5 && k.impressions >= 5)
                 .sort((a, b) => a.position - b.position).slice(0, 10);
-            // Runners-up — position 4-10 with real impressions
-            const runners = rows.filter(k => k.position > 3 && k.position <= 10 && k.impressions >= 20)
-                .sort((a, b) => b.impressions - a.impressions).slice(0, 5);
+            // Opportunities — position 5-15 with substantial impressions.
+            // These are "on page 1-2 already, small push moves them up".
+            // Higher-impression cutoff (20+) because these are the
+            // actionable ones for a monthly work list.
+            const runners = rows.filter(k => k.position > 5 && k.position <= 15 && k.impressions >= 20)
+                .sort((a, b) => b.impressions - a.impressions).slice(0, 8);
             return { top, runners };
         }, { top: [], runners: [] });
 
@@ -126341,7 +126348,7 @@ app.get('/api/admin/seo/counter-report', async (req, res) => {
 
     <h2>1. The Good News Buried in the Report</h2>
     ${rankings.top.length ? `
-        <p>Your site already ranks in the <strong>top 3 of Google Search</strong> for these terms right now:</p>
+        <p>Your site is already ranking in the <strong>top 5 of Google Search</strong> for ${rankings.top.length === 1 ? 'this search term' : 'these search terms'} right now (positions 1–5 are what visitors actually click):</p>
         <table>
             <thead>
                 <tr><th>Keyword</th><th style="text-align:center;">Position</th><th style="text-align:right;">Monthly Impressions</th></tr>
@@ -126350,26 +126357,27 @@ app.get('/api/admin/seo/counter-report', async (req, res) => {
                 ${rankings.top.map(k => `<tr>
                     <td>"${k.keyword}"</td>
                     <td class="pos p${Math.floor(k.position)}">#${k.position.toFixed(1)}</td>
-                    <td style="text-align:right;">${(k.impressions * (30/90)).toFixed(0).toLocaleString()}</td>
+                    <td style="text-align:right;">${Math.round(k.impressions / 3).toLocaleString()}</td>
                 </tr>`).join('')}
             </tbody>
         </table>
-        <p><strong>That's the outcome any SEO agency is paid to deliver.</strong> You're already there. A site scoring "63/100" that owns page 1 for its money keywords proves the scoring is theatre, not measurement.</p>
+        <p>That's the outcome any SEO agency is paid to deliver. A site scoring "63/100" that appears on page 1 for real search queries proves the scoring is theatre, not measurement.</p>
     ` : `
-        <p><em>Search Console data unavailable — check the Search Console connection in GAS Admin.</em></p>
+        <p>Search Console data unavailable at time of writing — the tech-stack review below is still valid.</p>
     `}
 
     ${rankings.runners.length ? `
-        <h3>Positions 4–10 (close to page 1 — small tweaks could push these up)</h3>
+        <h3>Real Opportunities — Positions 6–15 with real traffic</h3>
+        <p style="font-size:0.9rem;color:#64748b;">These search terms are already sending your site impressions on Google. Small pushes (better title tags, more relevant page content, a supporting blog post) can move them into the top-5 territory where clicks happen. This is where the SEO work actually matters — not the vanity items in the third-party report.</p>
         <table>
             <thead>
-                <tr><th>Keyword</th><th style="text-align:center;">Position</th><th style="text-align:right;">Impressions</th></tr>
+                <tr><th>Keyword</th><th style="text-align:center;">Position</th><th style="text-align:right;">Monthly Impressions</th></tr>
             </thead>
             <tbody>
                 ${rankings.runners.map(k => `<tr>
                     <td>"${k.keyword}"</td>
                     <td class="pos">#${k.position.toFixed(1)}</td>
-                    <td style="text-align:right;">${(k.impressions * (30/90)).toFixed(0).toLocaleString()}</td>
+                    <td style="text-align:right;">${Math.round(k.impressions / 3).toLocaleString()}</td>
                 </tr>`).join('')}
             </tbody>
         </table>
