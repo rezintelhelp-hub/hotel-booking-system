@@ -124383,15 +124383,28 @@ app.get('/api/admin/seo/bounce-audit', async (req, res) => {
         if (!site_url) return res.json({ success: false, error: 'site_url is required' });
 
         const siteResult = await pool.query(
-            'SELECT ga4_property_id FROM deployed_sites WHERE site_url = $1 LIMIT 1',
+            'SELECT id, ga4_property_id FROM deployed_sites WHERE site_url = $1 LIMIT 1',
             [site_url]
         );
         if (!siteResult.rows[0]?.ga4_property_id) {
             return res.json({ success: false, error: 'No GA4 property linked to this site' });
         }
         const propertyId = siteResult.rows[0].ga4_property_id;
+        const deployedSiteId = siteResult.rows[0].id;
         const picked = await pickGa4DataClient(propertyId);
         if (!picked) return res.json({ success: false, error: 'GA4 not accessible for this property' });
+
+        // Fetch already-configured redirects so we can exclude those
+        // URLs from the audit — GA4 data lags 24-48h, so a URL you
+        // fixed yesterday still shows up in the raw bounce list.
+        // Better UX = drop it now, show a small "N already fixed"
+        // counter below. Steve 2026-08-20 reported this.
+        const existingRedirects = await pool.query(
+            `SELECT from_path, to_path, hit_count, last_hit_at FROM site_redirects WHERE deployed_site_id = $1`,
+            [deployedSiteId]
+        );
+        const redirectedPaths = new Set(existingRedirects.rows.map(r => r.from_path));
+        const redirectMap = new Map(existingRedirects.rows.map(r => [r.from_path, r]));
 
         // Pull high-bounce pages from GA4
         const startDate = `${days}daysAgo`;
@@ -124540,6 +124553,14 @@ app.get('/api/admin/seo/bounce-audit', async (req, res) => {
             const patternSuggestion = suggest(b.path, status) || {};
             // If HEAD returned redirect chain landing somewhere else, note that
             const redirectedTo = (finalUrl && new URL(finalUrl).pathname !== b.path) ? new URL(finalUrl).pathname : null;
+
+            // Check if a GAS-configured redirect already exists for this
+            // path — if so, mark it Fixed with hit count. GA4 lags 24-48h
+            // so the URL is still in the raw bounce list, but the fix is
+            // live. Steve 2026-08-20 — better to show 'Fixed ✓ hit N
+            // times' than to make the operator re-apply.
+            const existingRedirect = redirectMap.get(b.path);
+
             return {
                 path: b.path,
                 sessions: b.sessions,
@@ -124550,6 +124571,10 @@ app.get('/api/admin/seo/bounce-audit', async (req, res) => {
                 pattern: patternSuggestion.pattern || (status === 404 ? '404-dead' : status === 200 ? 'live-thin-content' : null),
                 suggested_redirect: patternSuggestion.suggested || null,
                 why: patternSuggestion.why || (status === 404 ? 'Returns 404. If there are still inbound links, redirect to the closest live equivalent.' : status === 200 ? 'Page loads but 100% of visitors bounce. Content or design issue — check load time, CTA above fold, page relevance to the query that brought them here.' : status === 'network_error' ? 'Could not reach URL. Check DNS + server status.' : null),
+                fixed: !!existingRedirect,
+                fixed_to: existingRedirect?.to_path || null,
+                fixed_hit_count: existingRedirect?.hit_count || 0,
+                fixed_last_hit_at: existingRedirect?.last_hit_at || null,
             };
         }));
 
