@@ -125640,6 +125640,391 @@ app.get('/api/admin/seo/growth-features', async (req, res) => {
     }
 });
 
+/**
+ * Monthly SEO report — client-facing HTML view of a single month's
+ * SEO activity. Steve 2026-08-20 — the "not-bullshit" report that
+ * differentiates GAS from 3rd-party SEO agencies.
+ *
+ * Returns a self-contained HTML page suitable for viewing in the
+ * browser + print-to-PDF (Cmd+P). No Puppeteer/Chromium needed on
+ * Railway — same pattern as invoice PDFs (see server.js:80128).
+ *
+ * Sections:
+ *   - Executive summary (single paragraph, month-on-month deltas)
+ *   - Growth trend (12-month users/sessions from GA4)
+ *   - Successes (keywords that moved up, redirects catching traffic)
+ *   - Actions taken this month (blog / attractions / redirects)
+ *   - Recommended next steps (Priority Actions rolled in)
+ *   - Raw metrics (top keywords, top pages)
+ *
+ * Query params:
+ *   site_url  — required
+ *   month     — optional YYYY-MM (defaults to previous complete month)
+ */
+app.get('/api/admin/seo/monthly-report', async (req, res) => {
+    try {
+        const { site_url } = req.query;
+        if (!site_url) return res.status(400).send('site_url is required');
+
+        // Default period = previous COMPLETE month (report is a look-back).
+        // If ?month=2026-07 provided, use that.
+        const now = new Date();
+        let year, month0; // month0 = 0-based
+        if (req.query.month && /^\d{4}-\d{2}$/.test(req.query.month)) {
+            const [y, m] = req.query.month.split('-').map(Number);
+            year = y; month0 = m - 1;
+        } else {
+            const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            year = prev.getFullYear(); month0 = prev.getMonth();
+        }
+        const periodStart = new Date(year, month0, 1);
+        const periodEnd = new Date(year, month0 + 1, 0); // last day of period
+        const prevPeriodStart = new Date(year, month0 - 1, 1);
+        const prevPeriodEnd = new Date(year, month0, 0);
+        const fmtDate = d => d.toISOString().split('T')[0];
+        const monthLabel = periodStart.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+        // Look up site + account
+        const siteRow = await pool.query(
+            `SELECT ds.id, ds.account_id, ds.site_name, ds.ga4_property_id,
+                    a.name AS account_name, a.contact_email
+             FROM deployed_sites ds
+             LEFT JOIN accounts a ON a.id = ds.account_id
+             WHERE ds.site_url = $1 LIMIT 1`,
+            [site_url]
+        );
+        if (!siteRow.rows[0]) return res.status(404).send('Site not found');
+        const site = siteRow.rows[0];
+
+        // Small helpers to swallow any single-source failure — a report
+        // that renders partial data is better than a 500.
+        const safeReport = async (fn, fallback) => { try { return await fn(); } catch (_) { return fallback; } };
+
+        // ─── GA4 stats for the month + prior month ───────────────
+        const ga4Stats = await safeReport(async () => {
+            if (!site.ga4_property_id) return null;
+            const picked = await pickGa4DataClient(site.ga4_property_id);
+            if (!picked) return null;
+            const runMetrics = async (startDate, endDate) => {
+                const r = await picked.client.properties.runReport({
+                    property: site.ga4_property_id,
+                    requestBody: {
+                        dateRanges: [{ startDate, endDate }],
+                        metrics: [
+                            { name: 'activeUsers' }, { name: 'sessions' },
+                            { name: 'screenPageViews' }, { name: 'bounceRate' }
+                        ],
+                    }
+                });
+                const v = r.data.rows?.[0]?.metricValues || [];
+                return {
+                    users: parseInt(v[0]?.value || 0),
+                    sessions: parseInt(v[1]?.value || 0),
+                    pageViews: parseInt(v[2]?.value || 0),
+                    bounceRate: parseFloat(v[3]?.value || 0),
+                };
+            };
+            const current = await runMetrics(fmtDate(periodStart), fmtDate(periodEnd));
+            const previous = await runMetrics(fmtDate(prevPeriodStart), fmtDate(prevPeriodEnd));
+            // 12-month trend
+            const trendStart = new Date(year, month0 - 11, 1);
+            const trendResp = await picked.client.properties.runReport({
+                property: site.ga4_property_id,
+                requestBody: {
+                    dateRanges: [{ startDate: fmtDate(trendStart), endDate: fmtDate(periodEnd) }],
+                    dimensions: [{ name: 'yearMonth' }],
+                    metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
+                    orderBys: [{ dimension: { dimensionName: 'yearMonth' } }],
+                }
+            });
+            const trend = (trendResp.data.rows || []).map(r => ({
+                yearMonth: r.dimensionValues[0].value,
+                users: parseInt(r.metricValues[0].value || 0),
+                sessions: parseInt(r.metricValues[1].value || 0),
+            }));
+            // Top pages this month
+            const topPagesResp = await picked.client.properties.runReport({
+                property: site.ga4_property_id,
+                requestBody: {
+                    dateRanges: [{ startDate: fmtDate(periodStart), endDate: fmtDate(periodEnd) }],
+                    dimensions: [{ name: 'pagePath' }],
+                    metrics: [{ name: 'screenPageViews' }],
+                    limit: 10,
+                    orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+                }
+            });
+            const topPages = (topPagesResp.data.rows || []).map(r => ({
+                page: r.dimensionValues[0].value, views: parseInt(r.metricValues[0].value)
+            }));
+            return { current, previous, trend, topPages };
+        }, null);
+
+        // ─── Search Console: keywords + change vs prior month ────
+        const gscStats = await safeReport(async () => {
+            const scQuery = async (startDate, endDate, dims = []) => {
+                const rq = { startDate, endDate, dimensions: dims, rowLimit: 100, dataState: 'final' };
+                return _scQueryWithFallback(site_url, rq);
+            };
+            const totalsCur = await scQuery(fmtDate(periodStart), fmtDate(periodEnd));
+            const totalsPrev = await scQuery(fmtDate(prevPeriodStart), fmtDate(prevPeriodEnd));
+            const kwsCur = await scQuery(fmtDate(periodStart), fmtDate(periodEnd), ['query']);
+            const kwsPrev = await scQuery(fmtDate(prevPeriodStart), fmtDate(prevPeriodEnd), ['query']);
+            const sumRow = r => (r.data.rows?.[0] || { clicks: 0, impressions: 0, ctr: 0, position: 0 });
+            const mapKws = r => (r.data.rows || []).map(row => ({
+                keyword: row.keys[0], clicks: row.clicks, impressions: row.impressions,
+                ctr: row.ctr, position: row.position,
+            }));
+            const cur = mapKws(kwsCur);
+            const prev = mapKws(kwsPrev);
+            const prevByKw = new Map(prev.map(k => [k.keyword, k]));
+            // Movers up = position now < position prev
+            const movers = cur
+                .filter(k => prevByKw.has(k.keyword) && k.impressions >= 5)
+                .map(k => {
+                    const p = prevByKw.get(k.keyword);
+                    return { ...k, position_prev: p.position, position_delta: p.position - k.position };
+                })
+                .filter(k => k.position_delta > 0.5)
+                .sort((a, b) => b.position_delta - a.position_delta)
+                .slice(0, 5);
+            return { current: sumRow(totalsCur), previous: sumRow(totalsPrev), keywords: cur.slice(0, 15), movers };
+        }, null);
+
+        // ─── Actions taken this month (DB queries) ───────────────
+        const actionsThisMonth = await safeReport(async () => {
+            const [blogs, attractions, redirects, reviews] = await Promise.all([
+                pool.query(`SELECT title, slug, published_at FROM blog_posts
+                    WHERE client_id = $1 AND is_published = true
+                      AND published_at >= $2 AND published_at < $3
+                    ORDER BY published_at DESC`,
+                    [site.account_id, periodStart, new Date(year, month0 + 1, 1)]),
+                pool.query(`SELECT name, slug FROM attractions
+                    WHERE client_id = $1 AND created_at >= $2 AND created_at < $3
+                    ORDER BY created_at DESC`,
+                    [site.account_id, periodStart, new Date(year, month0 + 1, 1)]),
+                pool.query(`SELECT from_path, to_path, hit_count, created_at FROM site_redirects
+                    WHERE deployed_site_id = $1 AND created_at >= $2 AND created_at < $3
+                    ORDER BY hit_count DESC`,
+                    [site.id, periodStart, new Date(year, month0 + 1, 1)]),
+                pool.query(`SELECT COUNT(*) FROM reviews
+                    WHERE account_id = $1 AND created_at >= $2 AND created_at < $3`,
+                    [site.account_id, periodStart, new Date(year, month0 + 1, 1)]).catch(() => ({ rows: [{ count: 0 }] })),
+            ]);
+            return {
+                blogPosts: blogs.rows,
+                attractions: attractions.rows,
+                redirects: redirects.rows,
+                reviewsCount: parseInt(reviews.rows[0].count),
+            };
+        }, { blogPosts: [], attractions: [], redirects: [], reviewsCount: 0 });
+
+        // ─── Renderer helpers ────────────────────────────────────
+        const pctChange = (cur, prev) => {
+            if (!prev) return null;
+            return Math.round(((cur - prev) / prev) * 1000) / 10;
+        };
+        const arrow = (delta) => {
+            if (delta === null) return '';
+            if (delta > 0) return `<span style="color:#16a34a">▲ ${delta}%</span>`;
+            if (delta < 0) return `<span style="color:#dc2626">▼ ${Math.abs(delta)}%</span>`;
+            return `<span style="color:#94a3b8">— 0%</span>`;
+        };
+        const fmtNum = n => (n || 0).toLocaleString();
+
+        // Executive summary text
+        const summaryBits = [];
+        if (ga4Stats?.current) {
+            const uD = pctChange(ga4Stats.current.users, ga4Stats.previous.users);
+            summaryBits.push(`<strong>${fmtNum(ga4Stats.current.users)}</strong> people visited your site${uD !== null ? ` (${uD > 0 ? 'up' : uD < 0 ? 'down' : 'same as'} ${Math.abs(uD)}% vs previous month)` : ''}`);
+        }
+        if (gscStats?.current) {
+            summaryBits.push(`<strong>${fmtNum(gscStats.current.clicks)}</strong> clicks from Google Search`);
+        }
+        if (actionsThisMonth.redirects.length) {
+            const totalHits = actionsThisMonth.redirects.reduce((n, r) => n + (r.hit_count || 0), 0);
+            if (totalHits > 0) summaryBits.push(`<strong>${totalHits}</strong> visits recovered via ${actionsThisMonth.redirects.length} redirect${actionsThisMonth.redirects.length === 1 ? '' : 's'} we applied`);
+        }
+        if (actionsThisMonth.blogPosts.length) {
+            summaryBits.push(`<strong>${actionsThisMonth.blogPosts.length}</strong> new blog post${actionsThisMonth.blogPosts.length === 1 ? '' : 's'} published`);
+        }
+        const summary = summaryBits.length
+            ? summaryBits.join(' · ') + '.'
+            : 'Not enough data collected yet — check back next month.';
+
+        // Trend chart data (inline SVG so no dep on external libs)
+        const trendSvg = (data, key, colour) => {
+            if (!data || !data.length) return '';
+            const w = 480, h = 100, pad = 20;
+            const max = Math.max(...data.map(d => d[key] || 0), 1);
+            const step = (w - pad * 2) / Math.max(data.length - 1, 1);
+            const pts = data.map((d, i) => `${pad + i * step},${h - pad - ((d[key] || 0) / max) * (h - pad * 2)}`).join(' ');
+            const bars = data.map((d, i) => `<circle cx="${pad + i * step}" cy="${h - pad - ((d[key] || 0) / max) * (h - pad * 2)}" r="3" fill="${colour}"/>`).join('');
+            return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;background:#f8fafc;border-radius:6px;"><polyline points="${pts}" fill="none" stroke="${colour}" stroke-width="2"/>${bars}</svg>`;
+        };
+
+        // ─── Render HTML ─────────────────────────────────────────
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${site.site_name || site.account_name || 'SEO'} — ${monthLabel} Report</title>
+<style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 2rem 1rem; line-height: 1.5; }
+    .page { max-width: 800px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 2.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    h1 { margin: 0 0 0.25rem; font-size: 1.75rem; color: #0f172a; }
+    .subtitle { color: #64748b; font-size: 0.95rem; margin-bottom: 2rem; }
+    .section { margin: 2rem 0; }
+    .section h2 { font-size: 1.15rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem; }
+    .exec { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe; padding: 1.25rem; border-radius: 10px; font-size: 1rem; color: #1e3a8a; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem; }
+    .kpi { background: #f8fafc; padding: 1rem; border-radius: 8px; text-align: center; }
+    .kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; }
+    .kpi-label { font-size: 0.8rem; color: #64748b; margin-top: 0.25rem; }
+    .kpi-delta { font-size: 0.75rem; font-weight: 600; margin-top: 0.25rem; }
+    .card { background: #f8fafc; padding: 0.85rem 1rem; border-radius: 8px; border-left: 3px solid #10b981; margin-bottom: 0.5rem; }
+    .card.blue { border-left-color: #3b82f6; }
+    .card.amber { border-left-color: #f59e0b; }
+    .card-title { font-weight: 600; color: #1e293b; font-size: 0.9rem; }
+    .card-sub { font-size: 0.8rem; color: #64748b; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+    th { text-align: left; padding: 0.5rem; font-size: 0.75rem; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; }
+    td { padding: 0.5rem; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9; }
+    .empty { color: #94a3b8; font-style: italic; font-size: 0.9rem; }
+    .footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; font-size: 0.75rem; color: #94a3b8; text-align: center; }
+    @media print {
+        body { background: #fff; padding: 0; }
+        .page { box-shadow: none; padding: 1.5rem; }
+    }
+</style>
+</head>
+<body>
+<div class="page">
+    <h1>${site.site_name || site.account_name || 'SEO Report'}</h1>
+    <div class="subtitle">SEO performance report · ${monthLabel} · ${site_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</div>
+
+    <div class="section">
+        <div class="exec">${summary}</div>
+    </div>
+
+    ${ga4Stats?.current ? `
+    <div class="section">
+        <h2>📊 This month at a glance</h2>
+        <div class="kpis">
+            <div class="kpi">
+                <div class="kpi-value">${fmtNum(ga4Stats.current.users)}</div>
+                <div class="kpi-label">Users</div>
+                <div class="kpi-delta">${arrow(pctChange(ga4Stats.current.users, ga4Stats.previous.users))}</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-value">${fmtNum(ga4Stats.current.sessions)}</div>
+                <div class="kpi-label">Sessions</div>
+                <div class="kpi-delta">${arrow(pctChange(ga4Stats.current.sessions, ga4Stats.previous.sessions))}</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-value">${fmtNum(ga4Stats.current.pageViews)}</div>
+                <div class="kpi-label">Page Views</div>
+                <div class="kpi-delta">${arrow(pctChange(ga4Stats.current.pageViews, ga4Stats.previous.pageViews))}</div>
+            </div>
+            ${gscStats?.current ? `
+            <div class="kpi">
+                <div class="kpi-value">${fmtNum(gscStats.current.clicks)}</div>
+                <div class="kpi-label">Google clicks</div>
+                <div class="kpi-delta">${arrow(pctChange(gscStats.current.clicks, gscStats.previous.clicks))}</div>
+            </div>` : ''}
+        </div>
+    </div>` : ''}
+
+    ${ga4Stats?.trend?.length > 1 ? `
+    <div class="section">
+        <h2>📈 12-Month Growth</h2>
+        <div style="font-size:0.85rem;color:#64748b;margin-bottom:0.5rem;">Users per month</div>
+        ${trendSvg(ga4Stats.trend, 'users', '#3b82f6')}
+        <div style="font-size:0.85rem;color:#64748b;margin-top:1rem;margin-bottom:0.5rem;">Sessions per month</div>
+        ${trendSvg(ga4Stats.trend, 'sessions', '#10b981')}
+    </div>` : ''}
+
+    <div class="section">
+        <h2>✅ Successes This Month</h2>
+        ${gscStats?.movers?.length ? `
+            <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.5rem;color:#1e293b;">Keywords moving UP in Google rankings</div>
+            ${gscStats.movers.map(m => `<div class="card">
+                <div class="card-title">"${m.keyword}"</div>
+                <div class="card-sub">Position ${m.position_prev.toFixed(1)} → <strong>${m.position.toFixed(1)}</strong> (up ${m.position_delta.toFixed(1)} places) · ${fmtNum(m.impressions)} impressions</div>
+            </div>`).join('')}
+        ` : ''}
+        ${actionsThisMonth.redirects.filter(r => r.hit_count > 0).length ? `
+            <div style="font-weight:600;font-size:0.9rem;margin:1rem 0 0.5rem;color:#1e293b;">Redirects recovering lost traffic</div>
+            ${actionsThisMonth.redirects.filter(r => r.hit_count > 0).slice(0, 5).map(r => `<div class="card">
+                <div class="card-title">${r.from_path} → ${r.to_path}</div>
+                <div class="card-sub">Caught <strong>${r.hit_count}</strong> hit${r.hit_count === 1 ? '' : 's'} that would have 404'd</div>
+            </div>`).join('')}
+        ` : ''}
+        ${(!gscStats?.movers?.length && !actionsThisMonth.redirects.filter(r => r.hit_count > 0).length) ? '<div class="empty">Successes will appear here as ranking improvements + redirect hits accumulate.</div>' : ''}
+    </div>
+
+    <div class="section">
+        <h2>🛠 Actions Taken This Month</h2>
+        ${actionsThisMonth.blogPosts.length ? `
+            <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.5rem;color:#1e293b;">${actionsThisMonth.blogPosts.length} blog post${actionsThisMonth.blogPosts.length === 1 ? '' : 's'} published</div>
+            ${actionsThisMonth.blogPosts.slice(0, 10).map(b => `<div class="card blue">
+                <div class="card-title">${b.title}</div>
+                <div class="card-sub">${new Date(b.published_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}</div>
+            </div>`).join('')}
+        ` : ''}
+        ${actionsThisMonth.attractions.length ? `
+            <div style="font-weight:600;font-size:0.9rem;margin:1rem 0 0.5rem;color:#1e293b;">${actionsThisMonth.attractions.length} local attraction${actionsThisMonth.attractions.length === 1 ? '' : 's'} added</div>
+            ${actionsThisMonth.attractions.slice(0, 5).map(a => `<div class="card blue"><div class="card-title">${a.name}</div></div>`).join('')}
+        ` : ''}
+        ${actionsThisMonth.redirects.length ? `
+            <div style="font-weight:600;font-size:0.9rem;margin:1rem 0 0.5rem;color:#1e293b;">${actionsThisMonth.redirects.length} redirect${actionsThisMonth.redirects.length === 1 ? '' : 's'} configured</div>
+            <div class="card-sub">Fixing bouncing pages caused by legacy URLs Google still remembers.</div>
+        ` : ''}
+        ${actionsThisMonth.reviewsCount ? `<div style="font-weight:600;font-size:0.9rem;margin:1rem 0 0.5rem;color:#1e293b;">${actionsThisMonth.reviewsCount} guest reviews imported</div>` : ''}
+        ${(!actionsThisMonth.blogPosts.length && !actionsThisMonth.attractions.length && !actionsThisMonth.redirects.length && !actionsThisMonth.reviewsCount) ? '<div class="empty">No SEO actions this month. Consider publishing a blog post or reviewing the recommended next steps below.</div>' : ''}
+    </div>
+
+    ${gscStats?.keywords?.length ? `
+    <div class="section">
+        <h2>🔍 Top Search Keywords</h2>
+        <table>
+            <thead><tr><th>Keyword</th><th style="text-align:right;">Clicks</th><th style="text-align:right;">Impressions</th><th style="text-align:right;">Position</th></tr></thead>
+            <tbody>
+                ${gscStats.keywords.slice(0, 10).map(k => `<tr>
+                    <td>${k.keyword}</td>
+                    <td style="text-align:right;">${k.clicks}</td>
+                    <td style="text-align:right;">${fmtNum(k.impressions)}</td>
+                    <td style="text-align:right;">${k.position.toFixed(1)}</td>
+                </tr>`).join('')}
+            </tbody>
+        </table>
+    </div>` : ''}
+
+    ${ga4Stats?.topPages?.length ? `
+    <div class="section">
+        <h2>📄 Top Pages by Traffic</h2>
+        <table>
+            <thead><tr><th>Page</th><th style="text-align:right;">Views</th></tr></thead>
+            <tbody>
+                ${ga4Stats.topPages.slice(0, 10).map(p => `<tr><td>${p.page}</td><td style="text-align:right;">${fmtNum(p.views)}</td></tr>`).join('')}
+            </tbody>
+        </table>
+    </div>` : ''}
+
+    <div class="footer">
+        Generated by GAS · Global Accommodation System · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}<br>
+        Data from Google Analytics 4, Google Search Console, and GAS platform metrics.
+    </div>
+</div>
+</body>
+</html>`);
+    } catch (error) {
+        console.error('monthly-report error:', error);
+        res.status(500).send('Report generation failed: ' + error.message);
+    }
+});
+
 // =========================================================
 // GAS UNIFIED INBOX — Phase 0 (internal channel only)
 // =========================================================

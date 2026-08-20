@@ -21265,6 +21265,7 @@
                         </div>
                         <div class="master-only" style="align-self: flex-end;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">&nbsp;</label>
+                            <button class="btn" onclick="openMonthlyReport()" style="background: #16a34a; padding: 0.5rem 1rem; margin-right: 0.5rem;">📄 Monthly Report</button>
                             <button class="btn" onclick="deleteSeoSite()" style="background: #ef4444; padding: 0.5rem 1rem;"> Remove Site</button>
                         </div>
                     </div>
@@ -94468,6 +94469,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                     break;
             }
             return recs;
+        }
+
+        // Open the monthly SEO report — opens the HTML report endpoint
+        // in a new tab. Client-facing view, safe for print-to-PDF.
+        // Prompts for the month (default = last completed month).
+        function openMonthlyReport() {
+            const siteUrl = document.getElementById('seo-site-select')?.value;
+            if (!siteUrl) { alert('Pick a site first'); return; }
+            // Default = previous month (report is a look-back)
+            const now = new Date();
+            const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const defaultMonth = prev.getFullYear() + '-' + String(prev.getMonth() + 1).padStart(2, '0');
+            const month = prompt('Which month?\nFormat: YYYY-MM (e.g. 2026-07)\nBlank = last complete month', defaultMonth);
+            if (month === null) return; // cancelled
+            const trimmed = (month || defaultMonth).trim();
+            const url = `/api/admin/seo/monthly-report?site_url=${encodeURIComponent(siteUrl)}${trimmed ? '&month=' + encodeURIComponent(trimmed) : ''}`;
+            window.open(url, '_blank');
         }
 
         // Priority Actions panel — rolls up EVERY red/amber signal from
