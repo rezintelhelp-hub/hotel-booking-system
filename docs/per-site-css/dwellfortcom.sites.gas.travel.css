@@ -839,3 +839,11 @@ body.page-id-31 #main-content > .developer-container {
     padding-left: 32px !important;
     padding-right: 32px !important;
 }
+
+/* Real culprit — .developer-page-body has an inline style
+   max-width: 1100px on the Properties page. Beat with higher
+   specificity + !important. Steve 2026-08-21. */
+body.page-id-31 .developer-page-content .developer-page-body {
+    max-width: none !important;
+    padding: 0 !important;
+}
