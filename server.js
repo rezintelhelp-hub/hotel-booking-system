@@ -113734,21 +113734,23 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
          WHERE bu.property_id = p.id AND bu.status IN ('active','available')
         ) as room_count,`}
 
-        -- Min price from active rooms (today's calendar rate only)
+        -- Min price across the next 12 months — was 'today only' which
+        -- returned NULL for any property whose today-row hadn't synced.
+        -- Steve 2026-08-21: 'why are we not just taking the lowest?'
         (SELECT MIN(COALESCE(ra2.standard_price, ra2.cm_price))
          FROM room_availability ra2
          JOIN bookable_units bu2 ON ra2.room_id = bu2.id
          WHERE bu2.property_id = p.id AND bu2.status IN ('active','available')
-           AND ra2.date = CURRENT_DATE AND ra2.is_available = true
+           AND ra2.date >= CURRENT_DATE AND ra2.date < CURRENT_DATE + INTERVAL '365 days'
            AND COALESCE(ra2.standard_price, ra2.cm_price) > 0
         ) as min_price,
 
-        -- Max price from active rooms (today's calendar rate only)
+        -- Max price across the next 12 months (same widening as min).
         (SELECT MAX(COALESCE(ra3.standard_price, ra3.cm_price))
          FROM room_availability ra3
          JOIN bookable_units bu3 ON ra3.room_id = bu3.id
          WHERE bu3.property_id = p.id AND bu3.status IN ('active','available')
-           AND ra3.date = CURRENT_DATE AND ra3.is_available = true
+           AND ra3.date >= CURRENT_DATE AND ra3.date < CURRENT_DATE + INTERVAL '365 days'
            AND COALESCE(ra3.standard_price, ra3.cm_price) > 0
         ) as max_price,
 
