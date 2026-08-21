@@ -222,6 +222,28 @@ html body .developer-search-wrapper .gas-search-field option {
     color: #252317 !important;
 }
 
+/* -- SAFARI DATE FIELD INTERNALS (Steve 2026-08-21) ----------------
+   <input type="date"> in Safari renders month/day/year and separator
+   text via shadow-DOM parts. Default colour is grey until user
+   interacts. Force everything to the same charcoal as the rest of
+   the pill text so the month name isn't washed-out. */
+html body .developer-search-wrapper .gas-search-field input[type="date"]::-webkit-datetime-edit,
+html body .developer-search-wrapper .gas-search-field input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+html body .developer-search-wrapper .gas-search-field input[type="date"]::-webkit-datetime-edit-text,
+html body .developer-search-wrapper .gas-search-field input[type="date"]::-webkit-datetime-edit-month-field,
+html body .developer-search-wrapper .gas-search-field input[type="date"]::-webkit-datetime-edit-day-field,
+html body .developer-search-wrapper .gas-search-field input[type="date"]::-webkit-datetime-edit-year-field {
+    color: #252317 !important;
+    -webkit-text-fill-color: #252317 !important;
+    font-family: 'Muli', sans-serif !important;
+    font-weight: 600 !important;
+}
+/* The tiny calendar-picker indicator (Safari draws it grey too) */
+html body .developer-search-wrapper .gas-search-field input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.4) !important;
+    opacity: 0.6 !important;
+}
+
 /* -- SEARCH BUTTON: BLACK END-CAP ON THE PILL --------------------- */
 .gas-search-submit,
 .developer-search-submit,
