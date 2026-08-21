@@ -766,3 +766,22 @@ button:active, .df-featured-intro__cta:active, .developer-nav-cta:active,
 .page-template-template-about #main-content > div[style*="padding-top: 120px"] {
     padding-top: 40px !important;
 }
+
+/* Book Now page filter bar — "Search" button text white on black.
+   Steve 2026-08-21. Filter bar is different from the hero search
+   pill; targets .gas-filter-btn specifically. */
+.gas-date-filter .gas-filter-btn,
+.gas-date-filter button.gas-filter-btn,
+button.gas-filter-btn {
+    background: #000000 !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    border: none !important;
+}
+.gas-date-filter .gas-filter-btn:hover,
+button.gas-filter-btn:hover {
+    background: #333333 !important;
+    color: #ffffff !important;
+}
