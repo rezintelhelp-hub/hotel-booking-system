@@ -749,3 +749,12 @@ button:active, .df-featured-intro__cta:active, .developer-nav-cta:active,
        the full card width */
     max-width: 80% !important;
 }
+
+/* Force all body text inside .gas-ps-text sections to centre so the
+   first paragraph (which the page editor didn't wrap in a text-align
+   div) doesn't look left-aligned when the ones below it are centred.
+   Steve 2026-08-21 — About page "Who we are" block. */
+.gas-ps-section.gas-ps-text .gas-ps-body,
+.gas-ps-section.gas-ps-text .gas-ps-body * {
+    text-align: center !important;
+}
