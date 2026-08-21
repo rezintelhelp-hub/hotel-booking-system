@@ -223,13 +223,17 @@ class GAS_Properties {
                 .gas-properties-shell { max-width:1200px; margin:0 auto; padding:0 20px; }
                 .gas-properties-grid { display:grid; grid-template-columns:<?php echo $wb_columns > 0 ? 'repeat(' . $wb_columns . ', minmax(0, 1fr))' : 'repeat(auto-fill, minmax(340px, 1fr))'; ?>; gap:24px; }
                 <?php endif; ?>
-                .gas-prop-card { background:<?php echo $card_bg; ?>; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); transition:transform 0.2s, box-shadow 0.2s; text-decoration:none; color:inherit; display:block; }
+                /* Card = flex-column so cards in the grid stretch to same
+                   height (grid auto-rows: 1fr not needed — grid does this
+                   by default). Body inside is also flex-column so the CTA
+                   button gets margin-top:auto and pins to the bottom,
+                   aligning across all cards regardless of description
+                   length. Steve 2026-08-21 — matches /book-now/ room cards. */
+                .gas-prop-card { background:<?php echo $card_bg; ?>; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); transition:transform 0.2s, box-shadow 0.2s; text-decoration:none; color:inherit; display:flex; flex-direction:column; }
                 .gas-prop-card:hover { transform:translateY(-4px); box-shadow:0 10px 25px rgba(0,0,0,0.12); }
                 .gas-prop-img { width:100%; height:220px; object-fit:cover; }
-                /* Card body — text-align:left matches /book-now/ room cards.
-                   Steve 2026-08-21. */
-                .gas-prop-body { padding:20px; text-align:left; }
-                .gas-prop-cta { display:inline-block; padding:10px 24px; border-radius:8px; font-size:0.9rem; font-weight:600; text-decoration:none; text-align:center; transition:opacity 0.2s; background:<?php echo $button_bg; ?>; color:<?php echo $button_text; ?>; margin-top:4px; }
+                .gas-prop-body { padding:20px; text-align:left; display:flex; flex-direction:column; flex:1; }
+                .gas-prop-cta { display:inline-block; padding:10px 24px; border-radius:8px; font-size:0.9rem; font-weight:600; text-decoration:none; text-align:center; transition:opacity 0.2s; background:<?php echo $button_bg; ?>; color:<?php echo $button_text; ?>; margin-top:auto; align-self:flex-start; }
                 .gas-prop-cta:hover { opacity:0.85; color:<?php echo $button_text; ?>; }
                 /* Title matches .gas-room-card-title on /book-now/ (18px/600). */
                 .gas-prop-name { font-size:18px; font-weight:600; color:<?php echo $text; ?>; margin:0 0 6px; font-family:<?php echo $heading_font; ?>; text-align:left; }
