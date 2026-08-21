@@ -10604,6 +10604,41 @@
                                 <button onclick="copyPageUrl('book-now')" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:0.75rem;">📋</button>
                                 <button class="btn" onclick="saveWebsiteSection('page-rooms', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Rooms Page</button>
                             </div>
+
+                            <!-- MAP SETTINGS (Steve 2026-08-21) -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>🗺 Map</h3></div>
+                                <div class="card-body">
+                                    <p style="font-size:0.85rem;color:#64748b;margin:0 0 1rem;">Controls the map on your <code>/book-now/</code> and property pages. OpenStreetMap is free and works everywhere. Mapbox gives cleaner styling + guaranteed English labels (included in your GAS subscription, no extra cost).</p>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                                        <div class="form-group">
+                                            <label class="form-label">Provider</label>
+                                            <select class="form-select" id="wb-page-rooms-map-provider">
+                                                <option value="osm">OpenStreetMap (free default)</option>
+                                                <option value="mapbox">Mapbox (cleaner style, English labels)</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Style <span style="font-size:0.7rem;color:#94a3b8;">(Mapbox only)</span></label>
+                                            <select class="form-select" id="wb-page-rooms-map-style">
+                                                <option value="streets-v12">Streets (colourful)</option>
+                                                <option value="light-v11">Light (grey / minimalist)</option>
+                                                <option value="dark-v11">Dark</option>
+                                                <option value="outdoors-v12">Outdoors</option>
+                                                <option value="satellite-streets-v12">Satellite + streets</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Marker style</label>
+                                            <select class="form-select" id="wb-page-rooms-map-marker-style">
+                                                <option value="default">Default purple teardrop</option>
+                                                <option value="black">Clean black pin</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="card" style="margin-bottom: 1.5rem;">
                                 <div class="card-header"><h3>Page Header <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h3></div>
                                 <div class="card-body">

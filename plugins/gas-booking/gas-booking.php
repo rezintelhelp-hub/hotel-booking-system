@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.39
+ * Version: 4.3.40
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.39');
+define('GAS_BOOKING_VERSION', '4.3.40');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3779,11 +3779,17 @@ class GAS_Booking {
             //   wp option update gas_map_style light-v11
             //   wp option update gas_map_marker_style black
             //   wp option update gas_mapbox_token pk.xxxxx --network (multisite)
+            // Map config resolution priority:
+            //   1. Theme_mod set by Web Builder save (developer_page-rooms_map_*
+            //      — gas-api.php preserves the dash in section names when
+            //      building the mod key)
+            //   2. WP option set by wp-cli (gas_map_*)
+            //   3. Baseline default ('osm' provider = original behaviour)
             'mapConfig' => array(
-                'provider'      => get_option('gas_map_provider', 'osm'),
-                'style'         => get_option('gas_map_style', 'streets-v12'),
-                'marker_style'  => get_option('gas_map_marker_style', 'default'),
-                'language'      => get_option('gas_map_language', 'en'),
+                'provider'      => get_theme_mod('developer_page-rooms_map_provider') ?: get_option('gas_map_provider', 'osm'),
+                'style'         => get_theme_mod('developer_page-rooms_map_style') ?: get_option('gas_map_style', 'streets-v12'),
+                'marker_style'  => get_theme_mod('developer_page-rooms_map_marker_style') ?: get_option('gas_map_marker_style', 'default'),
+                'language'      => get_theme_mod('developer_page-rooms_map_language') ?: get_option('gas_map_language', 'en'),
                 'mapbox_token'  => get_site_option('gas_mapbox_token', get_option('gas_mapbox_token', '')),
             ),
         ));

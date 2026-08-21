@@ -49021,6 +49021,15 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
         'image-2-url': 'image_2',
         'image-3-url': 'image_3',
         'image-4-url': 'image_4'
+      },
+      // page-rooms: map controls saved via Web Builder → wp theme_mods
+      // read by gas-booking plugin via get_theme_mod('developer_page_rooms_map_*').
+      // Steve 2026-08-21.
+      'page-rooms': {
+        'map-provider': 'map_provider',
+        'map-style': 'map_style',
+        'map-marker-style': 'map_marker_style',
+        'map-language': 'map_language'
       }
     };
     
