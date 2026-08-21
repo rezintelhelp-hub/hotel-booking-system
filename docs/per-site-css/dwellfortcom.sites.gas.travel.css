@@ -767,12 +767,14 @@ button:active, .df-featured-intro__cta:active, .developer-nav-cta:active,
     padding-top: 40px !important;
 }
 
-/* Book Now page filter bar — "Search" button text white on black.
-   Steve 2026-08-21. Filter bar is different from the hero search
-   pill; targets .gas-filter-btn specifically. */
-.gas-date-filter .gas-filter-btn,
-.gas-date-filter button.gas-filter-btn,
-button.gas-filter-btn {
+/* Book Now / homepage filter bar — "Check Availability" button text
+   white on black. Steve 2026-08-21. Plugin emits an inline style block
+   AFTER our per-site CSS that sets .gas-date-filter .gas-filter-btn
+   background:#2563eb (per-account button colour). Beat it with higher-
+   specificity `html body` prefix. */
+html body .gas-date-filter .gas-filter-btn,
+html body .gas-date-filter button.gas-filter-btn,
+html body button.gas-filter-btn {
     background: #000000 !important;
     color: #ffffff !important;
     font-weight: 700 !important;
@@ -780,8 +782,8 @@ button.gas-filter-btn {
     letter-spacing: 0.05em !important;
     border: none !important;
 }
-.gas-date-filter .gas-filter-btn:hover,
-button.gas-filter-btn:hover {
+html body .gas-date-filter .gas-filter-btn:hover,
+html body button.gas-filter-btn:hover {
     background: #333333 !important;
     color: #ffffff !important;
 }
