@@ -91,80 +91,38 @@ add_action('wp_footer', function () {
     var MAPBOX_TOKEN = <?php echo json_encode($mapbox_token); ?>;
     if (!MAPBOX_TOKEN) return; // No token set → no override, plugin's OSM map stands
 
-    function swapMapTiles() {
-        if (typeof L === 'undefined') return false;
-        // Find every Leaflet map on the page. Leaflet stores map instances
-        // on the DOM element as `_leaflet_id` + `L._leaflet.maps` isn't
-        // public API. Iterate visible .leaflet-container elements and
-        // walk to the map via L.DomUtil.
-        var containers = document.querySelectorAll('.leaflet-container');
-        if (!containers.length) return false;
-        containers.forEach(function (el) {
-            if (el.dataset.dfMapboxDone) return;
-            // Find the Leaflet map instance. Each map exposes itself as
-            // ._leaflet_id but doesn't expose the map object directly.
-            // Trick: iterate L's internal maps via the map's stored
-            // _container matching. Instead, we brute-force: for each
-            // existing tile layer under this container, remove it and
-            // add the Mapbox layer to the same map instance.
-            var mapInstance = null;
-            for (var k in el) {
-                if (k.indexOf('_leaflet_') === 0) {
-                    // no direct handle — fall through to method 2
-                }
+    // Monkey-patch L.tileLayer so any OSM URL the plugin creates gets
+    // swapped for Mapbox transparently. Runs before plugin's jQuery
+    // document.ready callback fires (wp_footer prio 99 runs after all
+    // script tags are printed but before the ready event triggers).
+    // Reliable across both propertyMap + roomsMap without needing to
+    // find scoped variables.
+    function patchLeaflet() {
+        if (typeof L === 'undefined' || !L.tileLayer || L.tileLayer._dfPatched) return false;
+        var orig = L.tileLayer;
+        var patched = function (url, opts) {
+            if (typeof url === 'string' && url.indexOf('tile.openstreetmap.org') !== -1) {
+                url = 'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=' + MAPBOX_TOKEN + '&language=en';
+                opts = opts || {};
+                opts.tileSize = 512;
+                opts.zoomOffset = -1;
+                opts.attribution = '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>';
             }
-            // Method 2 (reliable): walk L.Layer's internal map registry.
-            // Every layer child of the container references its map via
-            // its `_map` property. Grab the first tile-layer div.
-            var tileDiv = el.querySelector('.leaflet-tile-pane .leaflet-layer');
-            if (!tileDiv) return;
-            // The map instance is discoverable via the leaflet layer's
-            // internal reference. Use a small hack: attach a temporary
-            // event and read the map from L's map registry.
-            // Simplest reliable path: use L.DomUtil.get + look at
-            // window's known map globals set by the plugin (propertyMap,
-            // roomsMap).
-            var maps = [];
-            if (typeof propertyMap !== 'undefined' && propertyMap && propertyMap._container === el) maps.push(propertyMap);
-            if (typeof roomsMap !== 'undefined' && roomsMap && roomsMap._container === el) maps.push(roomsMap);
-            // Fallback: scan window for any L.Map instances
-            if (!maps.length) {
-                Object.keys(window).forEach(function (key) {
-                    try {
-                        var w = window[key];
-                        if (w && w instanceof L.Map && w._container === el) maps.push(w);
-                    } catch (_) {}
-                });
-            }
-            maps.forEach(function (mapObj) {
-                // Remove existing tile layers
-                mapObj.eachLayer(function (layer) {
-                    if (layer instanceof L.TileLayer) mapObj.removeLayer(layer);
-                });
-                // Add Mapbox with English labels
-                L.tileLayer(
-                    'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=' + MAPBOX_TOKEN + '&language=en',
-                    {
-                        attribution: '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-                        tileSize: 512,
-                        zoomOffset: -1,
-                        maxZoom: 19
-                    }
-                ).addTo(mapObj);
-            });
-            el.dataset.dfMapboxDone = '1';
-        });
+            return orig.call(L, url, opts);
+        };
+        // Preserve any static properties like L.tileLayer.wms
+        Object.keys(orig).forEach(function (k) { patched[k] = orig[k]; });
+        patched._dfPatched = true;
+        L.tileLayer = patched;
         return true;
     }
-
-    // Retry until the plugin has initialised the map(s) — up to 15s.
-    var mapTries = 0;
-    var mapIv = setInterval(function () {
-        if (swapMapTiles() && document.querySelectorAll('.leaflet-container[data-df-mapbox-done]').length > 0) {
-            clearInterval(mapIv);
-        }
-        if (++mapTries > 60) clearInterval(mapIv);
-    }, 250);
+    // Try immediately, then poll briefly in case Leaflet loads async.
+    if (!patchLeaflet()) {
+        var patchTries = 0;
+        var patchIv = setInterval(function () {
+            if (patchLeaflet() || ++patchTries > 40) clearInterval(patchIv);
+        }, 100);
+    }
 
     // Inject cleaner black SVG pin — overrides plugin's purple teardrop.
     var css = document.createElement('style');
