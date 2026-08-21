@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.38
+ * Version: 4.3.39
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.38');
+define('GAS_BOOKING_VERSION', '4.3.39');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3769,7 +3769,23 @@ class GAS_Booking {
             'buttonColor' => $this->get_effective_button_color(),
             // Shop palette so JS-injected surfaces (event banner etc.) follow
             // the same brand colours as the booking widget + shop.
-            'shopPalette' => $this->get_shop_palette()
+            'shopPalette' => $this->get_shop_palette(),
+            // Map config — per-site. Provider default 'osm' (free, no key).
+            // If 'mapbox' + token available, plugin JS swaps tile URL.
+            // Token is a shared GAS-account token (option `gas_mapbox_token`)
+            // — same value across every site opting in. Steve 2026-08-21.
+            // Set via wp-cli:
+            //   wp option update gas_map_provider mapbox
+            //   wp option update gas_map_style light-v11
+            //   wp option update gas_map_marker_style black
+            //   wp option update gas_mapbox_token pk.xxxxx --network (multisite)
+            'mapConfig' => array(
+                'provider'      => get_option('gas_map_provider', 'osm'),
+                'style'         => get_option('gas_map_style', 'streets-v12'),
+                'marker_style'  => get_option('gas_map_marker_style', 'default'),
+                'language'      => get_option('gas_map_language', 'en'),
+                'mapbox_token'  => get_site_option('gas_mapbox_token', get_option('gas_mapbox_token', '')),
+            ),
         ));
 
         // Output custom CSS from settings - add to footer so it overrides inline styles

@@ -83,13 +83,17 @@ add_action('wp_footer', function () {
     // re-rendered by future filter/sort features and loses the intro,
     // add back a targeted re-inject with a "not-during-click" guard.
 
-    // ─── MAPBOX MAP OVERRIDE (Dwellfort only, Steve 2026-08-21) ───
-    // Anton didn't like the raw OSM look on /book-now/ — grey tiles,
-    // Czech labels, purple teardrop pins. Wire Mapbox tiles (English
-    // guaranteed via language=en) + a clean black SVG pin.
-    // Scoped to this mu-plugin so no other client's map changes.
+    // MAP OVERRIDE REMOVED 2026-08-21 — now handled natively by the
+    // gas-booking plugin (v4.3.39+) via WP options gas_map_provider /
+    // gas_map_style / gas_map_marker_style / gas_mapbox_token. Set once
+    // via wp-cli per site that opts in. Keeping the featured-intro +
+    // card-click handlers above since those are Dwellfort-specific.
+    return;
+    // (unreachable — retained temporarily so any old inline script
+    // fragments below don't produce unbound-var errors; will delete
+    // after next session's Web Builder UI ships.)
     var MAPBOX_TOKEN = <?php echo json_encode($mapbox_token); ?>;
-    if (!MAPBOX_TOKEN) return; // No token set → no override, plugin's OSM map stands
+    if (!MAPBOX_TOKEN) return;
 
     // NOTE: tile size (/512/) must be in the URL path for the `language`
     // param to be honoured on raster tiles. Without it Mapbox ignores

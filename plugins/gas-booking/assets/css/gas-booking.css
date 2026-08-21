@@ -1830,6 +1830,25 @@
     transform: rotate(-45deg) scale(1.1);
 }
 
+/* Black-pin variant (mapConfig.marker_style = 'black'). Cleaner SVG-
+   backed teardrop with white centre dot + drop shadow. Steve 2026-08-21. */
+.gas-map-marker--black .gas-marker-pin {
+    width: 28px;
+    height: 40px;
+    background: transparent url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 40'><path d='M14 0C6.3 0 0 6.3 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.3 21.7 0 14 0z' fill='%23111111'/><circle cx='14' cy='14' r='5' fill='%23ffffff'/></svg>") no-repeat center/contain;
+    border-radius: 0;
+    transform: none;
+    box-shadow: none;
+    border: none;
+    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35));
+    transition: transform 0.15s ease;
+}
+.gas-map-marker--black .gas-marker-pin::after { display: none; }
+.gas-map-marker--black:hover .gas-marker-pin {
+    transform: scale(1.12) translateY(-2px);
+    background-color: transparent;
+}
+
 /* Rooms map popup styling */
 .gas-rooms-map .leaflet-popup-content-wrapper {
     border-radius: var(--gas-radius-lg);

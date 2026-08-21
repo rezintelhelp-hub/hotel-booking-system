@@ -14,6 +14,36 @@
  */
 jQuery(document).ready(function($) {
 
+    // ─── Map tile config (Steve 2026-08-21) ─────────────────────────────
+    // Per-site opt-in for a nicer map provider than raw OSM. Config comes
+    // from window.gasBooking.mapConfig (set server-side via wp_localize_
+    // script — see gas-booking.php). Default 'osm' preserves existing
+    // behaviour for every site that hasn't opted in. Mapbox requires a
+    // shared GAS-account token stored as WP option `gas_mapbox_token`.
+    function getMapTileLayer() {
+        var c = (window.gasBooking && gasBooking.mapConfig) || {};
+        if (c.provider === 'mapbox' && c.mapbox_token) {
+            var style = c.style || 'streets-v12';
+            var lang = c.language || 'en';
+            var url = 'https://api.mapbox.com/styles/v1/mapbox/' + style
+                + '/tiles/512/{z}/{x}/{y}?access_token=' + c.mapbox_token
+                + '&language=' + encodeURIComponent(lang);
+            return L.tileLayer(url, {
+                attribution: '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                tileSize: 512,
+                zoomOffset: -1,
+                maxZoom: 19
+            });
+        }
+        // Default: raw OSM (free, no key)
+        return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            maxZoom: 19
+        });
+    }
+    // Expose for the two map-init sites below.
+    window.gasGetMapTileLayer = getMapTileLayer;
+
     // ─── Book-Now intent tracking (Steve 2026-08-20) ─────────────────────
     // When the site's booking flow is external (ResNexus, Cloudbeds, Mews,
     // etc.), GAS can't attribute the sale — but we can track that the
@@ -3796,10 +3826,9 @@ jQuery(document).ready(function($) {
             }).setView([lat, lng], 15);
             
             // Add OpenStreetMap tiles
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                maxZoom: 19
-            }).addTo(propertyMap);
+            // Config-driven tile provider (OSM default, Mapbox if opted in
+            // via gasBooking.mapConfig.provider === 'mapbox'). Steve 2026-08-21.
+            gasGetMapTileLayer().addTo(propertyMap);
             
             // Add marker
             propertyMarker = L.marker([lat, lng]).addTo(propertyMap);
@@ -5633,10 +5662,8 @@ jQuery(document).ready(function($) {
             scrollWheelZoom: true
         });
         
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            maxZoom: 19
-        }).addTo(roomsMap);
+        // Config-driven tile provider (see getMapTileLayer)
+        gasGetMapTileLayer().addTo(roomsMap);
         
         // Group rooms by property (same coordinates)
         var propertyGroups = {};
@@ -5648,9 +5675,13 @@ jQuery(document).ready(function($) {
             propertyGroups[key].push(room);
         });
         
-        // Custom icon
+        // Custom icon — class gets a modifier based on mapConfig.marker_style
+        // so per-site CSS can theme it. Values: 'default' (purple teardrop),
+        // 'black' (clean SVG pin). Extend in CSS as new options are added.
+        // Steve 2026-08-21.
+        var mkStyle = (window.gasBooking && gasBooking.mapConfig && gasBooking.mapConfig.marker_style) || 'default';
         var defaultIcon = L.divIcon({
-            className: 'gas-map-marker',
+            className: 'gas-map-marker gas-map-marker--' + mkStyle,
             html: '<div class="gas-marker-pin"></div>',
             iconSize: [30, 40],
             iconAnchor: [15, 40],
