@@ -205,7 +205,7 @@ class GAS_Properties {
                 /* 2-col shell — grid left, sticky map right. Collapses on mobile.
                    Widened to 1400px + cap raised to 3 cards-per-row (was 2) so
                    estates with 3+ properties don't feel cramped. Steve 2026-08-21. */
-                .gas-properties-shell { display:grid; grid-template-columns: 1fr 400px; gap:32px; max-width:1400px; margin:0 auto; padding:0 24px; align-items:start; }
+                .gas-properties-shell { display:grid; grid-template-columns: 1fr 400px; gap:32px; max-width:none; margin:0; padding:0 32px; align-items:start; }
                 .gas-properties-map-col { position:sticky; top:100px; }
                 .gas-properties-map-inner { height:calc(100vh - 140px); max-height:640px; min-height:400px; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); background:#eef2f6; }
                 .gas-properties-grid { display:grid; grid-template-columns:<?php echo $wb_columns > 0 ? 'repeat(' . min($wb_columns, 3) . ', minmax(0, 1fr))' : 'repeat(auto-fill, minmax(260px, 1fr))'; ?>; gap:20px; }
