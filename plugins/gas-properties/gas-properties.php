@@ -329,7 +329,9 @@ class GAS_Properties {
                         html += '<div class="gas-prop-body">';
                         html += '<h3 class="gas-prop-name" itemprop="name">' + (p.name || '') + '</h3>';
                         if (address) html += '<p class="gas-prop-address" itemprop="address">' + address + '</p>';
-                        if (roomCount > 0) html += '<p class="gas-prop-avail">' + t.availability + ' — <span>' + roomCount + '</span> ' + pluralise(p.property_type, roomCount) + '</p>';
+                        // Steve 2026-08-21 — dropped "Availability —" prefix
+                        // (misleading; we don't check dates). Just count.
+                        if (roomCount > 0) html += '<p class="gas-prop-avail"><span>' + roomCount + '</span> ' + pluralise(p.property_type, roomCount) + '</p>';
                         if (minPrice > 0) {
                             var sym = {EUR:'€',GBP:'£',USD:'$',CHF:'CHF'}[currency] || currency + ' ';
                             html += '<p class="gas-prop-price">' + t.from + ' ' + sym + minPrice.toFixed(0) + t.night + '</p>';
