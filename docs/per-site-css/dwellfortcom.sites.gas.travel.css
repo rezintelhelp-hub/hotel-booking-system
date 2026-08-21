@@ -817,3 +817,14 @@ html body .developer-search-wrapper .gas-search-submit button {
     text-shadow: none !important;
     opacity: 1 !important;
 }
+
+/* Properties page (hero off) — reduce the 120px header-clearance
+   spacer to 40px + give the injected heading breathing room below.
+   Steve 2026-08-21. */
+.page-template-default:has(.gas-properties-wrap) #main-content > div[style*="padding-top: 120px"],
+body.page-id-31 #main-content > div[style*="padding-top: 120px"] {
+    padding-top: 40px !important;
+}
+.gas-properties-heading {
+    margin-bottom: 40px !important;
+}
