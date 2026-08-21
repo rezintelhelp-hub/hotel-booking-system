@@ -177,10 +177,11 @@ class GAS_Properties {
         $wb_heading = trim((string)($api['page_properties_heading'] ?? ''));
         // Map config — same theme_mods gas-booking uses (developer_page-rooms_map_*)
         // so the map on this page matches the one on /book-now/. Steve 2026-08-21.
-        $mp_provider = get_theme_mod('developer_page-rooms_map_provider') ?: 'osm';
-        $mp_style    = get_theme_mod('developer_page-rooms_map_style') ?: 'streets-v12';
-        $mp_language = get_theme_mod('developer_page-rooms_map_language') ?: 'en';
-        $mp_token    = get_site_option('gas_mapbox_token', get_option('gas_mapbox_token', ''));
+        $mp_provider     = get_theme_mod('developer_page-rooms_map_provider') ?: 'osm';
+        $mp_style        = get_theme_mod('developer_page-rooms_map_style') ?: 'streets-v12';
+        $mp_language     = get_theme_mod('developer_page-rooms_map_language') ?: 'en';
+        $mp_marker_style = get_theme_mod('developer_page-rooms_map_marker_style') ?: 'default';
+        $mp_token        = get_site_option('gas_mapbox_token', get_option('gas_mapbox_token', ''));
 
         $accent = esc_attr($colors['accent']);
         $bg = esc_attr($colors['bg']);
@@ -367,12 +368,23 @@ class GAS_Properties {
                                     maxZoom: 19
                                 }).addTo(map);
                                 <?php endif; ?>
+                                // Match /book-now/ map — same divIcon + marker
+                                // style class so the black/default pin swap
+                                // works via the plugin CSS. Steve 2026-08-21.
+                                var propMarkerStyle = <?php echo json_encode($mp_marker_style); ?>;
+                                var propIcon = L.divIcon({
+                                    className: 'gas-map-marker gas-map-marker--' + propMarkerStyle,
+                                    html: '<div class="gas-marker-pin"></div>',
+                                    iconSize: [30, 40],
+                                    iconAnchor: [15, 40],
+                                    popupAnchor: [0, -40]
+                                });
                                 pinnable.forEach(function(p) {
                                     var la = parseFloat(p.latitude), lo = parseFloat(p.longitude);
                                     var popup = '<strong>' + (p.name || '') + '</strong><br>' +
                                                 (formatAddress(p) || '') + '<br>' +
                                                 '<a href="/book-now/?property_id=' + p.id + '" style="color:#2563eb;text-decoration:underline;">' + t.viewDetails + ' →</a>';
-                                    L.marker([la, lo]).bindPopup(popup).addTo(group);
+                                    L.marker([la, lo], { icon: propIcon }).bindPopup(popup).addTo(group);
                                 });
                                 group.addTo(map);
                                 if (pinnable.length === 1) {
