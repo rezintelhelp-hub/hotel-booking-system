@@ -66,11 +66,12 @@
     text-transform: uppercase !important;
 }
 
-/* -- HERO SUBTITLE: MULI 20 400 UPPERCASE ------------------------- */
+/* -- HERO SUBTITLE: MULI 20 400 UPPERCASE WHITE ------------------- */
 .developer-hero-subtitle {
     font-family: 'Muli', sans-serif !important;
     font-size: 20px !important;
     font-weight: 400 !important;
+    color: #ffffff !important;
     text-transform: uppercase !important;
     text-shadow: 1px 1px 10px rgba(0,0,0,0.2) !important;
     margin-top: 15px !important;
@@ -136,12 +137,45 @@
     background: transparent !important;
     border: none !important;
     padding: 2px 0 !important;
-    font-size: 15px !important;
+    /* Match intro body text (.developer-intro p is 16px). Steve 2026-08-21. */
+    font-size: 16px !important;
     color: #252317 !important;
     box-shadow: none !important;
     outline: none !important;
     font-family: 'Muli', sans-serif !important;
     font-weight: 600 !important;
+    /* Kill Safari's native <select> grey overlay + default chevron */
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    background-image: none !important;
+}
+
+/* Same fix for every plugin select — Book Now filters, room detail
+   guest picker, checkout selects. Safari greys them all by default. */
+html body select.gas-filter-property,
+html body select.gas-filter-guests,
+html body select.gas-sort-select,
+html body select.gas-adults,
+html body select.gas-children,
+html body select[class*="gas-"],
+html body input[type="date"][class*="gas-"],
+html body input.gas-checkin,
+html body input.gas-checkout,
+html body .gas-date-filter select,
+html body .gas-rooms-wrapper select,
+html body .gas-room-detail select,
+html body .gas-checkout select {
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    background-image: none !important;
+    background-color: #ffffff !important;
+    padding-right: 30px !important;   /* leave room for a custom chevron via SVG bg */
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path fill='%23252317' d='M6 8L0 0h12z'/></svg>") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 10px center !important;
+    background-size: 10px 6px !important;
 }
 .developer-search-wrapper .gas-search-field label {
     font-family: 'Muli', sans-serif !important;
@@ -184,9 +218,331 @@
 .developer-section-panel,
 .warm-panel { background: #e7e0db !important; }
 
+/* =================================================================
+   GLOBAL FONT FAMILIES — Anton's spec applied site-wide.
+   ONLY sets font-family. Doesn't touch size, weight, colour, layout —
+   avoids the "everything looks wrong" side-effects of the last try.
+   ================================================================= */
+h1, h2, h3, h4, h5, h6,
+.usp-card-title,
+.services-card-title,
+.developer-services-card-title,
+.gas-room-property,
+.gas-room-title,
+.gas-property-title,
+.gas-attraction-title,
+.gas-blog-title,
+.developer-usp-card-title,
+.df-featured-intro__title {
+    font-family: 'Lora', serif !important;
+}
+p, td, th, label, legend, li,
+.Caption_Below_Image .caption,
+.Caption_Below_Image .caption strong {
+    font-family: 'Muli', sans-serif !important;
+    font-size: 16px !important;
+    color: #252317 !important;
+}
+div { font-family: 'Muli', sans-serif !important; }
+/* Buttons + inputs pick up Muli too */
+button, input, select, textarea {
+    font-family: 'Muli', sans-serif !important;
+}
+
+/* =================================================================
+   FEATURED SECTION — text-box + 3 property cards, all in one row.
+   Restoring what was working before the last revert.
+   ================================================================= */
+@media (min-width: 900px) {
+    .developer-featured .gas-rooms-grid {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr 1fr 1fr !important;
+        gap: 20px !important;
+    }
+}
+.df-featured-intro {
+    background: #e7e0db;
+    padding: 40px 30px 60px;
+    color: #252317;
+    font-family: 'Muli', sans-serif;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+.df-featured-intro__title {
+    font-family: 'Lora', serif !important;
+    font-size: 24px;
+    font-weight: 400;
+    color: #252317;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    line-height: 1.2;
+    margin: 0 0 15px 0;
+}
+.df-featured-intro__sub {
+    font-family: 'Muli', sans-serif;
+    font-size: 16px;
+    color: #252317;
+    line-height: 1.5;
+    margin: 0 0 30px 0;
+}
+.df-featured-intro__cta {
+    display: inline-block;
+    font-family: 'Muli', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff !important;
+    background: #000000;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    text-decoration: none;
+    padding: 10px 24px;
+    align-self: flex-start;
+}
+.df-featured-intro__cta:hover { background: #69695e; color: #ffffff !important; }
+
+/* Room cards inside featured — border, no radius, hidden price + button */
+.developer-featured .gas-rooms-grid .gas-price-from-label,
+.developer-featured .gas-rooms-grid .gas-view-btn,
+.developer-featured .gas-rooms-grid .gas-room-price,
+.developer-featured .gas-rooms-grid .gas-room-footer {
+    display: none !important;
+}
+.developer-featured,
+.developer-featured *,
+.developer-featured img { border-radius: 0 !important; }
+.developer-featured .gas-rooms-grid .gas-room-card {
+    border: 1px solid #d0d0d0 !important;
+    padding-bottom: 0 !important;
+    justify-content: flex-start !important;
+    overflow: hidden;
+}
+.developer-featured .gas-rooms-grid .gas-room-details { padding-bottom: 16px !important; }
+.developer-featured { padding-top: 60px !important; padding-bottom: 60px !important; }
+
+/* =================================================================
+   USP SECTION (.developer-usp) — "What We Offer" + 3 cards
+   ================================================================= */
+.developer-usp h1 {
+    font-family: 'Lora', serif !important;
+    font-size: 30px !important;
+    font-weight: 400 !important;
+    color: #252317 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.03em !important;
+}
+.developer-usp h2,
+.developer-usp h3,
+.developer-usp .usp-card-title {
+    font-family: 'Lora', serif !important;
+    font-size: 24px !important;
+    font-weight: 400 !important;
+    color: #252317 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.03em !important;
+}
+.developer-usp p,
+.developer-usp .usp-card-desc {
+    font-family: 'Muli', sans-serif !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+    color: #252317 !important;
+}
+
+/* =================================================================
+   SERVICES SECTION (.developer-services)
+   ================================================================= */
+.developer-services h1 {
+    font-family: 'Lora', serif !important;
+    font-size: 30px !important;
+    font-weight: 400 !important;
+    color: #252317 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.03em !important;
+}
+.developer-services h2,
+.developer-services h3,
+.developer-services .services-card-title,
+.developer-services .developer-services-card-title {
+    font-family: 'Lora', serif !important;
+    font-size: 24px !important;
+    font-weight: 400 !important;
+    color: #252317 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.03em !important;
+}
+.developer-services p,
+.developer-services .services-card-desc,
+.developer-services .developer-services-card-desc {
+    font-family: 'Muli', sans-serif !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+    color: #252317 !important;
+}
+/* Align the "Activities & Services" heading to the top-left of its
+   cell so it sits at the same vertical position as other section
+   headings + hard left. */
+.developer-services .developer-services-title-cell {
+    justify-content: flex-start !important;
+    align-items: flex-start !important;
+    text-align: left !important;
+    padding-top: 60px !important;
+}
+.developer-services .developer-services-title-cell h1,
+.developer-services .developer-services-title-cell h2,
+.developer-services .developer-services-title-cell h3 {
+    text-align: left !important;
+    margin-left: 0 !important;
+}
+.developer-services { padding-top: 60px !important; }
+
+/* =================================================================
+   FOOTER — style to match Anton's minimalist layout.
+   Content comes from Web Builder settings (add Contact Info block +
+   full menu list there). CSS handles fonts + layout.
+   ================================================================= */
+.developer-footer {
+    background: #252317 !important;
+    color: #e7e0db !important;
+    padding-top: 50px !important;
+    padding-bottom: 20px !important;
+}
+.developer-footer h3,
+.developer-footer h4 {
+    font-family: 'Lora', serif !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+    color: #ffffff !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    margin-bottom: 15px !important;
+}
+.developer-footer p,
+.developer-footer li,
+.developer-footer .developer-footer-links li a,
+.developer-footer .developer-footer-links li {
+    font-family: 'Muli', sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    color: #e7e0db !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+}
+.developer-footer a { color: #e7e0db !important; opacity: 0.9 !important; text-decoration: none !important; }
+.developer-footer a:hover { color: #ffffff !important; opacity: 1 !important; }
+.developer-footer-links { list-style: none !important; padding: 0 !important; margin: 0 !important; }
+.developer-footer-links li { margin-bottom: 8px !important; }
+.developer-footer-bottom {
+    border-top: 1px solid rgba(231,224,219,0.15) !important;
+    margin-top: 30px !important;
+    padding-top: 20px !important;
+    text-align: center !important;
+}
+.developer-footer-bottom p {
+    font-size: 12px !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+    opacity: 0.7 !important;
+}
+
+/* =================================================================
+   ABOUT / PRO BUILDER TEXT SECTIONS (.gas-ps-section, .gas-ps-text)
+   ================================================================= */
+.gas-ps-section h1,
+.gas-ps-section h2,
+.gas-ps-section h3 {
+    font-family: 'Lora', serif !important;
+    font-weight: 400 !important;
+    color: #252317 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.03em !important;
+    text-align: center !important;
+}
+.gas-ps-section h1 { font-size: 30px !important; }
+.gas-ps-section h2, .gas-ps-section h3 { font-size: 24px !important; }
+.gas-ps-section p,
+.gas-ps-section li,
+.gas-ps-section div,
+.gas-ps-section td {
+    font-family: 'Muli', sans-serif !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+    color: #252317 !important;
+}
+/* 30px extra padding above + below Pro Builder sections */
+.gas-ps-section {
+    padding-top: calc(var(--gas-ps-pad-top, 40px) + 30px) !important;
+    padding-bottom: calc(var(--gas-ps-pad-bottom, 40px) + 30px) !important;
+}
+
+/* =================================================================
+   GENERIC PAGE CONTENT (.developer-page-content — attractions,
+   blog, contact detail, etc.). Centre headings, Lora/Muli fonts.
+   ================================================================= */
+.developer-page-content h1,
+.developer-page-content h2,
+.developer-page-content h3 {
+    font-family: 'Lora', serif !important;
+    font-weight: 400 !important;
+    color: #252317 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.03em !important;
+    text-align: center !important;
+}
+.developer-page-content h1 { font-size: 30px !important; }
+.developer-page-content h2, .developer-page-content h3 { font-size: 24px !important; }
+.developer-page-content p,
+.developer-page-content li,
+.developer-page-content div {
+    font-family: 'Muli', sans-serif !important;
+    color: #252317 !important;
+}
+.developer-page-content p,
+.developer-page-content li { font-size: 16px !important; }
+
+/* =================================================================
+   ABOUT-STYLE SECTION (.developer-about — image + text block)
+   Heading has inline font-size + color from Web Builder that beat
+   my defaults. Force with !important + text-align: center.
+   ================================================================= */
+.developer-about h1,
+.developer-about h2,
+.developer-about h3 {
+    font-family: 'Lora', serif !important;
+    font-size: 24px !important;
+    font-weight: 400 !important;
+    color: #252317 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.03em !important;
+    text-align: center !important;
+}
+/* 30px EXTRA padding top + bottom on the About section (on top of
+   the theme's default ~20px section spacing, so 50px total) */
+html body .developer-section-alt {
+    padding-top: 50px !important;
+    padding-bottom: 50px !important;
+}
+
+/* .developer-about content — force 16px everywhere EXCEPT headings.
+   The Web Builder text was pasted from Word/Google Docs, browser
+   auto-splits <p> around invalid <div> nesting, so the rogue
+   <span style="font-size:0.85rem"> ends up outside the p. Target
+   ALL descendants but exclude h1-h6 so heading styles still apply. */
+html body .developer-about-content,
+html body .developer-about-content *:not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
+    font-family: 'Muli', sans-serif !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+    color: #252317 !important;
+    line-height: 1.5 !important;
+}
+
 /* ================================================================= */
 /* MOBILE ≤ 768px — pill stacks vertical, sits BELOW hero, no halo   */
 /* ================================================================= */
+/* MOBILE (≤768) — layout-only rewrite. Purely visual (position,
+   width, stacking, radius). NO overflow / pointer-events / touch-
+   action overrides that could break the date picker interaction. */
 @media (max-width: 768px) {
     .developer-search-wrapper {
         position: relative !important;
@@ -198,7 +554,8 @@
         padding: 12px !important;
         border-radius: 16px !important;
         box-shadow: 0 6px 20px rgba(0,0,0,0.15) !important;
-        overflow: visible !important;
+        overflow: visible !important;   /* undo desktop overflow: hidden */
+        border: none !important;         /* undo desktop border which combined with halo could clip */
     }
     .developer-search-wrapper .gas-search-fields {
         display: flex !important;
@@ -208,7 +565,6 @@
     .developer-search-wrapper .gas-search-field {
         border-right: none !important;
         border-bottom: 1px solid #eee !important;
-        padding: 8px 12px !important;
     }
     .developer-search-wrapper .gas-search-field:last-of-type,
     .developer-search-wrapper .gas-search-field.gas-search-submit {
@@ -249,17 +605,45 @@
     font-family: 'Lora', serif !important;
     font-size: 0 !important;                /* hide the original single-line text */
     line-height: 1.3 !important;
-    margin: 0 auto !important;
+    margin: 0 auto 30px auto !important;    /* 30px gap under heading before body text */
 }
 .developer-intro h2::before {
     content: "EXPERIENCE THE BEAUTY\A AND HISTORY OF PRAGUE WITH DWELLFORT";
-    white-space: pre;
+    /* On narrow viewports let the browser wrap naturally instead of
+       forcing the pre-line — otherwise "AND HISTORY OF PRAGUE WITH
+       DWELLFORT" (34 chars) overflows on any phone under 400px. */
+    white-space: pre-line;
     font-family: 'Lora', serif;
-    font-size: 24px;
+    font-size: clamp(14px, 5vw, 24px);
     font-weight: 400;
     color: #252317;
     display: block;
     text-align: center;
+    line-height: 1.3;
+    max-width: 90vw;
+    margin: 0 auto;
+    word-break: break-word;
+}
+/* On phones: shrink further + drop the forced newline so text
+   wraps naturally without overflow */
+@media (max-width: 500px) {
+    .developer-intro h2::before {
+        font-size: 16px !important;
+        letter-spacing: 0 !important;
+    }
+}
+
+/* Buttons — proper tap feedback on mobile + click feel everywhere.
+   Slight active-state press + tap highlight so users feel the click. */
+button, .df-featured-intro__cta, .developer-nav-cta, .developer-header-cta,
+.gas-search-submit, .gas-view-btn, .gas-book-btn {
+    -webkit-tap-highlight-color: rgba(0,0,0,0.15);
+    transition: transform 0.08s ease, opacity 0.15s ease, background 0.2s ease;
+}
+button:active, .df-featured-intro__cta:active, .developer-nav-cta:active,
+.developer-header-cta:active, .gas-search-submit:active, .gas-view-btn:active {
+    transform: scale(0.97);
+    opacity: 0.9;
 }
 
 /* -- Intro body text: Muli 16 400 charcoal (matches Anton's spec) -- */
