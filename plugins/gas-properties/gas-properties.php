@@ -171,16 +171,10 @@ class GAS_Properties {
         // WYSIWYG for this field is queued but not yet applied to Web
         // Builder (per CLAUDE.md — Pro Site Builder is the trial).
         $wb_intro = trim((string)($api['page_properties_content'] ?? ''));
-        // Heading — Steve 2026-08-21. Separate from the hero title so
-        // clients who disable the hero can still show a heading above
-        // the grid. Reads multilingual page_properties_heading with
-        // English fallback.
-        $wb_heading = trim((string)(
-            $api['page_properties_heading_' . $lang]
-            ?? $api['page_properties_heading']
-            ?? $api['page_properties_heading_en']
-            ?? ''
-        ));
+        // Heading — Steve 2026-08-21. Renders above grid when hero
+        // is disabled. Theme's developer_get_api_settings already
+        // resolves the multilingual value for the current lang.
+        $wb_heading = trim((string)($api['page_properties_heading'] ?? ''));
 
         $accent = esc_attr($colors['accent']);
         $bg = esc_attr($colors['bg']);

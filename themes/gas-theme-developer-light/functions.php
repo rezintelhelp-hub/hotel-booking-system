@@ -2911,6 +2911,9 @@ function developer_get_api_settings() {
         'page_properties_columns' => $website_page_properties['columns'] ?? null,
         'page_properties_show_map' => $website_page_properties['show-map'] ?? false,
         'page_properties_content' => $website_page_properties['content'] ?? '',
+        // Heading — Steve 2026-08-21. Renders as <h1> above the grid
+        // (gas-properties plugin). Useful when the page hero is disabled.
+        'page_properties_heading' => developer_get_ml_value($website_page_properties, 'heading', $lang) ?: '',
         
         // Reviews Page - MULTILINGUAL
         'page_reviews_menu_title' => developer_get_ml_value($website_page_reviews, 'menu_title', $lang) ?: 'Reviews',
