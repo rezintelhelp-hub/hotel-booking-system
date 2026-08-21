@@ -180,9 +180,12 @@ html body .gas-checkout select {
 .developer-search-wrapper .gas-search-field label {
     font-family: 'Muli', sans-serif !important;
     font-size: 12px !important;
-    color: #999 !important;
+    /* #999 was washed out especially on Safari where the system
+       shading further lightens field labels — bumped to #666.
+       Steve 2026-08-21. */
+    color: #666666 !important;
     text-transform: none !important;
-    font-weight: 400 !important;
+    font-weight: 500 !important;
     letter-spacing: 0 !important;
     margin: 0 0 2px 0 !important;
     display: block !important;
