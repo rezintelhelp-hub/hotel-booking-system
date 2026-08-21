@@ -828,3 +828,14 @@ body.page-id-31 #main-content > div[style*="padding-top: 120px"] {
 .gas-properties-heading {
     margin-bottom: 40px !important;
 }
+
+/* Properties page — break out of the theme's 1280px container so
+   the 3-cards + map layout can breathe near-full-width like the
+   old SetSeed site. Scoped by page-id so no other page changes.
+   Steve 2026-08-21. */
+body.page-id-31 .developer-container,
+body.page-id-31 #main-content > .developer-container {
+    max-width: none !important;
+    padding-left: 32px !important;
+    padding-right: 32px !important;
+}
