@@ -188,23 +188,38 @@ html body .gas-checkout select {
     display: block !important;
 }
 
-/* -- SAFARI SELECT FIX (Steve 2026-08-21) -----------------------
-   The broader `select[class*="gas-"]` rule below sets #ffffff on
-   every gas- select, which on Safari renders as a slightly-grey
-   compartment behind the field (system shading on white boxes).
-   Search-pill selects sit on the pill background and should be
-   fully transparent — this higher-specificity rule forces it. */
+/* -- SAFARI SELECT FIX (Steve 2026-08-21, iterated) -----------------
+   Safari paints a grey system-chrome on selects even when the CSS
+   sets a background. Nuclear override — force EVERY descendant of
+   the search pill to transparent, on every pseudo-state. Includes
+   :focus, :hover, ::-webkit-list-button which Safari uses for the
+   dropdown arrow region. */
 html body .developer-search-wrapper .gas-search-field select,
+html body .developer-search-wrapper .gas-search-field select:hover,
+html body .developer-search-wrapper .gas-search-field select:focus,
+html body .developer-search-wrapper .gas-search-field select:active,
 html body .developer-search-wrapper .gas-search-field input,
-html body .developer-search-wrapper .gas-search-field input[type="date"] {
+html body .developer-search-wrapper .gas-search-field input:hover,
+html body .developer-search-wrapper .gas-search-field input:focus,
+html body .developer-search-wrapper .gas-search-field input[type="date"],
+html body .developer-search-wrapper .gas-search-field * {
     background: transparent !important;
-    background-color: transparent !important;
+    background-color: rgba(0,0,0,0) !important;
     background-image: none !important;
     -webkit-appearance: none !important;
     -moz-appearance: none !important;
     appearance: none !important;
     box-shadow: none !important;
+    -webkit-box-shadow: none !important;
     border: none !important;
+    outline: none !important;
+    -webkit-text-fill-color: #252317 !important;
+}
+/* Safari's internal option list */
+html body .developer-search-wrapper .gas-search-field select::-webkit-scrollbar,
+html body .developer-search-wrapper .gas-search-field option {
+    background: #ffffff !important;
+    color: #252317 !important;
 }
 
 /* -- SEARCH BUTTON: BLACK END-CAP ON THE PILL --------------------- */
