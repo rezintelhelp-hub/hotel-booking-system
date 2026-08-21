@@ -91,7 +91,7 @@ add_action('wp_footer', function () {
     var MAPBOX_TOKEN = <?php echo json_encode($mapbox_token); ?>;
     if (!MAPBOX_TOKEN) return; // No token set → no override, plugin's OSM map stands
 
-    var MAPBOX_URL = 'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=' + MAPBOX_TOKEN + '&language=en';
+    var MAPBOX_URL = 'https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/{z}/{x}/{y}?access_token=' + MAPBOX_TOKEN + '&language=en';
     var MAPBOX_ATTR = '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>';
 
     // 1. Monkey-patch L.tileLayer so any OSM URL gets swapped to Mapbox
