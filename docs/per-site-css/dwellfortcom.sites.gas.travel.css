@@ -489,10 +489,18 @@ button, input, select, textarea {
 .developer-footer-links { list-style: none !important; padding: 0 !important; margin: 0 !important; }
 .developer-footer-links li { margin-bottom: 8px !important; }
 .developer-footer-bottom {
-    border-top: 1px solid rgba(231,224,219,0.15) !important;
-    margin-top: 30px !important;
-    padding-top: 20px !important;
+    /* Removed border-top (Steve 2026-08-21). Also hide any other
+       spacer/divider elements the theme or WP might render just
+       above the copyright — h4/hr/br immediately preceding. */
+    border-top: none !important;
+    margin-top: 20px !important;
+    padding-top: 10px !important;
     text-align: center !important;
+}
+.developer-footer hr,
+.developer-footer br + br,
+.developer-footer-bottom + .developer-footer-bottom {
+    display: none !important;
 }
 .developer-footer-bottom p {
     font-size: 12px !important;
