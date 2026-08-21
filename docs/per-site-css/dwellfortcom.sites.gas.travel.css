@@ -803,3 +803,17 @@ button.gas-search-button {
 }
 .developer-search-wrapper .gas-search-button:hover,
 button.gas-search-button:hover { color: #ffffff !important; background: transparent !important; }
+
+/* NUCLEAR OVERRIDE (Steve 2026-08-21) — "Search" text not white
+   despite earlier rules. Something later in the cascade beats them.
+   Max specificity + -webkit-text-fill-color to cover Safari too. */
+html body [id^="gas-search-"] button.gas-search-button,
+html body [id^="gas-search-"] .gas-search-button,
+html body .developer-search-wrapper .gas-search-submit .gas-search-button,
+html body .developer-search-wrapper .gas-search-submit button {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    background: #000000 !important;
+    text-shadow: none !important;
+    opacity: 1 !important;
+}
