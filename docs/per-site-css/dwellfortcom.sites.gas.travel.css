@@ -785,3 +785,19 @@ button.gas-filter-btn:hover {
     background: #333333 !important;
     color: #ffffff !important;
 }
+
+/* Hero search pill — the actual <button class="gas-search-button">
+   inside the black end-cap. Container was styled black but inner
+   button text kept its default colour. Force white. Steve 2026-08-21. */
+.developer-search-wrapper .gas-search-button,
+button.gas-search-button {
+    background: transparent !important;
+    color: #ffffff !important;
+    border: none !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    box-shadow: none !important;
+}
+.developer-search-wrapper .gas-search-button:hover,
+button.gas-search-button:hover { color: #ffffff !important; background: transparent !important; }
