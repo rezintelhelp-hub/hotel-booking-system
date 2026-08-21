@@ -3796,9 +3796,12 @@ jQuery(document).ready(function($) {
             }).setView([lat, lng], 15);
             
             // Add OpenStreetMap tiles
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                maxZoom: 19
+            // Wikimedia OSM-International — English-first labels
+            // globally (uses OSM `name:en` tag). Cleaner cartography
+            // than raw OSM tiles. Free, no API key. Steve 2026-08-21.
+            L.tileLayer('https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://wikimediafoundation.org/wiki/Maps_Terms_of_Use">Wikimedia</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                maxZoom: 18
             }).addTo(propertyMap);
             
             // Add marker
@@ -5633,10 +5636,11 @@ jQuery(document).ready(function($) {
             scrollWheelZoom: true
         });
         
-        // Add tile layer
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            maxZoom: 19
+        // Wikimedia OSM-International — English-first labels globally
+        // (uses OSM `name:en`). Free, no API key. Steve 2026-08-21.
+        L.tileLayer('https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://wikimediafoundation.org/wiki/Maps_Terms_of_Use">Wikimedia</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            maxZoom: 18
         }).addTo(roomsMap);
         
         // Group rooms by property (same coordinates)

@@ -28,6 +28,7 @@ KEY="$HOME/.ssh/id_ed25519"
 PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd)/plugins/gas-booking"
 LOCAL_PHP="$PLUGIN_DIR/gas-booking.php"
 LOCAL_JS="$PLUGIN_DIR/assets/js/gas-booking.js"
+LOCAL_CSS="$PLUGIN_DIR/assets/css/gas-booking.css"
 
 VERSION=$(grep "GAS_BOOKING_VERSION" "$LOCAL_PHP" | head -1 | grep -oE "'[0-9.]+'" | tr -d "'")
 
@@ -41,6 +42,7 @@ if [ "${SKIP_MULTISITE:-0}" != "1" ]; then
     echo "[multisite VPS] $MULTISITE_HOST"
     scp -i "$KEY" -q "$LOCAL_PHP" "$MULTISITE_HOST:$MULTISITE_DIR/gas-booking.php"
     scp -i "$KEY" -q "$LOCAL_JS" "$MULTISITE_HOST:$MULTISITE_DIR/assets/js/gas-booking.js"
+    scp -i "$KEY" -q "$LOCAL_CSS" "$MULTISITE_HOST:$MULTISITE_DIR/assets/css/gas-booking.css"
     ssh -i "$KEY" "$MULTISITE_HOST" "chown -R www-data:www-data $MULTISITE_DIR && systemctl reload php8.3-fpm"
     echo "  ✓ deployed"
     echo
@@ -63,6 +65,7 @@ for target in "${CUSTOM_SITES[@]}"; do
     echo "[custom] $site_name ($host)"
     scp -i "$KEY" -q "$LOCAL_PHP" "$host:$plugin_dir/gas-booking.php"
     scp -i "$KEY" -q "$LOCAL_JS" "$host:$plugin_dir/assets/js/gas-booking.js"
+    scp -i "$KEY" -q "$LOCAL_CSS" "$host:$plugin_dir/assets/css/gas-booking.css"
     ssh -i "$KEY" "$host" "chown -R www-data:www-data $plugin_dir"
     echo "  ✓ deployed"
     echo
