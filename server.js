@@ -113704,10 +113704,10 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         
         -- Primary image: try property_images first, then fall back to first room image
         COALESCE(
-          (SELECT COALESCE(pi.image_url, pi.url) 
-           FROM property_images pi 
+          (SELECT COALESCE(pi.image_url, pi.url)
+           FROM property_images pi
            WHERE pi.property_id = p.id AND (pi.room_id IS NULL)
-           ORDER BY pi.is_primary DESC NULLS LAST, COALESCE(pi.display_order, pi.sort_order, 0) ASC, pi.id ASC 
+           ORDER BY pi.is_primary DESC NULLS LAST, COALESCE(pi.display_order, pi.sort_order, 0) ASC, pi.id ASC
            LIMIT 1
           ),
           (SELECT ri.image_url
@@ -113718,6 +113718,28 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
            LIMIT 1
           )
         ) as primary_image,
+
+        -- Card images — up to 5 URLs for the slider on /properties/ cards.
+        -- Property images first (ordered), then top room images to pad.
+        -- Steve 2026-08-21. Phase 2 will let operators pick specific ones.
+        COALESCE(
+          (SELECT json_agg(url) FROM (
+            SELECT COALESCE(pi.image_url, pi.url) AS url
+            FROM property_images pi
+            WHERE pi.property_id = p.id AND (pi.room_id IS NULL)
+            ORDER BY pi.is_primary DESC NULLS LAST, COALESCE(pi.display_order, pi.sort_order, 0) ASC, pi.id ASC
+            LIMIT 5
+          ) x),
+          (SELECT json_agg(url) FROM (
+            SELECT ri.image_url AS url
+            FROM room_images ri
+            JOIN bookable_units bu ON ri.room_id = bu.id
+            WHERE bu.property_id = p.id AND ri.is_active = true
+            ORDER BY ri.is_primary DESC NULLS LAST, ri.display_order ASC, ri.id ASC
+            LIMIT 5
+          ) x),
+          '[]'::json
+        ) as card_images,
         
         -- Room count. When usePerSiteRoomCount, restrict to rooms ticked
         -- in the Manage Properties & Rooms panel (deployed_sites.room_ids
@@ -113785,13 +113807,28 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
             p.address, p.city, p.district, p.country, p.zip_code, p.latitude, p.longitude,
             p.currency, p.website_url,
             COALESCE(
-              (SELECT COALESCE(pi.image_url, pi.url) FROM property_images pi 
+              (SELECT COALESCE(pi.image_url, pi.url) FROM property_images pi
                WHERE pi.property_id = p.id AND (pi.room_id IS NULL)
                ORDER BY pi.is_primary DESC NULLS LAST, COALESCE(pi.display_order, pi.sort_order, 0) ASC, pi.id ASC LIMIT 1),
               (SELECT ri.image_url FROM room_images ri JOIN bookable_units bu ON ri.room_id = bu.id
                WHERE bu.property_id = p.id AND ri.is_active = true
                ORDER BY ri.is_primary DESC NULLS LAST, ri.display_order ASC, ri.id ASC LIMIT 1)
             ) as primary_image,
+            COALESCE(
+              (SELECT json_agg(url) FROM (
+                SELECT COALESCE(pi.image_url, pi.url) AS url FROM property_images pi
+                WHERE pi.property_id = p.id AND (pi.room_id IS NULL)
+                ORDER BY pi.is_primary DESC NULLS LAST, COALESCE(pi.display_order, pi.sort_order, 0) ASC, pi.id ASC
+                LIMIT 5
+              ) x),
+              (SELECT json_agg(url) FROM (
+                SELECT ri.image_url AS url FROM room_images ri JOIN bookable_units bu ON ri.room_id = bu.id
+                WHERE bu.property_id = p.id AND ri.is_active = true
+                ORDER BY ri.is_primary DESC NULLS LAST, ri.display_order ASC, ri.id ASC
+                LIMIT 5
+              ) x),
+              '[]'::json
+            ) as card_images,
             (SELECT COUNT(*) FROM bookable_units bu WHERE bu.property_id = p.id AND bu.status IN ('active','available')) as room_count,
             (SELECT MIN(bu2.base_price) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status IN ('active','available') AND bu2.base_price > 0) as min_price,
             (SELECT MAX(bu3.base_price) FROM bookable_units bu3 WHERE bu3.property_id = p.id AND bu3.status IN ('active','available') AND bu3.base_price > 0) as max_price,
@@ -113844,6 +113881,7 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         longitude: prop.longitude,
         currency: prop.currency,
         primary_image: prop.primary_image || null,
+        card_images: Array.isArray(prop.card_images) ? prop.card_images.filter(Boolean).slice(0, 5) : [],
         portfolio_display: prop.portfolio_display || {},
         room_count: parseInt(prop.room_count) || 0,
         min_price: prop.min_price ? parseFloat(prop.min_price) : null,

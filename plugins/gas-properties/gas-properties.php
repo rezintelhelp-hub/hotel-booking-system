@@ -18,7 +18,7 @@
  * Plugin Name: GAS Properties
  * Plugin URI: https://gas.travel
  * Description: Display multi-property portfolio from GAS with LodgingBusiness schema markup. Colors controlled via GAS Admin.
- * Version: 1.0.5
+ * Version: 1.0.6
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -231,7 +231,22 @@ class GAS_Properties {
                    length. Steve 2026-08-21 — matches /book-now/ room cards. */
                 .gas-prop-card { background:<?php echo $card_bg; ?>; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); transition:transform 0.2s, box-shadow 0.2s; text-decoration:none; color:inherit; display:flex; flex-direction:column; }
                 .gas-prop-card:hover { transform:translateY(-4px); box-shadow:0 10px 25px rgba(0,0,0,0.12); }
-                .gas-prop-img { width:100%; height:220px; object-fit:cover; }
+                .gas-prop-img { width:100%; height:220px; object-fit:cover; display:block; }
+                /* Inline image slider on the property card. Up to 5 images,
+                   left/right arrows on hover + dots. No lightbox — clicking
+                   the card body still navigates to the property page. Steve
+                   2026-08-21. */
+                .gas-prop-slider { position:relative; overflow:hidden; }
+                .gas-prop-slider .gas-prop-img { position:absolute; top:0; left:0; opacity:0; transition:opacity 0.35s ease; }
+                .gas-prop-slider .gas-prop-img.is-active { position:relative; opacity:1; }
+                .gas-prop-slider-btn { position:absolute; top:50%; transform:translateY(-50%); width:32px; height:32px; border-radius:50%; background:rgba(0,0,0,0.55); color:#fff; border:none; font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s, background 0.2s; z-index:2; }
+                .gas-prop-slider:hover .gas-prop-slider-btn { opacity:1; }
+                .gas-prop-slider-btn:hover { background:rgba(0,0,0,0.8); }
+                .gas-prop-slider-btn.prev { left:8px; }
+                .gas-prop-slider-btn.next { right:8px; }
+                .gas-prop-slider-dots { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); display:flex; gap:6px; z-index:2; }
+                .gas-prop-slider-dot { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,0.55); border:1px solid rgba(0,0,0,0.15); cursor:pointer; padding:0; }
+                .gas-prop-slider-dot.is-active { background:#ffffff; }
                 .gas-prop-body { padding:20px; text-align:left; display:flex; flex-direction:column; flex:1; }
                 .gas-prop-cta { display:inline-block; padding:10px 24px; border-radius:8px; font-size:0.9rem; font-weight:600; text-decoration:none; text-align:center; transition:opacity 0.2s; background:<?php echo $button_bg; ?>; color:<?php echo $button_text; ?>; margin-top:auto; align-self:flex-start; }
                 .gas-prop-cta:hover { opacity:0.85; color:<?php echo $button_text; ?>; }
@@ -321,7 +336,10 @@ class GAS_Properties {
 
                     var html = '';
                     props.forEach(function(p){
-                        var img = (p.primary_image || (p.images && p.images[0] ? p.images[0].url : '')) || '';
+                        // Prefer the card_images array (up to 5). Fall back to
+                        // primary_image if that's all we have. Steve 2026-08-21.
+                        var cardImgs = (Array.isArray(p.card_images) ? p.card_images : []).filter(Boolean).slice(0, 5);
+                        if (cardImgs.length === 0 && p.primary_image) cardImgs = [p.primary_image];
                         var address = formatAddress(p);
                         var roomCount = parseInt(p.room_count) || 0;
                         var currency = p.currency || 'EUR';
@@ -329,7 +347,25 @@ class GAS_Properties {
                         var link = "/book-now/?property_id=" + p.id;
 
                         html += '<a class="gas-prop-card" href="' + link + '" itemscope itemtype="https://schema.org/LodgingBusiness">';
-                        if (img) html += '<img class="gas-prop-img" src="' + img + '" alt="' + (p.name || '') + '" itemprop="image">';
+                        if (cardImgs.length > 0) {
+                            // Slider — single <img> visible at a time; arrows +
+                            // dots stopPropagation so clicks don't trigger the
+                            // parent <a> navigation.
+                            html += '<div class="gas-prop-slider" style="width:100%;height:220px;">';
+                            cardImgs.forEach(function (url, i) {
+                                html += '<img class="gas-prop-img' + (i === 0 ? ' is-active' : '') + '" src="' + url + '" alt="' + (p.name || '') + '"' + (i === 0 ? ' itemprop="image"' : '') + ' loading="lazy" decoding="async">';
+                            });
+                            if (cardImgs.length > 1) {
+                                html += '<button type="button" class="gas-prop-slider-btn prev" onclick="event.stopPropagation();event.preventDefault();gasPropSlide(this,-1)" aria-label="Previous image">‹</button>';
+                                html += '<button type="button" class="gas-prop-slider-btn next" onclick="event.stopPropagation();event.preventDefault();gasPropSlide(this,1)" aria-label="Next image">›</button>';
+                                html += '<div class="gas-prop-slider-dots">';
+                                for (var d = 0; d < cardImgs.length; d++) {
+                                    html += '<button type="button" class="gas-prop-slider-dot' + (d === 0 ? ' is-active' : '') + '" data-idx="' + d + '" onclick="event.stopPropagation();event.preventDefault();gasPropSlideTo(this,' + d + ')" aria-label="Image ' + (d + 1) + '"></button>';
+                                }
+                                html += '</div>';
+                            }
+                            html += '</div>';
+                        }
                         html += '<div class="gas-prop-body">';
                         html += '<h3 class="gas-prop-name" itemprop="name">' + (p.name || '') + '</h3>';
                         if (address) html += '<p class="gas-prop-address" itemprop="address">' + address + '</p>';
@@ -414,6 +450,29 @@ class GAS_Properties {
                     document.getElementById('gas-properties-list').innerHTML = '<p style="grid-column:1/-1;text-align:center;color:#ef4444;padding:40px;">Error loading properties.</p>';
                 });
         })();
+
+        // Card image slider — global helpers used by inline onclick handlers.
+        // Kept outside the IIFE so the buttons rendered from HTML strings can
+        // reach them. Steve 2026-08-21.
+        window.gasPropSlide = window.gasPropSlide || function (btn, delta) {
+            var slider = btn.closest('.gas-prop-slider');
+            if (!slider) return;
+            var imgs = slider.querySelectorAll('.gas-prop-img');
+            if (imgs.length < 2) return;
+            var cur = 0;
+            for (var i = 0; i < imgs.length; i++) if (imgs[i].classList.contains('is-active')) { cur = i; break; }
+            var next = (cur + delta + imgs.length) % imgs.length;
+            window.gasPropSlideTo(btn, next);
+        };
+        window.gasPropSlideTo = window.gasPropSlideTo || function (btn, idx) {
+            var slider = btn.closest('.gas-prop-slider');
+            if (!slider) return;
+            var imgs = slider.querySelectorAll('.gas-prop-img');
+            var dots = slider.querySelectorAll('.gas-prop-slider-dot');
+            if (idx < 0 || idx >= imgs.length) return;
+            for (var i = 0; i < imgs.length; i++) imgs[i].classList.toggle('is-active', i === idx);
+            for (var d = 0; d < dots.length; d++) dots[d].classList.toggle('is-active', d === idx);
+        };
         </script>
         <?php
         return ob_get_clean();
