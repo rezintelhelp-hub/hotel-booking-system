@@ -847,3 +847,17 @@ body.page-id-31 .developer-page-content .developer-page-body {
     max-width: none !important;
     padding: 0 !important;
 }
+
+/* Property card titles — override the broad .developer-page-content h3
+   rule that force-uppercased them. Keep natural case + book-now card size
+   + left align. Steve 2026-08-21. */
+.developer-page-content h3.gas-prop-name,
+.gas-prop-card h3.gas-prop-name {
+    font-family: 'Muli', sans-serif !important;
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    text-align: left !important;
+    color: #252317 !important;
+}
