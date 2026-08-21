@@ -222,10 +222,13 @@ class GAS_Properties {
                 .gas-prop-card { background:<?php echo $card_bg; ?>; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); transition:transform 0.2s, box-shadow 0.2s; text-decoration:none; color:inherit; display:block; }
                 .gas-prop-card:hover { transform:translateY(-4px); box-shadow:0 10px 25px rgba(0,0,0,0.12); }
                 .gas-prop-img { width:100%; height:220px; object-fit:cover; }
-                .gas-prop-body { padding:20px; }
+                /* Card body — text-align:left matches /book-now/ room cards.
+                   Steve 2026-08-21. */
+                .gas-prop-body { padding:20px; text-align:left; }
                 .gas-prop-cta { display:inline-block; padding:10px 24px; border-radius:8px; font-size:0.9rem; font-weight:600; text-decoration:none; text-align:center; transition:opacity 0.2s; background:<?php echo $button_bg; ?>; color:<?php echo $button_text; ?>; margin-top:4px; }
                 .gas-prop-cta:hover { opacity:0.85; color:<?php echo $button_text; ?>; }
-                .gas-prop-name { font-size:1.25rem; font-weight:700; color:<?php echo $text; ?>; margin:0 0 6px; font-family:<?php echo $heading_font; ?>; }
+                /* Title matches .gas-room-card-title on /book-now/ (18px/600). */
+                .gas-prop-name { font-size:18px; font-weight:600; color:<?php echo $text; ?>; margin:0 0 6px; font-family:<?php echo $heading_font; ?>; text-align:left; }
                 .gas-prop-address { font-size:0.9rem; color:<?php echo $text2; ?>; margin:0 0 8px; }
                 .gas-prop-avail { font-size:0.9rem; color:<?php echo $text; ?>; margin:0 0 12px; font-weight:600; }
                 .gas-prop-avail span { color:<?php echo $accent; ?>; }
