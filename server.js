@@ -113653,35 +113653,21 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
 
     // If blog_id provided, look up deployed site's property_ids to filter
     let sitePropertyIds = null;
-    let siteWebsiteId = null;
     if (blog_id) {
       const siteRes = await pool.query(
-        'SELECT property_ids, website_id FROM deployed_sites WHERE blog_id = $1 AND account_id = $2',
+        'SELECT property_ids FROM deployed_sites WHERE blog_id = $1 AND account_id = $2',
         [parseInt(blog_id), clientId]
       );
       if (siteRes.rows.length > 0 && siteRes.rows[0].property_ids && siteRes.rows[0].property_ids.length > 0) {
         sitePropertyIds = siteRes.rows[0].property_ids;
       }
-      // website_id points at the many-to-many website_rooms link table;
-      // if the operator has ticked rooms in the Web Manager panel, we
-      // count only those. Steve 2026-08-21 (Dwellfort: card said "10
-      // Apartments" but 3 of those weren't published on the website).
-      if (siteRes.rows.length > 0 && siteRes.rows[0].website_id) {
-        siteWebsiteId = siteRes.rows[0].website_id;
-      }
     }
-    // Does this website have any explicitly-ticked rooms? If yes, use
-    // the tick-count as room_count. If no rooms are ticked, fall back
-    // to the old status-based count so estates that haven't set up the
-    // panel keep showing something.
-    let usePerSiteRoomCount = false;
-    if (siteWebsiteId) {
-      const wrCheck = await pool.query(
-        'SELECT 1 FROM website_rooms WHERE website_id = $1 LIMIT 1',
-        [siteWebsiteId]
-      );
-      usePerSiteRoomCount = wrCheck.rows.length > 0;
-    }
+    // TODO 2026-08-21 (Steve) — count only ticked rooms via website_rooms.
+    // deployed_sites has no direct website_id column; needs a different
+    // resolver (probably match websites by account_id + a slug/domain
+    // key). Reverted for safety; queued for next iteration.
+    const usePerSiteRoomCount = false;
+    const siteWebsiteId = 0;
 
     // Get all active properties for this account with image and room stats
     let result;
