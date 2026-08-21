@@ -726,3 +726,26 @@ button:active, .df-featured-intro__cta:active, .developer-nav-cta:active,
     font-weight: 400 !important;
     color: #252317 !important;
 }
+
+/* =================================================================
+   ABOUT PAGE — PRO BUILDER 3-CARD STAT GRID (Steve 2026-08-21)
+   Centres text + adds a hairline divider between the number and
+   the descriptor beneath.
+   ================================================================= */
+.gas-ps-cards-grid > div {
+    text-align: center !important;
+    padding: 8px !important;
+}
+.gas-ps-cards-grid > div > div,
+.gas-ps-cards-grid > div > div * {
+    text-align: center !important;
+}
+.gas-ps-cards-grid h3 {
+    text-align: center !important;
+    padding-bottom: 12px !important;
+    margin: 0 auto 12px !important;
+    border-bottom: 1px solid #e5e5e5 !important;
+    /* Keep the divider snug to the title text instead of stretching
+       the full card width */
+    max-width: 80% !important;
+}
