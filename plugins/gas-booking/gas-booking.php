@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.40
+ * Version: 4.3.41
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.40');
+define('GAS_BOOKING_VERSION', '4.3.41');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -6674,6 +6674,58 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             color: white;
             font-size: 48px;
         }
+        /* Inline image slider on room / row cards. Same UX as the properties
+           plugin — arrows on hover, no dots, click-safe. Steve 2026-08-21. */
+        .gas-room-image--slider {
+            position: relative;
+            display: block !important;
+            background: #f0f0f0 !important;
+            overflow: hidden;
+        }
+        .gas-room-image--slider .gas-room-slide {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0;
+            transition: opacity 0.35s ease;
+        }
+        .gas-room-image--slider .gas-room-slide.is-active { opacity: 1; }
+        html body .gas-room-slider-btn {
+            position: absolute !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            width: 32px !important;
+            height: 32px !important;
+            min-width: 32px !important;
+            min-height: 32px !important;
+            max-width: 32px !important;
+            max-height: 32px !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
+            border-radius: 50% !important;
+            background: rgba(0,0,0,0.55);
+            color: #fff;
+            border: none !important;
+            font-size: 18px !important;
+            line-height: 1 !important;
+            cursor: pointer;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s, background 0.2s;
+            z-index: 3;
+        }
+        .gas-room-image--slider:hover .gas-room-slider-btn { opacity: 1; }
+        html body .gas-room-slider-btn:hover { background: rgba(0,0,0,0.8) !important; }
+        html body .gas-room-slider-btn.prev { left: 8px !important; }
+        html body .gas-room-slider-btn.next { right: 8px !important; }
+        @media (max-width: 640px) {
+            .gas-room-image--slider .gas-room-slider-btn { opacity: 1; }
+        }
         .gas-room-details {
             padding: 20px;
         }
@@ -7270,6 +7322,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $bathrooms = floatval($room['num_bathrooms'] ?? $room['bathroom_count'] ?? 0);
                             $bathrooms_display = ($bathrooms == floor($bathrooms)) ? intval($bathrooms) : number_format($bathrooms, 1);
                             $image_url = $room['image_url'] ?? '';
+                            $card_images = isset($room['card_images']) && is_array($room['card_images']) ? array_slice(array_values(array_filter($room['card_images'])), 0, 5) : array();
+                            if (empty($card_images) && $image_url) { $card_images = array($image_url); }
                             $room_currency = $this->get_currency_symbol($this->resolve_currency($room['currency'] ?? ''));
                             $room_amenities = $room['amenities'] ?? array();
                             $room_location = $room['city'] ?? $room['district'] ?? '';
@@ -7293,7 +7347,15 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                              data-ref="<?php echo esc_attr($_row_eff_ref); ?>"
                              data-name="<?php echo esc_attr($_row_display_name); ?>"
                              data-amenities="<?php echo esc_attr(json_encode(array_column($room_amenities, 'code'))); ?>"
-                             data-marketing-tags="<?php echo esc_attr(json_encode(is_array($room['marketing_tags'] ?? null) ? $room['marketing_tags'] : array())); ?>"><?php if (!empty($image_url)) : ?>
+                             data-marketing-tags="<?php echo esc_attr(json_encode(is_array($room['marketing_tags'] ?? null) ? $room['marketing_tags'] : array())); ?>"><?php if (count($card_images) > 1) : ?>
+                            <div class="gas-room-row-image gas-room-image--slider">
+                                <?php foreach ($card_images as $ci => $ci_url) : ?>
+                                    <img class="gas-room-slide<?php echo $ci === 0 ? ' is-active' : ''; ?>" src="<?php echo esc_url($ci_url); ?>" alt="" loading="<?php echo $ci === 0 ? 'eager' : 'lazy'; ?>" decoding="async" />
+                                <?php endforeach; ?>
+                                <button type="button" class="gas-room-slider-btn prev" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();event.preventDefault();gasRoomSlide(this,-1);return false;" aria-label="Previous image">&#8249;</button>
+                                <button type="button" class="gas-room-slider-btn next" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();event.preventDefault();gasRoomSlide(this,1);return false;" aria-label="Next image">&#8250;</button>
+                            </div>
+                            <?php elseif (!empty($image_url)) : ?>
                             <div class="gas-room-row-image" style="background-image: url('<?php echo esc_url($image_url); ?>');"></div>
                             <?php else : ?>
                             <div class="gas-room-row-image gas-room-row-image-placeholder">🏠</div>
@@ -7382,6 +7444,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $price = floatval($room['price'] ?? $room['base_price'] ?? 0);
                             $max_guests = intval($room['max_guests'] ?? $room['max_adults'] ?? 2);
                             $image_url = $room['image_url'] ?? '';
+                            $card_images = isset($room['card_images']) && is_array($room['card_images']) ? array_slice(array_values(array_filter($room['card_images'])), 0, 5) : array();
+                            if (empty($card_images) && $image_url) { $card_images = array($image_url); }
                             $room_currency = $this->get_currency_symbol($this->resolve_currency($room['currency'] ?? ''));
                             $loc_city = trim($room['city'] ?? '');
                             $loc_state = trim($room['state'] ?? '');
@@ -7397,7 +7461,15 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $_g2_name = $this->extract_display_text($room['display_name'] ?? '') ?: $room['name'];
                         ?>
                         <div class="gas-room-card"<?php echo $pin_to_end; ?> data-price="<?php echo esc_attr($price); ?>" data-room-id="<?php echo esc_attr($room['id']); ?>" data-ref="<?php echo esc_attr($_g2_eff_ref); ?>" data-name="<?php echo esc_attr($_g2_name); ?>">
-                            <?php if (!empty($image_url)) : ?>
+                            <?php if (count($card_images) > 1) : ?>
+                            <div class="gas-room-image gas-room-image--slider">
+                                <?php foreach ($card_images as $ci => $ci_url) : ?>
+                                    <img class="gas-room-slide<?php echo $ci === 0 ? ' is-active' : ''; ?>" src="<?php echo esc_url($ci_url); ?>" alt="" loading="<?php echo $ci === 0 ? 'eager' : 'lazy'; ?>" decoding="async" />
+                                <?php endforeach; ?>
+                                <button type="button" class="gas-room-slider-btn prev" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();event.preventDefault();gasRoomSlide(this,-1);return false;" aria-label="Previous image">&#8249;</button>
+                                <button type="button" class="gas-room-slider-btn next" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();event.preventDefault();gasRoomSlide(this,1);return false;" aria-label="Next image">&#8250;</button>
+                            </div>
+                            <?php elseif (!empty($image_url)) : ?>
                             <div class="gas-room-image" <?php echo $room_index <= 6 ? 'style="background: url(\'' . esc_url($image_url) . '\') center/cover;"' : 'data-bg="' . esc_url($image_url) . '" style="background: #f0f0f0;"'; ?>></div>
                             <?php else : ?>
                             <div class="gas-room-image">🏠</div>
@@ -7476,6 +7548,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             // Format bathrooms - show as integer if whole number
                             $bathrooms_display = ($bathrooms == floor($bathrooms)) ? intval($bathrooms) : number_format($bathrooms, 1);
                             $image_url = $room['image_url'] ?? '';
+                            // Up to 5 images for the inline card slider.
+                            // Filter blanks + cap defensively. Steve 2026-08-21.
+                            $card_images = isset($room['card_images']) && is_array($room['card_images']) ? array_slice(array_values(array_filter($room['card_images'])), 0, 5) : array();
+                            if (empty($card_images) && $image_url) { $card_images = array($image_url); }
                             $lat = $room['latitude'] ?? '';
                             $lng = $room['longitude'] ?? '';
                             $room_currency = $this->get_currency_symbol($this->resolve_currency($room['currency'] ?? ''));
@@ -7520,7 +7596,15 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                              data-property-name="<?php echo esc_attr($room_property_name); ?>"
                              data-amenities="<?php echo esc_attr(json_encode(array_column($room_amenities, 'code'))); ?>"
                              data-marketing-tags="<?php echo esc_attr(json_encode(is_array($room['marketing_tags'] ?? null) ? $room['marketing_tags'] : array())); ?>"
-                             <?php echo $is_hidden ? 'style="display:none;"' : ''; ?>><?php if (!empty($image_url)) : ?>
+                             <?php echo $is_hidden ? 'style="display:none;"' : ''; ?>><?php if (count($card_images) > 1) : ?>
+                            <div class="gas-room-image gas-room-image--slider">
+                                <?php foreach ($card_images as $ci => $ci_url) : ?>
+                                    <img class="gas-room-slide<?php echo $ci === 0 ? ' is-active' : ''; ?>" src="<?php echo esc_url($ci_url); ?>" alt="" loading="<?php echo $ci === 0 ? 'eager' : 'lazy'; ?>" decoding="async" />
+                                <?php endforeach; ?>
+                                <button type="button" class="gas-room-slider-btn prev" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();event.preventDefault();gasRoomSlide(this,-1);return false;" aria-label="Previous image">&#8249;</button>
+                                <button type="button" class="gas-room-slider-btn next" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();event.preventDefault();gasRoomSlide(this,1);return false;" aria-label="Next image">&#8250;</button>
+                            </div>
+                            <?php elseif (!empty($image_url)) : ?>
                             <div class="gas-room-image" <?php echo $room_index <= 6 ? 'style="background: url(\'' . esc_url($image_url) . '\') center/cover;"' : 'data-bg="' . esc_url($image_url) . '" style="background: #f0f0f0;"'; ?>></div>
                             <?php else : ?>
                             <div class="gas-room-image">🏠</div>

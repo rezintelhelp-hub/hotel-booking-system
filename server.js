@@ -113332,6 +113332,14 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         p.country,
         p.currency,
         (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_active = true ORDER BY is_primary DESC, display_order ASC LIMIT 1) as image_url,
+        -- Up to 5 image URLs for the card slider on Book Now. Estate-wide
+        -- opt-out is a TODO if a client asks; default is on. Steve 2026-08-21.
+        COALESCE((SELECT json_agg(image_url) FROM (
+          SELECT image_url FROM room_images
+          WHERE room_id = bu.id AND is_active = true
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 5
+        ) x), '[]'::json) as card_images,
         -- Today's rate: mirrors calculate-price's resolution priority:
         -- per-date override → cm × markup → raw cm.
         (SELECT

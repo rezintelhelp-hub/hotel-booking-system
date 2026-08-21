@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.26
+ * Version: 4.3.41
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -5775,8 +5775,9 @@ jQuery(document).ready(function($) {
         
         // Card click to navigate
         $(document).on('click', '.gas-room-card', function(e) {
-            // Don't navigate if clicking the View & Book button
-            if ($(e.target).hasClass('gas-view-btn') || $(e.target).closest('.gas-view-btn').length) {
+            // Don't navigate if the click landed on the View button OR on
+            // a slider arrow. Steve 2026-08-21 — added slider exclusion.
+            if ($(e.target).closest('.gas-view-btn, .gas-room-slider-btn').length) {
                 return;
             }
             var url = $(this).data('url');
@@ -11735,3 +11736,17 @@ jQuery(document).ready(function($) {
     // ========== END BIKE STORAGE WIDGET ==========
 
 });
+
+// Global helpers for the inline card image slider (arrows on room cards).
+// Referenced by inline onclick handlers in gas-booking.php, so must be on
+// window and outside the jQuery ready wrapper. Steve 2026-08-21.
+window.gasRoomSlide = window.gasRoomSlide || function (btn, delta) {
+    var slider = btn.closest('.gas-room-image--slider');
+    if (!slider) return;
+    var slides = slider.querySelectorAll('.gas-room-slide');
+    if (slides.length < 2) return;
+    var cur = 0;
+    for (var i = 0; i < slides.length; i++) if (slides[i].classList.contains('is-active')) { cur = i; break; }
+    var next = (cur + delta + slides.length) % slides.length;
+    for (var j = 0; j < slides.length; j++) slides[j].classList.toggle('is-active', j === next);
+};
