@@ -1802,21 +1802,32 @@
     border: none;
 }
 
-/* Clean SVG-based map pin (Steve 2026-08-21). Was a rotated
-   teardrop with a purple fill — Anton disliked the "odd shape".
-   Now a proper black location pin with white ring + centre dot,
-   drop shadow for lift. Colour-friendly for any client palette. */
 .gas-marker-pin {
-    width: 28px;
+    width: 30px;
     height: 40px;
+    background: #667eea;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
     position: relative;
-    background: transparent url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 40'><path d='M14 0C6.3 0 0 6.3 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.3 21.7 0 14 0z' fill='%23111111'/><circle cx='14' cy='14' r='5' fill='%23ffffff'/></svg>") no-repeat center/contain;
-    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35));
-    transition: transform 0.15s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    border: 3px solid white;
+}
+
+.gas-marker-pin::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    background: white;
+    position: absolute;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
 
 .gas-map-marker:hover .gas-marker-pin {
-    transform: scale(1.12) translateY(-2px);
+    background: #5a6fd6;
+    transform: rotate(-45deg) scale(1.1);
 }
 
 /* Rooms map popup styling */
