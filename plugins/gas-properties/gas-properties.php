@@ -171,6 +171,16 @@ class GAS_Properties {
         // WYSIWYG for this field is queued but not yet applied to Web
         // Builder (per CLAUDE.md — Pro Site Builder is the trial).
         $wb_intro = trim((string)($api['page_properties_content'] ?? ''));
+        // Heading — Steve 2026-08-21. Separate from the hero title so
+        // clients who disable the hero can still show a heading above
+        // the grid. Reads multilingual page_properties_heading with
+        // English fallback.
+        $wb_heading = trim((string)(
+            $api['page_properties_heading_' . $lang]
+            ?? $api['page_properties_heading']
+            ?? $api['page_properties_heading_en']
+            ?? ''
+        ));
 
         $accent = esc_attr($colors['accent']);
         $bg = esc_attr($colors['bg']);
@@ -220,6 +230,9 @@ class GAS_Properties {
                 .gas-prop-loading { text-align:center; padding:60px 20px; color:<?php echo $text2; ?>; }
                 @media (max-width:768px) { .gas-properties-grid { grid-template-columns:1fr !important; } }
             </style>
+            <?php if ($wb_heading !== ''): ?>
+            <h1 class="gas-properties-heading" style="max-width:1200px;margin:0 auto 12px;padding:0 20px;font-family:<?php echo $heading_font; ?>;color:<?php echo $text; ?>;font-size:2.5rem;line-height:1.2;text-align:center;"><?php echo esc_html($wb_heading); ?></h1>
+            <?php endif; ?>
             <?php if ($wb_intro !== ''): ?>
             <div class="gas-properties-intro"><?php echo wp_kses_post(wpautop($wb_intro)); ?></div>
             <?php endif; ?>

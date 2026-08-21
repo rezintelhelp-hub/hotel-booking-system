@@ -12478,6 +12478,24 @@
                                 <div class="card-body">
                                     <p style="color: #64748b; margin-bottom: 1rem;">This page displays all your properties. Useful for multi-property accounts.</p>
                                     <div class="form-group">
+                                        <label class="form-label">Heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span> <span style="font-size: 0.75rem; color: #94a3b8;">(shows above the property grid — useful when hero is off)</span></label>
+                                        <div class="translation-field-wrapper" data-translation-group="wb-page-properties-heading">
+                                            <div class="translation-tabs">
+                                                <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-properties-heading', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-properties-heading', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-properties-heading', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-properties-heading', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-properties-heading')" title="Auto-translate">✨</button>
+                                            </div>
+                                            <div class="translation-input-group">
+                                                <input type="text" class="form-input translation-input active" id="wb-page-properties-heading-en" data-lang="en" placeholder="e.g., Our Residences">
+                                                <input type="text" class="form-input translation-input" id="wb-page-properties-heading-fr" data-lang="fr" placeholder="Nos Résidences">
+                                                <input type="text" class="form-input translation-input" id="wb-page-properties-heading-es" data-lang="es" placeholder="Nuestras Residencias">
+                                                <input type="text" class="form-input translation-input" id="wb-page-properties-heading-nl" data-lang="nl" placeholder="Onze Residenties">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
                                         <label class="form-label">Intro Text (Optional)</label>
                                         <textarea class="form-textarea" id="wb-page-properties-content" rows="4" placeholder="Add an introduction to your properties page..."></textarea>
                                     </div>
