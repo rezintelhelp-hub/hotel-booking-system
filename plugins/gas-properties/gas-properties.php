@@ -175,6 +175,12 @@ class GAS_Properties {
         // is disabled. Theme's developer_get_api_settings already
         // resolves the multilingual value for the current lang.
         $wb_heading = trim((string)($api['page_properties_heading'] ?? ''));
+        // Map config — same theme_mods gas-booking uses (developer_page-rooms_map_*)
+        // so the map on this page matches the one on /book-now/. Steve 2026-08-21.
+        $mp_provider = get_theme_mod('developer_page-rooms_map_provider') ?: 'osm';
+        $mp_style    = get_theme_mod('developer_page-rooms_map_style') ?: 'streets-v12';
+        $mp_language = get_theme_mod('developer_page-rooms_map_language') ?: 'en';
+        $mp_token    = get_site_option('gas_mapbox_token', get_option('gas_mapbox_token', ''));
 
         $accent = esc_attr($colors['accent']);
         $bg = esc_attr($colors['bg']);
@@ -196,11 +202,13 @@ class GAS_Properties {
                 .gas-properties-intro { max-width:1200px; margin:0 auto 24px; padding:0 20px; color:<?php echo $text; ?>; font-family:<?php echo $body_font; ?>; font-size:1rem; line-height:1.55; white-space:pre-wrap; }
                 .gas-properties-intro h1, .gas-properties-intro h2, .gas-properties-intro h3 { font-family:<?php echo $heading_font; ?>; color:<?php echo $text; ?>; margin:0 0 8px; }
                 <?php if ($wb_show_map): ?>
-                /* 2-col shell — grid left, sticky map right. Collapses on mobile. */
-                .gas-properties-shell { display:grid; grid-template-columns: 1fr 400px; gap:24px; max-width:1200px; margin:0 auto; padding:0 20px; align-items:start; }
+                /* 2-col shell — grid left, sticky map right. Collapses on mobile.
+                   Widened to 1400px + cap raised to 3 cards-per-row (was 2) so
+                   estates with 3+ properties don't feel cramped. Steve 2026-08-21. */
+                .gas-properties-shell { display:grid; grid-template-columns: 1fr 400px; gap:32px; max-width:1400px; margin:0 auto; padding:0 24px; align-items:start; }
                 .gas-properties-map-col { position:sticky; top:100px; }
                 .gas-properties-map-inner { height:calc(100vh - 140px); max-height:640px; min-height:400px; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); background:#eef2f6; }
-                .gas-properties-grid { display:grid; grid-template-columns:<?php echo $wb_columns > 0 ? 'repeat(' . min($wb_columns, 2) . ', minmax(0, 1fr))' : 'repeat(auto-fill, minmax(280px, 1fr))'; ?>; gap:20px; }
+                .gas-properties-grid { display:grid; grid-template-columns:<?php echo $wb_columns > 0 ? 'repeat(' . min($wb_columns, 3) . ', minmax(0, 1fr))' : 'repeat(auto-fill, minmax(260px, 1fr))'; ?>; gap:20px; }
                 @media (max-width: 968px) {
                   .gas-properties-shell { grid-template-columns: 1fr; }
                   .gas-properties-map-col { position:static; order:-1; }
@@ -340,10 +348,25 @@ class GAS_Properties {
                             s.onload = function() {
                                 var map = L.map('gas-properties-map');
                                 var group = L.featureGroup();
+                                // Tile provider matches gas-booking's config
+                                // (see WP options gas_map_* / theme_mods
+                                // developer_page-rooms_map_*). Steve 2026-08-21.
+                                <?php if ($mp_provider === 'mapbox' && $mp_token): ?>
+                                L.tileLayer(
+                                    'https://api.mapbox.com/styles/v1/mapbox/<?php echo esc_js($mp_style); ?>/tiles/512/{z}/{x}/{y}?access_token=<?php echo esc_js($mp_token); ?>&language=<?php echo esc_js($mp_language); ?>',
+                                    {
+                                        attribution: '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                                        tileSize: 512,
+                                        zoomOffset: -1,
+                                        maxZoom: 19
+                                    }
+                                ).addTo(map);
+                                <?php else: ?>
                                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
                                     maxZoom: 19
                                 }).addTo(map);
+                                <?php endif; ?>
                                 pinnable.forEach(function(p) {
                                     var la = parseFloat(p.latitude), lo = parseFloat(p.longitude);
                                     var popup = '<strong>' + (p.name || '') + '</strong><br>' +
