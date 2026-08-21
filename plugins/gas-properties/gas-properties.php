@@ -177,10 +177,14 @@ class GAS_Properties {
         $wb_heading = trim((string)($api['page_properties_heading'] ?? ''));
         // Map config — same theme_mods gas-booking uses (developer_page-rooms_map_*)
         // so the map on this page matches the one on /book-now/. Steve 2026-08-21.
-        $mp_provider     = get_theme_mod('developer_page-rooms_map_provider') ?: 'osm';
-        $mp_style        = get_theme_mod('developer_page-rooms_map_style') ?: 'streets-v12';
-        $mp_language     = get_theme_mod('developer_page-rooms_map_language') ?: 'en';
-        $mp_marker_style = get_theme_mod('developer_page-rooms_map_marker_style') ?: 'default';
+        // Same fallback chain as gas-booking plugin: theme_mod (set via
+        // Web Builder save) → wp_option (set via wp-cli) → default 'osm'.
+        // Steve 2026-08-21 — first pass only checked theme_mod so Dwellfort
+        // (which has options but not mods) kept getting raw OSM.
+        $mp_provider     = get_theme_mod('developer_page-rooms_map_provider') ?: get_option('gas_map_provider', 'osm');
+        $mp_style        = get_theme_mod('developer_page-rooms_map_style') ?: get_option('gas_map_style', 'streets-v12');
+        $mp_language     = get_theme_mod('developer_page-rooms_map_language') ?: get_option('gas_map_language', 'en');
+        $mp_marker_style = get_theme_mod('developer_page-rooms_map_marker_style') ?: get_option('gas_map_marker_style', 'default');
         $mp_token        = get_site_option('gas_mapbox_token', get_option('gas_mapbox_token', ''));
 
         $accent = esc_attr($colors['accent']);
