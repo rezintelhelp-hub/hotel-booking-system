@@ -758,3 +758,11 @@ button:active, .df-featured-intro__cta:active, .developer-nav-cta:active,
 .gas-ps-section.gas-ps-text .gas-ps-body * {
     text-align: center !important;
 }
+
+/* About page — 120px header-clearance spacer above the first section
+   is excessive since About has no hero above it. Trim to 40px. This
+   selector matches the first-child spacer div inside <main>.
+   Steve 2026-08-21. */
+.page-template-template-about #main-content > div[style*="padding-top: 120px"] {
+    padding-top: 40px !important;
+}
