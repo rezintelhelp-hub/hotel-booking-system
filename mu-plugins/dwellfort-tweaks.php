@@ -91,32 +91,31 @@ add_action('wp_footer', function () {
     var MAPBOX_TOKEN = <?php echo json_encode($mapbox_token); ?>;
     if (!MAPBOX_TOKEN) return; // No token set → no override, plugin's OSM map stands
 
-    // Monkey-patch L.tileLayer so any OSM URL the plugin creates gets
-    // swapped for Mapbox transparently. Runs before plugin's jQuery
-    // document.ready callback fires (wp_footer prio 99 runs after all
-    // script tags are printed but before the ready event triggers).
-    // Reliable across both propertyMap + roomsMap without needing to
-    // find scoped variables.
+    var MAPBOX_URL = 'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=' + MAPBOX_TOKEN + '&language=en';
+    var MAPBOX_ATTR = '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>';
+
+    // 1. Monkey-patch L.tileLayer so any OSM URL gets swapped to Mapbox
+    //    before the map is created. Fires as early as Leaflet exists.
     function patchLeaflet() {
         if (typeof L === 'undefined' || !L.tileLayer || L.tileLayer._dfPatched) return false;
         var orig = L.tileLayer;
         var patched = function (url, opts) {
             if (typeof url === 'string' && url.indexOf('tile.openstreetmap.org') !== -1) {
-                url = 'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=' + MAPBOX_TOKEN + '&language=en';
+                console.log('[dwellfort] intercepted OSM tileLayer → Mapbox');
+                url = MAPBOX_URL;
                 opts = opts || {};
                 opts.tileSize = 512;
                 opts.zoomOffset = -1;
-                opts.attribution = '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>';
+                opts.attribution = MAPBOX_ATTR;
             }
             return orig.call(L, url, opts);
         };
-        // Preserve any static properties like L.tileLayer.wms
         Object.keys(orig).forEach(function (k) { patched[k] = orig[k]; });
         patched._dfPatched = true;
         L.tileLayer = patched;
+        console.log('[dwellfort] L.tileLayer patched');
         return true;
     }
-    // Try immediately, then poll briefly in case Leaflet loads async.
     if (!patchLeaflet()) {
         var patchTries = 0;
         var patchIv = setInterval(function () {
@@ -124,19 +123,53 @@ add_action('wp_footer', function () {
         }, 100);
     }
 
+    // 2. Belt-and-braces: after 2s, scan every .leaflet-container and
+    //    force-swap OSM tile URLs on their existing map instances.
+    //    Handles the case where the plugin's map init ran BEFORE our
+    //    patch (shouldn't happen given timing but defence-in-depth).
+    function swapExistingMaps() {
+        if (typeof L === 'undefined') return;
+        var containers = document.querySelectorAll('.leaflet-container');
+        containers.forEach(function (el) {
+            if (el._dfMapboxSwapped) return;
+            // Iterate keys on the element — Leaflet stores map internal
+            // registry via .Layer._map. Walk each layer.
+            var tileImgs = el.querySelectorAll('.leaflet-tile-pane img');
+            var isOsm = false;
+            tileImgs.forEach(function (img) {
+                if (img.src && img.src.indexOf('tile.openstreetmap.org') !== -1) isOsm = true;
+            });
+            if (!isOsm) return;
+            console.log('[dwellfort] found existing OSM map, force-swapping tiles');
+            // Rewrite each visible tile img src to Mapbox equivalent
+            tileImgs.forEach(function (img) {
+                var m = img.src.match(/openstreetmap\.org\/(\d+)\/(\d+)\/(\d+)\.png/);
+                if (m) {
+                    img.src = MAPBOX_URL.replace('{z}', m[1]).replace('{x}', m[2]).replace('{y}', m[3]);
+                }
+            });
+            el._dfMapboxSwapped = true;
+        });
+    }
+    setTimeout(swapExistingMaps, 2000);
+    setTimeout(swapExistingMaps, 5000);
+
     // Inject cleaner black SVG pin — overrides plugin's purple teardrop.
+    // Using template literal + double-quoted SVG attrs to avoid JS string
+    // escaping hell (previous \\' broke JS parse — Steve 2026-08-21).
     var css = document.createElement('style');
-    css.textContent = '' +
-        '.gas-marker-pin {' +
-        '  width: 28px !important; height: 40px !important;' +
-        '  background: transparent url("data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 28 40\\'><path d=\\'M14 0C6.3 0 0 6.3 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.3 21.7 0 14 0z\\' fill=\\'%23111111\\'/><circle cx=\\'14\\' cy=\\'14\\' r=\\'5\\' fill=\\'%23ffffff\\'/></svg>") no-repeat center/contain !important;' +
-        '  border-radius: 0 !important; transform: none !important;' +
-        '  box-shadow: none !important; border: none !important;' +
-        '  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35));' +
-        '  transition: transform 0.15s ease;' +
-        '}' +
-        '.gas-marker-pin::after { display: none !important; }' +
-        '.gas-map-marker:hover .gas-marker-pin { transform: scale(1.12) translateY(-2px) !important; background-color: transparent !important; }';
+    css.textContent = [
+        '.gas-marker-pin {',
+        '  width: 28px !important; height: 40px !important;',
+        '  background: transparent url("data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 28 40%22><path d=%22M14 0C6.3 0 0 6.3 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.3 21.7 0 14 0z%22 fill=%22%23111111%22/><circle cx=%2214%22 cy=%2214%22 r=%225%22 fill=%22%23ffffff%22/></svg>") no-repeat center/contain !important;',
+        '  border-radius: 0 !important; transform: none !important;',
+        '  box-shadow: none !important; border: none !important;',
+        '  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35));',
+        '  transition: transform 0.15s ease;',
+        '}',
+        '.gas-marker-pin::after { display: none !important; }',
+        '.gas-map-marker:hover .gas-marker-pin { transform: scale(1.12) translateY(-2px) !important; background-color: transparent !important; }'
+    ].join('\n');
     document.head.appendChild(css);
 })();
 </script>
