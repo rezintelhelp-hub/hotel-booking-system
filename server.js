@@ -113651,23 +113651,33 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
     const { clientId } = req.params;
     const { limit, offset, sort, blog_id } = req.query;
 
-    // If blog_id provided, look up deployed site's property_ids to filter
+    // If blog_id provided, look up deployed site's property_ids + room_ids.
+    // room_ids = JSONB array of bookable_units.id the operator ticked in
+    // "Manage Properties & Rooms". When set, room_count only counts those.
+    // Steve 2026-08-21 — was counting all status='active' rooms, so
+    // Dwellfort's "Bohemian Dreams" showed 10 but only 9 were actually
+    // published on the website.
     let sitePropertyIds = null;
+    let siteRoomIds = null;
     if (blog_id) {
       const siteRes = await pool.query(
-        'SELECT property_ids FROM deployed_sites WHERE blog_id = $1 AND account_id = $2',
+        'SELECT property_ids, room_ids FROM deployed_sites WHERE blog_id = $1 AND account_id = $2',
         [parseInt(blog_id), clientId]
       );
-      if (siteRes.rows.length > 0 && siteRes.rows[0].property_ids && siteRes.rows[0].property_ids.length > 0) {
-        sitePropertyIds = siteRes.rows[0].property_ids;
+      if (siteRes.rows.length > 0) {
+        const row = siteRes.rows[0];
+        if (row.property_ids && row.property_ids.length > 0) {
+          sitePropertyIds = row.property_ids;
+        }
+        // room_ids is JSONB — comes back as JS array. Only use if non-empty.
+        if (Array.isArray(row.room_ids) && row.room_ids.length > 0) {
+          siteRoomIds = row.room_ids.map(x => parseInt(x, 10)).filter(Boolean);
+        }
       }
     }
-    // TODO 2026-08-21 (Steve) — count only ticked rooms via website_rooms.
-    // deployed_sites has no direct website_id column; needs a different
-    // resolver (probably match websites by account_id + a slug/domain
-    // key). Reverted for safety; queued for next iteration.
-    const usePerSiteRoomCount = false;
-    const siteWebsiteId = 0;
+    const usePerSiteRoomCount = Array.isArray(siteRoomIds) && siteRoomIds.length > 0;
+    // Postgres int array literal for inlining into SQL (values already sanitised).
+    const siteRoomIdsSql = usePerSiteRoomCount ? `ARRAY[${siteRoomIds.join(',')}]::int[]` : 'ARRAY[]::int[]';
 
     // Get all active properties for this account with image and room stats
     let result;
@@ -113710,14 +113720,14 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         ) as primary_image,
         
         -- Room count. When usePerSiteRoomCount, restrict to rooms ticked
-        -- in the Web Manager panel; else fall back to status-active.
+        -- in the Manage Properties & Rooms panel (deployed_sites.room_ids
+        -- JSONB array); else fall back to status-active.
         ${usePerSiteRoomCount ? `
         (SELECT COUNT(*)
          FROM bookable_units bu
-         JOIN website_rooms wr ON wr.bookable_unit_id = bu.id
          WHERE bu.property_id = p.id
            AND bu.status IN ('active','available')
-           AND wr.website_id = ${parseInt(siteWebsiteId)}
+           AND bu.id = ANY(${siteRoomIdsSql})
         ) as room_count,` : `
         (SELECT COUNT(*)
          FROM bookable_units bu
