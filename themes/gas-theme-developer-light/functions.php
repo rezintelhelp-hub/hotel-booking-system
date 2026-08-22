@@ -4914,7 +4914,11 @@ function developer_email_obfuscation_script() {
           var a = document.createElement('a');
           a.href = 'mailto:' + addr;
           a.textContent = addr;
-          if (s.dataset.style) a.setAttribute('style', s.dataset.style);
+          // Force lowercase + kill uppercasing regardless of theme rules
+          // (footer / nav CSS on some sites forces uppercase on li text).
+          // Steve 2026-08-22 — Dwellfort footer.
+          var base = 'text-transform:none !important; text-transform:lowercase !important;';
+          a.setAttribute('style', base + (s.dataset.style ? (' ' + s.dataset.style) : ''));
           s.parentNode.replaceChild(a, s);
         }
         // Belt-and-braces: any raw <a href="mailto:...">EMAIL</a> anywhere
