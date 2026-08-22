@@ -74110,8 +74110,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                         // OR email the guest for a fresh card. Don't nudge her
                         // toward "just click Take payment" — that flow may loop
                         // through repeated declines (Charles House Aug 2026).
-                        const _otaCaveat = _isOta
-                            ? `<div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:0.5rem; font-size:0.78rem; color:#78350f;">⚠️ OTA auto payments are off. If Take Payment declines, use <strong>Email guest for card</strong> to send them a link to add a fresh one.</div>`
+                        // Exception — Expedia Collect (ota_payment_collect='ota')
+                        // is a VCC scenario: the auto-charge cron DOES fire on
+                        // arrival day (server.js:162725). No warning needed
+                        // there; the green "prepaid VCC · GAS auto-charges on
+                        // check-in" banner covers it. Steve 2026-08-22.
+                        const _isExpediaCollectVcc = String(b.ota_payment_collect || '').toLowerCase() === 'ota';
+                        const _otaCaveat = (_isOta && !_isExpediaCollectVcc)
+                            ? `<div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:0.5rem; font-size:0.78rem; color:#78350f;">⚠️ Hotel Collect: guest card on file. If Take Payment declines, use <strong>Email guest for card</strong> to send them a link to add a fresh one.</div>`
                             : '';
                         cardInfoEl.style.display = 'block';
                         cardInfoEl.innerHTML = `

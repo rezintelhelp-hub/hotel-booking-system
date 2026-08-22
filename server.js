@@ -101926,14 +101926,19 @@ async function processChannexBookingNotification(payload) {
       otaPrepay.prepaid = true;
       if (!otaPrepay.payoutMethod) otaPrepay.payoutMethod = 'Airbnb payout';
     }
-    // Expedia Collect catch-all — payment_collect='ota' means Expedia is
-    // collecting + remitting. Treat as prepaid so the UI stops showing
-    // "UNPAID" chase state for Expedia Collect bookings.
-    const _pc = String(attrs.payment_collect || '').toLowerCase();
-    if (!otaPrepay.prepaid && bookingSource === 'expedia' && _pc === 'ota' && !cancelled) {
-      otaPrepay.prepaid = true;
-      if (!otaPrepay.payoutMethod) otaPrepay.payoutMethod = 'Expedia payout';
-    }
+    // Expedia Collect (payment_collect='ota') is NOT a bank-payout model —
+    // Expedia collects from the guest, then issues a VCC that the hotel
+    // charges via Stripe on check-in day. Previously this block marked
+    // every such booking as prepaid, which wrote a phantom
+    // payment_transactions row (line ~102098) and flipped
+    // payment_status='paid' + balance_amount=0. That killed the auto-
+    // charge cron (server.js:162756 requires payment_status != 'paid'
+    // AND balance_amount > 0), so no VCC ever got charged automatically.
+    // Charles House 707849 (2026-08-22) surfaced it — Barbara had to
+    // manually replace the card + take payment. Removed. Steve 2026-08-22.
+    // The original "UNPAID chase state" concern the block was hiding is
+    // moot — chase is opt-in (only fires when payment_chase_status =
+    // 'chasing', which nothing sets automatically for OTAs).
     // Charge amount fallback — use grand_total if not extracted
     if (otaPrepay.prepaid && otaPrepay.chargeAmount == null) otaPrepay.chargeAmount = total;
   } catch (e) {
