@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.47
+ * Version: 4.3.48
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.47');
+define('GAS_BOOKING_VERSION', '4.3.48');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -9283,6 +9283,16 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         .gas-summary-image img { width: 100%; height: 100%; object-fit: cover; }
         .gas-summary-room-name { font-size: 18px; font-weight: 600; color: #1e293b; margin: 0 0 8px 0; }
         .gas-summary-property { font-size: 14px; color: #64748b; margin: 0; }
+        /* Mobile — float the image left so text wraps around it instead
+           of getting squeezed into a narrow column beside a fixed-width
+           image. Cleaner magazine-style layout on <=640px phones.
+           Steve 2026-08-22. */
+        @media (max-width: 640px) {
+            .gas-summary-room { display: block; }
+            .gas-summary-room::after { content: ""; display: table; clear: both; }
+            .gas-summary-image { float: left; width: 110px; height: 78px; margin: 0 14px 6px 0; }
+            .gas-summary-room-info { display: block; }
+        }
         
         .gas-summary-details { margin-bottom: 20px; }
         .gas-summary-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
