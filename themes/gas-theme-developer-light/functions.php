@@ -4287,7 +4287,18 @@ function developer_developer_custom_css() {
         .developer-footer-links a:hover {
             opacity: 1;
         }
-        
+
+        /* Footer stacks per column on mobile — inline
+           grid-template-columns: repeat(N, 1fr) on .developer-footer-grid
+           was forcing 3-4 columns on narrow phones (unreadable + pushed
+           layout wide). Force 1 column on <= 768px. Also catches the
+           legacy 1fr 1fr 1fr inline-styled grid in the alternate footer
+           render path. Steve 2026-08-22. */
+        @media (max-width: 768px) {
+            .developer-footer-grid { grid-template-columns: 1fr !important; gap: 2rem !important; }
+            footer.developer-footer > div > div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; gap: 2rem !important; }
+        }
+
         ' . ($custom_css ? '/* Custom CSS */ ' . $custom_css : '') . '
     </style>';
 
