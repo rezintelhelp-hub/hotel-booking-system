@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.42
+ * Version: 4.3.43
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -2803,6 +2803,12 @@ jQuery(document).ready(function($) {
         // Set title and location - prefer display_name over internal name
         var roomTitle = extractText(room.display_name) || room.name;
         $('.gas-room-title').text(roomTitle);
+        // Stash lat/lng + title on the widget for the Map tab initialiser.
+        // Steve 2026-08-22.
+        $('.gas-room-widget')
+            .data('lat', room.latitude)
+            .data('lng', room.longitude)
+            .data('title', roomTitle);
         // Operator-typed reference code, rendered as small "Ref: {code}"
         // under the title when show_reference is true. Per-unit reference
         // wins over property-level. Off by default. EasyLandlord 2026-06-08:
@@ -3336,7 +3342,42 @@ jQuery(document).ready(function($) {
             var unitId = $('.gas-room-widget').data('unit-id');
             loadRoomReviews(unitId);
         }
+
+        // Init the Map tab lazily — Leaflet needs the container to have
+        // dimensions when it lays tiles, which only happens once .active
+        // is set. Idempotent via window.gasRoomDetailMap flag. Steve
+        // 2026-08-22.
+        if (tab === 'map') gasInitRoomDetailMap();
     });
+
+    // Room-detail Map tab initialiser. Reads lat/lng stored on the
+    // .gas-room-widget by renderRoomDetails. Uses the same tile-layer
+    // helper as Book Now / Properties so all three maps look identical.
+    function gasInitRoomDetailMap() {
+        if (window.gasRoomDetailMap) {
+            // Already initialised — invalidate size in case the container
+            // has grown/shrunk since first render.
+            try { window.gasRoomDetailMap.invalidateSize(); } catch (_) {}
+            return;
+        }
+        if (typeof L === 'undefined') return; // Leaflet not loaded
+        var $w = $('.gas-room-widget');
+        var lat = parseFloat($w.data('lat'));
+        var lng = parseFloat($w.data('lng'));
+        var $mount = $('#gas-room-detail-map');
+        var $empty = $('.gas-room-detail-map-empty');
+        if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0) || !$mount.length) {
+            if ($mount.length) $mount.hide();
+            if ($empty.length) $empty.show();
+            return;
+        }
+        var title = $w.data('title') || '';
+        var map = L.map('gas-room-detail-map', { scrollWheelZoom: false }).setView([lat, lng], 15);
+        var tiles = (typeof window.gasGetMapTileLayer === 'function') ? window.gasGetMapTileLayer() : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+        tiles.addTo(map);
+        L.marker([lat, lng], { title: title }).addTo(map);
+        window.gasRoomDetailMap = map;
+    }
 
     // Initial-tab policy: every room-page first view MUST land on
     // Description. Even if the listing-page link carries

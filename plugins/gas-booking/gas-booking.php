@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.42
+ * Version: 4.3.43
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.42');
+define('GAS_BOOKING_VERSION', '4.3.43');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8269,6 +8269,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 <button class="gas-tab-btn active" data-tab="description"><?php echo esc_html($t_property['description'] ?? 'Description'); ?></button>
                                 <button class="gas-tab-btn" data-tab="availability"><?php echo esc_html($t_property['availability'] ?? 'Availability'); ?></button>
                                 <button class="gas-tab-btn" data-tab="features"><?php echo esc_html($t_property['features'] ?? 'Features'); ?></button>
+                                <button class="gas-tab-btn" data-tab="map"><?php echo esc_html($t_property['map'] ?? 'Map'); ?></button>
                                 <button class="gas-tab-btn" data-tab="reviews"><?php echo esc_html($t_property['reviews'] ?? 'Reviews'); ?></button>
                                 <button class="gas-tab-btn" data-tab="terms"><?php echo esc_html($t_property['terms'] ?? 'Terms'); ?></button>
                             </div>
@@ -8326,7 +8327,20 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             <div class="gas-tab-content" data-tab="features">
                                 <div class="gas-amenities-container"></div>
                             </div>
-                            
+
+                            <!-- Map Tab — Steve 2026-08-22. Property location
+                                 on a Leaflet map. Init is lazy (on tab click)
+                                 because Leaflet needs container dimensions to
+                                 lay tiles. If no lat/lng we render a friendly
+                                 placeholder. -->
+                            <div class="gas-tab-content" data-tab="map">
+                                <div id="gas-room-detail-map" style="width:100%;height:420px;border-radius:12px;overflow:hidden;background:#f0f0f0;"></div>
+                                <div class="gas-room-detail-map-empty" style="display:none;text-align:center;padding:60px 20px;color:#64748b;">
+                                    <div style="font-size:32px;margin-bottom:8px;">📍</div>
+                                    <p style="margin:0;"><?php echo esc_html($t_property['map_unavailable'] ?? 'Location not available for this property.'); ?></p>
+                                </div>
+                            </div>
+
                             <!-- Reviews Tab -->
                             <div class="gas-tab-content" data-tab="reviews">
                                 <div class="gas-reviews-container">

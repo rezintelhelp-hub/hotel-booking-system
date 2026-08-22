@@ -105509,6 +105509,10 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
              p.city    as city,
              p.state   as state,
              p.country as country,
+             -- Lat/lng for the room detail page's Map tab (bu has no
+             -- coordinates of its own). Steve 2026-08-22.
+             p.latitude  as latitude,
+             p.longitude as longitude,
              COALESCE(
                NULLIF((SELECT COUNT(*) FROM property_bedrooms pb
                        WHERE pb.room_id = bu.id
