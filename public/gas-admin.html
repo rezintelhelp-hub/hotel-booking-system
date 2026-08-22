@@ -37967,6 +37967,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.error('Error loading website builder section:', error);
             } finally {
                 window.__wbLoadingKeys.delete(__loadKey);
+                // Snapshot the DOM state right after load so save-time diff
+                // can tell what the user actually changed. Stops the load/save
+                // race from wiping fields the user never touched — every Save
+                // used to scrape the whole panel (defaults included) and the
+                // server merge treated defaults as explicit user values.
+                // Now: only send fields whose current value differs from the
+                // just-loaded value. Steve 2026-08-22 (Dwellfort wipe).
+                try {
+                    if (typeof window.__wbLoadedSnapshot === 'undefined') window.__wbLoadedSnapshot = {};
+                    var __snap = {};
+                    var __prefix = 'wb-' + section + '-';
+                    document.querySelectorAll('[id^="' + __prefix + '"]').forEach(function (el) {
+                        if (el.type === 'file') return;
+                        if (el.id.endsWith('-picker') || el.id.endsWith('-preview') || el.id.endsWith('-value')) return;
+                        var k = el.id.replace(__prefix, '');
+                        __snap[k] = (el.type === 'checkbox') ? el.checked : (el.value == null ? '' : el.value);
+                    });
+                    window.__wbLoadedSnapshot[(selectedDeployedSiteId || '0') + ':' + section] = __snap;
+                } catch (snapErr) {
+                    console.warn('[wb snapshot] failed for ' + section + ': ' + snapErr.message);
+                }
             }
         }
 
@@ -39390,6 +39411,40 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const k = el.id.replace(prefixForClear, '');
                     if (k && !clearKeys.includes(k)) clearKeys.push(k);
                 });
+
+                // Diff filter — only send fields whose value CHANGED since
+                // load. Fields the user never touched aren't included; the
+                // server-side merge preserves the existing DB value for
+                // those keys. Kills the load/save race that wiped unrelated
+                // theme_mods every time a Save was clicked mid-load. Steve
+                // 2026-08-22 (Dwellfort wipe: address toggle + button colours
+                // + map config all reset by a Save in a different section).
+                try {
+                    var __snapKey = (selectedDeployedSiteId || '0') + ':' + section;
+                    var __loadedSnap = (window.__wbLoadedSnapshot || {})[__snapKey];
+                    if (__loadedSnap) {
+                        var __filtered = {};
+                        var __changed = 0;
+                        Object.keys(settings).forEach(function (k) {
+                            var cur = settings[k];
+                            var was = __loadedSnap[k];
+                            var same = (typeof cur === 'boolean' || typeof was === 'boolean')
+                                ? cur === was
+                                : String(cur == null ? '' : cur) === String(was == null ? '' : was);
+                            if (!same) { __filtered[k] = cur; __changed++; }
+                        });
+                        // Always include any keys the user explicitly cleared
+                        // — those may match the snapshot's empty-string but
+                        // still need pushing so the server marks them cleared.
+                        clearKeys.forEach(function (k) { if (!(k in __filtered)) __filtered[k] = ''; });
+                        console.log('[wb save diff] ' + section + ': sending ' + __changed + '/' + Object.keys(settings).length + ' changed fields');
+                        settings = __filtered;
+                    } else {
+                        console.warn('[wb save diff] no snapshot for ' + section + ' — sending full payload (may re-trigger load/save race)');
+                    }
+                } catch (diffErr) {
+                    console.warn('[wb save diff] filter failed, sending full payload: ' + diffErr.message);
+                }
 
                 console.log(`Saving ${section} for deployed site ${selectedDeployedSiteId}:`, settings, 'clear_keys:', clearKeys);
 
