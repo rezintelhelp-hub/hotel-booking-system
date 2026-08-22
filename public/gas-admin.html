@@ -72297,8 +72297,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const stripeOpts = cfg.stripe_account_id ? { stripeAccount: cfg.stripe_account_id } : {};
                     _attachCardStripe = Stripe(cfg.publishable_key, stripeOpts);
                     const elements = _attachCardStripe.elements();
+                    // Hide the postcode field on manual card attach. Was
+                    // blocking Barbara from entering Expedia VCCs on Charles
+                    // House (no postcode ships with the VCC and the widget
+                    // was refusing garbage input). AVS via postcode is
+                    // marginal for hotel operator-entered cards; Stripe Radar
+                    // handles the heavy lifting. Steve 2026-08-22.
                     _attachCardElement = elements.create('card', {
-                        hidePostalCode: false,
+                        hidePostalCode: true,
                         style: { base: { fontSize: '15px', color: '#0f172a' } }
                     });
                     _attachCardElement.mount('#attach-card-element');
