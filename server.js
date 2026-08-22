@@ -129265,7 +129265,16 @@ app.get('/api/public/client/:clientId/page/:pageType', async (req, res) => {
 app.post('/api/public/client/:clientId/contact-form', async (req, res) => {
     try {
         const { clientId } = req.params;
-        const { name, email, subject, message, page_url } = req.body;
+        const { name, email, subject, message, page_url, website_url } = req.body;
+
+        // Honeypot: theme's contact form has a hidden "website_url" field
+        // positioned off-screen. Real humans don't see it, bots that fill
+        // every field do. Silent 200 — return success so the bot moves on
+        // instead of retrying. Steve 2026-08-22 (Dwellfort spam surge).
+        if (website_url && String(website_url).trim() !== '') {
+            console.log(`[contact-form] honeypot tripped, silently dropping. clientId=${clientId} ip=${req.ip}`);
+            return res.json({ success: true });
+        }
 
         if (!name || !email || !message) {
             return res.status(400).json({ success: false, error: 'Name, email and message are required' });

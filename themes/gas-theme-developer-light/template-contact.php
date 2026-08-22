@@ -281,7 +281,7 @@ $lg_radius   = $api['lg_radius'] ?? 16;
                     </div>
                     <div>
                         <p class="gas-contact-item-label"><?php echo esc_html($ct['email']); ?></p>
-                        <p class="gas-contact-item-value"><a href="mailto:<?php echo esc_attr($email); ?>"><?php echo esc_html($email); ?></a></p>
+                        <p class="gas-contact-item-value"><?php echo developer_render_obfuscated_email($email); ?></p>
                     </div>
                 </div>
                 <?php endif; ?>
@@ -407,7 +407,10 @@ function handleGasContactForm(e) {
         email: document.getElementById('gas-contact-email').value,
         subject: document.getElementById('gas-contact-subject').value,
         message: document.getElementById('gas-contact-message').value,
-        page_url: window.location.href
+        page_url: window.location.href,
+        // Honeypot pass-through — always send even when empty so the server
+        // can enforce the same check as the client-side one. Steve 2026-08-22.
+        website_url: document.getElementById('gas-contact-hp').value
     };
     
     var apiUrl = '<?php echo esc_js(get_option("gas_api_url", "https://admin.gas.travel")); ?>';

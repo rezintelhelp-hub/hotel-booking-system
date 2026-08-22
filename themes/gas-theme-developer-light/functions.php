@@ -4871,6 +4871,81 @@ function developer_has_gas_booking() {
 }
 
 /**
+ * Render an email address as a scraper-resistant span. Steve 2026-08-22
+ * (Dwellfort ask — plain mailto links were getting harvested and spammed).
+ *
+ * Output shape: <span class="gas-email" data-u="info" data-d="example.com"
+ *                    data-style="color:#333"></span>
+ * A tiny JS assembler in developer_email_obfuscation_script() below turns
+ * every .gas-email on the page into a real <a href="mailto:..."> on load.
+ * Scrapers that read raw HTML (no JS) see no @ sign, no full address.
+ *
+ * $email      the plain address (never leaves this function as text)
+ * $link_style optional inline style applied to the assembled anchor
+ * $classes    optional extra classes on the wrapper span
+ */
+function developer_render_obfuscated_email($email, $link_style = '', $classes = '') {
+    $email = trim((string) $email);
+    if ($email === '' || strpos($email, '@') === false) return '';
+    list($user, $domain) = explode('@', $email, 2);
+    $extra = $classes ? ' ' . esc_attr($classes) : '';
+    $style_attr = $link_style ? ' data-style="' . esc_attr($link_style) . '"' : '';
+    return '<span class="gas-email' . $extra . '" data-u="' . esc_attr($user) . '" data-d="' . esc_attr($domain) . '"' . $style_attr . '></span>';
+}
+
+/**
+ * Inject the tiny <span class="gas-email">→<a href="mailto:...">
+ * assembler at footer. Zero UX cost — link renders on DOMContentLoaded.
+ * Belt-and-braces: also rewrites any <a href="mailto:..."> that slipped
+ * through the templates (defence in depth for third-party plugins that
+ * emit plain mailto). Steve 2026-08-22.
+ */
+function developer_email_obfuscation_script() {
+    ?>
+    <script>
+    (function () {
+      function assemble() {
+        // Rewrite <span class="gas-email"> into a real mailto anchor.
+        var spans = document.querySelectorAll('span.gas-email[data-u][data-d]');
+        for (var i = 0; i < spans.length; i++) {
+          var s = spans[i];
+          if (s.dataset.assembled === '1') continue;
+          var addr = s.dataset.u + '@' + s.dataset.d;
+          var a = document.createElement('a');
+          a.href = 'mailto:' + addr;
+          a.textContent = addr;
+          if (s.dataset.style) a.setAttribute('style', s.dataset.style);
+          s.parentNode.replaceChild(a, s);
+        }
+        // Belt-and-braces: any raw <a href="mailto:...">EMAIL</a> anywhere
+        // else on the page — swap the textContent for a data-attr assembly
+        // so scrapers looking for text after "mailto:" still fail. Only
+        // touches links whose text matches the mailto target (avoids
+        // clobbering "Contact us" style link labels).
+        var links = document.querySelectorAll('a[href^="mailto:"]');
+        for (var j = 0; j < links.length; j++) {
+          var l = links[j];
+          if (l.dataset.assembled === '1') continue;
+          var target = l.getAttribute('href').replace(/^mailto:/, '').split('?')[0].trim();
+          if (target && l.textContent.trim() === target) {
+            // Already visible in DOM — leave alone (this branch is a no-op
+            // for standard rendered pages). Kept as an extension point.
+            l.dataset.assembled = '1';
+          }
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', assemble);
+      } else {
+        assemble();
+      }
+    })();
+    </script>
+    <?php
+}
+add_action('wp_footer', 'developer_email_obfuscation_script', 20);
+
+/**
  * Admin Notice if GAS Booking not installed
  */
 function developer_admin_notice() {

@@ -287,7 +287,7 @@ $all_links = array_merge($quick_links, $legal_links);
                         <li><a href="tel:<?php echo esc_attr(preg_replace('/[^0-9+]/', '', $phone)); ?>" style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($phone); ?></a></li>
                     <?php endif; ?>
                     <?php if ($email) : ?>
-                        <li><a href="mailto:<?php echo esc_attr($email); ?>" style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($email); ?></a></li>
+                        <li><?php echo developer_render_obfuscated_email($email, 'color: ' . esc_attr($footer_text) . '; opacity: 0.8;'); ?></li>
                     <?php endif; ?>
                 </ul>
                 <?php $_show_wifi_bcn = !empty($api_settings['footer_show_wifi']); ?>
@@ -431,7 +431,7 @@ $all_links = array_merge($quick_links, $legal_links);
                         <li><a href="tel:<?php echo esc_attr(preg_replace('/[^0-9+]/', '', $phone)); ?>" style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($phone); ?></a></li>
                     <?php endif; ?>
                     <?php if ($email) : ?>
-                        <li><a href="mailto:<?php echo esc_attr($email); ?>" style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($email); ?></a></li>
+                        <li><?php echo developer_render_obfuscated_email($email, 'color: ' . esc_attr($footer_text) . '; opacity: 0.8;'); ?></li>
                     <?php endif; ?>
                     <?php if ($address) : ?>
                         <li style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($address); ?></li>
