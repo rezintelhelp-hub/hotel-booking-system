@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.45
+ * Version: 4.3.46
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.45');
+define('GAS_BOOKING_VERSION', '4.3.46');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8429,22 +8429,22 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             <div class="gas-booking-card-body">
                                 <div class="gas-date-inputs">
                                     <div class="gas-date-field">
-                                        <label><?php echo esc_html(strtoupper($t_booking['check_in'] ?? 'Check-in')); ?></label>
+                                        <label><?php echo esc_html($t_booking['check_in'] ?? 'Check-in'); ?></label>
                                         <input type="date" class="gas-checkin" value="<?php echo esc_attr($checkin); ?>" min="<?php echo date('Y-m-d'); ?>" />
                                     </div>
                                     <div class="gas-date-field">
-                                        <label><?php echo esc_html(strtoupper($t_booking['check_out'] ?? 'Check-out')); ?></label>
+                                        <label><?php echo esc_html($t_booking['check_out'] ?? 'Check-out'); ?></label>
                                         <input type="date" class="gas-checkout" value="<?php echo esc_attr($checkout); ?>" min="<?php echo date('Y-m-d', strtotime('+1 day')); ?>" />
                                     </div>
                                 </div>
-                                
+
                                 <div class="gas-guest-fields">
                                     <div class="gas-adults-field">
-                                        <label><?php echo esc_html(strtoupper($t_booking['adults'] ?? 'Adults')); ?></label>
+                                        <label><?php echo esc_html($t_booking['adults'] ?? 'Adults'); ?></label>
                                         <select class="gas-adults"></select>
                                     </div>
                                     <div class="gas-children-field">
-                                        <label><?php echo esc_html(strtoupper($t_booking['children'] ?? 'Children')); ?> <span class="gas-child-age-label">(<?php echo esc_html($t_common['under'] ?? 'under'); ?> 12)</span></label>
+                                        <label><?php echo esc_html($t_booking['children'] ?? 'Children'); ?> <span class="gas-child-age-label">(<?php echo esc_html($t_common['under'] ?? 'under'); ?> 12)</span></label>
                                         <select class="gas-children"></select>
                                     </div>
                                 </div>
@@ -8687,12 +8687,12 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         <div class="gas-summary-details">
                             <div class="gas-summary-row">
                                 <div class="gas-summary-date-block">
-                                    <span class="gas-date-label"><?php echo esc_html(strtoupper($t_booking['check_in'] ?? 'Check-in')); ?></span>
+                                    <span class="gas-date-label"><?php echo esc_html($t_booking['check_in'] ?? 'Check-in'); ?></span>
                                     <span class="gas-date-value gas-checkin-display"><?php echo $checkin ? esc_html(date('D, M j, Y', strtotime($checkin))) : 'Loading...'; ?></span>
                                     <span class="gas-date-time"><?php echo esc_html($t_booking['from_time'] ?? 'From'); ?> 3:00 PM</span>
                                 </div>
                                 <div class="gas-summary-date-block">
-                                    <span class="gas-date-label"><?php echo esc_html(strtoupper($t_booking['check_out'] ?? 'Check-out')); ?></span>
+                                    <span class="gas-date-label"><?php echo esc_html($t_booking['check_out'] ?? 'Check-out'); ?></span>
                                     <span class="gas-date-value gas-checkout-display"><?php echo $checkout ? esc_html(date('D, M j, Y', strtotime($checkout))) : 'Loading...'; ?></span>
                                     <span class="gas-date-time"><?php echo esc_html($t_booking['by_time'] ?? 'By'); ?> 11:00 AM</span>
                                 </div>

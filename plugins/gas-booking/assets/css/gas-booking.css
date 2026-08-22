@@ -896,10 +896,10 @@ html body .gas-gallery-more-overlay {
 
 .gas-date-field label {
     display: block;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--gas-text);
     margin-bottom: 4px;
 }
@@ -945,10 +945,10 @@ html body .gas-gallery-more-overlay {
 .gas-adults-field label,
 .gas-children-field label {
     display: block;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--gas-text);
     margin-bottom: 4px;
 }
@@ -978,10 +978,10 @@ html body .gas-gallery-more-overlay {
 
 .gas-guest-field label {
     display: block;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--gas-text);
     margin-bottom: 4px;
 }
