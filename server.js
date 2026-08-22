@@ -66549,6 +66549,12 @@ async function syncBeds24PaymentItem(bookingId) {
           AND transaction_type IN ('deposit','balance','charge','capture','payment')
           AND status IN ('completed','succeeded')
           AND amount::numeric > 0.005
+          -- Never push Beds24- or Channex-originated payments BACK to Beds24
+          -- as new "Payment via Stripe" lines. This is the exact bug that
+          -- created ~130 duplicate lines on Cotswolds 2026-08-07. The match
+          -- loop below catches most of them, but excluding them at source
+          -- means no future matcher tweak can regress. Steve 2026-08-22.
+          AND (payment_gateway IS NULL OR payment_gateway NOT IN ('beds24_import','channex_import'))
         ORDER BY created_at`,
       [bookingId]
     );
@@ -66561,10 +66567,31 @@ async function syncBeds24PaymentItem(bookingId) {
     if (!token) return { skipped: 'no-beds24-token' };
 
     const beds24PropId = row.beds24_prop_id_marketplace || row.beds24_property_id;
-    const readResp = await axios.get('https://beds24.com/api/v2/bookings', {
-      params: { id: row.beds24_booking_id, includeInvoiceItems: 'true' },
-      headers: { token }
-    });
+    // Retry the initial Beds24 read on transient failures (429 / 5xx /
+    // network blip). Before this, a single hiccup here threw the whole
+    // helper into the outer catch and no push happened for that booking
+    // — the auto-charge caller sees success=false, logs, and moves on
+    // (Cotswolds 223885 pattern 2026-08-22). Same backoff shape as the
+    // per-line push loop below.
+    const _readSleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const _readBackoff = [0, 2000, 5000, 10000];
+    let readResp = null, readErr = null;
+    for (let i = 0; i < _readBackoff.length; i++) {
+      if (_readBackoff[i] > 0) await _readSleep(_readBackoff[i]);
+      try {
+        readResp = await axios.get('https://beds24.com/api/v2/bookings', {
+          params: { id: row.beds24_booking_id, includeInvoiceItems: 'true' },
+          headers: { token }
+        });
+        readErr = null;
+        break;
+      } catch (rErr) {
+        readErr = rErr;
+        const st = rErr.response?.status;
+        if (st && st !== 429 && st < 500) break;
+      }
+    }
+    if (readErr) throw readErr;
     const beds24Data = (readResp.data?.data || readResp.data?.bookings || [])[0];
     if (!beds24Data) return { skipped: 'beds24-no-booking' };
     const existingPayments = (beds24Data.invoiceItems || []).filter(i => i.type === 'payment');
