@@ -117,6 +117,25 @@ module.exports = {
     const stripe = Stripe(cfg.secret_key);
     // Reuse existing customer if the caller passed one; otherwise create.
     let customerId = opts.customer_id || null;
+    // Verify the caller-supplied customer actually still exists on this
+    // Stripe account. Channex-cloned bookings sometimes carry a customer
+    // id that isn't in the client's account (cloned to a different acct,
+    // or the customer was later deleted). Without this check, the next
+    // stripe.paymentMethods.attach throws "No such customer" and the
+    // operator's Replace Card flow dies. Steve 2026-08-22 — Charles
+    // House booking 707849 (cus_V5GUGx0tf5hupl).
+    if (customerId) {
+      try {
+        await stripe.customers.retrieve(customerId);
+      } catch (e) {
+        if (e.code === 'resource_missing') {
+          console.warn(`[storeCardOnly] customer ${customerId} not on this Stripe account — creating fresh`);
+          customerId = null;
+        } else {
+          throw e;
+        }
+      }
+    }
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: opts.buyer_email || undefined,
