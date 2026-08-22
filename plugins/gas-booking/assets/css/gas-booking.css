@@ -1762,6 +1762,23 @@ html body .gas-gallery-more-overlay {
         font-size: 13px;
         flex: 0 0 auto;
     }
+
+    /* Root-level overflow clamp on the whole room-detail widget. Belt-and-
+       braces defence: no matter what child grows (map tab container,
+       long unit name, added tab, Leaflet reflow, etc.), the widget stays
+       inside the viewport and the layout stays centred. iOS Safari was
+       showing the whole page shifted right on the room page after the
+       Map tab was added — this contains it. Steve 2026-08-22. */
+    .gas-room-widget {
+        max-width: 100%;
+        overflow-x: hidden;
+        box-sizing: border-box;
+    }
+    .gas-tab-content,
+    #gas-room-detail-map {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
 }
 
 /* ==========================================================================
