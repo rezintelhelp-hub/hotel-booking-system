@@ -2806,6 +2806,15 @@ jQuery(document).ready(function($) {
         // Set title and location - prefer display_name over internal name
         var roomTitle = extractText(room.display_name) || room.name;
         $('.gas-room-title').text(roomTitle);
+        // Update the browser tab title so guests see the actual room name
+        // (was "Room – Dwellfort" because the WP page slug is "Room").
+        // Keeps the site suffix from the original title. Steve 2026-08-22.
+        try {
+            var _origTitle = document.title || '';
+            var _sep = _origTitle.match(/\s[–—|-]\s(.+)$/);
+            var _siteSuffix = _sep ? (' – ' + _sep[1]) : '';
+            document.title = roomTitle + _siteSuffix;
+        } catch (_) { /* non-blocking */ }
         // Stash lat/lng + title on the widget for the Map tab initialiser.
         // Steve 2026-08-22.
         $('.gas-room-widget')
