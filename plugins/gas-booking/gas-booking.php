@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.44
+ * Version: 4.3.45
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.44');
+define('GAS_BOOKING_VERSION', '4.3.45');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -8402,11 +8402,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             </div>
                         </div>
                         
-                        <!-- Map Section (optional) -->
-                        <div class="gas-map-container" style="display:none;">
-                            <h3 class="gas-map-title"><?php echo esc_html($t_property['location'] ?? 'Location'); ?></h3>
-                            <div class="gas-map"></div>
-                        </div>
+                        <!-- Legacy "Location" map removed — the new Map tab
+                             (added 2026-08-22) is the single source of truth
+                             for the property map on room detail pages. Old
+                             renderMap() JS still exists but no-ops now that
+                             .gas-map-container is gone. -->
                     </div>
                     
                     <!-- Right Column: Booking Card -->
