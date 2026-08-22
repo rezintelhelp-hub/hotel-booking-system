@@ -76,6 +76,14 @@ $show_details    = !isset($api['page_contact_show_details']) || ($api['page_cont
 $show_directions = !empty($api['page_contact_show_directions']) && $api['page_contact_show_directions'] !== 'false' && $api['page_contact_show_directions'] !== false;
 $show_map        = !empty($api['page_contact_show_map']) && $api['page_contact_show_map'] !== 'false' && $api['page_contact_show_map'] !== false;
 $show_form       = !empty($api['page_contact_show_form']) && $api['page_contact_show_form'] !== 'false' && $api['page_contact_show_form'] !== false;
+// Turnstile spam-protection toggle — Web Builder → Contact → "Extra spam
+// protection". Site key is a shared platform value stored as a network
+// WP option (`gas_turnstile_site_key`, set via wp-cli on the VPS). If
+// either flag or key is missing we render the form without the widget
+// and the server still accepts submissions (honeypot only). Steve 2026-08-22.
+$turnstile_enabled = !empty($api['page_contact_turnstile_enabled']) && $api['page_contact_turnstile_enabled'] !== 'false' && $api['page_contact_turnstile_enabled'] !== false;
+$turnstile_site_key = get_site_option('gas_turnstile_site_key', get_option('gas_turnstile_site_key', ''));
+$turnstile_active = $turnstile_enabled && !empty($turnstile_site_key);
 
 // Individual item toggles within the details card (default true)
 $show_email   = !isset($api['page_contact_show_email']) || ($api['page_contact_show_email'] !== false && $api['page_contact_show_email'] !== 'false');
@@ -370,8 +378,21 @@ $lg_radius   = $api['lg_radius'] ?? 16;
                         <label for="gas-contact-message"><?php echo esc_html($ct['message']); ?></label>
                         <textarea id="gas-contact-message" name="message" required></textarea>
                     </div>
+                    <?php if ($turnstile_active): ?>
+                    <div class="gas-form-group">
+                        <div class="cf-turnstile" data-sitekey="<?php echo esc_attr($turnstile_site_key); ?>" data-callback="onGasTurnstileSuccess" data-error-callback="onGasTurnstileError"></div>
+                    </div>
+                    <?php endif; ?>
                     <button type="submit"><?php echo esc_html($ct['send']); ?></button>
                 </form>
+                <?php if ($turnstile_active): ?>
+                <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+                <script>
+                window._gasTurnstileToken = '';
+                function onGasTurnstileSuccess(t) { window._gasTurnstileToken = t; }
+                function onGasTurnstileError() { window._gasTurnstileToken = ''; }
+                </script>
+                <?php endif; ?>
                 <div class="gas-form-success" id="gasFormSuccess">
                     <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                     <h3><?php echo esc_html($ct['sent']); ?></h3>
@@ -410,7 +431,11 @@ function handleGasContactForm(e) {
         page_url: window.location.href,
         // Honeypot pass-through — always send even when empty so the server
         // can enforce the same check as the client-side one. Steve 2026-08-22.
-        website_url: document.getElementById('gas-contact-hp').value
+        website_url: document.getElementById('gas-contact-hp').value,
+        // Turnstile token — empty string unless the widget is enabled on
+        // this site AND the visitor has passed the challenge. Server
+        // ignores it when the site hasn't enabled Turnstile.
+        turnstile_token: window._gasTurnstileToken || ''
     };
     
     var apiUrl = '<?php echo esc_js(get_option("gas_api_url", "https://admin.gas.travel")); ?>';

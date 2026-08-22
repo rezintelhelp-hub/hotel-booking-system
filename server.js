@@ -129265,7 +129265,7 @@ app.get('/api/public/client/:clientId/page/:pageType', async (req, res) => {
 app.post('/api/public/client/:clientId/contact-form', async (req, res) => {
     try {
         const { clientId } = req.params;
-        const { name, email, subject, message, page_url, website_url } = req.body;
+        const { name, email, subject, message, page_url, website_url, turnstile_token } = req.body;
 
         // Honeypot: theme's contact form has a hidden "website_url" field
         // positioned off-screen. Real humans don't see it, bots that fill
@@ -129283,6 +129283,42 @@ app.post('/api/public/client/:clientId/contact-form', async (req, res) => {
         // Basic email validation
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             return res.status(400).json({ success: false, error: 'Invalid email address' });
+        }
+
+        // Turnstile verification — only when the site has "Extra spam
+        // protection" enabled in Web Builder → Contact AND the secret
+        // env var is configured. Steve 2026-08-22.
+        const _turnstileSecret = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY;
+        try {
+            const _tsSettings = await pool.query(
+                `SELECT settings FROM website_settings ws
+                   JOIN deployed_sites ds ON ds.id = ws.deployed_site_id
+                  WHERE ds.account_id = $1 AND ws.section = 'page-contact'`,
+                [clientId]
+            );
+            const _tsEnabled = !!(_tsSettings.rows[0]?.settings?.['turnstile-enabled']);
+            if (_tsEnabled && _turnstileSecret) {
+                if (!turnstile_token) {
+                    return res.status(400).json({ success: false, error: 'Missing spam-protection token' });
+                }
+                const params = new URLSearchParams();
+                params.append('secret', _turnstileSecret);
+                params.append('response', String(turnstile_token));
+                if (req.ip) params.append('remoteip', String(req.ip));
+                const verify = await axios.post(
+                    'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+                    params.toString(),
+                    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
+                ).catch(e => ({ data: { success: false, error: e.message } }));
+                if (!verify.data?.success) {
+                    console.warn(`[contact-form] turnstile verify failed. clientId=${clientId} ip=${req.ip} errors=${JSON.stringify(verify.data?.['error-codes'] || verify.data?.error)}`);
+                    return res.status(400).json({ success: false, error: 'Spam-protection check failed' });
+                }
+            }
+        } catch (tsErr) {
+            // Never let a Turnstile-lookup DB failure block a legit contact
+            // submission — log and continue. The honeypot still applies above.
+            console.warn(`[contact-form] turnstile setting lookup failed: ${tsErr.message}`);
         }
 
         // Look up deployed site and account
