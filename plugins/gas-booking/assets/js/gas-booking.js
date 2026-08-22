@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.41
+ * Version: 4.3.42
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -2820,6 +2820,18 @@ jQuery(document).ready(function($) {
         var locCity = (room.city || '').trim();
         var locState = (room.state || '').trim();
         var locLine = locCity && locState ? locCity + ', ' + locState : (locCity || locState || '');
+        // Optional: include full property street address when Web Builder
+        // Styles → "Show property address" is on. Steve 2026-08-22.
+        if (window.gasBooking && gasBooking.showPropertyAddress) {
+            var locParts = [];
+            var locStreet = (room.property_address || '').trim();
+            if (locStreet) locParts.push(locStreet);
+            if (locCity) locParts.push(locCity);
+            if (locState) locParts.push(locState);
+            var locCountry = (room.country || '').trim();
+            if (locCountry) locParts.push(locCountry);
+            locLine = locParts.join(', ');
+        }
         $('.gas-room-location').text(locLine).toggle(!!locLine);
         
         // Set meta with icons - use translations

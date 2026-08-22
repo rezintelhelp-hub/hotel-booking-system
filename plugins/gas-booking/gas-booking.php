@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.3.41
+ * Version: 4.3.42
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.41');
+define('GAS_BOOKING_VERSION', '4.3.42');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3792,6 +3792,10 @@ class GAS_Booking {
                 'language'      => get_theme_mod('developer_page-rooms_map_language') ?: get_option('gas_map_language', 'en'),
                 'mapbox_token'  => get_site_option('gas_mapbox_token', get_option('gas_mapbox_token', '')),
             ),
+            // Show full property address under the room title on the Room
+            // detail page. Same toggle as Book Now cards + Properties cards.
+            // Steve 2026-08-22.
+            'showPropertyAddress' => (bool) (get_theme_mod('developer_styles_show_property_address') ?: get_option('gas_show_property_address', false)),
         ));
 
         // Output custom CSS from settings - add to footer so it overrides inline styles
@@ -5684,7 +5688,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             'card_style' => !empty($license_display['card_style']) ? $license_display['card_style'] : 'default',
             'map_zoom' => 14,
         ), $atts);
-        
+
+        // Optional "show full property address on cards" toggle (Web Builder
+        // Styles). When ON, the location line under the room name shows the
+        // property street address first (e.g. "Jagellonska 21, Prague, Czech
+        // Republic") instead of just "City, State". OFF by default.
+        // Steve 2026-08-22 — Dwellfort / Anton mirroring Rezintel treatment.
+        $show_property_address = (bool) (get_theme_mod('developer_styles_show_property_address') ?: get_option('gas_show_property_address', false));
+
         // Override with theme API settings if available
         // Only apply page-rooms settings when show_map uses default (true)
         // Featured section passes show_map="false" explicitly, so it keeps its own settings
@@ -7368,6 +7379,18 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     $loc_city = trim($room['city'] ?? '');
                                     $loc_state = trim($room['state'] ?? '');
                                     $loc_line = $loc_city && $loc_state ? $loc_city . ', ' . $loc_state : ($loc_city ?: $loc_state);
+                                    // When the "Show property address" toggle is on,
+                                    // prepend the street + append country to match the
+                                    // Rezintel treatment. Steve 2026-08-22.
+                                    if ($show_property_address) {
+                                        $loc_parts = array_filter([
+                                            trim($room['property_address'] ?? ''),
+                                            $loc_city,
+                                            $loc_state,
+                                            trim($room['country'] ?? ''),
+                                        ]);
+                                        $loc_line = implode(', ', $loc_parts);
+                                    }
                                     ?>
                                     <?php if (!empty($loc_line)) : ?>
                                     <div class="gas-room-row-location">📍 <?php echo esc_html($loc_line); ?></div>
@@ -7450,6 +7473,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $loc_city = trim($room['city'] ?? '');
                             $loc_state = trim($room['state'] ?? '');
                             $loc_line = $loc_city && $loc_state ? $loc_city . ', ' . $loc_state : ($loc_city ?: $loc_state);
+                            if ($show_property_address) {
+                                $loc_parts = array_filter([
+                                    trim($room['property_address'] ?? ''),
+                                    $loc_city, $loc_state,
+                                    trim($room['country'] ?? ''),
+                                ]);
+                                $loc_line = implode(', ', $loc_parts);
+                            }
                             $room_index++;
                             $pin_to_end = (isset($room['unit_role']) && $room['unit_role'] === 'exclusive_hire') ? ' data-pin-to-end="true"' : '';
                             $_g2_show_room = !empty($room['show_reference']);
@@ -7562,6 +7593,14 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             $card_city = trim($room['city'] ?? '');
                             $card_state = trim($room['state'] ?? '');
                             $card_location_line = $card_city && $card_state ? $card_city . ', ' . $card_state : ($card_city ?: $card_state);
+                            if ($show_property_address) {
+                                $card_loc_parts = array_filter([
+                                    trim($room['property_address'] ?? ''),
+                                    $card_city, $card_state,
+                                    trim($room['country'] ?? ''),
+                                ]);
+                                $card_location_line = implode(', ', $card_loc_parts);
+                            }
 
                             // Effective reference (room-level wins over property-level)
                             // — computed up here so we can put it on the card's

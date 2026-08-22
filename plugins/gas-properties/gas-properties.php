@@ -18,7 +18,7 @@
  * Plugin Name: GAS Properties
  * Plugin URI: https://gas.travel
  * Description: Display multi-property portfolio from GAS with LodgingBusiness schema markup. Colors controlled via GAS Admin.
- * Version: 1.0.6
+ * Version: 1.0.9
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -186,6 +186,10 @@ class GAS_Properties {
         $mp_language     = get_theme_mod('developer_page-rooms_map_language') ?: get_option('gas_map_language', 'en');
         $mp_marker_style = get_theme_mod('developer_page-rooms_map_marker_style') ?: get_option('gas_map_marker_style', 'default');
         $mp_token        = get_site_option('gas_mapbox_token', get_option('gas_mapbox_token', ''));
+        // Optional "show property address underneath the property name on
+        // cards" toggle (Web Builder Styles). OFF by default — when off
+        // the property address line is hidden entirely. Steve 2026-08-22.
+        $show_property_address = (bool) (get_theme_mod('developer_styles_show_property_address') ?: get_option('gas_show_property_address', false));
 
         $accent = esc_attr($colors['accent']);
         $bg = esc_attr($colors['bg']);
@@ -239,14 +243,14 @@ class GAS_Properties {
                 .gas-prop-slider { position:relative; overflow:hidden; }
                 .gas-prop-slider .gas-prop-img { position:absolute; top:0; left:0; opacity:0; transition:opacity 0.35s ease; }
                 .gas-prop-slider .gas-prop-img.is-active { position:relative; opacity:1; }
-                .gas-prop-slider-btn { position:absolute; top:50%; transform:translateY(-50%); width:32px; height:32px; border-radius:50%; background:rgba(0,0,0,0.55); color:#fff; border:none; font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s, background 0.2s; z-index:2; }
+                /* Arrow buttons — width/height/padding/border-radius forced
+                   with !important because theme .button rules kept squishing
+                   them into pills. Steve 2026-08-21. */
+                html body .gas-prop-slider-btn { position:absolute !important; top:50% !important; transform:translateY(-50%) !important; width:32px !important; height:32px !important; min-width:32px !important; min-height:32px !important; max-width:32px !important; max-height:32px !important; padding:0 !important; margin:0 !important; box-sizing:border-box !important; border-radius:50% !important; background:rgba(0,0,0,0.55); color:#fff; border:none !important; font-size:18px !important; line-height:1 !important; cursor:pointer; display:flex !important; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s, background 0.2s; z-index:2; }
                 .gas-prop-slider:hover .gas-prop-slider-btn { opacity:1; }
-                .gas-prop-slider-btn:hover { background:rgba(0,0,0,0.8); }
-                .gas-prop-slider-btn.prev { left:8px; }
-                .gas-prop-slider-btn.next { right:8px; }
-                .gas-prop-slider-dots { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); display:flex; gap:6px; z-index:2; }
-                .gas-prop-slider-dot { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,0.55); border:1px solid rgba(0,0,0,0.15); cursor:pointer; padding:0; }
-                .gas-prop-slider-dot.is-active { background:#ffffff; }
+                html body .gas-prop-slider-btn:hover { background:rgba(0,0,0,0.8) !important; }
+                html body .gas-prop-slider-btn.prev { left:8px !important; }
+                html body .gas-prop-slider-btn.next { right:8px !important; }
                 .gas-prop-body { padding:20px; text-align:left; display:flex; flex-direction:column; flex:1; }
                 .gas-prop-cta { display:inline-block; padding:10px 24px; border-radius:8px; font-size:0.9rem; font-weight:600; text-decoration:none; text-align:center; transition:opacity 0.2s; background:<?php echo $button_bg; ?>; color:<?php echo $button_text; ?>; margin-top:auto; align-self:flex-start; }
                 .gas-prop-cta:hover { opacity:0.85; color:<?php echo $button_text; ?>; }
@@ -287,6 +291,7 @@ class GAS_Properties {
             var limit = <?php echo $limit; ?>;
             var blogId = <?php echo json_encode(get_current_blog_id()); ?>;
             var showMap = <?php echo $wb_show_map ? 'true' : 'false'; ?>;
+            var showPropertyAddress = <?php echo $show_property_address ? 'true' : 'false'; ?>;
             var translations = {
                 en: { from: 'From', night: '/night', viewDetails: '<?php echo esc_js($btn_label !== "View Rooms" ? $btn_label : "View Details"); ?>', availability: 'Availability' },
                 de: { from: 'Ab', night: '/Nacht', viewDetails: 'Details ansehen', availability: 'Verfügbarkeit' },
@@ -346,29 +351,29 @@ class GAS_Properties {
                         var minPrice = p.min_price ? parseFloat(p.min_price) : 0;
                         var link = "/book-now/?property_id=" + p.id;
 
-                        html += '<a class="gas-prop-card" href="' + link + '" itemscope itemtype="https://schema.org/LodgingBusiness">';
+                        // Belt-and-braces guard on the anchor: if the click
+                        // originated inside a slider arrow, cancel navigation
+                        // even before the button's own onclick runs (fires on
+                        // some mobile browsers where button-in-anchor still
+                        // activates the parent link). Steve 2026-08-21.
+                        html += '<a class="gas-prop-card" href="' + link + '" itemscope itemtype="https://schema.org/LodgingBusiness" onclick="if(event.target.closest(\'.gas-prop-slider-btn\')){event.preventDefault();event.stopPropagation();return false;}">';
                         if (cardImgs.length > 0) {
-                            // Slider — single <img> visible at a time; arrows +
-                            // dots stopPropagation so clicks don't trigger the
-                            // parent <a> navigation.
                             html += '<div class="gas-prop-slider" style="width:100%;height:220px;">';
                             cardImgs.forEach(function (url, i) {
                                 html += '<img class="gas-prop-img' + (i === 0 ? ' is-active' : '') + '" src="' + url + '" alt="' + (p.name || '') + '"' + (i === 0 ? ' itemprop="image"' : '') + ' loading="lazy" decoding="async">';
                             });
                             if (cardImgs.length > 1) {
-                                html += '<button type="button" class="gas-prop-slider-btn prev" onclick="event.stopPropagation();event.preventDefault();gasPropSlide(this,-1)" aria-label="Previous image">‹</button>';
-                                html += '<button type="button" class="gas-prop-slider-btn next" onclick="event.stopPropagation();event.preventDefault();gasPropSlide(this,1)" aria-label="Next image">›</button>';
-                                html += '<div class="gas-prop-slider-dots">';
-                                for (var d = 0; d < cardImgs.length; d++) {
-                                    html += '<button type="button" class="gas-prop-slider-dot' + (d === 0 ? ' is-active' : '') + '" data-idx="' + d + '" onclick="event.stopPropagation();event.preventDefault();gasPropSlideTo(this,' + d + ')" aria-label="Image ' + (d + 1) + '"></button>';
-                                }
-                                html += '</div>';
+                                // stopPropagation on the pointerdown/mousedown/touchstart events too
+                                // (some mobile browsers activate the anchor before onclick fires).
+                                var stops = 'onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onpointerdown="event.stopPropagation()"';
+                                html += '<button type="button" class="gas-prop-slider-btn prev" ' + stops + ' onclick="event.stopPropagation();event.preventDefault();gasPropSlide(this,-1);return false;" aria-label="Previous image">‹</button>';
+                                html += '<button type="button" class="gas-prop-slider-btn next" ' + stops + ' onclick="event.stopPropagation();event.preventDefault();gasPropSlide(this,1);return false;" aria-label="Next image">›</button>';
                             }
                             html += '</div>';
                         }
                         html += '<div class="gas-prop-body">';
                         html += '<h3 class="gas-prop-name" itemprop="name">' + (p.name || '') + '</h3>';
-                        if (address) html += '<p class="gas-prop-address" itemprop="address">' + address + '</p>';
+                        if (showPropertyAddress && address) html += '<p class="gas-prop-address" itemprop="address">' + address + '</p>';
                         // Steve 2026-08-21 — dropped "Availability —" prefix
                         // (misleading; we don't check dates). Just count.
                         if (roomCount > 0) html += '<p class="gas-prop-avail"><span>' + roomCount + '</span> ' + pluralise(p.property_type, roomCount) + '</p>';

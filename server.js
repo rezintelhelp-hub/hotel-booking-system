@@ -105501,6 +105501,14 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
              p.name as property_name,
              p.currency,
              p.timezone,
+             -- Property location fields for the room detail page. bu has no
+             -- city/state/country of its own, so we surface the parent
+             -- property's. property_address is used only by the optional
+             -- "show property address" line in the JS. Steve 2026-08-22.
+             p.address as property_address,
+             p.city    as city,
+             p.state   as state,
+             p.country as country,
              COALESCE(
                NULLIF((SELECT COUNT(*) FROM property_bedrooms pb
                        WHERE pb.room_id = bu.id
@@ -113362,6 +113370,9 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         p.city,
         p.state,
         p.country,
+        -- Street address exposed for the optional "show property address on
+        -- cards" toggle (Web Builder Styles). Steve 2026-08-22.
+        p.address AS property_address,
         p.currency,
         (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_active = true ORDER BY is_primary DESC, display_order ASC LIMIT 1) as image_url,
         -- Up to 5 image URLs for the card slider on Book Now. Estate-wide
