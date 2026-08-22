@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.43
+ * Version: 4.3.44
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -3354,23 +3354,23 @@ jQuery(document).ready(function($) {
     // .gas-room-widget by renderRoomDetails. Uses the same tile-layer
     // helper as Book Now / Properties so all three maps look identical.
     function gasInitRoomDetailMap() {
-        if (window.gasRoomDetailMap) {
-            // Already initialised — invalidate size in case the container
-            // has grown/shrunk since first render.
-            try { window.gasRoomDetailMap.invalidateSize(); } catch (_) {}
-            return;
-        }
-        if (typeof L === 'undefined') return; // Leaflet not loaded
         var $w = $('.gas-room-widget');
         var lat = parseFloat($w.data('lat'));
         var lng = parseFloat($w.data('lng'));
         var $mount = $('#gas-room-detail-map');
         var $empty = $('.gas-room-detail-map-empty');
-        if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0) || !$mount.length) {
-            if ($mount.length) $mount.hide();
-            if ($empty.length) $empty.show();
+        var hasCoords = isFinite(lat) && isFinite(lng) && !(lat === 0 && lng === 0);
+        // Explicitly toggle both — inline display:none on the placeholder
+        // was getting overridden by the tab's .active cascade on some
+        // themes (Steve 2026-08-22).
+        $mount.toggle(hasCoords);
+        $empty.toggle(!hasCoords);
+        if (!hasCoords) return;
+        if (window.gasRoomDetailMap) {
+            try { window.gasRoomDetailMap.invalidateSize(); } catch (_) {}
             return;
         }
+        if (typeof L === 'undefined') return; // Leaflet not loaded
         var title = $w.data('title') || '';
         var map = L.map('gas-room-detail-map', { scrollWheelZoom: false }).setView([lat, lng], 15);
         var tiles = (typeof window.gasGetMapTileLayer === 'function') ? window.gasGetMapTileLayer() : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
