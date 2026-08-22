@@ -862,3 +862,36 @@ body.page-id-31 .developer-page-content .developer-page-body {
     text-align: left !important;
     color: #252317 !important;
 }
+
+/* Room detail page H1 — same override as property cards.
+   Broad theme rule was uppercasing + centering it ("DELUXE STUDIO
+   103, 104, 105, 106, 107" centered). Natural case + left. Steve 2026-08-22. */
+.developer-page-content h1.gas-room-title,
+h1.gas-room-title {
+    font-family: var(--gas-heading-font) !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    text-align: left !important;
+    color: #252317 !important;
+}
+/* Location line under the H1 — same alignment for consistency. */
+.developer-page-content p.gas-room-location,
+p.gas-room-location {
+    text-align: left !important;
+}
+/* Booking sidebar labels — plugin CSS already says text-transform:none,
+   deployed CSS confirmed via curl, but Steve reports caps still visible
+   2026-08-22. Something on Dwellfort is winning specificity or applying
+   font-variant caps. Belt-and-braces nuke with html body prefix +
+   every possible caps mechanism killed. */
+html body .gas-room-widget .gas-date-field label,
+html body .gas-room-widget .gas-adults-field label,
+html body .gas-room-widget .gas-children-field label,
+html body .gas-room-widget .gas-guest-field label,
+html body .gas-room-widget .gas-date-label,
+html body .gas-room-widget .gas-child-age-label {
+    text-transform: none !important;
+    font-variant: normal !important;
+    font-variant-caps: normal !important;
+    letter-spacing: 0 !important;
+}

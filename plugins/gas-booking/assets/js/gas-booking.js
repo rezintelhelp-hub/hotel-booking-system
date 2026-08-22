@@ -1655,32 +1655,35 @@ jQuery(document).ready(function($) {
         // Booking panel - Select dates header
         $('.gas-booking-card-header span, .gas-select-dates-label').text(t('booking', 'select_dates', 'Select dates'));
         
-        // Booking panel date labels
+        // Booking panel date labels — Steve 2026-08-22: dropped the
+        // .toUpperCase() on the SET side. Comparison side still upper-cases
+        // to keep the case-insensitive match working. Translations render
+        // in their natural case ("Check-in" not "CHECK-IN").
         $('.gas-date-field label').each(function() {
             var text = $(this).text().trim().toUpperCase();
             if (text === 'CHECK-IN') {
-                $(this).text(t('booking', 'check_in', 'Check-in').toUpperCase());
+                $(this).text(t('booking', 'check_in', 'Check-in'));
             } else if (text === 'CHECK-OUT') {
-                $(this).text(t('booking', 'check_out', 'Check-out').toUpperCase());
+                $(this).text(t('booking', 'check_out', 'Check-out'));
             }
         });
         $('.gas-date-label').each(function() {
             var text = $(this).text().trim().toUpperCase();
             if (text === 'CHECK-IN') {
-                $(this).text(t('booking', 'check_in', 'Check-in').toUpperCase());
+                $(this).text(t('booking', 'check_in', 'Check-in'));
             } else if (text === 'CHECK-OUT') {
-                $(this).text(t('booking', 'check_out', 'Check-out').toUpperCase());
+                $(this).text(t('booking', 'check_out', 'Check-out'));
             }
         });
-        
-        // Adults/Children labels
+
+        // Adults/Children labels — same treatment, natural case.
         $('.gas-adults-field > label').contents().filter(function() {
             return this.nodeType === 3; // Text nodes only
-        }).first().replaceWith(t('booking', 'adults', 'Adults').toUpperCase());
-        
+        }).first().replaceWith(t('booking', 'adults', 'Adults'));
+
         $('.gas-children-field > label').contents().filter(function() {
             return this.nodeType === 3;
-        }).first().replaceWith(t('booking', 'children', 'Children').toUpperCase() + ' ');
+        }).first().replaceWith(t('booking', 'children', 'Children') + ' ');
         
         // Price per night
         $('.gas-price-period').text(t('booking', 'price_per_night', '/ night'));
