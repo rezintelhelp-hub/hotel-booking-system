@@ -897,7 +897,7 @@ html body .gas-gallery-more-overlay {
 .gas-date-field label {
     display: block;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     text-transform: none;
     letter-spacing: 0;
     color: var(--gas-text);
@@ -946,7 +946,7 @@ html body .gas-gallery-more-overlay {
 .gas-children-field label {
     display: block;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     text-transform: none;
     letter-spacing: 0;
     color: var(--gas-text);
@@ -979,7 +979,7 @@ html body .gas-gallery-more-overlay {
 .gas-guest-field label {
     display: block;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     text-transform: none;
     letter-spacing: 0;
     color: var(--gas-text);
@@ -1745,13 +1745,22 @@ html body .gas-gallery-more-overlay {
         gap: 16px;
     }
     
+    /* Tabs on mobile — wrap to a second row so 6 tabs (Description /
+       Availability / Features / Map / Reviews / Terms) can't push the
+       parent layout right off-centre. width:100% + max-width:100%
+       clamps the flex container to viewport. Steve 2026-08-22. */
     .gas-tabs-nav {
-        gap: 0;
+        gap: 4px;
+        flex-wrap: wrap;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
     }
-    
+
     .gas-tab-btn {
-        padding: 12px;
+        padding: 10px 12px;
         font-size: 13px;
+        flex: 0 0 auto;
     }
 }
 
