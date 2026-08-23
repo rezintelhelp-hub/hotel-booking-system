@@ -86030,17 +86030,38 @@ app.post('/api/admin/availability', async (req, res) => {
         // Operator per-date override. Writes to standard_price_override so
         // the cm_price recompute trigger respects it. Passing null clears
         // the override and falls back to cm_price × markup.
+        //
+        // Steve 2026-08-23 — was HARDCODING is_available=true, is_blocked=
+        // false which silently ignored any status flag sent alongside a
+        // price override. That meant ticking "Block this date" in the
+        // per-cell Edit Rate modal did nothing when the cell already had
+        // a price override (No5 Sept 4/5 didn't save). Now: when status
+        // is explicitly passed, honour it; when omitted, default to
+        // available/unblocked (previous behaviour).
+        const _wantBlocked = status === 'blocked';
+        const _wantAvailable = status !== 'blocked';
         await client.query(`
           INSERT INTO room_availability (room_id, date, standard_price_override, is_available, is_blocked)
-          VALUES ($1, $2, $3, true, false)
+          VALUES ($1, $2, $3, $4, $5)
           ON CONFLICT (room_id, date)
           DO UPDATE SET
             standard_price_override = $3,
+            is_available = EXCLUDED.is_available,
+            is_blocked = EXCLUDED.is_blocked,
             updated_at = NOW()
-        `, [room_id, dateStr, standard_price || null]);
+        `, [room_id, dateStr, standard_price || null, _wantAvailable, _wantBlocked]);
         // Channex: rate change for this date
         if (standard_price != null) {
           channexEvents.push({ kind: 'rate', date: dateStr, payload: { date: dateStr, rate: Number(standard_price) } });
+        }
+        // Also mirror the block/unblock to Channex when status was passed
+        // — otherwise a block via this branch wouldn't close OTA channels.
+        if (status === 'blocked' || status === 'available') {
+          channexEvents.push({
+            kind: 'availability',
+            date: dateStr,
+            payload: { date: dateStr, count: _wantBlocked ? 0 : 1 },
+          });
         }
       } else if (discount_percent) {
         // Apply percentage discount
