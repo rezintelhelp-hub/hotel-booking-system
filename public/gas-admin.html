@@ -83222,7 +83222,12 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function saveRoomIndividualUnit(unitId, btn) {
-            const row = btn.closest('[style]');
+            // btn is a direct child of the flex row div. Old code used
+            // closest('[style]') which matched the button itself (it also has
+            // an inline style) so the input lookup returned null and the
+            // server rejected the payload as "unit_name required".
+            // Steve 2026-08-24.
+            const row = btn.parentElement;
             const name = row.querySelector(`[data-unit-id="${unitId}"]`)?.value || '';
             const notes = row.querySelector(`[data-unit-notes-id="${unitId}"]`)?.value || '';
             const status = row.querySelector(`[data-unit-status-id="${unitId}"]`)?.value || '';
