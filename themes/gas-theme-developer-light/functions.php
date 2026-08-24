@@ -3999,11 +3999,59 @@ function developer_developer_custom_css() {
         a {
             color: ' . esc_attr($link_color) . ';
         }
-        
+
         a:hover {
             color: ' . esc_attr(developer_adjust_brightness($link_color, -30)) . ';
         }
-        
+
+        /* Search-widget MOBILE shape — ported from Dwellfort per-site CSS
+           2026-08-24. Fields stack vertically with hairline dividers,
+           rounded card, full-width submit button. Layout only — no fonts
+           or colours, so each site\'s own Web Builder Styles still drive
+           the look. Applies to any developer-light site with a
+           .developer-search-wrapper on the hero. */
+        @media (max-width: 768px) {
+            .developer-search-wrapper {
+                position: relative;
+                left: auto;
+                right: auto;
+                bottom: auto;
+                width: calc(100% - 24px);
+                margin: 20px auto 0;
+                padding: 12px;
+                border-radius: 16px;
+                box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+                overflow: visible;
+                border: none;
+            }
+            .developer-search-wrapper .gas-search-fields {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .developer-search-wrapper .gas-search-field {
+                border-right: none;
+                border-bottom: 1px solid #eee;
+            }
+            .developer-search-wrapper .gas-search-field:last-of-type,
+            .developer-search-wrapper .gas-search-field.gas-search-submit {
+                border-bottom: none;
+            }
+            .developer-search-wrapper .gas-search-field.gas-search-submit {
+                margin: 8px 0 0 0;
+                padding: 0;
+            }
+            .developer-search-wrapper .gas-search-submit,
+            .developer-search-wrapper .developer-search-submit,
+            .developer-search-wrapper .gas-btn-primary.gas-search-submit,
+            .developer-search-wrapper .gas-search-field.gas-search-submit {
+                width: 100%;
+                height: 48px;
+                border-radius: 8px;
+                min-height: 48px;
+            }
+        }
+
         /* Header Styles */
         .developer-header {
             background: ' . esc_attr($header_bg) . ';
