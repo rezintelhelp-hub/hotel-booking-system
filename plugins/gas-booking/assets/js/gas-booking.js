@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.48
+ * Version: 4.3.49
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -932,7 +932,12 @@ jQuery(document).ready(function($) {
                             guests:     r.guests || 1,
                             adults:     r.adults || 1,
                             children:   r.children || 0,
-                            nights:     r.nights || 1
+                            nights:     r.nights || 1,
+                            // Carry offer through group checkout so each room's
+                            // price honours the applied offer (was defaulting
+                            // to Standard Rate at checkout). Steve 2026-08-24.
+                            offerId:    r.offer_id || null,
+                            offerName:  r.offer_name || null
                         });
                     }
                 });
@@ -961,6 +966,10 @@ jQuery(document).ready(function($) {
                 url += '&children=' + (room.children || 0);
                 if (room.property_id) url += '&property=' + encodeURIComponent(room.property_id);
                 if (room.currency)    url += '&currency=' + encodeURIComponent(room.currency);
+                // Forward the offer id captured at Add-to-Cart time so
+                // checkout re-applies it (was dropping to Standard Rate
+                // without this). Steve 2026-08-24.
+                if (room.offer_id) url += '&offer_id=' + encodeURIComponent(room.offer_id);
                 if (upsells.length) {
                     url += '&prefill_upsells='  + encodeURIComponent(upsells.map(function(u) { return u.id; }).join(','));
                     if (upsells.length === 1 && upsells[0].qty) {
@@ -4961,6 +4970,15 @@ jQuery(document).ready(function($) {
         var nights = Math.round((checkoutDate - checkinDate) / (1000 * 60 * 60 * 24));
         var totalPrice = parseFloat($roomWidget.data('total-price')) || 0;
         var perNight = nights > 0 ? totalPrice / nights : totalPrice;
+        // Capture the offer applied on the room page (if any) so it survives
+        // the trip through the cart into checkout. Without this, cart shows
+        // the discounted price but checkout re-computes at Standard Rate
+        // because no offer_id gets forwarded. Steve 2026-08-24 (Bunnys
+        // Burrow / Cotswolds — cart £943.50, checkout £1,110). Falls back
+        // to nulls when the guest picked Standard Rate.
+        var _activeOffer = $roomWidget.data('active-offer') || null;
+        var _offerId = (_activeOffer && _activeOffer.id) ? _activeOffer.id : null;
+        var _offerName = (_activeOffer && _activeOffer.name) ? _activeOffer.name : null;
         // Single cart — same shape as the bike-storage write. Type 'room'
         // lets the cart + checkout tell the two apart.
         if (window.gasCart && window.gasCart.addItem) {
@@ -4980,7 +4998,9 @@ jQuery(document).ready(function($) {
                 adults: numAdults,
                 children: numChildren,
                 property_id: $roomWidget.data('property-id'),
-                currency: resolveCurrency($roomWidget.data('currency'))
+                currency: resolveCurrency($roomWidget.data('currency')),
+                offer_id: _offerId,
+                offer_name: _offerName
             });
             if (addResult && addResult.rejected) return;
         }
@@ -6434,6 +6454,11 @@ jQuery(document).ready(function($) {
                         check_out: firstItem.checkout,
                         guests: firstItem.guests,
                         pricing_tier: gasBooking.pricingTier || 'standard',
+                        // Honour the offer the guest selected on the room
+                        // page (stashed on the cart item at Add time). Was
+                        // omitted -> server returned Standard Rate on every
+                        // group-checkout call. Steve 2026-08-24.
+                        offer_id: firstItem.offerId || undefined,
                         lang: currentLanguage
                     }),
                     success: function(response) {
