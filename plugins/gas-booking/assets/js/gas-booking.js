@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.50
+ * Version: 4.3.49
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -8755,17 +8755,13 @@ jQuery(document).ready(function($) {
             var currency = resolveCurrency(checkoutData.currency) || '';
             var nights = p.nights || 1;
             var accommodationTotal = parseFloat(p.accommodation_total) || 0;
-            // 2026-08-24 — display the AFTER-offer accommodation total so the
-            // Accommodation line matches the price the guest saw on the room
-            // page + in the cart. Previously used accommodation_gross (pre-
-            // offer) with a separate 'Offer Discount' line — but that made
-            // the top of the breakdown read "Accommodation £855" on an
-            // offer-priced £726.75 booking, and guests read that as "the
-            // standard rate is being applied". accommodationTotal already has
-            // the offer baked in, per the server's calculate-price semantics.
-            // The discount line below is hidden further down to avoid double-
-            // counting.
-            var accommodationDisplay = accommodationTotal;
+            // 2026-08-10 — accommodation_gross is the unambiguous pre-offer
+            // room rate exposed by server Phase C. Use it for the display
+            // line only, so the guest sees Accommodation + Offer/Extras as
+            // additive lines that sum to Total. accommodationTotal keeps its
+            // meaning for the grandTotal calc below (backward compat with
+            // the server's existing offer_discount semantics).
+            var accommodationDisplay = parseFloat(p.accommodation_gross) || accommodationTotal;
             checkoutData.accommodationTotal = accommodationTotal;
             var upsellsTotal = calculateUpsellsTotal();
             var discount = parseFloat(p.offer_discount) || 0;
@@ -8842,11 +8838,12 @@ jQuery(document).ready(function($) {
             $('.gas-nights-label').text(t('booking', 'accommodation', 'Accommodation') + ' (' + nights + ' ' + nightWord + ')');
             $('.gas-nights-total').text(formatPrice(accommodationDisplay, currency));
             
-            // Discount line — hidden now that accommodationDisplay is the
-            // AFTER-offer figure (no double-counting). Steve 2026-08-24. If
-            // we want a "you saved £X" callout later, wire it as a separate
-            // element that doesn't feed the total math.
-            $('.gas-discount-line').hide();
+            // Discount line
+            if (discount > 0) {
+                $('.gas-discount-line').show().find('.gas-discount-amount').text('-' + formatPrice(discount, currency));
+            } else {
+                $('.gas-discount-line').hide();
+            }
             
             // Split selected upsells into mandatory (rendered as standalone PRICE DETAILS lines,
             // peers of Accommodation) and optional (grouped under "Your Extras"). Same
