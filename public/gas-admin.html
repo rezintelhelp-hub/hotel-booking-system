@@ -116187,7 +116187,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>`;
                 Object.keys(byProp).sort().forEach(k => {
                     const [propId, propName] = k.split('::');
-                    html += `<h4 style="margin: 1rem 0 0.5rem;">${propName} <span style="color:#6b7280; font-size: 0.85rem;">(property ${propId})</span></h4>`;
+                    html += `<div style="display:flex; align-items:center; justify-content:space-between; margin: 1rem 0 0.5rem;">
+                        <h4 style="margin:0;">${propName} <span style="color:#6b7280; font-size: 0.85rem;">(property ${propId})</span></h4>
+                        <button class="btn" onclick="_publishPushProperty(${propId}, '${propName.replace(/'/g, "\\'")}')" style="background: linear-gradient(135deg,#6366f1,#4338ca); font-size: 0.85rem;">📤 Push ${propName} to Channex</button>
+                    </div>`;
                     html += '<table style="width:100%; font-size:0.9rem; border-collapse:collapse;">';
                     html += '<thead><tr style="background:#f9fafb; text-align:left;"><th style="padding:6px;">Publish</th><th style="padding:6px;">ID</th><th style="padding:6px;">Name</th><th style="padding:6px;">Qty</th><th style="padding:6px;">Status</th><th style="padding:6px;">Synced?</th></tr></thead><tbody>';
                     byProp[k].forEach(r => {
@@ -116213,6 +116216,29 @@ const promo = await fetch('/api/v1/offers/validate', {
         function _publishTickAll(checked) {
             document.querySelectorAll('#connectionTabPublish ._publish-cb').forEach(cb => cb.checked = !!checked);
         }
+        async function _publishPushProperty(propertyId, propertyName) {
+            if (!confirm('Push "' + propertyName + '" to Channex now?\n\nOnly ticked rooms will be created as Channex room types. Already-synced rooms are safe to re-run — the endpoint is idempotent.')) return;
+            showNotification('Pushing ' + propertyName + ' to Channex...', 'info');
+            try {
+                const d = await fetch('/api/admin/channex/' + selectedConnectionId + '/push-property', {
+                    method: 'POST',
+                    headers: {...authHeaders(), 'Content-Type': 'application/json'},
+                    body: JSON.stringify({ gas_property_id: propertyId })
+                }).then(r => r.json());
+                if (d.success) {
+                    const msg = d.already_exists
+                        ? propertyName + ' already on Channex. ' + (d.standard_rate_plans_created ? d.standard_rate_plans_created + ' Standard rate plan(s) created.' : 'Nothing new to push.')
+                        : propertyName + ' pushed. ' + (d.rooms_pushed || 0) + ' room type(s) created, ' + (d.standard_rate_plans_created || 0) + ' Standard rate plan(s).';
+                    showNotification(msg, 'success');
+                    loadPublishToChannexTab(); // refresh the Synced column
+                } else {
+                    showNotification('Push failed: ' + (d.error || 'unknown') + (d.step ? ' [' + d.step + ']' : ''), 'error');
+                }
+            } catch (e) {
+                showNotification('Push error: ' + e.message, 'error');
+            }
+        }
+
         async function _publishSave() {
             const updates = Array.from(document.querySelectorAll('#connectionTabPublish ._publish-cb')).map(cb => ({
                 bookable_unit_id: parseInt(cb.dataset.bu, 10),
