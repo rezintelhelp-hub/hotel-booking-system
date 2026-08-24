@@ -116114,15 +116114,28 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         // Connection Details Modal
+        async function _revealTabsForAdapter(connectionId) {
+            // Fetch the adapter code once when the modal opens and show/hide
+            // adapter-specific tabs (currently just Publish to Channex). Runs
+            // regardless of which default tab the caller landed on. Steve 2026-08-24.
+            try {
+                const d = await fetch(`/api/gas-sync/connections/${connectionId}`, { headers: authHeaders() }).then(r => r.json());
+                const code = d && d.success && d.connection ? d.connection.adapter_code : null;
+                _maybeShowPublishTab(code);
+            } catch (_) { _maybeShowPublishTab(null); }
+        }
+
         async function showConnectionOverview(connectionId) {
             selectedConnectionId = connectionId;
             document.getElementById('connectionDetailsModal').style.display = 'flex';
+            _revealTabsForAdapter(connectionId);
             showConnectionTab('overview');
         }
 
         async function showConnectionDetails(connectionId) {
             selectedConnectionId = connectionId;
             document.getElementById('connectionDetailsModal').style.display = 'flex';
+            _revealTabsForAdapter(connectionId);
             showConnectionTab('properties');
         }
 
