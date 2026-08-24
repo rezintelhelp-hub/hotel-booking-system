@@ -24879,7 +24879,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <p>Manage your channel manager integrations</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn" onclick="showAddConnectionModal()">
+                            <button class="btn" onclick="window.location.href='/register.html?step=2&from=admin&account_id=' + (selectedAccountId || '')">
                                 <span>+</span>
                                 <span>Add Connection</span>
                             </button>
@@ -113886,7 +113886,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <p style="color: #64748b; margin-bottom: 20px;">
                                 Connect your channel managers to sync properties, availability, and reservations
                             </p>
-                            <button class="btn btn-primary btn-lg" onclick="showAddConnectionModal()">
+                            <button class="btn btn-primary btn-lg" onclick="window.location.href='/register.html?step=2&from=admin&account_id=' + (selectedAccountId || '')">
                                  Add Your First Connection
                             </button>
                         </div>
@@ -115968,7 +115968,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         // Add Connection Modal
-        async function showAddConnectionModal() {
+        async function window.location.href='/register.html?step=2&from=admin&account_id=' + (selectedAccountId || '') {
             try {
                 const response = await fetch('/api/gas-sync/adapters', { headers: authHeaders() });
                 const data = await response.json();
