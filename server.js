@@ -3081,6 +3081,13 @@ async function runMigrations() {
       // list views can render them together. Nullable = single-room booking.
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_group_id UUID DEFAULT NULL`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_bookings_booking_group_id ON bookings(booking_group_id) WHERE booking_group_id IS NOT NULL`);
+      // Silent copy migration — Steve 2026-08-24. When operator copies a
+      // booking onto another unit (Belmont Beds24→Channex etc.), the copy
+      // gets status='copied' + copied_from_booking_id pointing at the
+      // original. Deleting the original flips the copy to 'confirmed' and
+      // clears the pointer. Belmont, Adelphi, and any future data-move.
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS copied_from_booking_id INTEGER NULL`).catch(() => {});
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_bookings_copied_from ON bookings(copied_from_booking_id) WHERE copied_from_booking_id IS NOT NULL`).catch(() => {});
       // Phase 3 — pre-arrival form fields on bookings. Guests hit a
       // signed URL, fill phone / real email / ETA, we mint the door PIN
       // per property policy and save it. Retains BDC proxy address on
@@ -10286,7 +10293,7 @@ app.post('/api/admin/bookings/:id/copy-to-unit', async (req, res) => {
         currency, subtotal, tax_amount, grand_total, total_amount, accommodation_price,
         balance_amount, deposit_amount,
         status, payment_status, booking_source, api_source,
-        notes, special_requests,
+        notes, special_requests, copied_from_booking_id,
         created_at, updated_at, booking_time
       ) VALUES (
         $1, $2, $3, $4,
@@ -10296,7 +10303,7 @@ app.post('/api/admin/bookings/:id/copy-to-unit', async (req, res) => {
         $20, $21, $22, $23, $24, $25,
         $26, $27,
         $28, $29, $30, $31,
-        $32, $33,
+        $32, $33, $34,
         NOW(), NOW(), NOW()
       ) RETURNING id
     `, [
@@ -10306,8 +10313,8 @@ app.post('/api/admin/bookings/:id/copy-to-unit', async (req, res) => {
       s.arrival_date, s.departure_date, s.num_adults, s.num_children, s.num_infants,
       s.currency, s.subtotal, s.tax_amount, s.grand_total, s.total_amount, s.accommodation_price,
       s.balance_amount, s.deposit_amount,
-      s.status, s.payment_status, s.booking_source, 'manual_copy',
-      (s.notes || '') + noteAppend, s.special_requests
+      'copied', s.payment_status, s.booking_source, 'manual_copy',
+      (s.notes || '') + noteAppend, s.special_requests, srcId
     ]);
     const newId = ins.rows[0].id;
     console.log(`[copy-to-unit] booking=${srcId} → new=${newId} on bu=${newBu} iu=${newIu}`);
@@ -75576,7 +75583,8 @@ app.get('/api/admin/bookings', async (req, res) => {
              bu.name as unit_name,
              p.name as property_name,
              COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14) AS balance_due_days,
-             (b.arrival_date - INTERVAL '1 day' * COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14))::date AS balance_trigger_date
+             (b.arrival_date - INTERVAL '1 day' * COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14))::date AS balance_trigger_date,
+             EXISTS (SELECT 1 FROM bookings bc WHERE bc.copied_from_booking_id = b.id) AS has_active_copy
       FROM bookings b
       LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
       LEFT JOIN properties p ON b.property_id = p.id
@@ -80857,10 +80865,28 @@ app.delete('/api/bookings/:id', async (req, res) => {
     // Delete CM failure records
     await pool.query('DELETE FROM booking_cm_failures WHERE booking_id = $1', [id]).catch(() => {});
     
+    // Promote any silent-copies that pointed at this booking.
+    // Steve 2026-08-24 — Belmont Beds24→Channex migration flow:
+    // operator copies booking (status='copied' with copied_from_booking_id
+    // set), verifies, then deletes the original. That delete flips the
+    // copy to full 'confirmed' status and clears the pointer.
+    const promoted = await pool.query(
+      `UPDATE bookings
+          SET status = 'confirmed',
+              copied_from_booking_id = NULL,
+              updated_at = NOW()
+        WHERE copied_from_booking_id = $1
+        RETURNING id`,
+      [id]
+    ).catch(e => { console.warn('[delete-booking] promote-copies failed:', e.message); return { rows: [] }; });
+    if (promoted.rows.length) {
+      console.log(`[delete-booking] promoted ${promoted.rows.length} copy/copies of #${id} → confirmed: ${promoted.rows.map(r=>r.id).join(',')}`);
+    }
+
     // Delete the booking
     await pool.query('DELETE FROM bookings WHERE id = $1', [id]);
-    
-    res.json({ success: true });
+
+    res.json({ success: true, promoted_copies: promoted.rows.map(r => r.id) });
   } catch (error) {
     console.error('Delete booking error:', error);
     res.json({ success: false, error: error.message });

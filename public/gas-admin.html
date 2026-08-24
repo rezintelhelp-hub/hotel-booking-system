@@ -70738,7 +70738,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 'request':   { bg: '#ffedd5', color: '#9a3412', label: '⚠ Enquiry' },
                 'cancelled': { bg: '#fee2e2', color: '#991b1b', label: 'Cancelled' },
                 'rejected':  { bg: '#fee2e2', color: '#991b1b', label: 'Rejected' },
-                'completed': { bg: '#e0f2fe', color: '#0369a1', label: 'Completed' }
+                'completed': { bg: '#e0f2fe', color: '#0369a1', label: 'Completed' },
+                // 'copied' = a silent-copy row created by Copy Booking. Amber chip so
+                // the operator can see "this is the new one, waiting for the original
+                // to be deleted". Flips to 'confirmed' automatically when the linked
+                // original is deleted. Steve 2026-08-24.
+                'copied':    { bg: '#fef3c7', color: '#92400e', label: '📋 COPIED' }
             };
             
             const paymentIcons = {
@@ -70769,6 +70774,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (daysUntil <= 3 && daysUntil > 0) {
                         rowStyle = 'background: #fffbeb;';
                     }
+                }
+                // Silent-copy visual cues (Steve 2026-08-24):
+                //  - Original with an active copy pointing at it → row goes light-grey
+                //    + strikethrough style so the operator sees at a glance it's been
+                //    duplicated and can safely delete when ready. On delete, the copy
+                //    auto-promotes to 'confirmed'.
+                //  - The copy itself carries status='copied' → chip already handles it.
+                if (booking.has_active_copy) {
+                    rowStyle = 'background: #f1f5f9; color: #94a3b8;';
                 }
                 
                 // Group badge — parse "(Room N/M)" from notes (stamped by
@@ -76158,8 +76172,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify(body)
                 }).then(r => r.json());
                 if (d.success) {
-                    showNotification('Copy created — new booking #' + d.new_booking_id + '. Original #' + d.source_booking_id + ' unchanged. Delete original manually when ready.', 'success');
+                    showNotification('Copy created — new booking #' + d.new_booking_id + '. Original #' + d.source_booking_id + ' now greyed. Delete original when ready to promote.', 'success');
                     closeModal('copyBookingModal');
+                    closeModal('editBookingModal');
+                    if (typeof loadBookingsForProperty === 'function') loadBookingsForProperty();
                 } else {
                     showNotification('Copy failed: ' + (d.error || 'unknown'), 'error');
                 }
