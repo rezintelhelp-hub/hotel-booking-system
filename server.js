@@ -10256,6 +10256,68 @@ app.post('/api/admin/bookings/:id/sync-beds24-payment', async (req, res) => {
   }
 });
 
+// POST /api/admin/bookings/:id/copy-to-unit
+// Duplicates a booking onto another bookable_unit + individual_unit
+// without any Beds24 side effects (no push, no outbox enqueue).
+// Original stays put; operator deletes it later once verified.
+// beds24_booking_id, channex_booking_id, hostfully_lead_uid all
+// NULLed on the copy so channel-manager sync can't confuse the two.
+// Steve 2026-08-24 — Belmont manual booking migration.
+app.post('/api/admin/bookings/:id/copy-to-unit', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const srcId = parseInt(req.params.id, 10);
+    if (!srcId) return res.status(400).json({ success: false, error: 'Invalid booking id' });
+    const { bookable_unit_id, individual_unit_id } = req.body || {};
+    const newBu = parseInt(bookable_unit_id, 10);
+    if (!newBu) return res.status(400).json({ success: false, error: 'bookable_unit_id required' });
+    const newIu = individual_unit_id == null ? null : parseInt(individual_unit_id, 10);
+    const src = await pool.query(`SELECT * FROM bookings WHERE id = $1`, [srcId]);
+    if (!src.rows[0]) return res.status(404).json({ success: false, error: 'Source booking not found' });
+    const s = src.rows[0];
+    const noteAppend = `\n[${new Date().toISOString().slice(0,16).replace('T',' ')}] COPY of booking #${srcId} (silent — no CM push)`;
+    const ins = await pool.query(`
+      INSERT INTO bookings (
+        property_id, bookable_unit_id, individual_unit_id, property_owner_id,
+        guest_first_name, guest_last_name, guest_email, guest_phone, guest_country_code,
+        guest_address, guest_city, guest_state, guest_postcode, guest_country,
+        arrival_date, departure_date, num_adults, num_children, num_infants,
+        currency, subtotal, tax_amount, grand_total, total_amount, accommodation_price,
+        balance_amount, deposit_amount,
+        status, payment_status, booking_source, api_source,
+        notes, special_requests,
+        created_at, updated_at, booking_time
+      ) VALUES (
+        $1, $2, $3, $4,
+        $5, $6, $7, $8, $9,
+        $10, $11, $12, $13, $14,
+        $15, $16, $17, $18, $19,
+        $20, $21, $22, $23, $24, $25,
+        $26, $27,
+        $28, $29, $30, $31,
+        $32, $33,
+        NOW(), NOW(), NOW()
+      ) RETURNING id
+    `, [
+      s.property_id, newBu, newIu, s.property_owner_id,
+      s.guest_first_name, s.guest_last_name, s.guest_email, s.guest_phone, s.guest_country_code,
+      s.guest_address, s.guest_city, s.guest_state, s.guest_postcode, s.guest_country,
+      s.arrival_date, s.departure_date, s.num_adults, s.num_children, s.num_infants,
+      s.currency, s.subtotal, s.tax_amount, s.grand_total, s.total_amount, s.accommodation_price,
+      s.balance_amount, s.deposit_amount,
+      s.status, s.payment_status, s.booking_source, 'manual_copy',
+      (s.notes || '') + noteAppend, s.special_requests
+    ]);
+    const newId = ins.rows[0].id;
+    console.log(`[copy-to-unit] booking=${srcId} → new=${newId} on bu=${newBu} iu=${newIu}`);
+    res.json({ success: true, source_booking_id: srcId, new_booking_id: newId, bookable_unit_id: newBu, individual_unit_id: newIu });
+  } catch (e) {
+    console.error('[admin copy-to-unit]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Minimal reassignment endpoint for the Belmont Beds24→Channex Phase 1
 // migration (Steve 2026-08-24). Master admin only. Updates ONLY the
 // bookable_unit_id + individual_unit_id fields with no other side

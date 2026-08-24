@@ -27247,7 +27247,37 @@ const promo = await fetch('/api/v1/offers/validate', {
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeEditBookingModal()">Cancel</button>
+                <button class="btn" onclick="openCopyBookingModal()" style="background: linear-gradient(135deg,#6366f1,#4338ca); color:#fff;">📋 Copy to another room (silent)</button>
                 <button class="btn" onclick="saveBookingEdit()" id="save-booking-btn">💾 Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Copy Booking (silent — no CM push) Modal -->
+    <div id="copyBookingModal" class="modal" onclick="if(event.target===this) closeModal('copyBookingModal')">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header" style="background: linear-gradient(135deg,#6366f1,#4338ca); color:#fff;">
+                <h3 style="margin:0;">📋 Copy booking to another room</h3>
+                <button onclick="closeModal('copyBookingModal')" style="background:rgba(255,255,255,0.2); border:none; color:#fff; font-size:1.5rem; cursor:pointer; width:32px; height:32px; border-radius:8px;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding:1.25rem;">
+                <p style="margin:0 0 1rem; color:#374151; font-size:0.9rem;">Creates a <strong>duplicate</strong> of this booking on the chosen room. Original stays in place until you delete it manually.</p>
+                <p style="margin:0 0 1rem; padding:0.6rem 0.75rem; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:4px; font-size:0.85rem;">
+                    No push to any channel manager. The copy has no Beds24 / Channex / Hostfully id — it's a GAS-only record.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Room type</label>
+                    <select id="copy-booking-type" class="form-input" onchange="_copyBookingLoadIndividuals()"></select>
+                </div>
+                <div class="form-group" id="copy-booking-iu-wrap" style="display:none;">
+                    <label class="form-label">Specific physical room (individual_unit)</label>
+                    <select id="copy-booking-iu" class="form-input"></select>
+                    <p style="margin:0.25rem 0 0; font-size:0.8rem; color:#6b7280;">Leave blank to auto-allocate on first calendar render.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('copyBookingModal')">Cancel</button>
+                <button class="btn" onclick="runCopyBooking()" style="background:linear-gradient(135deg,#6366f1,#4338ca); color:#fff;">📋 Create copy</button>
             </div>
         </div>
     </div>
@@ -76075,6 +76105,71 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        // Copy-booking flow — silent, no CM push. Steve 2026-08-24.
+        async function openCopyBookingModal() {
+            const bookingId = document.getElementById('edit-booking-id').value;
+            if (!bookingId) return;
+            // Reuse the property's room list already loaded in the edit modal's room select.
+            const src = document.getElementById('edit-booking-room');
+            const dst = document.getElementById('copy-booking-type');
+            dst.innerHTML = '';
+            Array.from(src.options).forEach(o => {
+                const opt = document.createElement('option');
+                opt.value = o.value;
+                opt.textContent = o.textContent;
+                if (o.value === src.value) opt.textContent += '  (current)';
+                dst.appendChild(opt);
+            });
+            document.getElementById('copy-booking-iu-wrap').style.display = 'none';
+            document.getElementById('copy-booking-iu').innerHTML = '';
+            document.getElementById('copyBookingModal').style.display = 'flex';
+            _copyBookingLoadIndividuals();
+        }
+        async function _copyBookingLoadIndividuals() {
+            const typeId = document.getElementById('copy-booking-type').value;
+            const wrap = document.getElementById('copy-booking-iu-wrap');
+            const iuSel = document.getElementById('copy-booking-iu');
+            iuSel.innerHTML = '<option value="">— Auto-allocate —</option>';
+            wrap.style.display = 'none';
+            if (!typeId) return;
+            try {
+                const d = await fetch('/api/admin/bookable-units/' + typeId + '/individual-units', {headers: authHeaders()}).then(r => r.json());
+                const units = d.units || d.data || [];
+                if (units.length > 0) {
+                    units.forEach(u => {
+                        const opt = document.createElement('option');
+                        opt.value = u.id;
+                        opt.textContent = (u.unit_name || u.name || ('Unit ' + u.id));
+                        iuSel.appendChild(opt);
+                    });
+                    wrap.style.display = 'block';
+                }
+            } catch (e) { console.warn('individual_units load failed:', e); }
+        }
+        async function runCopyBooking() {
+            const bookingId = document.getElementById('edit-booking-id').value;
+            const typeId = document.getElementById('copy-booking-type').value;
+            const iuRaw = document.getElementById('copy-booking-iu').value;
+            if (!bookingId || !typeId) { showNotification('Pick a room type first.', 'error'); return; }
+            const body = { bookable_unit_id: parseInt(typeId) };
+            if (iuRaw) body.individual_unit_id = parseInt(iuRaw);
+            try {
+                const d = await fetch('/api/admin/bookings/' + bookingId + '/copy-to-unit', {
+                    method: 'POST',
+                    headers: {...authHeaders(), 'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
+                }).then(r => r.json());
+                if (d.success) {
+                    showNotification('Copy created — new booking #' + d.new_booking_id + '. Original #' + d.source_booking_id + ' unchanged. Delete original manually when ready.', 'success');
+                    closeModal('copyBookingModal');
+                } else {
+                    showNotification('Copy failed: ' + (d.error || 'unknown'), 'error');
+                }
+            } catch (e) {
+                showNotification('Copy error: ' + e.message, 'error');
+            }
+        }
+
         async function saveBookingEdit() {
             const btn = document.getElementById('save-booking-btn');
             btn.disabled = true;
