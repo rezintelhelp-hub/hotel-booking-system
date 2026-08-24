@@ -3088,6 +3088,29 @@ async function runMigrations() {
       // clears the pointer. Belmont, Adelphi, and any future data-move.
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS copied_from_booking_id INTEGER NULL`).catch(() => {});
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_bookings_copied_from ON bookings(copied_from_booking_id) WHERE copied_from_booking_id IS NOT NULL`).catch(() => {});
+      // One-off backfill for copies created before the status='copied' feature
+      // shipped (Steve 2026-08-24). Parses the source id from the notes stamp
+      // "COPY of booking #NNN" that /api/admin/bookings/:id/copy-to-unit has
+      // always written, then sets status='copied' + copied_from_booking_id
+      // so the UI can grey the original and show the amber COPIED chip.
+      // Idempotent — WHERE copied_from_booking_id IS NULL means it's a no-op
+      // on every boot after the first that finds matching rows.
+      try {
+        const bf = await pool.query(`
+          UPDATE bookings
+             SET status = 'copied',
+                 copied_from_booking_id = substring(notes from 'COPY of booking #(\\d+)')::integer,
+                 updated_at = NOW()
+           WHERE api_source = 'manual_copy'
+             AND copied_from_booking_id IS NULL
+             AND notes ~ 'COPY of booking #\\d+'
+          RETURNING id, copied_from_booking_id`);
+        if (bf.rowCount > 0) {
+          console.log(`[startup migrate] backfilled ${bf.rowCount} silent-copy row(s): ${bf.rows.map(r => r.id + '→#' + r.copied_from_booking_id).join(', ')}`);
+        }
+      } catch (e) {
+        console.warn('[startup migrate] silent-copy backfill skipped:', e.message);
+      }
       // Phase 3 — pre-arrival form fields on bookings. Guests hit a
       // signed URL, fill phone / real email / ETA, we mint the door PIN
       // per property policy and save it. Retains BDC proxy address on
