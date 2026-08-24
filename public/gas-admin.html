@@ -115998,10 +115998,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('connectionStep2').style.display = step === 2 ? 'block' : 'none';
         }
 
-        function selectAdapter(code, name) {
+        async function selectAdapter(code, name) {
             // Find the adapter to check if it has a wizard URL
             const adapter = gasSyncAdapters.find(a => a.code === code);
-            
+
             // Calry-based PMS: redirect to universal CM wizard
             if (adapter?.auth_type === 'wizard' && adapter?.wizard_url) {
                 const accountId = selectedAccountId || '';
@@ -116012,7 +116012,34 @@ const promo = await fetch('/api/v1/offers/validate', {
                 window.open(wizardUrl, '_blank');
                 return;
             }
-            
+
+            // Channex is GAS-provisioned — no creds to enter. Skip the
+            // credential form, hit provision-account directly, then land
+            // the operator on the new Sync Connections row. Steve 2026-08-24.
+            if (code === 'channex' || adapter?.auth_type === 'provisioned') {
+                const accountId = document.getElementById('connectionAccountId').value || selectedAccountId || '';
+                if (!accountId) { showNotification('Select an account first.', 'error'); return; }
+                showNotification('Provisioning Channex workspace…', 'info');
+                try {
+                    const resp = await fetch('/api/admin/channex/provision-account', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ account_id: parseInt(accountId) })
+                    });
+                    const d = await resp.json();
+                    if (!d.success) {
+                        showNotification(d.error || 'Channex provisioning failed', 'error');
+                        return;
+                    }
+                    showNotification(d.already_exists ? 'Channex workspace already existed — reusing.' : 'Channex workspace ready.', 'success');
+                    closeModal('addConnectionModal');
+                    if (typeof loadGasSyncConnections === 'function') loadGasSyncConnections();
+                } catch (e) {
+                    showNotification('Channex provisioning error: ' + e.message, 'error');
+                }
+                return;
+            }
+
             document.getElementById('selectedAdapterCode').value = code;
             document.getElementById('selectedAdapterName').textContent = `Configure ${name}`;
             
