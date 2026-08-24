@@ -50641,6 +50641,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <button class="btn btn-small" style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;padding:6px 10px;" onclick="showLitePreview(${u.id})" title="Preview Room Page">👁️</button>
                                         <button class="btn btn-secondary btn-small" onclick="editRoom(${u.id})">Edit</button>
                                         <button class="btn btn-secondary btn-small" onclick="copyRoomLink(${u.id})" title="Copy room link">📋</button>
+                                        <button class="btn btn-small" style="background:${u.is_hidden ? '#10b981' : '#f59e0b'};color:white;border:none;padding:6px 10px;" onclick="toggleRoomVisibility(${u.id}, ${!u.is_hidden})" title="${u.is_hidden ? 'Show on availability calendar' : 'Hide from availability calendar'}">${u.is_hidden ? 'Show' : 'Hide'}</button>
                                     </td>
                                 </tr>
                             `).join('')}
