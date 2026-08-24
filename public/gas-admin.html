@@ -35133,10 +35133,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const clone = card.cloneNode(true);
                         // Strip wysiwyg-init flags so cloned textareas get fresh WYSIWYG editors
                         clone.querySelectorAll('[data-wysiwyg-init]').forEach(el => el.removeAttribute('data-wysiwyg-init'));
-                        // Remove any cloned WYSIWYG wrappers (they don't work after clone)
+                        // Remove any cloned WYSIWYG wrappers (they don't work after clone).
+                        // Restore the language-tab classes (translation-input / active) from
+                        // the wrap back onto the textarea — gasWysiwyg moves them onto the
+                        // wrap on init, so the raw textarea inside has lost them. Without
+                        // this restore the cloned editor showed all 5 language textareas
+                        // stacked (Intro / Homepage tab). Steve 2026-08-24.
                         clone.querySelectorAll('.gas-wysiwyg-wrap').forEach(wrap => {
                             const ta = wrap.querySelector('textarea');
-                            if (ta) { wrap.parentNode.insertBefore(ta, wrap); ta.style.display = ''; }
+                            if (ta) {
+                                if (wrap.classList.contains('translation-input')) {
+                                    ta.classList.add('translation-input');
+                                    if (wrap.classList.contains('active')) ta.classList.add('active');
+                                    if (wrap.dataset.lang) ta.dataset.lang = wrap.dataset.lang;
+                                }
+                                wrap.parentNode.insertBefore(ta, wrap);
+                                ta.style.display = '';
+                            }
                             wrap.remove();
                         });
                         targetEl.appendChild(clone);
