@@ -3002,6 +3002,13 @@ function developer_get_api_settings() {
         'header_lang_color' => $website_header['lang-color'] ?? null,
         'header_lang_dropdown_color' => $website_header['lang-dropdown-color'] ?? null,
         'header_lang_dropdown_bg' => $website_header['lang-dropdown-bg'] ?? null,
+        // Sub-menu (dropdown) colours for parent nav items with children
+        // (e.g. "Our Locations", "About Us"). Steve 2026-08-24 — Cleveland
+        // B&B Torquay. Empty = fall through to theme defaults.
+        'header_submenu_bg'         => $website_header['submenu-bg'] ?? null,
+        'header_submenu_text'       => $website_header['submenu-text'] ?? null,
+        'header_submenu_hover_bg'   => $website_header['submenu-hover-bg'] ?? null,
+        'header_submenu_hover_text' => $website_header['submenu-hover-text'] ?? null,
         // Header typography
         'header_font' => $website_header['font'] ?? null,
         'header_font_size' => $website_header['font-size'] ?? null,
@@ -4069,6 +4076,32 @@ function developer_developer_custom_css() {
             (!empty($header_lang_dd_color) ? '
             color: ' . esc_attr($header_lang_dd_color) . ';' : '') . '
             background: rgba(0,0,0,0.08);
+        }';
+    }
+
+    // Sub-menu (dropdown) colours for parent nav items with children.
+    // Empty values fall through to the theme's style.css defaults.
+    // Steve 2026-08-24 — Web Builder → Header → 4 new sub-menu fields.
+    $submenu_bg         = $api['header_submenu_bg'] ?? '';
+    $submenu_text       = $api['header_submenu_text'] ?? '';
+    $submenu_hover_bg   = $api['header_submenu_hover_bg'] ?? '';
+    $submenu_hover_text = $api['header_submenu_hover_text'] ?? '';
+    if (!empty($submenu_bg) || !empty($submenu_text) || !empty($submenu_hover_bg) || !empty($submenu_hover_text)) {
+        echo '
+        .developer-nav-submenu {' .
+            (!empty($submenu_bg) ? '
+            background: ' . esc_attr($submenu_bg) . ' !important;' : '') . '
+        }
+        .developer-nav-submenu a,
+        .developer-nav-submenu a:visited {' .
+            (!empty($submenu_text) ? '
+            color: ' . esc_attr($submenu_text) . ' !important;' : '') . '
+        }
+        .developer-nav-submenu a:hover {' .
+            (!empty($submenu_hover_bg) ? '
+            background: ' . esc_attr($submenu_hover_bg) . ' !important;' : '') . '
+            ' . (!empty($submenu_hover_text) ? '
+            color: ' . esc_attr($submenu_hover_text) . ' !important;' : '') . '
         }';
     }
 

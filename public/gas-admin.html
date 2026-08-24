@@ -14386,6 +14386,37 @@
                                     <input type="text" class="form-input" id="wb-header-underline-color" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-underline-color-picker')">
                                 </div>
                             </div>
+                            <!-- Sub-menu (dropdown) colours — for parent menu items that
+                                 expand into a sub-page list (e.g. "Our Locations", "About
+                                 Us"). Blank = fall back to theme defaults. Steve 2026-08-24. -->
+                            <div class="form-group">
+                                <label class="form-label">Sub-menu Background</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-header-submenu-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-submenu-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-submenu-bg" value="" placeholder="theme default" style="width: 130px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-submenu-bg-picker')">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Sub-menu Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-header-submenu-text-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-submenu-text').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-submenu-text" value="" placeholder="theme default" style="width: 130px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-submenu-text-picker')">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Sub-menu Hover Background</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-header-submenu-hover-bg-picker" value="#f8fafc" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-submenu-hover-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-submenu-hover-bg" value="" placeholder="theme default" style="width: 130px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-submenu-hover-bg-picker')">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Sub-menu Hover Text</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-header-submenu-hover-text-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-submenu-hover-text').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-submenu-hover-text" value="" placeholder="theme default" style="width: 130px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-submenu-hover-text-picker')">
+                                </div>
+                            </div>
                             <div class="form-group">
                                 <label class="form-label">Logo/Site Title Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
