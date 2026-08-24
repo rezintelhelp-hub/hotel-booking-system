@@ -1,6 +1,6 @@
 /**
  * GAS Booking — checkout JS
- * Version: 4.3.50
+ * Version: 4.3.51
  *
  * Copyright (c) 2026 GAS - Global Accommodation System (gas.travel)
  * All rights reserved. Proprietary software — licensed for GAS platform use only.
@@ -8761,11 +8761,17 @@ jQuery(document).ready(function($) {
             // offer) with a separate 'Offer Discount' line — but that made
             // the top of the breakdown read "Accommodation £855" on an
             // offer-priced £726.75 booking, and guests read that as "the
-            // standard rate is being applied". accommodationTotal already has
-            // the offer baked in, per the server's calculate-price semantics.
-            // The discount line below is hidden further down to avoid double-
-            // counting.
-            var accommodationDisplay = accommodationTotal;
+            // standard rate is being applied".
+            //
+            // 2026-08-24 (later) — server's accommodation_total is ALSO pre-
+            // offer (my earlier assumption that it was already discounted
+            // was wrong; verified against server response: accommodation_total
+            // == accommodation_gross, offer_discount is the delta). So we
+            // subtract offer_discount here to get the true after-offer amount.
+            // grandTotal math (line ~8989) already subtracts discount, so
+            // hiding the standalone discount line below is still correct — no
+            // double-counting anywhere.
+            var accommodationDisplay = accommodationTotal - (parseFloat(p.offer_discount) || 0);
             checkoutData.accommodationTotal = accommodationTotal;
             var upsellsTotal = calculateUpsellsTotal();
             var discount = parseFloat(p.offer_discount) || 0;
