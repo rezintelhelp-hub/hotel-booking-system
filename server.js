@@ -10250,6 +10250,45 @@ app.post('/api/admin/bookings/:id/sync-beds24-payment', async (req, res) => {
   }
 });
 
+// Minimal reassignment endpoint for the Belmont Beds24→Channex Phase 1
+// migration (Steve 2026-08-24). Master admin only. Updates ONLY the
+// bookable_unit_id + individual_unit_id fields with no other side
+// effects (no Beds24 push-back, no availability recompute, no room-
+// change hooks). Purpose-built for the standalone-unit → type-unit
+// consolidation. Returns before/after snapshot so callers can log.
+app.post('/api/admin/bookings/:id/reassign-unit', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const bookingId = parseInt(req.params.id, 10);
+    if (!bookingId) return res.status(400).json({ success: false, error: 'Invalid booking id' });
+    const { bookable_unit_id, individual_unit_id } = req.body || {};
+    const newBu = parseInt(bookable_unit_id, 10);
+    if (!newBu) return res.status(400).json({ success: false, error: 'bookable_unit_id required' });
+    // individual_unit_id may be null (auto-allocate later) or a specific id.
+    const newIu = individual_unit_id == null ? null : parseInt(individual_unit_id, 10);
+    const before = await pool.query(
+      `SELECT id, bookable_unit_id, individual_unit_id FROM bookings WHERE id = $1`,
+      [bookingId]
+    );
+    if (!before.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    await pool.query(
+      `UPDATE bookings SET bookable_unit_id = $1, individual_unit_id = $2, updated_at = NOW() WHERE id = $3`,
+      [newBu, newIu, bookingId]
+    );
+    console.log(`[reassign-unit] booking=${bookingId} bu ${before.rows[0].bookable_unit_id}→${newBu} iu ${before.rows[0].individual_unit_id}→${newIu}`);
+    res.json({
+      success: true,
+      booking_id: bookingId,
+      before: { bookable_unit_id: before.rows[0].bookable_unit_id, individual_unit_id: before.rows[0].individual_unit_id },
+      after: { bookable_unit_id: newBu, individual_unit_id: newIu }
+    });
+  } catch (e) {
+    console.error('[admin reassign-unit]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Push a booking to Hostfully via createLead. Master admin only.
 // Wraps pushBookingToHostfully — idempotent, short-circuits if the
 // booking already has hostfully_lead_uid or the property isn't
