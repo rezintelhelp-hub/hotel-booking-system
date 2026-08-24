@@ -4024,6 +4024,12 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS child_charge DECIMAL(10,2) DEFAULT 0`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS children_allowed BOOLEAN DEFAULT true`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false`);
+      // Ticklist gate for push-property: only bookable_units with
+      // channex_publishable = true are pushed to Channex as room types.
+      // Default TRUE so any existing pushed setup keeps working. Operators
+      // untick physical-room / internal units they don\'t want on OTAs.
+      // Steve 2026-08-24 (Belmont Beds24→Channex migration).
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS channex_publishable BOOLEAN DEFAULT true`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS num_bedrooms INTEGER DEFAULT 1`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS num_bathrooms DECIMAL(3,1) DEFAULT 1`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT NULL`);
@@ -14569,6 +14575,72 @@ app.post('/api/admin/channex/:connectionId/sync-property-content', async (req, r
   res.status(status).json(result);
 });
 
+// GET /api/admin/channex/:connectionId/publishable-rooms
+// Returns every bookable_unit for the connection\'s account with its
+// channex_publishable tick state + whether it\'s already synced to
+// Channex (has a gas_sync_room_types row). Steve 2026-08-24.
+app.get('/api/admin/channex/:connectionId/publishable-rooms', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const connectionId = parseInt(req.params.connectionId, 10);
+    if (!connectionId) return res.status(400).json({ success: false, error: 'Invalid connection id' });
+    const conn = await pool.query(`SELECT account_id FROM gas_sync_connections WHERE id = $1`, [connectionId]);
+    if (!conn.rows[0]) return res.status(404).json({ success: false, error: 'Connection not found' });
+    const accountId = conn.rows[0].account_id;
+    const rows = await pool.query(`
+      SELECT bu.id, bu.name, bu.quantity, bu.status, bu.is_hidden,
+             COALESCE(bu.channex_publishable, true) AS channex_publishable,
+             bu.property_id, p.name AS property_name,
+             (SELECT COUNT(*) FROM gas_sync_room_types rt
+                JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+               WHERE rt.gas_room_id = bu.id AND sp.connection_id = $1) > 0 AS synced_to_channex
+        FROM bookable_units bu
+        JOIN properties p ON p.id = bu.property_id
+       WHERE p.account_id = $2
+       ORDER BY p.name, bu.id
+    `, [connectionId, accountId]);
+    res.json({ success: true, connection_id: connectionId, account_id: accountId, rooms: rows.rows });
+  } catch (e) {
+    console.error('[publishable-rooms]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/admin/channex/:connectionId/publishable-rooms
+// Body: { updates: [{bookable_unit_id, channex_publishable}, ...] }
+// Atomic tick-state save for the connection\'s account. Steve 2026-08-24.
+app.post('/api/admin/channex/:connectionId/publishable-rooms', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const connectionId = parseInt(req.params.connectionId, 10);
+    if (!connectionId) return res.status(400).json({ success: false, error: 'Invalid connection id' });
+    const conn = await pool.query(`SELECT account_id FROM gas_sync_connections WHERE id = $1`, [connectionId]);
+    if (!conn.rows[0]) return res.status(404).json({ success: false, error: 'Connection not found' });
+    const accountId = conn.rows[0].account_id;
+    const updates = Array.isArray(req.body?.updates) ? req.body.updates : [];
+    if (!updates.length) return res.status(400).json({ success: false, error: 'updates array required' });
+    let touched = 0;
+    for (const u of updates) {
+      const buId = parseInt(u.bookable_unit_id, 10);
+      const pub = !!u.channex_publishable;
+      if (!buId) continue;
+      // Constrain to this account\'s bookable_units — defence in depth.
+      const r = await pool.query(`
+        UPDATE bookable_units bu SET channex_publishable = $1, updated_at = NOW()
+          FROM properties p
+         WHERE bu.property_id = p.id AND p.account_id = $2 AND bu.id = $3
+      `, [pub, accountId, buId]);
+      touched += r.rowCount;
+    }
+    res.json({ success: true, connection_id: connectionId, account_id: accountId, touched });
+  } catch (e) {
+    console.error('[publishable-rooms save]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST /api/admin/channex/:connectionId/push-property — programmatically
 // onboard a GAS property to Channex. Reads the property + its rooms from
 // the GAS DB, calls Channex createProperty + createRoomType, and persists
@@ -14615,7 +14687,12 @@ app.post('/api/admin/channex/:connectionId/push-property', async (req, res) => {
       });
     }
     const roomRows = await pool.query(
-      `SELECT id, name, max_guests, quantity FROM bookable_units WHERE property_id = $1 ORDER BY id`,
+      `SELECT id, name, max_guests, quantity FROM bookable_units
+        WHERE property_id = $1
+          AND COALESCE(channex_publishable, true) = true
+          AND COALESCE(is_hidden, false) = false
+          AND COALESCE(status, 'active') NOT IN ('deleted', 'inactive', 'archived')
+        ORDER BY id`,
       [gas_property_id]
     );
 

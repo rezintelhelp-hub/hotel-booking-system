@@ -25196,6 +25196,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div class="gas-sync-tabs">
                     <button class="gas-sync-tab active" onclick="showConnectionTab('overview')">Overview</button>
                     <button class="gas-sync-tab" onclick="showConnectionTab('properties')">Properties</button>
+                    <button class="gas-sync-tab" id="connectionTabBtnPublish" onclick="showConnectionTab('publish')" style="display:none;">Publish to Channex</button>
                     <button class="gas-sync-tab" onclick="showConnectionTab('propertyCheck')">Property Check</button>
                     <button class="gas-sync-tab" onclick="showConnectionTab('reservations')">Reservations</button>
                     <button class="gas-sync-tab" onclick="showConnectionTab('reviews')">Reviews</button>
@@ -25205,6 +25206,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div style="padding: 1.5rem;">
                     <div id="connectionTabOverview" class="gas-sync-tab-content">Loading...</div>
                     <div id="connectionTabProperties" class="gas-sync-tab-content" style="display:none;">Loading...</div>
+                    <div id="connectionTabPublish" class="gas-sync-tab-content" style="display:none;">Loading...</div>
                     <div id="connectionTabPropertyCheck" class="gas-sync-tab-content" style="display:none;">Loading...</div>
                     <div id="connectionTabReservations" class="gas-sync-tab-content" style="display:none;">Loading...</div>
                     <div id="connectionTabReviews" class="gas-sync-tab-content" style="display:none;">Loading...</div>
@@ -116132,10 +116134,91 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             if (tab === 'overview') await loadConnectionOverview();
             else if (tab === 'properties') await loadConnectionPropertiesTab();
+            else if (tab === 'publish') await loadPublishToChannexTab();
             else if (tab === 'propertyCheck') await loadPropertyCheckTab();
             else if (tab === 'reservations') await loadConnectionReservationsTab();
             else if (tab === 'reviews') await loadConnectionReviewsTab();
             else if (tab === 'settings') loadConnectionSettingsTab();
+        }
+
+        // Reveal the Publish tab only for Channex connections. Called after
+        // loadConnectionOverview so the adapter_code is known. Steve 2026-08-24.
+        function _maybeShowPublishTab(adapterCode) {
+            const btn = document.getElementById('connectionTabBtnPublish');
+            if (btn) btn.style.display = (adapterCode === 'channex') ? '' : 'none';
+        }
+
+        async function loadPublishToChannexTab() {
+            const container = document.getElementById('connectionTabPublish');
+            container.innerHTML = 'Loading room list…';
+            try {
+                const d = await fetch(`/api/admin/channex/${selectedConnectionId}/publishable-rooms`, { headers: authHeaders() }).then(r => r.json());
+                if (!d.success) { container.innerHTML = '<div style="color:#dc2626">Error: ' + (d.error || 'load failed') + '</div>'; return; }
+                const rooms = d.rooms || [];
+                if (!rooms.length) { container.innerHTML = '<p>No bookable units for this account.</p>'; return; }
+                // Group by property
+                const byProp = {};
+                rooms.forEach(r => {
+                    const k = r.property_id + '::' + (r.property_name || 'Property ' + r.property_id);
+                    if (!byProp[k]) byProp[k] = [];
+                    byProp[k].push(r);
+                });
+                let html = `
+                    <div style="margin-bottom: 1rem; padding: 0.75rem; background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px; font-size: 0.9rem;">
+                        Tick the room types you want published to Channex → OTAs. Untick internal / maintenance / duplicate rooms.
+                        <br><strong>Note:</strong> Existing pushed rooms show ✓ Synced. Unticking a synced room does NOT delete it from Channex (soft-off) — you'll need to remove it from Channex manually if that matters.
+                    </div>
+                    <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+                        <button class="btn btn-secondary" onclick="_publishTickAll(true)">Tick All</button>
+                        <button class="btn btn-secondary" onclick="_publishTickAll(false)">Untick All</button>
+                    </div>`;
+                Object.keys(byProp).sort().forEach(k => {
+                    const [propId, propName] = k.split('::');
+                    html += `<h4 style="margin: 1rem 0 0.5rem;">${propName} <span style="color:#6b7280; font-size: 0.85rem;">(property ${propId})</span></h4>`;
+                    html += '<table style="width:100%; font-size:0.9rem; border-collapse:collapse;">';
+                    html += '<thead><tr style="background:#f9fafb; text-align:left;"><th style="padding:6px;">Publish</th><th style="padding:6px;">ID</th><th style="padding:6px;">Name</th><th style="padding:6px;">Qty</th><th style="padding:6px;">Status</th><th style="padding:6px;">Synced?</th></tr></thead><tbody>';
+                    byProp[k].forEach(r => {
+                        html += `<tr style="border-top:1px solid #e5e7eb;">
+                            <td style="padding:6px;"><input type="checkbox" class="_publish-cb" data-bu="${r.id}" ${r.channex_publishable ? 'checked' : ''}></td>
+                            <td style="padding:6px;">${r.id}</td>
+                            <td style="padding:6px;">${r.name || ''}</td>
+                            <td style="padding:6px;">${r.quantity || 1}</td>
+                            <td style="padding:6px;">${r.status || ''}${r.is_hidden ? ' <span style="color:#f59e0b;">(hidden)</span>' : ''}</td>
+                            <td style="padding:6px;">${r.synced_to_channex ? '<span style="color:#10b981;">✓ Synced</span>' : '<span style="color:#9ca3af;">—</span>'}</td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table>';
+                });
+                html += `<div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
+                    <button class="btn" onclick="_publishSave()">💾 Save selections</button>
+                </div>`;
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = '<div style="color:#dc2626">Error: ' + e.message + '</div>';
+            }
+        }
+        function _publishTickAll(checked) {
+            document.querySelectorAll('#connectionTabPublish ._publish-cb').forEach(cb => cb.checked = !!checked);
+        }
+        async function _publishSave() {
+            const updates = Array.from(document.querySelectorAll('#connectionTabPublish ._publish-cb')).map(cb => ({
+                bookable_unit_id: parseInt(cb.dataset.bu, 10),
+                channex_publishable: cb.checked
+            }));
+            try {
+                const d = await fetch(`/api/admin/channex/${selectedConnectionId}/publishable-rooms`, {
+                    method: 'POST',
+                    headers: {...authHeaders(), 'Content-Type': 'application/json'},
+                    body: JSON.stringify({ updates })
+                }).then(r => r.json());
+                if (d.success) {
+                    showNotification(`Saved — ${d.touched} rooms updated. Next: hit Push Property on this connection to publish only ticked rooms.`, 'success');
+                } else {
+                    showNotification('Save failed: ' + (d.error || 'unknown'), 'error');
+                }
+            } catch (e) {
+                showNotification('Save error: ' + e.message, 'error');
+            }
         }
 
         async function loadConnectionOverview() {
@@ -116146,6 +116229,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success) {
                     const conn = data.connection;
                     const isBeds24 = conn.adapter_code === 'beds24';
+                    _maybeShowPublishTab(conn.adapter_code);
                     container.innerHTML = `
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                             <div>
