@@ -3967,6 +3967,15 @@ function developer_developer_custom_css() {
             font-family: var(--developer-font-display);
         }
         
+        /* Low-specificity fallback so every heading picks up the Web
+           Builder → Styles fonts even when the container doesn\'t match
+           one of the .developer-* selectors below. Steve 2026-08-24 —
+           Belmont Hotel h2s were falling back to Times New Roman because
+           the sections weren\'t wrapped in .developer-section. Per-section
+           rules with higher specificity still win. */
+        h1 { font-family: var(--developer-font-display); }
+        h2, h3, h4, h5, h6 { font-family: var(--developer-subheading-font); }
+
         .developer-page-header h1,
         .developer-page-hero h1,
         .developer-hero h1,
