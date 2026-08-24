@@ -2058,6 +2058,20 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             btn.textContent = '✓ Channex Enabled';
             btn.style.background = 'var(--success)';
             addAiMessage(`All done — your Channex workspace <strong>${result.group_title}</strong> is live. Next step: from GAS Admin → Channel Manager → the new Channex connection → <strong>+ Connect Channel</strong> to plug in Booking.com or Airbnb.`);
+            // If the operator arrived here from inside GAS Admin (not from an
+            // initial signup wizard), auto-redirect back to Sync Connections
+            // after 2s so they don't get stranded. Detects the from=admin
+            // URL param OR any same-origin gas-admin referrer. Initial signup
+            // (no param, off-app referrer) stays on the wizard as before.
+            // Steve 2026-08-24.
+            try {
+                const _sp = new URLSearchParams(window.location.search);
+                const _fromAdmin = _sp.get('from') === 'admin'
+                    || (document.referrer && document.referrer.indexOf('/gas-admin') >= 0);
+                if (_fromAdmin) {
+                    setTimeout(() => { window.location.href = '/gas-admin.html#gas-sync-connections'; }, 2000);
+                }
+            } catch (_) { /* ignore — leave operator on wizard */ }
         } catch (err) {
             btn.disabled = false;
             btn.textContent = 'Enable Channex →';
