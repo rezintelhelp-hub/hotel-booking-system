@@ -27266,13 +27266,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     No push to any channel manager. The copy has no Beds24 / Channex / Hostfully id — it's a GAS-only record.
                 </p>
                 <div class="form-group">
-                    <label class="form-label">Room type</label>
-                    <select id="copy-booking-type" class="form-input" onchange="_copyBookingLoadIndividuals()"></select>
+                    <label class="form-label">Destination room</label>
+                    <select id="copy-booking-type" class="form-input"></select>
+                    <p style="margin:0.25rem 0 0; font-size:0.8rem; color:#6b7280;">Types with individual sub-rooms show each one; "auto-allocate" lets GAS pick a free physical room.</p>
                 </div>
                 <div class="form-group" id="copy-booking-iu-wrap" style="display:none;">
-                    <label class="form-label">Specific physical room (individual_unit)</label>
                     <select id="copy-booking-iu" class="form-input"></select>
-                    <p style="margin:0.25rem 0 0; font-size:0.8rem; color:#6b7280;">Leave blank to auto-allocate on first calendar render.</p>
                 </div>
             </div>
             <div class="modal-footer">
@@ -76106,53 +76105,52 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         // Copy-booking flow — silent, no CM push. Steve 2026-08-24.
+        // Single dropdown expands types + individual_units for one-click pick.
+        // Option value shape: "<bookable_unit_id>" for type-level, or
+        // "<bookable_unit_id>:<individual_unit_id>" for a specific sub-room.
         async function openCopyBookingModal() {
             const bookingId = document.getElementById('edit-booking-id').value;
             if (!bookingId) return;
-            // Reuse the property's room list already loaded in the edit modal's room select.
             const src = document.getElementById('edit-booking-room');
             const dst = document.getElementById('copy-booking-type');
-            dst.innerHTML = '';
-            Array.from(src.options).forEach(o => {
-                const opt = document.createElement('option');
-                opt.value = o.value;
-                opt.textContent = o.textContent;
-                if (o.value === src.value) opt.textContent += '  (current)';
-                dst.appendChild(opt);
-            });
+            const currentBu = src.value;
+            // Placeholder while we fetch children.
+            dst.innerHTML = '<option>Loading…</option>';
             document.getElementById('copy-booking-iu-wrap').style.display = 'none';
-            document.getElementById('copy-booking-iu').innerHTML = '';
             document.getElementById('copyBookingModal').style.display = 'flex';
-            _copyBookingLoadIndividuals();
-        }
-        async function _copyBookingLoadIndividuals() {
-            const typeId = document.getElementById('copy-booking-type').value;
-            const wrap = document.getElementById('copy-booking-iu-wrap');
-            const iuSel = document.getElementById('copy-booking-iu');
-            iuSel.innerHTML = '<option value="">— Auto-allocate —</option>';
-            wrap.style.display = 'none';
-            if (!typeId) return;
-            try {
-                const d = await fetch('/api/admin/bookable-units/' + typeId + '/individual-units', {headers: authHeaders()}).then(r => r.json());
-                const units = d.units || d.data || [];
+            // Build expanded list: for each type, one row for the type itself
+            // plus one row per individual_unit under it. Ordered as edit-booking-room lists.
+            const buOptions = Array.from(src.options).map(o => ({ id: o.value, label: o.textContent }));
+            const ius = await Promise.all(buOptions.map(async bu => {
+                try {
+                    const d = await fetch('/api/admin/bookable-units/' + bu.id + '/individual-units', {headers: authHeaders()}).then(r => r.json());
+                    return { bu, units: d.units || d.data || [] };
+                } catch (_) { return { bu, units: [] }; }
+            }));
+            let html = '';
+            ius.forEach(({bu, units}) => {
+                const isCurrent = bu.id === currentBu;
                 if (units.length > 0) {
+                    html += '<optgroup label="' + bu.label.replace(/"/g, '&quot;') + (isCurrent ? '  (current)' : '') + '">';
+                    html += '<option value="' + bu.id + '">' + bu.label + ' — auto-allocate</option>';
                     units.forEach(u => {
-                        const opt = document.createElement('option');
-                        opt.value = u.id;
-                        opt.textContent = (u.unit_name || u.name || ('Unit ' + u.id));
-                        iuSel.appendChild(opt);
+                        const nm = (u.unit_name || u.name || ('Unit ' + u.id));
+                        html += '<option value="' + bu.id + ':' + u.id + '">' + bu.label + ' → ' + nm + '</option>';
                     });
-                    wrap.style.display = 'block';
+                    html += '</optgroup>';
+                } else {
+                    html += '<option value="' + bu.id + '">' + bu.label + (isCurrent ? '  (current)' : '') + '</option>';
                 }
-            } catch (e) { console.warn('individual_units load failed:', e); }
+            });
+            dst.innerHTML = html;
         }
         async function runCopyBooking() {
             const bookingId = document.getElementById('edit-booking-id').value;
-            const typeId = document.getElementById('copy-booking-type').value;
-            const iuRaw = document.getElementById('copy-booking-iu').value;
-            if (!bookingId || !typeId) { showNotification('Pick a room type first.', 'error'); return; }
-            const body = { bookable_unit_id: parseInt(typeId) };
-            if (iuRaw) body.individual_unit_id = parseInt(iuRaw);
+            const raw = document.getElementById('copy-booking-type').value;
+            if (!bookingId || !raw) { showNotification('Pick a destination room first.', 'error'); return; }
+            const parts = raw.split(':');
+            const body = { bookable_unit_id: parseInt(parts[0]) };
+            if (parts[1]) body.individual_unit_id = parseInt(parts[1]);
             try {
                 const d = await fetch('/api/admin/bookings/' + bookingId + '/copy-to-unit', {
                     method: 'POST',
@@ -76169,6 +76167,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 showNotification('Copy error: ' + e.message, 'error');
             }
         }
+        // Kept as no-op stub so old inline onchange doesn\'t error if HTML cached.
+        function _copyBookingLoadIndividuals() {}
 
         async function saveBookingEdit() {
             const btn = document.getElementById('save-booking-btn');
