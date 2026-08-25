@@ -60970,9 +60970,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const start = new Date(from + 'T00:00:00');
                         const end = new Date(to + 'T00:00:00');
                         const prices = [];
+                        // Local date formatter — must NOT use toISOString() here,
+                        // it converts to UTC and shifts the day back for UTC+
+                        // operators (e.g. France UTC+2 → local Fri becomes UTC
+                        // Thu → wrong date). See feedback_local_date_lookup_not_utc.
+                        const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
                         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                             if (dowSet && !dowSet.has(d.getDay())) continue;
-                            prices.push({ date: d.toISOString().slice(0, 10), price: priceNum });
+                            prices.push({ date: fmt(d), price: priceNum });
                         }
                         if (prices.length > 800) { alert('Too many dates for one apply (max 800) — narrow the range or day filter'); btn.disabled = false; btn.textContent = 'Apply →'; return; }
                         const pr = await fetch('/api/admin/availability/batch-standard-prices', {
