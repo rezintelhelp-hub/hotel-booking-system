@@ -30939,6 +30939,65 @@ const promo = await fetch('/api/v1/offers/validate', {
          edit modal; click anywhere else or Escape to clear the selection. -->
     <div id="cal-selection-pill" style="display:none; position:fixed; background:#2563eb; color:white; padding:8px 14px; border-radius:999px; font-size:0.85rem; font-weight:500; box-shadow:0 6px 16px rgba(37,99,235,0.35); cursor:pointer; z-index:9999; user-select:none; white-space:nowrap; align-items:center;"></div>
 
+    <!-- Weekday / weekend pricing rule modal — Steve 2026-08-25.
+         Fills a date range with a weekday price + weekend price in one
+         click. Reusable for every migration onto GAS (Belmont being the
+         first). Backend: POST /api/admin/availability/batch-standard-prices. -->
+    <div id="dowPricingModal" class="modal">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; padding: 1rem 1.25rem; background: linear-gradient(135deg, #7c3aed, #5b21b6); color: white; border-radius: 12px 12px 0 0;">
+                <h3 style="margin:0; font-size:1.1rem;">📅 Weekday / Weekend Pricing</h3>
+                <button class="modal-close" onclick="closeModal('dowPricingModal')" style="color:white; font-size:1.5rem; background:none; border:none; cursor:pointer;">&times;</button>
+            </div>
+            <div style="padding: 1.25rem;">
+                <div style="background:#f5f3ff; padding:0.75rem 1rem; border-radius:8px; margin-bottom:1rem;">
+                    <div style="font-size:0.75rem; color:#6d28d9; text-transform: uppercase;">Room</div>
+                    <div style="font-weight:600; color:#1e293b;" id="dow-room-label">—</div>
+                </div>
+                <p style="font-size:0.85rem; color:#64748b; margin: 0 0 0.75rem;">
+                    Sets an override price on every date in the range. Any dates matching a "weekend" day get the weekend price; the rest get the weekday price.
+                </p>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin-bottom: 0.75rem;">
+                    <div>
+                        <label style="display:block; font-weight:500; margin-bottom:0.25rem; font-size:0.9rem;">Weekday price</label>
+                        <input type="number" step="0.01" min="0" id="dow-weekday-price" class="form-input" placeholder="e.g. 65" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight:500; margin-bottom:0.25rem; font-size:0.9rem;">Weekend price</label>
+                        <input type="number" step="0.01" min="0" id="dow-weekend-price" class="form-input" placeholder="e.g. 75" style="width:100%;">
+                    </div>
+                </div>
+                <div style="margin-bottom: 0.75rem;">
+                    <label style="display:block; font-weight:500; margin-bottom:0.5rem; font-size:0.9rem;">Which days count as weekend?</label>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:0.85rem;"><input type="checkbox" class="dow-weekend-day" value="1"> Mon</label>
+                        <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:0.85rem;"><input type="checkbox" class="dow-weekend-day" value="2"> Tue</label>
+                        <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:0.85rem;"><input type="checkbox" class="dow-weekend-day" value="3"> Wed</label>
+                        <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:0.85rem;"><input type="checkbox" class="dow-weekend-day" value="4"> Thu</label>
+                        <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:0.85rem;"><input type="checkbox" class="dow-weekend-day" value="5" checked> Fri</label>
+                        <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:0.85rem;"><input type="checkbox" class="dow-weekend-day" value="6" checked> Sat</label>
+                        <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:0.85rem;"><input type="checkbox" class="dow-weekend-day" value="0" checked> Sun</label>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin-bottom: 1.25rem;">
+                    <div>
+                        <label style="display:block; font-weight:500; margin-bottom:0.25rem; font-size:0.9rem;">From date</label>
+                        <input type="date" id="dow-from-date" class="form-input" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight:500; margin-bottom:0.25rem; font-size:0.9rem;">To date</label>
+                        <input type="date" id="dow-to-date" class="form-input" style="width:100%;">
+                    </div>
+                </div>
+                <div id="dow-preview" style="font-size:0.8rem; color:#64748b; margin-bottom: 1rem; padding: 0.5rem 0.75rem; background: #f8fafc; border-radius: 6px;">Fill fields to see preview.</div>
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                    <button class="btn btn-secondary" onclick="closeModal('dowPricingModal')">Cancel</button>
+                    <button class="btn" id="dow-apply-btn" onclick="applyDowPricing()" style="background:linear-gradient(135deg,#7c3aed,#5b21b6); color:#fff;">📅 Apply pricing</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="stdRateDisplayModal" class="modal">
         <div class="modal-content" style="max-width: 560px;">
             <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; padding: 1rem 1.25rem; background: linear-gradient(135deg, #0f766e, #115e59); color: white; border-radius: 12px 12px 0 0;">
@@ -59812,7 +59871,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const _safeName = String(room.name).replace(/'/g, "\\'");
                     html += '<tr style="background: #f8fafc;">';
                     html += `<td style="position: sticky; left: 0; background: #f8fafc; z-index: 5; padding: 6px 8px; font-weight: 600; color: #1f2937; font-size: 0.85rem; border-bottom: 1px solid #e5e7eb;"><strong>${_nameLink}${_capSuffix}</strong></td>`;
-                    html += `<td style="padding: 4px; text-align: center; background: #f8fafc; border-bottom: 1px solid #e5e7eb;"><button onclick="syncRoomPricing(${room.id}, '${_safeName}')" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.7rem; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;" title="Sync pricing from channel manager">&#8635;</button></td>`;
+                    html += `<td style="padding: 4px; text-align: center; background: #f8fafc; border-bottom: 1px solid #e5e7eb;"><button onclick="syncRoomPricing(${room.id}, '${_safeName}')" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.7rem; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;" title="Sync pricing from channel manager">&#8635;</button><button onclick="openDowPricingModal(${room.id}, '${_safeName}')" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.7rem; background: #7c3aed; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 2px;" title="Weekday / weekend pricing rule">DOW</button></td>`;
                     // Per-date "N free" badges in the type-header row. Server
                     // returns units_available + capacity on multi-qty rooms
                     // (see server.js per-sub-unit allocation pass). Lets the
@@ -59855,7 +59914,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const _safeNameSq = String(room.name).replace(/'/g, "\\'");
                     html += '<tr style="background: #f8fafc;">';
                     html += `<td style="position: sticky; left: 0; background: #f8fafc; z-index: 5; padding: 6px 8px; font-weight: 600; color: #1f2937; font-size: 0.85rem; border-bottom: 1px solid #e5e7eb;"><strong>${_nameLinkSq}</strong></td>`;
-                    html += `<td style="padding: 4px; text-align: center; background: #f8fafc; border-bottom: 1px solid #e5e7eb;"><button onclick="syncRoomPricing(${room.id}, '${_safeNameSq}')" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.7rem; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;" title="Sync pricing from channel manager">&#8635;</button></td>`;
+                    html += `<td style="padding: 4px; text-align: center; background: #f8fafc; border-bottom: 1px solid #e5e7eb;"><button onclick="syncRoomPricing(${room.id}, '${_safeNameSq}')" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.7rem; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;" title="Sync pricing from channel manager">&#8635;</button><button onclick="openDowPricingModal(${room.id}, '${_safeNameSq}')" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.7rem; background: #7c3aed; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 2px;" title="Weekday / weekend pricing rule">DOW</button></td>`;
                     html += `<td colspan="${dates.length}" style="background: #f8fafc; padding: 0; border-bottom: 1px solid #e5e7eb;"></td>`;
                     html += '</tr>';
                     html += renderPriceRow(room, roomData, true);
@@ -60872,7 +60931,87 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('edit-price-group').style.display = action === 'price' ? 'block' : 'none';
             document.getElementById('edit-discount-group').style.display = action === 'discount' ? 'block' : 'none';
         }
-        
+
+        // Weekday / weekend pricing rule (Steve 2026-08-25). Opens per-room from
+        // the DOW button next to ↻ in detailed availability. Loops the range,
+        // classifies each date via Date.getDay() (0=Sun..6=Sat), assigns
+        // weekday or weekend price, calls the existing batch-standard-prices
+        // endpoint which fans out to Channex via the outbox. Used first for
+        // Belmont Beds24→Channex migration.
+        let _dowRoomId = null;
+        function openDowPricingModal(roomId, roomName) {
+            _dowRoomId = roomId;
+            document.getElementById('dow-room-label').textContent = roomName || ('Room ' + roomId);
+            document.getElementById('dow-weekday-price').value = '';
+            document.getElementById('dow-weekend-price').value = '';
+            const today = new Date();
+            const yr = new Date(today.getTime() + 365 * 86400000);
+            document.getElementById('dow-from-date').value = today.toISOString().slice(0, 10);
+            document.getElementById('dow-to-date').value = yr.toISOString().slice(0, 10);
+            document.querySelectorAll('.dow-weekend-day').forEach(cb => {
+                cb.checked = ['0', '5', '6'].includes(cb.value);
+            });
+            _dowUpdatePreview();
+            ['dow-weekday-price', 'dow-weekend-price', 'dow-from-date', 'dow-to-date'].forEach(id => {
+                document.getElementById(id).oninput = _dowUpdatePreview;
+            });
+            document.querySelectorAll('.dow-weekend-day').forEach(cb => { cb.onchange = _dowUpdatePreview; });
+            openModal('dowPricingModal');
+        }
+        function _dowBuildPrices() {
+            const from = document.getElementById('dow-from-date').value;
+            const to = document.getElementById('dow-to-date').value;
+            const wd = parseFloat(document.getElementById('dow-weekday-price').value);
+            const we = parseFloat(document.getElementById('dow-weekend-price').value);
+            const weekendDays = new Set(Array.from(document.querySelectorAll('.dow-weekend-day:checked')).map(cb => parseInt(cb.value)));
+            if (!from || !to || isNaN(wd) || isNaN(we)) return null;
+            const start = new Date(from + 'T00:00:00');
+            const end = new Date(to + 'T00:00:00');
+            if (end < start) return null;
+            const out = [];
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                const dow = d.getDay();
+                const price = weekendDays.has(dow) ? we : wd;
+                out.push({ date: d.toISOString().slice(0, 10), price });
+            }
+            return out;
+        }
+        function _dowUpdatePreview() {
+            const el = document.getElementById('dow-preview');
+            const prices = _dowBuildPrices();
+            if (!prices) { el.textContent = 'Fill weekday + weekend price + valid date range.'; return; }
+            const wdCount = prices.filter(p => p.price === parseFloat(document.getElementById('dow-weekday-price').value)).length;
+            const weCount = prices.length - wdCount;
+            el.innerHTML = `<strong>${prices.length}</strong> date${prices.length === 1 ? '' : 's'} — ${wdCount} weekday · ${weCount} weekend`;
+        }
+        async function applyDowPricing() {
+            if (!_dowRoomId) return;
+            const prices = _dowBuildPrices();
+            if (!prices) { showNotification('Fill weekday + weekend price + date range', 'error'); return; }
+            if (prices.length > 400) { showNotification('Max 400 dates per apply — narrow the range', 'error'); return; }
+            const btn = document.getElementById('dow-apply-btn');
+            btn.disabled = true; btn.textContent = 'Applying…';
+            try {
+                const r = await fetch('/api/admin/availability/batch-standard-prices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ room_id: _dowRoomId, prices })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    showNotification('Pricing applied to ' + (d.saved || prices.length) + ' dates — Channex push queued', 'success');
+                    closeModal('dowPricingModal');
+                    if (typeof loadGridData === 'function') loadGridData();
+                } else {
+                    showNotification('Failed: ' + (d.error || 'unknown'), 'error');
+                }
+            } catch (e) {
+                showNotification('Error: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false; btn.textContent = '📅 Apply pricing';
+            }
+        }
+
         // Bulk apply — open the modal, populate rooms, wire live preview.
         // Nothing writes until the operator confirms via a native confirm().
         async function openBulkApplyModal() {
