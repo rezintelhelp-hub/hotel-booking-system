@@ -30851,6 +30851,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div style="padding: 0.85rem 1rem; background:#fafafa; border:1px solid #e2e8f0; border-radius:8px;">
                         <div style="font-weight:600; font-size:0.85rem; color:#64748b; margin-bottom:0.5rem;">Action</div>
                         <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:10px;">
+                            <input type="number" step="0.01" min="0" id="bulk-apply-price" class="form-input" onchange="updateBulkApplyPreview()" oninput="updateBulkApplyPreview()" style="width:120px; padding:4px 8px; font-size:0.85rem;" placeholder="e.g. 65">
+                            <span style="font-size:0.85rem; color:#64748b; padding-top:5px;">Standard Price per night. Blank = don't change price.</span>
+                        </label>
+                        <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:10px;">
                             <select id="bulk-apply-block" class="form-input" style="width:auto; padding:4px 8px; font-size:0.85rem;">
                                 <option value="none">— leave as-is —</option>
                                 <option value="true">Block dates</option>
@@ -60888,6 +60892,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Reset actions + weekday ticks
             document.getElementById('bulk-apply-block').value = 'none';
             document.getElementById('bulk-apply-hide').value = 'none';
+            document.getElementById('bulk-apply-price').value = '';
             document.querySelectorAll('.bulk-apply-dow').forEach(cb => cb.checked = false);
             document.getElementById('bulk-apply-block').onchange = updateBulkApplyPreview;
             document.getElementById('bulk-apply-hide').onchange = updateBulkApplyPreview;
@@ -60901,12 +60906,13 @@ const promo = await fetch('/api/v1/offers/validate', {
             const to = document.getElementById('bulk-apply-to').value;
             const block = document.getElementById('bulk-apply-block').value;
             const hide = document.getElementById('bulk-apply-hide').value;
+            const priceRaw = document.getElementById('bulk-apply-price').value.trim();
             const weekdays = Array.from(document.querySelectorAll('.bulk-apply-dow:checked')).map(cb => parseInt(cb.value, 10));
             const previewEl = document.getElementById('bulk-apply-preview');
             const btn = document.getElementById('bulk-apply-confirm-btn');
             btn.disabled = true;
             if (!roomId || !from || !to) { previewEl.innerHTML = 'Pick a room + range to see how many dates will be affected.'; return; }
-            if (block === 'none' && hide === 'none') { previewEl.innerHTML = 'Pick at least one action (Block and/or Hide from OTAs).'; return; }
+            if (block === 'none' && hide === 'none' && priceRaw === '') { previewEl.innerHTML = 'Pick at least one action (Price, Block, or Hide from OTAs).'; return; }
             try {
                 const r = await fetch(`/api/admin/units/${roomId}/bulk-apply?preview=1`, {
                     method: 'POST',
@@ -60916,6 +60922,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const d = await r.json();
                 if (!d.success) { previewEl.innerHTML = 'Preview failed: ' + (d.error || 'unknown'); return; }
                 const actions = [];
+                if (priceRaw !== '') actions.push('💷 Price = £' + priceRaw);
                 if (block !== 'none') actions.push(block === 'true' ? '🚫 Block' : '↺ Unblock');
                 if (hide !== 'none') actions.push(hide === 'true' ? '🌐 Hide from OTAs' : '↺ Restore OTAs');
                 previewEl.innerHTML = `<div style="font-size:1.05rem;">This will affect <strong>${d.count}</strong> date${d.count === 1 ? '' : 's'}</div>` +
@@ -60931,6 +60938,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const to = document.getElementById('bulk-apply-to').value;
             const blockRaw = document.getElementById('bulk-apply-block').value;
             const hideRaw = document.getElementById('bulk-apply-hide').value;
+            const priceRaw = document.getElementById('bulk-apply-price').value.trim();
             const weekdays = Array.from(document.querySelectorAll('.bulk-apply-dow:checked')).map(cb => parseInt(cb.value, 10));
             const block = blockRaw === 'none' ? null : (blockRaw === 'true');
             const hide_otas = hideRaw === 'none' ? null : (hideRaw === 'true');
@@ -60939,14 +60947,44 @@ const promo = await fetch('/api/v1/offers/validate', {
             const btn = document.getElementById('bulk-apply-confirm-btn');
             btn.disabled = true; btn.textContent = 'Working…';
             try {
-                const r = await fetch(`/api/admin/units/${roomId}/bulk-apply`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ from, to, weekdays, block, hide_otas })
-                });
-                const d = await r.json();
-                if (!d.success) { alert('Failed: ' + (d.error || 'unknown')); btn.disabled = false; btn.textContent = 'Apply →'; return; }
-                showNotification(`✓ Applied to ${d.count} date${d.count === 1 ? '' : 's'}`, 'success');
+                // 1) block / hide via existing endpoint if either action set
+                let count = 0;
+                if (block !== null || hide_otas !== null) {
+                    const r = await fetch(`/api/admin/units/${roomId}/bulk-apply`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ from, to, weekdays, block, hide_otas })
+                    });
+                    const d = await r.json();
+                    if (!d.success) { alert('Failed: ' + (d.error || 'unknown')); btn.disabled = false; btn.textContent = 'Apply →'; return; }
+                    count = d.count;
+                }
+                // 2) standard price via batch-standard-prices if price set —
+                //    honours the day-of-week filter client-side. Fans out to
+                //    Channex via the outbox. Steve 2026-08-25.
+                if (priceRaw !== '') {
+                    const priceNum = parseFloat(priceRaw);
+                    if (!isNaN(priceNum) && priceNum >= 0) {
+                        const dowSet = weekdays.length ? new Set(weekdays) : null;
+                        const start = new Date(from + 'T00:00:00');
+                        const end = new Date(to + 'T00:00:00');
+                        const prices = [];
+                        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                            if (dowSet && !dowSet.has(d.getDay())) continue;
+                            prices.push({ date: d.toISOString().slice(0, 10), price: priceNum });
+                        }
+                        if (prices.length > 400) { alert('Too many dates for one apply (max 400) — narrow the range or day filter'); btn.disabled = false; btn.textContent = 'Apply →'; return; }
+                        const pr = await fetch('/api/admin/availability/batch-standard-prices', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                            body: JSON.stringify({ room_id: parseInt(roomId), prices })
+                        });
+                        const pd = await pr.json();
+                        if (!pd.success) { alert('Price save failed: ' + (pd.error || 'unknown')); btn.disabled = false; btn.textContent = 'Apply →'; return; }
+                        count = Math.max(count, pd.saved || prices.length);
+                    }
+                }
+                showNotification(`✓ Applied to ${count} date${count === 1 ? '' : 's'}`, 'success');
                 closeModal('bulkApplyModal');
                 if (typeof loadGridData === 'function') loadGridData();
             } catch (e) {
