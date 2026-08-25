@@ -75045,6 +75045,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     showNotification(`Added ${d.currency} ${d.total_amount} to booking (reserved — not charged)`, 'success');
                 }
                 await loadBookingExtras(_currentExtraBookingId, _currentBookingHasStripeCard);
+                // Refresh the full booking detail so grand_total / balance /
+                // payment status reflect the new charge without the operator
+                // having to close + reopen. Steve 2026-08-25.
+                if (typeof viewBooking === 'function' && _currentExtraBookingId) {
+                    viewBooking(_currentExtraBookingId).catch(() => {});
+                }
             } catch (e) {
                 showNotification('Add failed: ' + e.message, 'error');
             }
