@@ -40602,33 +40602,44 @@ const promo = await fetch('/api/v1/offers/validate', {
         function sbInsertLink(el) {
             const scope = el.closest('.sb-card-item') || el.closest('.sb-testi-item') || el.closest('.sb-faq-item') || el.closest('.form-group');
             const editor = scope?.querySelector('[contenteditable="true"]');
-            if (!editor) { console.warn('sbInsertLink: no editor found'); return; }
+            if (!editor) { console.warn('[sbInsertLink] no editor found'); return; }
             const sel = window.getSelection();
-            let savedRange = null;
+            let savedRange = null, selectedText = '';
             if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
                 savedRange = sel.getRangeAt(0).cloneRange();
+                selectedText = savedRange.toString();
             }
+            console.log('[sbInsertLink] before prompt — selectedText:', JSON.stringify(selectedText));
             const url = gasNormalizeLinkUrl(prompt('URL:'));
-            if (!url) return;
+            if (!url) { console.log('[sbInsertLink] user cancelled'); return; }
+            console.log('[sbInsertLink] url:', url);
             editor.focus();
-            if (savedRange) {
+            // Build the anchor directly in the DOM — execCommand createLink is
+            // deprecated + unreliable in modern Chromium; direct insertNode
+            // works consistently. Steve 2026-08-25.
+            const link = document.createElement('a');
+            link.href = url;
+            link.textContent = selectedText || url;
+            // target=_blank added defensively — the theme's media-link script
+            // also tags PDFs/uploads, but this covers external links too.
+            if (/^(https?:\/\/|\/\/)/i.test(url)) {
+                link.target = '_blank';
+                link.rel = 'noopener';
+            }
+            if (savedRange && selectedText) {
+                savedRange.deleteContents();
+                savedRange.insertNode(link);
+                // Move caret to end of the inserted link
+                const after = document.createRange();
+                after.setStartAfter(link);
+                after.collapse(true);
                 sel.removeAllRanges();
-                sel.addRange(savedRange);
+                sel.addRange(after);
+            } else {
+                // No selection — insert the anchor at end of the editor
+                editor.appendChild(link);
             }
-            // Guard: if no selection now (user clicked Link without selecting
-            // any text) — prompt the user by wrapping the URL as its own link
-            // at the cursor position so we don't silently drop the input.
-            const cur = window.getSelection();
-            if (!cur || cur.isCollapsed) {
-                const linkText = savedRange ? savedRange.toString() : '';
-                if (!linkText) {
-                    // Insert the URL as its own visible link at the cursor
-                    document.execCommand('insertHTML', false, '<a href="' + url.replace(/"/g,'&quot;') + '" target="_blank" rel="noopener">' + url + '</a>');
-                    editor.dispatchEvent(new Event('input', { bubbles: true }));
-                    return;
-                }
-            }
-            document.execCommand('createLink', false, url);
+            console.log('[sbInsertLink] editor.innerHTML now:', editor.innerHTML);
             editor.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
