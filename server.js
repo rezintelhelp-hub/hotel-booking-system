@@ -121074,8 +121074,8 @@ app.post('/api/admin/bookings/:id/extras', express.json(), async (req, res) => {
     const { source_type, source_id, name, unit_price, qty, charge_now } = req.body || {};
 
     // Validation
-    if (!['shop_product', 'custom'].includes(source_type)) {
-      return res.status(400).json({ success: false, error: "source_type must be 'shop_product' or 'custom'" });
+    if (!['shop_product', 'upsell', 'custom'].includes(source_type)) {
+      return res.status(400).json({ success: false, error: "source_type must be 'shop_product', 'upsell' or 'custom'" });
     }
     if (!name || !String(name).trim()) return res.status(400).json({ success: false, error: 'Name required' });
     const price = parseFloat(unit_price);
@@ -121113,6 +121113,28 @@ app.post('/api/admin/bookings/:id/extras', express.json(), async (req, res) => {
         [parseInt(source_id, 10), b.account_id]
       );
       if (pR.rows.length === 0) return res.status(400).json({ success: false, error: 'Product not found on this account' });
+    }
+    // If upsell source, verify the upsell exists on a property this account owns.
+    // Steve 2026-08-25 — Lehmann Priority Check-in was missing from picker
+    // because the picker only queried shop_products; upsells table needs
+    // parallel treatment. Ownership check mirrors the account-scoped listing
+    // at /api/admin/upsells (property_id OR any property_ids[] OR account-wide
+    // via user_id).
+    if (source_type === 'upsell') {
+      if (!source_id) return res.status(400).json({ success: false, error: 'source_id required for upsell' });
+      const uR = await pool.query(
+        `SELECT u.id FROM upsells u
+           LEFT JOIN properties p ON p.id = u.property_id
+          WHERE u.id = $1
+            AND (
+              p.account_id = $2
+              OR EXISTS (SELECT 1 FROM properties p2 WHERE p2.id = ANY(u.property_ids) AND p2.account_id = $2)
+              OR (u.user_id = $2 AND u.property_id IS NULL AND (u.property_ids IS NULL OR cardinality(u.property_ids) = 0))
+            )
+          LIMIT 1`,
+        [parseInt(source_id, 10), b.account_id]
+      );
+      if (uR.rows.length === 0) return res.status(400).json({ success: false, error: 'Upsell not found on this account' });
     }
 
     const currency = String(b.currency || b.property_currency || 'USD').toUpperCase();

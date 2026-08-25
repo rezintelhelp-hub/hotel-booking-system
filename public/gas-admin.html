@@ -74939,17 +74939,33 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('add-extra-charge-now').checked = _currentBookingHasStripeCard;
             document.getElementById('add-extra-charge-now').disabled = !_currentBookingHasStripeCard;
             document.getElementById('add-extra-no-card-warning').style.display = _currentBookingHasStripeCard ? 'none' : 'block';
-            // Load account's upsell products (cache per account across opens)
+            // Load shop products AND standalone upsells (Steve 2026-08-25):
+            // Lehmann's "Priority Check-in" was a standalone upsell — never
+            // appeared in the picker because we only queried shop products.
+            // Now fetch both and merge into one dropdown. Shop-linked upsells
+            // that mirror a shop product get deduped by preferring the upsell
+            // row (since that's what the operator sees on the Upsells page).
             const accId = (typeof selectedAccountId !== 'undefined' && selectedAccountId) || (currentAccount && currentAccount.id) || null;
             const sel = document.getElementById('add-extra-product-select');
             const emptyMsg = document.getElementById('add-extra-product-empty');
             if (_cachedShopProductsForAccount.account_id !== accId) {
                 sel.innerHTML = '<option value="">— Loading products…</option>';
                 try {
-                    const r = await fetch('/api/admin/shop/products' + (accId ? '?client_id=' + accId : ''), { headers: authHeaders() });
-                    const d = await r.json();
-                    const list = (d.products || []).filter(p => p.is_active !== false);
-                    _cachedShopProductsForAccount = { account_id: accId, products: list };
+                    const [rShop, rUps] = await Promise.all([
+                        fetch('/api/admin/shop/products' + (accId ? '?client_id=' + accId : ''), { headers: authHeaders() }).then(r => r.json()).catch(() => ({})),
+                        fetch('/api/admin/upsells' + (accId ? '?account_id=' + accId : ''), { headers: authHeaders() }).then(r => r.json()).catch(() => ({}))
+                    ]);
+                    const shopList = (rShop.products || []).filter(p => p.is_active !== false).map(p => ({
+                        source_type: 'shop_product', id: p.id, name: p.name, price: p.price, currency: p.currency || '', shop_product_id: p.id
+                    }));
+                    const upsList = (rUps.data || []).filter(u => u.active !== false).map(u => ({
+                        source_type: 'upsell', id: u.id, name: u.name, price: u.price, currency: u.currency || '', shop_product_id: u.shop_product_id || null
+                    }));
+                    // Dedupe: if an upsell mirrors a shop product, drop the shop row.
+                    const mirroredShopIds = new Set(upsList.map(u => u.shop_product_id).filter(Boolean));
+                    const merged = upsList.concat(shopList.filter(p => !mirroredShopIds.has(p.id)));
+                    merged.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    _cachedShopProductsForAccount = { account_id: accId, products: merged };
                 } catch (e) { _cachedShopProductsForAccount = { account_id: accId, products: [] }; }
             }
             const list = _cachedShopProductsForAccount.products;
@@ -74960,7 +74976,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.querySelector('input[name="add-extra-source"][value="custom"]').checked = true;
             } else {
                 sel.innerHTML = '<option value="">— Pick from list —</option>' +
-                    list.map(p => `<option value="${p.id}" data-price="${p.price}" data-name="${(p.name||'').replace(/"/g,'&quot;')}" data-currency="${p.currency || ''}">${(p.name||'').replace(/</g,'&lt;')} — ${p.currency || ''} ${p.price}</option>`).join('');
+                    list.map(p => `<option value="${p.source_type}:${p.id}" data-source-type="${p.source_type}" data-source-id="${p.id}" data-price="${p.price}" data-name="${(p.name||'').replace(/"/g,'&quot;')}" data-currency="${p.currency || ''}">${(p.name||'').replace(/</g,'&lt;')} — ${p.currency || ''} ${p.price}</option>`).join('');
                 emptyMsg.style.display = 'none';
             }
             switchAddExtraSource();
@@ -74993,12 +75009,20 @@ const promo = await fetch('/api/v1/offers/validate', {
             const qty = parseInt(document.getElementById('add-extra-qty').value, 10) || 1;
             const chargeNow = !!document.getElementById('add-extra-charge-now').checked;
             let source_id = null;
+            let source_type_out = source;
             let name = '';
             if (source === 'shop_product') {
+                // The dropdown now holds both shop_product AND upsell entries
+                // (Steve 2026-08-25 — Priority Check-in fix). Each option's
+                // data-source-type tells us which table backs the pick, and
+                // data-source-id is that row's id. The radio label still reads
+                // "From upsell list" so the operator UX is unchanged.
                 const sel = document.getElementById('add-extra-product-select');
-                source_id = parseInt(sel.value, 10);
-                if (!source_id) { showNotification('Pick a product from the list', 'error'); return; }
-                name = sel.options[sel.selectedIndex].dataset.name || sel.options[sel.selectedIndex].textContent.split(' — ')[0];
+                if (!sel.value) { showNotification('Pick a product from the list', 'error'); return; }
+                const opt = sel.options[sel.selectedIndex];
+                source_type_out = opt.dataset.sourceType || 'shop_product';
+                source_id = parseInt(opt.dataset.sourceId || sel.value, 10);
+                name = opt.dataset.name || opt.textContent.split(' — ')[0];
             } else {
                 name = (document.getElementById('add-extra-name').value || '').trim();
                 if (!name) { showNotification('Custom item needs a name', 'error'); return; }
@@ -75008,7 +75032,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const r = await fetch('/api/admin/bookings/' + _currentExtraBookingId + '/extras', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ source_type: source, source_id, name, unit_price: price, qty, charge_now: chargeNow })
+                    body: JSON.stringify({ source_type: source_type_out, source_id, name, unit_price: price, qty, charge_now: chargeNow })
                 });
                 const d = await r.json();
                 if (!d.success) { showNotification('Add failed: ' + (d.error || 'unknown'), 'error'); return; }
