@@ -10101,6 +10101,72 @@ app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
   }
 });
 
+// Fast populate-only for gas_sync_room_types.price_linking. Hits Beds24
+// properties?includePriceRules=true for each property in the connection,
+// writes any linking metadata found. No calendar iteration, no availability
+// writes — just the linking metadata that other sync paths depend on.
+// Steve 2026-08-25 — Belmont's sync-availability was timing out at 502
+// gateway; per-room ↻ needs this metadata to fall back to linked prices.
+app.post('/api/gas-sync/connections/:id/refresh-price-linking', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const conn = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [id]);
+    if (!conn.rows[0]) return res.status(404).json({ success: false, error: 'Connection not found' });
+    const c = conn.rows[0];
+    if (c.adapter_code !== 'beds24') return res.json({ success: false, error: 'Only beds24 adapter supported' });
+    let accessToken = c.access_token;
+    if (!accessToken && c.refresh_token) {
+      try {
+        const tr = await axios.get('https://beds24.com/api/v2/authentication/token', { headers: { refreshToken: c.refresh_token } });
+        accessToken = tr.data.token;
+        await pool.query('UPDATE gas_sync_connections SET access_token=$1 WHERE id=$2', [accessToken, id]);
+      } catch (e) {
+        return res.json({ success: false, error: 'Token refresh failed: ' + e.message });
+      }
+    }
+    if (!accessToken) return res.json({ success: false, error: 'No access token' });
+    const props = await pool.query(`SELECT id, external_id, name FROM gas_sync_properties WHERE connection_id=$1 AND gas_property_id IS NOT NULL`, [id]);
+    let populated = 0, propertiesTouched = 0;
+    const perProp = [];
+    for (const prop of props.rows) {
+      let roomsLinked = 0;
+      try {
+        const r = await axios.get('https://beds24.com/api/v2/properties', {
+          headers: { token: accessToken },
+          params: { id: prop.external_id, includeAllRooms: true, includePriceRules: true }
+        });
+        const pd = r.data?.data?.[0];
+        if (pd?.roomTypes) {
+          for (const rt of pd.roomTypes) {
+            const pr = rt.priceRules?.find(p => p.priceLinking?.roomId);
+            if (pr?.priceLinking) {
+              const meta = {
+                sourceRoomId: pr.priceLinking.roomId,
+                priceId: pr.priceLinking.priceId || 1,
+                offsetAmount: pr.priceLinking.offsetAmount || 0,
+                offsetMultiplier: pr.priceLinking.offsetMultiplier || 1,
+              };
+              await pool.query(`UPDATE gas_sync_room_types SET price_linking=$1 WHERE external_id=$2 AND sync_property_id=$3`,
+                [JSON.stringify(meta), String(rt.id), prop.id]);
+              roomsLinked++;
+              populated++;
+            }
+          }
+        }
+        propertiesTouched++;
+      } catch (e) {
+        perProp.push({ property: prop.name, error: e.response?.data?.error || e.message });
+        continue;
+      }
+      perProp.push({ property: prop.name, external_id: prop.external_id, roomsLinked });
+    }
+    res.json({ success: true, propertiesTouched, roomsLinked: populated, perProperty: perProp });
+  } catch (e) {
+    console.error('[refresh-price-linking]', e.message);
+    res.json({ success: false, error: e.message });
+  }
+});
+
 // Debug endpoint to check price_linking status for a connection
 app.get('/api/gas-sync/connections/:id/price-linking-status', async (req, res) => {
   try {
