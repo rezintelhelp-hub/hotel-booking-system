@@ -5051,6 +5051,58 @@ function developer_email_obfuscation_script() {
 add_action('wp_footer', 'developer_email_obfuscation_script', 20);
 
 /**
+ * Media links open in a new tab (Steve 2026-08-25). Any anchor whose href
+ * points to an uploaded media file (PDF, DOC, XLS, ZIP, image) or lives
+ * under /uploads/ gets target="_blank" + rel="noopener" at render time.
+ * Means Web Builder users can paste a Media-Library URL into a button or
+ * rich-text link and it "just works" — guest doesn't lose the site tab
+ * when they click a menu PDF or brochure.
+ */
+function developer_media_link_new_tab_script() {
+    ?>
+    <script>
+    (function(){
+      var MEDIA_RE = /(\.(pdf|docx?|xlsx?|pptx?|zip|rar|7z|csv|txt|rtf|odt|ods|odp)($|\?))|(\/uploads\/)|(\/wp-content\/uploads\/)/i;
+      function tagLinks(root){
+        try {
+          (root || document).querySelectorAll('a[href]').forEach(function(a){
+            if (a.dataset.gasMediaTagged) return;
+            var href = a.getAttribute('href') || '';
+            if (MEDIA_RE.test(href)) {
+              a.setAttribute('target', '_blank');
+              var rel = (a.getAttribute('rel') || '').split(/\s+/).filter(Boolean);
+              if (rel.indexOf('noopener') === -1) rel.push('noopener');
+              a.setAttribute('rel', rel.join(' '));
+              a.dataset.gasMediaTagged = '1';
+            }
+          });
+        } catch(e){}
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function(){ tagLinks(); });
+      } else {
+        tagLinks();
+      }
+      // Re-scan after client-side renders (Web Builder previews, spark
+      // sections, etc.) — cheap MutationObserver so late-inserted anchors
+      // also pick up the new-tab behaviour.
+      if (window.MutationObserver) {
+        new MutationObserver(function(muts){
+          for (var i = 0; i < muts.length; i++) {
+            for (var j = 0; j < muts[i].addedNodes.length; j++) {
+              var n = muts[i].addedNodes[j];
+              if (n.nodeType === 1) tagLinks(n);
+            }
+          }
+        }).observe(document.body, { childList: true, subtree: true });
+      }
+    })();
+    </script>
+    <?php
+}
+add_action('wp_footer', 'developer_media_link_new_tab_script', 21);
+
+/**
  * Admin Notice if GAS Booking not installed
  */
 function developer_admin_notice() {
