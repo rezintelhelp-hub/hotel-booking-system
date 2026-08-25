@@ -41213,7 +41213,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return langTabsHtml + inp('heading', 'Heading') + inp('body', 'Description', 'textarea') +
                         cwSelect('normal') +
                         '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">' + inp('cta_text', 'Button Text') + inp('cta_link', 'Button Link') + '</div>' +
-                        inp('background_color', 'Background Color', 'color', sec.background_color || '#2563eb');
+                        '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">' +
+                            inp('background_color', 'Section Background', 'color', sec.background_color || '#2563eb') +
+                            inp('cta_button_bg', 'Button Background', 'color', sec.cta_button_bg || '#ffffff') +
+                            inp('cta_button_text', 'Button Text Color', 'color', sec.cta_button_text || (sec.background_color || '#2563eb')) +
+                        '</div>';
                 case 'gallery': {
                     const imgs = sec.images || [];
                     const colsVal = sec.columns || '3';

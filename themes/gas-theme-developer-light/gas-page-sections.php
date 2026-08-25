@@ -438,12 +438,18 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 $cta_text = gas_ps_field($section, 'cta_text', $lang);
                 $cta_link = $section['cta_link'] ?? '';
                 $bg_color = $section['background_color'] ?? $primary_color;
+                // Operator-configurable button colours (Steve 2026-08-25).
+                // Defaults preserve prior visual: white button, text tinted to
+                // the section background. When set, both drive the anchor
+                // inline style directly.
+                $btn_bg = $section['cta_button_bg'] ?? '#ffffff';
+                $btn_text = $section['cta_button_text'] ?? $bg_color;
                 ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-cta" style="padding: 50px 24px; background: <?php echo esc_attr($bg_color); ?>; text-align: center;">
                     <div style="max-width: 700px; margin: 0 auto;">
                         <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: #fff; margin: 0 0 16px;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
                         <?php if ($body) : ?><p style="font-size: 1.05rem; color: rgba(255,255,255,0.9); margin: 0 0 20px; line-height: 1.6;"><?php echo esc_html($body); ?></p><?php endif; ?>
-                        <?php if ($cta_text && $cta_link) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; background: #fff; color: <?php echo esc_attr($bg_color); ?>; padding: 14px 36px; border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 700; font-size: 1rem;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
+                        <?php if ($cta_text && $cta_link) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; background: <?php echo esc_attr($btn_bg); ?>; color: <?php echo esc_attr($btn_text); ?>; padding: 14px 36px; border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 700; font-size: 1rem;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                     </div>
                 </section>
                 <?php break;
