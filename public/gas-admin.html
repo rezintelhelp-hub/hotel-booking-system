@@ -60974,7 +60974,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             if (dowSet && !dowSet.has(d.getDay())) continue;
                             prices.push({ date: d.toISOString().slice(0, 10), price: priceNum });
                         }
-                        if (prices.length > 400) { alert('Too many dates for one apply (max 400) — narrow the range or day filter'); btn.disabled = false; btn.textContent = 'Apply →'; return; }
+                        if (prices.length > 800) { alert('Too many dates for one apply (max 800) — narrow the range or day filter'); btn.disabled = false; btn.textContent = 'Apply →'; return; }
                         const pr = await fetch('/api/admin/availability/batch-standard-prices', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },

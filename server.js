@@ -86481,8 +86481,10 @@ app.post('/api/admin/availability/batch-standard-prices', async (req, res) => {
     if (!room_id || !Array.isArray(prices) || prices.length === 0) {
       return res.json({ success: false, error: 'room_id and prices array required' });
     }
-    if (prices.length > 400) {
-      return res.json({ success: false, error: 'Maximum 400 prices per batch' });
+    // 800 = 2+ years, matches Channex 500-day horizon and Beds24 2-year
+    // sync window. Was 400 which choked bulk-apply on year+ ranges.
+    if (prices.length > 800) {
+      return res.json({ success: false, error: 'Maximum 800 prices per batch' });
     }
 
     await client.query('BEGIN');
