@@ -40601,7 +40601,13 @@ const promo = await fetch('/api/v1/offers/validate', {
         // empty range → no anchor produced → nothing to render.
         function sbInsertLink(el) {
             const scope = el.closest('.sb-card-item') || el.closest('.sb-testi-item') || el.closest('.sb-faq-item') || el.closest('.form-group');
-            const editor = scope?.querySelector('[contenteditable="true"]');
+            // Prefer the exact data-attr the save-collect uses (description /
+            // a-field), so what we insert is what gets read on save. Was
+            // .querySelector('[contenteditable="true"]') — could find a
+            // different contenteditable if the card gained another one later.
+            const editor = scope?.querySelector('[data-card-field="description"]')
+                || scope?.querySelector('[data-field="a"]')
+                || scope?.querySelector('[contenteditable="true"]');
             if (!editor) { console.warn('[sbInsertLink] no editor found'); return; }
             const sel = window.getSelection();
             let savedRange = null, selectedText = '';
