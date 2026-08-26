@@ -1925,6 +1925,14 @@ jQuery(document).ready(function($) {
         var n = nights || 1;
         var g = guests || 1;
         var basePrice = parseFloat(upsell.price) || 0;
+        // Per-guest-per-night customization overrides the auto-multiply when
+        // the entry carries custom_nights + custom_eating (from the widget's
+        // customize panel). Steve 2026-08-26 — Cleveland meals.
+        if (upsell.charge_type === 'per_guest_per_night'
+            && Array.isArray(upsell.custom_nights) && upsell.custom_nights.length > 0
+            && parseInt(upsell.custom_eating, 10) > 0) {
+            return basePrice * upsell.custom_nights.length * parseInt(upsell.custom_eating, 10);
+        }
         var fnp = (upsell.first_night_price !== undefined && upsell.first_night_price !== null && upsell.first_night_price !== '') ? parseFloat(upsell.first_night_price) : null;
         var snp = (upsell.subsequent_night_price !== undefined && upsell.subsequent_night_price !== null && upsell.subsequent_night_price !== '') ? parseFloat(upsell.subsequent_night_price) : null;
         var isPerNight = (upsell.charge_type === 'per_night' || upsell.charge_type === 'per_guest_per_night');
@@ -4846,12 +4854,31 @@ jQuery(document).ready(function($) {
         var chargeType = $card.attr('data-charge-type');
         if (chargeType !== 'per_guest_per_night') return;
         var unitPrice = parseFloat($custom.attr('data-unit-price')) || parseFloat($card.attr('data-unit-price')) || parseFloat($card.data('price')) || 0;
-        var nightsSelected = $card.find('.gas-upsell-night:checked').length;
+        var upsellId = $card.data('upsell-id');
+        var nightsSelected = $card.find('.gas-upsell-night:checked').map(function() { return $(this).data('date'); }).get();
         var eating = parseInt($card.find('.gas-upsell-eating').val(), 10) || 0;
-        var total = nightsSelected * eating * unitPrice;
-        var msg = nightsSelected + ' night' + (nightsSelected === 1 ? '' : 's') + ' × ' + eating + ' eating × ' + unitPrice.toFixed(2) + ' = ';
+        var total = nightsSelected.length * eating * unitPrice;
+        var msg = nightsSelected.length + ' night' + (nightsSelected.length === 1 ? '' : 's') + ' × ' + eating + ' eating × ' + unitPrice.toFixed(2) + ' = ';
         var cs = ($card.closest('.gas-widget').find('.gas-currency').text() || '£').charAt(0);
         $card.find('.gas-upsell-computed').html('<strong>' + msg + cs + total.toFixed(2) + '</strong>');
+        // Push customization onto the matching entry in checkoutData.selectedUpsells
+        // + trigger updateCheckoutPricing so the running total + Price Details
+        // reflect it. Steve 2026-08-26 — meal panel showed local total but
+        // didn't wire back into the cart. Also handles the room-widget
+        // selectedUpsells if that path is active.
+        try {
+            if (typeof checkoutData !== 'undefined' && Array.isArray(checkoutData.selectedUpsells)) {
+                var updated = false;
+                checkoutData.selectedUpsells.forEach(function(u) {
+                    if (String(u.id) === String(upsellId) && u.charge_type === 'per_guest_per_night') {
+                        u.custom_nights = nightsSelected;
+                        u.custom_eating = eating;
+                        updated = true;
+                    }
+                });
+                if (updated && typeof updateCheckoutPricing === 'function') updateCheckoutPricing();
+            }
+        } catch (e) {}
     }
     // Reveal the customize panel whenever a per_guest_per_night card gains
     // the .selected class. Works for both .gas-upsell-item (room page) and
