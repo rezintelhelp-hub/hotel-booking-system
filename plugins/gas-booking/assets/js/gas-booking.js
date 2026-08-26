@@ -4955,6 +4955,8 @@ jQuery(document).ready(function($) {
     })();
     $(document).on('change input', '.gas-upsell-sel-date, .gas-upsell-sel-eating', function(e) {
         var $card = $(this).closest('.gas-upsell-item, .gas-upsell-card');
+        var $panel = $(this).closest('.gas-upsell-customize');
+        if ($(this).hasClass('gas-upsell-sel-date')) _gasUpsellDedupeDateOptions($panel);
         _gasUpsellRecomputeCustomize($card);
         e.stopPropagation();
     });
@@ -4968,10 +4970,21 @@ jQuery(document).ready(function($) {
         if (!$firstRow.length) return;
         var maxRows = $firstRow.find('.gas-upsell-sel-date option').length;
         if ($panel.find('.gas-upsell-sel-row').length >= maxRows) return;
+        // Find the first date NOT already selected in another row.
+        var used = {};
+        $panel.find('.gas-upsell-sel-row .gas-upsell-sel-date').each(function() { used[$(this).val()] = true; });
+        var nextDate = null;
+        $firstRow.find('.gas-upsell-sel-date option').each(function() {
+            var v = $(this).val();
+            if (v && !used[v] && !nextDate) nextDate = v;
+        });
         var $clone = $firstRow.clone();
         $clone.find('.gas-upsell-sel-eating').val(1);
+        if (nextDate) $clone.find('.gas-upsell-sel-date').val(nextDate);
         $panel.find('.gas-upsell-selections').append($clone);
-        _gasUpsellRecomputeCustomize($(this).closest('.gas-upsell-item, .gas-upsell-card'));
+        var $card = $(this).closest('.gas-upsell-item, .gas-upsell-card');
+        _gasUpsellDedupeDateOptions($panel);
+        _gasUpsellRecomputeCustomize($card);
         _gasUpsellUpdateAddButton($panel);
     });
     function _gasUpsellUpdateAddButton($panel) {
@@ -4981,6 +4994,25 @@ jQuery(document).ready(function($) {
         $btn.prop('disabled', atMax).css({ opacity: atMax ? 0.4 : 1, cursor: atMax ? 'not-allowed' : 'pointer' })
             .text(atMax ? 'All nights added' : '+ Add another night');
     }
+    // Prevent picking the same date across multiple rows — disable in-use
+    // options in every OTHER row's select. Runs after any add/remove/change.
+    // Steve 2026-08-26 — no double-booking a night for the same meal.
+    function _gasUpsellDedupeDateOptions($panel) {
+        var used = {};
+        $panel.find('.gas-upsell-sel-row .gas-upsell-sel-date').each(function() {
+            var v = $(this).val();
+            if (v) used[v] = true;
+        });
+        $panel.find('.gas-upsell-sel-row .gas-upsell-sel-date').each(function() {
+            var $sel = $(this);
+            var current = $sel.val();
+            $sel.find('option').each(function() {
+                var v = $(this).val();
+                // Disable if used elsewhere, allow if it's this row's own pick
+                $(this).prop('disabled', !!used[v] && v !== current);
+            });
+        });
+    }
     // Remove row — leave at least one row visible
     $(document).on('click', '.gas-upsell-sel-remove', function(e) {
         e.stopPropagation();
@@ -4988,6 +5020,7 @@ jQuery(document).ready(function($) {
         if ($panel.find('.gas-upsell-sel-row').length <= 1) return;
         var $card = $(this).closest('.gas-upsell-item, .gas-upsell-card');
         $(this).closest('.gas-upsell-sel-row').remove();
+        _gasUpsellDedupeDateOptions($panel);
         _gasUpsellRecomputeCustomize($card);
         _gasUpsellUpdateAddButton($panel);
     });
