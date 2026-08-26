@@ -9149,8 +9149,22 @@ jQuery(document).ready(function($) {
                     var label = name;
                     if (qty > 1) label = qty + ' × ' + name;
                     if (upsell.upsell_date) label += ' on ' + formatUpsellDate(upsell.upsell_date);
+                    // Per-guest-per-night customization — surface the picked
+                    // nights + counts so guests see exactly what they've
+                    // booked (Steve 2026-08-26). Renders below the main line.
+                    var breakdownHtml = '';
+                    if (Array.isArray(upsell.night_selections) && upsell.night_selections.length > 0) {
+                        var parts = upsell.night_selections.map(function(s) {
+                            try {
+                                var d = new Date(s.date + 'T00:00:00');
+                                var lbl = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+                                return lbl + ' × ' + s.eating;
+                            } catch (e) { return s.date + ' × ' + s.eating; }
+                        });
+                        breakdownHtml = '<div class="gas-extra-item-detail" style="font-size:0.78rem;color:#64748b;margin-top:2px;padding-left:4px;">' + parts.join(', ') + '</div>';
+                    }
                     extrasHtml += '<div class="gas-extra-item">';
-                    extrasHtml += '<span>' + label + '</span>';
+                    extrasHtml += '<span>' + label + breakdownHtml + '</span>';
                     extrasHtml += '<span>' + formatPrice(itemTotal, currency) + '</span>';
                     extrasHtml += '</div>';
                 });
