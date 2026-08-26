@@ -73820,6 +73820,21 @@ app.post('/api/admin/offers', async (req, res) => {
 // Update offer
 app.put('/api/admin/offers/:id', async (req, res) => {
   try {
+    // Capture the offer's pre-update name so sibling-consolidation (below,
+    // after the UPDATE) can match against the OLD name — the new name is
+    // by definition not on any sibling. Steve 2026-08-26.
+    let _preUpdateName = null;
+    let _preUpdateExternalId = null;
+    try {
+      const pre = await pool.query(
+        'SELECT name, external_id, source FROM offers WHERE id = $1',
+        [req.params.id]
+      );
+      if (pre.rows[0]?.source === 'cm-import') {
+        _preUpdateName = pre.rows[0].name;
+        _preUpdateExternalId = pre.rows[0].external_id;
+      }
+    } catch (_) {}
     const {
       name: rawName, description: rawDesc, property_id, room_id,
       property_ids, room_ids, account_id,
@@ -73986,9 +74001,17 @@ app.put('/api/admin/offers/:id', async (req, res) => {
           && (!Array.isArray(saved.property_ids) || saved.property_ids.length === 0)
           && (!Array.isArray(saved.room_ids) || saved.room_ids.length === 0);
         if (isAllRooms) {
-          // Match by ORIGINAL Beds24 name if we can — otherwise fall back
-          // to the current name. Sibling detection: same account, same
-          // cm-import source, different id.
+          // Sibling matching:
+          //   1. By OLD name (pre-update) — same-named cm-import rows are
+          //      exactly the "different room, same rate plan" duplicates.
+          //   2. By slot suffix — Beds24 external_ids are `roomId_slot`.
+          //      Same slot across rooms = same rate plan even when names
+          //      drifted (e.g. "Non refundable rate" vs "Non refundable").
+          // Same account, cm-import source, different id.
+          const oldName = _preUpdateName || saved.name;
+          const slotSuffix = _preUpdateExternalId
+            ? (_preUpdateExternalId.match(/_([0-9]+)$/)?.[0] || null)
+            : null;
           const sib = await pool.query(
             `UPDATE offers
                 SET active = false, updated_at = NOW()
@@ -73996,9 +74019,12 @@ app.put('/api/admin/offers/:id', async (req, res) => {
                 AND source = 'cm-import'
                 AND id <> $2
                 AND active = true
-                AND lower(trim(name)) = lower(trim($3))
-              RETURNING id, external_id, cm_adapter`,
-            [saved.account_id, saved.id, name || saved.name]
+                AND (
+                  lower(trim(name)) = lower(trim($3))
+                  OR ($4::text IS NOT NULL AND external_id LIKE '%' || $4::text)
+                )
+              RETURNING id, external_id, cm_adapter, name`,
+            [saved.account_id, saved.id, oldName, slotSuffix]
           );
           if (sib.rowCount > 0) {
             await pool.query(
@@ -74008,7 +74034,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
                ON CONFLICT DO NOTHING`,
               [saved.account_id, sib.rows.map(r => r.id)]
             );
-            console.log(`[offer PUT] cm-import All-Rooms consolidation: offer ${saved.id} deactivated ${sib.rowCount} sibling(s) named "${name || saved.name}"`);
+            console.log(`[offer PUT] cm-import All-Rooms consolidation: offer ${saved.id} (was "${_preUpdateName}", slot ${slotSuffix}) deactivated ${sib.rowCount} sibling(s): ${sib.rows.map(r => r.id + '="' + r.name + '"').join(', ')}`);
           }
         }
       }
