@@ -4007,9 +4007,14 @@ jQuery(document).ready(function($) {
         
         if (checkin && checkout && new Date(checkout) > new Date(checkin)) {
             calculatePrice(unitId, checkin, checkout, totalGuests, adults, children);
+            // Reload the offer list too — going from 1→2 guests was returning
+            // fewer offers from calculate-price (guest-count filter), showing
+            // only Standard. loadOffers hits the offers-for-unit endpoint
+            // which is more permissive. Steve 2026-08-26.
+            if (typeof loadOffers === 'function') loadOffers(unitId, checkin, checkout, totalGuests);
         }
     });
-    
+
     // Children change handler - just recalculate price
     $(document).on('change', '.gas-children', function() {
         var checkin = $('.gas-checkin').val();
@@ -4018,26 +4023,28 @@ jQuery(document).ready(function($) {
         var children = parseInt($(this).val()) || 0;
         var unitId = $roomWidget.data('unit-id');
         var totalGuests = adults + children;
-        
+
         // Update legacy guests dropdown if exists
         if ($('.gas-guests').length) {
             $('.gas-guests').val(totalGuests);
         }
-        
+
         if (checkin && checkout && new Date(checkout) > new Date(checkin)) {
             calculatePrice(unitId, checkin, checkout, totalGuests, adults, children);
+            if (typeof loadOffers === 'function') loadOffers(unitId, checkin, checkout, totalGuests);
         }
     });
-    
+
     // Legacy guests dropdown change handler
     $(document).on('change', '.gas-guests', function() {
         var checkin = $('.gas-checkin').val();
         var checkout = $('.gas-checkout').val();
         var guests = $(this).val();
         var unitId = $roomWidget.data('unit-id');
-        
+
         if (checkin && checkout && new Date(checkout) > new Date(checkin)) {
             calculatePrice(unitId, checkin, checkout, guests);
+            if (typeof loadOffers === 'function') loadOffers(unitId, checkin, checkout, guests);
         }
     });
     
@@ -4759,16 +4766,80 @@ jQuery(document).ready(function($) {
             }
         }
 
-        return '<div class="gas-upsell-item' + (qtyAware ? ' gas-upsell-qty-aware' : '') + '" data-upsell-id="' + upsell.id + '" data-max-quantity="' + maxQty + '">' +
+        // Per-guest-per-night upsells (typically meals) get a customization
+        // panel — guest picks which nights + how many people are eating.
+        // Without this, the auto-multiply forces "everyone eats every night"
+        // which is wrong for optional meals. Steve 2026-08-26 — Cleveland
+        // £25/person/night breakfast: one guest of two, one night of three.
+        var customizeHtml = '';
+        if (upsell.charge_type === 'per_guest_per_night') {
+            var checkin = $('.gas-checkin').val();
+            var checkout = $('.gas-checkout').val();
+            var nightNodes = '';
+            if (checkin && checkout) {
+                var ci = new Date(checkin);
+                var co = new Date(checkout);
+                var idx = 0;
+                for (var d = new Date(ci); d < co; d.setDate(d.getDate() + 1)) {
+                    var iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                    var lbl = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+                    nightNodes += '<label style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;font-size:0.78rem;cursor:pointer;margin-right:4px;margin-bottom:4px;"><input type="checkbox" class="gas-upsell-night" data-date="' + iso + '" checked style="margin:0;"> ' + lbl + '</label>';
+                    idx++;
+                }
+            }
+            var adultsForSpin = parseInt(($('.gas-adults').val() || $('.gas-guests').val()), 10) || 1;
+            var childrenForSpin = parseInt(($('.gas-children').val()), 10) || 0;
+            var defaultEating = adultsForSpin + childrenForSpin;
+            customizeHtml =
+                '<div class="gas-upsell-customize" style="display:none;margin-top:8px;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">' +
+                    '<div style="font-weight:600;color:#334155;margin-bottom:6px;">Which nights?</div>' +
+                    '<div class="gas-upsell-nights" style="margin-bottom:8px;">' + nightNodes + '</div>' +
+                    '<div style="display:flex;align-items:center;gap:8px;">' +
+                        '<span style="font-weight:600;color:#334155;">How many eating?</span>' +
+                        '<input type="number" class="gas-upsell-eating" min="1" max="' + (defaultEating * 4) + '" value="' + defaultEating + '" style="width:60px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;">' +
+                    '</div>' +
+                    '<div class="gas-upsell-computed" style="margin-top:6px;font-size:0.78rem;color:#64748b;"></div>' +
+                '</div>';
+        }
+
+        return '<div class="gas-upsell-item' + (qtyAware ? ' gas-upsell-qty-aware' : '') + '" data-upsell-id="' + upsell.id + '" data-max-quantity="' + maxQty + '" data-charge-type="' + (upsell.charge_type || '') + '" data-unit-price="' + (upsell.price || 0) + '">' +
             '<div class="gas-upsell-checkbox"></div>' +
             '<div class="gas-upsell-info">' +
                 '<div class="gas-upsell-name">' + upsell.name + (qtyAware ? ' <small style="color:#64748b;font-weight:400;">(up to ' + maxQty + ')</small>' : '') + '</div>' +
                 descHtml +
+                customizeHtml +
             '</div>' +
             '<div class="gas-upsell-price">' + priceCardHtml + '</div>' +
             qtyControls +
         '</div>';
     }
+
+    // Per-guest-per-night customize panel — show/hide when the card is
+    // selected. Recompute the total on any night/eating change. Steve
+    // 2026-08-26 — Cleveland meal customization.
+    function _gasUpsellRecomputeCustomize($card) {
+        var $custom = $card.find('.gas-upsell-customize');
+        if (!$custom.length) return;
+        var chargeType = $card.attr('data-charge-type');
+        if (chargeType !== 'per_guest_per_night') return;
+        var unitPrice = parseFloat($card.attr('data-unit-price')) || 0;
+        var nightsSelected = $card.find('.gas-upsell-night:checked').length;
+        var eating = parseInt($card.find('.gas-upsell-eating').val(), 10) || 0;
+        var total = nightsSelected * eating * unitPrice;
+        var msg = nightsSelected + ' night' + (nightsSelected === 1 ? '' : 's') + ' × ' + eating + ' eating × ' + unitPrice.toFixed(2) + ' = ';
+        // Currency symbol: read from any nearby .gas-currency, else £
+        var cs = ($card.closest('.gas-widget').find('.gas-currency').text() || '£').charAt(0);
+        $card.find('.gas-upsell-computed').html('<strong>' + msg + cs + total.toFixed(2) + '</strong>');
+    }
+    $(document).on('change', '.gas-upsell-night, .gas-upsell-eating', function(e) {
+        var $card = $(this).closest('.gas-upsell-item');
+        _gasUpsellRecomputeCustomize($card);
+        e.stopPropagation(); // don't propagate into card-click toggle
+    });
+    $(document).on('click', '.gas-upsell-customize', function(e) {
+        // Clicks inside the customize panel shouldn't toggle the card
+        e.stopPropagation();
+    });
 
     // Helper: read/write qty on a card and trigger price recalc.
     function _gasSetUpsellQty($card, newQty) {
@@ -4778,6 +4849,13 @@ jQuery(document).ready(function($) {
         $card.find('.gas-upsell-qty-value').text(newQty);
         $card.toggleClass('selected', newQty > 0);
         $card.toggleClass('gas-upsell-qty-max', newQty >= maxQty && maxQty > 1);
+        // Reveal / hide the per_guest_per_night customize panel when the
+        // card enters / leaves the selected state.
+        var $custom = $card.find('.gas-upsell-customize');
+        if ($custom.length) {
+            $custom.css('display', newQty > 0 ? 'block' : 'none');
+            if (newQty > 0) _gasUpsellRecomputeCustomize($card);
+        }
 
         var checkin = $('.gas-checkin').val();
         var checkout = $('.gas-checkout').val();
