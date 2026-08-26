@@ -3127,6 +3127,23 @@ async function runMigrations() {
       } catch (e) {
         console.warn('[startup migrate] Cleveland offer restore skipped:', e.message);
       }
+      // One-off: adopt existing Hostfully lead UID onto GAS booking 850746
+      // (Tomohide Sekiguchi, MTN 219). Original push succeeded on Hostfully's
+      // side but our response handling failed to store the returned UID.
+      // Retry hit CONFLICT because Hostfully already had the lead. Guest name
+      // matches confirmed — safe to stamp the UID. Steve 2026-08-26.
+      // Idempotent — WHERE hostfully_lead_uid IS NULL matches nothing on re-run.
+      try {
+        const ad = await pool.query(
+          `UPDATE bookings SET hostfully_lead_uid = $1, updated_at = NOW()
+            WHERE id = 850746 AND hostfully_lead_uid IS NULL
+            RETURNING id`,
+          ['4f5a5d12-8666-443c-be61-2318c45ef2aa']
+        );
+        if (ad.rowCount > 0) console.log(`[startup migrate] booking 850746 adopted Hostfully lead 4f5a5d12-...ef2aa`);
+      } catch (e) {
+        console.warn('[startup migrate] booking 850746 UID adopt skipped:', e.message);
+      }
       // One-off: promote Carbon Country Shady Rest (account 159) Stripe
       // config from property 504 to account-level so it applies to any
       // property under this account. Steve 2026-08-26 — she has 2 properties
