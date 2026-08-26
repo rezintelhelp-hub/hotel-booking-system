@@ -3195,6 +3195,33 @@ async function runMigrations() {
       } catch (e) {
         console.warn('[startup migrate] Cleveland Standard-rate cleanup skipped:', e.message);
       }
+      // Also strip Cleveland unnamed "CM Rule NNNN_M" leaks — Beds24 exposes
+      // all 16 rate plan slots per room via priceRules even when unused,
+      // and the pre-filter import fell back to auto-labels for the empty
+      // ones. Now filtered at import time; this cleans the historical rows.
+      try {
+        const supp2 = await pool.query(`
+          INSERT INTO cm_offer_suppressions (account_id, cm_adapter, cm_external_id)
+          SELECT account_id, COALESCE(cm_adapter,'beds24'), external_id
+            FROM offers
+           WHERE account_id = 102
+             AND source = 'cm-import'
+             AND external_id IS NOT NULL
+             AND name ~ '^CM Rule [0-9]+_[0-9]+$'
+          ON CONFLICT DO NOTHING
+          RETURNING cm_external_id`);
+        const del2 = await pool.query(`
+          DELETE FROM offers
+           WHERE account_id = 102
+             AND source = 'cm-import'
+             AND name ~ '^CM Rule [0-9]+_[0-9]+$'
+          RETURNING id`);
+        if (del2.rowCount > 0) {
+          console.log(`[startup migrate] Cleveland cm-import 'CM Rule' cleanup: deleted ${del2.rowCount}, tombstoned ${supp2.rowCount}`);
+        }
+      } catch (e) {
+        console.warn('[startup migrate] Cleveland CM-Rule cleanup skipped:', e.message);
+      }
       // Phase 3 — pre-arrival form fields on bookings. Guests hit a
       // signed URL, fill phone / real email / ETA, we mint the door PIN
       // per property policy and save it. Retains BDC proxy address on
@@ -82616,7 +82643,7 @@ app.post('/api/admin/accounts/:id/cm-offers-import/run', async (req, res) => {
     );
     const suppressedSet = new Set(suppressedRes.rows.map(r => 'beds24:' + r.cm_external_id));
 
-    let inserted = 0, updated = 0, suppressed = 0, errors = 0, skipped_standard = 0;
+    let inserted = 0, updated = 0, suppressed = 0, errors = 0, skipped_standard = 0, skipped_unnamed = 0;
     const seenExternalIds = [];
     for (const entry of entries) {
       try {
@@ -82636,6 +82663,19 @@ app.post('/api/admin/accounts/:id/cm-offers-import/run', async (req, res) => {
           const isStandardName = /^(standard|flexible)\s+rate$/.test(nm);
           if (isSlot1 || isStandardName) {
             skipped_standard++;
+            continue;
+          }
+        }
+        // Skip unnamed / auto-labelled rate plans — Beds24 exposes all 16
+        // slots per room as priceRules even when the operator only uses
+        // a few. Unused slots come through with no `name` on the rule and
+        // no offer definition, so upsertCmPriceRuleAsOffer falls back to
+        // 'CM Rule <externalId>'. Those aren't real offers Matthew sells,
+        // just Beds24 API noise. Steve 2026-08-26 — Cleveland import.
+        {
+          const rawName = String(entry.rule?.name || entry.offerLabel || '').trim();
+          if (!rawName) {
+            skipped_unnamed++;
             continue;
           }
         }
@@ -82698,7 +82738,7 @@ app.post('/api/admin/accounts/:id/cm-offers-import/run', async (req, res) => {
       );
       deactivated = r.rowCount || 0;
     }
-    res.json({ success: true, inserted, updated, suppressed, deactivated, errors, skipped_standard, total_from_cm: entries.length });
+    res.json({ success: true, inserted, updated, suppressed, deactivated, errors, skipped_standard, skipped_unnamed, total_from_cm: entries.length });
   } catch (e) {
     console.error('[cm-offers run]', e.response?.data || e.message);
     res.status(500).json({ success: false, error: e.response?.data?.error?.message || e.message });
