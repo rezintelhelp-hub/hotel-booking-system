@@ -73913,7 +73913,108 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         req.params.id
       ]);
     }
-    
+
+    // Promote-to-CM-Reference on operator save: when replaces_standard is
+    // ticked, write this offer's prices into room_availability.cm_price so
+    // the calendar's Reference (CM) matches the guest-facing price the
+    // booking flow already computes via replaces_standard at calculation
+    // time (server.js:107580). Only fires on PUT — never spontaneously,
+    // never on any other client. Estate-safe. Steve 2026-08-26.
+    try {
+      const saved = result.rows[0];
+      if (saved?.replaces_standard) {
+        let roomIds = [];
+        if (saved.room_id) roomIds = [saved.room_id];
+        else if (Array.isArray(saved.room_ids) && saved.room_ids.length) roomIds = saved.room_ids;
+        else {
+          const propIds = Array.isArray(saved.property_ids) && saved.property_ids.length
+            ? saved.property_ids
+            : (saved.property_id ? [saved.property_id] : null);
+          if (propIds) {
+            const rq = await pool.query('SELECT id FROM bookable_units WHERE property_id = ANY($1::int[])', [propIds]);
+            roomIds = rq.rows.map(r => r.id);
+          } else if (saved.account_id) {
+            const rq = await pool.query(
+              `SELECT bu.id FROM bookable_units bu JOIN properties p ON p.id = bu.property_id WHERE p.account_id = $1`,
+              [saved.account_id]
+            );
+            roomIds = rq.rows.map(r => r.id);
+          }
+        }
+        if (roomIds.length > 0) {
+          const parseMap = v => {
+            if (!v) return null;
+            if (typeof v === 'string') { try { return JSON.parse(v); } catch { return null; } }
+            return v;
+          };
+          const dpMap = parseMap(saved.daily_prices_override) || parseMap(saved.daily_prices);
+          let promoted = 0;
+          if (dpMap && Object.keys(dpMap).length > 0) {
+            for (const [k, v] of Object.entries(dpMap)) {
+              if (/^\d{4}-\d{2}-\d{2}$/.test(k) && (typeof v === 'number' || typeof v === 'string')) {
+                const price = parseFloat(v);
+                if (!(price > 0)) continue;
+                for (const rid of roomIds) {
+                  await pool.query(`
+                    INSERT INTO room_availability (room_id, date, cm_price, direct_price, standard_price_override, source, updated_at)
+                    VALUES ($1, $2, $3, $3, $3, 'offer-replaces-standard', NOW())
+                    ON CONFLICT (room_id, date) DO UPDATE SET
+                      cm_price = EXCLUDED.cm_price,
+                      direct_price = EXCLUDED.cm_price,
+                      standard_price_override = EXCLUDED.standard_price_override,
+                      source = 'offer-replaces-standard',
+                      updated_at = NOW()
+                  `, [rid, k, price]);
+                  promoted++;
+                }
+              } else if (typeof v === 'object' && v !== null) {
+                const rid = parseInt(k, 10);
+                if (!roomIds.includes(rid)) continue;
+                for (const [d, p] of Object.entries(v)) {
+                  const price = parseFloat(p);
+                  if (!(price > 0)) continue;
+                  await pool.query(`
+                    INSERT INTO room_availability (room_id, date, cm_price, direct_price, standard_price_override, source, updated_at)
+                    VALUES ($1, $2, $3, $3, $3, 'offer-replaces-standard', NOW())
+                    ON CONFLICT (room_id, date) DO UPDATE SET
+                      cm_price = EXCLUDED.cm_price,
+                      direct_price = EXCLUDED.cm_price,
+                      standard_price_override = EXCLUDED.standard_price_override,
+                      source = 'offer-replaces-standard',
+                      updated_at = NOW()
+                  `, [rid, d, price]);
+                  promoted++;
+                }
+              }
+            }
+          } else if (saved.price_per_night != null && parseFloat(saved.price_per_night) > 0) {
+            const flat = parseFloat(saved.price_per_night);
+            const today = new Date();
+            for (let i = 0; i < 730; i++) {
+              const d = new Date(today.getTime() + i * 86400000);
+              const dateStr = d.toISOString().slice(0, 10);
+              for (const rid of roomIds) {
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, standard_price_override, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $3, 'offer-replaces-standard', NOW())
+                  ON CONFLICT (room_id, date) DO UPDATE SET
+                    cm_price = EXCLUDED.cm_price,
+                    direct_price = EXCLUDED.cm_price,
+                    standard_price_override = EXCLUDED.standard_price_override,
+                    source = 'offer-replaces-standard',
+                    updated_at = NOW()
+                `, [rid, dateStr, flat]);
+                promoted++;
+              }
+            }
+          }
+          if (promoted > 0) console.log(`[offer PUT] replaces_standard promoted ${promoted} room_availability row(s) from offer ${saved.id} across ${roomIds.length} room(s)`);
+        }
+      }
+    } catch (promErr) {
+      console.warn('[offer PUT] replaces_standard promote skipped:', promErr.message);
+    }
+
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
