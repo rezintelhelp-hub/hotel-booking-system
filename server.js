@@ -18924,6 +18924,59 @@ function computeOfferExtrasSurcharge(offer, roomData, numAdults, numChildren, ni
   return surcharge;
 }
 
+// Return a per-child-tier breakdown for guest-facing Price Details.
+// Shape: [{ label: '1st child', per_night: 20, nights: 3, total: 60 }, ...]
+// Returns [] when no child surcharge applies. Steve 2026-08-26.
+function computeChildExtrasBreakdown(offer, roomData, numAdults, numChildren, nights) {
+  if (!numChildren || numChildren <= 0 || !nights || nights <= 0) return [];
+  const baseOcc = parseInt(offer.base_occupancy)
+    || parseInt(roomData?.base_occupancy)
+    || parseInt(roomData?.max_guests)
+    || 2;
+  const ecAmt = parseFloat(offer.eff_extra_child_amount ?? offer.extra_child_amount) || 0;
+  let tiers = offer.extra_child_tiers;
+  if (typeof tiers === 'string') { try { tiers = JSON.parse(tiers); } catch { tiers = null; } }
+  const hasTiers = Array.isArray(tiers) && (
+    (tiers[0] != null && tiers[0] !== '') ||
+    (tiers[1] != null && tiers[1] !== '')
+  );
+
+  // Non-tier offers keep the historical "empty adult seat absorbs child free"
+  // logic — the breakdown for those is a single row (unchanged from what
+  // guests saw before). Tier-enabled offers count from the 1st child.
+  const ord = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+  const rows = [];
+  if (!hasTiers) {
+    const adultsRemaining = Math.max(0, baseOcc - numAdults);
+    const childrenCharged = Math.max(0, numChildren - adultsRemaining);
+    if (childrenCharged > 0 && ecAmt > 0) {
+      rows.push({
+        label: (childrenCharged === 1 ? '1 child' : childrenCharged + ' children'),
+        per_night: ecAmt,
+        nights,
+        total: Math.round(ecAmt * childrenCharged * nights * 100) / 100,
+      });
+    }
+    return rows;
+  }
+  const t2 = (tiers[0] != null && tiers[0] !== '') ? parseFloat(tiers[0]) : null;
+  const t3 = (tiers[1] != null && tiers[1] !== '') ? parseFloat(tiers[1]) : null;
+  for (let i = 1; i <= numChildren; i++) {
+    let px;
+    if (i === 1) px = ecAmt;
+    else if (i === 2) px = (t2 != null ? t2 : ecAmt);
+    else px = (t3 != null ? t3 : (t2 != null ? t2 : ecAmt));
+    if (px == null || isNaN(px) || px < 0) continue;
+    rows.push({
+      label: (ord[i - 1] || (i + 'th')) + ' child',
+      per_night: px,
+      nights,
+      total: Math.round(px * nights * 100) / 100,
+    });
+  }
+  return rows;
+}
+
 // Fetch the markup triplet for a room. Cached per call via Map by caller
 // so the per-date loop doesn't re-query.
 async function getRoomMarkup(roomId) {
@@ -108630,6 +108683,16 @@ app.post('/api/public/calculate-price', async (req, res) => {
         const firstOfferRow = offers.rows.find(o => parseFloat(o.eff_extra_person_amount) > 0 || parseFloat(o.eff_extra_child_amount) > 0);
         if (!firstOfferRow) return 0;
         return roundMoney(computeOfferExtrasSurcharge(firstOfferRow, roomData, numAdults, numChildren, nights), currency);
+      })(),
+      // Per-child-tier breakdown for the Price Details panel. Derived from
+      // the first eligible offer's extras config (same source as
+      // standard_rate_extras_total). Empty when no child surcharge applies
+      // → widget renders nothing. Steve 2026-08-26.
+      child_extras_breakdown: (() => {
+        const firstOfferRow = offers.rows.find(o => parseFloat(o.eff_extra_person_amount) > 0 || parseFloat(o.eff_extra_child_amount) > 0);
+        if (!firstOfferRow) return [];
+        return computeChildExtrasBreakdown(firstOfferRow, roomData, numAdults, numChildren, nights)
+          .map(r => ({ ...r, per_night: roundMoney(r.per_night, currency), total: roundMoney(r.total, currency) }));
       })(),
       deposit_rule: appliedDepositRule,
       voucher_discount: roundMoney(voucherDiscount, currency),
