@@ -62819,12 +62819,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                           ? '<span style="color:#16a34a;">●</span> On'
                           : '<span style="color:#9ca3af;">○</span> Off';
                         const trAttrs = isHidden
-                          ? `data-hidden-row="1" style="display:none; border-bottom: 1px solid var(--border); opacity: 0.55;"`
-                          : `style="border-bottom: 1px solid var(--border);"`;
+                          ? `class="sortable-offer-row" data-offer-id="${offer.id}" data-hidden-row="1" style="display:none; border-bottom: 1px solid var(--border); opacity: 0.55;"`
+                          : `class="sortable-offer-row" data-offer-id="${offer.id}" style="border-bottom: 1px solid var(--border);"`;
                         row += `
                             <tr ${trAttrs}>
                                 <td style="padding: 0.75rem; position: sticky; left: 0; background: #fffbeb; z-index: 1;">
                                     <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <span class="grid-offer-drag" title="Drag to reorder — top = shown first" style="cursor:grab; color:#94a3b8; font-size:1.1rem; user-select:none; padding: 0 4px;">⋮⋮</span>
                                         <div>
                                             <strong style="cursor: pointer; color: #1d4ed8; text-decoration: underline dotted;" onclick="editOffer(${offer.id})" title="Edit offer settings (min nights, refund policy, etc.)">${mlDisplay(offer.name)}</strong>${tierBadge}
                                             <span class="offer-website-toggle"
@@ -62933,6 +62934,47 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>`;
                 
                 container.innerHTML = html;
+
+                // Wire drag-to-reorder on the offer rows inside the pricing
+                // grid. Uses SortableJS `draggable` filter so only rows with
+                // class 'sortable-offer-row' can be moved — Reference (CM),
+                // Min Stay, uplift, occupancy, and headers stay put. Higher
+                // priority = shown first (matches server ORDER BY priority
+                // DESC). Reuses /api/admin/offers/reorder. Steve 2026-08-26.
+                try {
+                    const gridTbody = container.querySelector('table tbody');
+                    const acctForReorder = (typeof selectedAccountId !== 'undefined' && selectedAccountId) || (typeof currentAccount !== 'undefined' && currentAccount?.id) || null;
+                    if (gridTbody && acctForReorder && typeof Sortable !== 'undefined') {
+                        Sortable.create(gridTbody, {
+                            draggable: 'tr.sortable-offer-row',
+                            handle: '.grid-offer-drag',
+                            animation: 150,
+                            ghostClass: 'grid-offer-drag-ghost',
+                            onEnd: async () => {
+                                const orderedIds = Array.from(gridTbody.querySelectorAll('tr.sortable-offer-row'))
+                                    .map(tr => parseInt(tr.dataset.offerId)).filter(Number.isFinite);
+                                if (orderedIds.length === 0) return;
+                                try {
+                                    const r = await fetch('/api/admin/offers/reorder', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                                        body: JSON.stringify({ account_id: parseInt(acctForReorder), ordered_ids: orderedIds })
+                                    });
+                                    const d = await r.json();
+                                    if (d && d.success) {
+                                        if (typeof showNotification === 'function') showNotification('Offer order saved', 'success');
+                                    } else {
+                                        if (typeof showNotification === 'function') showNotification('Reorder failed: ' + (d?.error || 'unknown'), 'error');
+                                        loadOffersPricingGrid(); // reload to snap back
+                                    }
+                                } catch (e) {
+                                    if (typeof showNotification === 'function') showNotification('Reorder error: ' + e.message, 'error');
+                                    loadOffersPricingGrid();
+                                }
+                            }
+                        });
+                    }
+                } catch (e) { console.warn('[pricing-grid Sortable]', e.message); }
 
                 // Load existing price rule into uplift input
                 try {
