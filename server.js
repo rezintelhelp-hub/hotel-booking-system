@@ -3133,6 +3133,23 @@ async function runMigrations() {
       } catch (e) {
         console.warn('[startup migrate] Carbon Country Stripe scope promotion skipped:', e.message);
       }
+      // One-off: reassign Carbon Country blog_posts + attractions from the
+      // legacy property 504 to the new correct-Beds24 property 1151, so 504
+      // can be deleted without hitting blog_posts_property_id_fkey /
+      // attractions_property_id_fkey. Steve 2026-08-26. Idempotent — WHERE
+      // clause matches only rows still on 504.
+      try {
+        const bp = await pool.query(`UPDATE blog_posts SET property_id = 1151 WHERE property_id = 504 RETURNING id`);
+        if (bp.rowCount > 0) console.log(`[startup migrate] Carbon Country blog_posts 504→1151: ${bp.rowCount} row(s)`);
+      } catch (e) {
+        console.warn('[startup migrate] Carbon Country blog_posts reassign skipped:', e.message);
+      }
+      try {
+        const at = await pool.query(`UPDATE attractions SET property_id = 1151 WHERE property_id = 504 RETURNING id`);
+        if (at.rowCount > 0) console.log(`[startup migrate] Carbon Country attractions 504→1151: ${at.rowCount} row(s)`);
+      } catch (e) {
+        console.warn('[startup migrate] Carbon Country attractions reassign skipped:', e.message);
+      }
       // Phase 3 — pre-arrival form fields on bookings. Guests hit a
       // signed URL, fill phone / real email / ETA, we mint the door PIN
       // per property policy and save it. Retains BDC proxy address on
