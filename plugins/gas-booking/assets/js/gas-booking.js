@@ -4859,7 +4859,10 @@ jQuery(document).ready(function($) {
                 '<input type="number" class="gas-upsell-sel-eating" min="1" value="' + e0 + '" style="width:60px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;">' +
                 '<button type="button" class="gas-upsell-sel-remove" title="Remove this night" style="background:#fee2e2;color:#991b1b;border:none;border-radius:4px;width:26px;height:26px;cursor:pointer;font-size:1rem;line-height:1;">×</button>' +
             '</div>';
-        return '<div class="gas-upsell-customize" style="display:none;margin-top:8px;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;" data-unit-price="' + unitPrice + '" data-date-opts="' + dateOpts.replace(/"/g, '&quot;') + '">' +
+        // flex-basis:100% + order:99 forces the panel to break to a new line
+        // inside the card's flex row layout so it stacks UNDER the product
+        // instead of jamming beside it. Steve 2026-08-26.
+        return '<div class="gas-upsell-customize" style="display:none;flex-basis:100%;order:99;width:100%;margin-top:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;box-sizing:border-box;" data-unit-price="' + unitPrice + '" data-date-opts="' + dateOpts.replace(/"/g, '&quot;') + '">' +
             '<div style="font-weight:600;color:#334155;margin-bottom:6px;">Pick a night + how many are eating:</div>' +
             '<div class="gas-upsell-selections">' + seedRow + '</div>' +
             '<button type="button" class="gas-upsell-add-selection" style="background:#e0f2fe;color:#0369a1;border:1px dashed #7dd3fc;border-radius:4px;padding:5px 10px;font-size:0.8rem;cursor:pointer;">+ Add another night</button>' +
@@ -4925,8 +4928,13 @@ jQuery(document).ready(function($) {
                 var $custom = $card.find('.gas-upsell-customize');
                 if (!$custom.length) return;
                 var isSel = $card.hasClass('selected');
-                $custom.css('display', isSel ? 'block' : 'none');
-                if (isSel) _gasUpsellRecomputeCustomize($card);
+                if (isSel) {
+                    $custom.css('display', 'block');
+                    _gasUpsellRecomputeCustomize($card);
+                    _gasUpsellUpdateAddButton($custom);
+                } else {
+                    _gasUpsellResetPanel($card);
+                }
             });
             mo.observe(el, { attributes: true, attributeFilter: ['class'] });
         }
@@ -4950,25 +4958,59 @@ jQuery(document).ready(function($) {
         _gasUpsellRecomputeCustomize($card);
         e.stopPropagation();
     });
-    // Add-another button — clone the first row + reset spinner default
+    // Add-another button — clone the first row + reset spinner default.
+    // Cap the row count at the number of available nights so guest can't
+    // book more meal-nights than the stay has. Steve 2026-08-26.
     $(document).on('click', '.gas-upsell-add-selection', function(e) {
         e.stopPropagation();
         var $panel = $(this).closest('.gas-upsell-customize');
         var $firstRow = $panel.find('.gas-upsell-sel-row').first();
         if (!$firstRow.length) return;
+        var maxRows = $firstRow.find('.gas-upsell-sel-date option').length;
+        if ($panel.find('.gas-upsell-sel-row').length >= maxRows) return;
         var $clone = $firstRow.clone();
         $clone.find('.gas-upsell-sel-eating').val(1);
         $panel.find('.gas-upsell-selections').append($clone);
         _gasUpsellRecomputeCustomize($(this).closest('.gas-upsell-item, .gas-upsell-card'));
+        _gasUpsellUpdateAddButton($panel);
     });
+    function _gasUpsellUpdateAddButton($panel) {
+        var $btn = $panel.find('.gas-upsell-add-selection');
+        var maxRows = $panel.find('.gas-upsell-sel-row').first().find('.gas-upsell-sel-date option').length;
+        var atMax = $panel.find('.gas-upsell-sel-row').length >= maxRows;
+        $btn.prop('disabled', atMax).css({ opacity: atMax ? 0.4 : 1, cursor: atMax ? 'not-allowed' : 'pointer' })
+            .text(atMax ? 'All nights added' : '+ Add another night');
+    }
     // Remove row — leave at least one row visible
     $(document).on('click', '.gas-upsell-sel-remove', function(e) {
         e.stopPropagation();
         var $panel = $(this).closest('.gas-upsell-customize');
         if ($panel.find('.gas-upsell-sel-row').length <= 1) return;
+        var $card = $(this).closest('.gas-upsell-item, .gas-upsell-card');
         $(this).closest('.gas-upsell-sel-row').remove();
-        _gasUpsellRecomputeCustomize($(this).closest('.gas-upsell-item, .gas-upsell-card'));
+        _gasUpsellRecomputeCustomize($card);
+        _gasUpsellUpdateAddButton($panel);
     });
+
+    // Reset panel when the operator un-ticks the card so re-selecting starts
+    // fresh (not with previous night+eating choices). Steve 2026-08-26.
+    function _gasUpsellResetPanel($card) {
+        var $panel = $card.find('.gas-upsell-customize');
+        if (!$panel.length) return;
+        var $sels = $panel.find('.gas-upsell-selections');
+        var $firstRow = $sels.find('.gas-upsell-sel-row').first();
+        // Remove extra rows
+        $sels.find('.gas-upsell-sel-row').not(':first').remove();
+        // Reset first row to defaults
+        if ($firstRow.length) {
+            var firstDate = $firstRow.find('.gas-upsell-sel-date option').first().val();
+            $firstRow.find('.gas-upsell-sel-date').val(firstDate);
+            $firstRow.find('.gas-upsell-sel-eating').val(1);
+        }
+        $panel.css('display', 'none');
+        $panel.find('.gas-upsell-computed').html('');
+        _gasUpsellUpdateAddButton($panel);
+    }
     $(document).on('click', '.gas-upsell-customize', function(e) {
         e.stopPropagation();
     });

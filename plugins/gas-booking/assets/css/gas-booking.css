@@ -2069,6 +2069,7 @@ html body .gas-gallery-more-overlay {
 .gas-upsell-item {
     display: flex;
     align-items: flex-start;
+    flex-wrap: wrap;
     gap: 12px;
     padding: 12px;
     background: var(--gas-bg);
@@ -2076,6 +2077,14 @@ html body .gas-gallery-more-overlay {
     border: 1px solid var(--gas-border);
     transition: all 0.2s;
     cursor: pointer;
+}
+/* Meal-customize panel — stack under the product card, don't sit
+   alongside. Full-width child of the flex row (Steve 2026-08-26). */
+.gas-upsell-card { flex-wrap: wrap; }
+.gas-upsell-customize {
+    flex-basis: 100% !important;
+    width: 100% !important;
+    order: 99;
 }
 
 .gas-upsell-item:hover {
