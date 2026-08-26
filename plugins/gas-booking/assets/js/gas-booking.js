@@ -9536,6 +9536,26 @@ jQuery(document).ready(function($) {
                 }
             }
 
+            // Per-guest-per-night: pull current customize-panel defaults onto
+            // the just-added entry (all nights checked, eating spinner value)
+            // so cart total matches the panel's local display without waiting
+            // for a change event. Steve 2026-08-26 — meal customize wasn't
+            // reaching the cart on initial click.
+            if (chargeType === 'per_guest_per_night') {
+                var initNights = $card.find('.gas-upsell-night:checked').map(function() { return $(this).data('date'); }).get();
+                var initEating = parseInt($card.find('.gas-upsell-eating').val(), 10) || 0;
+                if (initNights.length > 0 && initEating > 0 && Array.isArray(checkoutData.selectedUpsells)) {
+                    checkoutData.selectedUpsells.forEach(function(u) {
+                        if (String(u.id) === String(upsellId)) {
+                            u.custom_nights = initNights;
+                            u.custom_eating = initEating;
+                        }
+                    });
+                }
+                // Ensure panel is visible after this click
+                $card.find('.gas-upsell-customize').css('display', 'block');
+                if (typeof _gasUpsellRecomputeCustomize === 'function') _gasUpsellRecomputeCustomize($card);
+            }
             updateCheckoutPricing();
         });
 
