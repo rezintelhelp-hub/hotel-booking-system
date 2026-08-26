@@ -69201,6 +69201,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Set current language to primary
                     currentOfferLang = getAccountPrimaryLanguage();
 
+                    // Stash the offer's current distribution flags on the
+                    // form so saveOffer preserves them instead of forcing
+                    // available_website=true. Otherwise every save (incl.
+                    // tier edits) un-hides any offer the operator has
+                    // hidden via the Website checkbox. Steve 2026-08-26.
+                    const _offerForm = document.getElementById('offer-form');
+                    if (_offerForm) {
+                        _offerForm.dataset.originalAvailableWebsite = String(offer.available_website !== false);
+                        _offerForm.dataset.originalAvailableAgents  = String(!!offer.available_agents);
+                    }
+
                     // Display primary language values
                     document.getElementById('offer-name').value = offerMultilingualData.name[currentOfferLang] || offerMultilingualData.name.en || '';
                     document.getElementById('offer-description').value = offerMultilingualData.description[currentOfferLang] || offerMultilingualData.description.en || '';
@@ -69438,8 +69449,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                 replaces_standard: document.getElementById('offer-replaces-standard').checked,
                 hide_discount_badge: document.getElementById('offer-replaces-standard').checked,
                 refund_policy: document.getElementById('offer-refund-policy').value || 'inherit',
-                available_website: true,
-                available_agents: false
+                // Preserve original distribution flags — the Website /
+                // Agents toggles live on the Rates & Offers grid, NOT in
+                // this modal, so we must NOT clobber them on save. New
+                // offers (no id) default to visible on Website.
+                available_website: id
+                    ? (document.getElementById('offer-form')?.dataset.originalAvailableWebsite === 'true')
+                    : true,
+                available_agents: id
+                    ? (document.getElementById('offer-form')?.dataset.originalAvailableAgents === 'true')
+                    : false
             };
 
             // Tier pricing — parse textarea into JSONB map of {date: low-tier price}
