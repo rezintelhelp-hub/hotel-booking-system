@@ -7588,11 +7588,12 @@ jQuery(document).ready(function($) {
                                     html += '<div class="gas-upsell-check">✓</div>';
                                 }
                                 // Per-guest-per-night customize panel — Steve
-                                // 2026-08-26. Reveal on selection via
-                                // .gas-upsell-card.selected .gas-upsell-customize
-                                // CSS rule (added below).
+                                // 2026-08-26.
                                 if (upsell.charge_type === 'per_guest_per_night') {
-                                    html += _gasBuildCustomizePanelHtml(ug.items[0], upsell.price, ug.items[0].guests || 1);
+                                    var _gci = (ug.items[0] && ug.items[0].checkin) || (typeof checkoutData !== 'undefined' && checkoutData && (checkoutData.checkin || (checkoutData.pricing && checkoutData.pricing.check_in))) || $('.gas-checkin').val();
+                                    var _gco = (ug.items[0] && ug.items[0].checkout) || (typeof checkoutData !== 'undefined' && checkoutData && (checkoutData.checkout || (checkoutData.pricing && checkoutData.pricing.check_out))) || $('.gas-checkout').val();
+                                    var _geat = (ug.items[0] && ug.items[0].guests) || 1;
+                                    html += _gasBuildCustomizePanelHtml({ checkin: _gci, checkout: _gco }, upsell.price, _geat);
                                 }
                                 html += '</div>';
                             });
@@ -9288,10 +9289,12 @@ jQuery(document).ready(function($) {
                 }
                 row += '</div>';
                 // Per-guest-per-night customize panel (Steve 2026-08-26).
+                // Checkout page: dates live on checkoutData.checkin / checkout
+                // (or nested under checkoutData.pricing.check_in / check_out).
                 if (upsell.charge_type === 'per_guest_per_night') {
-                    var _checkinRow = $('.gas-checkin').val() || (typeof gasCheckin !== 'undefined' ? gasCheckin : null);
-                    var _checkoutRow = $('.gas-checkout').val() || (typeof gasCheckout !== 'undefined' ? gasCheckout : null);
-                    row += _gasBuildCustomizePanelHtml({ checkin: _checkinRow, checkout: _checkoutRow, guests: 1 }, upsell.price, 1);
+                    var _ciRow = coCi || $('.gas-checkin').val() || (typeof gasCheckin !== 'undefined' ? gasCheckin : null);
+                    var _coRow = coCo || $('.gas-checkout').val() || (typeof gasCheckout !== 'undefined' ? gasCheckout : null);
+                    row += _gasBuildCustomizePanelHtml({ checkin: _ciRow, checkout: _coRow, guests: 1 }, upsell.price, 1);
                 }
                 row += '</div>';
                 return row;
