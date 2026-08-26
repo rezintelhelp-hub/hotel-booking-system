@@ -3222,6 +3222,24 @@ async function runMigrations() {
       } catch (e) {
         console.warn('[startup migrate] Cleveland CM-Rule cleanup skipped:', e.message);
       }
+      // Cleveland: flip already-imported OTA-prefixed offers to inactive
+      // (default for OTA-named on future imports; catches the existing
+      // rows so they're consistent). Operator can turn any back on if
+      // they cutover to Channex distribution. Steve 2026-08-26.
+      try {
+        const otaOff = await pool.query(`
+          UPDATE offers SET active = false, updated_at = NOW()
+           WHERE account_id = 102
+             AND source = 'cm-import'
+             AND active = true
+             AND name ~* '^\\s*ota\\M'
+          RETURNING id`);
+        if (otaOff.rowCount > 0) {
+          console.log(`[startup migrate] Cleveland cm-import OTA offers → inactive: ${otaOff.rowCount} row(s)`);
+        }
+      } catch (e) {
+        console.warn('[startup migrate] Cleveland OTA off skipped:', e.message);
+      }
       // Phase 3 — pre-arrival form fields on bookings. Guests hit a
       // signed URL, fill phone / real email / ETA, we mint the door PIN
       // per property policy and save it. Retains BDC proxy address on
@@ -82558,7 +82576,7 @@ async function upsertCmPriceRuleAsOffer(accountId, entry, adapter, suppressedSet
         refund_policy, active, discount_type, discount_value, daily_prices,
         replaces_standard, base_occupancy, last_cm_synced_at)
      VALUES ($1, $2, $3, $4, $5, 'cm-import',
-             $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, true, 'percentage', $16, $17::jsonb, $18, $19, NOW())
+             $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $20, 'percentage', $16, $17::jsonb, $18, $19, NOW())
      ON CONFLICT (account_id, external_id, cm_adapter) WHERE source = 'cm-import' AND external_id IS NOT NULL
      DO UPDATE SET
        name = EXCLUDED.name,
@@ -82576,7 +82594,6 @@ async function upsertCmPriceRuleAsOffer(accountId, entry, adapter, suppressedSet
        daily_prices = COALESCE(EXCLUDED.daily_prices, offers.daily_prices),
        replaces_standard = EXCLUDED.replaces_standard,
        base_occupancy = EXCLUDED.base_occupancy,
-       active = true,
        last_cm_synced_at = NOW(),
        updated_at = NOW()
      RETURNING (xmax = 0) AS inserted`,
@@ -82585,7 +82602,13 @@ async function upsertCmPriceRuleAsOffer(accountId, entry, adapter, suppressedSet
       roomGasId, roomGasPropertyId, minNights, maxNights, minAdv, maxAdv,
       extraPerson, extraChild, offsetMult, offerRefundPolicy || 'inherit',
       discountValue, dailyPrices ? JSON.stringify(dailyPrices) : null,
-      !!replacesStandard, baseOccupancy
+      !!replacesStandard, baseOccupancy,
+      // Insert-time active default: OTA-named offers land INACTIVE so they
+      // don't show on the direct-site picker (operator can flip them on if
+      // channels move to Channex later). Everything else lands active.
+      // Re-imports preserve the operator's active/inactive choice — the
+      // UPDATE clause no longer forces active=true. Steve 2026-08-26.
+      !/^\s*ota\b/i.test(name)
     ]
   );
   return r.rows[0]?.inserted ? 'inserted' : 'updated';
