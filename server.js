@@ -82567,6 +82567,47 @@ async function fetchBeds24V2PriceRulesForAccount(pool, accountId) {
       for (const rt of (prop.roomTypes || [])) {
         const gas = cmRoomToGas[String(rt.id)];
         if (!gas) continue;
+        // Per-rate-plan daily prices — Beds24's /inventory/rooms/calendar
+        // returns price1..price16 per date, one column per rate plan slot.
+        // Without this, every imported offer inherits cm_price at +0% (the
+        // Cleveland problem 2026-08-26). Pull calendar once per room + build
+        // slot-keyed daily_prices maps we can attach to each rule.
+        // Matches the V1 marketplace pattern (line 82385+) so both adapters
+        // now produce equally rich offers. Gated by cm_offers_import_enabled
+        // account flag at the caller — never runs for non-import accounts.
+        let ratePlanPrices = {};
+        try {
+          const today = new Date();
+          const future = new Date(today.getTime() + 366 * 86400000);
+          const startDate = today.toISOString().slice(0, 10);
+          const endDate = future.toISOString().slice(0, 10);
+          const calResp = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+            headers: { token },
+            params: {
+              roomId: parseInt(rt.id),
+              startDate, endDate,
+              includePrices: true,
+              includeLinkedPrices: true
+            }
+          });
+          const cal = calResp.data?.data?.[0]?.calendar || [];
+          for (const entry of cal) {
+            const from = new Date(entry.from);
+            const to = new Date(entry.to);
+            for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+              const dateStr = d.toISOString().slice(0, 10);
+              for (let slot = 1; slot <= 16; slot++) {
+                const raw = parseFloat(entry[`price${slot}`]);
+                if (raw && raw > 0) {
+                  if (!ratePlanPrices[slot]) ratePlanPrices[slot] = {};
+                  ratePlanPrices[slot][dateStr] = raw;
+                }
+              }
+            }
+          }
+        } catch (calErr) {
+          console.warn(`[V2 R5] calendar fetch failed for roomType ${rt.id}:`, calErr.response?.data?.error?.message || calErr.message);
+        }
         for (const rule of (rt.priceRules || [])) {
           // Namespace rule.id by Beds24 roomTypeId — Beds24 reuses small
           // integer rule IDs (1..16) across rooms within the same account,
@@ -82575,11 +82616,18 @@ async function fetchBeds24V2PriceRulesForAccount(pool, accountId) {
           // survives. Matches the V1 marketplace pattern at
           // fetchBeds24V1MarketplacePriceRules where ruleExternalId is
           // already `${cm_room_id}_${dailyPriceNumber}`.
+          // Attach this rule's per-day prices — Beds24's rule.id (1..16)
+          // maps 1:1 to the priceN column in the calendar. If the calendar
+          // fetch failed (or slot has no prices), attach null and the
+          // downstream upsert falls back to cm_price behaviour.
+          const ruleSlot = parseInt(rule.id);
+          const dailyPricesForRule = ratePlanPrices[ruleSlot] || null;
           out.push({
             roomGasId: gas.gasUnitId,
             roomGasPropertyId: gas.gasPropertyId,
             cmRoomId: String(rt.id),
             rule: { ...rule, id: `${rt.id}_${rule.id}` },
+            dailyPrices: dailyPricesForRule,
             offerLabel: rule.offer != null ? (offerLookup[rule.offer]?.name || null) : null,
             offerRefundPolicy: rule.offer != null ? mapBeds24OfferRefundPolicy(offerLookup[rule.offer]) : null
           });
