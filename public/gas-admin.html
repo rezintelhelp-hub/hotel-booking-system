@@ -120241,14 +120241,13 @@ const promo = await fetch('/api/v1/offers/validate', {
         });
     }
     
-    // Hook into room selector changes - auto-open preview
+    // Hook into room selector changes — only refresh the eye button
+    // visibility. Auto-opening the GAS Lite preview on every dropdown
+    // change was intrusive (Steve 2026-08-26 — popping up all the time).
+    // The 👁 button next to the select is the explicit opt-in to preview.
     document.addEventListener('change', (e) => {
         if (e.target.id && e.target.id.includes('-room-select')) {
             setTimeout(updateRoomPreviewButtons, 100);
-            const roomId = e.target.value;
-            if (roomId) {
-                showLitePreview(roomId);
-            }
         }
     });
     
