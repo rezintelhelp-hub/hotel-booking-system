@@ -73996,16 +73996,11 @@ app.put('/api/admin/offers/:id', async (req, res) => {
     try {
       const saved = result.rows[0];
       if (saved?.source === 'cm-import' && saved?.account_id) {
-        // "All Rooms" in the UI means no per-room scope — the offer applies
-        // to every room of whichever properties it's scoped to. Property
-        // scope (property_id / property_ids) is fine; only room-level
-        // scope (room_id / room_ids) determines whether siblings should
-        // consolidate. First cut required property_ids empty too, which
-        // rejected Steve's Cleveland scope=[316] rename.
-        const isAllRoomsScope =
-          !saved.room_id
+        const isAllRooms =
+          !saved.property_id && !saved.room_id
+          && (!Array.isArray(saved.property_ids) || saved.property_ids.length === 0)
           && (!Array.isArray(saved.room_ids) || saved.room_ids.length === 0);
-        if (isAllRoomsScope) {
+        if (isAllRooms) {
           // Sibling matching:
           //   1. By OLD name (pre-update) — same-named cm-import rows are
           //      exactly the "different room, same rate plan" duplicates.
