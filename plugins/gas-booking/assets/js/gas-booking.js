@@ -4279,8 +4279,12 @@ jQuery(document).ready(function($) {
         var html = '<div class="gas-rate-options">';
         html += '<div class="gas-rate-options-title">' + t('booking', 'choose_rate', 'Choose your rate') + ':</div>';
 
-        // Standard Rate — hide if any offer replaces it
-        if (!anyReplacesStandard) {
+        // Standard Rate — always visible. replaces_standard now means
+        // "promote this offer's price into cm_price / CM Reference" (see
+        // server.js offer PUT). It does NOT hide the Standard Rate card
+        // any more. Steve 2026-08-26 — Cleveland UX: operator wants
+        // Standard card to stay so guests still choose it as default.
+        if (true) {
             html += '<div class="gas-rate-option selected" data-rate="standard" data-offer-id="">';
             html += '<div class="gas-rate-radio"><div class="gas-rate-radio-inner"></div></div>';
             html += '<div class="gas-rate-details">';
@@ -4345,10 +4349,13 @@ jQuery(document).ready(function($) {
             }
             var perNightOffer = Math.round(offerTotal / nights);
             var savingsPercent = Math.round((discountAmount / standardTotal) * 100);
-            var showBadge = !offer.replaces_standard && !offer.hide_discount_badge && savingsPercent > 0;
+            // replaces_standard no longer suppresses the badge — that offer
+            // IS the standard now, so savings vs itself is 0 which the
+            // savingsPercent > 0 guard already handles.
+            var showBadge = !offer.hide_discount_badge && savingsPercent > 0;
 
-            // If standard is hidden, auto-select first offer
-            var isSelected = anyReplacesStandard && firstOffer;
+            // Standard is always shown now; never auto-select an offer.
+            var isSelected = false;
             if (isSelected) {
                 firstOffer = false;
                 autoSelectedOfferTotal = offerTotal;

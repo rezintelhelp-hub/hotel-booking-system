@@ -27556,7 +27556,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div style="display: flex; gap: 1.5rem; margin-bottom: 1.25rem;">
                         <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                             <input type="checkbox" id="offer-replaces-standard" onchange="togglePricePerNightField()">
-                            <span style="font-size: 0.9rem; color: #374151;"><strong>Replace Standard Rate</strong> — hides Standard option, removes "Save %" badge. Tick to set a flat rate via "Fixed Price Per Night" (higher OR lower than standard).</span>
+                            <span style="font-size: 0.9rem; color: #374151;"><strong>Replace Standard Rate</strong> — promotes this offer's price into the CM Reference (Reference (CM) on the calendar). Use when your CM is sending the wrong rate as standard (e.g. Beds24's slot 1 is OTA-padded). Standard Rate card still shows on the booking widget.</span>
                         </label>
                     </div>
 
