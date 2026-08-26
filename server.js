@@ -3150,6 +3150,23 @@ async function runMigrations() {
       } catch (e) {
         console.warn('[startup migrate] Carbon Country attractions reassign skipped:', e.message);
       }
+      // Re-anchor Carbon Country deployed_site to the new property (1151).
+      // property_id got SET NULL when 504 was deleted (FK on ON DELETE SET
+      // NULL). WB's site picker resolves account_id → property_id, so a
+      // NULL property_id makes it fall back to empty state and existing
+      // website_settings rows (keyed on deployed_site_id) look "vanished"
+      // even though the data is intact. Steve 2026-08-26 — Carbon Country
+      // Styles panel appeared empty after the reconnect.
+      try {
+        const ds = await pool.query(`
+          UPDATE deployed_sites
+             SET property_id = 1151, updated_at = NOW()
+           WHERE id = 59 AND account_id = 159 AND property_id IS NULL
+          RETURNING id`);
+        if (ds.rowCount > 0) console.log(`[startup migrate] Carbon Country deployed_site 59 property_id → 1151`);
+      } catch (e) {
+        console.warn('[startup migrate] Carbon Country deployed_site re-anchor skipped:', e.message);
+      }
       // Phase 3 — pre-arrival form fields on bookings. Guests hit a
       // signed URL, fill phone / real email / ETA, we mint the door PIN
       // per property policy and save it. Retains BDC proxy address on
