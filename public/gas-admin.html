@@ -69003,9 +69003,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success && data.data) {
                     let rooms = data.data;
-                    // Filter by selected properties if any
+                    // Filter by selected properties if any. Coerce both sides
+                    // to string — otherwise integer property_ids from a
+                    // loaded offer (e.g. [316]) mismatch with String(316)
+                    // and drop every room from the list, leading to save-time
+                    // scope loss. Steve 2026-08-26.
                     if (Array.isArray(propertyIds) && propertyIds.length > 0) {
-                        rooms = rooms.filter(r => propertyIds.includes(String(r.property_id)));
+                        const pidSet = new Set(propertyIds.map(String));
+                        rooms = rooms.filter(r => pidSet.has(String(r.property_id)));
                     }
                     
                     rooms.forEach(r => {
@@ -69308,16 +69313,32 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Load and set room checkboxes
                     await loadRoomsForOfferCheckboxes(propertyIds);
                     const roomIds = offer.room_ids || (offer.room_id ? [offer.room_id] : []);
+                    // Stash original scope on the form so save can detect
+                    // silent load failures (checkbox missing from DOM) and
+                    // preserve it rather than writing an accidental
+                    // "All Rooms" scope. Steve 2026-08-26.
+                    const offerForm = document.getElementById('offer-id');
+                    if (offerForm) {
+                        offerForm.dataset.originalRoomIds = JSON.stringify(roomIds);
+                    }
                     if (roomIds.length === 0) {
                         document.querySelector('input[name="offer-rooms"][value=""]').checked = true;
                     } else {
                         document.querySelector('input[name="offer-rooms"][value=""]').checked = false;
+                        let missing = 0;
                         roomIds.forEach(rid => {
                             const cb = document.querySelector(`input[name="offer-rooms"][value="${rid}"]`);
-                            if (cb) cb.checked = true;
+                            if (cb) {
+                                cb.checked = true;
+                            } else {
+                                missing++;
+                            }
                         });
+                        if (missing > 0) {
+                            console.warn('[offer editor] ' + missing + ' room checkbox(es) missing at load — scope will be preserved on save unless operator explicitly changes it.');
+                        }
                     }
-                    
+
                     openModal('addOfferModal');
                 }
             } catch (error) {
@@ -69343,7 +69364,31 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Get selected properties and rooms from checkboxes
             const selectedPropertyIds = getSelectedOfferProperties();
-            const selectedRoomIds = getSelectedOfferRooms();
+            let selectedRoomIds = getSelectedOfferRooms();
+
+            // Scope-loss guard: if UI returned "All Rooms" (null) but the
+            // original offer was scoped to specific rooms AND the operator
+            // did NOT explicitly tick the "All Rooms" checkbox, restore the
+            // original scope. Protects against the async-race pattern where
+            // loadRoomsForOfferCheckboxes filters everything out (e.g. type
+            // mismatch on property_ids) and the DOM has no per-room checkbox
+            // to tick. Steve 2026-08-26.
+            try {
+                const originalRaw = document.getElementById('offer-id').dataset.originalRoomIds;
+                if (id && originalRaw) {
+                    const originalRoomIds = JSON.parse(originalRaw);
+                    const allRoomsCb = document.querySelector('input[name="offer-rooms"][value=""]');
+                    const allRoomsExplicit = allRoomsCb && allRoomsCb.checked;
+                    if ((!selectedRoomIds || selectedRoomIds.length === 0)
+                        && originalRoomIds.length > 0
+                        && !allRoomsExplicit) {
+                        console.warn('[offer editor] scope-loss guard: restoring original room_ids', originalRoomIds);
+                        selectedRoomIds = originalRoomIds.map(Number);
+                    }
+                }
+            } catch (e) {
+                console.warn('[offer editor] scope-loss guard failed:', e);
+            }
             
             // Get account_id - use selectedAccountId if set, otherwise try to get from first selected property
             let offerAccountId = selectedAccountId;
