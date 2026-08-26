@@ -153173,6 +153173,18 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE gas_sync_rate_plans ADD COLUMN IF NOT EXISTS offer_id INTEGER`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_grp_offer ON gas_sync_rate_plans(offer_id)`).catch(() => {});
 
+    // offers.extra_child_tiers — tiered child pricing (Steve 2026-08-26).
+    // JSONB positional array: [tier2, tier3]. 1st extra child = flat
+    // extra_child_amount, 2nd = tier2 (fallback flat), 3rd+ = tier3
+    // (fallback tier2 or flat). Null/empty = flat rate for all extras.
+    // Cleveland use case: 1st £15, 2nd £10, 3rd+ free.
+    // MUST live here at boot, not inside a request handler — a prior
+    // attempt (commit 4783b8aa) tucked this ALTER inside
+    // /api/gas-sync/properties/:id/link-to-gas and took bookings down
+    // estate-wide when the SELECT referencing this column ran before
+    // any client called that endpoint.
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS extra_child_tiers JSONB`).catch(() => {});
+
     // gas_whatsapp_configs — per-account WhatsApp Cloud API credentials.
     // account_id = NULL means platform-default (Park Row's master WABA used
     // when an account hasn't connected their own). Plain-text token / secret
