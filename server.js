@@ -107897,20 +107897,29 @@ app.post('/api/public/calculate-price', async (req, res) => {
           const isPerNight = (u.charge_type === 'per_night' || u.charge_type === 'per_guest_per_night');
           const tiered = isPerNight && (fnp != null || snp != null);
 
-          // Per-guest-per-night upsell customization (Steve 2026-08-26):
-          // guest can pick specific nights + a "how many eating" count that
-          // differs from booking guests. When both are provided by the
-          // widget, use those in place of full-stay × full-guests. Falls
-          // through to auto-multiply when the widget hasn't customised.
+          // Per-guest-per-night upsell customization (Steve 2026-08-26).
+          // Preferred: night_selections = [{date, eating}, ...] — one row per
+          // night; total = sum(eating × price). Legacy: custom_nights[] +
+          // custom_eating (all nights same count).
+          const nightSelections = Array.isArray(item.night_selections)
+            ? item.night_selections.filter(s => s && s.date && parseInt(s.eating, 10) > 0)
+            : null;
           const customNights = Array.isArray(item.custom_nights) ? item.custom_nights.filter(Boolean) : null;
           const customEating = parseInt(item.custom_eating, 10);
           const hasCustomization = u.charge_type === 'per_guest_per_night'
-            && customNights && customNights.length > 0
-            && customEating > 0;
+            && ((nightSelections && nightSelections.length > 0)
+                || (customNights && customNights.length > 0 && customEating > 0));
 
           let itemTotal;
           if (hasCustomization) {
-            itemTotal = basePrice * customNights.length * customEating;
+            if (nightSelections && nightSelections.length > 0) {
+              itemTotal = nightSelections.reduce(
+                (sum, s) => sum + (basePrice * parseInt(s.eating, 10)),
+                0
+              );
+            } else {
+              itemTotal = basePrice * customNights.length * customEating;
+            }
           } else if (tiered) {
             const firstNight = fnp != null ? fnp : basePrice;
             const otherNight = snp != null ? snp : basePrice;
@@ -107970,14 +107979,27 @@ app.post('/api/public/calculate-price', async (req, res) => {
               });
             }
           } else {
-            // When per_guest_per_night was customised (nights + eating), stamp
-            // the breakdown row with a descriptive name AND expose the
-            // effective quantity so booking-create's booking_extras insert
-            // ends up with total = unit_price × qty matching itemTotal.
-            const displayName = hasCustomization
-              ? `${u.name} — ${customEating} eating × ${customNights.length} night${customNights.length === 1 ? '' : 's'}`
-              : u.name;
-            const displayQty = hasCustomization ? (customNights.length * customEating) : qty;
+            // When per_guest_per_night was customised, stamp the breakdown
+            // with a descriptive name + effective quantity so booking-create
+            // stores the correct booking_extras row. Prefer night_selections
+            // (per-row totals with different eating counts) over the legacy
+            // custom_nights/custom_eating shape.
+            let displayName = u.name;
+            let displayQty = qty;
+            if (hasCustomization) {
+              if (nightSelections && nightSelections.length > 0) {
+                const parts = nightSelections.map(s => {
+                  const dObj = new Date(s.date + 'T00:00:00');
+                  const lbl = dObj.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+                  return `${lbl} × ${s.eating}`;
+                });
+                displayName = `${u.name} — ${parts.join(', ')}`;
+                displayQty = nightSelections.reduce((s, sel) => s + parseInt(sel.eating, 10), 0);
+              } else {
+                displayName = `${u.name} — ${customEating} eating × ${customNights.length} night${customNights.length === 1 ? '' : 's'}`;
+                displayQty = customNights.length * customEating;
+              }
+            }
             upsellsBreakdown.push({
               id: u.id,
               name: displayName,
@@ -107987,8 +108009,9 @@ app.post('/api/public/calculate-price', async (req, res) => {
               charge_type: u.charge_type,
               quantity: displayQty,
               total: itemTotal,
-              custom_nights: hasCustomization ? customNights : null,
-              custom_eating: hasCustomization ? customEating : null,
+              night_selections: hasCustomization && nightSelections ? nightSelections : null,
+              custom_nights: hasCustomization && customNights ? customNights : null,
+              custom_eating: hasCustomization && customEating ? customEating : null,
               requires_date: !!u.requires_date,
               upsell_date: item.upsell_date || null,
               included_nights_per_unit: u.included_nights_per_unit || null
