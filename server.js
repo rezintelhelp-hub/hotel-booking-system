@@ -3167,34 +3167,6 @@ async function runMigrations() {
       } catch (e) {
         console.warn('[startup migrate] Carbon Country deployed_site re-anchor skipped:', e.message);
       }
-      // One-off: strip Cleveland (account 102) cm-import "Standard rate" /
-      // "Flexible Rate" duplicates that leaked in on the first import run
-      // before the slot-1 filter was added (2026-08-26). Tombstone them
-      // too so a re-run without the filter can't recreate them. Only
-      // touches source='cm-import' rows — manual offers untouched.
-      try {
-        const supp = await pool.query(`
-          INSERT INTO cm_offer_suppressions (account_id, cm_adapter, cm_external_id)
-          SELECT account_id, COALESCE(cm_adapter,'beds24'), external_id
-            FROM offers
-           WHERE account_id = 102
-             AND source = 'cm-import'
-             AND external_id IS NOT NULL
-             AND (external_id LIKE '%\\_1' OR lower(trim(name)) IN ('standard rate','flexible rate'))
-          ON CONFLICT DO NOTHING
-          RETURNING cm_external_id`);
-        const del = await pool.query(`
-          DELETE FROM offers
-           WHERE account_id = 102
-             AND source = 'cm-import'
-             AND (external_id LIKE '%\\_1' OR lower(trim(name)) IN ('standard rate','flexible rate'))
-          RETURNING id`);
-        if (del.rowCount > 0) {
-          console.log(`[startup migrate] Cleveland cm-import Standard rate cleanup: deleted ${del.rowCount}, tombstoned ${supp.rowCount}`);
-        }
-      } catch (e) {
-        console.warn('[startup migrate] Cleveland Standard-rate cleanup skipped:', e.message);
-      }
       // Phase 3 — pre-arrival form fields on bookings. Guests hit a
       // signed URL, fill phone / real email / ETA, we mint the door PIN
       // per property policy and save it. Retains BDC proxy address on
@@ -82655,29 +82627,10 @@ app.post('/api/admin/accounts/:id/cm-offers-import/run', async (req, res) => {
     );
     const suppressedSet = new Set(suppressedRes.rows.map(r => 'beds24:' + r.cm_external_id));
 
-    let inserted = 0, updated = 0, suppressed = 0, errors = 0, skipped_standard = 0;
+    let inserted = 0, updated = 0, suppressed = 0, errors = 0;
     const seenExternalIds = [];
     for (const entry of entries) {
       try {
-        // Skip Beds24's baseline rate plan — it's already the CM Reference
-        // that lives on room_availability.cm_price. Importing it as a
-        // separate offer creates a duplicate that says "buy at reference
-        // price" — pointless + clutters the guest picker. When account
-        // has cm_offers_replace_standard=true, slot 1 IS meant to be the
-        // standard so we let it through (entry.replacesStandard = true).
-        // Signal: rule.id ends in _1 (slot 1) OR name matches Standard/
-        // Flexible Rate case-insensitive. Steve 2026-08-26 — Cleveland
-        // baseline "Standard rate" was importing as 6 useless duplicates.
-        if (!entry.replacesStandard) {
-          const ruleId = String(entry.rule?.id || '');
-          const nm = String(entry.rule?.name || entry.offerLabel || '').trim().toLowerCase();
-          const isSlot1 = /_1$/.test(ruleId);
-          const isStandardName = /^(standard|flexible)\s+rate$/.test(nm);
-          if (isSlot1 || isStandardName) {
-            skipped_standard++;
-            continue;
-          }
-        }
         const result = await upsertCmPriceRuleAsOffer(accountId, entry, 'beds24', suppressedSet);
         if (result === 'inserted') inserted++;
         else if (result === 'updated') updated++;
@@ -82737,7 +82690,7 @@ app.post('/api/admin/accounts/:id/cm-offers-import/run', async (req, res) => {
       );
       deactivated = r.rowCount || 0;
     }
-    res.json({ success: true, inserted, updated, suppressed, deactivated, errors, skipped_standard, total_from_cm: entries.length });
+    res.json({ success: true, inserted, updated, suppressed, deactivated, errors, total_from_cm: entries.length });
   } catch (e) {
     console.error('[cm-offers run]', e.response?.data || e.message);
     res.status(500).json({ success: false, error: e.response?.data?.error?.message || e.message });
