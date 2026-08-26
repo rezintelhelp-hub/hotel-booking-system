@@ -67163,6 +67163,50 @@ async function pushBookingToHostfully(bookingId) {
     });
 
     if (!resp || !resp.success) {
+      // AUTO-ADOPT (Steve 2026-08-26): Hostfully sometimes accepts a create
+      // but our response handling loses the UID, leaving GAS with a null
+      // hostfully_lead_uid. The next push retries and hits 'Data conflict'
+      // with the blocking-lead UID in details.apiErrorMessage:
+      //   "...Uids of leads blocking availability: <uuid>"
+      // If the blocking lead's guest name matches ours it's almost certainly
+      // our own earlier push — adopt the UID instead of leaving the booking
+      // stranded for the daily digest to flag.
+      try {
+        const err = resp?.error || '';
+        const details = resp?.response?.details || resp?.details || {};
+        const errMsg = details.apiErrorMessage || '';
+        if (/data conflict/i.test(err) || /Uids of leads blocking availability/i.test(errMsg)) {
+          const m = errMsg.match(/Uids of leads blocking availability:\s*([a-f0-9-]{36})/i);
+          if (m && m[1]) {
+            const blockingUid = m[1];
+            // Verify guest name on the blocking lead before adopting
+            let matched = false;
+            try {
+              const leadResp = await adapter.request('/leads/' + encodeURIComponent(blockingUid), 'GET');
+              const leadData = leadResp?.data || leadResp?.raw?.data || {};
+              const lFirst = String(leadData.firstName || leadData.guest?.firstName || '').trim().toLowerCase();
+              const lLast = String(leadData.lastName || leadData.guest?.lastName || '').trim().toLowerCase();
+              const gFirst = String(row.guest_first_name || '').trim().toLowerCase();
+              const gLast = String(row.guest_last_name || '').trim().toLowerCase();
+              if (lFirst && lLast && lFirst === gFirst && lLast === gLast) matched = true;
+            } catch (verifyErr) {
+              console.warn(`[pushBookingToHostfully] booking=${bookingId} verify blocking lead ${blockingUid} failed:`, verifyErr.message);
+            }
+            if (matched) {
+              await pool.query(
+                `UPDATE bookings SET hostfully_lead_uid = $1, updated_at = NOW()
+                  WHERE id = $2 AND hostfully_lead_uid IS NULL`,
+                [blockingUid, bookingId]
+              );
+              console.log(`[pushBookingToHostfully] booking=${bookingId} AUTO-ADOPTED existing Hostfully lead ${blockingUid} (guest name matched)`);
+              return { adopted: true, hostfully_lead_uid: blockingUid };
+            }
+            console.warn(`[pushBookingToHostfully] booking=${bookingId} conflict lead ${blockingUid} but guest name did NOT match — leaving for human review`);
+          }
+        }
+      } catch (adoptErr) {
+        console.warn(`[pushBookingToHostfully] booking=${bookingId} auto-adopt path errored:`, adoptErr.message);
+      }
       console.warn(`[pushBookingToHostfully] booking=${bookingId} createLead failed:`, resp?.error || resp);
       return { error: resp?.error || 'createLead-failed', response: resp };
     }
