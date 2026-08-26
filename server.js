@@ -18891,9 +18891,36 @@ function computeOfferExtrasSurcharge(offer, roomData, numAdults, numChildren, ni
   const epAmt = parseFloat(offer.eff_extra_person_amount ?? offer.extra_person_amount) || 0;
   const ecAmt = parseFloat(offer.eff_extra_child_amount  ?? offer.extra_child_amount)  || 0;
   const adultsOverBase   = Math.max(0, numAdults - baseOcc);
-  const adultsRemaining  = Math.max(0, baseOcc - numAdults);
-  const childrenOverBase = Math.max(0, numChildren - adultsRemaining);
-  const surcharge = (epAmt * adultsOverBase + ecAmt * childrenOverBase) * nights;
+
+  // Tiered child pricing (Steve 2026-08-26). When extra_child_tiers is set
+  // on the offer, charge from the FIRST child (no empty-adult-seat
+  // absorption) — Steve's mental model: "1st child £X, 2nd child £Y, 3rd+
+  // £Z, don't complicate it". When tiers are unset, keep the historical
+  // absorption behaviour so no other client's pricing shifts.
+  let tiers = offer.extra_child_tiers;
+  if (typeof tiers === 'string') { try { tiers = JSON.parse(tiers); } catch { tiers = null; } }
+  const hasTiers = Array.isArray(tiers) && (
+    (tiers[0] != null && tiers[0] !== '') ||
+    (tiers[1] != null && tiers[1] !== '')
+  );
+
+  let childSurchargePerNight;
+  if (hasTiers) {
+    const t2 = (tiers[0] != null && tiers[0] !== '') ? parseFloat(tiers[0]) : null;
+    const t3 = (tiers[1] != null && tiers[1] !== '') ? parseFloat(tiers[1]) : null;
+    childSurchargePerNight = 0;
+    for (let i = 1; i <= numChildren; i++) {
+      if (i === 1) childSurchargePerNight += ecAmt;
+      else if (i === 2) childSurchargePerNight += (t2 != null ? t2 : ecAmt);
+      else childSurchargePerNight += (t3 != null ? t3 : (t2 != null ? t2 : ecAmt));
+    }
+  } else {
+    const adultsRemaining  = Math.max(0, baseOcc - numAdults);
+    const childrenOverBase = Math.max(0, numChildren - adultsRemaining);
+    childSurchargePerNight = ecAmt * childrenOverBase;
+  }
+
+  const surcharge = (epAmt * adultsOverBase + childSurchargePerNight) * nights;
   return surcharge;
 }
 
