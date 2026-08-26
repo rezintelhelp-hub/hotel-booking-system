@@ -3144,6 +3144,46 @@ async function runMigrations() {
       } catch (e) {
         console.warn('[startup migrate] booking 850746 UID adopt skipped:', e.message);
       }
+      // One-off: repair Cleveland (account 102) cm-import offer scope back
+      // to per-room. UI async-race in the offer editor's room-checkbox load
+      // caused several offers to save with empty room scope (= All Rooms),
+      // so per-room duplicates were displayed on every room grid. Steve
+      // 2026-08-26. external_id format is '<roomTypeId>_<slot>' — parse
+      // roomTypeId, look up the GAS bookable_units.id where beds24_room_id
+      // matches, stamp room_id + clear property_id / *_ids arrays.
+      // Idempotent — WHERE clauses skip already-repaired rows.
+      try {
+        const rep = await pool.query(`
+          WITH pieces AS (
+            SELECT o.id AS offer_id,
+                   split_part(o.external_id, '_', 1) AS beds24_room_id_txt
+              FROM offers o
+             WHERE o.account_id = 102
+               AND o.source = 'cm-import'
+               AND o.external_id IS NOT NULL
+               AND o.external_id ~ '^[0-9]+_[0-9]+$'
+               AND o.room_id IS NULL
+          ),
+          mapped AS (
+            SELECT p.offer_id, bu.id AS gas_room_id
+              FROM pieces p
+              JOIN bookable_units bu ON bu.beds24_room_id::text = p.beds24_room_id_txt
+          )
+          UPDATE offers o
+             SET room_id = m.gas_room_id,
+                 property_id = NULL,
+                 property_ids = NULL,
+                 room_ids = NULL,
+                 updated_at = NOW()
+            FROM mapped m
+           WHERE o.id = m.offer_id
+          RETURNING o.id, o.name, o.room_id`);
+        if (rep.rowCount > 0) {
+          console.log(`[startup migrate] Cleveland cm-import per-room scope repaired for ${rep.rowCount} offer(s)`);
+        }
+      } catch (e) {
+        console.warn('[startup migrate] Cleveland scope repair skipped:', e.message);
+      }
       // One-off: promote Carbon Country Shady Rest (account 159) Stripe
       // config from property 504 to account-level so it applies to any
       // property under this account. Steve 2026-08-26 — she has 2 properties
