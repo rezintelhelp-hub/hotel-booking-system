@@ -3111,6 +3111,22 @@ async function runMigrations() {
       } catch (e) {
         console.warn('[startup migrate] silent-copy backfill skipped:', e.message);
       }
+      // One-off: fully restore Cleveland (account 102) cm-import offers to
+      // the pre-filter state so Steve can see all originally-imported rows
+      // and consolidate them himself. Steve 2026-08-26 — my filter +
+      // consolidation changes hid too much and confused the picture.
+      //  1. Clear Cleveland tombstones so re-import will re-create deleted rows
+      //  2. Reactivate every deactivated cm-import offer for the account
+      // Idempotent — no-op once state matches. Re-import must be fired
+      // separately (won't run in startup migration).
+      try {
+        const ts = await pool.query(`DELETE FROM cm_offer_suppressions WHERE account_id = 102 AND cm_adapter = 'beds24' RETURNING cm_external_id`);
+        if (ts.rowCount > 0) console.log(`[startup migrate] Cleveland cm-offer tombstones cleared: ${ts.rowCount}`);
+        const re = await pool.query(`UPDATE offers SET active = true, updated_at = NOW() WHERE account_id = 102 AND source = 'cm-import' AND active = false RETURNING id`);
+        if (re.rowCount > 0) console.log(`[startup migrate] Cleveland cm-import offers reactivated: ${re.rowCount}`);
+      } catch (e) {
+        console.warn('[startup migrate] Cleveland offer restore skipped:', e.message);
+      }
       // One-off: promote Carbon Country Shady Rest (account 159) Stripe
       // config from property 504 to account-level so it applies to any
       // property under this account. Steve 2026-08-26 — she has 2 properties
