@@ -62922,6 +62922,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 html += `
                     <div style="margin-top: 1rem; display: flex; justify-content: flex-end; gap: 1rem; align-items: center;">
                         <span id="unsaved-indicator" style="color: #f59e0b; display: none;"> Unsaved changes</span>
+                        <button class="btn btn-secondary" onclick="toggleHiddenOffers(this)" id="show-hidden-offers-btn" style="background:#eff6ff; border-color:#93c5fd; color:#1d4ed8;">
+                            👁 Show Hidden Rates
+                        </button>
                         <button class="btn btn-secondary" onclick="saveOfferRestrictions()" id="save-restrictions-btn" style="background: #fef3c7; border-color: #fbbf24; color: #92400e;">
                              Save Offer Restrictions
                         </button>
@@ -63546,6 +63549,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
                 cell.textContent = cs + Math.round(offerPrice);
             });
+        }
+
+        // Toggle the hidden-offer rows in the pricing grid. Companion to
+        // the click-the-chevron collapsible header — Steve 2026-08-26 asked
+        // for a discoverable button alongside Save Offer Restrictions etc.
+        function toggleHiddenOffers(btn) {
+            const container = document.getElementById('offers-pricing-grid');
+            if (!container) return;
+            const rows = container.querySelectorAll('tr[data-hidden-row="1"]');
+            if (rows.length === 0) {
+                if (typeof showNotification === 'function') showNotification('No hidden offers on this room', 'info');
+                return;
+            }
+            const currentlyOpen = rows[0].style.display !== 'none';
+            rows.forEach(r => { r.style.display = currentlyOpen ? 'none' : ''; });
+            // Sync the collapsible section's chevron so the two controls agree
+            const chev = container.querySelector('.chev');
+            if (chev) chev.textContent = currentlyOpen ? '▸' : '▾';
+            btn.innerHTML = currentlyOpen ? '👁 Show Hidden Rates' : '🙈 Hide Hidden Rates';
         }
 
         async function resetStandardPricesToCM() {
