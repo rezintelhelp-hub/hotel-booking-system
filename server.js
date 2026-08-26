@@ -73970,7 +73970,52 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         req.params.id
       ]);
     }
-    
+
+    // Sibling-cleanup for cm-import offers scoped to "All Rooms":
+    // Beds24 stores the same rate plan as separate Daily Prices per room,
+    // so our import creates one row per room with the same name. When
+    // the operator renames + scopes ONE of them to All Rooms (empty
+    // property_ids AND empty room_ids AND no property_id/room_id), the
+    // other cm-import siblings become redundant. Auto-deactivate +
+    // tombstone them so the grid shows one clean row. Steve 2026-08-26.
+    try {
+      const saved = result.rows[0];
+      if (saved?.source === 'cm-import' && saved?.account_id) {
+        const isAllRooms =
+          !saved.property_id && !saved.room_id
+          && (!Array.isArray(saved.property_ids) || saved.property_ids.length === 0)
+          && (!Array.isArray(saved.room_ids) || saved.room_ids.length === 0);
+        if (isAllRooms) {
+          // Match by ORIGINAL Beds24 name if we can — otherwise fall back
+          // to the current name. Sibling detection: same account, same
+          // cm-import source, different id.
+          const sib = await pool.query(
+            `UPDATE offers
+                SET active = false, updated_at = NOW()
+              WHERE account_id = $1
+                AND source = 'cm-import'
+                AND id <> $2
+                AND active = true
+                AND lower(trim(name)) = lower(trim($3))
+              RETURNING id, external_id, cm_adapter`,
+            [saved.account_id, saved.id, name || saved.name]
+          );
+          if (sib.rowCount > 0) {
+            await pool.query(
+              `INSERT INTO cm_offer_suppressions (account_id, cm_adapter, cm_external_id)
+               SELECT $1, COALESCE(cm_adapter, 'beds24'), external_id
+                 FROM offers WHERE id = ANY($2::int[]) AND external_id IS NOT NULL
+               ON CONFLICT DO NOTHING`,
+              [saved.account_id, sib.rows.map(r => r.id)]
+            );
+            console.log(`[offer PUT] cm-import All-Rooms consolidation: offer ${saved.id} deactivated ${sib.rowCount} sibling(s) named "${name || saved.name}"`);
+          }
+        }
+      }
+    } catch (sibErr) {
+      console.warn('[offer PUT] sibling-cleanup skipped:', sibErr.message);
+    }
+
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
