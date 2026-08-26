@@ -8986,12 +8986,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS max_guests_override INTEGER`).catch(() => {});
           await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS extra_person_amount_override NUMERIC(8,2)`).catch(() => {});
           await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS extra_child_amount_override NUMERIC(8,2)`).catch(() => {});
-          // Tiered child pricing (Steve 2026-08-26). JSONB array of amounts
-          // for 2nd/3rd/... extra child. [null,null] or missing → flat rate
-          // (extra_child_amount × N) as before. Cleveland use-case: 1st £15,
-          // 2nd £10, 3rd+ free. Positional — tiers[0] = 2nd child, tiers[1]
-          // = 3rd child (and applies to 4th+ if only 2 entries).
-          await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS extra_child_tiers JSONB`).catch(() => {});
           await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS daily_prices_override JSONB`).catch(() => {});
           await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS refund_policy_override VARCHAR(40)`).catch(() => {});
           // Tiered group pricing (e.g. Exclusive Hire 1-20 vs 21-40 guests).
@@ -73478,23 +73472,7 @@ app.get('/api/admin/offers/applicable', async (req, res) => {
       const baseOcc = parseInt(o.base_occupancy, 10) || 0;
       const extraAdultN = baseOcc > 0 ? Math.max(0, adults - baseOcc) : 0;
       const extraAdultTotal = extraAdultN * (parseFloat(o.extra_person_amount) || 0) * nights;
-      // Tiered child pricing (Steve 2026-08-26). Positional array
-      // extra_child_tiers = [tier2, tier3]: 1st child uses flat
-      // extra_child_amount; 2nd uses tier2 (or flat if blank); 3rd+ uses
-      // tier3 (or tier2 or flat, cascading). Preserves flat-rate behaviour
-      // when extra_child_tiers is null/empty.
-      const flatChild = parseFloat(o.extra_child_amount) || 0;
-      let tiers = o.extra_child_tiers;
-      if (typeof tiers === 'string') { try { tiers = JSON.parse(tiers); } catch { tiers = null; } }
-      const t2 = Array.isArray(tiers) && tiers[0] != null && tiers[0] !== '' ? parseFloat(tiers[0]) : null;
-      const t3 = Array.isArray(tiers) && tiers[1] != null && tiers[1] !== '' ? parseFloat(tiers[1]) : null;
-      let extraChildPerNight = 0;
-      for (let i = 1; i <= children; i++) {
-        if (i === 1) extraChildPerNight += flatChild;
-        else if (i === 2) extraChildPerNight += (t2 != null ? t2 : flatChild);
-        else extraChildPerNight += (t3 != null ? t3 : (t2 != null ? t2 : flatChild));
-      }
-      const extraChildTotal = extraChildPerNight * nights;
+      const extraChildTotal = children * (parseFloat(o.extra_child_amount) || 0) * nights;
       const extrasTotal = Math.round((extraAdultTotal + extraChildTotal) * 100) / 100;
 
       let baseCharge;
@@ -73824,21 +73802,6 @@ app.post('/api/admin/offers', async (req, res) => {
 
     const savedOffer = result.rows[0];
 
-    // Tiered child pricing on create (Steve 2026-08-26). Same shape as PUT.
-    if (savedOffer && Object.prototype.hasOwnProperty.call(req.body, 'extra_child_tiers')) {
-      try {
-        const raw = req.body.extra_child_tiers;
-        const tiersJson = (raw == null) ? null : JSON.stringify(raw);
-        await pool.query(
-          `UPDATE offers SET extra_child_tiers = $1::jsonb WHERE id = $2`,
-          [tiersJson, savedOffer.id]
-        );
-        savedOffer.extra_child_tiers = raw;
-      } catch (e) {
-        console.warn('[offer POST] extra_child_tiers save skipped:', e.message);
-      }
-    }
-
     // Mirror the offer to Channex as a dedicated rate plan per scoped room.
     // Fire-and-forget — Channex outage must not block the offer save. Errors
     // are logged so we can backfill via scripts/mirror-offer-to-channex.js.
@@ -74010,23 +73973,6 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         account_id || null,
         req.params.id
       ]);
-    }
-
-    // Tiered child pricing (Steve 2026-08-26). Written as a separate UPDATE
-    // to avoid re-plumbing the big INSERT/UPDATE column lists. Null tiers
-    // clears any prior tier config → offer falls back to flat rate.
-    if (Object.prototype.hasOwnProperty.call(req.body, 'extra_child_tiers')) {
-      try {
-        const raw = req.body.extra_child_tiers;
-        const tiersJson = (raw == null) ? null : JSON.stringify(raw);
-        await pool.query(
-          `UPDATE offers SET extra_child_tiers = $1::jsonb, updated_at = NOW() WHERE id = $2 RETURNING id`,
-          [tiersJson, req.params.id]
-        );
-        if (result.rows[0]) result.rows[0].extra_child_tiers = raw;
-      } catch (e) {
-        console.warn('[offer PUT] extra_child_tiers save skipped:', e.message);
-      }
     }
 
     // Promote-to-CM-Reference on operator save: when replaces_standard is
@@ -107526,7 +107472,6 @@ app.post('/api/public/calculate-price', async (req, res) => {
              COALESCE(o.max_guests_override,         o.max_guests)         AS eff_max_guests,
              COALESCE(o.extra_person_amount_override, o.extra_person_amount) AS eff_extra_person_amount,
              COALESCE(o.extra_child_amount_override,  o.extra_child_amount)  AS eff_extra_child_amount,
-             o.extra_child_tiers,
              COALESCE(o.daily_prices_override,        o.daily_prices)        AS eff_daily_prices,
              COALESCE(o.refund_policy_override,       o.refund_policy)       AS eff_refund_policy
       FROM offers o
@@ -107776,21 +107721,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       const extraChildren = Math.max(0, (parseInt(numChildren) || 0));
       const extraPersonAmt = parseFloat(offer.eff_extra_person_amount) || 0;
       const extraChildAmt = parseFloat(offer.eff_extra_child_amount) || 0;
-      // Tiered child pricing (Steve 2026-08-26). Positional array
-      // extra_child_tiers = [tier2, tier3]. 1st = flat, 2nd = tier2 (fallback
-      // flat), 3rd+ = tier3 (fallback tier2 or flat). null tiers preserves
-      // flat behaviour.
-      let _ct = offer.extra_child_tiers;
-      if (typeof _ct === 'string') { try { _ct = JSON.parse(_ct); } catch { _ct = null; } }
-      const _t2 = Array.isArray(_ct) && _ct[0] != null && _ct[0] !== '' ? parseFloat(_ct[0]) : null;
-      const _t3 = Array.isArray(_ct) && _ct[1] != null && _ct[1] !== '' ? parseFloat(_ct[1]) : null;
-      let extraChildPerNight = 0;
-      for (let i = 1; i <= extraChildren; i++) {
-        if (i === 1) extraChildPerNight += extraChildAmt;
-        else if (i === 2) extraChildPerNight += (_t2 != null ? _t2 : extraChildAmt);
-        else extraChildPerNight += (_t3 != null ? _t3 : (_t2 != null ? _t2 : extraChildAmt));
-      }
-      const extraPersonSurcharge = (extraPersonAmt * extraAdults * nights) + (extraChildPerNight * nights);
+      const extraPersonSurcharge = (extraPersonAmt * extraAdults + extraChildAmt * extraChildren) * nights;
       if (extraPersonSurcharge > 0) {
         accommodationTotal += extraPersonSurcharge;
       }
