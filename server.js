@@ -73295,6 +73295,45 @@ app.get('/api/webhooks/smoobu', (req, res) => {
 // =====================================================
 
 // Get all offers
+// Reorder offers by writing priority = (N - index). Higher priority
+// shows first (matches the list ORDER BY o.priority DESC). Same shape
+// as the rooms reorder endpoint. Master-admin OR account-owner scope
+// enforced by checking every ID belongs to the passed account_id.
+// Steve 2026-08-26 — drag-to-reorder on the Offer Distribution list.
+app.post('/api/admin/offers/reorder', async (req, res) => {
+  try {
+    const { account_id, ordered_ids } = req.body || {};
+    const acctId = parseInt(account_id, 10);
+    if (!acctId || !Array.isArray(ordered_ids) || ordered_ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'account_id + ordered_ids required' });
+    }
+    const ids = ordered_ids.map(x => parseInt(x, 10)).filter(Number.isFinite);
+    if (ids.length === 0) return res.status(400).json({ success: false, error: 'no valid ids' });
+    // Scope check — every id must belong to this account.
+    const owned = await pool.query(
+      `SELECT id FROM offers WHERE id = ANY($1::int[]) AND account_id = $2`,
+      [ids, acctId]
+    );
+    if (owned.rows.length !== ids.length) {
+      return res.status(403).json({ success: false, error: 'one or more offers do not belong to this account' });
+    }
+    const n = ids.length;
+    // Write priorities in a single CASE expression — one round-trip.
+    const cases = ids.map((_, i) => `WHEN $${i + 1}::int THEN ${n - i}`).join(' ');
+    await pool.query(
+      `UPDATE offers
+          SET priority = CASE id ${cases} END,
+              updated_at = NOW()
+        WHERE id = ANY($${n + 1}::int[])`,
+      [...ids, ids]
+    );
+    res.json({ success: true, updated: n });
+  } catch (e) {
+    console.error('[offers reorder]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.get('/api/admin/offers', async (req, res) => {
   try {
     const { account_id } = req.query;
