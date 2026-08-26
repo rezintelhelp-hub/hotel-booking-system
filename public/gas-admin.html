@@ -27656,8 +27656,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <input type="number" id="offer-extra-person-amount" class="form-input" placeholder="0.00" min="0" step="0.01" style="padding: 0.5rem; border-radius: 6px;">
                                 </div>
                                 <div>
-                                    <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem;">Extra Child <span style="color: #9ca3af;">(per night, per child)</span></label>
+                                    <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem;">Extra Child <span style="color: #9ca3af;">(1st child, per night)</span></label>
                                     <input type="number" id="offer-extra-child-amount" class="form-input" placeholder="0.00" min="0" step="0.01" style="padding: 0.5rem; border-radius: 6px;">
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                <div>
+                                    <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem;">2nd Child <span style="color: #9ca3af;">(per night — blank = same as 1st)</span></label>
+                                    <input type="number" id="offer-extra-child-tier2" class="form-input" placeholder="0.00" min="0" step="0.01" style="padding: 0.5rem; border-radius: 6px;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem;">3rd+ Child <span style="color: #9ca3af;">(per night — blank = same as 2nd)</span></label>
+                                    <input type="number" id="offer-extra-child-tier3" class="form-input" placeholder="0.00" min="0" step="0.01" style="padding: 0.5rem; border-radius: 6px;">
                                 </div>
                             </div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
@@ -69141,6 +69151,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             const maxGuests = vI('offer-max-guests');
             const extraPerson = vF('offer-extra-person-amount');
             const extraChild = vF('offer-extra-child-amount');
+            // Tiered child pricing (Steve 2026-08-26). Positional array
+            // [tier2, tier3]. Both null → send null to clear; otherwise
+            // send the array with nulls preserved so the server can pick
+            // fallback tiers correctly.
+            const tier2El = document.getElementById('offer-extra-child-tier2');
+            const tier3El = document.getElementById('offer-extra-child-tier3');
+            const tier2 = tier2El ? vF('offer-extra-child-tier2') : null;
+            const tier3 = tier3El ? vF('offer-extra-child-tier3') : null;
+            const extra_child_tiers = (tier2 == null && tier3 == null) ? null : [tier2, tier3];
             if (isCm) {
                 // Edits go to override columns; base columns left for sync.
                 return {
@@ -69149,7 +69168,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     min_guests_override: minGuests,
                     max_guests_override: maxGuests,
                     extra_person_amount_override: extraPerson,
-                    extra_child_amount_override: extraChild
+                    extra_child_amount_override: extraChild,
+                    extra_child_tiers
                 };
             }
             return {
@@ -69158,7 +69178,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 min_guests: minGuests,
                 max_guests: maxGuests,
                 extra_person_amount: extraPerson,
-                extra_child_amount: extraChild
+                extra_child_amount: extraChild,
+                extra_child_tiers
             };
         }
 
@@ -69218,6 +69239,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('offer-extra-child-amount').value = (_isCmImport
                         ? (offer.extra_child_amount_override ?? '')
                         : (offer.extra_child_amount ?? '')) || '';
+                    // Tiered child pricing (Steve 2026-08-26). Hydrate
+                    // tier2/tier3 from JSONB positional array.
+                    const _tiers = Array.isArray(offer.extra_child_tiers) ? offer.extra_child_tiers : null;
+                    const _tier2El = document.getElementById('offer-extra-child-tier2');
+                    const _tier3El = document.getElementById('offer-extra-child-tier3');
+                    if (_tier2El) _tier2El.value = (_tiers && _tiers[0] != null) ? _tiers[0] : '';
+                    if (_tier3El) _tier3El.value = (_tiers && _tiers[1] != null) ? _tiers[1] : '';
                     // Inject CM-source labels above the gated inputs so
                     // operator sees what Beds24 currently provides. Auto-
                     // open the Advanced Conditions <details> for cm-import
