@@ -107897,8 +107897,21 @@ app.post('/api/public/calculate-price', async (req, res) => {
           const isPerNight = (u.charge_type === 'per_night' || u.charge_type === 'per_guest_per_night');
           const tiered = isPerNight && (fnp != null || snp != null);
 
+          // Per-guest-per-night upsell customization (Steve 2026-08-26):
+          // guest can pick specific nights + a "how many eating" count that
+          // differs from booking guests. When both are provided by the
+          // widget, use those in place of full-stay × full-guests. Falls
+          // through to auto-multiply when the widget hasn't customised.
+          const customNights = Array.isArray(item.custom_nights) ? item.custom_nights.filter(Boolean) : null;
+          const customEating = parseInt(item.custom_eating, 10);
+          const hasCustomization = u.charge_type === 'per_guest_per_night'
+            && customNights && customNights.length > 0
+            && customEating > 0;
+
           let itemTotal;
-          if (tiered) {
+          if (hasCustomization) {
+            itemTotal = basePrice * customNights.length * customEating;
+          } else if (tiered) {
             const firstNight = fnp != null ? fnp : basePrice;
             const otherNight = snp != null ? snp : basePrice;
             const otherNightCount = Math.max(0, (nights || 1) - 1);
@@ -107957,15 +107970,25 @@ app.post('/api/public/calculate-price', async (req, res) => {
               });
             }
           } else {
+            // When per_guest_per_night was customised (nights + eating), stamp
+            // the breakdown row with a descriptive name AND expose the
+            // effective quantity so booking-create's booking_extras insert
+            // ends up with total = unit_price × qty matching itemTotal.
+            const displayName = hasCustomization
+              ? `${u.name} — ${customEating} eating × ${customNights.length} night${customNights.length === 1 ? '' : 's'}`
+              : u.name;
+            const displayQty = hasCustomization ? (customNights.length * customEating) : qty;
             upsellsBreakdown.push({
               id: u.id,
-              name: u.name,
+              name: displayName,
               unit_price: basePrice,
               first_night_price: fnp,
               subsequent_night_price: snp,
               charge_type: u.charge_type,
-              quantity: qty,
+              quantity: displayQty,
               total: itemTotal,
+              custom_nights: hasCustomization ? customNights : null,
+              custom_eating: hasCustomization ? customEating : null,
               requires_date: !!u.requires_date,
               upsell_date: item.upsell_date || null,
               included_nights_per_unit: u.included_nights_per_unit || null

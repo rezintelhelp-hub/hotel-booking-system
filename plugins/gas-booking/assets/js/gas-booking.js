@@ -4052,13 +4052,29 @@ jQuery(document).ready(function($) {
         var $btn = $('.gas-book-btn');
         $btn.prop('disabled', true).text(t('booking', 'checking_availability', 'Checking availability...'));
         
-        // Get selected upsells
+        // Get selected upsells. For per_guest_per_night upsells with the
+        // customize panel visible + populated, attach custom_nights[] +
+        // custom_eating so the server uses those instead of nights × guests.
+        // Steve 2026-08-26 — meal customization (phase 2).
         var selectedUpsells = [];
         $('.gas-upsell-item.selected').each(function() {
-            selectedUpsells.push({
-                id: $(this).data('upsell-id'),
-                quantity: parseInt($(this).find('.gas-upsell-qty-value').text()) || 1
-            });
+            var $card = $(this);
+            var payload = {
+                id: $card.data('upsell-id'),
+                quantity: parseInt($card.find('.gas-upsell-qty-value').text()) || 1
+            };
+            var $custom = $card.find('.gas-upsell-customize:visible');
+            if ($custom.length) {
+                var nights = $custom.find('.gas-upsell-night:checked').map(function() {
+                    return $(this).data('date');
+                }).get();
+                var eating = parseInt($custom.find('.gas-upsell-eating').val(), 10) || 0;
+                if (nights.length > 0 && eating > 0) {
+                    payload.custom_nights = nights;
+                    payload.custom_eating = eating;
+                }
+            }
+            selectedUpsells.push(payload);
         });
         
         // Get voucher code if applied
