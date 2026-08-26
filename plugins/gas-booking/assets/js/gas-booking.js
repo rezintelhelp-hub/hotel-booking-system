@@ -1925,25 +1925,6 @@ jQuery(document).ready(function($) {
         var n = nights || 1;
         var g = guests || 1;
         var basePrice = parseFloat(upsell.price) || 0;
-        // Per-guest-per-night customization overrides the auto-multiply.
-        // Preferred shape: night_selections = [{date, eating}, ...] — per-row
-        // total = eating × price, summed. Falls back to legacy custom_nights
-        // + custom_eating (single count across all nights). Steve 2026-08-26.
-        if (upsell.charge_type === 'per_guest_per_night') {
-            if (Array.isArray(upsell.night_selections) && upsell.night_selections.length > 0) {
-                var sum = 0;
-                for (var i = 0; i < upsell.night_selections.length; i++) {
-                    var s = upsell.night_selections[i];
-                    var e = parseInt(s.eating, 10) || 0;
-                    if (s.date && e > 0) sum += basePrice * e;
-                }
-                return sum;
-            }
-            if (Array.isArray(upsell.custom_nights) && upsell.custom_nights.length > 0
-                && parseInt(upsell.custom_eating, 10) > 0) {
-                return basePrice * upsell.custom_nights.length * parseInt(upsell.custom_eating, 10);
-            }
-        }
         var fnp = (upsell.first_night_price !== undefined && upsell.first_night_price !== null && upsell.first_night_price !== '') ? parseFloat(upsell.first_night_price) : null;
         var snp = (upsell.subsequent_night_price !== undefined && upsell.subsequent_night_price !== null && upsell.subsequent_night_price !== '') ? parseFloat(upsell.subsequent_night_price) : null;
         var isPerNight = (upsell.charge_type === 'per_night' || upsell.charge_type === 'per_guest_per_night');
@@ -4026,14 +4007,9 @@ jQuery(document).ready(function($) {
         
         if (checkin && checkout && new Date(checkout) > new Date(checkin)) {
             calculatePrice(unitId, checkin, checkout, totalGuests, adults, children);
-            // Reload the offer list too — going from 1→2 guests was returning
-            // fewer offers from calculate-price (guest-count filter), showing
-            // only Standard. loadOffers hits the offers-for-unit endpoint
-            // which is more permissive. Steve 2026-08-26.
-            if (typeof loadOffers === 'function') loadOffers(unitId, checkin, checkout, totalGuests);
         }
     });
-
+    
     // Children change handler - just recalculate price
     $(document).on('change', '.gas-children', function() {
         var checkin = $('.gas-checkin').val();
@@ -4042,28 +4018,26 @@ jQuery(document).ready(function($) {
         var children = parseInt($(this).val()) || 0;
         var unitId = $roomWidget.data('unit-id');
         var totalGuests = adults + children;
-
+        
         // Update legacy guests dropdown if exists
         if ($('.gas-guests').length) {
             $('.gas-guests').val(totalGuests);
         }
-
+        
         if (checkin && checkout && new Date(checkout) > new Date(checkin)) {
             calculatePrice(unitId, checkin, checkout, totalGuests, adults, children);
-            if (typeof loadOffers === 'function') loadOffers(unitId, checkin, checkout, totalGuests);
         }
     });
-
+    
     // Legacy guests dropdown change handler
     $(document).on('change', '.gas-guests', function() {
         var checkin = $('.gas-checkin').val();
         var checkout = $('.gas-checkout').val();
         var guests = $(this).val();
         var unitId = $roomWidget.data('unit-id');
-
+        
         if (checkin && checkout && new Date(checkout) > new Date(checkin)) {
             calculatePrice(unitId, checkin, checkout, guests);
-            if (typeof loadOffers === 'function') loadOffers(unitId, checkin, checkout, guests);
         }
     });
     
@@ -4071,30 +4045,13 @@ jQuery(document).ready(function($) {
         var $btn = $('.gas-book-btn');
         $btn.prop('disabled', true).text(t('booking', 'checking_availability', 'Checking availability...'));
         
-        // Get selected upsells. For per_guest_per_night upsells with the
-        // customize panel visible + populated, attach custom_nights[] +
-        // custom_eating so the server uses those instead of nights × guests.
-        // Steve 2026-08-26 — meal customization (phase 2).
+        // Get selected upsells
         var selectedUpsells = [];
         $('.gas-upsell-item.selected').each(function() {
-            var $card = $(this);
-            var payload = {
-                id: $card.data('upsell-id'),
-                quantity: parseInt($card.find('.gas-upsell-qty-value').text()) || 1
-            };
-            var $custom = $card.find('.gas-upsell-customize:visible');
-            if ($custom.length) {
-                var selections = [];
-                $custom.find('.gas-upsell-sel-row').each(function() {
-                    var d = $(this).find('.gas-upsell-sel-date').val();
-                    var e = parseInt($(this).find('.gas-upsell-sel-eating').val(), 10) || 0;
-                    if (d && e > 0) selections.push({ date: d, eating: e });
-                });
-                if (selections.length > 0) {
-                    payload.night_selections = selections;
-                }
-            }
-            selectedUpsells.push(payload);
+            selectedUpsells.push({
+                id: $(this).data('upsell-id'),
+                quantity: parseInt($(this).find('.gas-upsell-qty-value').text()) || 1
+            });
         });
         
         // Get voucher code if applied
@@ -4802,251 +4759,16 @@ jQuery(document).ready(function($) {
             }
         }
 
-        // Per-guest-per-night upsells (typically meals) get a customization
-        // panel — guest picks which nights + how many people are eating.
-        // Without this, the auto-multiply forces "everyone eats every night"
-        // which is wrong for optional meals. Steve 2026-08-26 — Cleveland
-        // £25/person/night breakfast: one guest of two, one night of three.
-        var customizeHtml = '';
-        if (upsell.charge_type === 'per_guest_per_night' && typeof window._gasBuildCustomizePanelHtml === 'function') {
-            var adultsForSpin = parseInt(($('.gas-adults').val() || $('.gas-guests').val()), 10) || 1;
-            var childrenForSpin = parseInt(($('.gas-children').val()), 10) || 0;
-            var defaultEating = adultsForSpin + childrenForSpin;
-            customizeHtml = window._gasBuildCustomizePanelHtml({
-                checkin: $('.gas-checkin').val(),
-                checkout: $('.gas-checkout').val()
-            }, upsell.price, defaultEating);
-        }
-
-        return '<div class="gas-upsell-item' + (qtyAware ? ' gas-upsell-qty-aware' : '') + '" data-upsell-id="' + upsell.id + '" data-max-quantity="' + maxQty + '" data-charge-type="' + (upsell.charge_type || '') + '" data-unit-price="' + (upsell.price || 0) + '">' +
+        return '<div class="gas-upsell-item' + (qtyAware ? ' gas-upsell-qty-aware' : '') + '" data-upsell-id="' + upsell.id + '" data-max-quantity="' + maxQty + '">' +
             '<div class="gas-upsell-checkbox"></div>' +
             '<div class="gas-upsell-info">' +
                 '<div class="gas-upsell-name">' + upsell.name + (qtyAware ? ' <small style="color:#64748b;font-weight:400;">(up to ' + maxQty + ')</small>' : '') + '</div>' +
                 descHtml +
-                customizeHtml +
             '</div>' +
             '<div class="gas-upsell-price">' + priceCardHtml + '</div>' +
             qtyControls +
         '</div>';
     }
-
-    // Per-guest-per-night customize panel — shared builder used by all 3
-    // render paths (renderUpsellItem for room page; group-checkout and
-    // single-room-checkout for /checkout/). Guest picks nights + eating
-    // count; server uses those to compute charge in place of nights ×
-    // booking guests. Steve 2026-08-26.
-    window._gasBuildCustomizePanelHtml = function(ctx, unitPrice, defaultEating) {
-        var checkin = (ctx && ctx.checkin) || $('.gas-checkin').val();
-        var checkout = (ctx && ctx.checkout) || $('.gas-checkout').val();
-        var dateOpts = '';
-        if (checkin && checkout) {
-            var ci = new Date(checkin);
-            var co = new Date(checkout);
-            for (var d = new Date(ci); d < co; d.setDate(d.getDate() + 1)) {
-                var iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-                var lbl = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-                dateOpts += '<option value="' + iso + '">' + lbl + '</option>';
-            }
-        }
-        var e0 = (defaultEating && defaultEating > 0) ? defaultEating : 1;
-        // Repeat-row pattern (Steve 2026-08-26): one row = one night + eating
-        // count. '+ Add another' repeats. Total = sum(eating × price) across
-        // rows. Simpler than one-count-fits-all-nights.
-        var seedRow =
-            '<div class="gas-upsell-sel-row" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
-                '<select class="gas-upsell-sel-date" style="flex:1;padding:5px 8px;border:1px solid #cbd5e1;border-radius:4px;font-size:0.85rem;">' + dateOpts + '</select>' +
-                '<label style="font-size:0.8rem;color:#334155;">Eating:</label>' +
-                '<input type="number" class="gas-upsell-sel-eating" min="1" value="' + e0 + '" style="width:60px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;">' +
-                '<button type="button" class="gas-upsell-sel-remove" title="Remove this night" style="background:#fee2e2;color:#991b1b;border:none;border-radius:4px;width:26px;height:26px;cursor:pointer;font-size:1rem;line-height:1;">×</button>' +
-            '</div>';
-        // flex-basis:100% + order:99 forces the panel to break to a new line
-        // inside the card's flex row layout so it stacks UNDER the product
-        // instead of jamming beside it. Steve 2026-08-26.
-        return '<div class="gas-upsell-customize" style="display:none;flex-basis:100%;order:99;width:100%;margin-top:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;box-sizing:border-box;" data-unit-price="' + unitPrice + '" data-date-opts="' + dateOpts.replace(/"/g, '&quot;') + '">' +
-            '<div style="font-weight:600;color:#334155;margin-bottom:6px;">Pick a night + how many are eating:</div>' +
-            '<div class="gas-upsell-selections">' + seedRow + '</div>' +
-            '<button type="button" class="gas-upsell-add-selection" style="background:#e0f2fe;color:#0369a1;border:1px dashed #7dd3fc;border-radius:4px;padding:5px 10px;font-size:0.8rem;cursor:pointer;">+ Add another night</button>' +
-            '<div class="gas-upsell-computed" style="margin-top:8px;font-size:0.85rem;color:#334155;"></div>' +
-        '</div>';
-    };
-
-    function _gasUpsellRecomputeCustomize($card) {
-        var $custom = $card.find('.gas-upsell-customize');
-        if (!$custom.length) return;
-        var chargeType = $card.attr('data-charge-type');
-        if (chargeType !== 'per_guest_per_night') return;
-        var unitPrice = parseFloat($custom.attr('data-unit-price')) || parseFloat($card.attr('data-unit-price')) || parseFloat($card.data('price')) || 0;
-        var upsellId = $card.data('upsell-id');
-        // Repeat-row model: walk each selection row and sum per-row totals.
-        var selections = [];
-        var total = 0;
-        var breakdownParts = [];
-        $custom.find('.gas-upsell-sel-row').each(function() {
-            var $row = $(this);
-            var date = $row.find('.gas-upsell-sel-date').val();
-            var eating = parseInt($row.find('.gas-upsell-sel-eating').val(), 10) || 0;
-            if (!date || eating <= 0) return;
-            selections.push({ date: date, eating: eating });
-            var rowTotal = eating * unitPrice;
-            total += rowTotal;
-            var dObj = new Date(date + 'T00:00:00');
-            var dLbl = dObj.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-            breakdownParts.push(dLbl + ' × ' + eating);
-        });
-        var cs = ($card.closest('.gas-widget').find('.gas-currency').text() || '£').charAt(0);
-        $card.find('.gas-upsell-computed').html('<strong>' + (breakdownParts.join(', ') || '(no nights picked)') + ' = ' + cs + total.toFixed(2) + '</strong>');
-        // Push customization onto the matching entry in checkoutData.selectedUpsells
-        // and re-render Price Details. Uses night_selections (new shape) —
-        // server + local calculateUpsellLineTotal both understand it.
-        try {
-            if (typeof checkoutData !== 'undefined' && Array.isArray(checkoutData.selectedUpsells)) {
-                var updated = false;
-                checkoutData.selectedUpsells.forEach(function(u) {
-                    if (String(u.id) === String(upsellId) && u.charge_type === 'per_guest_per_night') {
-                        u.night_selections = selections;
-                        // Also stamp legacy fields for backward compat with
-                        // any code path still reading them.
-                        u.custom_nights = selections.map(function(s) { return s.date; });
-                        u.custom_eating = selections.length ? selections[0].eating : 0;
-                        updated = true;
-                    }
-                });
-                if (updated && typeof updateCheckoutPricing === 'function') updateCheckoutPricing();
-            }
-        } catch (e) {}
-    }
-    // Reveal the customize panel whenever a per_guest_per_night card gains
-    // the .selected class. Works for both .gas-upsell-item (room page) and
-    // .gas-upsell-card (checkout). MutationObserver watches class changes.
-    (function() {
-        var observed = new WeakSet();
-        function armObserver($card) {
-            var el = $card[0];
-            if (!el || observed.has(el)) return;
-            observed.add(el);
-            var mo = new MutationObserver(function() {
-                var $custom = $card.find('.gas-upsell-customize');
-                if (!$custom.length) return;
-                var isSel = $card.hasClass('selected');
-                if (isSel) {
-                    $custom.css('display', 'block');
-                    _gasUpsellRecomputeCustomize($card);
-                    _gasUpsellUpdateAddButton($custom);
-                } else {
-                    _gasUpsellResetPanel($card);
-                }
-            });
-            mo.observe(el, { attributes: true, attributeFilter: ['class'] });
-        }
-        // Arm on any newly-rendered upsells (both selectors)
-        $(document).on('gas:upsells-rendered', function() {
-            $('.gas-upsell-item, .gas-upsell-card').each(function() { armObserver($(this)); });
-        });
-        // Arm periodically for initial paint too
-        setInterval(function() {
-            $('.gas-upsell-item.selected, .gas-upsell-card.selected').each(function() {
-                var $c = $(this);
-                if ($c.find('.gas-upsell-customize').length && $c.find('.gas-upsell-customize').css('display') === 'none') {
-                    $c.find('.gas-upsell-customize').css('display', 'block');
-                    _gasUpsellRecomputeCustomize($c);
-                }
-            });
-        }, 500);
-    })();
-    $(document).on('change input', '.gas-upsell-sel-date, .gas-upsell-sel-eating', function(e) {
-        var $card = $(this).closest('.gas-upsell-item, .gas-upsell-card');
-        var $panel = $(this).closest('.gas-upsell-customize');
-        if ($(this).hasClass('gas-upsell-sel-date')) _gasUpsellDedupeDateOptions($panel);
-        _gasUpsellRecomputeCustomize($card);
-        e.stopPropagation();
-    });
-    // Add-another button — clone the first row + reset spinner default.
-    // Cap the row count at the number of available nights so guest can't
-    // book more meal-nights than the stay has. Steve 2026-08-26.
-    $(document).on('click', '.gas-upsell-add-selection', function(e) {
-        e.stopPropagation();
-        var $panel = $(this).closest('.gas-upsell-customize');
-        var $firstRow = $panel.find('.gas-upsell-sel-row').first();
-        if (!$firstRow.length) return;
-        var maxRows = $firstRow.find('.gas-upsell-sel-date option').length;
-        if ($panel.find('.gas-upsell-sel-row').length >= maxRows) return;
-        // Find the first date NOT already selected in another row.
-        var used = {};
-        $panel.find('.gas-upsell-sel-row .gas-upsell-sel-date').each(function() { used[$(this).val()] = true; });
-        var nextDate = null;
-        $firstRow.find('.gas-upsell-sel-date option').each(function() {
-            var v = $(this).val();
-            if (v && !used[v] && !nextDate) nextDate = v;
-        });
-        var $clone = $firstRow.clone();
-        $clone.find('.gas-upsell-sel-eating').val(1);
-        if (nextDate) $clone.find('.gas-upsell-sel-date').val(nextDate);
-        $panel.find('.gas-upsell-selections').append($clone);
-        var $card = $(this).closest('.gas-upsell-item, .gas-upsell-card');
-        _gasUpsellDedupeDateOptions($panel);
-        _gasUpsellRecomputeCustomize($card);
-        _gasUpsellUpdateAddButton($panel);
-    });
-    function _gasUpsellUpdateAddButton($panel) {
-        var $btn = $panel.find('.gas-upsell-add-selection');
-        var maxRows = $panel.find('.gas-upsell-sel-row').first().find('.gas-upsell-sel-date option').length;
-        var atMax = $panel.find('.gas-upsell-sel-row').length >= maxRows;
-        $btn.prop('disabled', atMax).css({ opacity: atMax ? 0.4 : 1, cursor: atMax ? 'not-allowed' : 'pointer' })
-            .text(atMax ? 'All nights added' : '+ Add another night');
-    }
-    // Prevent picking the same date across multiple rows — disable in-use
-    // options in every OTHER row's select. Runs after any add/remove/change.
-    // Steve 2026-08-26 — no double-booking a night for the same meal.
-    function _gasUpsellDedupeDateOptions($panel) {
-        var used = {};
-        $panel.find('.gas-upsell-sel-row .gas-upsell-sel-date').each(function() {
-            var v = $(this).val();
-            if (v) used[v] = true;
-        });
-        $panel.find('.gas-upsell-sel-row .gas-upsell-sel-date').each(function() {
-            var $sel = $(this);
-            var current = $sel.val();
-            $sel.find('option').each(function() {
-                var v = $(this).val();
-                // Disable if used elsewhere, allow if it's this row's own pick
-                $(this).prop('disabled', !!used[v] && v !== current);
-            });
-        });
-    }
-    // Remove row — leave at least one row visible
-    $(document).on('click', '.gas-upsell-sel-remove', function(e) {
-        e.stopPropagation();
-        var $panel = $(this).closest('.gas-upsell-customize');
-        if ($panel.find('.gas-upsell-sel-row').length <= 1) return;
-        var $card = $(this).closest('.gas-upsell-item, .gas-upsell-card');
-        $(this).closest('.gas-upsell-sel-row').remove();
-        _gasUpsellDedupeDateOptions($panel);
-        _gasUpsellRecomputeCustomize($card);
-        _gasUpsellUpdateAddButton($panel);
-    });
-
-    // Reset panel when the operator un-ticks the card so re-selecting starts
-    // fresh (not with previous night+eating choices). Steve 2026-08-26.
-    function _gasUpsellResetPanel($card) {
-        var $panel = $card.find('.gas-upsell-customize');
-        if (!$panel.length) return;
-        var $sels = $panel.find('.gas-upsell-selections');
-        var $firstRow = $sels.find('.gas-upsell-sel-row').first();
-        // Remove extra rows
-        $sels.find('.gas-upsell-sel-row').not(':first').remove();
-        // Reset first row to defaults
-        if ($firstRow.length) {
-            var firstDate = $firstRow.find('.gas-upsell-sel-date option').first().val();
-            $firstRow.find('.gas-upsell-sel-date').val(firstDate);
-            $firstRow.find('.gas-upsell-sel-eating').val(1);
-        }
-        $panel.css('display', 'none');
-        $panel.find('.gas-upsell-computed').html('');
-        _gasUpsellUpdateAddButton($panel);
-    }
-    $(document).on('click', '.gas-upsell-customize', function(e) {
-        e.stopPropagation();
-    });
 
     // Helper: read/write qty on a card and trigger price recalc.
     function _gasSetUpsellQty($card, newQty) {
@@ -5056,13 +4778,6 @@ jQuery(document).ready(function($) {
         $card.find('.gas-upsell-qty-value').text(newQty);
         $card.toggleClass('selected', newQty > 0);
         $card.toggleClass('gas-upsell-qty-max', newQty >= maxQty && maxQty > 1);
-        // Reveal / hide the per_guest_per_night customize panel when the
-        // card enters / leaves the selected state.
-        var $custom = $card.find('.gas-upsell-customize');
-        if ($custom.length) {
-            $custom.css('display', newQty > 0 ? 'block' : 'none');
-            if (newQty > 0) _gasUpsellRecomputeCustomize($card);
-        }
 
         var checkin = $('.gas-checkin').val();
         var checkout = $('.gas-checkout').val();
@@ -7740,14 +7455,6 @@ jQuery(document).ready(function($) {
                                 } else {
                                     html += '<div class="gas-upsell-check">✓</div>';
                                 }
-                                // Per-guest-per-night customize panel — Steve
-                                // 2026-08-26.
-                                if (upsell.charge_type === 'per_guest_per_night') {
-                                    var _gci = (ug.items[0] && ug.items[0].checkin) || (typeof checkoutData !== 'undefined' && checkoutData && (checkoutData.checkin || (checkoutData.pricing && checkoutData.pricing.check_in))) || $('.gas-checkin').val();
-                                    var _gco = (ug.items[0] && ug.items[0].checkout) || (typeof checkoutData !== 'undefined' && checkoutData && (checkoutData.checkout || (checkoutData.pricing && checkoutData.pricing.check_out))) || $('.gas-checkout').val();
-                                    var _geat = (ug.items[0] && ug.items[0].guests) || 1;
-                                    html += _gasBuildCustomizePanelHtml({ checkin: _gci, checkout: _gco }, upsell.price, _geat);
-                                }
                                 html += '</div>';
                             });
                             $('.gas-checkout-upsells').html(html);
@@ -9182,22 +8889,8 @@ jQuery(document).ready(function($) {
                     var label = name;
                     if (qty > 1) label = qty + ' × ' + name;
                     if (upsell.upsell_date) label += ' on ' + formatUpsellDate(upsell.upsell_date);
-                    // Per-guest-per-night customization — surface the picked
-                    // nights + counts so guests see exactly what they've
-                    // booked (Steve 2026-08-26). Renders below the main line.
-                    var breakdownHtml = '';
-                    if (Array.isArray(upsell.night_selections) && upsell.night_selections.length > 0) {
-                        var parts = upsell.night_selections.map(function(s) {
-                            try {
-                                var d = new Date(s.date + 'T00:00:00');
-                                var lbl = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-                                return lbl + ' × ' + s.eating;
-                            } catch (e) { return s.date + ' × ' + s.eating; }
-                        });
-                        breakdownHtml = '<div class="gas-extra-item-detail" style="font-size:0.78rem;color:#64748b;margin-top:2px;padding-left:4px;">' + parts.join(', ') + '</div>';
-                    }
                     extrasHtml += '<div class="gas-extra-item">';
-                    extrasHtml += '<span>' + label + breakdownHtml + '</span>';
+                    extrasHtml += '<span>' + label + '</span>';
                     extrasHtml += '<span>' + formatPrice(itemTotal, currency) + '</span>';
                     extrasHtml += '</div>';
                 });
@@ -9455,14 +9148,6 @@ jQuery(document).ready(function($) {
                     row += '<div class="gas-upsell-check">✓</div>';
                 }
                 row += '</div>';
-                // Per-guest-per-night customize panel (Steve 2026-08-26).
-                // Checkout page: dates live on checkoutData.checkin / checkout
-                // (or nested under checkoutData.pricing.check_in / check_out).
-                if (upsell.charge_type === 'per_guest_per_night') {
-                    var _ciRow = coCi || $('.gas-checkin').val() || (typeof gasCheckin !== 'undefined' ? gasCheckin : null);
-                    var _coRow = coCo || $('.gas-checkout').val() || (typeof gasCheckout !== 'undefined' ? gasCheckout : null);
-                    row += _gasBuildCustomizePanelHtml({ checkin: _ciRow, checkout: _coRow, guests: 1 }, upsell.price, 1);
-                }
                 row += '</div>';
                 return row;
             }
@@ -9676,12 +9361,6 @@ jQuery(document).ready(function($) {
                 }
             }
 
-            // Per-guest-per-night: reveal panel + hydrate cart entry from
-            // current row state. Steve 2026-08-26.
-            if (chargeType === 'per_guest_per_night') {
-                $card.find('.gas-upsell-customize').css('display', 'block');
-                if (typeof _gasUpsellRecomputeCustomize === 'function') _gasUpsellRecomputeCustomize($card);
-            }
             updateCheckoutPricing();
         });
 
