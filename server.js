@@ -3111,6 +3111,28 @@ async function runMigrations() {
       } catch (e) {
         console.warn('[startup migrate] silent-copy backfill skipped:', e.message);
       }
+      // One-off: promote Carbon Country Shady Rest (account 159) Stripe
+      // config from property 504 to account-level so it applies to any
+      // property under this account. Steve 2026-08-26 — she has 2 properties
+      // (504 + 1150) and is about to reconnect Beds24 to the correct account
+      // which may create/switch to the other property; account-scoped Stripe
+      // means the payment method survives the switch. Idempotent — WHERE
+      // clause matches only the pre-migration row.
+      try {
+        const cc = await pool.query(`
+          UPDATE payment_configurations
+             SET property_id = NULL, updated_at = NOW()
+           WHERE id = 613
+             AND account_id = 159
+             AND property_id = 504
+             AND provider = 'stripe'
+          RETURNING id`);
+        if (cc.rowCount > 0) {
+          console.log(`[startup migrate] Carbon Country Stripe promoted to account-level (row ${cc.rows[0].id})`);
+        }
+      } catch (e) {
+        console.warn('[startup migrate] Carbon Country Stripe scope promotion skipped:', e.message);
+      }
       // Phase 3 — pre-arrival form fields on bookings. Guests hit a
       // signed URL, fill phone / real email / ETA, we mint the door PIN
       // per property policy and save it. Retains BDC proxy address on
