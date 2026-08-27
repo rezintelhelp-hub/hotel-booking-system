@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.67');
+define('GAS_BOOKING_VERSION', '4.3.68');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -5107,6 +5107,24 @@ class GAS_Booking {
             echo '<meta name="twitter:image" content="' . esc_url($og_image) . '">' . "\n";
         }
         
+        // Canonical URL — room pages only for now (Steve 2026-08-27).
+        // Guests hit /room/?unit_id=932&checkin=X&checkout=Y&guests=N; every
+        // date+guest combo creates a new URL variant so Google dilutes what
+        // little ranking there is across hundreds of near-duplicate URLs.
+        // Canonical points to the params-stripped-but-unit_id-preserved
+        // version so ranking signal consolidates on ONE room URL.
+        // Scope kept narrow so we don't collide with WP's default canonical
+        // on regular pages. Other page types can be added later.
+        if ($page_type === 'room') {
+            $unit_id = isset($_GET['unit_id']) ? preg_replace('/[^0-9]/', '', $_GET['unit_id']) : '';
+            if ($unit_id !== '') {
+                $canonical = rtrim($site_url, '/') . '/room/?unit_id=' . $unit_id;
+                // Suppress WP's default canonical so we don't emit two.
+                remove_action('wp_head', 'rel_canonical');
+                echo '<link rel="canonical" href="' . esc_url($canonical) . '">' . "\n";
+            }
+        }
+
         // Schema.org LodgingBusiness markup
         if (get_option('gas_seo_include_schema', '1')) {
             $this->inject_schema($client_id, $site_name, $site_url);
