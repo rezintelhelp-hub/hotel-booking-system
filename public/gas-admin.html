@@ -68485,35 +68485,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             }
             
-            // Save other offer restrictions
+            // Save other offer restrictions. Send ONLY the fields the
+            // operator changed — never spread the full offer, because a
+            // GET-then-PUT round-trip clobbers any concurrent visibility
+            // toggle that landed between the GET and the PUT (Steve
+            // 2026-08-27: Cleveland hidden rates kept coming back because
+            // Save Offer Restrictions re-sent available_website=true from
+            // a stale cached GET). Server PUT uses COALESCE so partial
+            // updates leave unspecified columns untouched.
             for (const offerId of offerIds) {
                 try {
-                    // Get current offer data first
-                    const getResp = await fetch(`/api/admin/offers/${offerId}`);
-                    const getData = await getResp.json();
-                    
-                    if (getData.success) {
-                        const offer = getData.data;
-                        const changes = offerChanges[offerId];
-                        
-                        // Merge changes
-                        const updateData = {
-                            ...offer,
-                            min_nights: changes.min_nights || offer.min_nights,
-                            allowed_checkin_days: changes.allowed_checkin_days || offer.allowed_checkin_days,
-                            allowed_checkout_days: changes.allowed_checkout_days || offer.allowed_checkout_days
-                        };
-                        
-                        const response = await fetch(`/api/admin/offers/${offerId}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                            body: JSON.stringify(updateData)
-                        });
-                        const result = await response.json();
-                        
-                        if (result.success) saved++;
-                        else errors++;
-                    }
+                    const changes = offerChanges[offerId];
+                    const updateData = {};
+                    if (changes.min_nights !== undefined) updateData.min_nights = changes.min_nights;
+                    if (changes.allowed_checkin_days !== undefined) updateData.allowed_checkin_days = changes.allowed_checkin_days;
+                    if (changes.allowed_checkout_days !== undefined) updateData.allowed_checkout_days = changes.allowed_checkout_days;
+                    if (Object.keys(updateData).length === 0) { continue; }
+                    const response = await fetch(`/api/admin/offers/${offerId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify(updateData)
+                    });
+                    const result = await response.json();
+                    if (result.success) saved++;
+                    else errors++;
                 } catch (error) {
                     console.error('Error saving offer:', error);
                     errors++;

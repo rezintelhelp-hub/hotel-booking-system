@@ -4209,6 +4209,20 @@ jQuery(document).ready(function($) {
                     
                     // Update button based on selected rate
                     updateBookingButton(currency);
+                    // Final defensive override: force the Book Now button
+                    // to show the just-computed accommodation total, so a
+                    // stale data-offer-total baked into the rate card HTML
+                    // (from a prior calc-price call with a different guest
+                    // mix) can't leak through and undercharge. When the
+                    // guest clicks a specific rate card, the click handler
+                    // (~line 4617) re-derives per that card. Steve
+                    // 2026-08-27.
+                    try {
+                        $('.gas-book-btn')
+                          .prop('disabled', false)
+                          .text(t('booking', 'book_now', 'Book Now') + ' - ' + formatPrice(accommodationTotal, currency));
+                        $roomWidget.data('total-price', accommodationTotal);
+                    } catch(_) {}
                     
                     $roomWidget.data('price-details', response);
                 } else if (response.min_stay_required) {
