@@ -77060,7 +77060,11 @@ const REPORTS_REGISTRY = {
       { key: 'room_id',     type: 'room_picker',     required: false, label: 'Room' },
     ],
     columns: [
-      { key: 'month',         label: 'Month',            format: 'month' },
+      { key: 'month',         label: 'Month',            format: 'month',
+        drill_to: { report: 'cash-vs-sales', params: {
+          from: { field: 'month', transform: 'month_start' },
+          to:   { field: 'month', transform: 'month_end'   },
+        } } },
       { key: 'channel',       label: 'Channel',          format: 'text' },
       { key: 'bookings',      label: 'Bookings',         format: 'integer', align: 'right' },
       { key: 'nights',        label: 'Nights',           format: 'integer', align: 'right' },
@@ -77792,7 +77796,14 @@ const REPORTS_REGISTRY = {
       { key: 'property_id', type: 'property_picker', required: false, label: 'Property' },
     ],
     columns: [
-      { key: 'arrival_month', label: 'Arrival month',   format: 'month' },
+      // arrival_month is drill-through — click a month cell to jump into
+      // cash-vs-sales with arrival window preset to that month, showing
+      // the per-booking rows that make up the aggregate. Steve 2026-08-27.
+      { key: 'arrival_month', label: 'Arrival month',   format: 'month',
+        drill_to: { report: 'cash-vs-sales', params: {
+          from: { field: 'arrival_month', transform: 'month_start' },
+          to:   { field: 'arrival_month', transform: 'month_end'   },
+        } } },
       { key: 'bookings',      label: 'Bookings',        format: 'integer', align: 'right' },
       { key: 'total_value',   label: 'Total booking value', format: 'currency', align: 'right' },
       { key: 'deferred',      label: 'Deferred held',   format: 'currency', align: 'right' },

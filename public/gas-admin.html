@@ -70341,9 +70341,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                     ? ` data-review="${needsReview ? '1' : '0'}" style="border-bottom:1px solid #f1f5f9; cursor:pointer; background:${bgIdle};" onclick="openBookingDetail(${bookingId})" onmouseover="this.style.background='${bgHover}'" onmouseout="this.style.background='${bgIdle}'" title="${titleAttr}"`
                     : ' style="border-bottom:1px solid #f1f5f9;"';
                 return '<tr' + rowAttrs + '>' +
-                    report.columns.map(c => `<td style="padding:0.55rem 0.9rem; text-align:${c.align || 'left'}; font-variant-numeric:${c.format === 'currency' || c.format === 'integer' ? 'tabular-nums' : 'normal'};">${formatReportCell(row[c.key], c.format)}</td>`).join('') +
+                    report.columns.map(c => {
+                        const raw = row[c.key];
+                        const cellText = formatReportCell(raw, c.format);
+                        // Drill-through — column spec's drill_to hints where
+                        // to jump when this cell is clicked. Serialised as
+                        // data-drill for the delegated click handler wired
+                        // in wireReportDrillHandler(). Steve 2026-08-27.
+                        const drillAttr = (c.drill_to && raw != null && raw !== '')
+                          ? ` class="report-drill-cell" data-drill="${escapeHtml(JSON.stringify({ target: c.drill_to.report, params: c.drill_to.params, row }))}"`
+                          : '';
+                        const drillStyle = c.drill_to ? 'cursor:pointer; color:#1d4ed8; text-decoration:underline dotted; font-weight:500;' : '';
+                        return `<td${drillAttr} style="padding:0.55rem 0.9rem; text-align:${c.align || 'left'}; font-variant-numeric:${c.format === 'currency' || c.format === 'integer' ? 'tabular-nums' : 'normal'}; ${drillStyle}">${cellText}</td>`;
+                    }).join('') +
                 '</tr>';
             }).join('');
+            wireReportDrillHandler();
             // Summary banner: yellow while rows still need review, blue-only
             // once everything's been reconciled. Removed if neither state.
             let banner = document.getElementById('reports-review-banner');
@@ -70376,6 +70389,67 @@ const promo = await fetch('/api/v1/offers/validate', {
             } else {
                 tfoot.innerHTML = '';
             }
+        }
+
+        // Cross-report drill (Steve 2026-08-27). Click a cell whose column
+        // spec has drill_to → load target report, populate its params from
+        // the source row via configured field transforms, run it. Same
+        // account scope stays active; only the report + filters swap out.
+        // Wired as delegated stopPropagation click so it doesn't collide
+        // with the row-level "open booking modal" handler for GAS-<id> rows.
+        function wireReportDrillHandler() {
+            document.querySelectorAll('td.report-drill-cell').forEach(td => {
+                if (td.dataset.drillWired === '1') return;
+                td.dataset.drillWired = '1';
+                td.addEventListener('click', async (ev) => {
+                    ev.stopPropagation();
+                    let spec = null;
+                    try { spec = JSON.parse(td.dataset.drill || 'null'); } catch (_) { spec = null; }
+                    if (!spec || !spec.target) return;
+                    await drillToReport(spec.target, spec.params || {}, spec.row || {});
+                });
+            });
+        }
+
+        async function drillToReport(targetSlug, paramMap, row) {
+            try {
+                await loadReportSpec(targetSlug);
+                // After spec loads, populate each target-param input from
+                // the source row via the configured transform.
+                Object.entries(paramMap).forEach(([targetKey, srcSpec]) => {
+                    const el = document.getElementById('report-param-' + targetKey);
+                    if (!el) return;
+                    const val = _transformDrillValue(row[srcSpec.field], srcSpec.transform);
+                    if (val != null) el.value = val;
+                });
+                // Small tick to let the DOM settle before the fetch fires.
+                await new Promise(r => setTimeout(r, 30));
+                runReport();
+                // Scroll to the results table so operator sees the switch.
+                const tbl = document.getElementById('reports-generic-tbody')?.closest('table');
+                if (tbl) tbl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (e) {
+                showNotification('Drill failed: ' + e.message, 'error');
+            }
+        }
+
+        function _transformDrillValue(rawValue, transform) {
+            if (rawValue == null || rawValue === '') return null;
+            if (!transform) return String(rawValue);
+            // 'YYYY-MM' → 'YYYY-MM-01'
+            if (transform === 'month_start') {
+                const m = String(rawValue).match(/^(\d{4})-(\d{2})/);
+                return m ? `${m[1]}-${m[2]}-01` : null;
+            }
+            // 'YYYY-MM' → last day of that month
+            if (transform === 'month_end') {
+                const m = String(rawValue).match(/^(\d{4})-(\d{2})/);
+                if (!m) return null;
+                const yr = parseInt(m[1]), mo = parseInt(m[2]);
+                const last = new Date(yr, mo, 0).getDate(); // day 0 of next month = last of this month
+                return `${m[1]}-${m[2]}-${String(last).padStart(2, '0')}`;
+            }
+            return String(rawValue);
         }
 
         function formatReportCell(value, format) {
