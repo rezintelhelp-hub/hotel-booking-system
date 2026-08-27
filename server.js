@@ -77686,6 +77686,160 @@ const REPORTS_REGISTRY = {
     },
   },
 
+  // === VAT on Cash Basis (payment date) ==============================
+  // Companion to vat-return-summary (which uses arrival date = accrual).
+  // This one groups by the DATE MONEY MOVED (payment / refund). HMRC's
+  // tax point for hotel deposits is the payment date, so this is what
+  // matches the VAT return she actually filed. Refunds net against
+  // collections in the period they were issued.
+  //
+  // VAT amount is inferred per payment: proportion of the payment to the
+  // booking's total_amount × the booking's tax_amount. This handles
+  // partial payments (deposit + balance) correctly.
+  //
+  // OTA-collected bookings are excluded — the OTA holds the money and
+  // handles VAT on the guest side; no payment_transactions row exists
+  // on our side anyway.
+  // Steve 2026-08-27 (Hebden meeting prep).
+  'vat-cash-basis': {
+    slug: 'vat-cash-basis',
+    name: 'VAT — Cash basis (money in / refunds out)',
+    description: 'Payments received minus refunds issued in the chosen period, grouped by month. HMRC deposit tax-point basis — matches what you actually paid over on the VAT return. Complements the accrual-based VAT Return Summary which groups by arrival date instead.',
+    category: 'Tax',
+    joanne: '#7b',
+    params: [
+      { key: 'from', type: 'date', required: true, label: 'From (payment date)' },
+      { key: 'to',   type: 'date', required: true, label: 'To (payment date)' },
+      { key: 'property_id', type: 'property_picker', required: false, label: 'Property' },
+    ],
+    columns: [
+      { key: 'month',         label: 'Month',           format: 'month' },
+      { key: 'collections',   label: 'Collections',     format: 'currency', align: 'right' },
+      { key: 'refunds',       label: 'Refunds',         format: 'currency', align: 'right' },
+      { key: 'net_received',  label: 'Net received',    format: 'currency', align: 'right' },
+      { key: 'vat_collected', label: 'VAT collected',   format: 'currency', align: 'right' },
+      { key: 'vat_reclaimed', label: 'VAT reclaimed',   format: 'currency', align: 'right' },
+      { key: 'vat_net',       label: 'Net VAT due',     format: 'currency', align: 'right' },
+    ],
+    summary: { aggregates: ['collections', 'refunds', 'net_received', 'vat_collected', 'vat_reclaimed', 'vat_net'] },
+    sql: ({ accountId, params }) => {
+      const args = [accountId, params.from, params.to];
+      let propFilter = '';
+      if (params.property_id) {
+        args.push(parseInt(params.property_id));
+        propFilter = `AND b.property_id = $${args.length}`;
+      }
+      return {
+        sql: `
+          -- Per-transaction cash flow with VAT apportioned from the linked
+          -- booking. VAT on a partial payment = (payment / total) × booking VAT.
+          WITH per_txn AS (
+            SELECT
+              date_trunc('month', COALESCE(pt.completed_at, pt.created_at)) AS mo,
+              pt.amount,
+              pt.transaction_type,
+              -- VAT apportion: only when booking has tax_amount + total_amount.
+              CASE
+                WHEN COALESCE(b.total_amount, 0) > 0 AND COALESCE(b.tax_amount, 0) > 0
+                  THEN (pt.amount / b.total_amount) * b.tax_amount
+                ELSE 0
+              END AS vat_apportion
+            FROM payment_transactions pt
+            JOIN bookings b ON b.id = pt.booking_id
+            JOIN properties p ON p.id = b.property_id
+            WHERE pt.account_id = $1
+              AND p.account_id = $1
+              AND pt.status IN ('succeeded','completed')
+              AND COALESCE(pt.completed_at, pt.created_at) >= $2::date
+              AND COALESCE(pt.completed_at, pt.created_at) <  ($3::date + INTERVAL '1 day')
+              AND COALESCE(b.ota_prepaid, false) = false
+              AND b.parent_booking_id IS NULL
+              ${propFilter}
+          )
+          SELECT
+            to_char(mo, 'YYYY-MM')                                                         AS month,
+            COALESCE(SUM(amount) FILTER (WHERE transaction_type <> 'refund'), 0)::numeric(14,2)         AS collections,
+            COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'refund'),  0)::numeric(14,2)         AS refunds,
+            (COALESCE(SUM(amount) FILTER (WHERE transaction_type <> 'refund'), 0)
+             - COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'refund'),  0))::numeric(14,2)     AS net_received,
+            COALESCE(SUM(vat_apportion) FILTER (WHERE transaction_type <> 'refund'), 0)::numeric(14,2)  AS vat_collected,
+            COALESCE(SUM(vat_apportion) FILTER (WHERE transaction_type = 'refund'),  0)::numeric(14,2)  AS vat_reclaimed,
+            (COALESCE(SUM(vat_apportion) FILTER (WHERE transaction_type <> 'refund'), 0)
+             - COALESCE(SUM(vat_apportion) FILTER (WHERE transaction_type = 'refund'),  0))::numeric(14,2) AS vat_net
+          FROM per_txn
+          GROUP BY mo
+          ORDER BY mo DESC
+        `,
+        args,
+      };
+    },
+  },
+
+  // === Deferred Revenue rolled up by arrival month ===================
+  // Steve 2026-08-27 — cash-vs-sales already shows per-booking deferred;
+  // this is the one-liner-per-future-month version. Answers: "of what's
+  // in my bank right now, how much is owed to Sep guests, Oct guests,
+  // Nov guests…". Direct + Rezintel only — OTA money isn't held on our
+  // side. Confirmed bookings only — cancellations don't hold cash.
+  'deferred-by-month': {
+    slug: 'deferred-by-month',
+    name: 'Deferred revenue — by arrival month',
+    description: 'Balance-sheet view of prepayments held against future stays, aggregated by arrival month. As-of date defaults to today. OTA bookings excluded (the OTA holds their guest cash, not you).',
+    category: 'Cashflow',
+    joanne: '#2b',
+    params: [
+      { key: 'as_of', type: 'date', required: false, label: 'As-of date (default today)' },
+      { key: 'property_id', type: 'property_picker', required: false, label: 'Property' },
+    ],
+    columns: [
+      { key: 'arrival_month', label: 'Arrival month',   format: 'month' },
+      { key: 'bookings',      label: 'Bookings',        format: 'integer', align: 'right' },
+      { key: 'total_value',   label: 'Total booking value', format: 'currency', align: 'right' },
+      { key: 'deferred',      label: 'Deferred held',   format: 'currency', align: 'right' },
+    ],
+    summary: { aggregates: ['bookings', 'total_value', 'deferred'] },
+    sql: ({ accountId, params }) => {
+      const args = [accountId, params.as_of || new Date().toISOString().slice(0,10)];
+      let propFilter = '';
+      if (params.property_id) {
+        args.push(parseInt(params.property_id));
+        propFilter = `AND b.property_id = $${args.length}`;
+      }
+      return {
+        sql: `
+          WITH paid AS (
+            SELECT booking_id,
+                   SUM(CASE WHEN transaction_type = 'refund' THEN -amount ELSE amount END)::numeric(14,2) AS held
+              FROM payment_transactions
+             WHERE account_id = $1
+               AND status IN ('succeeded','completed')
+               AND COALESCE(completed_at, created_at) <= $2::date + INTERVAL '1 day'
+             GROUP BY booking_id
+          )
+          SELECT
+            to_char(date_trunc('month', b.arrival_date), 'YYYY-MM')  AS arrival_month,
+            COUNT(*)::int                                            AS bookings,
+            COALESCE(SUM(b.total_amount), 0)::numeric(14,2)          AS total_value,
+            COALESCE(SUM(GREATEST(paid.held, 0)), 0)::numeric(14,2)  AS deferred
+          FROM bookings b
+          JOIN properties p ON p.id = b.property_id
+          JOIN paid ON paid.booking_id = b.id
+          WHERE p.account_id = $1
+            AND b.status = 'confirmed'
+            AND b.arrival_date > $2::date
+            AND COALESCE(b.ota_prepaid, false) = false
+            AND COALESCE(b.booking_source, 'direct') IN ('direct','rezintel','')
+            AND b.parent_booking_id IS NULL
+            AND paid.held > 0
+            ${propFilter}
+          GROUP BY 1
+          ORDER BY 1 ASC
+        `,
+        args,
+      };
+    },
+  },
+
   'reviews-repuso': {
     slug: 'reviews-repuso',
     name: 'Guest Reviews',
