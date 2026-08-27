@@ -4181,6 +4181,14 @@ jQuery(document).ready(function($) {
                     // the surcharge even without picking an offer).
                     var stdExtras = parseFloat(response.standard_rate_extras_total) || 0;
                     if (stdExtras > 0) accommodationTotal = accommodationTotal + stdExtras;
+                    // Defensive: pin standard-total to the extras-inclusive
+                    // value up-front so the Book Now button can't fall back
+                    // to a base-only figure from a stale render pass.
+                    // Cleveland 2026-08-27: 4 nights + 1 child was charging
+                    // £560 (base) on the button despite £640 shown for
+                    // accommodation because the button's data source hadn't
+                    // been re-set after children changed. Steve.
+                    $roomWidget.data('standard-total', accommodationTotal);
                     // Operator-customised Standard Rate labels (property-level).
                     // Plugin renders these on the Standard Rate card; falls
                     // back to "Standard Rate" + "✓ Free cancellation" when unset.
