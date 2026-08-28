@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.77');
+define('GAS_BOOKING_VERSION', '4.3.78');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4503,6 +4503,15 @@ class GAS_Booking {
         // + noindex meta below.
         $is_preview = !empty($preview_qs);
         if ($is_preview) {
+            // Expose the preview token globally so the theme's
+            // gas_render_page_sections() fetch can thread it through to
+            // the page-sections API endpoint. Without this, Section Builder
+            // drafts render empty on the preview URL because the endpoint
+            // enforces is_published=true. Steve 2026-08-28.
+            $preview_token_val = isset($_GET['_preview']) ? sanitize_text_field($_GET['_preview']) : '';
+            if ($preview_token_val && !defined('GAS_SPARK_PREVIEW_TOKEN')) {
+                define('GAS_SPARK_PREVIEW_TOKEN', $preview_token_val);
+            }
             add_action('wp_head', function() {
                 echo '<meta name="robots" content="noindex, nofollow">' . "\n";
             }, 1);

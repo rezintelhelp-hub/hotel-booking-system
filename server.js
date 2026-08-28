@@ -151910,10 +151910,17 @@ app.get('/api/public/website/:blogId/page-sections/:slug', async (req, res) => {
       );
       const accountId = accountRow.rows[0]?.account_id;
       if (accountId) {
+        // preview token bypasses is_published gate — matches the sparks
+        // by-slug endpoint. Without this, previewing a draft Spark that
+        // uses Section Builder renders empty because the theme's
+        // gas_render_page_sections() fetch here returns no sections.
+        // Steve 2026-08-28.
+        const previewToken = (req.query.preview && String(req.query.preview).trim()) || null;
         const sparkR = await pool.query(
           `SELECT title, blocks FROM sparks
-            WHERE account_id = $1 AND slug = $2 AND is_published = true
-            LIMIT 1`, [accountId, slug]);
+            WHERE account_id = $1 AND slug = $2
+              AND (is_published = true OR ($3::text IS NOT NULL AND preview_token = $3))
+            LIMIT 1`, [accountId, slug, previewToken]);
         const sp = sparkR.rows[0];
         if (sp && Array.isArray(sp.blocks) && sp.blocks.length > 0) {
           return res.json({ success: true, page_title: sp.title || '', sections: sp.blocks });

@@ -39,6 +39,12 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     $blog_id = get_current_blog_id();
     $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
     $endpoint = "{$api_url}/api/public/website/{$blog_id}/page-sections/" . urlencode($page_slug);
+    // Spark preview: if the gas-booking plugin set GAS_SPARK_PREVIEW_TOKEN
+    // (draft-preview URL), pass it through so the endpoint can bypass the
+    // is_published=true gate and return the draft's blocks. Steve 2026-08-28.
+    if (defined('GAS_SPARK_PREVIEW_TOKEN') && GAS_SPARK_PREVIEW_TOKEN) {
+        $endpoint .= (strpos($endpoint, '?') === false ? '?' : '&') . 'preview=' . rawurlencode(GAS_SPARK_PREVIEW_TOKEN);
+    }
 
     $response = wp_remote_get($endpoint, array('timeout' => 5, 'sslverify' => true));
     if (is_wp_error($response)) return false;
