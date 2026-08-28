@@ -144314,6 +144314,15 @@ app.post('/api/admin/sparks', async (req, res) => {
         linkedLeadFormId,
         JSON.stringify(blocks)
       ]);
+      // hide_title + render_mode on UPDATE (same pattern as create)
+      if (Object.prototype.hasOwnProperty.call(b, 'hide_title')) {
+        try { await pool.query('UPDATE sparks SET hide_title = $1 WHERE id = $2', [!!b.hide_title, b.id]); }
+        catch (_) {}
+      }
+      if (Object.prototype.hasOwnProperty.call(b, 'render_mode') && ['sections','classic'].includes(b.render_mode)) {
+        try { await pool.query('UPDATE sparks SET render_mode = $1 WHERE id = $2', [b.render_mode, b.id]); }
+        catch (_) {}
+      }
       res.json({ success: true, id: b.id });
     } else {
       // Create
@@ -144343,9 +144352,14 @@ app.post('/api/admin/sparks', async (req, res) => {
         linkedLeadFormId,
         JSON.stringify(blocks)
       ]);
-      // hide_title — separate UPDATE to avoid rewiring the big column list
+      // hide_title + render_mode — separate UPDATEs to avoid rewiring
+      // the big column list. render_mode = 'sections' or 'classic'.
       if (Object.prototype.hasOwnProperty.call(b, 'hide_title')) {
         try { await pool.query('UPDATE sparks SET hide_title = $1 WHERE id = $2', [!!b.hide_title, r.rows[0].id]); }
+        catch (_) {}
+      }
+      if (Object.prototype.hasOwnProperty.call(b, 'render_mode') && ['sections','classic'].includes(b.render_mode)) {
+        try { await pool.query('UPDATE sparks SET render_mode = $1 WHERE id = $2', [b.render_mode, r.rows[0].id]); }
         catch (_) {}
       }
       res.json({ success: true, id: r.rows[0].id });
@@ -153539,6 +153553,16 @@ app.listen(PORT, '0.0.0.0', async () => {
     // where the imported HTML already has its own carefully-styled title.
     // Steve / Marie 2026-08-28.
     await pool.query(`ALTER TABLE sparks ADD COLUMN IF NOT EXISTS hide_title BOOLEAN DEFAULT false`).catch(() => {});
+
+    // sparks.render_mode — persisted editor mode ('sections' or 'classic').
+    // Renderer picks the path based on this flag rather than auto-detecting
+    // from blocks presence, so operators can freely switch between modes
+    // in the editor without either mode's stale content bleeding into the
+    // rendered page. Steve 2026-08-28.
+    // Backfill: rows with any blocks → 'sections'; everything else → 'classic'
+    // preserves the current auto-detect behaviour on existing sparks.
+    await pool.query(`ALTER TABLE sparks ADD COLUMN IF NOT EXISTS render_mode VARCHAR(20)`).catch(() => {});
+    await pool.query(`UPDATE sparks SET render_mode = CASE WHEN blocks IS NOT NULL AND jsonb_array_length(blocks) > 0 THEN 'sections' ELSE 'classic' END WHERE render_mode IS NULL`).catch(() => {});
 
     // offers.extra_child_tiers — tiered child pricing (Steve 2026-08-26).
     // JSONB positional array: [tier2, tier3]. 1st extra child = flat

@@ -87953,11 +87953,17 @@ const promo = await fetch('/api/v1/offers/validate', {
             apply(tabS, sparkEditorMode === 'sections' ? active : inactive);
             apply(tabB, sparkEditorMode === 'body' ? active : inactive);
         }
-        function sparkLoadSections(blocks) {
+        function sparkLoadSections(blocks, renderMode) {
             if (typeof pageSbSections !== 'undefined') {
                 pageSbSections['spark'] = Array.isArray(blocks) ? blocks.slice() : [];
                 currentSbSlug = 'spark';
                 if (typeof sbRenderSections === 'function') sbRenderSections('spark');
+            }
+            // Prefer persisted render_mode. Falls back to auto-detect for
+            // legacy sparks (no column yet, or NULL). Steve 2026-08-28.
+            if (renderMode === 'classic' || renderMode === 'sections') {
+                sparkSetMode(renderMode === 'classic' ? 'body' : 'sections');
+                return;
             }
             const hasSections = (pageSbSections?.['spark'] || []).length > 0;
             const hasBody = (document.getElementById('spark-body')?.innerHTML || '').trim().length > 0;
@@ -88202,7 +88208,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         // Load block-based sections (new page-builder shape).
                         // Empty array = legacy Spark that only uses body — the
                         // editor auto-switches to Body tab in that case.
-                        sparkLoadSections(Array.isArray(s.blocks) ? s.blocks : []);
+                        sparkLoadSections(Array.isArray(s.blocks) ? s.blocks : [], s.render_mode);
                         document.getElementById('spark-layout').value = s.layout || 'hero_text_button';
                         document.getElementById('spark-cta-type').value = s.cta_type || '';
                         document.getElementById('spark-cta-text').value = s.cta_text || '';
@@ -88298,7 +88304,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 linked_workflow_id: document.getElementById('spark-linked-workflow').value || null,
                 linked_lead_form_id: document.getElementById('spark-linked-lead-form').value || null,
                 blocks: sparkGetSectionsForSave(),
-                hide_title: !!document.getElementById('spark-hide-title')?.checked
+                hide_title: !!document.getElementById('spark-hide-title')?.checked,
+                // Persist the active editor tab so renderer honours the
+                // operator's choice rather than auto-detecting from blocks
+                // presence. Steve 2026-08-28.
+                render_mode: (typeof sparkEditorMode !== 'undefined' && sparkEditorMode === 'body') ? 'classic' : 'sections'
             };
             if (!payload.title) { alert('Title is required'); return; }
             try {

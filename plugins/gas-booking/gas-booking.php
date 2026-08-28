@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.76');
+define('GAS_BOOKING_VERSION', '4.3.77');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4618,7 +4618,17 @@ class GAS_Booking {
         // slug so the helper resolves it without any extra plumbing.
         // Zero rendering happens here beyond get_header()/get_footer() —
         // brand + section render live in the theme, exactly like sub-pages.
-        if (!empty($spark['blocks']) && is_array($spark['blocks'])) {
+        //
+        // render_mode (Steve 2026-08-28) — if the operator explicitly
+        // chose Section Builder in the editor, use sections regardless of
+        // whether they've added any yet (empty state is still authoritative).
+        // If they chose Classic, use classic even if blocks happens to
+        // contain something. Auto-detect (blocks presence) is only used
+        // when render_mode is unset (legacy sparks pre-column).
+        $render_mode = isset($spark['render_mode']) ? $spark['render_mode'] : null;
+        $use_sections = ($render_mode === 'sections')
+            || ($render_mode === null && !empty($spark['blocks']) && is_array($spark['blocks']));
+        if ($use_sections) {
             // The theme's gas-page-sections.php is normally require_once'd
             // by page.php / template-about.php — NOT by functions.php — so
             // the render helper isn't defined at template_redirect time.
