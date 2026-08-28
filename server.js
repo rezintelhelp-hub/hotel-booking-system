@@ -42503,6 +42503,25 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             });
         }
         
+        // Push each booking's payment lines to Beds24 so the operator sees
+        // "paid" instead of "balance due" on their side. Fire-and-forget +
+        // idempotent (syncBeds24PaymentItem is a no-op when Beds24 is
+        // already in sync). Mirrors the single-room /api/public/book path
+        // which has done this since 2026-07 — group bookings missed it,
+        // leaving Beds24 with a balance-due on every group deposit.
+        // Steve 2026-08-28 (Marta Pacheco B92156352 pattern).
+        if (typeof syncBeds24PaymentItem === 'function' && createdBookings.length > 0) {
+            Promise.allSettled(
+                createdBookings.map(b => syncBeds24PaymentItem(b.id))
+            ).then(results => {
+                results.forEach((r, i) => {
+                    if (r.status === 'rejected') {
+                        console.error('[create-group-booking] beds24 payment sync rejected for booking', createdBookings[i].id, r.reason?.message || r.reason);
+                    }
+                });
+            });
+        }
+
         // DEBUG: Verify bookings exist on SAME connection before releasing
         const verifyBeforeRelease = await client.query(
             `SELECT id, group_booking_id FROM bookings WHERE group_booking_id = $1`,
