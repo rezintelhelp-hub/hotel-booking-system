@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.69');
+define('GAS_BOOKING_VERSION', '4.3.70');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4494,6 +4494,19 @@ class GAS_Booking {
 
         // Render the Spark
         status_header(200);
+        // Clear WP's internal 404 flag so the theme header/body_class don't
+        // render the 404 chrome around the spark content. Steve 2026-08-28
+        // — Walnut Canyon "pets-at-walnut-canyon-cabins-video" was serving
+        // HTTP 200 with the spark HTML injected INSIDE the theme's 404
+        // template, so guests saw "Page not found" as the title even though
+        // spark content was there. status_header(200) alone only fixes the
+        // wire response; is_404() is still true when get_header() runs.
+        global $wp_query;
+        if ($wp_query) {
+            $wp_query->is_404 = false;
+            $wp_query->is_page = true;
+            $wp_query->is_singular = true;
+        }
         // Third arg carries top-level API fields (blocks_html + blocks_head
         // for the section-based renderer). Backwards compatible — the classic
         // render path ignores it entirely.
