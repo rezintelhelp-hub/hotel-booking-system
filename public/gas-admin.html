@@ -19192,6 +19192,10 @@
                                 <input type="text" id="spark-slug" class="form-input" placeholder="winter-romance-special" style="flex: 1;">
                                 <span style="color: #64748b; font-size: 0.85rem;">/</span>
                             </div>
+                            <div style="margin-top: 0.5rem;">
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="copySparkPreviewLink()" title="Shareable URL that shows this spark even when unpublished — perfect for client / designer approval">🔗 Copy preview link</button>
+                                <span id="spark-preview-link-status" style="margin-left: 0.5rem; font-size: 0.8rem; color: #64748b;"></span>
+                            </div>
                         </div>
 
                         <div class="form-group">
@@ -87711,6 +87715,30 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        // Copy shareable draft-preview URL to clipboard. Anyone with the
+        // link can view the spark even if is_published=false. Token is
+        // stashed on the slug input dataset when editSpark loaded the
+        // spark. Steve 2026-08-28.
+        async function copySparkPreviewLink() {
+            const slugEl = document.getElementById('spark-slug');
+            const status = document.getElementById('spark-preview-link-status');
+            const hostPrefix = document.getElementById('spark-host-prefix');
+            const slug = (slugEl?.value || '').trim();
+            const token = slugEl?.dataset.previewToken || '';
+            if (!slug) { if (status) { status.textContent = 'Save the spark first.'; status.style.color = '#dc2626'; } return; }
+            if (!token) { if (status) { status.textContent = 'Save first — preview token generated on save.'; status.style.color = '#dc2626'; } return; }
+            const hostText = (hostPrefix?.textContent || '').trim().replace(/\/$/, '');
+            const scheme = (hostText.startsWith('http') ? '' : 'https://');
+            const url = `${scheme}${hostText}/${slug}/?_preview=${encodeURIComponent(token)}`;
+            try {
+                await navigator.clipboard.writeText(url);
+                if (status) { status.textContent = '✓ Copied — paste anywhere. Link works even while draft.'; status.style.color = '#059669'; }
+                setTimeout(() => { if (status) status.textContent = ''; }, 5000);
+            } catch (e) {
+                if (status) { status.textContent = 'Copy failed — link: ' + url; status.style.color = '#dc2626'; }
+            }
+        }
+
         // ── Spark body page-builder helpers ────────────────────────────
         // Block presets — drop pre-styled HTML into the contenteditable
         // canvas at the caret. Classes match what the WP plugin's
@@ -88124,6 +88152,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         document.getElementById('spark-title').value = s.title || '';
                         document.getElementById('spark-slug').value = s.slug || '';
                         document.getElementById('spark-slug').dataset.manuallyEdited = '1';
+                        // Stash preview token so the "Copy preview link" button
+                        // can build the shareable draft URL.
+                        document.getElementById('spark-slug').dataset.previewToken = s.preview_token || '';
                         document.getElementById('spark-subtitle').value = s.subtitle || '';
                         document.getElementById('spark-hero-image').value = s.hero_image_url || '';
                         document.getElementById('spark-hero-video').value = s.hero_video_url || '';

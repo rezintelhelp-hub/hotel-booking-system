@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.70');
+define('GAS_BOOKING_VERSION', '4.3.71');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4479,7 +4479,14 @@ class GAS_Booking {
         if (preg_match('/\.(php|html|xml|txt|json|jpg|png|gif|css|js)$/i', $path)) return;
 
         $host = $_SERVER['HTTP_HOST'];
-        $api = 'https://admin.gas.travel/api/public/sparks/by-slug/' . rawurlencode($path) . '?host=' . rawurlencode($host);
+        // Draft preview: operator's ?_preview=<token> is passed through to
+        // the API so unpublished sparks resolve when the token matches.
+        // Steve 2026-08-28.
+        $preview_qs = '';
+        if (!empty($_GET['_preview'])) {
+            $preview_qs = '&preview=' . rawurlencode(sanitize_text_field($_GET['_preview']));
+        }
+        $api = 'https://admin.gas.travel/api/public/sparks/by-slug/' . rawurlencode($path) . '?host=' . rawurlencode($host) . $preview_qs;
         $resp = wp_remote_get($api, array('timeout' => 5));
         if (is_wp_error($resp)) return;
         $body = wp_remote_retrieve_body($resp);
@@ -4492,7 +4499,17 @@ class GAS_Booking {
             exit;
         }
 
-        // Render the Spark
+        // Render the Spark. Track preview mode so we can render a banner
+        // + noindex meta below.
+        $is_preview = !empty($preview_qs);
+        if ($is_preview) {
+            add_action('wp_head', function() {
+                echo '<meta name="robots" content="noindex, nofollow">' . "\n";
+            }, 1);
+            add_action('wp_body_open', function() {
+                echo '<div style="background:#fef3c7;border-bottom:2px solid #f59e0b;color:#92400e;padding:10px 16px;text-align:center;font-family:system-ui,sans-serif;font-size:14px;font-weight:600;">👁️ DRAFT PREVIEW — not visible to the public. Publish the spark to make it live.</div>';
+            }, 1);
+        }
         status_header(200);
         // Clear WP's internal 404 flag so the theme header/body_class don't
         // render the 404 chrome around the spark content. Steve 2026-08-28

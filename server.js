@@ -144368,7 +144368,7 @@ app.delete('/api/admin/sparks/:id', async (req, res) => {
 app.get('/api/public/sparks/by-slug/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
-    const { site_url, host } = req.query;
+    const { site_url, host, preview } = req.query;
     let accountId = null;
     if (site_url || host) {
       const siteRow = await pool.query(
@@ -144381,13 +144381,22 @@ app.get('/api/public/sparks/by-slug/:slug', async (req, res) => {
     }
     if (!accountId) return res.json({ success: false, error: 'site not found' });
 
-    // Match by primary slug OR by being in redirect_from_urls (redirect case)
+    // Match by primary slug OR by being in redirect_from_urls (redirect case).
+    // Draft preview: when ?preview=<token> matches this row's preview_token
+    // the is_published gate is bypassed. Operator gets a shareable URL for
+    // client / accountant / designer approval without publishing to the
+    // world. Steve 2026-08-28.
+    const previewToken = (preview && String(preview).trim()) || null;
     const r = await pool.query(`
       SELECT * FROM sparks
-      WHERE account_id = $1 AND is_published = true
+      WHERE account_id = $1
+        AND (
+          is_published = true
+          OR ($3::text IS NOT NULL AND preview_token = $3)
+        )
         AND (slug = $2 OR $2 = ANY(redirect_from_urls))
       LIMIT 1
-    `, [accountId, slug]);
+    `, [accountId, slug, previewToken]);
     if (!r.rows[0]) return res.json({ success: false, error: 'spark not found' });
     const spark = r.rows[0];
 
@@ -153510,6 +153519,15 @@ app.listen(PORT, '0.0.0.0', async () => {
     // a mirrored offer rate plan (created via the offer-save hook).
     await pool.query(`ALTER TABLE gas_sync_rate_plans ADD COLUMN IF NOT EXISTS offer_id INTEGER`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_grp_offer ON gas_sync_rate_plans(offer_id)`).catch(() => {});
+
+    // sparks.preview_token — shareable draft-preview URL support (Steve
+    // 2026-08-28). Random 32-char hex per spark. When present on the
+    // ?preview=<token> query the /api/public/sparks/by-slug endpoint
+    // returns unpublished sparks. Existing sparks get a token backfilled
+    // on this boot; new sparks get one on POST.
+    await pool.query(`ALTER TABLE sparks ADD COLUMN IF NOT EXISTS preview_token VARCHAR(32)`).catch(() => {});
+    await pool.query(`UPDATE sparks SET preview_token = md5(random()::text || id::text) WHERE preview_token IS NULL`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_sparks_preview_token ON sparks(preview_token) WHERE preview_token IS NOT NULL`).catch(() => {});
 
     // offers.extra_child_tiers — tiered child pricing (Steve 2026-08-26).
     // JSONB positional array: [tier2, tier3]. 1st extra child = flat
