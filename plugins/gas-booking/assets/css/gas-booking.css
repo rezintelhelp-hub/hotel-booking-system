@@ -2236,10 +2236,11 @@ html body .gas-gallery-more-overlay {
 }
 
 .gas-upsell-qty-minus {
+    /* Inline stepper — sits at the right end of the card between the price
+       and the qty badge. Steve 2026-08-28: was position:absolute top-right,
+       overlapped the price text on cards with a $/guest label. */
     display: none;
-    position: absolute;
-    top: 6px;
-    right: 6px;
+    margin-left: 6px;
     width: 24px;
     height: 24px;
     border: 1px solid var(--gas-border);
@@ -2253,7 +2254,7 @@ html body .gas-gallery-more-overlay {
     line-height: 1;
     color: #475569;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    z-index: 2;
+    flex-shrink: 0;
 }
 .gas-upsell-qty-minus:hover {
     background: #fef2f2;
