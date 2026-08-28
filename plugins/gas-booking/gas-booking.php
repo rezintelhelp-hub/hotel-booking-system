@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.75');
+define('GAS_BOOKING_VERSION', '4.3.76');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4657,8 +4657,14 @@ class GAS_Booking {
         // as an iframe styled the same as the direct-video hero. Direct
         // mp4/webm URLs fall through to <video>. Steve / Marie (Walnut
         // Canyon) 2026-08-28.
+        //
+        // Layout 'text_only' suppresses the hero entirely — operator can
+        // still keep the hero_image_url populated so social shares (OG)
+        // pick it up, without rendering a banner on the page itself.
         $hero_html = '';
-        if ($hero_video) {
+        if ($layout === 'text_only') {
+            // no hero — fall through
+        } elseif ($hero_video) {
             $yt_id = '';
             $vm_id = '';
             if (preg_match('#(?:youtube\.com/(?:watch\?v=|embed/|v/)|youtu\.be/)([A-Za-z0-9_-]{6,})#i', $hero_video, $m)) {
