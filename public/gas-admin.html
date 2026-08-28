@@ -87693,6 +87693,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
                 const ctaIcon = { offer: '🎁', shop_product: '🛍', room: '🛏', external_url: '🔗', form_embed: '📋' };
                 const siteHost = d.site_host || '';
+                // Last-worked-on marker (Steve 2026-08-28) — persisted in
+                // localStorage per account so it survives refresh/logout.
+                // Not shared across accounts because operators switching
+                // clients don't want another account's marker leaking.
+                const lastEditedId = parseInt(localStorage.getItem('_gas_spark_last_edited_' + accountId) || '0', 10) || null;
                 // Cache the host so the editor modal can build the "View
                 // live" URL without refetching.
                 window._sparksSiteHost = siteHost;
@@ -87723,8 +87728,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <span title="CTA clicks${ctr !== null ? ` — ${ctr}% CTR` : ''}">🖱 ${clicks.toLocaleString()}${ctr !== null ? `<span style="color:#94a3b8;"> (${ctr}%)</span>` : ''}</span>
                             <span title="Completed purchases${cvr !== null ? ` — ${cvr}% conversion` : ''}${revText}" style="font-weight: 600; color: #166534;">💰 ${purchased.toLocaleString()}${revText}</span>
                         </div>` : '';
+                    const isLastEdited = lastEditedId && s.id === lastEditedId;
+                    // Amber outline + subtle background + "Last edited" chip
+                    // so returning to the list, the operator sees exactly
+                    // which spark they were working on.
+                    const cardBorder = isLastEdited ? '2px solid #f59e0b' : '1px solid #e2e8f0';
+                    const cardBg     = isLastEdited ? '#fffbeb' : '#fff';
+                    const lastChip   = isLastEdited ? '<span style="position:absolute; top:8px; right:8px; background:#f59e0b; color:#fff; font-size:0.7rem; font-weight:600; padding:2px 8px; border-radius:999px; box-shadow:0 1px 3px rgba(0,0,0,0.15);">Last edited</span>' : '';
                     return `
-                    <div onclick="openSparkModal(${s.id})" style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+                    <div onclick="openSparkModal(${s.id})" style="position:relative; background: ${cardBg}; border: ${cardBorder}; border-radius: 10px; overflow: hidden; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+                        ${lastChip}
                         <div style="background: ${s.hero_image_url ? `url('${s.hero_image_url}') center/cover` : 'linear-gradient(135deg, #fef3c7, #fed7aa)'}; height: 140px;"></div>
                         <div style="padding: 0.85rem 1rem;">
                             <div style="font-weight: 700; color: #1e293b; margin-bottom: 0.25rem;">${(s.title || '').replace(/</g, '&lt;')}</div>
@@ -88154,6 +88167,12 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function openSparkModal(sparkId) {
             const accountId = getClientId();
             if (!accountId) { alert('Select an account first'); return; }
+            // Remember which spark the operator is working on, so the
+            // Sparks grid highlights it on return. Per-account so switching
+            // clients doesn't leak the marker. Steve 2026-08-28.
+            if (sparkId) {
+                try { localStorage.setItem('_gas_spark_last_edited_' + accountId, String(sparkId)); } catch (_) {}
+            }
             const modal = document.getElementById('spark-modal');
             const titleEl = document.getElementById('spark-modal-title');
             const deleteBtn = document.getElementById('spark-delete-btn');
