@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.79');
+define('GAS_BOOKING_VERSION', '4.3.80');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4656,7 +4656,7 @@ class GAS_Booking {
                 // 2026-08-28: sparks are landing pages, header space at the
                 // top was dead space + a visible grey strip when the first
                 // section had no background_color.
-                if (!defined('GAS_SPARK_HEADER_SPACER_HEIGHT')) define('GAS_SPARK_HEADER_SPACER_HEIGHT', 40);
+                if (!defined('GAS_SPARK_HEADER_SPACER_HEIGHT')) define('GAS_SPARK_HEADER_SPACER_HEIGHT', 60);
                 if (!defined('GAS_SPARK_HEADER_SPACER_BG'))     define('GAS_SPARK_HEADER_SPACER_BG', 'transparent');
                 add_filter('pre_get_document_title', function() use ($meta_title) { return $meta_title; });
                 $primary_color = '#2563eb';
@@ -4841,7 +4841,7 @@ class GAS_Booking {
                      starts at y=0 and the WordPress site header (sticky /
                      transparent burger menu, etc) hides it. Reserve a
                      150px spacer so the title always clears the header. -->
-                <div style="height: 40px;"></div>
+                <div style="height: 60px;"></div>
             <?php endif; ?>
             <div style="max-width: 800px; margin: 0 auto; padding: 3rem 1.5rem; position: relative; z-index: 1;">
                 <?php
