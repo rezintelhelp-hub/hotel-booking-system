@@ -79128,7 +79128,7 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
     }
 
     const bk = await pool.query(
-      `SELECT b.id, b.guest_id, b.guest_email, b.guest_first_name,
+      `SELECT b.id, b.guest_id, b.guest_email, b.guest_first_name, b.guest_last_name,
               b.arrival_date, b.balance_amount, b.currency,
               p.name AS property_name, p.account_id, p.contact_email AS property_contact_email,
               a.reply_to_email AS account_reply_to, a.email AS account_email
@@ -79143,8 +79143,36 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
     if (!isMaster && booking.account_id !== (decoded.accountId || decoded.id)) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
     }
-    if (!booking.guest_id) return res.status(400).json({ success: false, error: 'Booking is not linked to a guest yet' });
     if (!booking.guest_email) return res.status(400).json({ success: false, error: 'No email on booking' });
+
+    // Auto-create + link a guests row on-demand when the booking arrived
+    // without one (typical for Airbnb bookings where the sync only writes
+    // the proxy email onto the booking, not a guests row). Steve / Barbara
+    // (Charles House Airbnb capture flow) 2026-08-28. Idempotent via the
+    // (account_id, email) unique constraint — reuses an existing guests
+    // row when one already exists for that email on the same account.
+    if (!booking.guest_id) {
+      try {
+        const upsert = await pool.query(
+          `INSERT INTO guests (account_id, email, first_name, last_name)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (account_id, email) DO UPDATE
+             SET first_name = COALESCE(guests.first_name, EXCLUDED.first_name),
+                 last_name  = COALESCE(guests.last_name,  EXCLUDED.last_name),
+                 updated_at = NOW()
+           RETURNING id`,
+          [booking.account_id, booking.guest_email, booking.guest_first_name || null, booking.guest_last_name || null]
+        );
+        const newGuestId = upsert.rows[0]?.id;
+        if (newGuestId) {
+          await pool.query('UPDATE bookings SET guest_id = $1 WHERE id = $2', [newGuestId, booking.id]);
+          booking.guest_id = newGuestId;
+        }
+      } catch (e) {
+        console.warn('[send-card-capture] auto-guest create failed for booking', booking.id, e.message);
+      }
+    }
+    if (!booking.guest_id) return res.status(400).json({ success: false, error: 'Could not create guest record for this booking — check the email is valid' });
 
     const guestRow = await pool.query('SELECT magic_link_secret FROM guests WHERE id = $1', [booking.guest_id]);
     if (!guestRow.rows[0]) return res.status(404).json({ success: false, error: 'Guest not found' });
