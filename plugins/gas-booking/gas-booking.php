@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.71');
+define('GAS_BOOKING_VERSION', '4.3.72');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4804,6 +4804,22 @@ class GAS_Booking {
                     <?php if ($subtitle): ?><p class="gas-spark-subtitle"><?php echo esc_html($subtitle); ?></p><?php endif; ?>
                 <?php endif; ?>
                 <div class="gas-spark-body"><?php
+                // Dedupe title: if body starts with an <h1> whose text
+                // matches the spark title (imported CMS content often
+                // does this), strip it so the title doesn't render twice
+                // on the page. Steve / Marie (Walnut Canyon) 2026-08-28.
+                if ($body && $title) {
+                    $body = preg_replace_callback(
+                        '#^\s*<h1\b[^>]*>(.*?)</h1>\s*#is',
+                        function ($m) use ($title) {
+                            $body_h1 = trim(strtolower(strip_tags($m[1])));
+                            $spark_t = trim(strtolower($title));
+                            return ($body_h1 === $spark_t) ? '' : $m[0];
+                        },
+                        $body,
+                        1
+                    );
+                }
                 // wp_kses_post strips <iframe> + <video> + <source>, which
                 // kills YouTube/Vimeo embeds — Walnut's Sparks are 80%
                 // video, so the body went blank. Extend the allowlist

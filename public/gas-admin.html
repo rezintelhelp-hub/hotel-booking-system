@@ -19205,13 +19205,18 @@
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
-                                <label>Hero image URL</label>
+                                <label>Hero image URL <span style="font-weight:400;color:#64748b;font-size:0.8rem;">— the big banner at the top of the page</span></label>
                                 <input type="text" id="spark-hero-image" class="form-input" placeholder="https://...jpg">
+                                <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">Only shows if you leave Hero video empty. Landscape works best (16:9).</div>
                             </div>
                             <div class="form-group">
-                                <label>Hero video URL (optional, overrides image)</label>
-                                <input type="text" id="spark-hero-video" class="form-input" placeholder="https://...mp4 or YouTube URL">
+                                <label>Hero video URL <span style="font-weight:400;color:#64748b;font-size:0.8rem;">— replaces the hero image if set</span></label>
+                                <input type="text" id="spark-hero-video" class="form-input" placeholder="https://youtube.com/watch?v=… or https://...mp4">
+                                <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">Fill this in and the video plays where the hero image would. Leave blank to use the image.</div>
                             </div>
+                        </div>
+                        <div style="background:#f0f9ff;border:1px solid #bfdbfe;border-radius:6px;padding:0.6rem 0.85rem;margin-bottom:1rem;font-size:0.8rem;color:#1e40af;line-height:1.5;">
+                            💡 <strong>Hero vs Gallery:</strong> Hero = the ONE big image or video at the top of the page. Gallery (further down this form) = extra photos shown in a grid <em>below</em> the body content. Different jobs, both optional.
                         </div>
 
                         <div class="form-group">
@@ -40223,6 +40228,19 @@ const promo = await fetch('/api/v1/offers/validate', {
             };
             pageSbSections[slug].push(defaults[type] || { id, type, _currentLang: lang, [h]: '' });
             sbRenderSections(slug);
+            // Auto-expand + scroll to the just-added section. Otherwise
+            // it renders collapsed and first-time operators see "nothing
+            // happened" after clicking Add Section. Steve / Marie (Walnut
+            // Canyon) 2026-08-28.
+            try {
+                const newIdx = pageSbSections[slug].length - 1;
+                const bodyPrefix = slug === 'about' ? 'sb-body-' : 'sb-body-' + slug + '-';
+                const body = document.getElementById(bodyPrefix + newIdx);
+                if (body) {
+                    body.style.display = 'block';
+                    setTimeout(() => body.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+                }
+            } catch (_) {}
         }
 
         function sbRemoveSection(idx, slug) {
