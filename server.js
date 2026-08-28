@@ -165777,6 +165777,109 @@ app.get('/api/admin/channex/writeback-health', async (req, res) => {
   }
 });
 
+// ─── Beds24 Sync Failures Daily Digest ─────────────────────────────
+// Nightly email listing any abandoned Beds24 sync failures — GAS captured
+// the booking + payment but the initial sync to Beds24 failed 5x and
+// stopped retrying. Steve 2026-08-28 (line_total bug ran silent 2 months
+// killing 17 bookings across 6 clients — no digest = no visibility).
+async function buildBeds24SyncFailuresHealth() {
+  const rows = await pool.query(`
+    SELECT bf.id, bf.booking_id, bf.account_id, a.name AS account_name,
+           bf.status, bf.attempts, bf.last_error, bf.created_at, bf.last_attempt_at,
+           b.grand_total, b.currency,
+           COALESCE(NULLIF(TRIM(b.guest_first_name || ' ' || COALESCE(b.guest_last_name, '')), ''), '(no name)') AS guest,
+           to_char(b.arrival_date, 'YYYY-MM-DD') AS arrival_date
+      FROM beds24_sync_failures bf
+      LEFT JOIN bookings b ON b.id = bf.booking_id
+      LEFT JOIN accounts a ON a.id = bf.account_id
+     WHERE bf.status = 'abandoned' AND bf.resolved_at IS NULL
+     ORDER BY bf.created_at DESC
+  `);
+  const summary = { total: rows.rows.length, past_24h: 0, past_7d: 0, by_error: {}, by_account: {} };
+  const cutoff24 = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const cutoff7d = new Date(Date.now() - 7  * 24 * 60 * 60 * 1000);
+  for (const r of rows.rows) {
+    if (r.created_at >= cutoff24) summary.past_24h++;
+    if (r.created_at >= cutoff7d) summary.past_7d++;
+    const errKey = (r.last_error || 'unknown').slice(0, 120);
+    summary.by_error[errKey] = (summary.by_error[errKey] || 0) + 1;
+    const acctKey = r.account_name || ('acct ' + r.account_id);
+    summary.by_account[acctKey] = (summary.by_account[acctKey] || 0) + 1;
+  }
+  return { summary, rows: rows.rows, generated_at: new Date().toISOString() };
+}
+
+async function processBeds24SyncFailuresDigest() {
+  try {
+    const health = await buildBeds24SyncFailuresHealth();
+    const anyRed = health.summary.total > 0;
+    const emoji = anyRed ? '🔴' : '🟢';
+    const subject = `${emoji} Beds24 Sync Failures Daily — ${health.summary.total} abandoned${health.summary.past_24h ? ` (+${health.summary.past_24h} new in 24h)` : ''}`;
+    const errRows = Object.entries(health.summary.by_error).map(([err, n]) =>
+      `<tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${String(err).replace(/[<>&]/g,'')}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${n}</td></tr>`
+    ).join('');
+    const acctRows = Object.entries(health.summary.by_account).map(([acct, n]) =>
+      `<tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${String(acct).replace(/[<>&]/g,'')}</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${n}</td></tr>`
+    ).join('');
+    const listRows = health.rows.slice(0, 30).map(r =>
+      `<tr>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-family:monospace;">GAS-${r.booking_id}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${String(r.account_name || '?').replace(/[<>&]/g,'')}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${String(r.guest || '').replace(/[<>&]/g,'')}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${r.arrival_date || ''}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">${r.currency || ''} ${r.grand_total || ''}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:0.8rem;color:#dc2626;">${String(r.last_error || '').slice(0, 80).replace(/[<>&]/g,'')}</td>
+      </tr>`
+    ).join('');
+    const html = `<div style="font-family:Arial,sans-serif;max-width:960px;margin:0 auto;">
+      <h2 style="color:${anyRed ? '#dc2626' : '#059669'};">${emoji} Beds24 Sync Failures — Daily Digest</h2>
+      <p><strong>${health.summary.total}</strong> booking${health.summary.total === 1 ? '' : 's'} sitting as <code>abandoned</code> across the estate.
+         New in last 24h: <strong>${health.summary.past_24h}</strong>. New in last 7d: <strong>${health.summary.past_7d}</strong>.</p>
+      ${anyRed ? '<p style="color:#dc2626;font-weight:bold;">🚨 Each of these = a paid GAS booking that Beds24 never saw. Guest arrives, host has no record. Reset row in beds24_sync_failures to <code>retrying</code> + attempts=0 to re-attempt, or fix the underlying error.</p>' : '<p style="color:#059669;">No abandoned failures. All GAS-direct bookings landed in Beds24.</p>'}
+      ${anyRed ? `<h3 style="margin-top:1.5rem;">By error</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+        <thead><tr style="background:#f8fafc;"><th style="padding:8px 10px;text-align:left;">Error</th><th style="padding:8px 10px;text-align:right;">Count</th></tr></thead>
+        <tbody>${errRows}</tbody>
+      </table>
+      <h3 style="margin-top:1.5rem;">By account</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+        <thead><tr style="background:#f8fafc;"><th style="padding:8px 10px;text-align:left;">Account</th><th style="padding:8px 10px;text-align:right;">Count</th></tr></thead>
+        <tbody>${acctRows}</tbody>
+      </table>
+      <h3 style="margin-top:1.5rem;">Individual bookings (max 30 shown)</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+        <thead><tr style="background:#f8fafc;">
+          <th style="padding:8px 10px;text-align:left;">Booking</th>
+          <th style="padding:8px 10px;text-align:left;">Account</th>
+          <th style="padding:8px 10px;text-align:left;">Guest</th>
+          <th style="padding:8px 10px;text-align:left;">Arrival</th>
+          <th style="padding:8px 10px;text-align:right;">Total</th>
+          <th style="padding:8px 10px;text-align:left;">Error</th>
+        </tr></thead>
+        <tbody>${listRows}</tbody>
+      </table>` : ''}
+      <p style="color:#94a3b8;font-size:0.85rem;margin-top:1.5rem;">
+        Generated ${health.generated_at}
+      </p>
+    </div>`;
+    await sendEmail({ to: ['rezintelhelp@gmail.com'], subject, html });
+    console.log(`[beds24-sync-failures-digest] sent — ${health.summary.total} abandoned, ${health.summary.past_24h} new in 24h`);
+  } catch (e) {
+    console.error('[beds24-sync-failures-digest]', e.message);
+  }
+}
+
+app.get('/api/admin/beds24/sync-failures-health', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const health = await buildBeds24SyncFailuresHealth();
+    res.json({ success: true, ...health });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // =====================================================
 // COMMS HEALTH DIGEST — Steve 2026-08-02 (Lehmann silent workflow incident).
 // Lehmann's wf42/wf43 (welcome + upsell) silently flipped is_active=false at
@@ -167879,6 +167982,7 @@ function fireDueCrons() {
     runCronIfDue('processChannexOutbox', 60, processChannexOutbox).catch(e => console.error('[CRON wrapper channex-outbox]', e));
     runCronIfDue('processBeds24Outbox', 60, processBeds24Outbox).catch(e => console.error('[CRON wrapper beds24-outbox]', e));
     runCronIfDue('processChannexWriteBackDigest', 24 * 60 * 60, processChannexWriteBackDigest).catch(e => console.error('[CRON wrapper channex-digest]', e));
+    runCronIfDue('processBeds24SyncFailuresDigest', 24 * 60 * 60, processBeds24SyncFailuresDigest).catch(e => console.error('[CRON wrapper beds24-sync-failures-digest]', e));
     runCronIfDue('processHostfullyWriteBackDigest', 24 * 60 * 60, processHostfullyWriteBackDigest).catch(e => console.error('[CRON wrapper hostfully-digest]', e));
     runCronIfDue('processCommsDigest', 24 * 60 * 60, processCommsDigest).catch(e => console.error('[CRON wrapper comms-digest]', e));
     runCronIfDue('processOverchargeAuditDigest', 24 * 60 * 60, processOverchargeAuditDigest).catch(e => console.error('[CRON wrapper overcharge-audit]', e));
