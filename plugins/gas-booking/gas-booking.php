@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.74');
+define('GAS_BOOKING_VERSION', '4.3.75');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4812,16 +4812,22 @@ class GAS_Booking {
                 <div style="height: 150px;"></div>
             <?php endif; ?>
             <div style="max-width: 800px; margin: 0 auto; padding: 3rem 1.5rem; position: relative; z-index: 1;">
+                <?php
+                // Hide-title toggle — operator can suppress the auto-inserted
+                // <h1> when the imported body already has its own title.
+                // Steve / Marie 2026-08-28.
+                $hide_title = !empty($spark['hide_title']);
+                ?>
                 <?php if ($layout === 'side_by_side' && $hero_image): ?>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: center;">
                         <img src="<?php echo esc_url($hero_image); ?>" alt="" style="width: 100%; border-radius: 12px;">
                         <div>
-                            <h1 class="gas-spark-title"><?php echo esc_html($title); ?></h1>
+                            <?php if (!$hide_title): ?><h1 class="gas-spark-title"><?php echo esc_html($title); ?></h1><?php endif; ?>
                             <?php if ($subtitle): ?><p class="gas-spark-subtitle"><?php echo esc_html($subtitle); ?></p><?php endif; ?>
                         </div>
                     </div>
                 <?php else: ?>
-                    <h1 class="gas-spark-title"><?php echo esc_html($title); ?></h1>
+                    <?php if (!$hide_title): ?><h1 class="gas-spark-title"><?php echo esc_html($title); ?></h1><?php endif; ?>
                     <?php if ($subtitle): ?><p class="gas-spark-subtitle"><?php echo esc_html($subtitle); ?></p><?php endif; ?>
                 <?php endif; ?>
                 <div class="gas-spark-body"><?php

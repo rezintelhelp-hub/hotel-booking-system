@@ -144343,6 +144343,11 @@ app.post('/api/admin/sparks', async (req, res) => {
         linkedLeadFormId,
         JSON.stringify(blocks)
       ]);
+      // hide_title — separate UPDATE to avoid rewiring the big column list
+      if (Object.prototype.hasOwnProperty.call(b, 'hide_title')) {
+        try { await pool.query('UPDATE sparks SET hide_title = $1 WHERE id = $2', [!!b.hide_title, r.rows[0].id]); }
+        catch (_) {}
+      }
       res.json({ success: true, id: r.rows[0].id });
     }
   } catch (e) {
@@ -153528,6 +153533,12 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE sparks ADD COLUMN IF NOT EXISTS preview_token VARCHAR(32)`).catch(() => {});
     await pool.query(`UPDATE sparks SET preview_token = md5(random()::text || id::text) WHERE preview_token IS NULL`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_sparks_preview_token ON sparks(preview_token) WHERE preview_token IS NOT NULL`).catch(() => {});
+
+    // sparks.hide_title — operator toggle to suppress the auto-inserted
+    // <h1 class="gas-spark-title"> render. Useful for classic-body sparks
+    // where the imported HTML already has its own carefully-styled title.
+    // Steve / Marie 2026-08-28.
+    await pool.query(`ALTER TABLE sparks ADD COLUMN IF NOT EXISTS hide_title BOOLEAN DEFAULT false`).catch(() => {});
 
     // offers.extra_child_tiers — tiered child pricing (Steve 2026-08-26).
     // JSONB positional array: [tier2, tier3]. 1st extra child = flat

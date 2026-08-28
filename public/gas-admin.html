@@ -19198,35 +19198,50 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label>Subtitle</label>
-                            <input type="text" id="spark-subtitle" class="form-input" placeholder="A two-night escape with breakfast in bed and a fireside nightcap">
-                        </div>
-
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <!-- Classic-mode-only fields. Hidden when the operator
+                             is in Section Builder mode because the Section
+                             Builder renders its own hero/title/layout entirely.
+                             sparkSetMode() toggles this container. Steve /
+                             Marie 2026-08-28. -->
+                        <div id="spark-classic-only-fields">
                             <div class="form-group">
-                                <label>Hero image URL <span style="font-weight:400;color:#64748b;font-size:0.8rem;">— the big banner at the top of the page</span></label>
-                                <input type="text" id="spark-hero-image" class="form-input" placeholder="https://...jpg">
-                                <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">Only shows if you leave Hero video empty. Landscape works best (16:9).</div>
+                                <label>Subtitle</label>
+                                <input type="text" id="spark-subtitle" class="form-input" placeholder="A two-night escape with breakfast in bed and a fireside nightcap">
                             </div>
-                            <div class="form-group">
-                                <label>Hero video URL <span style="font-weight:400;color:#64748b;font-size:0.8rem;">— replaces the hero image if set</span></label>
-                                <input type="text" id="spark-hero-video" class="form-input" placeholder="https://youtube.com/watch?v=… or https://...mp4">
-                                <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">Fill this in and the video plays where the hero image would. Leave blank to use the image.</div>
-                            </div>
-                        </div>
-                        <div style="background:#f0f9ff;border:1px solid #bfdbfe;border-radius:6px;padding:0.6rem 0.85rem;margin-bottom:1rem;font-size:0.8rem;color:#1e40af;line-height:1.5;">
-                            💡 <strong>Hero vs Gallery:</strong> Hero = the ONE big image or video at the top of the page. Gallery (further down this form) = extra photos shown in a grid <em>below</em> the body content. Different jobs, both optional.
-                        </div>
 
-                        <div class="form-group">
-                            <label>Layout</label>
-                            <select id="spark-layout" class="form-input">
-                                <option value="hero_text_button">Hero + Text + Button (default)</option>
-                                <option value="hero_text">Hero + Text only</option>
-                                <option value="hero_video_text">Hero Video + Text + Button</option>
-                                <option value="side_by_side">Side-by-side image + text</option>
-                            </select>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group">
+                                    <label>Hero image URL <span style="font-weight:400;color:#64748b;font-size:0.8rem;">— the big banner at the top of the page</span></label>
+                                    <input type="text" id="spark-hero-image" class="form-input" placeholder="https://...jpg">
+                                    <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">Only shows if you leave Hero video empty. Landscape works best (16:9).</div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Hero video URL <span style="font-weight:400;color:#64748b;font-size:0.8rem;">— replaces the hero image if set</span></label>
+                                    <input type="text" id="spark-hero-video" class="form-input" placeholder="https://youtube.com/watch?v=… or https://...mp4">
+                                    <div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">Fill this in and the video plays where the hero image would. Leave blank to use the image.</div>
+                                </div>
+                            </div>
+                            <div style="background:#f0f9ff;border:1px solid #bfdbfe;border-radius:6px;padding:0.6rem 0.85rem;margin-bottom:1rem;font-size:0.8rem;color:#1e40af;line-height:1.5;">
+                                💡 <strong>Hero vs Gallery:</strong> Hero = the ONE big image or video at the top of the page. Gallery (further down this form) = extra photos shown in a grid <em>below</em> the body content. Different jobs, both optional.
+                            </div>
+
+                            <div class="form-group">
+                                <label>Layout</label>
+                                <select id="spark-layout" class="form-input">
+                                    <option value="hero_text_button">Hero + Text + Button (default)</option>
+                                    <option value="hero_text">Hero + Text only</option>
+                                    <option value="hero_video_text">Hero Video + Text + Button</option>
+                                    <option value="side_by_side">Side-by-side image + text</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                                    <input type="checkbox" id="spark-hide-title" style="width:16px; height:16px;">
+                                    <span>Hide page title</span>
+                                    <span style="font-weight:400; color:#64748b; font-size:0.8rem;">— suppress the auto-inserted &lt;h1&gt; on the page (keeps SEO title). Useful when the body already has its own title.</span>
+                                </label>
+                            </div>
                         </div>
 
                         <!-- Editor mode switcher — same "Section Builder" that
@@ -87923,6 +87938,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             const bodyEl = document.getElementById('spark-mode-body');
             if (secEl) secEl.style.display = sparkEditorMode === 'sections' ? '' : 'none';
             if (bodyEl) bodyEl.style.display = sparkEditorMode === 'body' ? '' : 'none';
+            // Hero / Subtitle / Layout / Hide-title only apply to classic
+            // body mode — Section Builder renders its own hero/title/layout.
+            // Hide them in Section Builder to stop operators editing fields
+            // that will be silently ignored. Steve / Marie 2026-08-28.
+            const classicOnly = document.getElementById('spark-classic-only-fields');
+            if (classicOnly) classicOnly.style.display = sparkEditorMode === 'body' ? '' : 'none';
             const tabS = document.getElementById('spark-tab-sections');
             const tabB = document.getElementById('spark-tab-body');
             const active = { border:'1.5px solid #6366f1', background:'#eef2ff', color:'#4338ca', fontWeight:'600' };
@@ -88203,6 +88224,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                         }
                         _sparkGallery = Array.isArray(s.gallery_images) ? s.gallery_images.slice() : [];
                         renderSparkGallery();
+                        // Hide-title checkbox — classic-mode only. Auto-inserted
+                        // <h1> is suppressed when true. Steve 2026-08-28.
+                        const hideTitleEl = document.getElementById('spark-hide-title');
+                        if (hideTitleEl) hideTitleEl.checked = !!s.hide_title;
                         if (s.linked_workflow_id) {
                             const wfSel = document.getElementById('spark-linked-workflow');
                             const hint = document.getElementById('spark-linked-workflow-hint');
@@ -88271,7 +88296,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 gallery_images: _sparkGallery.slice(),
                 linked_workflow_id: document.getElementById('spark-linked-workflow').value || null,
                 linked_lead_form_id: document.getElementById('spark-linked-lead-form').value || null,
-                blocks: sparkGetSectionsForSave()
+                blocks: sparkGetSectionsForSave(),
+                hide_title: !!document.getElementById('spark-hide-title')?.checked
             };
             if (!payload.title) { alert('Title is required'); return; }
             try {
