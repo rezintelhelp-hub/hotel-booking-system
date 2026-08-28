@@ -115,11 +115,15 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
         // the fixed-header spacer.
         $sections = array_filter($sections, function($s) { return !in_array($s['type'] ?? '', array('hero', 'hero_slider')); });
         $sections = array_values($sections);
-        echo '<div style="padding-top: 120px; background: ' . esc_attr($__ps_spacer_bg($sections)) . ';"></div>';
+        $__ps_pad  = (defined('GAS_SPARK_HEADER_SPACER_HEIGHT') ? intval(GAS_SPARK_HEADER_SPACER_HEIGHT) : 120);
+        $__ps_sbg  = defined('GAS_SPARK_HEADER_SPACER_BG') ? GAS_SPARK_HEADER_SPACER_BG : $__ps_spacer_bg($sections);
+        echo '<div style="padding-top: ' . intval($__ps_pad) . 'px; background: ' . esc_attr($__ps_sbg) . ';"></div>';
     } elseif (!$has_hero_section) {
         // No hero section in builder — spacing for fixed header + match first
         // section's bg so no white strip appears.
-        echo '<div style="padding-top: 120px; background: ' . esc_attr($__ps_spacer_bg($sections)) . ';"></div>';
+        $__ps_pad  = (defined('GAS_SPARK_HEADER_SPACER_HEIGHT') ? intval(GAS_SPARK_HEADER_SPACER_HEIGHT) : 120);
+        $__ps_sbg  = defined('GAS_SPARK_HEADER_SPACER_BG') ? GAS_SPARK_HEADER_SPACER_BG : $__ps_spacer_bg($sections);
+        echo '<div style="padding-top: ' . intval($__ps_pad) . 'px; background: ' . esc_attr($__ps_sbg) . ';"></div>';
     }
 
     // Render each section
