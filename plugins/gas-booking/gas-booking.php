@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.73');
+define('GAS_BOOKING_VERSION', '4.3.74');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4835,7 +4835,17 @@ class GAS_Booking {
                         function ($m) use ($title) {
                             $body_h1 = trim(strtolower(strip_tags($m[1])));
                             $spark_t = trim(strtolower($title));
-                            return ($body_h1 === $spark_t) ? '' : $m[0];
+                            if ($body_h1 === '' || $spark_t === '') return $m[0];
+                            // Strip if identical OR one string contains the
+                            // other. Imported Setseed / Rezintel pages often
+                            // have a shorter/longer variant of the title as
+                            // the body H1 (e.g. body "Super February Dining
+                            // Adventure" vs title "…2025 Opt Out Page").
+                            // Steve / Marie 2026-08-28.
+                            if ($body_h1 === $spark_t) return '';
+                            if (strpos($spark_t, $body_h1) !== false) return '';
+                            if (strpos($body_h1, $spark_t) !== false) return '';
+                            return $m[0];
                         },
                         $body,
                         1
