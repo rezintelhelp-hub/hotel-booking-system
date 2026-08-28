@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.72');
+define('GAS_BOOKING_VERSION', '4.3.73');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4651,10 +4651,31 @@ class GAS_Booking {
             }
         }
 
-        // Hero (image OR video)
+        // Hero (image OR video). YouTube / Vimeo URLs need iframe
+        // embedding — <video src="…youtube…"> is not a thing. Detect the
+        // three common YouTube URL shapes + Vimeo, extract the ID, embed
+        // as an iframe styled the same as the direct-video hero. Direct
+        // mp4/webm URLs fall through to <video>. Steve / Marie (Walnut
+        // Canyon) 2026-08-28.
         $hero_html = '';
         if ($hero_video) {
-            $hero_html = '<div class="gas-spark-hero" style="position: relative; background: #000;"><video src="' . esc_url($hero_video) . '" autoplay muted loop playsinline style="width:100%; height: 60vh; object-fit: cover; display: block;"></video><div style="position:absolute; inset:0; background:rgba(0,0,0,0.3);"></div></div>';
+            $yt_id = '';
+            $vm_id = '';
+            if (preg_match('#(?:youtube\.com/(?:watch\?v=|embed/|v/)|youtu\.be/)([A-Za-z0-9_-]{6,})#i', $hero_video, $m)) {
+                $yt_id = $m[1];
+            } elseif (preg_match('#vimeo\.com/(?:video/)?(\d+)#i', $hero_video, $m)) {
+                $vm_id = $m[1];
+            }
+            if ($yt_id) {
+                // mute+autoplay+loop+playsinline require playlist=<id> for looping to fire in YT embeds
+                $embed = 'https://www.youtube.com/embed/' . rawurlencode($yt_id) . '?autoplay=1&mute=1&loop=1&playlist=' . rawurlencode($yt_id) . '&controls=0&modestbranding=1&rel=0&playsinline=1';
+                $hero_html = '<div class="gas-spark-hero" style="position: relative; background: #000; height: 60vh; overflow: hidden;"><iframe src="' . esc_url($embed) . '" style="position:absolute; top:50%; left:50%; width:177.78vh; height:100vh; min-width:100%; min-height:56.25vw; transform:translate(-50%,-50%); border:0;" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe><div style="position:absolute; inset:0; background:rgba(0,0,0,0.3); pointer-events:none;"></div></div>';
+            } elseif ($vm_id) {
+                $embed = 'https://player.vimeo.com/video/' . rawurlencode($vm_id) . '?autoplay=1&muted=1&loop=1&background=1';
+                $hero_html = '<div class="gas-spark-hero" style="position: relative; background: #000; height: 60vh; overflow: hidden;"><iframe src="' . esc_url($embed) . '" style="position:absolute; top:50%; left:50%; width:177.78vh; height:100vh; min-width:100%; min-height:56.25vw; transform:translate(-50%,-50%); border:0;" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe><div style="position:absolute; inset:0; background:rgba(0,0,0,0.3); pointer-events:none;"></div></div>';
+            } else {
+                $hero_html = '<div class="gas-spark-hero" style="position: relative; background: #000;"><video src="' . esc_url($hero_video) . '" autoplay muted loop playsinline style="width:100%; height: 60vh; object-fit: cover; display: block;"></video><div style="position:absolute; inset:0; background:rgba(0,0,0,0.3);"></div></div>';
+            }
         } elseif ($hero_image) {
             $hero_html = '<div class="gas-spark-hero" style="background: url(' . esc_url($hero_image) . ') center/cover; height: 60vh; min-height: 400px; position: relative;"><div style="position:absolute; inset:0; background:linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.5));"></div></div>';
         }
