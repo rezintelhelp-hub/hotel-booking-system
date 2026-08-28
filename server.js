@@ -143870,7 +143870,13 @@ async function runBeds24SyncRetry() {
           await pool.query("UPDATE beds24_sync_failures SET attempts = attempts + 1, last_error=$2 WHERE id=$1", [f.id, 'No Beds24 access token']);
           continue;
         }
-        const extrasRows = (await pool.query("SELECT name, qty, unit_price, line_total FROM booking_extras WHERE booking_id = $1", [f.booking_id])).rows;
+        // booking_extras has no line_total column — was a typo that made
+        // every Beds24 sync retry fail with 'column "line_total" does not
+        // exist' → booking marked 'abandoned' after 5 attempts, never
+        // landing on Beds24 (Hebden Michael Stewart GAS-871480 2026-08-27).
+        // qty × unit_price is the amount; JS below already does that math.
+        // Steve 2026-08-28.
+        const extrasRows = (await pool.query("SELECT name, qty, unit_price FROM booking_extras WHERE booking_id = $1", [f.booking_id])).rows;
         const items = [{ description: 'Accommodation', status: '', qty: 1, amount: parseFloat(row.accommodation_price) || 0, vatRate: 0 }];
         if (parseFloat(row.discount_amount) > 0) {
           items.push({ description: 'Offer Discount', status: '', qty: 1, amount: -parseFloat(row.discount_amount), vatRate: 0 });
@@ -143880,7 +143886,7 @@ async function runBeds24SyncRetry() {
         }
         for (const e of extrasRows) {
           const q = parseInt(e.qty) || 1;
-          const u = parseFloat(e.unit_price) || (parseFloat(e.line_total) / q);
+          const u = parseFloat(e.unit_price) || 0;
           items.push({ description: e.name, status: '', qty: q, amount: u, vatRate: 0 });
         }
         if (parseFloat(row.deposit_amount) > 0) {
