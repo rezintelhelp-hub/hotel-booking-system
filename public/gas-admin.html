@@ -4138,7 +4138,8 @@
                     <table class="table" id="guests-table" style="width:100%;">
                         <thead>
                             <tr>
-                                <th>Name</th>
+                                <th>First Name</th>
+                                <th>Last Name</th>
                                 <th>Email</th>
                                 <th>Account</th>
                                 <th style="text-align:right;">Bookings</th>
@@ -66779,15 +66780,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                 return;
             }
             
-            let html = '<div class="table-container"><table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Tags</th><th>Source</th><th>Bookings</th><th>Actions</th></tr></thead><tbody>';
-            
+            let html = '<div class="table-container"><table><thead><tr><th>First Name</th><th>Last Name</th><th>Email</th><th>Phone</th><th>Tags</th><th>Source</th><th>Bookings</th><th>Actions</th></tr></thead><tbody>';
+
             allContacts.forEach(c => {
                 const tags = c.tags || [];
                 const tagHtml = tags.slice(0, 3).map(t => `<span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; margin-right: 4px;">${t.icon || '🏷️'} ${t.name}</span>`).join('');
                 const moreTags = tags.length > 3 ? `<span style="color: #64748b; font-size: 0.75rem;">+${tags.length - 3} more</span>` : '';
-                
+
                 html += `<tr>
-                    <td><strong>${c.first_name || ''} ${c.last_name || ''}</strong></td>
+                    <td>${c.first_name || ''}</td>
+                    <td><strong>${c.last_name || ''}</strong></td>
                     <td>${c.email}</td>
                     <td>${c.phone || '-'}</td>
                     <td>${tagHtml}${moreTags}</td>
@@ -69727,13 +69729,16 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function renderGuestRow(g) {
-            const name = [g.first_name, g.last_name].filter(Boolean).join(' ') || '<em style="color:#999;">unnamed</em>';
+            const firstName = g.first_name ? escapeHtml(g.first_name) : '';
+            const lastName  = g.last_name  ? escapeHtml(g.last_name)  : '';
+            const unnamed = (!firstName && !lastName) ? '<em style="color:#999;">unnamed</em>' : '';
             const spend = (Number(g.total_spent_cents || 0) / 100).toFixed(2);
             const lastStay = g.last_stay_at ? new Date(g.last_stay_at).toLocaleDateString() : '—';
             const lastSeen = g.last_seen_at ? new Date(g.last_seen_at).toLocaleDateString() : '—';
             return `
                 <tr style="cursor:pointer;" onclick="openGuestDetail(${g.id})">
-                    <td>${name}</td>
+                    <td>${firstName || unnamed}</td>
+                    <td><strong>${lastName}</strong></td>
                     <td><a href="mailto:${escapeHtml(g.email)}" onclick="event.stopPropagation();">${escapeHtml(g.email)}</a></td>
                     <td>${escapeHtml(g.account_name || '')}</td>
                     <td style="text-align:right;">${g.total_bookings || 0}</td>
