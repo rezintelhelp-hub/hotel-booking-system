@@ -72983,7 +72983,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             let ctx = {
                 guestName: 'Guest', propertyName: 'your stay',
                 currency: 'GBP', total: '0.00',
-                guestEmail: '', isGroup: false, groupSize: 1,
+                guestEmail: '', directEmail: '',
+                isGroup: false, groupSize: 1,
                 checkin: '', checkout: '', nights: 0,
                 roomName: '', groupRooms: []
             };
@@ -73003,6 +73004,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     ctx.currency = b.currency || 'GBP';
                     ctx.total = parseFloat(b.grand_total || 0).toFixed(2);
                     ctx.guestEmail = b.guest_email || '';
+                    ctx.directEmail = b.guest_direct_email || '';
                     // Two possible group columns: group_booking_id (VARCHAR,
                     // from public /create-group-booking endpoint — Diana's
                     // case) OR booking_group_id (UUID, from the post-hoc
@@ -73063,7 +73065,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div style="padding:1rem 1.25rem; display:flex; flex-direction:column; gap:0.85rem;">
                         <div>
                             <label style="font-size:0.75rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.03em;">To</label>
-                            <input type="text" value="${(ctx.guestEmail || '').replace(/"/g,'&quot;')}" readonly style="width:100%; padding:0.5rem 0.75rem; border:1px solid #e5e7eb; border-radius:8px; background:#f8fafc; color:#334155; font-size:0.9rem; margin-top:2px;">
+                            ${ctx.directEmail && ctx.directEmail !== ctx.guestEmail ? `
+                                <div style="margin-top:4px; display:flex; flex-direction:column; gap:6px;">
+                                    <label style="display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; background:#fff; font-size:0.85rem;">
+                                        <input type="radio" name="cclComposeTo" value="proxy" checked>
+                                        <span style="font-family:monospace;">${(ctx.guestEmail || '').replace(/</g,'&lt;')}</span>
+                                        <span style="color:#94a3b8; font-size:0.75rem; margin-left:auto;">OTA proxy</span>
+                                    </label>
+                                    <label style="display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; background:#f0fdf4; font-size:0.85rem;">
+                                        <input type="radio" name="cclComposeTo" value="direct">
+                                        <span style="font-family:monospace;">${(ctx.directEmail || '').replace(/</g,'&lt;')}</span>
+                                        <span style="color:#059669; font-size:0.75rem; margin-left:auto;">✓ direct — deliverable</span>
+                                    </label>
+                                </div>
+                            ` : `
+                                <input type="text" value="${(ctx.guestEmail || '').replace(/"/g,'&quot;')}" readonly style="width:100%; padding:0.5rem 0.75rem; border:1px solid #e5e7eb; border-radius:8px; background:#f8fafc; color:#334155; font-size:0.9rem; margin-top:2px;">
+                            `}
                         </div>
                         <div>
                             <label style="font-size:0.75rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.03em;">Subject</label>
@@ -73111,10 +73128,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 $('cclComposeSend').disabled = true;
                 $('cclComposeStatus').textContent = 'Sending…';
                 try {
+                    // Which email did the operator pick — proxy (default) or direct?
+                    const toChoice = overlay.querySelector('input[name="cclComposeTo"]:checked')?.value || 'proxy';
                     const r = await fetch(`/api/admin/bookings/${bookingId}/send-card-capture-link`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                        body: JSON.stringify({ subject, body })
+                        body: JSON.stringify({ subject, body, use_direct_email: toChoice === 'direct' })
                     });
                     const d = await r.json();
                     if (!d.success) { $('cclComposeStatus').textContent = '⚠ ' + (d.error || 'Failed'); $('cclComposeSend').disabled = false; return; }

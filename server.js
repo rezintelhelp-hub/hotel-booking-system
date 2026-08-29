@@ -79128,7 +79128,7 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
     }
 
     const bk = await pool.query(
-      `SELECT b.id, b.guest_id, b.guest_email, b.guest_first_name, b.guest_last_name,
+      `SELECT b.id, b.guest_id, b.guest_email, b.guest_direct_email, b.guest_first_name, b.guest_last_name,
               b.arrival_date, b.balance_amount, b.currency,
               p.name AS property_name, p.account_id, p.contact_email AS property_contact_email,
               a.reply_to_email AS account_reply_to, a.email AS account_email
@@ -79266,8 +79266,14 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
       ? `<div style="white-space:pre-wrap;">${escapeHtml(customBody).replace(/\n/g, '<br>')}</div>`
       : `<p>Dear ${booking.guest_first_name || 'Guest'},</p>${intro}${noteHtml}`;
 
+    // Recipient: operator can pick the direct email over the OTA proxy via
+    // use_direct_email flag in POST body. Common for Airbnb bookings where
+    // the proxy address filters aggressively — guest never sees the mail.
+    // Steve / Barbara 2026-08-29.
+    const useDirect = req.body?.use_direct_email === true;
+    const recipient = (useDirect && booking.guest_direct_email) ? booking.guest_direct_email : booking.guest_email;
     const result = await sendEmail({
-      to: booking.guest_email,
+      to: recipient,
       subject: finalSubject,
       html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:40px 20px;">
         ${bodyHtml}
@@ -79306,7 +79312,7 @@ app.post('/api/admin/bookings/:id/send-card-capture-link', async (req, res) => {
       console.warn('[send-card-capture-link] chase state update failed:', chaseErr.message);
     }
 
-    res.json({ success: true, sent_to: booking.guest_email, expires_days: 7 });
+    res.json({ success: true, sent_to: recipient, expires_days: 7 });
   } catch (err) {
     console.error('send-card-capture-link error:', err);
     res.status(500).json({ success: false, error: err.message });
