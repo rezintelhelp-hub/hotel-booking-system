@@ -3425,7 +3425,7 @@
                             <span onclick="event.stopPropagation(); showView('amenities')">Amenities</span>
                             <span onclick="event.stopPropagation(); showView('availability')">Availability</span>
                             <span onclick="event.stopPropagation(); openBulkStripeModal()">Payment Setup</span>
-                            <span onclick="event.stopPropagation(); showView('payment-accounts')">Payment Accounts</span>
+                            <!-- HIDDEN 2026-08 UI-simplify: Payment Accounts sub-link removed — it's the "list of connected Stripe accounts" view, which duplicates what the Payment Setup modal already surfaces. Clients only need one entry point. View + endpoint kept intact for master use via sidebar nav (still gated master_admin,admin,submaster_admin,agency_admin at line ~2825). Restore: paste the <span onclick="showView('payment-accounts')">Payment Accounts</span> back here. -->
                             <span onclick="event.stopPropagation(); showView('property-owners')">Property Owners</span>
                         </div>
                     </div>
