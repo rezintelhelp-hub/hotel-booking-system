@@ -17830,10 +17830,9 @@
                     </div>
                 </div>
 
-                <!-- MOBILE 2026-08 UI-simplify: was grid-template-columns: 1fr 1fr — Profile + Change Password rendered as two narrow columns on phone. auto-fit + minmax(400px, 1fr) keeps 2 cols on desktop, stacks to full-width single column on mobile. Restore by reverting to 1fr 1fr. -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
-                    <!-- Profile Information -->
-                    <div class="card">
+                <!-- REORG 2026-08 UI-simplify: Phase 1 — removed the 2-col grid wrapper (previously grid-template-columns: 1fr 1fr, then auto-fit minmax). Cards now flow single-column top-to-bottom, same layout desktop + mobile. Phase 2 (later) will convert rarely-touched cards into expand/collapse. Restore by wrapping Profile + Change Password back in <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;"> and closing </div> before the Managed Clients comment below. -->
+                <!-- Profile Information -->
+                <div class="card">
                         <div class="card-header">
                             <h3 class="card-title">Profile Information</h3>
                         </div>
@@ -17943,7 +17942,7 @@
                             </div>
                         </div>
                     </div>
-                </div>
+                <!-- /REORG 2026-08 UI-simplify: end of unwrapped Profile + Change Password block -->
 
                 <!-- Managed Clients card — agency_admin only. Lives BELOW
                      Profile + Change Password (operator request). Each row:
