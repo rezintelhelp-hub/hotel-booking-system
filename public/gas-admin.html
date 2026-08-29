@@ -2261,6 +2261,39 @@
         .gas-sync-tab:hover { color: #111827; }
         .gas-sync-tab.active { color: #3b82f6; border-bottom-color: #3b82f6; background: white; }
         .gas-sync-tab-content { min-height: 250px; }
+
+        /* MOBILE 2026-08 UI-simplify: 7-tab bar (Overview / Properties /
+           Publish / Property Check / Reservations / Reviews / Settings)
+           doesn't fit on phone. Horizontal scroll ruled out (Steve
+           preference), stacking 7 rows eats vertical space. Below 768px
+           the tab buttons hide and a native <select> takes over — feels
+           like an iOS Settings picker. Also tightens the connection-
+           details modal header on mobile (32px close button → 44px tap
+           target, header padding 1.5rem → 1rem). Restore: delete this
+           block + the <select> in #connectionDetailsModal markup. */
+        .gas-sync-tabs-mobile-select {
+            display: none;
+            width: 100%;
+            padding: 0.75rem 1rem;
+            font-size: 0.95rem;
+            border: none;
+            border-bottom: 2px solid #3b82f6;
+            background: white;
+            box-sizing: border-box;
+            min-height: 44px;
+            font-weight: 500;
+            color: #3b82f6;
+        }
+        @media (max-width: 768px) {
+            .gas-sync-tabs { display: none; }
+            .gas-sync-tabs-mobile-select { display: block; }
+            #connectionDetailsModal .modal-header { padding: 1rem !important; }
+            #connectionDetailsModal .modal-header button {
+                width: 44px !important;
+                height: 44px !important;
+                font-size: 1.75rem !important;
+            }
+        }
         #credentialFields .form-group { margin-bottom: 15px; }
         #credentialFields label { display: block; margin-bottom: 5px; font-weight: 500; }
         #credentialFields input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
@@ -25437,7 +25470,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <button class="gas-sync-tab" onclick="showConnectionTab('reviews')">Reviews</button>
                     <button class="gas-sync-tab" onclick="showConnectionTab('settings')">Settings</button>
                 </div>
-                
+                <!-- MOBILE 2026-08 UI-simplify: mirror of the tab bar above as a native <select> for phone/iPad-portrait. CSS at .gas-sync-tabs-mobile-select hides the buttons above and shows this dropdown below 768px. onchange dispatches the same showConnectionTab() as the desktop buttons — identical code path, identical sync behaviour. Publish option hidden by default (mirrors the desktop button's inline display:none); _maybeShowPublishTab flips both in sync when a Channex connection loads. -->
+                <select class="gas-sync-tabs-mobile-select" onchange="showConnectionTab(this.value)" aria-label="Connection details section">
+                    <option value="overview">Overview</option>
+                    <option value="properties">Properties</option>
+                    <option value="publish" id="connectionTabMobileOptPublish" hidden>Publish to Channex</option>
+                    <option value="propertyCheck">Property Check</option>
+                    <option value="reservations">Reservations</option>
+                    <option value="reviews">Reviews</option>
+                    <option value="settings">Settings</option>
+                </select>
+
                 <div style="padding: 1.5rem;">
                     <div id="connectionTabOverview" class="gas-sync-tab-content">Loading...</div>
                     <div id="connectionTabProperties" class="gas-sync-tab-content" style="display:none;">Loading...</div>
@@ -117100,7 +117143,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.querySelector(`.gas-sync-tab[onclick*="${tab}"]`)?.classList.add('active');
             document.querySelectorAll('.gas-sync-tab-content').forEach(el => el.style.display = 'none');
             document.getElementById(`connectionTab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).style.display = 'block';
-            
+            // MOBILE 2026-08 UI-simplify: keep the mobile <select> mirror in sync.
+            // Guard: select may not exist on legacy pages / mid-render. No-op then.
+            const _mobileSel = document.querySelector('.gas-sync-tabs-mobile-select');
+            if (_mobileSel && _mobileSel.value !== tab) _mobileSel.value = tab;
+
             if (tab === 'overview') await loadConnectionOverview();
             else if (tab === 'properties') await loadConnectionPropertiesTab();
             else if (tab === 'publish') await loadPublishToChannexTab();
@@ -117115,6 +117162,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         function _maybeShowPublishTab(adapterCode) {
             const btn = document.getElementById('connectionTabBtnPublish');
             if (btn) btn.style.display = (adapterCode === 'channex') ? '' : 'none';
+            // MOBILE 2026-08 UI-simplify: mirror on the mobile <select>. Same
+            // gate as the desktop button — hidden unless adapter is Channex.
+            const _mobileOpt = document.getElementById('connectionTabMobileOptPublish');
+            if (_mobileOpt) _mobileOpt.hidden = (adapterCode !== 'channex');
         }
 
         async function loadPublishToChannexTab() {
