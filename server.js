@@ -102883,7 +102883,16 @@ async function processChannexBookingNotification(payload) {
   // include "PRE-PAID" text or meta.payment_charge. Charles House audit
   // 2026-08-17 — Jane Law (#723772) was landing as 'pending' + not
   // prepaid, making Barbara chase money that Airbnb had already taken.
-  const paymentStatus = (/PRE-PAID/i.test(rawMsg)
+  // Expedia Collect (source=expedia + payment_collect='ota') carries a
+  // "PRE-PAID" text in raw_message because Expedia has taken the guest's
+  // money — but the hotel must still charge the issued VCC on/after
+  // check-in. Treating it as prepaid here leaves balance=0 + status=paid,
+  // which makes the auto-charge cron skip these bookings entirely.
+  // Charles House 2026-08-29 — 6 stranded bookings. Same exclusion at
+  // line 102945 fallback branch.
+  const _isExpediaCollect = bookingSource === 'expedia'
+    && String(attrs.payment_collect || '').toLowerCase() === 'ota';
+  const paymentStatus = ((/PRE-PAID/i.test(rawMsg) && !_isExpediaCollect)
                          || (attrs.meta?.payment_charge > 0)
                          || (bookingSource === 'airbnb' && !cancelled))
     ? 'paid' : 'pending';
