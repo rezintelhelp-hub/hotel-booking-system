@@ -114591,27 +114591,28 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                             <div id="mp-sync-progress" style="display: none; margin-top: 0.75rem; padding: 10px 14px; background: #f0f9ff; border-radius: 8px; font-size: 13px; color: #1e40af;"></div>
 
+                            <!-- MOBILE 2026-08 UI-simplify: was raw <table> with tight inline padding that didn't stack on mobile. Now uses gas-responsive-list class — desktop stays a table, phone/iPad-portrait stacks each row as a card with Property bold on top and 4 action buttons full-width at the bottom. Restore: revert to inline-styled <table> + <td style="padding:6px 8px"> markup. -->
                             <div id="mp-property-list" style="display: none; margin-top: 1rem; border-top: 1px solid #e2e8f0; padding-top: 1rem; max-height: 400px; overflow-y: auto;">
-                                <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+                                <table class="gas-responsive-list">
                                     <thead>
-                                        <tr style="text-align: left; border-bottom: 1px solid #e2e8f0;">
-                                            <th style="padding: 6px 8px;">Property</th>
-                                            <th style="padding: 6px 8px;">Owner ID</th>
-                                            <th style="padding: 6px 8px;">Props</th>
-                                            <th style="padding: 6px 8px;">Rooms</th>
-                                            <th style="padding: 6px 8px;">Last Sync</th>
-                                            <th style="padding: 6px 8px;">Actions</th>
+                                        <tr>
+                                            <th>Property</th>
+                                            <th>Owner ID</th>
+                                            <th>Props</th>
+                                            <th>Rooms</th>
+                                            <th>Last Sync</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         ${marketplaceConns.map(c => `
-                                            <tr style="border-bottom: 1px solid #f1f5f9;">
-                                                <td style="padding: 6px 8px;">${c.connection_name || c.external_account_name || c.credentials?.propName || 'Unnamed'}</td>
-                                                <td style="padding: 6px 8px; color: #64748b;">${c.credentials?.ownerId || '-'}</td>
-                                                <td style="padding: 6px 8px;">${c.property_count || 0}</td>
-                                                <td style="padding: 6px 8px;">${c.room_type_count || 0}</td>
-                                                <td style="padding: 6px 8px; color: #64748b;">${c.last_sync_at ? formatTimeAgo(c.last_sync_at) : 'Never'}</td>
-                                                <td style="padding: 6px 8px;">
+                                            <tr>
+                                                <td data-primary>${c.connection_name || c.external_account_name || c.credentials?.propName || 'Unnamed'}</td>
+                                                <td data-label="Owner ID" style="color: #64748b;">${c.credentials?.ownerId || '-'}</td>
+                                                <td data-label="Props">${c.property_count || 0}</td>
+                                                <td data-label="Rooms">${c.room_type_count || 0}</td>
+                                                <td data-label="Last Sync" style="color: #64748b;">${c.last_sync_at ? formatTimeAgo(c.last_sync_at) : 'Never'}</td>
+                                                <td data-actions>
                                                     <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;" onclick="triggerSync(${c.id}, 'full')">Sync</button>
                                                     <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; background: #059669; color: white;" onclick="syncMarketplacePricing(${c.id})">Prices</button>
                                                     <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; background: #4f46e5; color: white;" onclick="syncMarketplaceBookings(${c.id})" title="Pull bookings from Beds24 via master org-token">📥 Bookings</button>
