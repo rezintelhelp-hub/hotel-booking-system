@@ -18126,35 +18126,16 @@
                     </div>
                 </div>
 
-                <!-- Smart Locks (TTLock) — per-account connect -->
-                <div class="card" style="margin-top: 1.5rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">🔐 Smart Locks (TTLock)</h3>
-                    </div>
-                    <div style="padding: 1rem 0;" id="ttlock-pane">
-                        <p style="color: #64748b; margin-bottom: 1rem;">Connect your TTLock app account so GAS can generate temporary access codes for guests automatically (room locks, bike stores, gates). Lock pairing stays in the TTLock app — GAS just calls their API on your behalf.</p>
-                        <div id="ttlock-status" style="margin-bottom: 1rem;">
-                            <div class="loading" style="padding: 0.5rem 0;"><div class="spinner" style="width: 18px; height: 18px;"></div></div>
-                        </div>
-                        <div id="ttlock-connect-form" style="display: none;">
-                            <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.75rem; align-items: end;">
-                                <div>
-                                    <label class="form-label">TTLock account email</label>
-                                    <input type="email" id="ttlock-email" class="form-input" placeholder="you@example.com" autocomplete="off">
-                                </div>
-                                <div>
-                                    <label class="form-label">TTLock password</label>
-                                    <input type="password" id="ttlock-password" class="form-input" placeholder="••••••••" autocomplete="new-password">
-                                </div>
-                                <button class="btn" onclick="ttlockConnect()" style="white-space: nowrap;">Connect</button>
-                            </div>
-                            <p style="font-size: 0.78rem; color: #94a3b8; margin: 0.75rem 0 0;">Your password is hashed before it leaves the browser and is never stored in GAS — only the access token TTLock issues back.</p>
-                        </div>
-                        <div id="ttlock-not-configured" style="display: none; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.75rem;">
-                            <p style="font-size: 0.85rem; margin: 0; color: #92400e;">TTLock isn't configured on this GAS install yet. Ask the system administrator to set <code>TTLOCK_CLIENT_ID</code> and <code>TTLOCK_CLIENT_SECRET</code> in the server environment.</p>
-                        </div>
-                    </div>
-                </div>
+                <!-- REMOVED 2026-08 UI-simplify: Smart Locks (TTLock) card was
+                     a duplicate of the full-featured Apps → Smart Locks view
+                     (id="app-smart-locks", uses sl-ttlock-* DOM IDs). Hebden
+                     and other live TTLock accounts are unaffected — the DB
+                     tokens live server-side and the Apps view keeps working
+                     via its own separate DOM + init path. Restore by pasting
+                     the card back here and re-adding loadTTLockStatus()
+                     inside loadMyAccount (see git history around line 44843).
+                     Original card markup lived here between "Email Setup" and
+                     "Language Settings" cards. -->
 
                 <!-- Language Settings -->
                 <div class="card" style="margin-top: 1.5rem;">
@@ -44839,9 +44820,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Load Email Setup state (branded sender domain).
                     loadEmailSetup().catch(() => {});
 
-                    // Load TTLock connection state for this account.
-                    loadTTLockStatus().catch(() => {});
-                    
+                    // REMOVED 2026-08 UI-simplify: was loadTTLockStatus().catch(() => {});
+                    // Smart Locks card removed from My Account (dup of Apps view);
+                    // this call would ReferenceError on the now-missing ttlock-status DOM.
+                    // Function itself kept in the file (unreferenced) for easy revert.
+
                     // Load language settings
                     loadLanguageSettingsUI();
                     
