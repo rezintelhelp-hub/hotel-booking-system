@@ -2578,6 +2578,14 @@
                 flex-wrap: wrap;
                 gap: 6px !important;
             }
+            /* MOBILE 2026-08 UI-simplify: data-hide-mobile cell modifier
+               for cells that only make sense on desktop — drag handles
+               (drag-drop is impossible with a thumb), ID columns
+               operators never reference on the go, etc. Cell + its
+               label pseudo-element both suppressed below 768px. */
+            .gas-responsive-list tbody td[data-hide-mobile] {
+                display: none;
+            }
         }
     </style>
     <script src="https://script.supademo.com/supademo.js" defer></script>
@@ -51083,8 +51091,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div>Showing ${filtered.length} of ${all.length} rooms${canDrag ? ' <span style="color:#0f766e;">· drag ⋮⋮ to reorder</span>' : ' <span style="color:#94a3b8;">· filter to one property to reorder</span>'}</div>
                     <button class="btn btn-small" onclick="openAddRoomModal()" style="background:linear-gradient(135deg,#3b82f6 0%,#1d4ed8 100%);">+ Add Room</button>
                 </div>
+                <!-- MOBILE 2026-08 UI-simplify: gas-responsive-list class + data-* attrs. data-hide-mobile on drag handle (SortableJS still wires it up on desktop; drag-drop is impossible with a thumb), data-primary on Room Name (with lock icon + hidden marker preserved), data-actions on the 4-button row (Preview / Edit / Copy / Hide-Show stack full-width). Restore: drop the class + data-* attrs. -->
                 <div class="table-container">
-                    <table>
+                    <table class="gas-responsive-list">
                         <thead>
                             <tr>
                                 <th style="width:28px;"></th>
@@ -51101,15 +51110,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <tbody id="rooms-list-tbody" data-property-id="${effectivePropertyId || ''}">
                             ${filtered.map(u => `
                                 <tr data-room-id="${u.id}" style="${u.is_hidden ? 'opacity:0.6;' : ''}">
-                                    <td class="rooms-drag-handle" style="text-align:center;color:${canDrag ? '#64748b' : '#cbd5e1'};font-size:1.1rem;cursor:${canDrag ? 'grab' : 'not-allowed'};user-select:none;" title="${canDrag ? 'Drag to reorder' : 'Filter to one property to enable reorder'}">⋮⋮</td>
-                                    <td><code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:0.8rem;">${u.id}</code></td>
-                                    <td>${u.content_locked ? '<span title="Content protected from CM sync" style="cursor:help;">🔒</span> ' : ''}<strong>${esc(u.name)}</strong>${u.is_hidden ? ' <span style="color:#9ca3af;font-size:0.8rem;">(hidden)</span>' : ''}</td>
-                                    <td style="color:#64748b;font-size:0.85rem;">${esc(u.property_name)}</td>
-                                    <td style="font-size:0.85rem;color:#475569;">${esc(displayName(u))}</td>
-                                    <td>${u.reference_code ? '<code style="background:#ecfeff;color:#155e75;padding:2px 6px;border-radius:4px;font-size:0.75rem;">' + esc(u.reference_code) + '</code>' : '<span style="color:#cbd5e1;">—</span>'}</td>
-                                    <td style="font-size:0.85rem;">${u.max_guests || '-'}g</td>
-                                    <td><span class="badge ${(u.status === 'available' || u.status === 'active') ? 'badge-success' : u.status === 'maintenance' ? 'badge-warning' : 'badge-secondary'}">${u.status || 'available'}</span></td>
-                                    <td style="display:flex;gap:4px;">
+                                    <td data-hide-mobile class="rooms-drag-handle" style="text-align:center;color:${canDrag ? '#64748b' : '#cbd5e1'};font-size:1.1rem;cursor:${canDrag ? 'grab' : 'not-allowed'};user-select:none;" title="${canDrag ? 'Drag to reorder' : 'Filter to one property to enable reorder'}">⋮⋮</td>
+                                    <td data-label="ID"><code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:0.8rem;">${u.id}</code></td>
+                                    <td data-primary>${u.content_locked ? '<span title="Content protected from CM sync" style="cursor:help;">🔒</span> ' : ''}<strong>${esc(u.name)}</strong>${u.is_hidden ? ' <span style="color:#9ca3af;font-size:0.8rem;">(hidden)</span>' : ''}</td>
+                                    <td data-label="Property" style="color:#64748b;font-size:0.85rem;">${esc(u.property_name)}</td>
+                                    <td data-label="Display name" style="font-size:0.85rem;color:#475569;">${esc(displayName(u))}</td>
+                                    <td data-label="Ref">${u.reference_code ? '<code style="background:#ecfeff;color:#155e75;padding:2px 6px;border-radius:4px;font-size:0.75rem;">' + esc(u.reference_code) + '</code>' : '<span style="color:#cbd5e1;">—</span>'}</td>
+                                    <td data-label="Capacity" style="font-size:0.85rem;">${u.max_guests || '-'}g</td>
+                                    <td data-label="Status"><span class="badge ${(u.status === 'available' || u.status === 'active') ? 'badge-success' : u.status === 'maintenance' ? 'badge-warning' : 'badge-secondary'}">${u.status || 'available'}</span></td>
+                                    <td data-actions style="display:flex;gap:4px;">
                                         <button class="btn btn-small" style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;padding:6px 10px;" onclick="showLitePreview(${u.id})" title="Preview Room Page">👁️</button>
                                         <button class="btn btn-secondary btn-small" onclick="editRoom(${u.id})">Edit</button>
                                         <button class="btn btn-secondary btn-small" onclick="copyRoomLink(${u.id})" title="Copy room link">📋</button>
