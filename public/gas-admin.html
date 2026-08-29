@@ -31477,7 +31477,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
                 
                 <!-- Documents — PDFs / brochures linked to this property -->
-                <div style="margin-bottom: 1.5rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem;">
+                <!-- HIDDEN 2026-08 UI-simplify: master-only. The Mirror-from-URL feature is a legacy-migration tool (originally for pulling Wix PDFs onto GAS R2 during onboarding). Not a daily client operation. Restore for clients: remove data-roles below. -->
+                <div data-roles="master_admin" style="margin-bottom: 1.5rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem;">
                     <h4 style="margin: 0 0 0.75rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">📎 Documents</h4>
                     <p style="font-size: 0.78rem; color: #64748b; margin: 0 0 0.75rem 0;">PDFs, brochures, rental agreements stored on GAS R2. Paste a URL to mirror an externally-hosted file (e.g. legacy Wix link) — GAS downloads it and serves it from a permanent URL.</p>
                     <div style="display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; margin-bottom: 0.75rem;">
