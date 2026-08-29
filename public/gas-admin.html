@@ -2483,6 +2483,32 @@
                 margin: 0 !important;
                 min-height: 44px;
             }
+            /* MOBILE 2026-08 UI-simplify: data-fullwidth cell modifier for
+               rows that contain forms/inputs where the flex label:value
+               layout doesn't fit (Connection Details > Properties tab
+               Webhook URL + Prop Key cells on Beds24 rows). Label sits on
+               top, content flows full-width below. Any <input> gets
+               forced to 100% width + 44px min-height. */
+            .gas-responsive-list tbody td[data-fullwidth] {
+                display: block;
+                text-align: left;
+                padding: 0.5rem 0;
+                border: none;
+            }
+            .gas-responsive-list tbody td[data-fullwidth]::before {
+                display: block;
+                margin-bottom: 0.4rem;
+            }
+            .gas-responsive-list tbody td[data-fullwidth] input[type="text"] {
+                width: 100% !important;
+                box-sizing: border-box !important;
+                min-height: 44px;
+                font-size: 0.9rem !important;
+            }
+            .gas-responsive-list tbody td[data-fullwidth] > div {
+                flex-wrap: wrap;
+                gap: 6px !important;
+            }
         }
     </style>
     <script src="https://script.supademo.com/supademo.js" defer></script>
@@ -117567,7 +117593,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                         </div>
                         ` : ''}
-                        <table class="data-table" style="table-layout: auto; width: 100%;"><thead><tr>
+                        <!-- MOBILE 2026-08 UI-simplify: gas-responsive-list class added so mobile stacks each property row as a card. data-primary on Property (bold name at top of card), data-fullwidth on Beds24 Webhook URL + Prop Key cells (label on top, form controls full-width), data-actions on the Actions cell (buttons stack full-width). Restore: drop the class + data-* attrs. -->
+                        <table class="data-table gas-responsive-list" style="table-layout: auto; width: 100%;"><thead><tr>
                             <th style="width: 40px;">Order</th>
                             <th style="width: 50px;">Status</th>
                             <th style="width: 140px;">Property</th>
@@ -117608,27 +117635,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                             }
                             const canImport = isBeds24 ? (p.prop_key && webhookTested && propKeyTested && !p.gas_property_id) : !p.gas_property_id;
                             return `<tr id="prop-row-${p.id}" data-prop-id="${p.id}">
-                                <td style="text-align: center;">
+                                <td data-label="Order" style="text-align: center;">
                                     <button onclick="moveSyncProperty(${p.id}, -1)" class="btn btn-sm" style="padding: 1px 5px; font-size: 0.75rem; background: #f1f5f9; border: 1px solid #e2e8f0;" title="Move up">▲</button>
                                     <button onclick="moveSyncProperty(${p.id}, 1)" class="btn btn-sm" style="padding: 1px 5px; font-size: 0.75rem; background: #f1f5f9; border: 1px solid #e2e8f0;" title="Move down">▼</button>
                                 </td>
-                                <td title="${statusTitle}" style="font-size: 1.25rem; text-align: center;">${statusLight}</td>
-                                <td><strong>${p.name}</strong><br><small style="color: #6b7280;">ID: ${p.external_id}</small></td>
-                                <td>${p.city || ''}, ${p.country || ''}</td>
-                                ${isBeds24 ? `<td>
+                                <td data-label="Status" title="${statusTitle}" style="font-size: 1.25rem; text-align: center;">${statusLight}</td>
+                                <td data-primary><strong>${p.name}</strong><br><small style="color: #6b7280;">ID: ${p.external_id}</small></td>
+                                <td data-label="Location">${p.city || ''}, ${p.country || ''}</td>
+                                ${isBeds24 ? `<td data-label="Webhook URL" data-fullwidth>
                                     <div style="display: flex; align-items: center; gap: 4px;">
-                                        <input type="text" readonly value="https://admin.gas.travel/api/webhooks/beds24?propertyId=${p.external_id}" 
+                                        <input type="text" readonly value="https://admin.gas.travel/api/webhooks/beds24?propertyId=${p.external_id}"
                                             style="width: 180px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.7rem; background: #f8fafc; text-overflow: ellipsis;">
                                         <button onclick="copyWebhookUrlForProperty('${p.external_id}')" class="btn btn-sm" style="padding: 4px 6px;" title="Copy URL">📋</button>
                                         <span id="webhook-test-${p.id}">
-                                            ${webhookTested ? 
-                                                `<button onclick="testWebhookForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 4px 8px;" title="Re-test">✅</button>` : 
+                                            ${webhookTested ?
+                                                `<button onclick="testWebhookForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 4px 8px;" title="Re-test">✅</button>` :
                                                 `<button onclick="testWebhookForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #f59e0b; color: white; padding: 4px 8px;">🧪</button>`
                                             }
                                         </span>
                                     </div>
                                 </td>` : ''}
-                                ${isBeds24 ? `<td>
+                                ${isBeds24 ? `<td data-label="Prop Key" data-fullwidth>
                                     <div style="display: flex; align-items: center; gap: 4px;">
                                         <input type="text" id="propKey-${p.id}" value="${p.prop_key || ''}" placeholder="Enter key"
                                             style="width: 80px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.8rem;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
@@ -117645,17 +117672,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         </span>
                                     </div>
                                 </td>` : ''}
-                                <td style="text-align: center;">${p.room_type_count}</td>
-                                <td>
+                                <td data-label="Rooms" style="text-align: center;">${p.room_type_count}</td>
+                                <td data-label="Import" data-fullwidth>
                                     <div style="display: flex; gap: 6px; align-items: center;">
                                         ${isBeds24 && p.prop_key ? `<button onclick="downloadPropertyImages(${p.id})" class="btn btn-sm btn-secondary" title="${p.gas_property_id ? 'Re-download Images' : 'Download Images First'}">📷</button>` : ''}
-                                        ${p.gas_property_id ? 
-                                            '<span style="color: #22c55e;">✅ Imported</span>' : 
+                                        ${p.gas_property_id ?
+                                            '<span style="color: #22c55e;">✅ Imported</span>' :
                                             `<button id="import-btn-${p.id}" class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})" ${canImport ? '' : 'disabled'} style="${canImport ? '' : 'opacity: 0.5; cursor: not-allowed;'}">${canImport ? 'Import' : (!p.prop_key ? 'Enter Key' : (!webhookTested && !propKeyTested ? 'Run Tests' : (!webhookTested ? 'Test Webhook' : 'Test Key')))}</button>`
                                         }
                                     </div>
                                 </td>
-                                <td>
+                                <td data-actions>
                                     <div style="display: flex; gap: 4px;">
                                         ${p.gas_property_id ? `<button onclick="syncPropertyContent(${p.id}, '${conn?.adapter_code || ''}', '${p.external_id}')" class="btn btn-sm btn-primary" title="Re-sync from channel manager">🔄 Sync</button>` : ''}
                                         ${p.gas_property_id ? `<button onclick="viewPropertyInGAS(${p.gas_property_id})" class="btn btn-sm btn-secondary" title="View in GAS">👁</button>` : ''}
