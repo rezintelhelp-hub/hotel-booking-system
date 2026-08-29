@@ -2088,8 +2088,125 @@
         .connection-stat-value { font-size: 20px; font-weight: 600; color: #111827; }
         .connection-stat-label { font-size: 11px; color: #6b7280; text-transform: uppercase; }
         .connection-meta { font-size: 12px; color: #6b7280; margin-bottom: 15px; }
-        .connection-actions { display: flex; gap: 8px; }
-        .connection-actions .btn { flex: 1; padding: 8px; font-size: 13px; }
+        /* MOBILE 2026-08 UI-simplify: was flex row with no wrap — 6 marketplace buttons squeezed onto one line on phone and clipped/cut off. Grid auto-fit lets buttons flow to a new row when space runs out; explicit 1fr override under 768px forces full-width single stack with 44px min tap target. Applies to every connection card in the CM view. Restore: flex + gap:8px + .btn flex:1. */
+        .connection-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 8px;
+        }
+        .connection-actions .btn { padding: 8px; font-size: 13px; }
+        @media (max-width: 768px) {
+            .connection-actions { grid-template-columns: 1fr; }
+            .connection-actions .btn { min-height: 44px; }
+        }
+
+        /* MOBILE 2026-08 UI-simplify: reusable destructive-action confirm modal.
+           Used by confirmDestructive() JS helper — any button that deletes /
+           removes / bulk-cancels wraps its onclick in a call to that helper,
+           replacing the browser confirm() dialog that's too easy to fat-finger
+           on mobile. User must type a keyword (default 'DELETE') to enable the
+           red Confirm button; Cancel is separated with padding + on mobile the
+           two buttons stack full-width (Cancel on TOP so accidental tap = safe).
+           Restore: revert callers to if(confirm(...)) and delete these blocks. */
+        .gas-destructive-overlay {
+            position: fixed; inset: 0;
+            background: rgba(15, 23, 42, 0.65);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 10000;
+            padding: 1rem;
+        }
+        .gas-destructive-panel {
+            background: white;
+            border-radius: 14px;
+            width: 100%;
+            max-width: 460px;
+            padding: 1.5rem 1.5rem 1.25rem;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            border-top: 4px solid #dc2626;
+        }
+        .gas-destructive-header {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: #991b1b;
+            margin-bottom: 0.75rem;
+        }
+        .gas-destructive-body {
+            font-size: 0.9rem;
+            color: #475569;
+            margin-bottom: 1.25rem;
+            line-height: 1.5;
+        }
+        .gas-destructive-label {
+            display: block;
+            font-size: 0.85rem;
+            color: #334155;
+            margin-bottom: 0.4rem;
+        }
+        .gas-destructive-label code {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-weight: 700;
+        }
+        .gas-destructive-input {
+            width: 100%;
+            padding: 0.7rem 0.85rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: monospace;
+            letter-spacing: 0.05em;
+            outline: none;
+            box-sizing: border-box;
+            margin-bottom: 1.25rem;
+        }
+        .gas-destructive-input:focus { border-color: #dc2626; }
+        .gas-destructive-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+        }
+        .gas-destructive-cancel,
+        .gas-destructive-confirm {
+            padding: 0.65rem 1.25rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            min-height: 44px;
+            border: none;
+        }
+        .gas-destructive-cancel {
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+        }
+        .gas-destructive-cancel:hover { background: #e2e8f0; }
+        .gas-destructive-confirm {
+            background: #dc2626;
+            color: white;
+        }
+        .gas-destructive-confirm:hover:not([disabled]) { background: #b91c1c; }
+        .gas-destructive-confirm[disabled] {
+            background: #fca5a5;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        @media (max-width: 768px) {
+            .gas-destructive-panel {
+                max-width: 100%;
+                padding: 1.25rem 1.15rem 1rem;
+            }
+            .gas-destructive-actions {
+                flex-direction: column-reverse;
+            }
+            .gas-destructive-cancel,
+            .gas-destructive-confirm {
+                width: 100%;
+            }
+        }
         .adapter-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -114469,7 +114586,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <button class="btn btn-secondary btn-sm" onclick="syncAllMarketplaceBookings([${connIds.join(',')}])" style="background: #4f46e5; color: white;">📥 Sync Bookings</button>
                                 <button class="btn btn-secondary btn-sm" onclick="importBeds24UpsellsForCurrentAccount()" style="background: #7c3aed; color: white;" title="Pull cleaning fees + extras from Beds24 booking-engine slots into GAS Upsells">🧹 Import Upsells</button>
                                 <button class="btn btn-secondary btn-sm" onclick="document.getElementById('mp-property-list').style.display = document.getElementById('mp-property-list').style.display === 'none' ? 'block' : 'none'">📋 Show Properties</button>
-                                <button class="btn btn-danger btn-sm" onclick="if(confirm('Delete ALL ${marketplaceConns.length} marketplace connections?')) deleteMultipleConnections([${connIds.join(',')}])" style="color: white;">🗑 Delete All</button>
+                                <!-- MOBILE 2026-08 UI-simplify: was confirm('Delete ALL ...') — trivially fat-fingered on mobile. Now goes through confirmDeleteMarketplace() which uses the reusable confirmDestructive modal (type DELETE to enable Confirm). -->
+                                <button class="btn btn-danger btn-sm" onclick="confirmDeleteMarketplace([${connIds.join(',')}], ${marketplaceConns.length})" style="color: white;">🗑 Delete All</button>
                             </div>
                             <div id="mp-sync-progress" style="display: none; margin-top: 0.75rem; padding: 10px 14px; background: #f0f9ff; border-radius: 8px; font-size: 13px; color: #1e40af;"></div>
 
@@ -116649,6 +116767,74 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (progressEl) { progressEl.innerHTML = `<strong>📥 Bookings sync complete:</strong> ✅ ${success} properties synced${failed ? `, ❌ ${failed} failed` : ''} — ${totalInserted} new, ${totalUpdated} updated, ${totalSkipped} skipped (no matching GAS room)`; setTimeout(() => { progressEl.style.display = 'none'; }, 15000); }
             showNotification(`Bookings synced: ${totalInserted} new, ${totalUpdated} updated${failed ? `, ${failed} properties failed` : ''}`, failed ? 'warning' : 'success');
             loadGasSyncConnections();
+        }
+
+        // MOBILE 2026-08 UI-simplify: reusable destructive-action confirmer.
+        // Replaces browser confirm() for anything that deletes/removes/bulk-
+        // cancels. User must type a keyword (default 'DELETE') to enable the
+        // Confirm button — impossible to fat-finger on mobile. See CSS block
+        // .gas-destructive-* for styling. Returns Promise<boolean>.
+        //
+        //   const ok = await confirmDestructive({
+        //     title: 'Delete this?',
+        //     body: 'What will happen and that it cannot be undone.',
+        //     confirmWord: 'DELETE',       // default
+        //     confirmLabel: 'Delete',      // button text
+        //   });
+        //   if (ok) doTheThing();
+        window.confirmDestructive = function ({ title, body, confirmWord = 'DELETE', confirmLabel = 'Delete' } = {}) {
+            return new Promise((resolve) => {
+                const modal = document.createElement('div');
+                modal.className = 'gas-destructive-overlay';
+                const safeTitle = String(title || '').replace(/</g, '&lt;');
+                const safeBody = String(body || '').replace(/</g, '&lt;');
+                const safeWord = String(confirmWord || 'DELETE').replace(/</g, '&lt;');
+                const safeLabel = String(confirmLabel || 'Delete').replace(/</g, '&lt;');
+                modal.innerHTML = `
+                    <div class="gas-destructive-panel" role="dialog" aria-modal="true">
+                        <div class="gas-destructive-header">⚠️ ${safeTitle}</div>
+                        <div class="gas-destructive-body">${safeBody}</div>
+                        <label class="gas-destructive-label">Type <code>${safeWord}</code> to confirm</label>
+                        <input type="text" class="gas-destructive-input" autocomplete="off" autocapitalize="characters" />
+                        <div class="gas-destructive-actions">
+                            <button type="button" class="gas-destructive-cancel">Cancel</button>
+                            <button type="button" class="gas-destructive-confirm" disabled>${safeLabel}</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                const input = modal.querySelector('.gas-destructive-input');
+                const confirmBtn = modal.querySelector('.gas-destructive-confirm');
+                const cancelBtn = modal.querySelector('.gas-destructive-cancel');
+                const escHandler = (e) => { if (e.key === 'Escape') cleanup(false); };
+                const cleanup = (result) => {
+                    document.removeEventListener('keydown', escHandler);
+                    modal.remove();
+                    resolve(!!result);
+                };
+                input.addEventListener('input', () => {
+                    confirmBtn.disabled = input.value.trim().toUpperCase() !== confirmWord.toUpperCase();
+                });
+                confirmBtn.addEventListener('click', () => { if (!confirmBtn.disabled) cleanup(true); });
+                cancelBtn.addEventListener('click', () => cleanup(false));
+                modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(false); });
+                document.addEventListener('keydown', escHandler);
+                setTimeout(() => input.focus(), 50);
+            });
+        };
+
+        // MOBILE 2026-08 UI-simplify: wraps deleteMultipleConnections with the
+        // reusable confirmDestructive modal. Called from the Beds24 Marketplace
+        // "Delete All" button. Restore old behaviour: change onclick back to
+        //   if(confirm('Delete ALL ...')) deleteMultipleConnections(connIds)
+        async function confirmDeleteMarketplace(connIds, count) {
+            const ok = await confirmDestructive({
+                title: `Delete all ${count} Beds24 Marketplace connections?`,
+                body: 'This removes every Beds24 Marketplace connection for this account. Booking sync will stop and connection metadata will be lost. This cannot be undone.',
+                confirmWord: 'DELETE',
+                confirmLabel: `Delete ${count} connections`,
+            });
+            if (ok) deleteMultipleConnections(connIds);
         }
 
         async function deleteMultipleConnections(connIds) {
