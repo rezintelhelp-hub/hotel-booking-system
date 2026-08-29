@@ -32736,9 +32736,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="lang-tabs" id="short-desc-tabs" style="margin-bottom: 8px;">
                         <!-- Populated dynamically -->
                     </div>
-                    <!-- MOBILE 2026-08 UI-simplify: was inline flex — input squeezed by 2 buttons on phone, invisible content. Now .gas-input-with-actions stacks below 768px. -->
+                    <!-- MOBILE 2026-08 UI-simplify: was <input type="text"> — single-line, 100+ char descriptions got horizontally clipped inside the input on phone (only ~40 visible chars). Now <textarea rows="2"> so text wraps + all content visible. .value interface unchanged so saveRoom / generateRoomShortDescription / translateRoomField keep working. Restore: change back to input type="text". Also uses .gas-input-with-actions so it stacks below 768px. -->
                     <div class="gas-input-with-actions">
-                        <input type="text" class="form-input" id="edit-room-short-description" placeholder="Brief tagline for listings" style="flex: 1;">
+                        <textarea class="form-input" id="edit-room-short-description" placeholder="Brief tagline for listings" rows="2" style="flex: 1; resize: vertical; font-family: inherit; line-height: 1.5;"></textarea>
                         <button type="button" class="btn" onclick="generateRoomShortDescription()" style="white-space: nowrap; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
                             ✨ Generate
                         </button>
