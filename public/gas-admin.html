@@ -31869,14 +31869,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <!-- Channex content push — description, phone, timezone, address,
                      property images, facilities, hotel policy. Pre-req for Google
                      Hotel Search onboarding. Steve 2026-08-04. -->
-                <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                <!-- HIDDEN 2026-08 UI-simplify: master-only. Push-to-Channex is an onboarding / content-parity operator step, not a client daily action. Restore for clients: remove data-roles below. -->
+                <div data-roles="master_admin" style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
                     <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">📤 Push property content to Channex</h4>
                     <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">Pushes description, phone, timezone, address, property images, facilities, hotel policy, cancellation policy to Channex. Required for Google Hotel Search / OTA content parity. Run after editing the fields above.</p>
                     <button type="button" class="btn btn-secondary" onclick="pushPropertyContentToChannex()" style="font-size: 0.85rem; background: linear-gradient(135deg,#6366f1,#4338ca);">📤 Push content to Channex</button>
                 </div>
 
                 <!-- ChargeAutomation Property Mapping -->
-                <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                <!-- HIDDEN 2026-08 UI-simplify: master-only. CA property-mapping IDs are provisioned during onboarding by Steve; clients shouldn't be pasting numeric external IDs. Restore for clients: remove data-roles below. -->
+                <div data-roles="master_admin" style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
                     <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🔁 ChargeAutomation</h4>
                     <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">Map this property to your CA property/rental so GAS direct bookings push into the right CA listing. Look up the IDs in your ChargeAutomation dashboard.</p>
                     <div style="display:flex; gap:0.75rem;">
