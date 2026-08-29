@@ -663,6 +663,8 @@
             <div class="step-dot" data-step="4"></div>
             <div class="step-dot" data-step="5"></div>
         </div>
+        <!-- HIDDEN 2026-08 UI-simplify: back link only shown when operator arrived from GAS Admin (?from=admin). Without this, hitting Add Connection stranded them on the wizard with no exit. Shown by inline JS below. Restore: delete the anchor + inline script at end of body. -->
+        <a id="back-to-admin-link" href="/gas-admin.html#gas-sync-connections" style="display: none; margin-left: auto; font-size: 0.85rem; color: #64748b; text-decoration: none; padding: 0.4rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 6px; min-height: 32px; align-items: center;">← Back to admin</a>
     </div>
 
     <div class="panel-body">
@@ -2433,6 +2435,25 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
         }
         // Load walkthroughs for step 2
         loadStepWalkthroughs('register-cm', 'step2-walkthroughs');
+    })();
+</script>
+
+<!-- HIDDEN 2026-08 UI-simplify: shows the "Back to admin" link in the
+     panel header when the operator arrived from GAS Admin (?from=admin
+     OR same-origin referrer containing /gas-admin). Mirrors the auto-
+     redirect logic already used post-completion at line ~2069. Restore
+     by deleting this <script> block and the anchor in the panel header. -->
+<script>
+    (function () {
+        try {
+            const sp = new URLSearchParams(window.location.search);
+            const fromAdmin = sp.get('from') === 'admin'
+                || (document.referrer && document.referrer.indexOf('/gas-admin') >= 0);
+            if (fromAdmin) {
+                const link = document.getElementById('back-to-admin-link');
+                if (link) link.style.display = 'inline-flex';
+            }
+        } catch (_) { /* no-op */ }
     })();
 </script>
 
