@@ -157495,35 +157495,98 @@ app.post('/api/admin/bookings/:id/charge-stripe-card', async (req, res) => {
 
     const Stripe = require('stripe');
     const stripe = Stripe(cfg.secret_key);
+    // Helper — attempt the actual paymentIntent create with a given PM.
+    const _makePi = async (pmId) => stripe.paymentIntents.create({
+      amount: Math.round(chargeAmount * 100),
+      currency: (booking.currency || cfg.currency || 'GBP').toLowerCase(),
+      payment_method: pmId,
+      customer: booking.stripe_customer_id || undefined,
+      off_session: true,
+      confirm: true,
+      description: `Manual charge · GAS-${String(bookingId).padStart(4, '0')} · ${booking.guest_first_name} ${booking.guest_last_name}`,
+      metadata: {
+        source: 'gas_admin_manual_charge',
+        gas_booking_id: String(bookingId),
+        gas_property_id: String(booking.property_id)
+      }
+    });
     let pi;
     try {
-      pi = await stripe.paymentIntents.create({
-        amount: Math.round(chargeAmount * 100),
-        currency: (booking.currency || cfg.currency || 'GBP').toLowerCase(),
-        payment_method: booking.stripe_payment_method_id,
-        customer: booking.stripe_customer_id || undefined,
-        off_session: true,
-        confirm: true,
-        description: `Manual charge · GAS-${String(bookingId).padStart(4, '0')} · ${booking.guest_first_name} ${booking.guest_last_name}`,
-        metadata: {
-          source: 'gas_admin_manual_charge',
-          gas_booking_id: String(bookingId),
-          gas_property_id: String(booking.property_id)
-        }
-      });
+      pi = await _makePi(booking.stripe_payment_method_id);
     } catch (err) {
-      // SCA / decline: Stripe throws with a raw.payment_intent for the
-      // requires_action path. Surface so the UI can prompt.
-      const rawPi = err.raw?.payment_intent || err.payment_intent;
-      return res.json({
-        success: false,
-        error: err.message,
-        code: err.code || null,
-        decline_code: err.decline_code || null,
-        payment_intent_id: rawPi?.id || null,
-        client_secret: rawPi?.client_secret || null,
-        is_channex_booking: _isChannex,   // client uses this to prompt "send fresh link"
-      });
+      // Recovery path: "No such payment_method" typically means the stored
+      // pm_ id was cloned into a Stripe account that's no longer the current
+      // one for this property (e.g. Barbara re-connected Stripe after the
+      // webhook cached the pm_). Channex still has the tokenised VCC as
+      // source of truth — re-pull it, re-clone into the current account,
+      // update the booking's pm_, retry the charge. Silent self-heal so
+      // Barbara only sees success on her one Take Payment click.
+      // Steve / Barbara (Charles House Ryan Marsterson 2026-08-29) 2026-08-29.
+      const _shouldRecover = _isChannex
+        && booking.channex_booking_id
+        && (err.code === 'resource_missing' || /no such payment_?method/i.test(err.message || ''));
+      if (_shouldRecover) {
+        console.log(`[charge-stripe-card] recovery — re-pulling VCC from Channex for booking ${bookingId} channex=${booking.channex_booking_id}`);
+        try {
+          // Get the Channex connection for this account.
+          const connR = await pool.query(
+            `SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = 'channex' AND COALESCE(status, 'connected') = 'connected' ORDER BY id LIMIT 1`,
+            [booking.account_id]
+          );
+          const connectionId = connR.rows[0]?.id;
+          if (!connectionId) throw new Error('No active Channex connection for account');
+          const { SyncManager } = require('./gas-sync/adapters');
+          const channexAdapter = await new SyncManager(pool).getAdapterForConnection(connectionId);
+          if (!channexAdapter?.getBookingStripeToken) throw new Error('Channex adapter has no getBookingStripeToken');
+          const tokResp = await channexAdapter.getBookingStripeToken(booking.channex_booking_id, 'payment_method');
+          const _rawTok = tokResp?.data?.token || tokResp?.raw?.token || tokResp?.raw?.data?.token || null;
+          const platformPmId = typeof _rawTok === 'string' ? _rawTok : (_rawTok?.id || null);
+          if (!platformPmId) throw new Error('Channex returned no token — VCC may have expired or been released');
+          // Clone into the current client Stripe account (the connected acct).
+          const clientAcct = cfg.stripe_account_id || cfg.account_id;
+          const platformStripe = Stripe(process.env.STRIPE_SECRET_KEY);
+          const cloned = await platformStripe.paymentMethods.create(
+            { payment_method: platformPmId },
+            { stripeAccount: clientAcct }
+          );
+          const newPmId = cloned?.id;
+          if (!newPmId) throw new Error('Stripe PM clone returned no id');
+          // Update the booking's stored pm_ so subsequent charges use the fresh one.
+          const cardMeta = cloned?.card || {};
+          await pool.query(
+            `UPDATE bookings SET
+                stripe_payment_method_id = $2,
+                card_last4    = COALESCE($3, card_last4),
+                card_brand    = COALESCE($4, card_brand),
+                card_exp_month = COALESCE($5, card_exp_month),
+                card_exp_year  = COALESCE($6, card_exp_year),
+                updated_at = NOW()
+              WHERE id = $1`,
+            [bookingId, newPmId, cardMeta.last4 || null, cardMeta.brand || null, cardMeta.exp_month || null, cardMeta.exp_year || null]
+          );
+          booking.stripe_payment_method_id = newPmId;
+          console.log(`[charge-stripe-card] recovery — cloned fresh pm ${newPmId} (${cardMeta.brand} ****${cardMeta.last4 || '????'}) into ${clientAcct}, retrying charge`);
+          pi = await _makePi(newPmId);
+        } catch (recErr) {
+          console.warn(`[charge-stripe-card] recovery failed for booking ${bookingId}:`, recErr.message);
+          // Fall through to the original error return below.
+          err.message = `${err.message} (recovery: ${recErr.message})`;
+        }
+      }
+      if (!pi) {
+        // SCA / decline: Stripe throws with a raw.payment_intent for the
+        // requires_action path. Surface so the UI can prompt.
+        const rawPi = err.raw?.payment_intent || err.payment_intent;
+        return res.json({
+          success: false,
+          error: err.message,
+          code: err.code || null,
+          decline_code: err.decline_code || null,
+          payment_intent_id: rawPi?.id || null,
+          client_secret: rawPi?.client_secret || null,
+          is_channex_booking: _isChannex,   // client uses this to prompt "send fresh link"
+        });
+      }
     }
 
     if (pi.status !== 'succeeded') {
