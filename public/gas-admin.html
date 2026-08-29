@@ -523,6 +523,39 @@
             }
         }
 
+        /* MOBILE 2026-08 UI-simplify: reusable input+actions row pattern
+           for form fields with adjacent buttons (Generate / Translate /
+           Use CM code / etc). On desktop keeps the input flex:1 and
+           buttons on the right; below 768px stacks input full-width on
+           top with each button full-width beneath at 44px min-height so
+           the input isn't squeezed to 60-100px of visible text.
+           First adopter: Edit Room modal (Display Name / Ref Code /
+           Short Description). Reusable for Add Room modal and every
+           other input+buttons row we adopt it on. Restore: swap the
+           class for style="display: flex; gap: 0.5rem;" on each row. */
+        .gas-input-with-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        @media (max-width: 768px) {
+            .gas-input-with-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .gas-input-with-actions > input,
+            .gas-input-with-actions > .form-input,
+            .gas-input-with-actions > select {
+                width: 100%;
+            }
+            .gas-input-with-actions > .btn,
+            .gas-input-with-actions > button {
+                width: 100%;
+                min-height: 44px;
+                justify-content: center;
+            }
+        }
+
         /* Stats Grid */
         .stats-grid {
             display: grid;
@@ -32661,7 +32694,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="lang-tabs" id="display-name-tabs" style="margin-bottom: 8px;">
                         <!-- Populated dynamically based on account language settings -->
                     </div>
-                    <div style="display: flex; gap: 0.5rem;">
+                    <!-- MOBILE 2026-08 UI-simplify: was inline flex — input squeezed by 2 buttons on phone, invisible content. Now .gas-input-with-actions stacks input full-width above buttons below 768px. -->
+                    <div class="gas-input-with-actions">
                         <input type="text" class="form-input" id="edit-room-display-name" placeholder="Leave blank to use original name" style="flex: 1;">
                         <button type="button" class="btn" onclick="generateRoomDisplayName()" style="white-space: nowrap; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
                             ✨ Generate
@@ -32682,7 +32716,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                      can find the right unit when guests email them. -->
                 <div class="form-group" style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
                     <label class="form-label">Reference Code (optional)</label>
-                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <!-- MOBILE 2026-08 UI-simplify: was inline flex — input squeezed by long CM-code button on phone. Now .gas-input-with-actions stacks below 768px. -->
+                    <div class="gas-input-with-actions">
                         <input type="text" class="form-input" id="edit-room-reference-code" placeholder="e.g. your channel manager's room id, or your own code" style="flex: 1;">
                         <button type="button" class="btn" onclick="useBeds24RoomIdAsReference()" style="white-space: nowrap;" title="Auto-fill from this unit's channel manager room id">Use code from Channel Manager</button>
                     </div>
@@ -32701,7 +32736,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="lang-tabs" id="short-desc-tabs" style="margin-bottom: 8px;">
                         <!-- Populated dynamically -->
                     </div>
-                    <div style="display: flex; gap: 0.5rem;">
+                    <!-- MOBILE 2026-08 UI-simplify: was inline flex — input squeezed by 2 buttons on phone, invisible content. Now .gas-input-with-actions stacks below 768px. -->
+                    <div class="gas-input-with-actions">
                         <input type="text" class="form-input" id="edit-room-short-description" placeholder="Brief tagline for listings" style="flex: 1;">
                         <button type="button" class="btn" onclick="generateRoomShortDescription()" style="white-space: nowrap; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
                             ✨ Generate
