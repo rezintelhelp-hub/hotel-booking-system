@@ -2227,6 +2227,113 @@
                 gap: 0.5rem !important;
             }
         }
+
+        /* MOBILE 2026-08 UI-simplify: reusable gas-responsive-list pattern.
+           Desktop (>768px) — renders as a normal <table>.
+           iPad portrait + phone (<=768px) — each <tr> becomes a stacked card,
+           <thead> hidden, each <td> shows its data-label as a pseudo-element
+           on the left, value on the right. Special cells:
+             td[data-primary] — heading row (no label, bold, larger, full width)
+             td[data-actions] — button row (no label, buttons stack full-width)
+           Apply to any list table by:
+             <table class="gas-responsive-list">
+               <thead>...</thead>
+               <tbody>
+                 <tr>
+                   <td data-primary>Laura</td>
+                   <td data-label="Email">laura@...</td>
+                   <td data-actions><button>...</button></td>
+                 </tr>
+               </tbody>
+             </table>
+           Restore by dropping the class + data-label/data-primary/data-actions attrs. */
+        .gas-responsive-list {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .gas-responsive-list thead { background: #f8fafc; }
+        .gas-responsive-list thead th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            font-size: 0.8rem;
+            color: #475569;
+            border-bottom: 1px solid #e5e7eb;
+            font-weight: 600;
+        }
+        .gas-responsive-list tbody tr { border-bottom: 1px solid #f1f5f9; }
+        .gas-responsive-list tbody td { padding: 0.7rem 1rem; }
+
+        @media (max-width: 768px) {
+            .gas-responsive-list,
+            .gas-responsive-list thead,
+            .gas-responsive-list tbody,
+            .gas-responsive-list tr,
+            .gas-responsive-list td {
+                display: block;
+                width: 100%;
+            }
+            .gas-responsive-list thead {
+                position: absolute;
+                left: -9999px;
+                top: -9999px;
+            }
+            .gas-responsive-list tbody tr {
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 10px;
+                margin-bottom: 0.85rem;
+                padding: 0.85rem 1rem;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+            }
+            .gas-responsive-list tbody td {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 0.75rem;
+                padding: 0.4rem 0;
+                border: none;
+                text-align: right;
+                font-size: 0.9rem;
+            }
+            .gas-responsive-list tbody td::before {
+                content: attr(data-label);
+                font-weight: 600;
+                color: #64748b;
+                font-size: 0.75rem;
+                text-transform: uppercase;
+                letter-spacing: 0.02em;
+                text-align: left;
+                flex-shrink: 0;
+            }
+            .gas-responsive-list tbody td[data-primary] {
+                display: block;
+                text-align: left;
+                font-size: 1.05rem;
+                font-weight: 600;
+                color: #1e293b;
+                padding: 0 0 0.5rem 0;
+                margin-bottom: 0.4rem;
+                border-bottom: 1px solid #f1f5f9;
+            }
+            .gas-responsive-list tbody td[data-primary]::before { display: none; }
+            .gas-responsive-list tbody td[data-actions] {
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+                padding: 0.75rem 0 0 0;
+                margin-top: 0.5rem;
+                border-top: 1px solid #f1f5f9;
+                text-align: left;
+            }
+            .gas-responsive-list tbody td[data-actions]::before { display: none; }
+            .gas-responsive-list tbody td[data-actions] button {
+                width: 100%;
+                padding: 0.7rem 1rem !important;
+                font-size: 0.9rem !important;
+                margin: 0 !important;
+                min-height: 44px;
+            }
+        }
     </style>
     <script src="https://script.supademo.com/supademo.js" defer></script>
     <!-- Chart.js — used by the SEO Analytics performance dashboard.
@@ -105194,30 +105301,43 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (s === 'disabled') return { bg:'#f1f5f9', fg:'#64748b' };
                 return { bg:'#fee2e2', fg:'#991b1b' };
             };
+            // MOBILE 2026-08 UI-simplify: rewrote as gas-responsive-list —
+            // desktop renders as normal table (unchanged look), iPad portrait
+            // + phone stack each row as a card. Data-label attrs drive the
+            // mobile label pseudo-elements. Restore by reverting to inline
+            // styled <table> + <td> markup (see git history 105174-105230).
             wrap.innerHTML = `
-                <table style="width:100%; border-collapse:collapse;">
-                    <thead style="background:#f8fafc;">
+                <table class="gas-responsive-list">
+                    <thead>
                         <tr>
-                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Name</th>
-                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Email</th>
-                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Role</th>
-                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Status</th>
-                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Invited</th>
-                            <th style="text-align:right; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;"></th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Invited</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         ${_teamMembers.map(m => {
                             const sc = statusColor(m.assignment_status);
+                            const nameSafe = (m.full_name || '').replace(/</g,'&lt;') || '—';
+                            const emailSafe = (m.email || '').replace(/</g,'&lt;');
+                            const invitedFmt = m.invited_at ? new Date(m.invited_at).toLocaleDateString() : '';
+                            const sendBtnBg = m.credentials_sent_at ? '#f1f5f9' : 'linear-gradient(135deg,#10b981 0%,#059669 100%)';
+                            const sendBtnFg = m.credentials_sent_at ? '#1e293b' : 'white';
+                            const sendBtnBorder = m.credentials_sent_at ? '#e5e7eb' : 'transparent';
+                            const sendBtnLabel = m.credentials_sent_at ? '📧 Resend Login' : '📧 Send Login Details';
+                            const sendBtnTitle = m.credentials_sent_at ? 'Last emailed ' + new Date(m.credentials_sent_at).toLocaleString() + ' — click to resend a fresh password + magic set-password link' : 'Email them their login: temp password + a magic link to set their own password now';
                             return `
-                                <tr style="border-bottom:1px solid #f1f5f9;">
-                                    <td style="padding:0.7rem 1rem; font-weight:600; color:#1e293b;">${(m.full_name || '').replace(/</g,'&lt;') || '—'}</td>
-                                    <td style="padding:0.7rem 1rem; color:#475569; font-size:0.9rem;">${(m.email || '').replace(/</g,'&lt;')}</td>
-                                    <td style="padding:0.7rem 1rem; color:#475569;">${roleLabel(m.role)}</td>
-                                    <td style="padding:0.7rem 1rem;"><span style="display:inline-block; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.75rem; background:${sc.bg}; color:${sc.fg}; text-transform:capitalize;">${m.assignment_status}</span></td>
-                                    <td style="padding:0.7rem 1rem; color:#94a3b8; font-size:0.8rem;">${m.invited_at ? new Date(m.invited_at).toLocaleDateString() : ''}</td>
-                                    <td style="padding:0.7rem 1rem; text-align:right; white-space:nowrap;">
-                                        <button onclick="sendTeamCredentials(${m.assignment_id})" style="background:${m.credentials_sent_at ? '#f1f5f9' : 'linear-gradient(135deg,#10b981 0%,#059669 100%)'}; color:${m.credentials_sent_at ? '#1e293b' : 'white'}; border:1px solid ${m.credentials_sent_at ? '#e5e7eb' : 'transparent'}; padding:0.35rem 0.75rem; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-right:0.25rem;" title="${m.credentials_sent_at ? 'Last emailed ' + new Date(m.credentials_sent_at).toLocaleString() + ' — click to resend a fresh password + magic set-password link' : 'Email them their login: temp password + a magic link to set their own password now'}">${m.credentials_sent_at ? '📧 Resend Login' : '📧 Send Login Details'}</button>
+                                <tr>
+                                    <td data-primary>${nameSafe}</td>
+                                    <td data-label="Email" style="color:#475569; font-size:0.9rem;">${emailSafe}</td>
+                                    <td data-label="Role" style="color:#475569;">${roleLabel(m.role)}</td>
+                                    <td data-label="Status"><span style="display:inline-block; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.75rem; background:${sc.bg}; color:${sc.fg}; text-transform:capitalize;">${m.assignment_status}</span></td>
+                                    <td data-label="Invited" style="color:#94a3b8; font-size:0.8rem;">${invitedFmt}</td>
+                                    <td data-actions style="text-align:right; white-space:nowrap;">
+                                        <button onclick="sendTeamCredentials(${m.assignment_id})" style="background:${sendBtnBg}; color:${sendBtnFg}; border:1px solid ${sendBtnBorder}; padding:0.35rem 0.75rem; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-right:0.25rem;" title="${sendBtnTitle}">${sendBtnLabel}</button>
                                         <button onclick="openEditTeamMemberModal(${m.assignment_id})" style="background:none; border:1px solid #e5e7eb; padding:0.35rem 0.75rem; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-right:0.25rem;">Edit</button>
                                         <button onclick="removeTeamMember(${m.assignment_id})" style="background:none; border:1px solid #fecaca; color:#dc2626; padding:0.35rem 0.75rem; border-radius:6px; cursor:pointer; font-size:0.8rem;">Remove</button>
                                     </td>
@@ -105272,25 +105392,34 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>`;
                 return;
             }
+            // MOBILE 2026-08 UI-simplify: rewrote as gas-responsive-list —
+            // same reusable card-on-mobile pattern as renderTeam. Restore by
+            // reverting to inline styled <table>+<td> markup (see git history).
             wrap.innerHTML = `
-                <table style="width:100%; border-collapse:collapse;">
-                    <thead style="background:#f8fafc;">
+                <table class="gas-responsive-list">
+                    <thead>
                         <tr>
-                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Name</th>
-                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Email</th>
-                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Properties</th>
-                            <th style="text-align:left; padding:0.75rem 1rem; font-size:0.8rem; color:#475569; border-bottom:1px solid #e5e7eb;">Last login</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Properties</th>
+                            <th>Last login</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${_owners.map(o => `
-                            <tr style="border-bottom:1px solid #f1f5f9;">
-                                <td style="padding:0.7rem 1rem; font-weight:600; color:#1e293b;">${(o.name || '').replace(/</g,'&lt;') || '—'}</td>
-                                <td style="padding:0.7rem 1rem; color:#475569; font-size:0.9rem;">${(o.email || '').replace(/</g,'&lt;')}</td>
-                                <td style="padding:0.7rem 1rem; color:#475569; font-size:0.9rem;">${(o.property_names || []).length ? (o.property_names || []).join(', ').replace(/</g,'&lt;') : '<span style="color:#94a3b8;">— none assigned —</span>'}</td>
-                                <td style="padding:0.7rem 1rem; color:#94a3b8; font-size:0.8rem;">${o.last_login_at ? new Date(o.last_login_at).toLocaleDateString() : 'never'}</td>
-                            </tr>
-                        `).join('')}
+                        ${_owners.map(o => {
+                            const nameSafe = (o.name || '').replace(/</g,'&lt;') || '—';
+                            const emailSafe = (o.email || '').replace(/</g,'&lt;');
+                            const propsList = (o.property_names || []).length ? (o.property_names || []).join(', ').replace(/</g,'&lt;') : '<span style="color:#94a3b8;">— none assigned —</span>';
+                            const lastLoginFmt = o.last_login_at ? new Date(o.last_login_at).toLocaleDateString() : 'never';
+                            return `
+                                <tr>
+                                    <td data-primary>${nameSafe}</td>
+                                    <td data-label="Email" style="color:#475569; font-size:0.9rem;">${emailSafe}</td>
+                                    <td data-label="Properties" style="color:#475569; font-size:0.9rem;">${propsList}</td>
+                                    <td data-label="Last login" style="color:#94a3b8; font-size:0.8rem;">${lastLoginFmt}</td>
+                                </tr>
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>`;
         }
