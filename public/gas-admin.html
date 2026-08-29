@@ -1720,6 +1720,45 @@
             color: var(--text-primary);
         }
 
+        /* MOBILE 2026-08 UI-simplify: the sub-nav bar (Back + pill tabs +
+           Go-to dropdown) crammed onto one line on phone, tabs and
+           dropdown overlapping. Below 768px each row gets its own line,
+           tap targets bumped to 44px min-height. Applies to every
+           tile-group sub-nav (Property Management, Bookings & Revenue,
+           Marketing Generators, etc.) since they all share .view-nav.
+           Restore: delete this media block. */
+        @media (max-width: 768px) {
+            .view-nav {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.65rem;
+            }
+            .view-nav-back {
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                font-size: 0.95rem;
+            }
+            .view-nav-tabs {
+                justify-content: flex-start;
+                gap: 0.35rem;
+            }
+            .view-nav-tab {
+                padding: 0.55rem 0.9rem;
+                font-size: 0.85rem;
+                min-height: 36px;
+                display: inline-flex;
+                align-items: center;
+            }
+            .view-nav-dropdown {
+                margin-left: 0;
+                width: 100%;
+                min-height: 44px;
+                font-size: 0.9rem;
+                padding: 0.55rem 0.75rem;
+            }
+        }
+
         /* =============================================
            CLIENT MODE — sidebar hidden, two-column layout
            Matches register.html / login.html styling
