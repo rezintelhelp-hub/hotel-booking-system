@@ -497,6 +497,32 @@
             font-size: 0.875rem;
         }
 
+        /* MOBILE 2026-08 UI-simplify: reusable action-row for view headers.
+           Every list view (Properties, Rooms, Availability, etc.) has a
+           row of 1-4 primary buttons on the right of the header. On phone
+           these squished onto one line, sub-40px tap targets and clipped
+           text. .header-actions gives them the same treatment as the CM
+           connection cards: horizontal on desktop, full-width column
+           stack below 768px with a 44px min tap target. Restore: revert
+           each header <div class="header-actions"> back to inline
+           style="display: flex; gap: 0.5rem;". */
+        .header-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        @media (max-width: 768px) {
+            .header-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+            .header-actions > .btn,
+            .header-actions > a.btn {
+                width: 100%;
+                min-height: 44px;
+                justify-content: center;
+            }
+        }
+
         /* Stats Grid */
         .stats-grid {
             display: grid;
@@ -1154,9 +1180,13 @@
            overrides re-introduce a sidebar layout later. */
         @media (max-width: 1024px) { /* intentionally empty */ }
 
-        /* Mobile sweep — match the dashboard's mobile-first promise. */
+        /* MOBILE 2026-08 UI-simplify: bumped from 600px to 768px so iPad
+           portrait also wraps header title/actions. .main padding stays
+           on ≤600px only (phone) to avoid wasting real estate on iPad. */
         @media (max-width: 600px) {
             .main { padding: 0.75rem 1rem; }
+        }
+        @media (max-width: 768px) {
             .header-top { flex-wrap: wrap; gap: 0.5rem; }
         }
 
@@ -4010,7 +4040,8 @@
                             <h2>Properties</h2>
                             <p>Manage your property listings</p>
                         </div>
-                        <div style="display: flex; gap: 0.5rem;">
+                        <!-- MOBILE 2026-08 UI-simplify: was inline flex row with no wrap — 4 buttons squished on phone. Now uses reusable .header-actions class (see main <style>): horizontal on desktop, full-width column stack below 768px with 44px min tap target. Restore: swap the class for style="display: flex; gap: 0.5rem;". -->
+                        <div class="header-actions">
                             <button class="btn btn-secondary bulk-stripe-btn" onclick="openBulkStripeModal()" title="Payment Setup">
                                 💳 Payment Setup
                             </button>
