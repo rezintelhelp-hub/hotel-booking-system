@@ -31839,9 +31839,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
 
                 <!-- Facilities — pushed to Channex → Google Hotel Search requires ≥1. -->
+                <!-- UI-simplify 2026-08: renamed heading + expanded help text to distinguish this from the richer Amenities view (Property Management → Amenities). Two features with similar names caused client confusion. Same 15-item canonical Channex/OTA taxonomy — zero data model / save / push change. Charles House and other live OTA accounts unaffected. Restore: revert heading to "🛎️ Facilities" and help text. -->
                 <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
-                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🛎️ Facilities</h4>
-                    <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.5rem;">Tick what's on offer. Pushed to Channex + OTAs.</p>
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🛎️ OTA Facilities</h4>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.35rem;">The fixed 15-item facility list <strong>BDC / Airbnb / Google Hotel Search</strong> require in their taxonomy. Pushed to Channex + OTAs. Tick what applies to this property.</p>
+                    <p style="font-size: 0.75rem; color: #94a3b8; margin: 0 0 0.75rem;">💡 This is separate from your richer <a href="#" onclick="closeModal('editPropertyModal'); showView('amenities'); return false;" style="color: #6366f1; text-decoration: underline;">Amenities</a> list (which drives your own booking page). Both are managed independently.</p>
                     <div id="edit-property-facilities" style="display:flex; flex-wrap:wrap; gap:0.5rem;">
                         <!-- Populated by initPropertyFacilityCheckboxes(). Slugs kept in sync with common Channex taxonomy. -->
                     </div>
