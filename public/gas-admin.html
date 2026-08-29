@@ -17830,7 +17830,8 @@
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <!-- MOBILE 2026-08 UI-simplify: was grid-template-columns: 1fr 1fr — Profile + Change Password rendered as two narrow columns on phone. auto-fit + minmax(400px, 1fr) keeps 2 cols on desktop, stacks to full-width single column on mobile. Restore by reverting to 1fr 1fr. -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
                     <!-- Profile Information -->
                     <div class="card">
                         <div class="card-header">
