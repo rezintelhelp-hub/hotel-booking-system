@@ -44749,8 +44749,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                         document.getElementById('createMasterAdminSection').style.display = 'none';
                     }
                     
-                    // Show agency management section (coming soon mode for all roles)
-                    document.getElementById('agencyManagementSection').style.display = 'block';
+                    // HIDDEN 2026-08 UI-simplify: was shown to all roles ('coming soon mode').
+                    // Feature not shipped; clients saw a dead 'Coming Soon' card.
+                    // Now master-only — Steve keeps it visible as roadmap reminder
+                    // and can flip on for a specific client from master admin if needed.
+                    // Restore for all: remove the role check.
+                    if (account.role === 'master_admin') {
+                        document.getElementById('agencyManagementSection').style.display = 'block';
+                    } else {
+                        document.getElementById('agencyManagementSection').style.display = 'none';
+                    }
 
                     // Managed-by banner — populate when the viewed account
                     // is managed by an agency. Hidden otherwise.
