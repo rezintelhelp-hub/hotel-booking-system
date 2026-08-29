@@ -50700,8 +50700,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <button class="btn btn-small" onclick="bulkUpdatePaymentMethods()" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">Apply to All</button>
                             <span style="font-size: 0.75rem; color: #92400e;">Removing a method does NOT delete Stripe credentials — re-enable any time.</span>
                         </div>
+                        <!-- MOBILE 2026-08 UI-simplify: gas-responsive-list class + data-* cell attrs so iPad portrait + phone stack each property as a card. data-primary on Property Name (bold heading), data-fullwidth on Currency + Payment cells (contain select/chip+button controls that need full-width on mobile), data-actions on Actions cell (Edit + Copy stack full-width). Restore: drop the class + data-* attrs. -->
                         <div class="table-container">
-                            <table>
+                            <table class="gas-responsive-list">
                                 <thead>
                                     <tr>
                                         <th>ID</th>
@@ -50720,11 +50721,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         const currentAccount = allAccounts.find(a => a.id === prop.account_id);
                                         return `
                                         <tr>
-                                            <td><code style="background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">${prop.id}</code></td>
-                                            <td><strong>${prop.name || 'Unnamed Property'}</strong></td>
-                                            <td>${prop.property_type || 'N/A'}</td>
-                                            <td>${prop.city || 'N/A'}, ${prop.country || 'N/A'}</td>
-                                            <td>
+                                            <td data-label="ID"><code style="background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">${prop.id}</code></td>
+                                            <td data-primary><strong>${prop.name || 'Unnamed Property'}</strong></td>
+                                            <td data-label="Type">${prop.property_type || 'N/A'}</td>
+                                            <td data-label="Location">${prop.city || 'N/A'}, ${prop.country || 'N/A'}</td>
+                                            <td data-label="Currency" data-fullwidth>
                                                 <select onchange="updatePropertyCurrency(${prop.id}, this.value)" style="padding: 0.25rem; border-radius: 4px; border: 1px solid #e5e7eb; font-size: 0.85rem;">
                                                     <option value="GBP" ${prop.currency === 'GBP' ? 'selected' : ''}> GBP</option>
                                                     <option value="USD" ${prop.currency === 'USD' ? 'selected' : ''}>$ USD</option>
@@ -50749,15 +50750,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                                                     <option value="BRL" ${prop.currency === 'BRL' ? 'selected' : ''}>R$ BRL</option>
                                                 </select>
                                             </td>
-                                            <td>
+                                            <td data-label="Account">
                                                 ${currentAccount ? `<span style="color: #10b981; font-weight: 500;">${currentAccount.name}</span>` : '<span style="color: #94a3b8;">-- None --</span>'}
                                             </td>
-                                            <td><span class="badge ${prop.status === 'active' ? 'badge-success' : prop.status === 'draft' ? 'badge-warning' : 'badge-secondary'}">${prop.status || 'active'}</span></td>
-                                            <td>
+                                            <td data-label="Status"><span class="badge ${prop.status === 'active' ? 'badge-success' : prop.status === 'draft' ? 'badge-warning' : 'badge-secondary'}">${prop.status || 'active'}</span></td>
+                                            <td data-label="Payment" data-fullwidth>
                                                 ${renderPaymentChips(prop)}
                                                 <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Payment Settings (Stripe credentials etc)" style="${prop.stripe_secret_key ? 'color: #10b981;' : 'color: #f59e0b;'}; margin-left: 0.25rem;">⚙️</button>
                                             </td>
-                                            <td>
+                                            <td data-actions>
                                                 <div style="display: flex; gap: 0.25rem;">
                                                     <button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">✏️ Edit</button>
                                                     <button class="btn btn-secondary btn-small" onclick="copyPropertyLink(${prop.id})" title="Copy booking link">📋</button>
