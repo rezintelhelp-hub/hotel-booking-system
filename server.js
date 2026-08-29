@@ -102941,8 +102941,16 @@ async function processChannexBookingNotification(payload) {
       // Airbnb is always prepaid — they collect from guest, pay host on Day 2
       if (bookingSource === 'airbnb' && paymentStatus === 'paid') otaPrepay.prepaid = true;
     }
-    // Fallback — if PRE-PAID text detected but nothing structured, still mark
-    if (!otaPrepay.prepaid && /PRE-PAID/i.test(rawMsg)) otaPrepay.prepaid = true;
+    // Fallback — if PRE-PAID text detected but nothing structured, still mark.
+    // EXCEPTION: Expedia Collect (bookingSource=expedia + payment_collect=ota)
+    // uses the VCC model — Expedia holds the money and issues a virtual card
+    // the hotel charges via Stripe on check-in day. The Expedia payload
+    // contains "PRE-PAID" text (guest paid Expedia) which used to trip this
+    // fallback → phantom payment row → payment_status flipped to 'paid' →
+    // auto-charge cron skipped the VCC charge. Charles House GAS-741759
+    // (Jose Ramon 2026-08-29) checked in with no card charged. Steve 2026-08-29.
+    const _isExpediaCollect = bookingSource === 'expedia' && String(attrs.payment_collect || '').toLowerCase() === 'ota';
+    if (!otaPrepay.prepaid && /PRE-PAID/i.test(rawMsg) && !_isExpediaCollect) otaPrepay.prepaid = true;
     // Airbnb catch-all — even without raw_message JSON, any confirmed
     // Airbnb booking is prepaid (Airbnb collects from guest at booking).
     // Payout method defaults to "Airbnb payout" for the UI badge.
