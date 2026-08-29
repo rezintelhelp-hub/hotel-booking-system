@@ -50746,8 +50746,34 @@ const promo = await fetch('/api/v1/offers/validate', {
                 let properties = data.data || [];
                 
                 if (properties.length > 0) {
+                    // UI-simplify 2026-08: compute "current state" chips so the
+                    // bulk-action controls above stop looking blank/reset when
+                    // the underlying properties actually have values set.
+                    const _currList = [...new Set(properties.map(p => p.currency).filter(Boolean))];
+                    const currencyChip = _currList.length === 1
+                        ? `Current: all ${properties.length} propert${properties.length === 1 ? 'y uses' : 'ies use'} <strong>${_currList[0]}</strong>`
+                        : _currList.length === 0
+                            ? 'No currency set on any property yet'
+                            : `Mixed currencies: ${_currList.join(', ')}`;
+                    const _mLabels = { card: 'Stripe', pay_at_property: 'Direct (Pay at Property)', card_guarantee: 'Card Guarantee' };
+                    const _mSets = properties.map(p => (Array.isArray(p.accepted_methods) ? [...p.accepted_methods].sort().join('|') : ''));
+                    const _uniqSets = [...new Set(_mSets)];
+                    let methodsChip;
+                    if (_uniqSets.length === 1) {
+                        const first = _uniqSets[0];
+                        if (!first) {
+                            methodsChip = 'No payment methods enabled on any property yet';
+                        } else {
+                            const labels = first.split('|').map(k => _mLabels[k] || k).join(' + ');
+                            methodsChip = `Current: all ${properties.length} propert${properties.length === 1 ? 'y accepts' : 'ies accept'} <strong>${labels}</strong>`;
+                        }
+                    } else {
+                        methodsChip = 'Mixed payment methods across properties';
+                    }
                     const html = `
-                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; padding: 0.75rem 1rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+                        <!-- UI-simplify 2026-08: chip below the bulk-action row so operators see current state (all/mixed) and don't think the previous save was lost when the dropdown resets to "-- Choose --". -->
+                        <div style="margin-bottom: 1rem; padding: 0.75rem 1rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+                          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
                             <span style="font-size: 0.85rem; color: #0369a1; font-weight: 500;">Set currency for all properties:</span>
                             <select id="bulk-currency-select" style="padding: 0.35rem 0.5rem; border-radius: 6px; border: 1px solid #7dd3fc; font-size: 0.85rem;">
                                 <option value="">-- Choose --</option>
@@ -50774,14 +50800,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <option value="BRL">R$ BRL</option>
                             </select>
                             <button class="btn btn-small" onclick="bulkUpdateCurrency()" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">Apply to All</button>
+                          </div>
+                          <div style="font-size: 0.75rem; color: #0369a1; margin-top: 0.5rem;">${currencyChip}</div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; padding: 0.75rem 1rem; background: #fefce8; border: 1px solid #fde68a; border-radius: 8px;">
+                        <!-- UI-simplify 2026-08: same current-state chip pattern below the payment methods bulk row. -->
+                        <div style="margin-bottom: 1rem; padding: 0.75rem 1rem; background: #fefce8; border: 1px solid #fde68a; border-radius: 8px;">
+                          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
                             <span style="font-size: 0.85rem; color: #854d0e; font-weight: 500;">Set payment methods for all properties:</span>
                             <label style="font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.25rem;"><input type="checkbox" id="bulk-pm-card"> Stripe</label>
                             <label style="font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.25rem;"><input type="checkbox" id="bulk-pm-pay-at-property"> Direct (Pay at Property)</label>
                             <label style="font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.25rem;"><input type="checkbox" id="bulk-pm-card-guarantee"> Card Guarantee</label>
                             <button class="btn btn-small" onclick="bulkUpdatePaymentMethods()" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">Apply to All</button>
                             <span style="font-size: 0.75rem; color: #92400e;">Removing a method does NOT delete Stripe credentials — re-enable any time.</span>
+                          </div>
+                          <div style="font-size: 0.75rem; color: #92400e; margin-top: 0.5rem;">${methodsChip}</div>
                         </div>
                         <!-- MOBILE 2026-08 UI-simplify: gas-responsive-list class + data-* cell attrs so iPad portrait + phone stack each property as a card. data-primary on Property Name (bold heading), data-fullwidth on Currency + Payment cells (contain select/chip+button controls that need full-width on mobile), data-actions on Actions cell (Edit + Copy stack full-width). Restore: drop the class + data-* attrs. -->
                         <div class="table-container">
