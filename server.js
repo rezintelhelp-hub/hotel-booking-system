@@ -168082,6 +168082,20 @@ setTimeout(fireDueCrons, 30 * 1000);
 // resilient to frequent Railway redeploys.
 setInterval(fireDueCrons, 2 * 60 * 1000);
 
+// Dedicated fast poll for the two outboxes only — the shared 2-min poll
+// left a 75s idle window per cycle where new rows queued but nothing
+// drained. On high-volume accounts (Charles House ~215k rows/day, 5 Rte
+// ~110k) the tail sat 20-30 min behind = double-booking window. Firing
+// the outbox check every 30s keeps the drain within its 60s registered
+// interval regardless of what else the shared poll is doing.
+// runCronIfDue is already idempotent — extra ticks that find nothing due
+// bail on the first DB SELECT. Steve 2026-08-29 after digest alarm on 197+273.
+function fireOutboxCrons() {
+    runCronIfDue('processChannexOutbox', 60, processChannexOutbox).catch(e => console.error('[CRON wrapper channex-outbox fast]', e));
+    runCronIfDue('processBeds24Outbox', 60, processBeds24Outbox).catch(e => console.error('[CRON wrapper beds24-outbox fast]', e));
+}
+setInterval(fireOutboxCrons, 30 * 1000);
+
 console.log('⏰ Persistent cron scheduler armed: 30s startup check, then every 2min, 1h fire interval per task');
 
 // Startup health check — warn loudly if there are bookings in a state the
