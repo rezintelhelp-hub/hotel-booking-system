@@ -31831,7 +31831,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                      Fires the same reconciliation the every-6h cron runs, but
                      scoped to just this property + returns full outbox state
                      so we can see what actually landed. -->
-                <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                <!-- HIDDEN 2026-08 UI-simplify: master-only. Operator escape hatch for OTA-vs-GAS calendar drift, not a client daily action. Steve walks each Channex connection setup manually — clients shouldn't be running full 90-day reconciles. Restore for clients: remove data-roles below. -->
+                <div data-roles="master_admin" style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
                     <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🔄 OTA sync diagnostic</h4>
                     <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">If Airbnb/BDC shows dates as blocked when GAS says open (or vice versa), click this to force a full 90-day availability + restriction resync for this property to Channex + Beds24. Result shows exactly what landed in the outbox.</p>
                     <button type="button" class="btn btn-secondary" id="force-reconcile-btn" onclick="forceReconcileChannex()" style="font-size: 0.85rem;">🔄 Force reconcile now</button>
@@ -31839,8 +31840,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
 
                 <!-- Facilities — pushed to Channex → Google Hotel Search requires ≥1. -->
-                <!-- UI-simplify 2026-08: renamed heading + expanded help text to distinguish this from the richer Amenities view (Property Management → Amenities). Two features with similar names caused client confusion. Same 15-item canonical Channex/OTA taxonomy — zero data model / save / push change. Charles House and other live OTA accounts unaffected. Restore: revert heading to "🛎️ Facilities" and help text. -->
-                <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                <!-- HIDDEN 2026-08 UI-simplify: master-only. Steve walks each Channex connection setup manually (incl. per-property OTA facility taxonomy) — clients don't need this in daily flow. Same 15-item canonical Channex/OTA taxonomy — zero data model / save / push change. Charles House and other live OTA accounts unaffected. Renamed heading + help text kept for master convenience. Restore for clients: remove data-roles below. -->
+                <div data-roles="master_admin" style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
                     <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🛎️ OTA Facilities</h4>
                     <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.35rem;">The fixed 15-item facility list <strong>BDC / Airbnb / Google Hotel Search</strong> require in their taxonomy. Pushed to Channex + OTAs. Tick what applies to this property.</p>
                     <p style="font-size: 0.75rem; color: #94a3b8; margin: 0 0 0.75rem;">💡 This is separate from your richer <a href="#" onclick="closeModal('editPropertyModal'); showView('amenities'); return false;" style="color: #6366f1; text-decoration: underline;">Amenities</a> list (which drives your own booking page). Both are managed independently.</p>
