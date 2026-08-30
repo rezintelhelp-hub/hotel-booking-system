@@ -31969,7 +31969,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <details style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 0.85rem 1rem; margin-bottom: 1.5rem;">
                         <summary style="cursor: pointer; font-weight: 600; color: #475569; font-size: 0.9rem;">Advanced: paste keys manually</summary>
-                        <p style="color: #64748b; margin: 0.75rem 0 1rem; font-size: 0.8rem;">Use this if you already have Stripe API keys and prefer to paste them. Get keys from <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: #6366f1;">Stripe Dashboard → API Keys</a>. Standard secret key (sk_live_...) recommended over restricted (rk_live_...) — some restricted keys lack the permissions GAS needs.</p>
+                        <p style="color: #64748b; margin: 0.75rem 0 0.5rem; font-size: 0.8rem;">Use this if you already have Stripe API keys and prefer to paste them. Get keys from <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: #6366f1;">Stripe Dashboard → API Keys</a>. Standard secret key (sk_live_...) recommended over restricted (rk_live_...) — some restricted keys lack the permissions GAS needs.</p>
+                        <!-- Slice 4 (Stripe redesign): factual note so operators self-select the right path when they need Channex OTA VCC auto-import. -->
+                        <p style="color: #92400e; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; padding: 0.5rem 0.7rem; margin: 0 0 1rem; font-size: 0.78rem;">⚠️ Paste-keys does NOT enable OTA card auto-import (Booking.com / Expedia / Airbnb virtual credit cards). For that use <strong>Connect Stripe</strong> above.</p>
                         <div class="form-group" style="margin-bottom: 1rem;">
                             <label class="form-label">Stripe Account Name</label>
                             <input type="text" class="form-input" id="bulk-stripe-name" placeholder="e.g. Main Account, Beach Villas, etc.">
@@ -50923,6 +50925,12 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Render the payment-method chips for a property row.
         // Tap a chip to toggle that method on/off; removing the chip does NOT
         // delete Stripe credentials — payment_configurations is untouched.
+        // UI-simplify 2026-08 / Stripe redesign slice 3: appends a small
+        // "Stripe: ...XXXX" tag when a property-level stripe_account_id is
+        // set (from the new multi-Stripe-per-account OAuth flow). Lets
+        // portfolio operators see at-a-glance which properties share a
+        // Stripe Connect account. Legacy account-level Stripe (no per-
+        // property override) shows nothing — same as before.
         function renderPaymentChips(prop) {
             const am = Array.isArray(prop.accepted_methods) ? prop.accepted_methods : [];
             const defs = [
@@ -50934,7 +50942,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const on = am.includes(d.key);
                 return `<span onclick="togglePropertyMethod(${prop.id}, '${d.key}', this)" title="Click to ${on ? 'remove' : 'add'} ${d.label}" style="cursor: pointer; display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 999px; margin-right: 0.2rem; background: ${on ? d.bg : '#f1f5f9'}; color: ${on ? d.fg : '#94a3b8'}; border: 1px solid ${on ? d.fg : '#cbd5e1'}; opacity: ${on ? '1' : '0.55'}; user-select: none;">${on ? '●' : '○'} ${d.label}</span>`;
             }).join('');
-            return `<span data-prop-id="${prop.id}" style="display: inline-flex; align-items: center;">${chips}</span>`;
+            let stripeAcctTag = '';
+            if (prop.stripe_account_id) {
+                const tail = String(prop.stripe_account_id).slice(-4);
+                stripeAcctTag = `<span title="Stripe Connect account tied to this property: ${prop.stripe_account_id}" style="display:inline-block; font-size:0.65rem; padding:0.1rem 0.45rem; margin-left:0.35rem; background:#f5f3ff; color:#5b21b6; border:1px solid #ddd6fe; border-radius:4px; font-family:monospace;">acct ···${tail}</span>`;
+            }
+            return `<span data-prop-id="${prop.id}" style="display: inline-flex; align-items: center; flex-wrap: wrap;">${chips}${stripeAcctTag}</span>`;
         }
 
         // Toggle a single method on/off for a property (chip click).
