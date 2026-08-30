@@ -54248,8 +54248,17 @@ app.post('/api/admin/billing/cancel-subscription', async (req, res) => {
 // Create or onboard a Stripe Connect account for an owner (for agent payouts)
 app.post('/api/admin/stripe-connect/onboard', async (req, res) => {
   try {
-    const { account_id, type } = req.body; // type: 'standard' (default) or 'express'
+    const { account_id, type, property_ids } = req.body; // type: 'standard' (default) or 'express'
+    // property_ids: optional array. When provided + non-empty, we create a
+    // FRESH Connect account (not reusing accounts.stripe_account_id) and tie
+    // it to just those properties — supports the new "multi Stripe per GAS
+    // account" pattern (portfolio operators with a separate Stripe per
+    // property or per legal entity). When omitted, old behaviour: reuse or
+    // create the single account-level Connect account. Slice 1 of the
+    // Payment Setup redesign, Steve 2026-08-30.
     const connectType = type === 'express' ? 'express' : 'standard';
+    const propertyIdsList = Array.isArray(property_ids) ? property_ids.filter(n => Number.isFinite(Number(n))).map(Number) : [];
+    const perProperty = propertyIdsList.length > 0;
 
     const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
@@ -54261,20 +54270,52 @@ app.post('/api/admin/stripe-connect/onboard', async (req, res) => {
     if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
     const acc = account.rows[0];
 
+    // If per-property mode, verify each property belongs to this account
+    // (defence — client-supplied IDs can't be trusted). Bail if any mismatch.
+    if (perProperty) {
+      const propCheck = await pool.query(
+        'SELECT id FROM properties WHERE id = ANY($1::int[]) AND account_id = $2',
+        [propertyIdsList, account_id]
+      );
+      if (propCheck.rows.length !== propertyIdsList.length) {
+        return res.status(400).json({ success: false, error: 'One or more properties do not belong to this account' });
+      }
+    }
+
     const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-    let connectAccountId = acc.stripe_account_id;
-    if (!connectAccountId) {
+    let connectAccountId;
+    if (perProperty) {
+      // Always create a FRESH Connect account — supports multi-Stripe-per-account
       const connectAccount = await stripe.accounts.create({
         type: connectType,
         email: acc.email,
         business_type: 'company',
-        metadata: { gas_account_id: String(account_id) },
+        metadata: { gas_account_id: String(account_id), gas_property_ids: propertyIdsList.join(',') },
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } }
       });
       connectAccountId = connectAccount.id;
-      await pool.query('UPDATE accounts SET stripe_account_id = $1 WHERE id = $2', [connectAccountId, account_id]);
-      console.log(`[CONNECT] Created ${connectType} account ${connectAccountId} for GAS account ${account_id}`);
+      // Write connect_account_id to each ticked property
+      await pool.query(
+        'UPDATE properties SET stripe_account_id = $1 WHERE id = ANY($2::int[])',
+        [connectAccountId, propertyIdsList]
+      );
+      console.log(`[CONNECT] Created ${connectType} account ${connectAccountId} for GAS account ${account_id}, tied to properties [${propertyIdsList.join(',')}]`);
+    } else {
+      // Legacy single-per-account path — unchanged
+      connectAccountId = acc.stripe_account_id;
+      if (!connectAccountId) {
+        const connectAccount = await stripe.accounts.create({
+          type: connectType,
+          email: acc.email,
+          business_type: 'company',
+          metadata: { gas_account_id: String(account_id) },
+          capabilities: { card_payments: { requested: true }, transfers: { requested: true } }
+        });
+        connectAccountId = connectAccount.id;
+        await pool.query('UPDATE accounts SET stripe_account_id = $1 WHERE id = $2', [connectAccountId, account_id]);
+        console.log(`[CONNECT] Created ${connectType} account ${connectAccountId} for GAS account ${account_id}`);
+      }
     }
 
     // Create onboarding link
@@ -54285,7 +54326,14 @@ app.post('/api/admin/stripe-connect/onboard', async (req, res) => {
       type: 'account_onboarding'
     });
 
-    res.json({ success: true, connect_account_id: connectAccountId, onboarding_url: accountLink.url, type: connectType });
+    res.json({
+      success: true,
+      connect_account_id: connectAccountId,
+      onboarding_url: accountLink.url,
+      type: connectType,
+      property_ids: perProperty ? propertyIdsList : null,
+      mode: perProperty ? 'per_property' : 'per_account'
+    });
   } catch (err) {
     console.error('[CONNECT] Onboard error:', err);
     res.status(500).json({ success: false, error: err.message });
