@@ -31950,14 +31950,26 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 <!-- STRIPE TAB -->
                 <div id="bulk-tab-stripe" class="bulk-pay-panel">
-                    <p style="color: #64748b; margin-bottom: 1rem; font-size: 0.85rem;">Apply Stripe keys to multiple properties. Get keys from <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: #6366f1;">Stripe Dashboard → API Keys</a>.</p>
-                    <!-- Signpost — OAuth is per-property and lives in the property
-                         Edit modal. Bulk paste-keys works but doesn't enable
-                         Channex OTA card auto-import. -->
-                    <div style="background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 0.75rem 0.85rem; margin-bottom: 1rem; font-size: 0.8rem; color: #3730a3;">
-                        <strong>Need Channex OTA card auto-import?</strong> Use <strong>Stripe Connect (OAuth)</strong> from the individual property Edit page → Payment Settings → 🔗 Enable Stripe Connect. OAuth is per-property (one Stripe login per property), so it's not offered here.
+                    <!-- UI-simplify 2026-08 / Stripe redesign slice 2:
+                         Connect Stripe (OAuth) is now the primary flow. Paste-
+                         keys demoted into the Advanced <details> below. Ticked
+                         properties from the picker further down get tied to
+                         this Stripe account via the property_ids param added
+                         in slice 1. Portfolio operators can run this multiple
+                         times to assign different Stripes to different
+                         property subsets. Restore: swap the primary card and
+                         the <details> back so paste-keys is visible by
+                         default. -->
+                    <div style="background: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 100%); border: 2px solid #a78bfa; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+                        <h4 style="margin: 0 0 0.4rem; color: #5b21b6; display: flex; align-items: center; gap: 0.5rem;">🔗 Connect Stripe <span style="font-size: 0.7rem; background: #ddd6fe; color: #5b21b6; padding: 0.15rem 0.55rem; border-radius: 999px; font-weight: 600;">Recommended</span></h4>
+                        <p style="color: #4c1d95; font-size: 0.85rem; margin: 0 0 0.75rem;">Log in to Stripe and approve GAS — no keys to copy. Also enables OTA card auto-import from Booking.com / Expedia / Airbnb.</p>
+                        <p style="color: #64748b; font-size: 0.78rem; margin: 0 0 0.85rem;">Tick the properties below that this Stripe account should handle, then click Connect. Repeat for a second Stripe account if you have separate legal entities per property.</p>
+                        <button type="button" class="btn" onclick="connectStripeOAuthFromBulk()" style="background: #635bff; color: white; font-weight: 600; padding: 0.7rem 1.25rem;">🔗 Connect Stripe →</button>
+                        <div id="bulk-stripe-oauth-status" style="margin-top: 0.6rem; font-size: 0.82rem;"></div>
                     </div>
-                    <div style="background: #f8fafc; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
+                    <details style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 0.85rem 1rem; margin-bottom: 1.5rem;">
+                        <summary style="cursor: pointer; font-weight: 600; color: #475569; font-size: 0.9rem;">Advanced: paste keys manually</summary>
+                        <p style="color: #64748b; margin: 0.75rem 0 1rem; font-size: 0.8rem;">Use this if you already have Stripe API keys and prefer to paste them. Get keys from <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: #6366f1;">Stripe Dashboard → API Keys</a>. Standard secret key (sk_live_...) recommended over restricted (rk_live_...) — some restricted keys lack the permissions GAS needs.</p>
                         <div class="form-group" style="margin-bottom: 1rem;">
                             <label class="form-label">Stripe Account Name</label>
                             <input type="text" class="form-input" id="bulk-stripe-name" placeholder="e.g. Main Account, Beach Villas, etc.">
@@ -31970,7 +31982,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <label class="form-label">Secret Key or Restricted Key</label>
                             <input type="password" class="form-input" id="bulk-stripe-secret" placeholder="sk_live_... or rk_live_...">
                         </div>
-                    </div>
+                    </details>
                 </div>
                 
                 <!-- DIRECT (PAY AT PROPERTY) TAB -->
@@ -109678,6 +109690,51 @@ const promo = await fetch('/api/v1/offers/validate', {
         //  - Keys typed in the form (pre-save validation): tests those keys
         //  - No keys typed: tests the STORED credentials of every selected
         //    property (the realistic "is what's already saved working?" case)
+        // UI-simplify 2026-08 / Stripe redesign slice 2: primary OAuth path
+        // from the Bulk Payment Setup modal. Reads the ticked property IDs
+        // from bulkSelectedIdsByTab.stripe, POSTs to the onboard endpoint
+        // (slice 1) which creates a fresh Connect account tied to those
+        // properties, then redirects the browser to Stripe's hosted
+        // onboarding. Repeat for a second Stripe account by re-ticking
+        // different properties.
+        async function connectStripeOAuthFromBulk() {
+            const status = document.getElementById('bulk-stripe-oauth-status');
+            const selectedIds = Array.from(bulkSelectedIdsByTab.stripe || []);
+            const accountId = (typeof selectedAccountId !== 'undefined' && selectedAccountId)
+                ? selectedAccountId
+                : (currentAccount && currentAccount.id);
+            if (!accountId) {
+                status.innerHTML = '<span style="color:#dc2626;">Select an account first.</span>';
+                return;
+            }
+            if (selectedIds.length === 0) {
+                status.innerHTML = '<span style="color:#ca8a04;">Tick at least one property below first — this Stripe will be tied to those properties.</span>';
+                return;
+            }
+            status.innerHTML = '<span style="color:#64748b;">Creating Stripe Connect account for ' + selectedIds.length + ' propert' + (selectedIds.length === 1 ? 'y' : 'ies') + '…</span>';
+            try {
+                const r = await fetch('/api/admin/stripe-connect/onboard', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        property_ids: selectedIds,
+                        type: 'standard'
+                    })
+                });
+                const data = await r.json();
+                if (!data.success || !data.onboarding_url) {
+                    status.innerHTML = '<span style="color:#dc2626;">' + (data.error || 'Connect failed') + '</span>';
+                    return;
+                }
+                status.innerHTML = '<span style="color:#059669;">✓ Stripe account created — redirecting to onboarding…</span>';
+                // Small delay so the operator sees the confirmation before the redirect
+                setTimeout(() => { window.location.href = data.onboarding_url; }, 700);
+            } catch (err) {
+                status.innerHTML = '<span style="color:#dc2626;">Error: ' + err.message + '</span>';
+            }
+        }
+
         async function testBulkStripeKeys() {
             const pk = document.getElementById('bulk-stripe-publishable').value.trim();
             const sk = document.getElementById('bulk-stripe-secret').value.trim();
