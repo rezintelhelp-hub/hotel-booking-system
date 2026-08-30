@@ -16775,6 +16775,135 @@ app.post('/api/admin/channex/channel/:id/load-reservations', async (req, res) =>
   }
 });
 
+// Shared helper for Airbnb→GAS single-listing import. Mirrors the body of
+// the /api/admin/channex/channel/:id/airbnb/import endpoint 1:1 so both
+// callers behave identically. The endpoint below still has its own inline
+// copy for now (surgical — no refactor of the working path); the batch
+// endpoint /airbnb/import-all uses this helper directly. When we're
+// confident, single endpoint can be flipped to use this too.
+// Returns: { success, property_id?, bookable_unit_id?, images_imported?, summary?, error? }
+async function _importAirbnbListingToGas(channelDbId, listing_id) {
+  try {
+    const row = await pool.query(`
+      SELECT c.*, conn.account_id
+      FROM gas_sync_channels c
+      JOIN gas_sync_connections conn ON conn.id = c.connection_id
+      WHERE c.id = $1
+    `, [channelDbId]);
+    if (row.rows.length === 0) return { success: false, error: 'channel not found', listing_id };
+    const account_id = row.rows[0].account_id;
+    const { SyncManager } = require('./gas-sync/adapters');
+    const adapter = await new SyncManager(pool).getAdapterForConnection(row.rows[0].connection_id);
+    const detail = await adapter.getAirbnbListingDetails(row.rows[0].channex_channel_id, listing_id);
+    if (!detail.success) return { success: false, error: detail.error, listing_id };
+    const L = detail.data?.listing || {};
+    const desc = L.descriptions || {};
+    const pricing = L.pricing_settings || {};
+    const userIdRow = await pool.query(
+      `SELECT user_id FROM properties WHERE account_id = $1 AND user_id IS NOT NULL ORDER BY id LIMIT 1`,
+      [account_id]
+    );
+    const propertyUserId = userIdRow.rows[0]?.user_id || 1;
+    const propIns = await pool.query(`
+      INSERT INTO properties (account_id, user_id, name, address, city, country, zip_code, currency, latitude, longitude, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+      RETURNING id
+    `, [
+      account_id, propertyUserId,
+      desc.name || L.listing_nickname || 'Imported from Airbnb',
+      L.street || '', L.city || '', L.country_code || '', L.zipcode || '',
+      pricing.listing_currency || L.listing_currency || 'EUR',
+      L.lat || null, L.lng || null
+    ]);
+    const propertyId = propIns.rows[0].id;
+    const unitIns = await pool.query(`
+      INSERT INTO bookable_units (property_id, name, max_guests, max_adults, max_children, base_price,
+        short_description, full_description, num_bedrooms, num_bathrooms, created_at, updated_at)
+      VALUES ($1, $2, $3, $3, 0, $4, $5, $6, $7, $8, NOW(), NOW())
+      RETURNING id
+    `, [
+      propertyId, desc.name || 'Imported', L.person_capacity || 2, pricing.default_daily_price || null,
+      JSON.stringify({ en: desc.summary || '' }),
+      JSON.stringify({ en: [desc.space, desc.access, desc.neighborhood_overview, desc.transit, desc.notes].filter(Boolean).join('\n\n') }),
+      L.bedrooms || 1, Math.ceil(L.bathrooms || 1)
+    ]);
+    const bookableUnitId = unitIns.rows[0].id;
+    const images = L.images || [];
+    let imgCount = 0;
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      const rawUrl = img.large_url || img.extra_large_url || img.extra_medium_url || img.small_url || img.thumbnail_url;
+      if (!rawUrl) continue;
+      const url = cleanImageUrl(rawUrl);
+      const thumbUrl = img.thumbnail_url ? cleanImageUrl(img.thumbnail_url) : url;
+      const imageKey = img.id ? `airbnb-${img.id}` : `airbnb-${listing_id}-${i}`;
+      try {
+        await pool.query(`
+          INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, caption, display_order, is_primary, is_active, upload_source, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, true, 'airbnb_import', NOW())
+        `, [bookableUnitId, imageKey, url, thumbUrl, img.caption || '', i, i === 0]);
+        imgCount++;
+      } catch (imgErr) { console.warn('[airbnb import] image insert failed:', imgErr.message); }
+    }
+    await pool.query(`
+      INSERT INTO gas_sync_channel_mappings (channel_id, ota_listing_id, gas_bookable_unit_id, settings)
+      VALUES ($1, $2, $3, $4)
+    `, [channelDbId, String(listing_id), bookableUnitId, JSON.stringify({ source: 'airbnb_import', imported_at: new Date().toISOString() })]);
+    return {
+      success: true,
+      listing_id,
+      property_id: propertyId,
+      bookable_unit_id: bookableUnitId,
+      images_imported: imgCount,
+      summary: {
+        name: desc.name,
+        address: `${L.street || ''}, ${L.city || ''} ${L.country_code || ''}`.trim(),
+        bedrooms: L.bedrooms, bathrooms: L.bathrooms, capacity: L.person_capacity,
+        rate: pricing.default_daily_price, currency: pricing.listing_currency
+      }
+    };
+  } catch (err) {
+    console.error('[_importAirbnbListingToGas] listing_id='+listing_id, err);
+    return { success: false, error: err.message, listing_id };
+  }
+}
+
+// POST /api/admin/channex/channel/:id/airbnb/import-all
+// Body: { listing_ids: [...] }. Loops through each listing_id, calling
+// the shared _importAirbnbListingToGas helper. One failed listing does
+// NOT abort the batch — the response has per-listing results so the
+// wizard can show "3 of 4 imported, 1 needs retry".
+// Used by the Airbnb onboarding wizard step 4 (multi-listing import).
+app.post('/api/admin/channex/channel/:id/airbnb/import-all', async (req, res) => {
+  try {
+    const channelDbId = parseInt(req.params.id);
+    const { listing_ids } = req.body || {};
+    if (!Array.isArray(listing_ids) || listing_ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'listing_ids array required (min 1)' });
+    }
+    if (!Number.isFinite(channelDbId)) {
+      return res.status(400).json({ success: false, error: 'invalid channel id' });
+    }
+    const results = [];
+    for (const listing_id of listing_ids) {
+      const r = await _importAirbnbListingToGas(channelDbId, listing_id);
+      results.push(r);
+    }
+    const ok = results.filter(r => r.success).length;
+    const failed = results.length - ok;
+    res.json({
+      success: failed === 0,
+      imported: ok,
+      failed,
+      total: results.length,
+      results
+    });
+  } catch (err) {
+    console.error('[airbnb/import-all]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/admin/channex/channel/:id/airbnb/import
 // Body: { listing_id, account_id }. Fetches listing_details, auto-creates
 // GAS property + bookable_unit + room_images + descriptions.
