@@ -54318,11 +54318,16 @@ app.post('/api/admin/stripe-connect/onboard', async (req, res) => {
       }
     }
 
-    // Create onboarding link
+    // Create onboarding link. Force https — Railway terminates SSL at the
+    // edge so req.protocol comes through as 'http'; Stripe rejects that
+    // for live mode ("Livemode requests must always be redirected via
+    // HTTPS"). Steve 2026-08-30.
+    const _proto = (req.get('x-forwarded-proto') || '').split(',')[0].trim() || 'https';
+    const _scheme = _proto === 'http' && !/^localhost/.test(req.get('host') || '') ? 'https' : _proto;
     const accountLink = await stripe.accountLinks.create({
       account: connectAccountId,
-      refresh_url: `${req.protocol}://${req.get('host')}/gas-admin.html?connect_refresh=true&account_id=${account_id}`,
-      return_url: `${req.protocol}://${req.get('host')}/gas-admin.html?connect_complete=true&account_id=${account_id}`,
+      refresh_url: `${_scheme}://${req.get('host')}/gas-admin.html?connect_refresh=true&account_id=${account_id}`,
+      return_url: `${_scheme}://${req.get('host')}/gas-admin.html?connect_complete=true&account_id=${account_id}`,
       type: 'account_onboarding'
     });
 
