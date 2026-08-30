@@ -16868,6 +16868,109 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
   }
 }
 
+// POST /api/admin/airbnb/onboard/:channel_id
+// The master-driver "finish the onboarding" endpoint. Runs after a client
+// completes Airbnb OAuth. Given { listing_ids: [...] } it:
+//   1. Loops _importAirbnbListingToGas for each listing (creates GAS
+//      properties, bookable_units, room_images per listing)
+//   2. Collects the new property_ids + room_ids
+//   3. Returns everything the caller needs to hit /api/deploy/create
+//      in the next step to build the portal website.
+// Kept as a two-step (this endpoint + a separate deploy call) rather
+// than a mega-orchestrator so the deploy path stays untouched. Admin
+// UI or a small script chains the two. Steve 2026-08-30 for Adrien
+// Lamacq onboarding.
+app.post('/api/admin/airbnb/onboard/:channel_id', async (req, res) => {
+  try {
+    const channelDbId = parseInt(req.params.channel_id);
+    const { listing_ids } = req.body || {};
+    if (!Array.isArray(listing_ids) || listing_ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'listing_ids array required (min 1)' });
+    }
+    if (!Number.isFinite(channelDbId)) {
+      return res.status(400).json({ success: false, error: 'invalid channel_id' });
+    }
+    // Resolve channel → connection → account so the caller doesn't have
+    // to know all three IDs.
+    const chRow = await pool.query(`
+      SELECT c.id, c.channel_code, conn.account_id, conn.id AS connection_id
+        FROM gas_sync_channels c
+        JOIN gas_sync_connections conn ON conn.id = c.connection_id
+       WHERE c.id = $1
+    `, [channelDbId]);
+    if (chRow.rows.length === 0) return res.status(404).json({ success: false, error: 'channel not found' });
+    if (chRow.rows[0].channel_code !== 'AirBNB') {
+      return res.status(400).json({ success: false, error: 'channel is not Airbnb (code=' + chRow.rows[0].channel_code + ')' });
+    }
+    const accountId = chRow.rows[0].account_id;
+    const acctRow = await pool.query('SELECT id, name, email FROM accounts WHERE id = $1', [accountId]);
+    if (acctRow.rows.length === 0) return res.status(404).json({ success: false, error: 'account not found' });
+    const acct = acctRow.rows[0];
+
+    // Run imports serially, collect results
+    const importResults = [];
+    for (const listing_id of listing_ids) {
+      const r = await _importAirbnbListingToGas(channelDbId, listing_id);
+      importResults.push(r);
+    }
+    const successful = importResults.filter(r => r.success);
+    const failed = importResults.length - successful.length;
+    const newPropertyIds = successful.map(r => r.property_id).filter(Boolean);
+    if (newPropertyIds.length === 0) {
+      return res.status(422).json({
+        success: false,
+        error: 'No listings imported successfully',
+        results: importResults
+      });
+    }
+
+    // Collect all bookable_unit IDs across the imported properties so
+    // the deploy step can wire the site to every unit.
+    const roomsRow = await pool.query(
+      'SELECT id, name, property_id, max_guests FROM bookable_units WHERE property_id = ANY($1::int[]) ORDER BY id',
+      [newPropertyIds]
+    );
+    const roomIds = roomsRow.rows.map(r => r.id);
+
+    // Suggest sensible site_name / slug / admin_email defaults for the
+    // deploy step so the caller doesn't have to derive them.
+    const suggestedSiteName = acct.name || 'Your Property';
+    const suggestedSlug = String(acct.name || 'site').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'site';
+    const suggestedAdminEmail = acct.email || '';
+
+    res.json({
+      success: true,
+      account_id: accountId,
+      imported: successful.length,
+      failed,
+      total: importResults.length,
+      results: importResults,
+      new_property_ids: newPropertyIds,
+      new_room_ids: roomIds,
+      new_rooms: roomsRow.rows,
+      deploy_payload: {
+        // Ready-to-POST body for the next call to /api/deploy/create.
+        // Caller can override any field before firing.
+        site_name: suggestedSiteName,
+        slug: suggestedSlug,
+        admin_email: suggestedAdminEmail,
+        account_id: accountId,
+        property_ids: newPropertyIds,
+        room_ids: roomIds,
+        rooms: roomsRow.rows,
+        template: 'developer-light',
+        use_theme: true,
+        use_plugin: true,
+        enable_blog: false,
+        enable_attractions: false
+      }
+    });
+  } catch (err) {
+    console.error('[airbnb/onboard]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/admin/channex/channel/:id/airbnb/import-all
 // Body: { listing_ids: [...] }. Loops through each listing_id, calling
 // the shared _importAirbnbListingToGas helper. One failed listing does
