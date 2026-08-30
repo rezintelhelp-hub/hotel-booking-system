@@ -16740,6 +16740,41 @@ app.post('/api/admin/channex/channel/:id/airbnb/link', async (req, res) => {
   }
 });
 
+// POST /api/admin/channex/channel/:id/load-reservations
+// Trigger a manual pull of the host's existing future reservations from
+// the connected OTA (Airbnb, BDC, etc.). Fire-and-forget on the Channex
+// side — reservations then arrive via the normal /bookings + webhook
+// path over the next few seconds/minutes. Used by the Airbnb onboarding
+// wizard's Phase 2 (Go Live precheck) to import existing Airbnb
+// bookings BEFORE activating ARI push, avoiding double-book risk.
+// Evan @ Channex confirmed 2026-08-30 that backfill is manual-only;
+// only NEW bookings after activation flow automatically via webhook.
+app.post('/api/admin/channex/channel/:id/load-reservations', async (req, res) => {
+  try {
+    const channelDbId = parseInt(req.params.id);
+    if (!Number.isFinite(channelDbId)) {
+      return res.status(400).json({ success: false, error: 'invalid channel id' });
+    }
+    const row = await pool.query(`
+      SELECT c.channex_channel_id, c.connection_id
+        FROM gas_sync_channels c
+       WHERE c.id = $1
+    `, [channelDbId]);
+    if (row.rows.length === 0) return res.status(404).json({ success: false, error: 'channel not found' });
+    const { SyncManager } = require('./gas-sync/adapters');
+    const adapter = await new SyncManager(pool).getAdapterForConnection(row.rows[0].connection_id);
+    const result = await adapter.loadFutureReservations(row.rows[0].channex_channel_id);
+    if (!result.success) return res.status(422).json({ success: false, error: result.error, details: result.details });
+    // Fire-and-forget on Channex — reservations land in /bookings async.
+    // Client can poll GET /api/admin/channex/channel/:id/airbnb/listings
+    // or the normal bookings endpoints to see them arrive.
+    res.json({ success: true, message: 'Reservation pull triggered — bookings will arrive over the next few minutes' });
+  } catch (err) {
+    console.error('[airbnb/load-reservations]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/admin/channex/channel/:id/airbnb/import
 // Body: { listing_id, account_id }. Fetches listing_details, auto-creates
 // GAS property + bookable_unit + room_images + descriptions.

@@ -1685,6 +1685,22 @@ class ChannexAdapter {
   }
 
   /**
+   * POST /api/v1/channels/{id}/execute/load_future_reservations
+   * Triggers a manual pull of the host's existing future reservations
+   * from the connected OTA (Airbnb, BDC, etc.). Fire-and-forget — the
+   * Channex side runs the job async; reservations then land in
+   * /bookings and /booking_revisions/feed like any other booking.
+   * Evan @ Channex 2026-08-30 confirmed backfill is manual-only; new
+   * bookings after activation flow automatically via webhook. Safe to
+   * call on inactive channels. Tested 2026-08-30 on Steve's inactive
+   * Airbnb channel — returned 200 immediately with data:null (fire-
+   * and-forget as documented).
+   */
+  async loadFutureReservations(channelId) {
+    return this.request(`/channels/${channelId}/execute/load_future_reservations`, 'POST', {});
+  }
+
+  /**
    * GET /api/v1/channels/{id}/action/get_listing_calendar?listing_id=X&date_from&date_to
    * Per-date calendar from Airbnb-side: availability_type, daily_price,
    * min_nights, max_nights, closed_to_arrival/departure, notes.
