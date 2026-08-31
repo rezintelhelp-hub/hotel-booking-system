@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.90');
+define('GAS_BOOKING_VERSION', '4.3.91');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -11087,7 +11087,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
     public function portal_shortcode($atts) {
         $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
         ob_start(); ?>
-        <div class="gas-portal" data-api-url="<?php echo esc_attr($api_url); ?>" style="max-width:1080px;margin:2rem auto;padding:2rem;background:#fff;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.08);font-family:inherit;">
+        <div class="gas-portal" data-api-url="<?php echo esc_attr($api_url); ?>" style="max-width:1200px;margin:2rem auto;padding:2rem;background:#fff;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.08);font-family:inherit;">
             <h2 style="margin:0 0 0.5rem;font-size:1.6rem;">Guest Portal</h2>
             <p style="margin:0 0 1.5rem;color:#64748b;font-size:0.95rem;">Sign in with your booking to manage your stay and shop add-ons.</p>
 
@@ -12183,7 +12183,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         return (showHeading
                                 ? '<div style="font-size:0.78rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.06em;margin:1rem 0 0.5rem;">' + esc(g) + '</div>'
                                 : '')
-                            + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0.9rem;">'
+                            + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1rem;">'
                             + groups[g].map(renderCard).join('')
                             + '</div>';
                     }).join('');
