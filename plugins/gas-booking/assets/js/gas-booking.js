@@ -2134,15 +2134,23 @@ jQuery(document).ready(function($) {
             var iv = setInterval(function() {
                 tries++;
                 if (!didIn) {
+                    // Race-fix 2026-08-31: only mark done when the flatpickr
+                    // branch fires. Previously the raw-value fallback set
+                    // didIn=true immediately, which stopped polling before
+                    // flatpickr attached — the input then rendered the raw
+                    // ISO literal in the browser's own locale (looked US on
+                    // Safari with en-US default). Now the raw value is a
+                    // seed only; flatpickr's setDate re-runs the moment it
+                    // exists and formats via altInput.
                     document.querySelectorAll('.gas-checkin, .gas-checkin-date, .gas-search-checkin, .gas-filter-checkin').forEach(function(el) {
                         if (el._flatpickr) { el._flatpickr.setDate(urlCheckIn, true); didIn = true; }
-                        else if (el.tagName === 'INPUT') { el.value = urlCheckIn; el.dispatchEvent(new Event('change', { bubbles: true })); didIn = true; }
+                        else if (el.tagName === 'INPUT' && !el.value) { el.value = urlCheckIn; }
                     });
                 }
                 if (!didOut) {
                     document.querySelectorAll('.gas-checkout, .gas-checkout-date, .gas-search-checkout, .gas-filter-checkout').forEach(function(el) {
                         if (el._flatpickr) { el._flatpickr.setDate(urlCheckOut, true); didOut = true; }
-                        else if (el.tagName === 'INPUT') { el.value = urlCheckOut; el.dispatchEvent(new Event('change', { bubbles: true })); didOut = true; }
+                        else if (el.tagName === 'INPUT' && !el.value) { el.value = urlCheckOut; }
                     });
                 }
                 if ((didIn && didOut) || tries > 40) clearInterval(iv); // 4s ceiling
