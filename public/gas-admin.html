@@ -3493,6 +3493,7 @@
                             <span onclick="event.stopPropagation(); showView('app-blog')">Blog</span>
                             <span onclick="event.stopPropagation(); showView('app-sparks')">Sparks</span>
                             <span onclick="event.stopPropagation(); showView('app-contacts')">GAS CRM</span>
+                            <span onclick="event.stopPropagation(); openGuestPortalFromDashboard()">Guest Portal</span>
                             <span onclick="event.stopPropagation(); showView('app-attractions')">Attractions</span>
                             <span onclick="event.stopPropagation(); showView('app-reviews')">Reviews</span>
                             <span onclick="event.stopPropagation(); showView('app-shop')">Shop</span>
@@ -19871,6 +19872,7 @@
                     <button class="contacts-tab" data-subtab="list" onclick="switchContactsTab('list')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer;">All Contacts</button>
                     <button class="contacts-tab" onclick="showView('guests')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer;">Guests <span style="font-size: 0.75rem; color: #94a3b8;">(booking-derived)</span></button>
                     <button class="contacts-tab" data-subtab="comms-sent" onclick="switchContactsTab('comms-sent')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer;">📧 Comms Sent</button>
+                    <button class="contacts-tab" data-subtab="guest-portal" onclick="switchContactsTab('guest-portal')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer;">🧳 Guest Portal</button>
                     <button class="contacts-tab" data-subtab="ghl-insights" onclick="switchContactsTab('ghl-insights')" style="display: none; padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer;">🔍 GHL Insights <span style="font-size: 0.75rem; color: #94a3b8;">(reference)</span></button>
                 </div>
 
@@ -19929,6 +19931,59 @@
                     </div>
                     <div id="comms-sent-list" style="background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
                         <div style="padding: 2rem; text-align: center; color: #64748b;">Loading…</div>
+                    </div>
+                </div>
+
+                <!-- Guest Portal tab — per-property configuration surface for
+                     the guest-facing portal that a booker signs into (booking
+                     lookup at /portal/ on the client's site). Each row is a
+                     property; each toggle flips one section on or off. Powered
+                     by properties.portal_sections JSONB + PUT /portal-sections. -->
+                <div id="contacts-subtab-guest-portal" class="contacts-subtab-panel" style="display: none;">
+                    <div style="background: #f0fdf4; border-left: 3px solid #16a34a; padding: 0.85rem 1rem; margin-bottom: 1rem; font-size: 0.9rem; color: #14532d; border-radius: 4px;">
+                        🧳 Choose which panels appear when a guest signs into their booking portal. Configured per property — each property can differ.
+                    </div>
+                    <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap;">
+                        <label style="font-weight: 600; font-size: 0.9rem; color: #374151;">Property:</label>
+                        <select id="guest-portal-property-picker" class="form-input" style="width: auto; min-width: 260px;" onchange="loadGuestPortalConfig(this.value)">
+                            <option value="">— pick a property —</option>
+                        </select>
+                        <span id="guest-portal-config-status" style="font-size: 0.8rem; color: #64748b;"></span>
+                    </div>
+                    <div id="guest-portal-config-panel" style="display:none; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem;">
+                        <h4 style="margin: 0 0 0.5rem 0; font-size: 0.95rem; color: #0f172a;">Portal sections</h4>
+                        <p style="font-size: 0.85rem; color: #64748b; margin: 0 0 1rem;">Untick to hide the section for this property. Changes save instantly.</p>
+                        <div id="guest-portal-sections-toggles" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1.5rem;">
+                            <label style="display:flex; align-items:flex-start; gap:0.5rem; padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer;">
+                                <input type="checkbox" data-portal-key="show_travellers" onchange="saveGuestPortalToggle(this)" style="margin-top: 2px;">
+                                <div>
+                                    <div style="font-weight: 600; font-size: 0.9rem;">Travellers &amp; pre-arrival</div>
+                                    <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">Collects passport / ID details for every guest on the booking.</div>
+                                </div>
+                            </label>
+                            <label style="display:flex; align-items:flex-start; gap:0.5rem; padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer;">
+                                <input type="checkbox" data-portal-key="show_extras" onchange="saveGuestPortalToggle(this)" style="margin-top: 2px;">
+                                <div>
+                                    <div style="font-weight: 600; font-size: 0.9rem;">Add to your stay</div>
+                                    <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">Shop products &amp; upsells the guest can add after booking.</div>
+                                </div>
+                            </label>
+                            <label style="display:flex; align-items:flex-start; gap:0.5rem; padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer;">
+                                <input type="checkbox" data-portal-key="show_profile" onchange="saveGuestPortalToggle(this)" style="margin-top: 2px;">
+                                <div>
+                                    <div style="font-weight: 600; font-size: 0.9rem;">Your profile</div>
+                                    <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">Guest updates their name, email and phone.</div>
+                                </div>
+                            </label>
+                            <label style="display:flex; align-items:flex-start; gap:0.5rem; padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer;">
+                                <input type="checkbox" data-portal-key="show_balance" onchange="saveGuestPortalToggle(this)" style="margin-top: 2px;">
+                                <div>
+                                    <div style="font-weight: 600; font-size: 0.9rem;">Balance &amp; payments</div>
+                                    <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">Shows what's outstanding and lets the guest pay online.</div>
+                                </div>
+                            </label>
+                        </div>
+                        <small id="guest-portal-save-status" style="display:block; margin-top:0.75rem; font-size:0.78rem; color:#64748b;"></small>
                     </div>
                 </div>
 
@@ -89311,9 +89366,101 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (tab === 'ghl-insights') loadGhlInsights();
             if (tab === 'gas-recipes') loadGasRecipes();
             if (tab === 'comms-sent') loadCommsSent();
+            if (tab === 'guest-portal') loadGuestPortalPicker();
             // Re-apply gate on tab switch too — protects against stale state
             // if the account was swapped mid-session.
             _applyLehmannGhlGate();
+        }
+
+        // ── 🧳 Guest Portal — per-property section visibility ──
+        // Managed from CRM → Guest Portal tab. Same JSONB column
+        // (properties.portal_sections) that the Property Edit modal writes
+        // to; both surfaces read/write via the same PUT endpoint so they
+        // stay in sync automatically.
+        let _guestPortalProperties = [];
+
+        async function loadGuestPortalPicker() {
+            const sel = document.getElementById('guest-portal-property-picker');
+            const status = document.getElementById('guest-portal-config-status');
+            const panel = document.getElementById('guest-portal-config-panel');
+            if (!sel) return;
+            const accountId = getClientId();
+            if (!accountId) {
+                sel.innerHTML = '<option value="">— pick a client first —</option>';
+                if (status) status.textContent = 'Pick a client from the top-right selector.';
+                if (panel) panel.style.display = 'none';
+                return;
+            }
+            if (status) status.textContent = 'Loading properties…';
+            try {
+                const r = await fetch(`/api/db/properties?account_id=${accountId}`, { headers: authHeaders() });
+                const d = await r.json();
+                _guestPortalProperties = (d && d.data) || [];
+                sel.innerHTML = '<option value="">— pick a property —</option>' +
+                    _guestPortalProperties.map(p => `<option value="${p.id}">${(p.name || 'Property ' + p.id).replace(/</g,'&lt;')}</option>`).join('');
+                if (status) status.textContent = _guestPortalProperties.length ? '' : 'No properties yet — add one under Properties.';
+                if (panel) panel.style.display = 'none';
+                // Auto-select if only one property
+                if (_guestPortalProperties.length === 1) {
+                    sel.value = _guestPortalProperties[0].id;
+                    loadGuestPortalConfig(_guestPortalProperties[0].id);
+                }
+            } catch (e) {
+                if (status) { status.textContent = '⚠ ' + e.message; status.style.color = '#dc2626'; }
+            }
+        }
+
+        function loadGuestPortalConfig(propertyId) {
+            const panel = document.getElementById('guest-portal-config-panel');
+            const saveStatus = document.getElementById('guest-portal-save-status');
+            if (!propertyId) { if (panel) panel.style.display = 'none'; return; }
+            const prop = _guestPortalProperties.find(p => String(p.id) === String(propertyId));
+            if (!prop) return;
+            const cfg = Object.assign({
+                show_travellers: true, show_extras: true,
+                show_profile: true, show_balance: true
+            }, prop.portal_sections || {});
+            document.querySelectorAll('#guest-portal-sections-toggles [data-portal-key]').forEach(cb => {
+                cb.checked = cfg[cb.dataset.portalKey] !== false;
+            });
+            if (saveStatus) saveStatus.textContent = '';
+            if (panel) panel.style.display = 'block';
+        }
+
+        async function saveGuestPortalToggle(input) {
+            const sel = document.getElementById('guest-portal-property-picker');
+            const status = document.getElementById('guest-portal-save-status');
+            const propertyId = sel ? sel.value : '';
+            const key = input.dataset.portalKey;
+            if (!propertyId || !key) return;
+            const prev = !input.checked;
+            if (status) { status.textContent = 'Saving…'; status.style.color = '#64748b'; }
+            try {
+                const r = await fetch(`/api/admin/properties/${propertyId}/portal-sections`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ [key]: input.checked })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    // Refresh local cache so switching props then coming back reflects the change.
+                    const prop = _guestPortalProperties.find(p => String(p.id) === String(propertyId));
+                    if (prop) prop.portal_sections = d.data.portal_sections;
+                    if (status) { status.textContent = '✅ Saved'; status.style.color = '#15803d'; }
+                } else {
+                    input.checked = prev;
+                    if (status) { status.textContent = '⚠ ' + (d.error || 'Save failed'); status.style.color = '#dc2626'; }
+                }
+            } catch (e) {
+                input.checked = prev;
+                if (status) { status.textContent = '⚠ ' + e.message; status.style.color = '#dc2626'; }
+            }
+        }
+
+        // Dashboard shortcut chip → land inside CRM with Guest Portal tab active.
+        function openGuestPortalFromDashboard() {
+            showView('app-contacts');
+            setTimeout(() => switchContactsTab('guest-portal'), 60);
         }
 
         // ── 🔥 GAS Recipes — native CRM recipe library ──
