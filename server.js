@@ -3518,6 +3518,10 @@ async function runMigrations() {
       // flips the row's status from 'pending' → 'paid' using this id.
       await pool.query(`ALTER TABLE booking_extras ADD COLUMN IF NOT EXISTS stripe_session_id VARCHAR(255)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_booking_extras_stripe_session ON booking_extras(stripe_session_id) WHERE stripe_session_id IS NOT NULL`);
+      // Portal card-on-file flow (Slice 3): direct PaymentIntent id when the
+      // booking already had (or the guest just entered) a saved card, so we
+      // can refund / correlate against the ledger row without re-hitting Stripe.
+      await pool.query(`ALTER TABLE booking_extras ADD COLUMN IF NOT EXISTS stripe_payment_intent_id VARCHAR(255)`);
 
       // Note: booking_guests pre-existed in some envs with passport-style columns
       // (guest_type, title, passport_number, nationality, etc.). We don't drop
@@ -117046,9 +117050,57 @@ app.post('/api/public/portal/extras', async (req, res) => {
   }
 });
 
+// Slice 3 helper — pulls Stripe secret + publishable + Connect account id
+// for a property. Returns {secret, publishable} or null when no configuration
+// exists. Same lookup pattern as /portal/pay so behaviour matches.
+async function _getPortalStripeContext(propertyId, accountId) {
+  const cfg = await pool.query(
+    `SELECT credentials FROM payment_configurations
+      WHERE provider = 'stripe' AND is_enabled = true
+        AND (property_id = $1 OR (property_id IS NULL AND account_id = $2))
+      ORDER BY property_id NULLS LAST LIMIT 1`,
+    [propertyId, accountId]
+  );
+  const creds = cfg.rows[0]?.credentials;
+  const parsed = typeof creds === 'string' ? (function(){ try { return JSON.parse(creds); } catch(_) { return {}; } })() : (creds || {});
+  const secret = parsed?.secret_key;
+  const publishable = parsed?.publishable_key;
+  if (!secret) return null;
+  return { secret, publishable: publishable || null };
+}
+
+// Slice 3 helper — insert paid extras ledger row + link back onto the extra
+// row. Broken out so both the on-file (add-extra) and just-entered
+// (pay-extra) paths write identical shapes.
+async function _recordExtraPaid(extraId, bookingId, amount, currency, paymentIntentId) {
+  const tx = await pool.query(
+    `INSERT INTO payment_transactions
+       (booking_id, transaction_type, amount, currency,
+        payment_gateway, gateway_transaction_id, status,
+        description, initiated_at, completed_at, created_at)
+     VALUES ($1, 'payment', $2, $3, 'stripe', $4, 'completed',
+             'Portal add-to-stay extra', NOW(), NOW(), NOW())
+     RETURNING id`,
+    [bookingId, amount, currency, paymentIntentId]
+  );
+  await pool.query(
+    `UPDATE booking_extras
+        SET status = 'paid',
+            stripe_payment_intent_id = $1,
+            payment_transaction_id  = $2,
+            updated_at = NOW()
+      WHERE id = $3`,
+    [paymentIntentId, tx.rows[0].id, extraId]
+  );
+  return tx.rows[0].id;
+}
+
 // Portal Phase 3a: add an extra. Creates a 'reserved' booking_extras row.
-// Stripe charge wiring is a follow-up — for V1 the owner sees the reserved
-// item in admin and settles at check-in.
+// Slice 3 (2026-08-31): if the booking has a saved payment method we now
+// try to charge it off_session immediately; on success the extra flips to
+// 'paid' before we respond. When there's no card on file (or the off_session
+// charge fails, e.g. expired card) we return needs_card + a Stripe
+// publishable key so the portal can render an inline Card Element for capture.
 app.post('/api/public/portal/add-extra', async (req, res) => {
   try {
     const { token, source_type, source_id, qty, variant_label } = req.body || {};
@@ -117135,9 +117187,189 @@ app.post('/api/public/portal/add-extra', async (req, res) => {
       console.warn('[add-extra] owner notification skipped:', eErr.message);
     }
 
-    res.json({ success: true, extra: ins.rows[0] });
+    // Slice 3 — attempt to charge on-file card. Get the booking's saved PM +
+    // customer and, if present, hit Stripe off_session. If no PM, or if the
+    // charge trips SCA / fails, fall back to needs_card so the guest can
+    // enter one inline.
+    const extraRow = ins.rows[0];
+    const amountToCharge = Math.round(price * q * 100) / 100;
+    const bkForCard = await pool.query(
+      `SELECT stripe_payment_method_id, stripe_customer_id, property_id, account_id
+         FROM bookings WHERE id = $1`,
+      [claims.booking_id]
+    );
+    const bk = bkForCard.rows[0] || {};
+    const stripeCtx = await _getPortalStripeContext(bk.property_id, bk.account_id);
+
+    if (!stripeCtx) {
+      // Property has no Stripe configured at all — legacy 'reserved' behaviour
+      // stays; owner settles at check-in via admin.
+      return res.json({ success: true, extra: extraRow, charged: false, needs_card: false });
+    }
+
+    if (bk.stripe_payment_method_id) {
+      try {
+        const stripe = new Stripe(stripeCtx.secret);
+        const cur = currency.toLowerCase();
+        const pi = await stripe.paymentIntents.create({
+          amount: toStripeAmount(amountToCharge, cur),
+          currency: cur,
+          payment_method: bk.stripe_payment_method_id,
+          customer: bk.stripe_customer_id || undefined,
+          off_session: true,
+          confirm: true,
+          description: `Portal extra: ${name} (booking ${claims.booking_id})`,
+          metadata: { booking_id: String(claims.booking_id), extra_id: String(extraRow.id), source: 'portal_add_extra_on_file' }
+        }, {
+          idempotencyKey: `portal-extra-${extraRow.id}`
+        });
+        if (pi.status === 'succeeded') {
+          await _recordExtraPaid(extraRow.id, claims.booking_id, amountToCharge, currency, pi.id);
+          extraRow.status = 'paid';
+          return res.json({ success: true, extra: extraRow, charged: true });
+        }
+        // requires_action, requires_confirmation, etc. — fall through to card-capture UI
+      } catch (chargeErr) {
+        console.warn('[add-extra on-file charge]', chargeErr.type, chargeErr.message);
+        // fall through
+      }
+    }
+
+    // No card on file (or on-file charge did not succeed) — ask the portal
+    // to collect one inline. The publishable key lets Stripe.js instantiate
+    // against the same connected account we'd charge on.
+    return res.json({
+      success: true,
+      extra: extraRow,
+      charged: false,
+      needs_card: true,
+      amount: amountToCharge,
+      currency,
+      stripe_publishable_key: stripeCtx.publishable
+    });
   } catch (error) {
     console.error('portal/add-extra error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Slice 3 (2026-08-31) — Guest just entered a card via Stripe.js in the
+// portal. Attach the PaymentMethod to a (created if needed) Customer, charge
+// the extra, save the PM + customer onto the booking so future extras and
+// any admin-side incidental (bike damage) can silently reuse it.
+app.post('/api/public/portal/pay-extra', async (req, res) => {
+  try {
+    const { token, extra_id, stripe_payment_method_id, payment_intent_id } = req.body || {};
+    const claims = verifyPortalToken(token);
+    if (!claims) return res.status(401).json({ success: false, error: 'Session expired.' });
+    const eid = parseInt(extra_id);
+    if (!eid) return res.json({ success: false, error: 'Missing extra id.' });
+
+    const eRes = await pool.query(
+      `SELECT id, booking_id, name, qty, unit_price, currency, status
+         FROM booking_extras WHERE id = $1 LIMIT 1`,
+      [eid]
+    );
+    const extra = eRes.rows[0];
+    if (!extra || extra.booking_id !== claims.booking_id) {
+      return res.json({ success: false, error: 'Extra not found.' });
+    }
+    if (extra.status === 'paid') {
+      return res.json({ success: true, already_paid: true, extra });
+    }
+
+    const bkRes = await pool.query(
+      `SELECT id, property_id, account_id, stripe_customer_id,
+              guest_email, guest_first_name, guest_last_name
+         FROM bookings WHERE id = $1`,
+      [claims.booking_id]
+    );
+    const bk = bkRes.rows[0];
+    if (!bk) return res.json({ success: false, error: 'Booking missing.' });
+
+    const stripeCtx = await _getPortalStripeContext(bk.property_id, bk.account_id);
+    if (!stripeCtx) return res.json({ success: false, error: 'Stripe not configured for this property.' });
+    const stripe = new Stripe(stripeCtx.secret);
+    const amountToCharge = Math.round(Number(extra.unit_price) * extra.qty * 100) / 100;
+    const cur = String(extra.currency || 'GBP').toLowerCase();
+
+    // If the client is completing a SCA-required PI from a prior attempt,
+    // finish that off first. Otherwise create a fresh one.
+    let pi;
+    if (payment_intent_id) {
+      pi = await stripe.paymentIntents.retrieve(payment_intent_id);
+      if (pi.status !== 'succeeded') {
+        return res.json({ success: false, error: 'Payment could not be completed. Please try a different card.' });
+      }
+    } else {
+      if (!stripe_payment_method_id) return res.json({ success: false, error: 'Missing card token.' });
+
+      // Customer resolution — reuse the booking's customer if present, else
+      // create one keyed to the guest so future extras / damages attach to
+      // the same profile in Stripe.
+      let customerId = bk.stripe_customer_id;
+      if (!customerId) {
+        const guestName = [bk.guest_first_name, bk.guest_last_name].filter(Boolean).join(' ') || undefined;
+        const customer = await stripe.customers.create({
+          email: bk.guest_email || undefined,
+          name: guestName,
+          metadata: { booking_id: String(bk.id), account_id: String(bk.account_id) }
+        });
+        customerId = customer.id;
+      }
+
+      // Attach + charge. setup_future_usage=off_session marks the PM reusable
+      // so the next add-extra can charge without prompting.
+      try {
+        await stripe.paymentMethods.attach(stripe_payment_method_id, { customer: customerId });
+      } catch (attachErr) {
+        // Already attached is fine; other errors surface below via PI.
+        if (attachErr.code !== 'resource_already_exists') {
+          console.warn('[pay-extra attach]', attachErr.message);
+        }
+      }
+      pi = await stripe.paymentIntents.create({
+        amount: toStripeAmount(amountToCharge, cur),
+        currency: cur,
+        customer: customerId,
+        payment_method: stripe_payment_method_id,
+        confirm: true,
+        setup_future_usage: 'off_session',
+        payment_method_types: ['card'],
+        description: `Portal extra: ${extra.name} (booking ${bk.id})`,
+        metadata: { booking_id: String(bk.id), extra_id: String(extra.id), source: 'portal_pay_extra_new_card' }
+      }, {
+        idempotencyKey: `portal-pay-extra-${extra.id}`
+      });
+
+      if (pi.status === 'requires_action') {
+        return res.json({
+          success: false,
+          requires_action: true,
+          client_secret: pi.client_secret,
+          payment_intent_id: pi.id
+        });
+      }
+      if (pi.status !== 'succeeded') {
+        return res.json({ success: false, error: 'Payment could not be completed. Please try a different card.' });
+      }
+
+      // Persist card + customer for future silent charges (Steve: important
+      // for bike-hire damages / incidentals).
+      await pool.query(
+        `UPDATE bookings
+            SET stripe_customer_id      = COALESCE(stripe_customer_id, $1),
+                stripe_payment_method_id = $2,
+                updated_at = NOW()
+          WHERE id = $3`,
+        [customerId, stripe_payment_method_id, bk.id]
+      );
+    }
+
+    await _recordExtraPaid(extra.id, bk.id, amountToCharge, extra.currency, pi.id);
+    res.json({ success: true, charged: true, extra: { ...extra, status: 'paid' } });
+  } catch (error) {
+    console.error('portal/pay-extra error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

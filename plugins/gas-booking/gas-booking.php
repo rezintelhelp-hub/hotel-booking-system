@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.91');
+define('GAS_BOOKING_VERSION', '4.3.92');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -12228,6 +12228,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 });
             }
 
+            // Slice 3: post-add response can be one of three shapes.
+            //   1. { charged:true }              → card on file, charged. Show ✓ Paid.
+            //   2. { needs_card:true, ...ctx }   → collect card inline via Stripe.js.
+            //   3. { charged:false, needs_card:false } → Stripe not configured
+            //                                     for this property; reserve only.
             window.gasPortalAddExtra = function(btn) {
                 var card = btn.closest('.gas-portal-card');
                 var root = $root(btn);
@@ -12247,12 +12252,147 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         variant_label: variantLabel
                     })
                 }).then(function(r){ return r.json(); }).then(function(data){
-                    if (!data.success) { btn.disabled = false; btn.textContent = 'Add'; alert(data.error || 'Could not add.'); return; }
-                    btn.textContent = '✓ Added';
-                    setTimeout(function(){ btn.disabled = false; btn.textContent = 'Add'; }, 1500);
+                    if (!data.success) {
+                        btn.disabled = false; btn.textContent = 'Add';
+                        alert(data.error || 'Could not add.');
+                        return;
+                    }
+                    if (data.charged) {
+                        btn.textContent = '✓ Paid';
+                        setTimeout(function(){ btn.disabled = false; btn.textContent = 'Add'; }, 2000);
+                        gasPortalLoadMyExtras(root);
+                        return;
+                    }
+                    if (data.needs_card) {
+                        // Reserved on server; open inline card capture. On card
+                        // dismiss or failure, the extra stays 'reserved' and
+                        // the button resets — guest can retry or the operator
+                        // can settle at check-in.
+                        gasPortalOpenCardCapture(root, card, btn, data);
+                        return;
+                    }
+                    // needs_card:false + charged:false → Stripe not configured, reserved only
+                    btn.textContent = '✓ Reserved';
+                    setTimeout(function(){ btn.disabled = false; btn.textContent = 'Add'; }, 2000);
                     gasPortalLoadMyExtras(root);
+                }).catch(function(err){
+                    btn.disabled = false; btn.textContent = 'Add';
+                    alert(err.message || 'Add failed. Please try again.');
                 });
             };
+
+            // Slice 3 — inline Stripe card capture for extras when there's no
+            // saved PM on the booking (typical OTA / BDC case). Loads Stripe.js
+            // on demand, mounts a Card Element in a lightbox, POSTs the
+            // PaymentMethod id to /pay-extra which charges + saves it back
+            // onto the booking so future Add clicks are silent.
+            function gasPortalOpenCardCapture(root, cardEl, btn, ctx) {
+                var pk = ctx.stripe_publishable_key;
+                if (!pk) {
+                    alert('Stripe is not configured for this property. The extra is reserved — please contact the host to pay.');
+                    btn.disabled = false; btn.textContent = 'Add';
+                    gasPortalLoadMyExtras(root);
+                    return;
+                }
+                // Remove any prior overlay for this session.
+                var prior = document.getElementById('gas-portal-card-overlay');
+                if (prior) prior.remove();
+
+                var overlay = document.createElement('div');
+                overlay.id = 'gas-portal-card-overlay';
+                overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.55);display:flex;align-items:center;justify-content:center;z-index:99999;padding:1rem;';
+                overlay.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:440px;width:100%;padding:1.5rem;box-shadow:0 20px 60px rgba(0,0,0,0.35);">'
+                    + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.5rem;">'
+                    +   '<strong style="font-size:1.05rem;">Add card to pay</strong>'
+                    +   '<button type="button" onclick="gasPortalCloseCardCapture()" style="background:none;border:0;font-size:1.5rem;color:#94a3b8;cursor:pointer;line-height:1;">&times;</button>'
+                    + '</div>'
+                    + '<p style="font-size:0.88rem;color:#475569;margin:0 0 0.85rem;">' + fmtMoney(ctx.amount, ctx.currency)
+                    +   ' — your card will be saved on this booking for any additional add-ons or incidentals during your stay.</p>'
+                    + '<div id="gas-portal-card-el" style="padding:0.75rem;border:1px solid #cbd5e1;border-radius:8px;background:#fff;"></div>'
+                    + '<div id="gas-portal-card-status" style="min-height:1.2em;margin-top:0.5rem;font-size:0.85rem;color:#dc2626;"></div>'
+                    + '<button type="button" id="gas-portal-card-submit" style="margin-top:0.75rem;width:100%;padding:0.8rem;background:#0f172a;color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:0.95rem;font-weight:600;">Pay '
+                    +   fmtMoney(ctx.amount, ctx.currency) + '</button>'
+                    + '</div>';
+                document.body.appendChild(overlay);
+
+                _gasPortalLoadScript('https://js.stripe.com/v3/').then(function(){
+                    var stripe = Stripe(pk);
+                    var elements = stripe.elements();
+                    var cardStripeEl = elements.create('card', { hidePostalCode: true });
+                    cardStripeEl.mount(document.getElementById('gas-portal-card-el'));
+                    document.getElementById('gas-portal-card-submit').onclick = function() {
+                        gasPortalSubmitExtraCard(root, cardEl, btn, ctx, stripe, cardStripeEl);
+                    };
+                }).catch(function(err){
+                    document.getElementById('gas-portal-card-status').textContent = err.message;
+                });
+            }
+
+            window.gasPortalCloseCardCapture = function() {
+                var overlay = document.getElementById('gas-portal-card-overlay');
+                if (overlay) overlay.remove();
+                // Any Add buttons stuck in disabled state re-enable now — the
+                // extra stayed reserved server-side and can still be paid via
+                // check-in / admin.
+                document.querySelectorAll('.gas-portal-card button').forEach(function(b){
+                    if (b.textContent === '…') { b.disabled = false; b.textContent = 'Add'; }
+                });
+                gasPortalLoadMyExtras(document.querySelector('.gas-portal'));
+            };
+
+            function gasPortalSubmitExtraCard(root, cardEl, btn, ctx, stripe, cardStripeEl) {
+                var status = document.getElementById('gas-portal-card-status');
+                var submit = document.getElementById('gas-portal-card-submit');
+                submit.disabled = true; submit.textContent = 'Processing…';
+                status.style.color = '#64748b';
+                status.textContent = 'Confirming card…';
+
+                var apiUrl = root.dataset.apiUrl;
+                var token = sessionStorage.getItem('gas_portal_token');
+
+                stripe.createPaymentMethod({ type: 'card', card: cardStripeEl }).then(function(res){
+                    if (res.error) throw new Error(res.error.message);
+                    return fetch(apiUrl + '/api/public/portal/pay-extra', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            token: token,
+                            extra_id: ctx.extra.id,
+                            stripe_payment_method_id: res.paymentMethod.id
+                        })
+                    }).then(function(r){ return r.json(); });
+                }).then(function(data){
+                    if (data && data.requires_action && data.client_secret) {
+                        status.textContent = 'Verifying with your bank…';
+                        return stripe.confirmCardPayment(data.client_secret).then(function(conf){
+                            if (conf.error) throw new Error(conf.error.message);
+                            return fetch(apiUrl + '/api/public/portal/pay-extra', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    token: token,
+                                    extra_id: ctx.extra.id,
+                                    payment_intent_id: conf.paymentIntent.id
+                                })
+                            }).then(function(r){ return r.json(); });
+                        });
+                    }
+                    return data;
+                }).then(function(data){
+                    if (!data || !data.success) throw new Error((data && data.error) || 'Payment failed.');
+                    status.style.color = '#15803d';
+                    status.textContent = '✓ Paid';
+                    btn.textContent = '✓ Paid';
+                    setTimeout(function(){
+                        gasPortalCloseCardCapture();
+                        btn.disabled = false; btn.textContent = 'Add';
+                    }, 900);
+                }).catch(function(err){
+                    submit.disabled = false; submit.textContent = 'Try again';
+                    status.style.color = '#dc2626';
+                    status.textContent = err.message || 'Payment failed.';
+                });
+            }
 
             window.gasPortalSaveProfile = function(ev, form) {
                 ev.preventDefault();
