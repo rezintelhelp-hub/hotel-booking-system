@@ -6902,7 +6902,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                 try {
                   const offerResp = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
                     headers: { 'token': accessToken },
-                    params: { roomId: parseInt(room.beds24_room_id), arrival, departure: depart, numAdults: 2 }
+                    params: { roomId: parseInt(room.beds24_room_id), arrival, departure: depart, numAdults: 1 }
                   });
                   const roomOffers = offerResp.data?.data?.[0];
                   if (roomOffers?.offers?.length > 0) {
@@ -19661,7 +19661,7 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                     'https://beds24.com/api/v2/inventory/rooms/offers',
                     {
                       headers: { 'token': accessToken },
-                      params: { roomId: beds24RoomId, arrival, departure: dep, numAdults: 2 },
+                      params: { roomId: beds24RoomId, arrival, departure: dep, numAdults: 1 },
                       timeout: 10000,
                     }
                   );
@@ -85919,7 +85919,7 @@ app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
             roomId: beds24RoomId, 
             arrival: arrival,
             departure: departDate.toISOString().split('T')[0],
-            numAdults: 2
+            numAdults: 1
           }
         });
         
@@ -86072,7 +86072,7 @@ app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
             roomId: beds24RoomId, 
             arrival: arrival,
             departure: departure,
-            numAdults: 2
+            numAdults: 1
           }
         });
         
@@ -86218,7 +86218,7 @@ app.post('/api/admin/sync-all-availability-quick', async (req, res) => {
             roomId: beds24RoomIds,
             arrival: arrival,
             departure: departure,
-            numAdults: 2
+            numAdults: 1
           },
           paramsSerializer: params => {
             const parts = [];
@@ -86381,7 +86381,7 @@ app.post('/api/admin/sync-all-availability-bulk', async (req, res) => {
             roomId: beds24RoomIds,  // Pass as array, let axios handle it
             arrival: arrival,
             departure: departure,
-            numAdults: 2
+            numAdults: 1
           },
           paramsSerializer: params => {
             // Custom serializer to handle array params correctly for Beds24
@@ -104963,7 +104963,7 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
               try {
                 const offerResp = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
                   headers: { 'token': accessToken },
-                  params: { roomId: parseInt(room.beds24_room_id), arrival, departure: depart, numAdults: 2 }
+                  params: { roomId: parseInt(room.beds24_room_id), arrival, departure: depart, numAdults: 1 }
                 });
                 const roomOffers = offerResp.data?.data?.[0];
                 if (roomOffers?.offers?.length > 0) {
@@ -145713,7 +145713,7 @@ app.get('/api/admin/debug/beds24-offers/:connectionId/:roomId', async (req, res)
     
     const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
       headers: { 'token': accessToken },
-      params: { roomId: parseInt(roomId), arrival, departure, numAdults: 2 }
+      params: { roomId: parseInt(roomId), arrival, departure, numAdults: 1 }
     });
     
     res.json({
