@@ -4061,7 +4061,7 @@ jQuery(document).ready(function($) {
         var selectedRate = $roomWidget.data('selected-rate') || 'standard';
         
         // Parse adults and children - fallback to guests for backwards compatibility
-        var numAdults = parseInt(adults) || parseInt($('.gas-adults').val()) || parseInt(guests) || 2;
+        var numAdults = parseInt(adults) || parseInt($('.gas-adults').val()) || parseInt(guests) || 1;
         var numChildren = parseInt(children) || parseInt($('.gas-children').val()) || 0;
         var totalGuests = numAdults + numChildren;
         
