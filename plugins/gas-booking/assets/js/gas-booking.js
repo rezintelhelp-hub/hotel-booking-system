@@ -4938,7 +4938,7 @@ jQuery(document).ready(function($) {
         var activeOffer = $roomWidget.data('active-offer'); // {id, name, ...} when an offer is selected
 
         // Get adults and children from new dropdowns
-        var numAdults = parseInt($('.gas-adults').val()) || parseInt($('.gas-guests').val()) || 2;
+        var numAdults = parseInt($('.gas-adults').val()) || parseInt($('.gas-guests').val()) || 1;
         var numChildren = parseInt($('.gas-children').val()) || 0;
         var totalGuests = numAdults + numChildren;
 
@@ -4992,7 +4992,7 @@ jQuery(document).ready(function($) {
     $(document).on('click', '.gas-add-to-cart-btn:not(:disabled)', function() {
         var checkin = $('.gas-checkin').val();
         var checkout = $('.gas-checkout').val();
-        var numAdults = parseInt($('.gas-adults').val()) || parseInt($('.gas-guests').val()) || 2;
+        var numAdults = parseInt($('.gas-adults').val()) || parseInt($('.gas-guests').val()) || 1;
         var numChildren = parseInt($('.gas-children').val()) || 0;
         var totalGuests = numAdults + numChildren;
         if (!checkin || !checkout) { alert('Please select dates first.'); return; }
@@ -5187,7 +5187,7 @@ jQuery(document).ready(function($) {
         $btn.prop('disabled', true).text(t('booking', 'processing', 'Processing...'));
         
         // Get adults and children from new dropdowns, fall back to legacy guests
-        var numAdults = parseInt($('.gas-adults').val()) || parseInt($('.gas-guests').val()) || 2;
+        var numAdults = parseInt($('.gas-adults').val()) || parseInt($('.gas-guests').val()) || 1;
         var numChildren = parseInt($('.gas-children').val()) || 0;
         var totalGuests = numAdults + numChildren;
         
@@ -5295,7 +5295,7 @@ jQuery(document).ready(function($) {
                         unit_id: unitId,
                         check_in: checkin,
                         check_out: checkout,
-                        guests: parseInt($('.gas-guests').val()) || 2,
+                        guests: parseInt($('.gas-guests').val()) || 1,
                         pricing_tier: gasBooking.pricingTier || 'standard',
                         lang: currentLanguage,
                         linked_product: _lpCard ? parseInt(_lpCard, 10) : undefined
