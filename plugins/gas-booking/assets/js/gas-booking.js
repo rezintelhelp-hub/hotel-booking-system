@@ -2637,7 +2637,7 @@ jQuery(document).ready(function($) {
                     // Default settings
                     callback({
                         pricing_mode: 'per_room',
-                        base_occupancy: 2,
+                        base_occupancy: 1,
                         max_guests: 4,
                         max_adults: 4,
                         max_children: 3,
@@ -2656,7 +2656,7 @@ jQuery(document).ready(function($) {
                 // Default settings on error
                 callback({
                     pricing_mode: 'per_room',
-                    base_occupancy: 2,
+                    base_occupancy: 1,
                     max_guests: 4,
                     max_adults: 4,
                     max_children: 3,
@@ -2940,7 +2940,7 @@ jQuery(document).ready(function($) {
         var maxAdults = occSettings.max_adults || maxGuests;
         var childrenAllowed = occSettings.children_allowed !== false;
         var childMaxAge = occSettings.child_max_age || 12;
-        var baseOccupancy = occSettings.base_occupancy || 2;
+        var baseOccupancy = occSettings.base_occupancy || 1;
         
         // Default to base occupancy for better UX (price matches listing page)
         var initialAdults = parseInt(guests) || baseOccupancy;
