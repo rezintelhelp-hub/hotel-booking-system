@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.87');
+define('GAS_BOOKING_VERSION', '4.3.88');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -11489,10 +11489,33 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         showStep(root, '.gas-portal-lookup');
                         return;
                     }
+                    // Per-property portal section visibility. Server merges
+                    // defaults so missing keys always mean "show". Hidden
+                    // sections skip their loader entirely (no wasted fetches).
+                    var sections = (data.portal_sections) || {
+                        show_travellers: true, show_extras: true,
+                        show_profile: true, show_balance: true
+                    };
+                    var hideMap = {
+                        show_travellers: '.gas-portal-travellers',
+                        show_extras:     '.gas-portal-extras',
+                        show_profile:    '.gas-portal-profile',
+                        show_balance:    '.gas-portal-balance'
+                    };
+                    // Only forcibly hide when false. Leave inline style alone
+                    // otherwise — .gas-portal-balance starts display:none and
+                    // its own loader flips it on only when a balance exists,
+                    // so we mustn't clobber that state.
+                    Object.keys(hideMap).forEach(function(k){
+                        if (sections[k] === false) {
+                            var el = root.querySelector(hideMap[k]);
+                            if (el) el.style.display = 'none';
+                        }
+                    });
                     gasPortalRenderDashboard(root, data);
-                    gasPortalLoadTravellers(root);
-                    gasPortalLoadExtras(root);
-                    gasPortalLoadBalance(root);
+                    if (sections.show_travellers !== false) gasPortalLoadTravellers(root);
+                    if (sections.show_extras !== false) gasPortalLoadExtras(root);
+                    if (sections.show_balance !== false) gasPortalLoadBalance(root);
                 }).catch(function(err){
                     root.querySelector('.gas-portal-current-booking').innerHTML = '<p style="color:#c00">Failed to load: ' + err.message + '</p>';
                 });

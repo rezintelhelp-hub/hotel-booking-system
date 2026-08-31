@@ -58629,6 +58629,35 @@ app.put('/api/admin/properties/:id/round-prices-up', async (req, res) => {
   }
 });
 
+// Per-property Guest Portal section toggles. Body accepts any subset of
+// { show_travellers, show_extras, show_profile, show_balance } and merges
+// (jsonb ||) so unrelated keys stay intact. Missing/null keys read as true
+// on the /portal/me side, so a property with an empty {} behaves identically
+// to any legacy property.
+app.put('/api/admin/properties/:id/portal-sections', async (req, res) => {
+  try {
+    const allowed = ['show_travellers', 'show_extras', 'show_profile', 'show_balance'];
+    const patch = {};
+    for (const k of allowed) {
+      if (typeof req.body?.[k] === 'boolean') patch[k] = req.body[k];
+    }
+    if (Object.keys(patch).length === 0) {
+      return res.json({ success: false, error: 'No valid portal_sections keys supplied.' });
+    }
+    const result = await pool.query(
+      `UPDATE properties
+          SET portal_sections = COALESCE(portal_sections, '{}'::jsonb) || $1::jsonb
+        WHERE id = $2
+        RETURNING id, name, portal_sections`,
+      [JSON.stringify(patch), req.params.id]
+    );
+    if (result.rows.length === 0) return res.json({ success: false, error: 'Property not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/db/properties', async (req, res) => {
   const { name, description, address, city, country, property_type, star_rating, currency } = req.body;
   try {
@@ -116480,7 +116509,8 @@ app.post('/api/public/portal/me', async (req, res) => {
              COALESCE(b.access_code, bu.default_access_code) AS effective_access_code,
              bu.name AS room_name, p.name AS property_name, p.account_id,
              p.check_in_from, p.check_in_until, p.check_in_time, p.check_in_instructions,
-             p.directions, p.area_info, p.wifi_network, p.wifi_password
+             p.directions, p.area_info, p.wifi_network, p.wifi_password,
+             p.portal_sections
       FROM bookings b
       LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
       LEFT JOIN properties p ON p.id = b.property_id
@@ -116544,12 +116574,27 @@ app.post('/api/public/portal/me', async (req, res) => {
       otherBookings = others.rows;
     }
 
+    // Portal section visibility. Defaults are all-true so any property that
+    // hasn't set portal_sections keeps rendering every panel exactly as before.
+    // Operators opt-out per-property from GAS Admin (or DB) by setting e.g.
+    // {"show_travellers": false}. Every consumer should read the merged object,
+    // not booking.portal_sections directly.
+    const portalSectionDefaults = {
+      show_travellers: true,
+      show_extras: true,
+      show_profile: true,
+      show_balance: true,
+    };
+    const portalSections = Object.assign({}, portalSectionDefaults, booking.portal_sections || {});
+    delete booking.portal_sections;
+
     res.json({
       success: true,
       booking,
       guest,
       other_bookings: otherBookings,
-      proxy_email: isProxyEmail(booking.guest_email)
+      proxy_email: isProxyEmail(booking.guest_email),
+      portal_sections: portalSections
     });
   } catch (error) {
     console.error('portal/me error:', error);
@@ -154603,6 +154648,13 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS booking_page_multiplier DECIMAL(6,4)`);
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS round_prices_up BOOLEAN DEFAULT false`);
     console.log('✅ properties.booking_page_multiplier + round_prices_up columns ensured');
+
+    // Per-property Guest Portal section visibility. Defaults are all-true
+    // (rendered client-side); a property can opt-out of any panel by writing
+    // e.g. {"show_travellers": false} into this column. Backward-compatible:
+    // NULL / missing key = show, so no existing portal changes on deploy.
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS portal_sections JSONB DEFAULT '{}'::jsonb`);
+    console.log('✅ properties.portal_sections column ensured');
 
     await pool.query(`ALTER TABLE taxes ADD COLUMN IF NOT EXISTS room_ids INTEGER[]`);
     await pool.query(`ALTER TABLE taxes ADD COLUMN IF NOT EXISTS property_ids INTEGER[]`);

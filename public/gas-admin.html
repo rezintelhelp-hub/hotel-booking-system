@@ -31886,6 +31886,35 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <textarea class="form-input" id="edit-property-house-rules" rows="4" placeholder="No smoking. No parties. Quiet hours 22:00–08:00. Pets by prior arrangement only." style="width: 100%; font-size:0.9rem;"></textarea>
                 </div>
 
+                <!-- Guest Portal section toggles. Save-on-change: each checkbox
+                     PUTs /api/admin/properties/:id/portal-sections which merges
+                     the flag into the JSONB column. All-ticked is the default;
+                     un-ticking hides that panel in the portal for this property
+                     only. Loaded from portal.data.portal_sections in editProperty(). -->
+                <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🧳 Guest Portal</h4>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">Which sections show when a guest signs into their booking portal. Untick to hide the section for this property only.</p>
+                    <div id="edit-property-portal-sections" style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem 1rem;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem;">
+                            <input type="checkbox" data-portal-key="show_travellers" checked onchange="savePropertyPortalSection(this)">
+                            <span>Travellers / pre-arrival details</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem;">
+                            <input type="checkbox" data-portal-key="show_extras" checked onchange="savePropertyPortalSection(this)">
+                            <span>Add to your stay (shop &amp; upsells)</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem;">
+                            <input type="checkbox" data-portal-key="show_profile" checked onchange="savePropertyPortalSection(this)">
+                            <span>Your profile</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem;">
+                            <input type="checkbox" data-portal-key="show_balance" checked onchange="savePropertyPortalSection(this)">
+                            <span>Balance &amp; payments</span>
+                        </label>
+                    </div>
+                    <small id="edit-property-portal-sections-status" style="display:block; margin-top:0.4rem; font-size:0.75rem; color:#64748b;"></small>
+                </div>
+
                 <!-- Channex content push — description, phone, timezone, address,
                      property images, facilities, hotel policy. Pre-req for Google
                      Hotel Search onboarding. Steve 2026-08-04. -->
@@ -82289,6 +82318,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-property-checkin-time').value = prop.check_in_time || '';
                     document.getElementById('edit-property-checkout-time').value = prop.check_out_time || '';
                     document.getElementById('edit-property-house-rules').value = prop.house_rules || '';
+
+                    // Guest Portal section toggles. Missing/unset = "show", so a
+                    // legacy property with no portal_sections JSONB behaves
+                    // exactly as before (every box ticked). savePropertyPortalSection
+                    // fires on change — no separate Save click required.
+                    {
+                        const portalCfg = Object.assign({
+                            show_travellers: true, show_extras: true,
+                            show_profile: true, show_balance: true
+                        }, prop.portal_sections || {});
+                        document.querySelectorAll('#edit-property-portal-sections [data-portal-key]').forEach(cb => {
+                            cb.checked = portalCfg[cb.dataset.portalKey] !== false;
+                        });
+                        const psStatus = document.getElementById('edit-property-portal-sections-status');
+                        if (psStatus) psStatus.textContent = '';
+                    }
                     // Facilities — 15 common ones, checkboxes. Slugs align with Channex taxonomy.
                     const _FACILITY_OPTIONS = [
                         ['wifi','WiFi'],['parking','Parking'],['breakfast','Breakfast'],
@@ -83330,6 +83375,35 @@ const promo = await fetch('/api/v1/offers/validate', {
                     rentEl.value = data.chargeautomation_rental_id || '';
                 }
             } catch (e) { console.error('CA mapping load error:', e); }
+        }
+
+        // Guest Portal section toggle — fires from onchange on any checkbox
+        // in #edit-property-portal-sections. Sends just the changed key so
+        // untouched flags stay whatever they were (server merges with jsonb ||).
+        async function savePropertyPortalSection(input) {
+            const id = document.getElementById('edit-property-id').value;
+            const key = input.dataset.portalKey;
+            const status = document.getElementById('edit-property-portal-sections-status');
+            if (!id || !key) return;
+            const prev = !input.checked; // for revert if save fails
+            if (status) { status.textContent = 'Saving…'; status.style.color = '#64748b'; }
+            try {
+                const r = await fetch(`/api/admin/properties/${id}/portal-sections`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ [key]: input.checked })
+                });
+                const data = await r.json();
+                if (data.success) {
+                    if (status) { status.textContent = '✅ Saved'; status.style.color = '#15803d'; }
+                } else {
+                    input.checked = prev;
+                    if (status) { status.textContent = '⚠ ' + (data.error || 'Save failed'); status.style.color = '#dc2626'; }
+                }
+            } catch (e) {
+                input.checked = prev;
+                if (status) { status.textContent = '⚠ ' + e.message; status.style.color = '#dc2626'; }
+            }
         }
 
         async function saveChargeAutomationMapping() {
