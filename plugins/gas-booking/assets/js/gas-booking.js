@@ -2011,7 +2011,7 @@ jQuery(document).ready(function($) {
                 dateFormat: 'Y-m-d',
                 minDate: 'today',
                 altInput: true,
-                altFormat: 'd M Y',
+                altFormat: 'd/m/Y',
                 disableMobile: true,
                 locale: flatpickrLocale,
                 // When ?event=<slug> is in the URL, this delegates to the rules
@@ -2090,7 +2090,7 @@ jQuery(document).ready(function($) {
                 dateFormat: 'Y-m-d',
                 minDate: tomorrow,
                 altInput: true,
-                altFormat: 'd M Y',
+                altFormat: 'd/m/Y',
                 disableMobile: true,
                 locale: flatpickrLocale,
                 disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
@@ -2319,7 +2319,7 @@ jQuery(document).ready(function($) {
                     dateFormat: 'Y-m-d',
                     minDate: 'today',
                     altInput: true,
-                    altFormat: 'd M Y',
+                    altFormat: 'd/m/Y',
                     disableMobile: true,
                     disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
                     onReady: function() {
@@ -2355,7 +2355,7 @@ jQuery(document).ready(function($) {
                     dateFormat: 'Y-m-d',
                     minDate: tomorrow,
                     altInput: true,
-                    altFormat: 'd M Y',
+                    altFormat: 'd/m/Y',
                     disableMobile: true,
                     disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
                     onChange: function() { if (typeof window.gasUpdateEventStayWarning === 'function') window.gasUpdateEventStayWarning(); }
@@ -2375,7 +2375,7 @@ jQuery(document).ready(function($) {
                     dateFormat: 'Y-m-d',
                     minDate: 'today',
                     altInput: true,
-                    altFormat: 'd M Y',
+                    altFormat: 'd/m/Y',
                     disableMobile: true, // Use native picker on mobile for better UX
                     disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }],
                     onReady: function() {
@@ -2411,7 +2411,7 @@ jQuery(document).ready(function($) {
                     dateFormat: 'Y-m-d',
                     minDate: tomorrow,
                     altInput: true,
-                    altFormat: 'd M Y',
+                    altFormat: 'd/m/Y',
                     disableMobile: true, // Use native picker on mobile for better UX
                     disable: [function(date) { return window._gasEventDateDisable ? window._gasEventDateDisable(date) : false; }]
                 });
