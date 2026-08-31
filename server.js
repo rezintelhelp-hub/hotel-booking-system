@@ -10501,6 +10501,10 @@ app.post('/api/admin/bookings/:id/copy-to-unit', async (req, res) => {
     const src = await pool.query(`SELECT * FROM bookings WHERE id = $1`, [srcId]);
     if (!src.rows[0]) return res.status(404).json({ success: false, error: 'Source booking not found' });
     const s = src.rows[0];
+    // Precheck destination unit availability — reject on collision.
+    // Copy creates a NEW row, so don't exclude the source booking id.
+    const check = await _checkUnitFreeForDates(newBu, newIu, s.arrival_date, s.departure_date, null);
+    if (!check.ok) return res.status(409).json({ success: false, error: check.error, conflict: check.conflict });
     const noteAppend = `\n[${new Date().toISOString().slice(0,16).replace('T',' ')}] COPY of booking #${srcId} (silent — no CM push)`;
     const ins = await pool.query(`
       INSERT INTO bookings (
@@ -10549,6 +10553,46 @@ app.post('/api/admin/bookings/:id/copy-to-unit', async (req, res) => {
 // effects (no Beds24 push-back, no availability recompute, no room-
 // change hooks). Purpose-built for the standalone-unit → type-unit
 // consolidation. Returns before/after snapshot so callers can log.
+// Precheck for Copy/Move endpoints — blocks the operator from putting a
+// booking onto a unit that already has an overlapping active booking on
+// the same dates. Steve 2026-08-31 — after Hebden's bike-store reshuffle
+// where a Move could have silently double-booked.
+// Returns { ok: true } if free, or { ok: false, error, conflict } if
+// there's a collision.
+async function _checkUnitFreeForDates(newBu, newIu, arrivalDate, departureDate, excludeBookingId) {
+  // If a specific individual_unit_id is chosen, block only on that
+  // sub-room. If null (auto-allocate), block on the parent bookable_unit
+  // scope but require ANY overlap to be flagged.
+  const params = [newBu, arrivalDate, departureDate];
+  let where = `bookable_unit_id = $1
+    AND status NOT IN ('cancelled','declined','rejected','expired','inquiry')
+    AND arrival_date < $3::date
+    AND departure_date > $2::date`;
+  if (newIu != null) {
+    params.push(newIu);
+    where += ` AND individual_unit_id = $${params.length}`;
+  }
+  if (excludeBookingId) {
+    params.push(excludeBookingId);
+    where += ` AND id != $${params.length}`;
+  }
+  const q = await pool.query(
+    `SELECT id, guest_first_name, guest_last_name, arrival_date, departure_date, status
+       FROM bookings WHERE ${where} ORDER BY arrival_date LIMIT 1`,
+    params
+  );
+  if (q.rows.length === 0) return { ok: true };
+  const c = q.rows[0];
+  const arrStr = c.arrival_date.toISOString().slice(0,10);
+  const depStr = c.departure_date.toISOString().slice(0,10);
+  const name = `${c.guest_first_name || ''} ${c.guest_last_name || ''}`.trim() || 'existing booking';
+  return {
+    ok: false,
+    error: `Destination unit is already booked ${arrStr} → ${depStr} by ${name} (booking #${c.id}). Pick a different unit or free that one up first.`,
+    conflict: { booking_id: c.id, arrival_date: arrStr, departure_date: depStr, guest: name }
+  };
+}
+
 app.post('/api/admin/bookings/:id/reassign-unit', async (req, res) => {
   try {
     const decoded = await extractAccountFromToken(req);
@@ -10561,10 +10605,13 @@ app.post('/api/admin/bookings/:id/reassign-unit', async (req, res) => {
     // individual_unit_id may be null (auto-allocate later) or a specific id.
     const newIu = individual_unit_id == null ? null : parseInt(individual_unit_id, 10);
     const before = await pool.query(
-      `SELECT id, bookable_unit_id, individual_unit_id FROM bookings WHERE id = $1`,
+      `SELECT id, bookable_unit_id, individual_unit_id, arrival_date, departure_date FROM bookings WHERE id = $1`,
       [bookingId]
     );
     if (!before.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    // Precheck destination unit availability — reject on collision.
+    const check = await _checkUnitFreeForDates(newBu, newIu, before.rows[0].arrival_date, before.rows[0].departure_date, bookingId);
+    if (!check.ok) return res.status(409).json({ success: false, error: check.error, conflict: check.conflict });
     await pool.query(
       `UPDATE bookings SET bookable_unit_id = $1, individual_unit_id = $2, updated_at = NOW() WHERE id = $3`,
       [newBu, newIu, bookingId]
