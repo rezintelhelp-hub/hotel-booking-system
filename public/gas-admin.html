@@ -27662,23 +27662,42 @@ const promo = await fetch('/api/v1/offers/validate', {
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeEditBookingModal()">Cancel</button>
-                <button class="btn" onclick="openCopyBookingModal()" style="background: linear-gradient(135deg,#6366f1,#4338ca); color:#fff;">📋 Copy to another room (silent)</button>
+                <button class="btn" onclick="openCopyBookingModal()" style="background: linear-gradient(135deg,#6366f1,#4338ca); color:#fff;">📋 Copy or ➡️ Move to another room (silent)</button>
                 <button class="btn" onclick="saveBookingEdit()" id="save-booking-btn">💾 Save Changes</button>
             </div>
         </div>
     </div>
 
-    <!-- Copy Booking (silent — no CM push) Modal -->
+    <!-- Copy / Move Booking (silent — no CM push) Modal -->
     <div id="copyBookingModal" class="modal" onclick="if(event.target===this) closeModal('copyBookingModal')">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header" style="background: linear-gradient(135deg,#6366f1,#4338ca); color:#fff;">
-                <h3 style="margin:0;">📋 Copy booking to another room</h3>
+                <h3 style="margin:0;" id="copyBookingModalTitle">📋 Copy or move booking to another room</h3>
                 <button onclick="closeModal('copyBookingModal')" style="background:rgba(255,255,255,0.2); border:none; color:#fff; font-size:1.5rem; cursor:pointer; width:32px; height:32px; border-radius:8px;">&times;</button>
             </div>
             <div class="modal-body" style="padding:1.25rem;">
-                <p style="margin:0 0 1rem; color:#374151; font-size:0.9rem;">Creates a <strong>duplicate</strong> of this booking on the chosen room. Original stays in place until you delete it manually.</p>
+                <div class="form-group">
+                    <label class="form-label">Action</label>
+                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                        <label style="display:flex; gap:0.4rem; align-items:center; padding:0.5rem 0.75rem; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer; flex:1; min-width:180px;">
+                            <input type="radio" name="copy-booking-action" value="copy" checked onchange="updateCopyBookingUiForAction()">
+                            <div>
+                                <div style="font-weight:600;">📋 Copy</div>
+                                <div style="font-size:0.75rem; color:#64748b;">Duplicate — original stays put</div>
+                            </div>
+                        </label>
+                        <label style="display:flex; gap:0.4rem; align-items:center; padding:0.5rem 0.75rem; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer; flex:1; min-width:180px;">
+                            <input type="radio" name="copy-booking-action" value="move" onchange="updateCopyBookingUiForAction()">
+                            <div>
+                                <div style="font-weight:600;">➡️ Move</div>
+                                <div style="font-size:0.75rem; color:#64748b;">Reassign — same booking, new room</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                <p id="copyBookingModalHelp" style="margin:0 0 1rem; color:#374151; font-size:0.9rem;">Creates a <strong>duplicate</strong> of this booking on the chosen room. Original stays in place until you delete it manually.</p>
                 <p style="margin:0 0 1rem; padding:0.6rem 0.75rem; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:4px; font-size:0.85rem;">
-                    No push to any channel manager. The copy has no Beds24 / Channex / Hostfully id — it's a GAS-only record.
+                    No push to any channel manager. GAS-only change.
                 </p>
                 <div class="form-group">
                     <label class="form-label">Destination room</label>
@@ -27691,7 +27710,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('copyBookingModal')">Cancel</button>
-                <button class="btn" onclick="runCopyBooking()" style="background:linear-gradient(135deg,#6366f1,#4338ca); color:#fff;">📋 Create copy</button>
+                <button class="btn" id="copyBookingModalActionBtn" onclick="runCopyBooking()" style="background:linear-gradient(135deg,#6366f1,#4338ca); color:#fff;">📋 Create copy</button>
             </div>
         </div>
     </div>
@@ -77060,6 +77079,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Placeholder while we fetch children.
             dst.innerHTML = '<option>Loading…</option>';
             document.getElementById('copy-booking-iu-wrap').style.display = 'none';
+            // Reset the Copy/Move radio to Copy on each open + refresh labels.
+            const copyRadio = document.querySelector('input[name="copy-booking-action"][value="copy"]');
+            if (copyRadio) copyRadio.checked = true;
+            if (typeof updateCopyBookingUiForAction === 'function') updateCopyBookingUiForAction();
             document.getElementById('copyBookingModal').style.display = 'flex';
             // Build expanded list: for each type, one row for the type itself
             // plus one row per individual_unit under it. Ordered as edit-booking-room lists.
@@ -77087,29 +77110,54 @@ const promo = await fetch('/api/v1/offers/validate', {
             });
             dst.innerHTML = html;
         }
+        // Updates the modal help text + action button label based on the
+        // Copy/Move radio choice. Called on radio change + on modal open
+        // (so it initialises to the default 'copy' state).
+        function updateCopyBookingUiForAction() {
+            const isMove = (document.querySelector('input[name="copy-booking-action"]:checked')?.value || 'copy') === 'move';
+            const help = document.getElementById('copyBookingModalHelp');
+            const btn = document.getElementById('copyBookingModalActionBtn');
+            const title = document.getElementById('copyBookingModalTitle');
+            if (isMove) {
+                if (title) title.textContent = '➡️ Move booking to another room';
+                if (help) help.innerHTML = '<strong>Reassigns</strong> this booking to the chosen room. No duplicate — the original booking is updated in place.';
+                if (btn) btn.textContent = '➡️ Move booking';
+            } else {
+                if (title) title.textContent = '📋 Copy booking to another room';
+                if (help) help.innerHTML = 'Creates a <strong>duplicate</strong> of this booking on the chosen room. Original stays in place until you delete it manually.';
+                if (btn) btn.textContent = '📋 Create copy';
+            }
+        }
+
         async function runCopyBooking() {
             const bookingId = document.getElementById('edit-booking-id').value;
             const raw = document.getElementById('copy-booking-type').value;
+            const action = document.querySelector('input[name="copy-booking-action"]:checked')?.value || 'copy';
             if (!bookingId || !raw) { showNotification('Pick a destination room first.', 'error'); return; }
             const parts = raw.split(':');
             const body = { bookable_unit_id: parseInt(parts[0]) };
             if (parts[1]) body.individual_unit_id = parseInt(parts[1]);
+            const isMove = action === 'move';
+            const endpoint = isMove ? '/reassign-unit' : '/copy-to-unit';
             try {
-                const d = await fetch('/api/admin/bookings/' + bookingId + '/copy-to-unit', {
+                const d = await fetch('/api/admin/bookings/' + bookingId + endpoint, {
                     method: 'POST',
                     headers: {...authHeaders(), 'Content-Type': 'application/json'},
                     body: JSON.stringify(body)
                 }).then(r => r.json());
                 if (d.success) {
-                    showNotification('Copy created — new booking #' + d.new_booking_id + '. Original #' + d.source_booking_id + ' now greyed. Delete original when ready to promote.', 'success');
+                    const msg = isMove
+                        ? 'Booking #' + bookingId + ' moved to the selected room. Original unit released.'
+                        : 'Copy created — new booking #' + d.new_booking_id + '. Original #' + d.source_booking_id + ' now greyed. Delete original when ready to promote.';
+                    showNotification(msg, 'success');
                     closeModal('copyBookingModal');
                     closeModal('editBookingModal');
                     if (typeof loadBookingsForProperty === 'function') loadBookingsForProperty();
                 } else {
-                    showNotification('Copy failed: ' + (d.error || 'unknown'), 'error');
+                    showNotification((isMove ? 'Move' : 'Copy') + ' failed: ' + (d.error || 'unknown'), 'error');
                 }
             } catch (e) {
-                showNotification('Copy error: ' + e.message, 'error');
+                showNotification((isMove ? 'Move' : 'Copy') + ' error: ' + e.message, 'error');
             }
         }
         // Kept as no-op stub so old inline onchange doesn\'t error if HTML cached.
