@@ -117015,11 +117015,13 @@ app.post('/api/public/portal/extras', async (req, res) => {
       ORDER BY category NULLS LAST, name
     `, [claims.property_id, claims.bookable_unit_id, claims.account_id]);
 
-    // Shop products for this booking's account
+    // Shop products for this booking's account. `variants` (JSONB array of
+    // {label, price, stock_qty?}) surfaces so the portal card can render a
+    // proper variant picker instead of collapsing to the base price.
     const shop = await pool.query(`
       SELECT id, name, name_ml, slug, description, description_ml, price, currency,
              image_url, image_thumbnail_url, category, product_type, stock_quantity,
-             stock_tracking, sort_order
+             stock_tracking, sort_order, variants
       FROM shop_products
       WHERE is_active = true
         AND account_id = $1
@@ -117027,10 +117029,16 @@ app.post('/api/public/portal/extras', async (req, res) => {
       ORDER BY sort_order NULLS LAST, name
     `, [claims.account_id, claims.property_id]);
 
+    // Dedupe: when both an upsell and a shop_product carry the same
+    // case-insensitive name, keep the upsell (older/simpler shape) and drop
+    // the shop_product. Otherwise the portal shows two "Bike Storage" tiles.
+    const upsellNames = new Set(upsells.rows.map(u => String(u.name || '').trim().toLowerCase()));
+    const shopFiltered = shop.rows.filter(p => !upsellNames.has(String(p.name || '').trim().toLowerCase()));
+
     res.json({
       success: true,
       upsells: upsells.rows.map(u => ({ ...u, currency: fallbackCurrency, source_type: 'upsell' })),
-      shop_products: shop.rows.map(p => ({ ...p, source_type: 'shop_product' }))
+      shop_products: shopFiltered.map(p => ({ ...p, source_type: 'shop_product' }))
     });
   } catch (error) {
     console.error('portal/extras error:', error);
@@ -117043,7 +117051,7 @@ app.post('/api/public/portal/extras', async (req, res) => {
 // item in admin and settles at check-in.
 app.post('/api/public/portal/add-extra', async (req, res) => {
   try {
-    const { token, source_type, source_id, qty } = req.body || {};
+    const { token, source_type, source_id, qty, variant_label } = req.body || {};
     const claims = verifyPortalToken(token);
     if (!claims) return res.status(401).json({ success: false, error: 'Session expired.' });
     if (!['upsell', 'shop_product'].includes(source_type)) return res.json({ success: false, error: 'Invalid item type.' });
@@ -117052,7 +117060,11 @@ app.post('/api/public/portal/add-extra', async (req, res) => {
     if (!sid) return res.json({ success: false, error: 'Invalid item.' });
 
     // Look up the source item to capture name + price (snapshot, so later
-    // catalogue edits don't change what the guest reserved)
+    // catalogue edits don't change what the guest reserved). When
+    // variant_label is supplied for a shop_product with a matching entry in
+    // the variants JSONB array, we swap the base price for that variant's
+    // price and suffix the name so the reservation reads e.g.
+    // "E-Bike Hire M/L — 2 days".
     let name, price, currency;
     if (source_type === 'upsell') {
       const r = await pool.query('SELECT name, price FROM upsells WHERE id = $1 AND active = true', [sid]);
@@ -117061,9 +117073,20 @@ app.post('/api/public/portal/add-extra', async (req, res) => {
       const bc = await pool.query('SELECT currency FROM bookings WHERE id = $1', [claims.booking_id]);
       name = r.rows[0].name; price = parseFloat(r.rows[0].price); currency = bc.rows[0]?.currency || 'GBP';
     } else {
-      const r = await pool.query('SELECT name, price, currency FROM shop_products WHERE id = $1 AND is_active = true', [sid]);
+      const r = await pool.query('SELECT name, price, currency, variants FROM shop_products WHERE id = $1 AND is_active = true', [sid]);
       if (!r.rows[0]) return res.json({ success: false, error: 'Item no longer available.' });
       name = r.rows[0].name; price = parseFloat(r.rows[0].price); currency = r.rows[0].currency || 'GBP';
+      const variants = Array.isArray(r.rows[0].variants) ? r.rows[0].variants : [];
+      if (variant_label && variants.length > 0) {
+        const match = variants.find(v => v && String(v.label).trim().toLowerCase() === String(variant_label).trim().toLowerCase());
+        if (!match) return res.json({ success: false, error: 'Selected option is no longer available.' });
+        price = parseFloat(match.price);
+        name = `${name} — ${match.label}`;
+      } else if (variants.length > 0) {
+        // Product has variants but none picked — the portal card should have
+        // forced a selection. Reject rather than silently charge base price.
+        return res.json({ success: false, error: 'Please choose an option before adding.' });
+      }
     }
 
     const ins = await pool.query(`

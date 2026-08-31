@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.88');
+define('GAS_BOOKING_VERSION', '4.3.89');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -12092,6 +12092,15 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 });
             };
 
+            // Slice 2 (2026-08-31): rebuilt Add-to-your-stay renderer.
+            //   - Groups by category (upsells stay in their operator-assigned
+            //     category; shop products default to "Shop"). Chip only shows
+            //     when the label is meaningful ("Other" / empty are hidden).
+            //   - Products with a variants JSONB array render a <select> picker;
+            //     price + Add button update from whichever option is chosen.
+            //   - Cards ship a real image when one exists, an initial-badge
+            //     placeholder when they don't — no more empty card tops.
+            //   - Descriptions no longer clipped mid-sentence; the card grows.
             function gasPortalLoadExtras(root) {
                 var apiUrl = root.dataset.apiUrl;
                 var token = sessionStorage.getItem('gas_portal_token');
@@ -12104,25 +12113,97 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     if (!data.success) { cat.innerHTML = '<p style="color:#c00">' + (data.error || 'Failed to load') + '</p>'; return; }
                     var items = [].concat(data.upsells || [], data.shop_products || []);
                     if (items.length === 0) { cat.innerHTML = '<p style="color:#64748b;font-size:0.9rem;">No add-ons available right now.</p>'; return; }
-                    cat.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.75rem;">'
-                        + items.map(function(it){
-                            var img = it.image_thumbnail_url || it.image_url || '';
-                            var imgHtml = img ? '<img src="' + img + '" alt="" style="width:100%;height:120px;object-fit:cover;border-radius:8px 8px 0 0;">' : '';
-                            return '<div class="gas-portal-card" data-source-type="' + it.source_type + '" data-source-id="' + it.id + '" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;">'
-                                + imgHtml
-                                + '<div style="padding:0.75rem;flex:1;display:flex;flex-direction:column;">'
-                                + '<strong style="font-size:0.95rem;margin-bottom:0.25rem;">' + (it.name || '').replace(/</g,'&lt;') + '</strong>'
-                                + (it.category ? '<span style="font-size:0.75rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">' + it.category + '</span>' : '')
-                                + (it.description ? '<p style="font-size:0.85rem;color:#475569;margin:0 0 0.75rem;flex:1;">' + (it.description.length > 100 ? it.description.slice(0,100) + '…' : it.description) + '</p>' : '<div style="flex:1"></div>')
-                                + '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">'
-                                + '<strong>' + fmtMoney(it.price, it.currency) + '</strong>'
-                                + '<button type="button" onclick="gasPortalAddExtra(this)" style="padding:0.4rem 0.8rem;border:0;border-radius:6px;background:#0f172a;color:#fff;cursor:pointer;font-size:0.85rem;">Add</button>'
-                                + '</div></div></div>';
-                        }).join('')
-                        + '</div>';
+
+                    // Category resolver — collapse blanks + "Other" into a
+                    // sensible group name so guests don't see meaningless chips.
+                    function catOf(it) {
+                        var c = String(it.category || '').trim();
+                        if (!c || c.toLowerCase() === 'other') {
+                            return it.source_type === 'shop_product' ? 'Shop' : 'Extras';
+                        }
+                        return c;
+                    }
+                    var groups = {};
+                    var groupOrder = [];
+                    items.forEach(function(it) {
+                        var g = catOf(it);
+                        if (!groups[g]) { groups[g] = []; groupOrder.push(g); }
+                        groups[g].push(it);
+                    });
+
+                    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+                        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+                    }); }
+
+                    function initialBadge(name) {
+                        var ch = (String(name || '?').trim().charAt(0) || '?').toUpperCase();
+                        return '<div style="width:100%;height:140px;background:linear-gradient(135deg,#e2e8f0,#cbd5e1);display:flex;align-items:center;justify-content:center;font-size:2.5rem;font-weight:700;color:#64748b;">' + esc(ch) + '</div>';
+                    }
+
+                    function renderCard(it) {
+                        var img = it.image_thumbnail_url || it.image_url || '';
+                        var imgHtml = img
+                            ? '<img src="' + esc(img) + '" alt="" style="width:100%;height:140px;object-fit:cover;">'
+                            : initialBadge(it.name);
+                        var variants = Array.isArray(it.variants) ? it.variants.filter(function(v){ return v && v.label; }) : [];
+                        var hasVariants = variants.length > 0;
+
+                        // Variant picker + price/button reflect the picked
+                        // option. Data attributes carry variants as JSON so
+                        // onchange can look up the price without touching the
+                        // parent it/root closure.
+                        var variantHtml = '';
+                        var defaultPrice = it.price;
+                        if (hasVariants) {
+                            defaultPrice = variants[0].price;
+                            variantHtml = '<label style="display:block;font-size:0.78rem;color:#64748b;margin:0.5rem 0 0.25rem;">Choose option</label>'
+                                + '<select class="gas-portal-variant" onchange="gasPortalVariantChanged(this)" style="width:100%;padding:0.45rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.88rem;background:#fff;">'
+                                + variants.map(function(v, i){
+                                    return '<option value="' + esc(v.label) + '" data-price="' + Number(v.price) + '"' + (i === 0 ? ' selected' : '') + '>'
+                                        + esc(v.label) + ' — ' + fmtMoney(v.price, it.currency)
+                                        + '</option>';
+                                }).join('')
+                                + '</select>';
+                        }
+
+                        return '<div class="gas-portal-card" data-source-type="' + esc(it.source_type) + '" data-source-id="' + esc(it.id) + '" data-currency="' + esc(it.currency) + '" data-base-price="' + Number(it.price) + '" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 1px 2px rgba(15,23,42,0.04);">'
+                            + imgHtml
+                            + '<div style="padding:0.85rem 1rem 1rem;flex:1;display:flex;flex-direction:column;gap:0.25rem;">'
+                            + '<strong style="font-size:0.98rem;line-height:1.25;">' + esc(it.name) + '</strong>'
+                            + (it.description ? '<p style="font-size:0.85rem;color:#475569;margin:0.35rem 0 0;line-height:1.4;">' + esc(it.description) + '</p>' : '')
+                            + variantHtml
+                            + '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;margin-top:auto;padding-top:0.85rem;">'
+                            +   '<strong class="gas-portal-price" style="font-size:1rem;">' + fmtMoney(defaultPrice, it.currency) + '</strong>'
+                            +   '<button type="button" onclick="gasPortalAddExtra(this)" style="padding:0.5rem 1rem;border:0;border-radius:8px;background:#0f172a;color:#fff;cursor:pointer;font-size:0.88rem;font-weight:600;">Add</button>'
+                            + '</div></div></div>';
+                    }
+
+                    cat.innerHTML = groupOrder.map(function(g) {
+                        var showHeading = groupOrder.length > 1;
+                        return (showHeading
+                                ? '<div style="font-size:0.78rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.06em;margin:1rem 0 0.5rem;">' + esc(g) + '</div>'
+                                : '')
+                            + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0.9rem;">'
+                            + groups[g].map(renderCard).join('')
+                            + '</div>';
+                    }).join('');
                 });
                 gasPortalLoadMyExtras(root);
             }
+
+            // Variant <select> handler — updates the card's displayed price
+            // to reflect the picked option. gasPortalAddExtra reads the
+            // <select>.value at submit time so we don't need to also stash it
+            // on the card here.
+            window.gasPortalVariantChanged = function(sel) {
+                var card = sel.closest('.gas-portal-card');
+                if (!card) return;
+                var opt = sel.options[sel.selectedIndex];
+                var price = parseFloat(opt.dataset.price);
+                var cur = card.dataset.currency;
+                var priceEl = card.querySelector('.gas-portal-price');
+                if (priceEl && Number.isFinite(price)) priceEl.textContent = fmtMoney(price, cur);
+            };
 
             function gasPortalLoadMyExtras(root) {
                 var apiUrl = root.dataset.apiUrl;
@@ -12152,6 +12233,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 var root = $root(btn);
                 var apiUrl = root.dataset.apiUrl;
                 var token = sessionStorage.getItem('gas_portal_token');
+                var variantSel = card.querySelector('.gas-portal-variant');
+                var variantLabel = variantSel ? variantSel.value : null;
                 btn.disabled = true; btn.textContent = '…';
                 fetch(apiUrl + '/api/public/portal/add-extra', {
                     method: 'POST',
@@ -12160,7 +12243,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         token: token,
                         source_type: card.dataset.sourceType,
                         source_id: parseInt(card.dataset.sourceId),
-                        qty: 1
+                        qty: 1,
+                        variant_label: variantLabel
                     })
                 }).then(function(r){ return r.json(); }).then(function(data){
                     if (!data.success) { btn.disabled = false; btn.textContent = 'Add'; alert(data.error || 'Could not add.'); return; }
