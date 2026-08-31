@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.82');
+define('GAS_BOOKING_VERSION', '4.3.83');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3796,6 +3796,19 @@ class GAS_Booking {
             // detail page. Same toggle as Book Now cards + Properties cards.
             // Steve 2026-08-22.
             'showPropertyAddress' => (bool) (get_theme_mod('developer_styles_show_property_address') ?: get_option('gas_show_property_address', false)),
+            // Flatpickr date-picker altFormat, per site. Steve 2026-08-31 —
+            // Hebden asked for UK numeric dates; US clients expect m/d/y.
+            // WP option gas_date_format: '' (default 'd M Y' — safe
+            // international "19 Oct 2026"), 'uk'|'gb'/'d/m/Y', 'us'/'m/d/Y'.
+            // Empty option preserves existing behaviour on every deployed
+            // site. Set per site with:
+            //   wp option update gas_date_format uk --url=<site>
+            'dateFormat' => (function () {
+                $v = strtolower(trim((string) get_option('gas_date_format', '')));
+                if ($v === 'uk' || $v === 'gb' || $v === 'd/m/y') return 'd/m/Y';
+                if ($v === 'us' || $v === 'm/d/y') return 'm/d/Y';
+                return 'd M Y'; // safe default — international, unambiguous
+            })(),
         ));
 
         // Output custom CSS from settings - add to footer so it overrides inline styles
