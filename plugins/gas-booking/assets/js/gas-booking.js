@@ -11918,7 +11918,18 @@ jQuery(document).ready(function($) {
             $container.html(
                 '<div class="gas-eh-widget">' +
                 '  <div class="gas-eh-step gas-eh-step-dates">' +
-                '    <div class="gas-eh-tagline">Hire an e-bike for the day. Pickup 10:00, return by 18:00 · max 3-day hire.</div>' +
+                '    <div class="gas-eh-tagline">Hire an e-bike for the day. Pickup 10:00, return by 18:30 · max 3-day hire.</div>' +
+                '    <div class="gas-eh-linked-toggle" style="margin-bottom:0.75rem;font-size:0.85rem;"><a href="#" class="gas-eh-show-linked" style="color:#0f172a;text-decoration:underline;">Already booked a room? Add e-bike to your stay →</a></div>' +
+                '    <div class="gas-eh-linked-panel" style="display:none;padding:0.85rem;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;margin-bottom:1rem;">' +
+                '      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">' +
+                '        <input class="gas-eh-linked-ref" placeholder="Booking ref (GAS-123)" style="padding:0.5rem 0.65rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.9rem;">' +
+                '        <input class="gas-eh-linked-name" placeholder="Last name" style="padding:0.5rem 0.65rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.9rem;">' +
+                '      </div>' +
+                '      <button type="button" class="gas-eh-linked-find" style="padding:0.45rem 0.85rem;border:none;border-radius:6px;background:#64748b;color:#fff;font-size:0.85rem;cursor:pointer;margin-right:0.5rem;">Find my booking</button>' +
+                '      <a href="#" class="gas-eh-linked-cancel" style="font-size:0.8rem;color:#64748b;text-decoration:underline;">← Cancel, book standalone</a>' +
+                '      <div class="gas-eh-linked-msg" style="margin-top:0.5rem;font-size:0.85rem;"></div>' +
+                '    </div>' +
+                '    <div class="gas-eh-linked-banner" style="display:none;padding:0.6rem 0.85rem;background:#dcfce7;color:#166534;border-radius:6px;font-size:0.9rem;margin-bottom:0.85rem;"></div>' +
                 '    <div class="gas-eh-date-row">' +
                 '      <label>Pickup<input type="text" class="gas-eh-checkin" placeholder="Pick a date" readonly></label>' +
                 '      <label>Return<input type="text" class="gas-eh-checkout" placeholder="Pick a date" readonly></label>' +
@@ -11930,12 +11941,14 @@ jQuery(document).ready(function($) {
                 '    <div class="gas-eh-summary"></div>' +
                 '    <div class="gas-eh-sizes"></div>' +
                 '    <form class="gas-eh-guest-form" style="display:none">' +
-                '      <div class="gas-eh-form-row">' +
-                '        <input name="first_name" placeholder="First name *">' +
-                '        <input name="last_name" placeholder="Last name *">' +
+                '      <div class="gas-eh-guest-fields">' +
+                '        <div class="gas-eh-form-row">' +
+                '          <input name="first_name" placeholder="First name *">' +
+                '          <input name="last_name" placeholder="Last name *">' +
+                '        </div>' +
+                '        <input name="email" type="email" placeholder="Email *">' +
+                '        <input name="phone" type="tel" placeholder="Phone (optional)">' +
                 '      </div>' +
-                '      <input name="email" type="email" placeholder="Email *">' +
-                '      <input name="phone" type="tel" placeholder="Phone (optional)">' +
                 '      <div class="gas-eh-card-mount" style="margin:0.75rem 0;padding:0.75rem;border:1px solid #cbd5e1;border-radius:8px;background:#fff;"></div>' +
                 '      <button type="submit" class="gas-eh-book-btn">Book and pay</button>' +
                 '      <div class="gas-eh-form-error"></div>' +
@@ -11945,9 +11958,14 @@ jQuery(document).ready(function($) {
                 '  <div class="gas-eh-step gas-eh-step-success" style="display:none">' +
                 '    <h3>✓ Booking confirmed</h3>' +
                 '    <p>Check your email — full pickup details on the way.</p>' +
+                '    <div class="gas-eh-book-room-cta" style="margin-top:1rem;"></div>' +
                 '  </div>' +
                 '</div>'
             );
+
+            // Linked-booking state (Flow C). When present, checkout will send
+            // parent_booking_id + parent_last_name and guest fields are hidden.
+            var linkedParent = null;
 
             var $checkin = $container.find('.gas-eh-checkin');
             var $checkout = $container.find('.gas-eh-checkout');
@@ -12014,6 +12032,65 @@ jQuery(document).ready(function($) {
                 // the guest but still let them try again.
                 ensureStripeMounted().catch(function(err) {
                     $container.find('.gas-eh-form-error').html('<div style="color:#b91c1c">' + err.message + '</div>');
+                });
+            });
+
+            // ── Linked-booking (Flow C) ────────────────────────────────
+            $container.on('click', '.gas-eh-show-linked', function(e) {
+                e.preventDefault();
+                $container.find('.gas-eh-linked-toggle').hide();
+                $container.find('.gas-eh-linked-panel').show();
+            });
+            $container.on('click', '.gas-eh-linked-cancel', function(e) {
+                e.preventDefault();
+                $container.find('.gas-eh-linked-panel').hide();
+                $container.find('.gas-eh-linked-toggle').show();
+                $container.find('.gas-eh-linked-msg').html('');
+                $container.find('.gas-eh-linked-banner').hide().html('');
+                if ($checkin[0]?._flatpickr) { $checkin[0]._flatpickr.set('minDate', 'today'); $checkin[0]._flatpickr.set('maxDate', null); $checkin[0]._flatpickr.clear(); }
+                if ($checkout[0]?._flatpickr) { $checkout[0]._flatpickr.set('minDate', 'today'); $checkout[0]._flatpickr.set('maxDate', null); $checkout[0]._flatpickr.clear(); }
+                $container.find('.gas-eh-guest-fields').show();
+                linkedParent = null;
+            });
+            $container.on('click', '.gas-eh-linked-find', function() {
+                var ref = $container.find('.gas-eh-linked-ref').val().trim();
+                var ln  = $container.find('.gas-eh-linked-name').val().trim();
+                var $msg = $container.find('.gas-eh-linked-msg');
+                if (!ref || !ln) { $msg.html('<div style="color:#b91c1c">Booking ref + last name required.</div>'); return; }
+                $msg.html('<div style="color:#64748b">Looking up your booking…</div>');
+                $.ajax({
+                    url: apiUrl + '/api/public/ebike-hire/find-booking',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ property_id: propertyId, booking_reference: ref, last_name: ln }),
+                    dataType: 'json'
+                }).done(function(r) {
+                    if (!r.success) { $msg.html('<div style="color:#b91c1c">' + (r.error || 'Not found') + '</div>'); return; }
+                    linkedParent = r.booking;
+                    $msg.html('');
+                    $container.find('.gas-eh-linked-panel').hide();
+                    $container.find('.gas-eh-linked-toggle').hide();
+                    $container.find('.gas-eh-linked-banner').show().html(
+                        '✓ Linked to <strong>' + linkedParent.reference + '</strong> — ' +
+                        linkedParent.guest_first_name + ' ' + linkedParent.guest_last_name + '. ' +
+                        'Room dates: ' + linkedParent.arrival_date + ' → ' + linkedParent.departure_date + '.'
+                    );
+                    // Guest fields no longer needed — hide them.
+                    $container.find('.gas-eh-guest-fields').hide();
+                    // Constrain the date pickers to parent's window.
+                    if ($checkin[0]._flatpickr) {
+                        $checkin[0]._flatpickr.set('minDate', linkedParent.arrival_date);
+                        $checkin[0]._flatpickr.set('maxDate', linkedParent.departure_date);
+                        $checkin[0]._flatpickr.setDate(linkedParent.arrival_date, true);
+                    }
+                    if ($checkout[0]._flatpickr) {
+                        $checkout[0]._flatpickr.set('minDate', linkedParent.arrival_date);
+                        $checkout[0]._flatpickr.set('maxDate', linkedParent.departure_date);
+                        $checkout[0]._flatpickr.setDate(linkedParent.departure_date, true);
+                    }
+                }).fail(function(x) {
+                    var em = (x.responseJSON && x.responseJSON.error) ? x.responseJSON.error : 'Network error';
+                    $msg.html('<div style="color:#b91c1c">' + em + '</div>');
                 });
             });
 
@@ -12092,7 +12169,9 @@ jQuery(document).ready(function($) {
                 var last  = $form.find('[name="last_name"]').val().trim();
                 var email = $form.find('[name="email"]').val().trim();
                 var phone = $form.find('[name="phone"]').val().trim();
-                if (!first || !last || !email) {
+                // Guest fields only required in standalone flow — for a
+                // linked booking, backend fills them from the parent.
+                if (!linkedParent && (!first || !last || !email)) {
                     $err.html('<div style="color:#b91c1c">Name and email are required.</div>');
                     return;
                 }
@@ -12118,6 +12197,10 @@ jQuery(document).ready(function($) {
                     guest_phone: phone,
                     source_site_url: window.location.origin + window.location.pathname
                 };
+                if (linkedParent) {
+                    payload.parent_booking_id = linkedParent.id;
+                    payload.parent_last_name = linkedParent.guest_last_name;
+                }
 
                 // Card tokenise → server charges with PaymentIntent →
                 // handle SCA if the bank asks → success screen.
@@ -12153,6 +12236,18 @@ jQuery(document).ready(function($) {
                         throw new Error((r && r.error) || 'Payment failed.');
                     }
                     $container.find('.gas-eh-step').hide();
+                    // Feature #3: after a standalone hire, offer the guest a
+                    // shortcut to book a room too — pre-fills the booking widget
+                    // with the same dates. Skipped when the hire is already
+                    // linked to a room (nothing to add).
+                    var cta = '';
+                    if (!linkedParent) {
+                        var bookNowUrl = window.location.origin + '/book-now/?checkin=' +
+                            encodeURIComponent($checkin.val()) +
+                            '&checkout=' + encodeURIComponent($checkout.val());
+                        cta = '<a href="' + bookNowUrl + '" class="gas-eh-book-btn" style="display:inline-block;padding:0.65rem 1.25rem;background:var(--button_color,#F97224);color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">🏠 Book a room for these dates →</a>';
+                    }
+                    $container.find('.gas-eh-book-room-cta').html(cta);
                     $container.find('.gas-eh-step-success').show();
                 }).catch(function(err) {
                     $btn.prop('disabled', false).text('Book and pay');
