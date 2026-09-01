@@ -166564,7 +166564,8 @@ app.get('/api/admin/channex/writeback-failures', async (req, res) => {
               o.payload->>'gasBookingId'   AS gas_booking_id,
               o.payload->>'roomTypeId'     AS room_type_id,
               o.payload->>'ratePlanId'     AS rate_plan_id,
-              o.payload->>'date'           AS date
+              o.payload->>'date'           AS date,
+              o.payload                    AS payload
          FROM gas_channex_outbox o
          JOIN gas_sync_connections c ON c.id = o.connection_id
         WHERE ${where.join(' AND ')}
