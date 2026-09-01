@@ -15091,6 +15091,11 @@ app.post('/api/admin/channex/:connectionId/push-property', async (req, res) => {
           AND COALESCE(channex_publishable, true) = true
           AND COALESCE(is_hidden, false) = false
           AND COALESCE(status, 'active') NOT IN ('deleted', 'inactive', 'archived')
+          -- Rental Items (bikes, kayaks, ski hire etc.) never go to OTA
+          -- channel managers — they're direct-hire only. Filtering here
+          -- means an operator can't accidentally push a bike-room to
+          -- Channex/Beds24 by clicking "Push property to Channex".
+          AND COALESCE(room_type, '') <> 'rental_item'
         ORDER BY id`,
       [gas_property_id]
     );

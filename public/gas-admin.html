@@ -33000,6 +33000,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <p style="font-size: 0.8rem; color: #a16207; margin: 0.35rem 0 0;">Set this to your contract minimum with the OTAs (e.g. Expedia's rate floor). Leave blank to use the global £15 safety floor. Applies to Channex pushes — every extender run + sweep respects this.</p>
                 </div>
 
+                <!-- Rental Item safety callout — only shows when room_type='rental_item'.
+                     Reassures the operator this row is direct-hire only and won't
+                     leak into any channel-manager push, and reminds them where to
+                     configure daily rate + max stay. Backend also filters
+                     rental_items out of channex/beds24 push flows as belt-and-braces. -->
+                <div id="edit-room-rental-item-note" style="display: none; background: #ecfdf5; border: 1px solid #10b981; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                    <p style="margin: 0; color: #065f46; font-size: 0.9rem;">
+                        🚴 <strong>Rental Item</strong> — direct-hire only. This row will not be pushed to Beds24, Channex or any OTA. Set the daily rate + max stay above; guests book it through the standard availability widget.
+                    </p>
+                </div>
+
                 <!-- Note about amenities -->
                 <div style="background: #e0f2fe; border: 1px solid #0ea5e9; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
                     <p style="margin: 0; color: #0369a1;">
@@ -84296,6 +84307,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     // Editable fields
                     document.getElementById('edit-room-type').value = room.unit_type || 'double';
+                    // Rental Item safety callout — visible when the type is
+                    // rental_item so the operator knows this row is CM-safe.
+                    (function toggleRentalItemNote() {
+                        const sel = document.getElementById('edit-room-type');
+                        const note = document.getElementById('edit-room-rental-item-note');
+                        const flip = () => { if (note) note.style.display = (sel.value === 'rental_item') ? 'block' : 'none'; };
+                        flip();
+                        // Attach once — re-attaching on every edit would stack listeners.
+                        if (!sel.dataset.rentalNoteBound) {
+                            sel.addEventListener('change', flip);
+                            sel.dataset.rentalNoteBound = '1';
+                        }
+                    })();
                     // Max Guests is read-only here. The display div shows the
                     // current value; the hidden input keeps the save plumbing.
                     const mgVal = (room.max_guests != null ? room.max_guests : '');
