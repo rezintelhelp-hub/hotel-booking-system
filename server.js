@@ -41427,8 +41427,8 @@ async function createCompanionBooking(client, {
     // cabinet when role='bike_storage' (since multiple cabinets share the
     // same pool — see the bike_storage allocation block in /create-group-
     // booking).
-    if (companionUnit.unit_role && !['companion', 'bike_storage'].includes(companionUnit.unit_role)) {
-        throw new Error(`createCompanionBooking: unit ${companionUnit.id} has unit_role='${companionUnit.unit_role}', expected 'companion' or 'bike_storage'`);
+    if (companionUnit.unit_role && !['companion', 'bike_storage', 'ebike'].includes(companionUnit.unit_role)) {
+        throw new Error(`createCompanionBooking: unit ${companionUnit.id} has unit_role='${companionUnit.unit_role}', expected 'companion', 'bike_storage' or 'ebike'`);
     }
 
     const checkin = (parentBooking.arrival_date instanceof Date)
@@ -41438,10 +41438,12 @@ async function createCompanionBooking(client, {
         ? parentBooking.departure_date.toISOString().split('T')[0]
         : String(parentBooking.departure_date).slice(0, 10);
 
-    // 1) INSERT child bookings row in the same transaction
+    // 1) INSERT child bookings row in the same transaction. individual_unit_id
+    // is only set when the caller supplied one (e-bike sub-unit allocation);
+    // legacy paths pass null and behave unchanged.
     const companionInsert = await client.query(`
         INSERT INTO bookings (
-            property_id, property_owner_id, bookable_unit_id,
+            property_id, property_owner_id, bookable_unit_id, individual_unit_id,
             arrival_date, departure_date,
             num_adults, num_children,
             guest_first_name, guest_last_name, guest_email, guest_phone,
@@ -41451,7 +41453,7 @@ async function createCompanionBooking(client, {
             status, booking_source, currency, group_booking_id, source_site_url,
             guest_id, parent_booking_id, booking_role
         )
-        VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, $16,
+        VALUES ($1, 1, $2, $22, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, $16,
                 'confirmed', 'direct', $17, $18, $19, $20, $21, 'companion')
         RETURNING *
     `, [
@@ -41475,7 +41477,8 @@ async function createCompanionBooking(client, {
         parentBooking.group_booking_id,
         parentBooking.source_site_url || null,
         parentBooking.guest_id,
-        parentBooking.id
+        parentBooking.id,
+        companionUnit.individual_unit_id || null,
     ]);
     const companionBooking = companionInsert.rows[0];
 
@@ -42733,6 +42736,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                     const linked = await client.query(`
                         SELECT u.id as upsell_id,
                                COALESCE(u.name_ml->>'en', u.name) as label,
+                               u.preferred_ebike_size,
                                bu.id, bu.property_id, bu.name, bu.unit_role,
                                bu.beds24_room_id, bu.smoobu_id, bu.hostaway_listing_id,
                                p.account_id
@@ -42741,7 +42745,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                         JOIN properties p ON bu.property_id = p.id
                         WHERE u.id = ANY($1::int[])
                           AND u.companion_bookable_unit_id IS NOT NULL
-                          AND bu.unit_role IN ('companion', 'bike_storage')
+                          AND bu.unit_role IN ('companion', 'bike_storage', 'ebike')
                     `, [upsellIds]);
 
                     for (const row of linked.rows) {
@@ -42771,6 +42775,75 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                             unit_role: row.unit_role,
                             name: row.name
                         }];
+                        // E-bike role: sub-unit-level allocation. Each e-bike
+                        // is an individual_units row under a bike_store
+                        // bookable_unit. Filter the pool by preferred size
+                        // (parsed from sub-unit names) then pick the first
+                        // free one for the parent's dates. Companion booking
+                        // gets both bookable_unit_id + individual_unit_id.
+                        if (row.unit_role === 'ebike') {
+                            try {
+                                const arr = (parentForCompanion.arrival_date instanceof Date)
+                                    ? parentForCompanion.arrival_date.toISOString().split('T')[0]
+                                    : String(parentForCompanion.arrival_date).slice(0, 10);
+                                const dep = (parentForCompanion.departure_date instanceof Date)
+                                    ? parentForCompanion.departure_date.toISOString().split('T')[0]
+                                    : String(parentForCompanion.departure_date).slice(0, 10);
+                                const size = row.preferred_ebike_size;
+                                if (!size) {
+                                    console.warn(`[Companion ebike] upsell ${row.upsell_id}: preferred_ebike_size not set on upsell, skipping`);
+                                    continue;
+                                }
+                                const subRes = await client.query(
+                                    `SELECT iu.id, iu.bookable_unit_id, iu.unit_name,
+                                            bu.name AS bu_name, bu.property_id,
+                                            bu.beds24_room_id, bu.smoobu_id, bu.hostaway_listing_id
+                                       FROM individual_units iu
+                                       JOIN bookable_units bu ON bu.id = iu.bookable_unit_id
+                                      WHERE bu.property_id = $1
+                                        AND bu.unit_role = 'ebike'
+                                        AND COALESCE(iu.is_available, true) = true
+                                        AND COALESCE(iu.status, '') IN ('', 'available')`,
+                                    [row.property_id]
+                                );
+                                const sizeUp = String(size).toUpperCase();
+                                const sizeMatches = subRes.rows.filter(s => (_parseEbikeSize(s.unit_name) || '').toUpperCase() === sizeUp);
+                                if (sizeMatches.length === 0) {
+                                    console.warn(`[Companion ebike] upsell ${row.upsell_id}: no sub-units for size ${size} on property ${row.property_id}, skipping`);
+                                    continue;
+                                }
+                                const subIds = sizeMatches.map(s => s.id);
+                                const busy = await client.query(
+                                    `SELECT individual_unit_id FROM bookings
+                                      WHERE individual_unit_id = ANY($1::int[])
+                                        AND status IN ('confirmed', 'pending', 'inquiry')
+                                        AND arrival_date < $3::date AND departure_date > $2::date`,
+                                    [subIds, arr, dep]
+                                ).catch(() => ({ rows: [] }));
+                                const busyIds = new Set(busy.rows.map(b => b.individual_unit_id));
+                                const free = sizeMatches.filter(s => !busyIds.has(s.id));
+                                if (free.length === 0) {
+                                    console.warn(`[Companion ebike] upsell ${row.upsell_id}: all size-${size} bikes booked for ${arr}→${dep}, skipping`);
+                                    continue;
+                                }
+                                const pick = free[0];
+                                cabinetCandidates = [{
+                                    id: pick.bookable_unit_id,
+                                    individual_unit_id: pick.id,
+                                    property_id: pick.property_id,
+                                    account_id: row.account_id,
+                                    beds24_room_id: pick.beds24_room_id,
+                                    smoobu_id: pick.smoobu_id,
+                                    hostaway_listing_id: pick.hostaway_listing_id,
+                                    unit_role: 'ebike',
+                                    name: `${pick.bu_name} — ${pick.unit_name}`
+                                }];
+                            } catch (allocErr) {
+                                console.error(`[Companion ebike] alloc failed for upsell ${row.upsell_id}:`, allocErr.message);
+                                continue;
+                            }
+                        }
+
                         if (row.unit_role === 'bike_storage') {
                             try {
                                 const arr = (parentForCompanion.arrival_date instanceof Date)
@@ -155523,6 +155596,11 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS valid_until DATE`);
     await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS available_as_upsell BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS upsell_property_ids INTEGER[]`);
+    // E-bike hire shop products → mirrored upsell needs to know which
+    // bookable_unit to reserve on tick + which size to pick. Both propagate
+    // through syncShopProductUpsellMirror so operators manage one config.
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS companion_bookable_unit_id INT`);
+    await pool.query(`ALTER TABLE shop_products ADD COLUMN IF NOT EXISTS preferred_ebike_size VARCHAR(10)`);
     // Per-room upsell scoping — mirrors upsells.room_ids (CSV in upsells,
     // but stored as INT[] here for easier admin FormData handling). NULL /
     // empty = "any room on the scoped properties". Set to a subset of rooms
@@ -160227,7 +160305,9 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
   const descMl = productRow.description_ml && Object.keys(productRow.description_ml).length ? productRow.description_ml : (productRow.description ? { en: productRow.description } : {});
 
   if (productRow.linked_upsell_id) {
-    // Update existing mirror.
+    // Update existing mirror. Includes the two e-bike-specific fields
+    // (companion_bookable_unit_id + preferred_ebike_size) so ticking the
+    // upsell during a room booking allocates the right sub-unit.
     await pool.query(`
       UPDATE upsells SET
         name = $1, description = $2, name_ml = $3::jsonb, description_ml = $4::jsonb,
@@ -160241,6 +160321,8 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
         category = $17,
         room_ids = $18,
         required_amenity_ids = $19,
+        companion_bookable_unit_id = $20,
+        preferred_ebike_size = $21,
         active = $12, source = 'shop_link', linked_shop_product_id = $13,
         updated_at = NOW()
       WHERE id = $14
@@ -160262,7 +160344,9 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
       productRow.included_nights_per_unit || null,
       productRow.category || 'Events',
       roomIdsCsv,
-      amenityIds
+      amenityIds,
+      productRow.companion_bookable_unit_id || null,
+      productRow.preferred_ebike_size ? String(productRow.preferred_ebike_size).toUpperCase() : null,
     ]);
     return;
   }
@@ -160283,6 +160367,8 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
       category,
       room_ids,
       required_amenity_ids,
+      companion_bookable_unit_id,
+      preferred_ebike_size,
       active, mandatory, is_external, source, linked_shop_product_id, user_id
     ) VALUES (
       $1, $2, $3::jsonb, $4::jsonb, $5, 'per_booking',
@@ -160294,6 +160380,8 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
       $17,
       $18,
       $19,
+      $20,
+      $21,
       $12, false, false, 'shop_link', $13, $14
     ) RETURNING id
   `, [
@@ -160313,7 +160401,10 @@ async function syncShopProductUpsellMirror(productRow, clientId) {
     productRow.min_notice_hours || null,
     productRow.included_nights_per_unit || null,
     productRow.category || 'Events',
-    roomIdsCsv
+    roomIdsCsv,
+    amenityIds,
+    productRow.companion_bookable_unit_id || null,
+    productRow.preferred_ebike_size ? String(productRow.preferred_ebike_size).toUpperCase() : null,
   ]);
   const newUpsellId = ins.rows[0].id;
   await pool.query('UPDATE shop_products SET linked_upsell_id = $1 WHERE id = $2', [newUpsellId, productRow.id]);
