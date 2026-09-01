@@ -107613,7 +107613,53 @@ app.post('/api/public/ebike-hire/checkout', async (req, res) => {
                   <p style="line-height:1.6;">Bring photo ID at pickup. We'll walk you through the bike + safety kit when you arrive.</p>
                 </div>
               `,
-            }).catch(e => console.warn('[ebike inline] email failed:', e.message));
+            }).catch(e => console.warn('[ebike inline] guest email failed:', e.message));
+
+            // Owner notification — reception needs to know a bike is booked
+            // so they can hand it over + click the mint-code button. Same
+            // shape as the webhook branch but fired inline since Elements
+            // flow doesn't go through checkout.session.completed.
+            (async () => {
+              try {
+                const ctx = await pool.query(
+                  `SELECT COALESCE(NULLIF(p.email, ''), NULLIF(p.contact_email, ''), a.email) AS owner_email
+                     FROM properties p LEFT JOIN accounts a ON a.id = p.account_id
+                    WHERE p.id = $1 LIMIT 1`, [b.property_id]);
+                const ownerEmail = ctx.rows[0]?.owner_email;
+                if (!ownerEmail) return;
+                const arrStr = b.arrival_date instanceof Date ? b.arrival_date.toISOString().slice(0,10) : b.arrival_date;
+                const depStr = b.departure_date instanceof Date ? b.departure_date.toISOString().slice(0,10) : b.departure_date;
+                const guestName = [b.guest_first_name, b.guest_last_name].filter(Boolean).join(' ') || 'A guest';
+                await sendEmail({
+                  to: [ownerEmail],
+                  accountId: q.account_id,
+                  subject: `[E-Bike hire] ${guestName} · ${sizeRow.size} · ${arrStr} → ${depStr}`,
+                  html: `
+                    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1e293b;">
+                      <h2 style="margin:0 0 16px;color:#0f172a;">🚴 New e-bike hire</h2>
+                      <table style="border-collapse:collapse;font-size:14px;">
+                        <tr><td style="padding:4px 12px;color:#64748b;">Guest</td><td style="padding:4px 12px;"><strong>${guestName}</strong></td></tr>
+                        <tr><td style="padding:4px 12px;color:#64748b;">Email</td><td style="padding:4px 12px;">${b.guest_email || '—'}</td></tr>
+                        <tr><td style="padding:4px 12px;color:#64748b;">Size</td><td style="padding:4px 12px;"><strong>${sizeRow.size}</strong></td></tr>
+                        <tr><td style="padding:4px 12px;color:#64748b;">Pickup</td><td style="padding:4px 12px;"><strong>${arrStr}</strong> at 10:00</td></tr>
+                        <tr><td style="padding:4px 12px;color:#64748b;">Return</td><td style="padding:4px 12px;"><strong>${depStr}</strong> by 18:30</td></tr>
+                        <tr><td style="padding:4px 12px;color:#64748b;">Total paid</td><td style="padding:4px 12px;">${symbol}${Number(b.total_amount || 0).toFixed(2)} ${b.currency}</td></tr>
+                        <tr><td style="padding:4px 12px;color:#64748b;">Booking</td><td style="padding:4px 12px;">GAS-${bookingId}</td></tr>
+                      </table>
+                      <div style="margin-top:1.25rem;padding:0.85rem 1rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;">
+                        <strong style="color:#9a3412;">When the guest arrives:</strong>
+                        <ol style="margin:0.5rem 0 0;padding-left:1.25rem;color:#7c2d12;font-size:0.9rem;">
+                          <li>Open GAS Admin → Bookings → find GAS-${bookingId}</li>
+                          <li>Hand over the bike + safety kit</li>
+                          <li>Click the orange <strong>🚴 Bike collected — issue return code</strong> button</li>
+                          <li>Guest gets a TTLock code emailed for returning the bike</li>
+                        </ol>
+                      </div>
+                    </div>
+                  `,
+                });
+              } catch (ownerErr) { console.warn('[ebike inline] owner email failed:', ownerErr.message); }
+            })();
           }
           return res.json({
             success: true,
@@ -164363,6 +164409,64 @@ app.post('/api/webhooks/stripe-bike-storage', express.raw({ type: 'application/j
       // Don't fail the webhook — Stripe would retry and we don't want
       // to flip the booking again. Just log so the operator can resend.
       console.error(`[${isEbikeHire ? 'EBIKE-HIRE' : 'BIKE-STORAGE'}] Confirmation email failed:`, emailErr.message);
+    }
+
+    // E-bike owner notification — hostel staff need to know a bike hire
+    // has landed so they can expect the guest at reception and hit the
+    // "🚴 Bike collected" button to mint the return code. Fire-and-forget:
+    // an email failure mustn't retry the whole webhook.
+    if (isEbikeHire) {
+      try {
+        const ctx = await pool.query(
+          `SELECT COALESCE(NULLIF(p.email, ''), NULLIF(p.contact_email, ''), a.email) AS owner_email
+             FROM properties p
+             LEFT JOIN accounts a ON a.id = p.account_id
+            WHERE p.id = $1
+            LIMIT 1`,
+          [b.property_id]
+        );
+        const ownerEmail = ctx.rows[0]?.owner_email;
+        if (ownerEmail) {
+          const arrStr = b.arrival_date instanceof Date ? b.arrival_date.toISOString().slice(0,10) : b.arrival_date;
+          const depStr = b.departure_date instanceof Date ? b.departure_date.toISOString().slice(0,10) : b.departure_date;
+          const guestName = [b.guest_first_name, b.guest_last_name].filter(Boolean).join(' ') || 'A guest';
+          const size = session.metadata?.gas_size || 'E-Bike';
+          const adminUrl = 'https://admin.gas.travel/gas-admin.html#bookings/' + bookingId;
+          await sendEmail({
+            to: [ownerEmail],
+            accountId: b.account_id,
+            subject: `[E-Bike hire] ${guestName} · ${size} · ${arrStr} → ${depStr}`,
+            html: `
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1e293b;">
+                <h2 style="margin:0 0 16px;color:#0f172a;">🚴 New e-bike hire</h2>
+                <table style="border-collapse:collapse;font-size:14px;">
+                  <tr><td style="padding:4px 12px;color:#64748b;">Guest</td><td style="padding:4px 12px;"><strong>${guestName}</strong></td></tr>
+                  <tr><td style="padding:4px 12px;color:#64748b;">Email</td><td style="padding:4px 12px;">${b.guest_email || '—'}</td></tr>
+                  <tr><td style="padding:4px 12px;color:#64748b;">Size</td><td style="padding:4px 12px;"><strong>${size}</strong></td></tr>
+                  <tr><td style="padding:4px 12px;color:#64748b;">Pickup</td><td style="padding:4px 12px;"><strong>${arrStr}</strong> at 10:00</td></tr>
+                  <tr><td style="padding:4px 12px;color:#64748b;">Return</td><td style="padding:4px 12px;"><strong>${depStr}</strong> by 18:30</td></tr>
+                  <tr><td style="padding:4px 12px;color:#64748b;">Total paid</td><td style="padding:4px 12px;">${symbol}${totalPaidAll.toFixed(2)} ${b.currency}</td></tr>
+                  <tr><td style="padding:4px 12px;color:#64748b;">Booking</td><td style="padding:4px 12px;">GAS-${bookingId}</td></tr>
+                </table>
+                <div style="margin-top:1.25rem;padding:0.85rem 1rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;">
+                  <strong style="color:#9a3412;">When the guest arrives:</strong>
+                  <ol style="margin:0.5rem 0 0;padding-left:1.25rem;color:#7c2d12;font-size:0.9rem;">
+                    <li>Open GAS Admin → Bookings → find GAS-${bookingId}</li>
+                    <li>Hand over the bike + safety kit</li>
+                    <li>Click the orange <strong>🚴 Bike collected — issue return code</strong> button</li>
+                    <li>Guest gets a TTLock code emailed for returning the bike to the locker</li>
+                  </ol>
+                </div>
+              </div>
+            `,
+          });
+          console.log('[EBIKE-HIRE] Owner notification sent for booking', bookingId);
+        } else {
+          console.warn('[EBIKE-HIRE] No owner email on file for property', b.property_id, '— booking', bookingId);
+        }
+      } catch (ownerErr) {
+        console.error('[EBIKE-HIRE] Owner notification failed:', ownerErr.message);
+      }
     }
 
     // Phase D — TTLock period passcode generation. Loop over every booking
