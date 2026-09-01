@@ -10363,6 +10363,52 @@ app.get('/api/admin/bookable-units/:id/individual-units', async (req, res) => {
   }
 });
 
+// Manual sub-unit seeder for non-Beds24 rooms (Rental Items, GAS-native
+// dorms, etc.). Creates individual_units up to the parent's Quantity, one
+// per missing slot. Existing sub-units are left alone. Steve 2026-09-01 —
+// bike-store rooms don't sync from Beds24 so the empty-state "Sync from
+// Beds24" message doesn't apply.
+app.post('/api/admin/bookable-units/:id/individual-units/seed', async (req, res) => {
+  try {
+    const bookableUnitId = parseInt(req.params.id);
+    if (!bookableUnitId) return res.status(400).json({ success: false, error: 'Invalid room id' });
+    const bu = await pool.query(
+      `SELECT id, name, quantity FROM bookable_units WHERE id = $1`,
+      [bookableUnitId]
+    );
+    if (!bu.rows[0]) return res.status(404).json({ success: false, error: 'Room not found' });
+    const targetQty = Math.max(1, parseInt(bu.rows[0].quantity) || 1);
+    const existing = await pool.query(
+      `SELECT unit_number FROM individual_units WHERE bookable_unit_id = $1`,
+      [bookableUnitId]
+    );
+    const usedNumbers = new Set(existing.rows.map(r => parseInt(r.unit_number)).filter(n => Number.isFinite(n)));
+    const baseName = req.body?.base_name?.trim() || bu.rows[0].name || 'Unit';
+    let created = 0;
+    for (let n = 1; n <= targetQty; n++) {
+      if (usedNumbers.has(n)) continue;
+      const unitName = targetQty === 1 ? baseName : `${baseName} ${n}`;
+      await pool.query(
+        `INSERT INTO individual_units (bookable_unit_id, unit_name, unit_number, is_available, created_at, updated_at)
+         VALUES ($1, $2, $3, true, NOW(), NOW())
+         ON CONFLICT (bookable_unit_id, unit_name) DO NOTHING`,
+        [bookableUnitId, unitName, String(n)]
+      );
+      created++;
+    }
+    const after = await pool.query(
+      `SELECT id, bookable_unit_id, unit_name, unit_number, status, is_available, notes
+         FROM individual_units WHERE bookable_unit_id = $1
+        ORDER BY NULLIF(regexp_replace(unit_number, '\\D', '', 'g'), '')::int NULLS LAST, unit_name`,
+      [bookableUnitId]
+    );
+    res.json({ success: true, created, units: after.rows });
+  } catch (error) {
+    console.error('[individual-units/seed]', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Update an individual unit — guest-facing rename + ops state.
 app.put('/api/admin/individual-units/:id', async (req, res) => {
   try {

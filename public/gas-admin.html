@@ -84475,7 +84475,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const units = (data.success && data.units) ? data.units : [];
                 counter.textContent = `${units.length} of ${quantity}`;
                 if (units.length === 0) {
-                    list.innerHTML = `<div style="color:#92400e; background:#fef3c7; padding:0.5rem; border-radius:6px; font-size:0.85rem;">No sub-units exist yet for this room. Run "Sync units from Beds24" on the connection to populate them.</div>`;
+                    // Beds24-connected rooms auto-populate via room sync.
+                    // GAS-native rooms (Rental Items, direct dorms, etc.)
+                    // seed via the button below — creates one sub-unit per
+                    // Quantity slot with default names ("Bike A 1", "Bike A 2").
+                    // Operator then renames each row to whatever they want.
+                    list.innerHTML = `<div style="color:#92400e; background:#fef3c7; padding:0.75rem; border-radius:6px; font-size:0.85rem;">
+                        <div style="margin-bottom:0.5rem;">No sub-units yet. For Beds24-connected rooms use "Sync units from Beds24" on the connection. For everything else:</div>
+                        <button type="button" onclick="seedRoomIndividualUnits(${roomId}, ${quantity}, this)" class="btn btn-small" style="background:#0f172a; color:#fff; border:none; border-radius:6px; padding:6px 12px; font-size:0.8rem; cursor:pointer;">➕ Create ${quantity} sub-unit${quantity === 1 ? '' : 's'} now</button>
+                    </div>`;
                     return;
                 }
                 list.innerHTML = units.map(u => `
@@ -84493,6 +84501,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                 `).join('');
             } catch (err) {
                 list.innerHTML = `<div style="color:#dc2626;">Error loading units: ${err.message}</div>`;
+            }
+        }
+
+        // Seed sub-units for a non-Beds24 room. Steve 2026-09-01 — bike-store
+        // rooms + any GAS-native Rental Item need to create individual_units
+        // manually since there's no CM to sync from. Creates rows named after
+        // the room + a running index; operator renames each afterwards.
+        async function seedRoomIndividualUnits(roomId, quantity, btn) {
+            const originalText = btn.textContent;
+            btn.disabled = true; btn.textContent = 'Creating…';
+            try {
+                const r = await fetch(`/api/admin/bookable-units/${roomId}/individual-units/seed`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({})
+                });
+                const data = await r.json();
+                if (!data.success) throw new Error(data.error || 'seed failed');
+                // Reload the sub-units list so the freshly created rows render
+                // + are inline-editable.
+                loadRoomIndividualUnits(roomId, quantity);
+            } catch (e) {
+                btn.disabled = false; btn.textContent = originalText;
+                alert('Could not create sub-units: ' + e.message);
             }
         }
 
