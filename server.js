@@ -75838,6 +75838,31 @@ app.post('/api/admin/upsells', async (req, res) => {
   }
 });
 
+// Slice helper: set the two ebike-specific columns on an upsell without
+// having to plumb them through the big PUT above. Steve 2026-09-01 —
+// used to seed Hebden's e-bike upsells until the Upsells admin form
+// gains proper fields.
+app.post('/api/admin/upsells/:id/ebike-setup', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, error: 'invalid id' });
+    const { companion_bookable_unit_id, preferred_ebike_size } = req.body || {};
+    const r = await pool.query(
+      `UPDATE upsells
+          SET companion_bookable_unit_id = COALESCE($1, companion_bookable_unit_id),
+              preferred_ebike_size = COALESCE($2, preferred_ebike_size),
+              updated_at = NOW()
+        WHERE id = $3
+        RETURNING id, name, companion_bookable_unit_id, preferred_ebike_size`,
+      [companion_bookable_unit_id || null, preferred_ebike_size ? String(preferred_ebike_size).toUpperCase() : null, id]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Upsell not found' });
+    res.json({ success: true, upsell: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.put('/api/admin/upsells/:id', async (req, res) => {
   try {
     // Ensure multilingual columns exist
