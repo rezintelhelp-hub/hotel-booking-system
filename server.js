@@ -106990,20 +106990,29 @@ async function _ebikeHireTierPrice(roomId, standardPricePerNight, nights) {
   );
   const offer = oRes.rows[0];
   if (!offer) return null;
-  let perNight;
+  // Tier heuristic: when min_nights == max_nights, the operator has set up
+  // a per-tier offer ("3-day hire") and a fixed discount is meant as a
+  // TOTAL off, not per-night. Matches how operators set them up in the UI
+  // ("£20 off for the 3-day tier" → net £70 on £30/night × 3). Percentage
+  // and Replace-Standard-Rate offers are unaffected — they compute per-night
+  // and multiply, same shape either way.
+  const isTierOffer = offer.min_nights != null && offer.max_nights != null && offer.min_nights === offer.max_nights;
+  let total;
   if (offer.price_per_night != null) {
-    perNight = Number(offer.price_per_night);
+    total = Number(offer.price_per_night) * nights;
   } else if (offer.discount_type === 'percentage') {
-    perNight = standardPricePerNight * (1 - Number(offer.discount_value) / 100);
+    total = standardPricePerNight * nights * (1 - Number(offer.discount_value) / 100);
   } else if (offer.discount_type === 'fixed') {
-    perNight = standardPricePerNight - Number(offer.discount_value);
+    total = isTierOffer
+      ? (standardPricePerNight * nights - Number(offer.discount_value))
+      : ((standardPricePerNight - Number(offer.discount_value)) * nights);
   } else {
-    perNight = standardPricePerNight;
+    total = standardPricePerNight * nights;
   }
-  perNight = Math.max(0, Math.round(perNight * 100) / 100);
+  total = Math.max(0, Math.round(total * 100) / 100);
   return {
-    total: Math.round(perNight * nights * 100) / 100,
-    per_night: perNight,
+    total,
+    per_night: nights > 0 ? Math.round((total / nights) * 100) / 100 : 0,
     offer_id: offer.id,
     offer_name: offer.name,
   };
