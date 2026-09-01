@@ -107131,6 +107131,23 @@ async function _ebikeHireQuote(propertyId, checkIn, checkOut) {
     if (!bySize.has(size)) bySize.set(size, []);
     bySize.get(size).push({ id: s.id, name: s.unit_name, bookable_unit_id: s.bookable_unit_id });
   }
+  // Resolve size → shop_product for the "Book a room too" CTA. Each shop
+  // product marked as a booking_addon whose name contains a matching size
+  // token becomes the linked_product we hand to /book-now/. Zero schema
+  // changes — piggybacks on the same size-parsing regex used for sub-units.
+  const spRes = await pool.query(
+    `SELECT id, name, slug FROM shop_products
+      WHERE account_id = $1
+        AND is_active = true
+        AND product_type = 'booking_addon'`,
+    [accountId]
+  );
+  const shopBySize = new Map();
+  for (const sp of spRes.rows) {
+    const s = _parseEbikeSize(sp.name) || _parseEbikeSize(sp.slug);
+    if (s && !shopBySize.has(s)) shopBySize.set(s, sp.id);
+  }
+
   const sizes = Array.from(bySize.entries())
     .map(([size, units]) => ({
       size,
@@ -107140,6 +107157,7 @@ async function _ebikeHireQuote(propertyId, checkIn, checkOut) {
       total_price: tier.total,
       per_night_price: tier.per_night,
       currency,
+      linked_shop_product_id: shopBySize.get(size) || null,
     }))
     .sort((a, b) => a.size.localeCompare(b.size));
 

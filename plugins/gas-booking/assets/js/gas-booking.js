@@ -12242,10 +12242,20 @@ jQuery(document).ready(function($) {
                     // linked to a room (nothing to add).
                     var cta = '';
                     if (!linkedParent) {
+                        // Look up the shop product that mirrors the picked
+                        // e-bike size so /book-now/ can bundle it as a single
+                        // Stripe charge with the room. Falls back to a plain
+                        // date-prefill URL when no booking_addon product is
+                        // wired up for this size.
+                        var sizeRow = (lastQuote && lastQuote.sizes || []).find(function(s) {
+                            return s.size.toLowerCase() === (pickedSize || '').toLowerCase();
+                        });
+                        var linkedId = sizeRow && sizeRow.linked_shop_product_id;
                         var bookNowUrl = window.location.origin + '/book-now/?checkin=' +
                             encodeURIComponent($checkin.val()) +
                             '&checkout=' + encodeURIComponent($checkout.val());
-                        cta = '<a href="' + bookNowUrl + '" class="gas-eh-book-btn" style="display:inline-block;padding:0.65rem 1.25rem;background:var(--button_color,#F97224);color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">🏠 Book a room for these dates →</a>';
+                        if (linkedId) bookNowUrl += '&linked_product=' + encodeURIComponent(linkedId);
+                        cta = '<a href="' + bookNowUrl + '" class="gas-eh-book-btn" style="display:inline-block;padding:0.65rem 1.25rem;background:var(--button_color,#F97224);color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">🏠 Book a room + keep this bike →</a>';
                     }
                     $container.find('.gas-eh-book-room-cta').html(cta);
                     $container.find('.gas-eh-step-success').show();
