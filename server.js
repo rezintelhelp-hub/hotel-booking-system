@@ -166539,6 +166539,33 @@ app.get('/api/admin/channex/writeback-health', async (req, res) => {
   }
 });
 
+// Dismiss a failed writeback row. Flips status to 'dismissed' + notes the
+// operator id so it drops off the dashboard's failure count without being
+// silently lost. Use when a failure is diagnosed as benign / expected
+// (e.g. Charles House direct-booking booking_create race with availability
+// push, 2026-09-01 — GAS-933839). Master-admin only.
+app.post('/api/admin/channex/outbox/:id/dismiss', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const id = parseInt(req.params.id);
+    if (!id) return res.json({ success: false, error: 'Invalid outbox id' });
+    const r = await pool.query(
+      `UPDATE gas_channex_outbox
+          SET status = 'dismissed',
+              last_error = COALESCE(last_error, '') || ' | dismissed by user ' || $2 || ' at ' || NOW(),
+              processed_at = COALESCE(processed_at, NOW())
+        WHERE id = $1 AND status = 'failed'
+        RETURNING id, status`,
+      [id, decoded.id || 0]
+    );
+    if (r.rows.length === 0) return res.json({ success: false, error: 'Row not found or not in failed state.' });
+    res.json({ success: true, row: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Detail lister behind the writeback-health "failed" counter. Given an
 // account_id (or a connection_id), returns the actual failed outbox rows
 // with last_error + linked booking so we can diagnose without shelling in.
