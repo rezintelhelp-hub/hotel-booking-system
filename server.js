@@ -112068,17 +112068,19 @@ app.post('/api/public/book', async (req, res) => {
     }
     // ========== END PARTNER WEBHOOKS ==========
 
-    // ========== PUSH BOOKING TO CHANNEX (one-way mirror) ==========
-    // No-op if the booking's room isn't mapped to a Channex connection or no
-    // currency-matching rate plan exists. Asynchronous via outbox so a
-    // Channex outage doesn't block the booking confirmation.
-    try {
-      const { enqueueBookingPush } = require('./gas-sync/channex-outbox');
-      await enqueueBookingPush(pool, newBooking.id, 'booking_create');
-    } catch (channexErr) {
-      console.error(`[channex-outbox] enqueue (booking-create) failed for ${newBooking.id}:`, channexErr.message);
-      // Booking still succeeds — Channex sync is a backup, not a blocker.
-    }
+    // ========== CHANNEX BOOKING_CREATE PUSH — REMOVED 2026-09-01 ==========
+    // Steve confirmed policy: direct bookings do NOT push booking_create to
+    // Channex. Availability decrement (fired elsewhere on booking insert)
+    // already blocks the room on every Channex-connected OTA — that's the
+    // source-of-truth push, and it merges Beds24 sales too (Channex can't
+    // see Beds24). booking_create was a redundant second push that also
+    // raced: availability push wins first → sets remaining=0 → booking_create
+    // arrives → Channex 403s because inventory is closed. Historical
+    // example: GAS-933839 (Charles House, 2026-08-31).
+    // Client never sees Channex, so the "revenue row in Channex UI" nice-to-have
+    // isn't worth the noise on the writeback health dashboard.
+    // Explicit push button in admin (/api/admin/bookings/:id/push-to-channex)
+    // is unchanged for the rare case an operator wants to force it.
     // ========== END CHANNEX PUSH ==========
 
     // ========== CHARGEAUTOMATION PUSH (fire-and-forget) ==========
