@@ -11936,6 +11936,7 @@ jQuery(document).ready(function($) {
                 '      </div>' +
                 '      <input name="email" type="email" placeholder="Email *">' +
                 '      <input name="phone" type="tel" placeholder="Phone (optional)">' +
+                '      <div class="gas-eh-card-mount" style="margin:0.75rem 0;padding:0.75rem;border:1px solid #cbd5e1;border-radius:8px;background:#fff;"></div>' +
                 '      <button type="submit" class="gas-eh-book-btn">Book and pay</button>' +
                 '      <div class="gas-eh-form-error"></div>' +
                 '    </form>' +
@@ -12006,7 +12007,40 @@ jQuery(document).ready(function($) {
             $container.on('click', '.gas-eh-size-card:not(.unavailable)', function() {
                 pickedSize = $(this).data('size');
                 renderSizes();
+                // Mount Stripe Card element the first time a size is picked
+                // (form + card together). Non-blocking — on failure we tell
+                // the guest but still let them try again.
+                ensureStripeMounted().catch(function(err) {
+                    $container.find('.gas-eh-form-error').html('<div style="color:#b91c1c">' + err.message + '</div>');
+                });
             });
+
+            // Stripe Elements is instantiated lazily when the guest arrives
+            // at step 2 (size picker). Cached per widget instance.
+            var stripeInstance = null;
+            var stripeCardEl = null;
+            function loadStripeJs() {
+                return new Promise(function(resolve, reject) {
+                    if (window.Stripe) return resolve(window.Stripe);
+                    var s = document.createElement('script');
+                    s.src = 'https://js.stripe.com/v3/';
+                    s.onload = function() { resolve(window.Stripe); };
+                    s.onerror = function() { reject(new Error('Failed to load Stripe.js')); };
+                    document.head.appendChild(s);
+                });
+            }
+            function ensureStripeMounted() {
+                if (stripeCardEl) return Promise.resolve();
+                if (!lastQuote || !lastQuote.stripe_publishable_key) {
+                    return Promise.reject(new Error('Payments not configured for this property.'));
+                }
+                return loadStripeJs().then(function() {
+                    stripeInstance = window.Stripe(lastQuote.stripe_publishable_key);
+                    var elements = stripeInstance.elements();
+                    stripeCardEl = elements.create('card', { hidePostalCode: true });
+                    stripeCardEl.mount($container.find('.gas-eh-card-mount')[0]);
+                });
+            }
 
             $container.on('click', '.gas-eh-check-btn', function() {
                 var checkin = $checkin.val();
@@ -12064,35 +12098,63 @@ jQuery(document).ready(function($) {
                     $err.html('<div style="color:#b91c1c">Pick a size first.</div>');
                     return;
                 }
+                if (!stripeInstance || !stripeCardEl) {
+                    $err.html('<div style="color:#b91c1c">Card entry not ready — refresh and try again.</div>');
+                    return;
+                }
                 $err.html('');
-                $btn.prop('disabled', true).text('Redirecting to payment…');
-                $.ajax({
-                    url: apiUrl + '/api/public/ebike-hire/checkout',
-                    method: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({
-                        property_id: propertyId,
-                        check_in: $checkin.val(),
-                        check_out: $checkout.val(),
-                        size: pickedSize,
-                        guest_first_name: first,
-                        guest_last_name: last,
-                        guest_email: email,
-                        guest_phone: phone,
-                        source_site_url: window.location.origin + window.location.pathname
-                    }),
-                    dataType: 'json'
-                }).done(function(r) {
-                    if (r.success && r.checkout_url) {
-                        window.location.href = r.checkout_url;
-                    } else {
-                        $btn.prop('disabled', false).text('Book and pay');
-                        $err.html('<div style="color:#b91c1c">' + (r.error || 'Could not start checkout') + '</div>');
+                $btn.prop('disabled', true).text('Processing…');
+
+                var payload = {
+                    property_id: propertyId,
+                    check_in: $checkin.val(),
+                    check_out: $checkout.val(),
+                    size: pickedSize,
+                    guest_first_name: first,
+                    guest_last_name: last,
+                    guest_email: email,
+                    guest_phone: phone,
+                    source_site_url: window.location.origin + window.location.pathname
+                };
+
+                // Card tokenise → server charges with PaymentIntent →
+                // handle SCA if the bank asks → success screen.
+                stripeInstance.createPaymentMethod({ type: 'card', card: stripeCardEl }).then(function(res) {
+                    if (res.error) throw new Error(res.error.message);
+                    payload.payment_method_id = res.paymentMethod.id;
+                    return $.ajax({
+                        url: apiUrl + '/api/public/ebike-hire/checkout',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(payload),
+                        dataType: 'json'
+                    });
+                }).then(function(r) {
+                    if (r && r.requires_action && r.client_secret) {
+                        $btn.text('Verifying with your bank…');
+                        return stripeInstance.confirmCardPayment(r.client_secret).then(function(conf) {
+                            if (conf.error) throw new Error(conf.error.message);
+                            return $.ajax({
+                                url: apiUrl + '/api/public/ebike-hire/checkout',
+                                method: 'POST',
+                                contentType: 'application/json',
+                                data: JSON.stringify(Object.assign({}, payload, {
+                                    payment_intent_id: conf.paymentIntent.id
+                                })),
+                                dataType: 'json'
+                            });
+                        });
                     }
-                }).fail(function(x) {
+                    return r;
+                }).then(function(r) {
+                    if (!r || !r.success || !r.paid) {
+                        throw new Error((r && r.error) || 'Payment failed.');
+                    }
+                    $container.find('.gas-eh-step').hide();
+                    $container.find('.gas-eh-step-success').show();
+                }).catch(function(err) {
                     $btn.prop('disabled', false).text('Book and pay');
-                    var em = (x.responseJSON && x.responseJSON.error) ? x.responseJSON.error : 'Network error';
-                    $err.html('<div style="color:#b91c1c">' + em + '</div>');
+                    $err.html('<div style="color:#b91c1c">' + (err && err.message ? err.message : 'Payment failed. Try again.') + '</div>');
                 });
             });
         });

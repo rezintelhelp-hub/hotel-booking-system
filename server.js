@@ -107102,6 +107102,27 @@ async function _ebikeHireQuote(propertyId, checkIn, checkOut) {
     }))
     .sort((a, b) => a.size.localeCompare(b.size));
 
+  // Publishable key resolution so the widget can init Stripe Elements
+  // without a second round-trip. Same 3-place lookup as the secret key.
+  let publishableKey = null;
+  const acctPk = await pool.query(`SELECT stripe_publishable_key FROM accounts WHERE id = $1`, [accountId]);
+  if (acctPk.rows[0]?.stripe_publishable_key) publishableKey = acctPk.rows[0].stripe_publishable_key;
+  if (!publishableKey) {
+    const pcPk = await pool.query(
+      `SELECT credentials FROM payment_configurations
+        WHERE account_id = $1 AND provider = 'stripe' AND is_enabled = true
+        ORDER BY property_id NULLS FIRST LIMIT 1`,
+      [accountId]
+    );
+    const creds = pcPk.rows[0]?.credentials;
+    const parsed = typeof creds === 'string' ? (() => { try { return JSON.parse(creds); } catch (_) { return null; } })() : creds;
+    if (parsed?.publishable_key) publishableKey = parsed.publishable_key;
+  }
+  if (!publishableKey) {
+    const propPk = await pool.query(`SELECT stripe_publishable_key FROM properties WHERE id = $1`, [propertyId]);
+    if (propPk.rows[0]?.stripe_publishable_key) publishableKey = propPk.rows[0].stripe_publishable_key;
+  }
+
   return {
     ok: true,
     property_id: propertyId,
@@ -107115,6 +107136,7 @@ async function _ebikeHireQuote(propertyId, checkIn, checkOut) {
     tier_name: tier.offer_name,
     pickup_time: '10:00',
     return_time: '18:00',
+    stripe_publishable_key: publishableKey,
   };
 }
 
@@ -107137,6 +107159,8 @@ app.post('/api/public/ebike-hire/checkout', async (req, res) => {
       check_in, check_out, size,
       guest_first_name, guest_last_name, guest_email, guest_phone,
       source_site_url,
+      payment_method_id,  // inline branch — Stripe Elements PaymentMethod id
+      payment_intent_id,  // SCA finish — retrieve already-succeeded PI
     } = req.body || {};
     if (!size) return res.status(400).json({ success: false, error: 'Pick a size' });
     if (!guest_email || !guest_first_name || !guest_last_name) {
@@ -107204,9 +107228,115 @@ app.post('/api/public/ebike-hire/checkout', async (req, res) => {
       return res.status(503).json({ success: false, error: 'Payment not set up for this property — contact the host directly.' });
     }
     const stripe = require('stripe')(stripeSecret);
-
     const baseUrl = (source_site_url || '').replace(/\/+$/, '') || 'https://admin.gas.travel';
     const unitAmount = Math.round(sizeRow.total_price * 100);
+
+    // ── INLINE PAYMENT BRANCH (Stripe Elements) ───────────────────────────
+    // When the widget supplies payment_method_id, we charge via PaymentIntent
+    // on the same page — no redirect to Stripe hosted Checkout. Post-charge
+    // the same bike-storage webhook fires via payment_intent.succeeded (the
+    // webhook already routes on gas_kind metadata). Fallback to Checkout
+    // Session below when payment_method_id is absent.
+    if (payment_method_id || payment_intent_id) {
+      try {
+        let intent;
+        if (payment_intent_id) {
+          intent = await stripe.paymentIntents.retrieve(payment_intent_id);
+          if (intent.status !== 'succeeded') {
+            return res.status(402).json({ success: false, error: 'Payment did not complete.' });
+          }
+        } else {
+          intent = await stripe.paymentIntents.create({
+            amount: unitAmount,
+            currency: q.currency.toLowerCase(),
+            payment_method: payment_method_id,
+            confirmation_method: 'automatic',
+            confirm: true,
+            return_url: baseUrl + '/ebike-hire/?paid=1',
+            metadata: {
+              gas_booking_id: String(bookingId),
+              gas_booking_ids: String(bookingId),
+              gas_kind: 'ebike_hire',
+              gas_unit_id: String(pickedSubUnit.bookable_unit_id),
+              gas_individual_unit_id: String(pickedSubUnit.id),
+              gas_account_id: String(q.account_id),
+              gas_size: sizeRow.size,
+            },
+          });
+        }
+        await pool.query(
+          `UPDATE bookings SET stripe_payment_intent_id = $1, updated_at = NOW() WHERE id = $2`,
+          [intent.id, bookingId]
+        ).catch(() => {});
+        if (intent.status === 'requires_action' || intent.status === 'requires_source_action') {
+          return res.json({
+            success: true,
+            requires_action: true,
+            client_secret: intent.client_secret,
+            payment_intent_id: intent.id,
+            booking_id: bookingId,
+          });
+        }
+        if (intent.status === 'succeeded') {
+          // Inline flip — don't wait on the webhook. The webhook (if
+          // configured) is idempotent thanks to the `payment_status != 'paid'`
+          // guard, so a double-fire from Stripe won't send two emails.
+          const upd = await pool.query(
+            `UPDATE bookings
+                SET status='confirmed', payment_status='paid',
+                    stripe_payment_intent_id=$1, confirmed_time=NOW(), updated_at=NOW()
+              WHERE id=$2 AND payment_status != 'paid'
+              RETURNING guest_first_name, guest_last_name, guest_email,
+                        arrival_date, departure_date, currency, total_amount,
+                        bookable_unit_id, property_id`,
+            [intent.id, bookingId]
+          );
+          if (upd.rows[0]) {
+            const b = upd.rows[0];
+            const propRow = await pool.query(`SELECT name AS property_name FROM properties WHERE id = $1`, [b.property_id]);
+            const propName = propRow.rows[0]?.property_name || '';
+            const symbol = (b.currency === 'GBP') ? '£' : (b.currency === 'EUR' ? '€' : (b.currency === 'USD' ? '$' : ''));
+            sendEmail({
+              to: [b.guest_email],
+              accountId: q.account_id,
+              subject: `Your e-bike hire at ${propName || 'the hostel'} is confirmed`,
+              html: `
+                <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1e293b;">
+                  <h2 style="margin:0 0 16px;color:#0f172a;">✓ E-Bike hire confirmed</h2>
+                  <p style="line-height:1.6;">Hi ${b.guest_first_name || 'there'},</p>
+                  <p style="line-height:1.6;">Your e-bike hire at <strong>${propName}</strong> is booked.</p>
+                  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:20px 0;">
+                    <div><strong>${sizeRow.size}:</strong> ${b.arrival_date instanceof Date ? b.arrival_date.toISOString().slice(0,10) : b.arrival_date} → ${b.departure_date instanceof Date ? b.departure_date.toISOString().slice(0,10) : b.departure_date}</div>
+                    <div style="margin-top:8px;color:#64748b;font-size:0.9rem;">Pickup from 10:00 · return by 18:00</div>
+                    <div style="margin-top:8px;"><strong>Total paid:</strong> ${symbol}${Number(b.total_amount || 0).toFixed(2)} ${b.currency}</div>
+                  </div>
+                  <p style="line-height:1.6;">Bring photo ID at pickup. We'll walk you through the bike + safety kit when you arrive.</p>
+                </div>
+              `,
+            }).catch(e => console.warn('[ebike inline] email failed:', e.message));
+          }
+          return res.json({
+            success: true,
+            paid: true,
+            payment_intent_id: intent.id,
+            booking_id: bookingId,
+            picked_bike: pickedSubUnit.name,
+            size: sizeRow.size,
+            total_price: sizeRow.total_price,
+            currency: q.currency,
+          });
+        }
+        return res.json({ success: false, error: `Unexpected payment status: ${intent.status}` });
+      } catch (payErr) {
+        await pool.query(
+          `UPDATE bookings SET status = 'cancelled', payment_status = 'failed', sync_errors = $1 WHERE id = $2`,
+          [`Inline payment failed: ${String(payErr.message || '').slice(0, 200)}`, bookingId]
+        ).catch(() => {});
+        return res.status(402).json({ success: false, error: payErr.message || 'Payment failed', code: payErr.code || 'payment_failed' });
+      }
+    }
+    // ── END INLINE PAYMENT BRANCH ────────────────────────────────────────
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [{
@@ -163724,15 +163854,29 @@ app.post('/api/webhooks/stripe-bike-storage', express.raw({ type: 'application/j
     }
     console.log('[BIKE-STORAGE] Webhook event:', event.type);
 
-    if (event.type !== 'checkout.session.completed') {
-      // We only care about completed sessions for now. Other event types
-      // (payment_intent.failed etc.) can be added later when the UX needs
-      // them — today the booking row just stays 'pending' until a paid
-      // event lands or the cleanup cron expires it.
+    // Accept BOTH:
+    //   checkout.session.completed  — Stripe hosted Checkout flow (bike-
+    //     storage widget + e-bike hire fallback)
+    //   payment_intent.succeeded    — inline Stripe Elements flow (e-bike
+    //     hire on-page checkout)
+    // We normalise both into a synthetic `session` shape so the rest of the
+    // handler doesn't have to branch on event type. PI events have metadata
+    // + payment_intent id directly; Checkout Sessions carry both nested.
+    if (!['checkout.session.completed', 'payment_intent.succeeded'].includes(event.type)) {
       return res.json({ received: true });
     }
 
-    const session = event.data.object;
+    let session;
+    if (event.type === 'checkout.session.completed') {
+      session = event.data.object;
+    } else {
+      const pi = event.data.object;
+      session = {
+        id: pi.id,
+        payment_intent: pi.id,
+        metadata: pi.metadata || {},
+      };
+    }
     // gas_kind covers three shapes now:
     //   'bike_storage'        - standalone bike storage rental
     //   'bike_storage_linked' - bike storage attached to an existing booking
