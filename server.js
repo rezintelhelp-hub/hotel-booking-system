@@ -114872,6 +114872,12 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       // sort. companion / upsell units stay hidden — they only appear on
       // dedicated pages via include_hidden=1.
       countQuery += ` AND (bu.unit_role IN ('room', 'exclusive_hire') OR bu.unit_role IS NULL)`;
+      // Rental Items (bikes, kayaks etc.) never belong on the default
+      // room-search listing — they live on dedicated hire pages loaded
+      // via [gas_rooms room_ids="X,Y" include_hidden="1"]. Filter here
+      // rather than at the unit_role level so operators can still tag
+      // them as standard rooms structurally.
+      countQuery += ` AND COALESCE(bu.room_type, '') <> 'rental_item'`;
     }
 
     const countResult = await pool.query(countQuery, countParams);
@@ -115033,6 +115039,9 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     }
     if (!includeHidden) {
       query += ` AND (bu.unit_role IN ('room', 'exclusive_hire') OR bu.unit_role IS NULL)`;
+      // Rental Items live on dedicated hire pages (see notes in the count
+      // query above). Applied here too so the main SELECT matches the count.
+      query += ` AND COALESCE(bu.room_type, '') <> 'rental_item'`;
     }
 
     // Order
