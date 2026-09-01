@@ -15095,7 +15095,7 @@ app.post('/api/admin/channex/:connectionId/push-property', async (req, res) => {
           -- channel managers — they're direct-hire only. Filtering here
           -- means an operator can't accidentally push a bike-room to
           -- Channex/Beds24 by clicking "Push property to Channex".
-          AND COALESCE(room_type, '') <> 'rental_item'
+          AND COALESCE(unit_type, '') <> 'rental_item'
         ORDER BY id`,
       [gas_property_id]
     );
@@ -107033,7 +107033,7 @@ async function _ebikeHireQuote(propertyId, checkIn, checkOut) {
        FROM bookable_units bu
        JOIN properties p ON p.id = bu.property_id
       WHERE bu.property_id = $1
-        AND bu.room_type = 'rental_item'
+        AND bu.unit_type = 'rental_item'
         AND COALESCE(bu.status, 'available') = 'available'
       ORDER BY bu.id`,
     [propertyId]
@@ -115191,7 +115191,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       // via [gas_rooms room_ids="X,Y" include_hidden="1"]. Filter here
       // rather than at the unit_role level so operators can still tag
       // them as standard rooms structurally.
-      countQuery += ` AND COALESCE(bu.room_type, '') <> 'rental_item'`;
+      countQuery += ` AND COALESCE(bu.unit_type, '') <> 'rental_item'`;
     }
 
     const countResult = await pool.query(countQuery, countParams);
@@ -115355,7 +115355,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       query += ` AND (bu.unit_role IN ('room', 'exclusive_hire') OR bu.unit_role IS NULL)`;
       // Rental Items live on dedicated hire pages (see notes in the count
       // query above). Applied here too so the main SELECT matches the count.
-      query += ` AND COALESCE(bu.room_type, '') <> 'rental_item'`;
+      query += ` AND COALESCE(bu.unit_type, '') <> 'rental_item'`;
     }
 
     // Order
