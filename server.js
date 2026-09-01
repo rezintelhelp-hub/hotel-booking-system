@@ -77696,13 +77696,15 @@ const REPORTS_REGISTRY = {
       { key: 'channel',       label: 'Channel',          format: 'text' },
       { key: 'bookings',      label: 'Bookings',         format: 'integer', align: 'right' },
       { key: 'nights',        label: 'Nights',           format: 'integer', align: 'right' },
-      { key: 'gross',         label: 'Gross',            format: 'currency', align: 'right' },
+      { key: 'turnover',      label: 'Turnover',         format: 'currency', align: 'right' },
       { key: 'accommodation', label: 'Accommodation',    format: 'currency', align: 'right' },
       { key: 'extras',        label: 'Extras',           format: 'currency', align: 'right' },
       { key: 'cleaning',      label: 'Cleaning',         format: 'currency', align: 'right' },
       { key: 'taxes',         label: 'Taxes',            format: 'currency', align: 'right' },
+      { key: 'commission',    label: 'Commission',       format: 'currency', align: 'right' },
+      { key: 'net_received',  label: 'Net Received',     format: 'currency', align: 'right' },
     ],
-    summary: { aggregates: ['bookings', 'nights', 'gross', 'accommodation', 'extras', 'cleaning', 'taxes'] },
+    summary: { aggregates: ['bookings', 'nights', 'turnover', 'accommodation', 'extras', 'cleaning', 'taxes', 'commission', 'net_received'] },
     sql: ({ accountId, params }) => {
       const args = [accountId, params.from, params.to];
       let statusFilter = `AND b.status = 'confirmed'`;
@@ -77718,6 +77720,19 @@ const REPORTS_REGISTRY = {
         args.push(parseInt(params.room_id));
         roomFilter = `AND b.bookable_unit_id = $${args.length}`;
       }
+      // Column meanings (Steve 2026-09-01 clarification):
+      //   turnover      = accommodation + extras + cleaning + taxes
+      //                   (what the guest paid — pre-commission)
+      //   accommodation = SUM(accommodation_price) (room portion, pre-commission
+      //                   for OTA bookings)
+      //   extras        = SUM(extras_total)
+      //   cleaning      = SUM(cleaning_fee)
+      //   taxes         = SUM(tax_amount)
+      //   net_received  = SUM(total_amount) — what the property actually
+      //                   receives after OTA commissions (Airbnb, BDC etc.)
+      //   commission    = turnover - net_received (the deduction)
+      // Old "Gross" column was actually net_received but labelled Gross —
+      // caused confusion because accommodation > gross on OTA rows.
       return {
         sql: `
           SELECT
@@ -77725,11 +77740,22 @@ const REPORTS_REGISTRY = {
             COALESCE(NULLIF(b.booking_source, ''), 'direct')             AS channel,
             COUNT(*)::int                                                AS bookings,
             COALESCE(SUM(b.nights_count), 0)::int                        AS nights,
-            COALESCE(SUM(b.total_amount), 0)::numeric(14,2)              AS gross,
+            (COALESCE(SUM(b.accommodation_price), 0)
+             + COALESCE(SUM(b.extras_total), 0)
+             + COALESCE(SUM(b.cleaning_fee), 0)
+             + COALESCE(SUM(b.tax_amount), 0))::numeric(14,2)            AS turnover,
             COALESCE(SUM(b.accommodation_price), 0)::numeric(14,2)       AS accommodation,
             COALESCE(SUM(b.extras_total), 0)::numeric(14,2)              AS extras,
             COALESCE(SUM(b.cleaning_fee), 0)::numeric(14,2)              AS cleaning,
-            COALESCE(SUM(b.tax_amount), 0)::numeric(14,2)                AS taxes
+            COALESCE(SUM(b.tax_amount), 0)::numeric(14,2)                AS taxes,
+            GREATEST(0,
+              (COALESCE(SUM(b.accommodation_price), 0)
+               + COALESCE(SUM(b.extras_total), 0)
+               + COALESCE(SUM(b.cleaning_fee), 0)
+               + COALESCE(SUM(b.tax_amount), 0))
+              - COALESCE(SUM(b.total_amount), 0)
+            )::numeric(14,2)                                             AS commission,
+            COALESCE(SUM(b.total_amount), 0)::numeric(14,2)              AS net_received
           FROM bookings b
           JOIN properties p ON p.id = b.property_id
           WHERE p.account_id = $1
