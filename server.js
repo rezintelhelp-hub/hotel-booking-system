@@ -74127,10 +74127,18 @@ app.get('/api/admin/offers/applicable', async (req, res) => {
       `SELECT * FROM offers
         WHERE active = true
           AND account_id = $1
-          AND ( property_id IS NULL OR property_id = $2
-                OR (property_ids IS NOT NULL AND $2 = ANY(property_ids)) )
-          AND ( room_id IS NULL OR room_id = $3
-                OR (room_ids IS NOT NULL AND $3 = ANY(room_ids)) )
+          AND (
+            -- property scope: open if NEITHER field set
+            (property_id IS NULL AND (property_ids IS NULL OR array_length(property_ids, 1) IS NULL))
+            OR property_id = $2
+            OR $2 = ANY(COALESCE(property_ids, ARRAY[]::int[]))
+          )
+          AND (
+            -- room scope: open if NEITHER field set
+            (room_id IS NULL AND (room_ids IS NULL OR array_length(room_ids, 1) IS NULL))
+            OR room_id = $3
+            OR $3 = ANY(COALESCE(room_ids, ARRAY[]::int[]))
+          )
           AND (min_nights IS NULL OR min_nights <= $4)
           AND (max_nights IS NULL OR max_nights >= $4)
           AND (min_guests IS NULL OR min_guests <= $5)
@@ -82878,13 +82886,25 @@ app.post('/api/pricing/calculate', async (req, res) => {
     const roomPropertyId = roomPropertyResult.rows[0]?.property_id;
     const roomAccountId = roomPropertyResult.rows[0]?.account_id || roomPropertyResult.rows[0]?.client_id;
     
-    // Get applicable offers - MUST match account_id to prevent cross-account bleeding
+    // Get applicable offers - MUST match account_id to prevent cross-account bleeding.
+    // Room scoping: an offer with EITHER room_id set OR room_ids[] set is scoped to
+    // those rooms only — this room must appear in one of them. When both are NULL/
+    // empty the offer applies to every room in the property. Old query only checked
+    // room_id (singular) which meant offers scoped via the newer room_ids array
+    // leaked onto every room (Hebden e-bike tier offers, 2026-09-01 incident).
     const offersResult = await pool.query(`
       SELECT * FROM offers
       WHERE active = true
       AND account_id = $7
       AND (property_id IS NULL OR property_id = $6)
-      AND (room_id IS NULL OR room_id = $1)
+      AND (
+        -- room-scope open: neither singular nor array set → applies to all rooms
+        (room_id IS NULL AND (room_ids IS NULL OR array_length(room_ids, 1) IS NULL))
+        -- OR the singular room_id matches
+        OR room_id = $1
+        -- OR the room_ids[] contains this room
+        OR $1 = ANY(COALESCE(room_ids, ARRAY[]::int[]))
+      )
       AND (min_nights IS NULL OR min_nights <= $2)
       AND (max_nights IS NULL OR max_nights >= $2)
       AND (min_guests IS NULL OR min_guests <= $3)
