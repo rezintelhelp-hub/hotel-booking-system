@@ -12022,6 +12022,31 @@ jQuery(document).ready(function($) {
                 // Hide form until a size is picked.
                 if (pickedSize) $container.find('.gas-eh-guest-form').show();
                 else $container.find('.gas-eh-guest-form').hide();
+
+                // 'Also book a room' entry-point — visible AFTER a size is
+                // picked (needs the linked_shop_product_id). Suppressed on
+                // linked-parent flow (guest already has a room). Uses the
+                // same shop linked_product mechanism so one Stripe transaction
+                // covers both room + bike.
+                var alsoHtml = '';
+                if (pickedSize && !linkedParent) {
+                    var pickedRow = lastQuote.sizes.find(function(x) { return x.size.toLowerCase() === pickedSize.toLowerCase(); });
+                    var linkedId = pickedRow && pickedRow.linked_shop_product_id;
+                    var bookNowUrl = window.location.origin + '/book-now/?checkin=' +
+                        encodeURIComponent(lastQuote.check_in) +
+                        '&checkout=' + encodeURIComponent(lastQuote.check_out);
+                    if (linkedId) bookNowUrl += '&linked_product=' + encodeURIComponent(linkedId);
+                    alsoHtml = '<div style="margin:0.75rem 0 1rem;padding:0.75rem 1rem;background:#f0fdf4;border:1px dashed #86efac;border-radius:8px;font-size:0.9rem;color:#166534;">' +
+                        '🏠 Booking a room too? <a href="' + bookNowUrl + '" style="color:#166534;font-weight:600;text-decoration:underline;">Book a room + this bike together →</a>' +
+                        '<div style="font-size:0.78rem;color:#166534;opacity:0.8;margin-top:0.25rem;">Pay for both in one go on the booking page.</div>' +
+                        '</div>';
+                }
+                var $alsoSlot = $container.find('.gas-eh-also-room');
+                if ($alsoSlot.length === 0) {
+                    $container.find('.gas-eh-sizes').after('<div class="gas-eh-also-room"></div>');
+                    $alsoSlot = $container.find('.gas-eh-also-room');
+                }
+                $alsoSlot.html(alsoHtml);
             }
 
             $container.on('click', '.gas-eh-size-card:not(.unavailable)', function() {

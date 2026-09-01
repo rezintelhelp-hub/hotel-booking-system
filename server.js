@@ -4179,6 +4179,11 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS ebike_pricing_tiers JSONB DEFAULT '[]'::jsonb`);
       console.log('✅ e-bike columns ensured (bookable_units.ebike_*, properties.ebike_pricing_tiers)');
       await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS companion_bookable_unit_id INT REFERENCES bookable_units(id)`);
+      // E-bike upsell size hint — when the companion unit_role is 'ebike',
+      // the allocator picks a sub-unit whose parsed size matches this
+      // (e.g. 'S', 'M', 'XS'). Nullable — only relevant on ebike-linked
+      // upsells. Added 2026-09-01 for Hebden e-bike hire slice.
+      await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS preferred_ebike_size VARCHAR(10)`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS parent_booking_id INT REFERENCES bookings(id) ON DELETE SET NULL`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_role VARCHAR(20) DEFAULT 'primary'`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_bookings_parent ON bookings(parent_booking_id) WHERE parent_booking_id IS NOT NULL`);
