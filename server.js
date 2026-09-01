@@ -107002,7 +107002,8 @@ async function _ebikeHireTierPrice(roomId, standardPricePerNight, nights) {
     total = Number(offer.price_per_night) * nights;
   } else if (offer.discount_type === 'percentage') {
     total = standardPricePerNight * nights * (1 - Number(offer.discount_value) / 100);
-  } else if (offer.discount_type === 'fixed') {
+  } else if (offer.discount_type === 'fixed' || offer.discount_type === 'fixed_amount') {
+    // The offer form saves 'fixed_amount' but some legacy rows use 'fixed'.
     total = isTierOffer
       ? (standardPricePerNight * nights - Number(offer.discount_value))
       : ((standardPricePerNight - Number(offer.discount_value)) * nights);
