@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.6.5
+ * Version: 1.6.6
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -697,7 +697,116 @@ class GAS_Shop {
                     return is_array($v) && !empty($v['label']) && isset($v['price']);
                 }));
                 $isStandalone = ($p['product_type'] ?? 'standalone') === 'standalone';
-                if ($isStandalone && !empty($variants)) {
+                $isRentalDaily = ($p['product_type'] ?? '') === 'rental_daily';
+
+                // Rental with tiered pricing (Hebden e-bike hire 2026-09-01):
+                // guest picks pickup + return date, we count nights, look up
+                // the matching variant price. Variant label is expected to
+                // parse as "N Day(s)" → N nights. Nights beyond the largest
+                // variant are rejected — Steve's decision to keep the UI
+                // constrained until the operator explicitly opens longer
+                // hires. Falls through to the classic single-price add-to-cart
+                // when the rental product has no variants configured.
+                if ($isRentalDaily && !empty($variants)) {
+                    // Sort variants by parsed day count so we always know the max.
+                    $parseDays = function($label) {
+                        if (preg_match('/(\d+)/', (string)$label, $m)) return intval($m[1]);
+                        return 0;
+                    };
+                    $rentalMap = array();  // nights → variant meta
+                    foreach ($variants as $v) {
+                        $d = $parseDays($v['label']);
+                        if ($d > 0) $rentalMap[$d] = array(
+                            'label' => $v['label'],
+                            'price' => (float)$v['price'],
+                            'stock' => isset($v['stock_qty']) ? intval($v['stock_qty']) : null,
+                        );
+                    }
+                    ksort($rentalMap, SORT_NUMERIC);
+                    $maxNights = empty($rentalMap) ? 0 : max(array_keys($rentalMap));
+                    $rentalMapJson = wp_json_encode($rentalMap, JSON_HEX_APOS | JSON_HEX_QUOT);
+                    $baseProductJson = wp_json_encode(array(
+                        'id' => $p['id'],
+                        'slug' => $p['slug'],
+                        'name' => $name,
+                        'currency' => $curr,
+                        'image_url' => $p['image_thumbnail_url'] ?? $p['image_url'] ?? '',
+                        'product_type' => 'rental_daily',
+                        'tax_exempt' => !empty($p['tax_exempt']),
+                        'tax_rate' => isset($p['tax_rate']) && $p['tax_rate'] !== null ? floatval($p['tax_rate']) : null,
+                        'delivery_fee' => isset($p['delivery_fee']) && $p['delivery_fee'] !== null ? floatval($p['delivery_fee']) : null,
+                    ), JSON_HEX_APOS | JSON_HEX_QUOT);
+                    $tomorrow = date('Y-m-d', strtotime('+1 day'));
+                    echo '<div id="gas-shop-rental-picker" style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:12px;padding:16px;margin-bottom:14px;max-width:520px;">';
+                    echo '<div style="font-weight:600;font-size:0.95rem;margin-bottom:0.75rem;color:#0f172a;">Choose your pickup and return dates</div>';
+                    echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+                    echo '  <label style="font-size:0.85rem;color:#374151;">Pickup<br><input type="date" id="gas-shop-rental-from" min="'.esc_attr($tomorrow).'" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:0.95rem;margin-top:4px;"></label>';
+                    echo '  <label style="font-size:0.85rem;color:#374151;">Return<br><input type="date" id="gas-shop-rental-to"   min="'.esc_attr($tomorrow).'" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:0.95rem;margin-top:4px;"></label>';
+                    echo '</div>';
+                    echo '<div id="gas-shop-rental-summary" style="margin-top:10px;font-size:0.9rem;color:#475569;">Pick dates to see the price.</div>';
+                    echo '<div style="margin-top:12px;">';
+                    echo '  <button class="gas-shop-btn" id="gas-shop-rental-add" style="opacity:0.5;cursor:not-allowed;" disabled>Add to Cart</button>';
+                    echo '  <a href="'.esc_url(home_url('/shop/cart/')).'" class="gas-shop-btn" style="background:transparent;color:'.$c['accent'].';border:2px solid '.$c['accent'].';margin-left:12px" id="gas-shop-go-cart">View Cart</a>';
+                    echo '</div>';
+                    echo '</div>';
+                    echo '<script>(function(){
+                        var rentalMap = '.$rentalMapJson.';
+                        var base = '.$baseProductJson.';
+                        var maxNights = '.intval($maxNights).';
+                        var fromEl = document.getElementById("gas-shop-rental-from");
+                        var toEl   = document.getElementById("gas-shop-rental-to");
+                        var sumEl  = document.getElementById("gas-shop-rental-summary");
+                        var btn    = document.getElementById("gas-shop-rental-add");
+                        var picked = null;
+                        function fmtMoney(n){ return base.currency + " " + parseFloat(n).toFixed(2); }
+                        function update(){
+                            picked = null;
+                            btn.disabled = true; btn.style.opacity = "0.5"; btn.style.cursor = "not-allowed";
+                            btn.textContent = "Add to Cart";
+                            if (!fromEl.value || !toEl.value) { sumEl.textContent = "Pick dates to see the price."; return; }
+                            var from = new Date(fromEl.value + "T00:00:00");
+                            var to   = new Date(toEl.value   + "T00:00:00");
+                            var nights = Math.round((to - from) / 86400000);
+                            if (nights <= 0) { sumEl.textContent = "Return must be after pickup."; sumEl.style.color = "#dc2626"; return; }
+                            if (nights > maxNights) { sumEl.textContent = "Maximum " + maxNights + " day hire. Contact us for longer bookings."; sumEl.style.color = "#dc2626"; return; }
+                            var meta = rentalMap[nights];
+                            if (!meta) { sumEl.textContent = "No pricing for " + nights + " day(s). Try a different range."; sumEl.style.color = "#dc2626"; return; }
+                            if (meta.stock !== null && meta.stock <= 0) { sumEl.textContent = "This option is fully booked."; sumEl.style.color = "#dc2626"; return; }
+                            sumEl.style.color = "#0f172a";
+                            sumEl.innerHTML = "<strong>" + nights + " day" + (nights === 1 ? "" : "s") + " &middot; " + fmtMoney(meta.price) + "</strong>";
+                            picked = {
+                                id: base.id + "::" + meta.label + "::" + fromEl.value,
+                                product_id: base.id,
+                                slug: base.slug,
+                                name: base.name + " — " + meta.label + " (" + fromEl.value + " → " + toEl.value + ")",
+                                variant_label: meta.label,
+                                price: meta.price,
+                                currency: base.currency,
+                                image_url: base.image_url,
+                                stock_tracking: meta.stock !== null,
+                                max_qty: meta.stock !== null ? meta.stock : 0,
+                                product_type: base.product_type,
+                                rental_from: fromEl.value,
+                                rental_to: toEl.value,
+                                tax_exempt: base.tax_exempt,
+                                tax_rate: base.tax_rate,
+                                delivery_fee: base.delivery_fee
+                            };
+                            btn.disabled = false; btn.style.opacity = ""; btn.style.cursor = "";
+                            btn.textContent = "Add to Cart — " + fmtMoney(meta.price);
+                        }
+                        fromEl.addEventListener("change", function(){
+                            if (fromEl.value && (!toEl.value || toEl.value < fromEl.value)) {
+                                toEl.value = fromEl.value;
+                            }
+                            toEl.min = fromEl.value || toEl.min;
+                            update();
+                        });
+                        toEl.addEventListener("change", update);
+                        btn.addEventListener("click", function(){ if (picked) gasShopAddToCart(picked); });
+                    })();</script>';
+                    $rendered++;
+                } elseif ($isStandalone && !empty($variants)) {
                     echo '<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">';
                     foreach ($variants as $v) {
                         $vLabel = esc_html($v['label']);

@@ -161115,7 +161115,7 @@ app.get('/api/public/client/:clientId/shop/products/:slug', async (req, res) => 
       `SELECT id, name, name_ml, slug, description, description_ml, price, currency, image_url, image_thumbnail_url, gallery_urls, category, stock_quantity, stock_tracking,
               product_type, event_start_date, event_end_date, event_duration_nights, event_recurring, event_block_rooms, event_held_room_ids, event_holds_status, offers_accommodation, property_id, external_url, external_button_label,
               gift_preset_values, gift_allow_custom, gift_min_amount, gift_max_amount, gift_expiry_months,
-              tax_rate, tax_exempt, delivery_fee, linked_upsell_id, blocks,
+              tax_rate, tax_exempt, delivery_fee, linked_upsell_id, blocks, variants,
               offer_add_to_stay, offer_book_with_room, offer_buy_standalone,
               checkin_days_of_week
        FROM shop_products WHERE account_id = $1 AND slug = $2 AND is_active = true`,
