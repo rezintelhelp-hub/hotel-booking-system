@@ -75911,6 +75911,38 @@ app.post('/api/admin/upsells', async (req, res) => {
   }
 });
 
+// Shop product ebike-setup helper — sets the two ebike columns on a
+// shop_product row, then re-triggers syncShopProductUpsellMirror so the
+// mirrored upsell picks up companion_bookable_unit_id +
+// preferred_ebike_size. Single source of truth: operator manages
+// everything on the shop product; upsell mirror stays in step.
+app.post('/api/admin/shop/products/:id/ebike-setup', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, error: 'invalid id' });
+    const { companion_bookable_unit_id, preferred_ebike_size } = req.body || {};
+    const r = await pool.query(
+      `UPDATE shop_products
+          SET companion_bookable_unit_id = COALESCE($1, companion_bookable_unit_id),
+              preferred_ebike_size = COALESCE($2, preferred_ebike_size),
+              updated_at = NOW()
+        WHERE id = $3
+        RETURNING *`,
+      [companion_bookable_unit_id || null, preferred_ebike_size ? String(preferred_ebike_size).toUpperCase() : null, id]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Product not found' });
+    try { await syncShopProductUpsellMirror(r.rows[0], r.rows[0].account_id); } catch (e) { console.warn('[shop ebike-setup] mirror sync failed:', e.message); }
+    res.json({ success: true, product: {
+      id: r.rows[0].id,
+      companion_bookable_unit_id: r.rows[0].companion_bookable_unit_id,
+      preferred_ebike_size: r.rows[0].preferred_ebike_size,
+      linked_upsell_id: r.rows[0].linked_upsell_id,
+    }});
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Slice helper: set the two ebike-specific columns on an upsell without
 // having to plumb them through the big PUT above. Steve 2026-09-01 —
 // used to seed Hebden's e-bike upsells until the Upsells admin form
