@@ -107177,7 +107177,7 @@ async function _ebikeHireQuote(propertyId, checkIn, checkOut) {
     tier_name: tier.offer_name,
     tier_debug: tier.debug,
     pickup_time: '10:00',
-    return_time: '18:00',
+    return_time: '18:30',
     stripe_publishable_key: publishableKey,
   };
 }
