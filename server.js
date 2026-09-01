@@ -87507,6 +87507,46 @@ app.get('/api/admin/bookings/:id/channex-outbox-status', async (req, res) => {
 });
 
 // POST /api/admin/bookings/:id/push-to-channex
+// Manual TTLock passcode mint for an e-bike hire. Reception clicks
+// "Bike collected — issue return code" on the booking detail; endpoint
+// invokes the shared _mintBikeStoragePasscodeForBooking helper which
+// generates the period passcode (valid pickup 10:00 → return 18:30),
+// stamps it on the booking, and emails it to the guest for their
+// return-to-locker window. Unlike bike-storage, e-bike codes are NOT
+// minted at payment — bikes go out manually, code only issued when
+// the guest is actually collecting (per Steve's spec 2026-09-01).
+app.post('/api/admin/bookings/:id/mint-ebike-return-code', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+    // Guard: only ebike hire bookings — don't accidentally mint on real rooms
+    const bk = await pool.query(
+      `SELECT id, booking_source, access_code, status FROM bookings WHERE id = $1`,
+      [id]
+    );
+    if (!bk.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    if (bk.rows[0].booking_source !== 'ebike_hire') {
+      return res.status(400).json({ success: false, error: 'This action is only for e-bike hire bookings.' });
+    }
+    if (bk.rows[0].access_code) {
+      return res.json({ success: false, error: 'A code has already been issued for this booking.', already_minted: true, existing_code: bk.rows[0].access_code });
+    }
+    const result = await _mintBikeStoragePasscodeForBooking(id);
+    // The helper returns { ok, skipped?, error?, passcode? } — surface whatever it says.
+    if (result?.ok === false) {
+      return res.json({ success: false, error: result.error || 'Passcode mint failed', details: result });
+    }
+    // Re-read the freshly-stamped access_code to hand back to the UI.
+    const fresh = await pool.query(`SELECT access_code FROM bookings WHERE id = $1`, [id]);
+    res.json({ success: true, access_code: fresh.rows[0]?.access_code || null, details: result });
+  } catch (e) {
+    console.error('[mint-ebike-return-code]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Manual re-push for a booking whose original enqueue didn't stick.
 // Fires the same enqueueBookingPush the admin booking endpoint uses at
 // save time. Booking 331446 diagnosis 2026-07-07 showed the mapping is

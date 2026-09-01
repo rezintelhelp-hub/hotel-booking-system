@@ -31198,6 +31198,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                          to be reachable from the detail modal). -->
                     <button onclick="deleteBooking(currentViewingBookingId); closeModal('viewBookingModal');" class="btn" style="background: #991b1b; font-size: 0.85rem;">🗑️ Delete Booking</button>
                     <button id="push-beds24-btn" onclick="pushBookingToBeds24(currentViewingBookingId)" class="btn" style="background: #06b6d4; display: none; font-size: 0.85rem;">Push to Beds24</button>
+                    <!-- E-bike hire: manual TTLock passcode mint. Reception
+                         clicks when the guest actually collects the bike so
+                         the return-to-locker code arrives at pickup, not at
+                         payment. viewBooking() reveals this button only when
+                         booking.booking_source='ebike_hire' AND no code is
+                         already stamped on the row. -->
+                    <button id="mint-ebike-code-btn" onclick="mintEbikeReturnCode(currentViewingBookingId)" class="btn" style="background: #F97224; display: none; font-size: 0.85rem;">🚴 Bike collected — issue return code</button>
                 </div>
 
                 <!-- 💬 Channex Messages panel — inline guest chat for
@@ -75386,6 +75393,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                     pushBtn.style.display = (hasBeds24Mapping && !isChannexOrigin) ? 'flex' : 'none';
                 }
 
+                // E-bike hire: manual passcode mint button. Show only when
+                // this is an ebike booking that hasn't had a code issued yet.
+                // Reception clicks when the guest actually collects the bike.
+                const mintBtn = document.getElementById('mint-ebike-code-btn');
+                if (mintBtn) {
+                    const isEbike = b.booking_source === 'ebike_hire';
+                    const hasCode = !!b.access_code;
+                    mintBtn.style.display = (isEbike && !hasCode) ? 'flex' : 'none';
+                }
+
                 openModal('viewBookingModal');
 
                 // Phase 2: load the Payment Ops ledger after the modal opens.
@@ -75485,6 +75502,39 @@ const promo = await fetch('/api/v1/offers/validate', {
             openRefundModal();
         }
         
+        // E-bike hire: reception hands over the bike + clicks this button.
+        // Server mints a TTLock period passcode valid pickup→return, stamps
+        // it on the booking, and emails it to the guest for their return-
+        // to-locker window. Idempotent server-side (already_minted branch).
+        async function mintEbikeReturnCode(bookingId) {
+            if (!bookingId) return;
+            if (!confirm('Issue the return-locker code to the guest now? They will receive it by email.')) return;
+            const btn = document.getElementById('mint-ebike-code-btn');
+            const original = btn ? btn.innerHTML : '';
+            if (btn) { btn.disabled = true; btn.innerHTML = 'Issuing…'; }
+            try {
+                const r = await fetch('/api/admin/bookings/' + bookingId + '/mint-ebike-return-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                const d = await r.json();
+                if (d.success && d.access_code) {
+                    showNotification('✅ Code issued: ' + d.access_code + ' — emailed to guest.', 'success');
+                    // Refresh the modal so the code + button hide-state pick up.
+                    viewBooking(bookingId);
+                } else if (d.already_minted) {
+                    showNotification('Code already issued: ' + d.existing_code, 'info');
+                    viewBooking(bookingId);
+                } else {
+                    if (btn) { btn.disabled = false; btn.innerHTML = original; }
+                    alert('Could not issue code: ' + (d.error || 'unknown error'));
+                }
+            } catch (err) {
+                if (btn) { btn.disabled = false; btn.innerHTML = original; }
+                alert('Network error: ' + err.message);
+            }
+        }
+
         async function pushBookingToBeds24(bookingId) {
             if (!bookingId) return;
             const btn = document.getElementById('push-beds24-btn');
