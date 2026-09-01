@@ -31941,31 +31941,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <textarea class="form-input" id="edit-property-house-rules" rows="4" placeholder="No smoking. No parties. Quiet hours 22:00–08:00. Pets by prior arrangement only." style="width: 100%; font-size:0.9rem;"></textarea>
                 </div>
 
-                <!-- E-Bike Hire — Slice 1 (2026-09-01). Manages bookable_units
-                     with unit_role='ebike' + property.ebike_pricing_tiers.
-                     Small inline surface so operators can seed their bike
-                     fleet + tier pricing without leaving the property view. -->
-                <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
-                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🚲 E-Bike Hire</h4>
-                    <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">Manage rentable e-bike inventory + tier pricing for this property. Each bike is one physical unit; guests see sizes, not individual bikes.</p>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem;">
-                            <div style="font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem;">Tier pricing</div>
-                            <div id="ebike-tiers-list" style="display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem;"></div>
-                            <button type="button" onclick="ebikeAddTierRow()" style="margin-top: 0.5rem; padding: 0.35rem 0.75rem; background: #fff; border: 1px dashed #cbd5e1; border-radius: 6px; cursor: pointer; font-size: 0.8rem; color: #475569;">+ Add tier</button>
-                            <button type="button" onclick="ebikeSaveTiers()" style="margin-top: 0.5rem; margin-left: 0.5rem; padding: 0.35rem 0.75rem; background: #0f172a; color: #fff; border: 0; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">💾 Save pricing</button>
-                            <small id="ebike-tiers-status" style="display: block; margin-top: 0.4rem; font-size: 0.75rem; color: #64748b;"></small>
-                        </div>
-                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem;">
-                            <div style="font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem;">Bikes (<span id="ebike-count">0</span>)</div>
-                            <div id="ebike-units-list" style="display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem;"></div>
-                            <button type="button" onclick="ebikeAddUnit()" style="margin-top: 0.5rem; padding: 0.35rem 0.75rem; background: #fff; border: 1px dashed #cbd5e1; border-radius: 6px; cursor: pointer; font-size: 0.8rem; color: #475569;">+ Add bike</button>
-                            <small id="ebike-units-status" style="display: block; margin-top: 0.4rem; font-size: 0.75rem; color: #64748b;"></small>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Guest Portal section toggles. Save-on-change: each checkbox
                      PUTs /api/admin/properties/:id/portal-sections which merges
                      the flag into the JSONB column. All-ticked is the default;
@@ -32964,6 +32939,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <option value="entire_home">Entire Home</option>
                             <option value="private_room">Private Room</option>
                             <option value="shared_room">Shared Room</option>
+                            <option value="rental_item">Rental Item (bike, kayak, ski, etc.)</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -82398,10 +82374,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-property-checkin-time').value = prop.check_in_time || '';
                     document.getElementById('edit-property-checkout-time').value = prop.check_out_time || '';
                     document.getElementById('edit-property-house-rules').value = prop.house_rules || '';
-
-                    // E-Bike Hire management — load the bikes + pricing tiers
-                    // for this property into the inline UI. Non-blocking.
-                    loadEbikeUnits(prop.id).catch(e => console.warn('[ebike load]', e));
 
                     // Guest Portal section toggles. Missing/unset = "show", so a
                     // legacy property with no portal_sections JSONB behaves
