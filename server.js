@@ -27911,6 +27911,28 @@ app.get('/api/billing/gocardless/accounts', async (req, res) => {
   }
 });
 
+// Manual override for the mandate status. Use when GC dashboard shows
+// active but our stored status is stale (e.g. GOCARDLESS_ACCESS_TOKEN not
+// set on Railway so the auto-refresh in /status can't fire).
+// Steve 2026-09-01 for Adrien Lamacq account 277.
+app.post('/api/admin/accounts/:id/gocardless-mandate-status', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const id = parseInt(req.params.id);
+    const status = String(req.body?.status || '').trim();
+    if (!id || !status) return res.status(400).json({ success: false, error: 'id + status required' });
+    const r = await pool.query(
+      `UPDATE accounts SET gocardless_mandate_status = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, gocardless_mandate_status`,
+      [status, id]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Account not found' });
+    res.json({ success: true, account: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.get('/api/billing/gocardless/status', async (req, res) => {
   try {
     const accountId = parseInt(req.query.account_id);
