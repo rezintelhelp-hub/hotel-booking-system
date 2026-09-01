@@ -107054,7 +107054,9 @@ async function _ebikeHireQuote(propertyId, checkIn, checkOut) {
   const accountId = rooms.rows[0].account_id;
   const propertyName = rooms.rows[0].property_name;
 
-  // Pull every sub-unit for these rooms in one query.
+  // Pull every sub-unit for these rooms in one query. The room-edit form's
+  // "Available" option saves an empty string, not 'available' — Steve's
+  // seeded bikes reproduced this. Treat NULL / '' / 'available' as OK.
   const roomIds = rooms.rows.map(r => r.id);
   const subs = await pool.query(
     `SELECT iu.id, iu.bookable_unit_id, iu.unit_name, iu.status,
@@ -107062,7 +107064,7 @@ async function _ebikeHireQuote(propertyId, checkIn, checkOut) {
        FROM individual_units iu
       WHERE iu.bookable_unit_id = ANY($1::int[])
         AND COALESCE(iu.is_available, true) = true
-        AND (iu.status IS NULL OR iu.status = 'available')`,
+        AND COALESCE(iu.status, '') IN ('', 'available')`,
     [roomIds]
   );
 
@@ -107083,9 +107085,17 @@ async function _ebikeHireQuote(propertyId, checkIn, checkOut) {
 
   // Pre-compute tier price once — every rental_item room shares the same
   // offer setup in Slice 1 (Hebden). If a client later diverges we can
-  // per-room this. Using the first room's base_price + offer lookup.
+  // per-room this. Read the standard rate from room_availability (what the
+  // Bulk Edit page writes to) with a fallback to bookable_units.base_price
+  // for legacy rooms that only set the flat base.
   const sampleRoom = rooms.rows[0];
-  const standard = Number(sampleRoom.base_price) || 0;
+  const rateRow = await pool.query(
+    `SELECT standard_price FROM room_availability
+      WHERE room_id = $1 AND date = $2::date AND standard_price IS NOT NULL
+      LIMIT 1`,
+    [sampleRoom.id, arr]
+  );
+  const standard = Number(rateRow.rows[0]?.standard_price) || Number(sampleRoom.base_price) || 0;
   const tier = await _ebikeHireTierPrice(sampleRoom.id, standard, nights);
   if (!tier) {
     return { ok: false, status: 400, error: 'No pricing tier configured for this night count.' };
