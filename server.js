@@ -106940,6 +106940,320 @@ app.post('/api/public/bike-storage/checkout', async (req, res) => {
   }
 });
 
+// ─── E-BIKE HIRE — public widget endpoints (Slice 2, 2026-09-01) ──────
+// Dedicated widget for /ebike-hire/ pages. Mirrors the bike-storage
+// widget's flow but adapted for:
+//   - tier pricing (1n £30, 2n £50, 3n £69 for Hebden) sourced from
+//     the room's Offers rather than a single daily_rate
+//   - size selection (guest picks S/XS, M, etc. — parsed from each
+//     sub-unit's unit_name so no schema change needed)
+//   - hard cap at max 3 nights (matches the seeded offers; the widget
+//     also client-side blocks, but this is server-side belt+braces)
+// All e-bike rooms are bookable_units with room_type='rental_item'; sub-
+// units are rows in individual_units keyed by bookable_unit_id.
+
+// Parse a size token out of a sub-unit name. Examples that match:
+//   "E-Bike S Ref 001"  → "S"
+//   "E-Bike XS ref 002" → "XS"
+//   "E-Bike M 0003"     → "M"
+// Returns null when nothing recognisable is found; caller treats that as
+// "Any" so the sub-unit still counts as inventory.
+function _parseEbikeSize(unitName) {
+  if (!unitName) return null;
+  const m = String(unitName).match(/\b(XXL|XL|XS|SM|MD|LG|S|M|L)\b/i);
+  if (!m) return null;
+  return m[1].toUpperCase();
+}
+
+// Look up the tier-pricing offer for a given room + night count. Steve's
+// Hebden setup uses one offer per tier (min_nights = max_nights = N).
+//   - If price_per_night is set (Replace Standard Rate), tier total =
+//     price_per_night * nights
+//   - Else if discount_type='fixed', tier per-night = standard - discount,
+//     tier total = (standard - discount) * nights
+//   - Else if discount_type='percentage', tier per-night = standard *
+//     (1 - value/100), tier total = above * nights
+// Returns { total, per_night, offer_id, offer_name } or null if no offer
+// covers this night count (widget will refuse to sell it).
+async function _ebikeHireTierPrice(roomId, standardPricePerNight, nights) {
+  const oRes = await pool.query(
+    `SELECT id, name, discount_type, discount_value, price_per_night,
+            min_nights, max_nights, priority
+       FROM offers
+      WHERE active = true
+        AND ($1 = ANY(COALESCE(room_ids, ARRAY[]::int[])) OR room_id = $1)
+        AND COALESCE(min_nights, 1) <= $2
+        AND (max_nights IS NULL OR max_nights >= $2)
+      ORDER BY priority DESC, id ASC
+      LIMIT 1`,
+    [roomId, nights]
+  );
+  const offer = oRes.rows[0];
+  if (!offer) return null;
+  let perNight;
+  if (offer.price_per_night != null) {
+    perNight = Number(offer.price_per_night);
+  } else if (offer.discount_type === 'percentage') {
+    perNight = standardPricePerNight * (1 - Number(offer.discount_value) / 100);
+  } else if (offer.discount_type === 'fixed') {
+    perNight = standardPricePerNight - Number(offer.discount_value);
+  } else {
+    perNight = standardPricePerNight;
+  }
+  perNight = Math.max(0, Math.round(perNight * 100) / 100);
+  return {
+    total: Math.round(perNight * nights * 100) / 100,
+    per_night: perNight,
+    offer_id: offer.id,
+    offer_name: offer.name,
+  };
+}
+
+// Build a quote for /ebike-hire/. Iterates every rental_item room under
+// the property, groups sub-units by parsed size, checks each sub-unit
+// against overlapping confirmed/pending bookings, and applies the tier
+// price for the requested night count.
+async function _ebikeHireQuote(propertyId, checkIn, checkOut) {
+  if (!propertyId) return { ok: false, status: 400, error: 'property_id required' };
+  if (!checkIn || !checkOut) return { ok: false, status: 400, error: 'check_in and check_out required' };
+  const arr = String(checkIn).slice(0, 10);
+  const dep = String(checkOut).slice(0, 10);
+  const nights = Math.round((new Date(dep + 'T00:00:00Z') - new Date(arr + 'T00:00:00Z')) / 86400000);
+  if (!Number.isFinite(nights) || nights <= 0) {
+    return { ok: false, status: 400, error: 'check_out must be after check_in' };
+  }
+  if (nights > 3) {
+    // Slice 1 tier cap. Wanted UX: the widget already client-side blocks
+    // this; server enforces so a bad actor can't POST direct.
+    return { ok: false, status: 400, error: 'Maximum 3-night e-bike hire.' };
+  }
+
+  const rooms = await pool.query(
+    `SELECT bu.id, bu.name, bu.base_price, p.currency, p.account_id, p.name AS property_name
+       FROM bookable_units bu
+       JOIN properties p ON p.id = bu.property_id
+      WHERE bu.property_id = $1
+        AND bu.room_type = 'rental_item'
+        AND COALESCE(bu.status, 'available') = 'available'
+      ORDER BY bu.id`,
+    [propertyId]
+  );
+  if (!rooms.rows.length) {
+    return { ok: false, status: 404, error: 'No e-bike inventory for this property.' };
+  }
+  const currency = rooms.rows[0].currency || 'GBP';
+  const accountId = rooms.rows[0].account_id;
+  const propertyName = rooms.rows[0].property_name;
+
+  // Pull every sub-unit for these rooms in one query.
+  const roomIds = rooms.rows.map(r => r.id);
+  const subs = await pool.query(
+    `SELECT iu.id, iu.bookable_unit_id, iu.unit_name, iu.status,
+            iu.is_available
+       FROM individual_units iu
+      WHERE iu.bookable_unit_id = ANY($1::int[])
+        AND COALESCE(iu.is_available, true) = true
+        AND (iu.status IS NULL OR iu.status = 'available')`,
+    [roomIds]
+  );
+
+  // Overlapping confirmed/pending bookings on any sub-unit — mark those
+  // bikes as unavailable. bookings.individual_unit_id may not exist on
+  // every install; fall back to per-room quantity check if the join is
+  // empty (kept simple for MVP — Hebden uses individual_unit_id).
+  const busy = await pool.query(
+    `SELECT individual_unit_id
+       FROM bookings
+      WHERE individual_unit_id = ANY($1::int[])
+        AND status IN ('confirmed', 'pending')
+        AND arrival_date < $3::date
+        AND departure_date > $2::date`,
+    [subs.rows.map(s => s.id), arr, dep]
+  ).catch(() => ({ rows: [] }));
+  const busyIds = new Set(busy.rows.map(r => r.individual_unit_id));
+
+  // Pre-compute tier price once — every rental_item room shares the same
+  // offer setup in Slice 1 (Hebden). If a client later diverges we can
+  // per-room this. Using the first room's base_price + offer lookup.
+  const sampleRoom = rooms.rows[0];
+  const standard = Number(sampleRoom.base_price) || 0;
+  const tier = await _ebikeHireTierPrice(sampleRoom.id, standard, nights);
+  if (!tier) {
+    return { ok: false, status: 400, error: 'No pricing tier configured for this night count.' };
+  }
+
+  // Group free sub-units by parsed size.
+  const bySize = new Map();
+  for (const s of subs.rows) {
+    if (busyIds.has(s.id)) continue;
+    const size = _parseEbikeSize(s.unit_name) || 'Any';
+    if (!bySize.has(size)) bySize.set(size, []);
+    bySize.get(size).push({ id: s.id, name: s.unit_name, bookable_unit_id: s.bookable_unit_id });
+  }
+  const sizes = Array.from(bySize.entries())
+    .map(([size, units]) => ({
+      size,
+      available_count: units.length,
+      sub_unit_ids: units.map(u => u.id),
+      first_available_unit: units[0] || null,
+      total_price: tier.total,
+      per_night_price: tier.per_night,
+      currency,
+    }))
+    .sort((a, b) => a.size.localeCompare(b.size));
+
+  return {
+    ok: true,
+    property_id: propertyId,
+    property_name: propertyName,
+    account_id: accountId,
+    currency,
+    nights,
+    check_in: arr,
+    check_out: dep,
+    sizes,
+    tier_name: tier.offer_name,
+    pickup_time: '10:00',
+    return_time: '18:00',
+  };
+}
+
+app.get('/api/public/ebike-hire/availability', async (req, res) => {
+  try {
+    const propertyId = parseInt(req.query.property_id);
+    const q = await _ebikeHireQuote(propertyId, req.query.check_in, req.query.check_out);
+    if (!q.ok) return res.status(q.status).json({ success: false, error: q.error });
+    res.json({ success: true, ...q });
+  } catch (e) {
+    console.error('[ebike-hire availability]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/public/ebike-hire/checkout', async (req, res) => {
+  try {
+    const propertyId = parseInt(req.body?.property_id);
+    const {
+      check_in, check_out, size,
+      guest_first_name, guest_last_name, guest_email, guest_phone,
+      source_site_url,
+    } = req.body || {};
+    if (!size) return res.status(400).json({ success: false, error: 'Pick a size' });
+    if (!guest_email || !guest_first_name || !guest_last_name) {
+      return res.status(400).json({ success: false, error: 'Name and email are required' });
+    }
+
+    const q = await _ebikeHireQuote(propertyId, check_in, check_out);
+    if (!q.ok) return res.status(q.status).json({ success: false, error: q.error });
+    const sizeRow = q.sizes.find(s => s.size.toLowerCase() === String(size).toLowerCase());
+    if (!sizeRow || sizeRow.available_count === 0 || !sizeRow.first_available_unit) {
+      return res.status(409).json({ success: false, error: 'That size is no longer available for those dates.' });
+    }
+    const pickedSubUnit = sizeRow.first_available_unit;
+
+    const ins = await pool.query(
+      `INSERT INTO bookings (
+         property_id, property_owner_id, bookable_unit_id, individual_unit_id,
+         guest_first_name, guest_last_name, guest_email, guest_phone, guest_mobile,
+         arrival_date, departure_date,
+         accommodation_price, subtotal, grand_total, total_amount, currency, num_adults,
+         status, payment_status, booking_source, source_site_url,
+         message, notes, created_at, updated_at
+       ) VALUES (
+         $1, 1, $2, $3,
+         $4, $5, $6, $7, $7,
+         $8, $9,
+         $10, $10, $10, $10, $11, 1,
+         'pending', 'unpaid', 'ebike_hire', $12,
+         $13, $13, NOW(), NOW()
+       ) RETURNING id`,
+      [
+        propertyId, pickedSubUnit.bookable_unit_id, pickedSubUnit.id,
+        String(guest_first_name).trim(), String(guest_last_name).trim(),
+        String(guest_email).trim(), guest_phone || null,
+        q.check_in, q.check_out,
+        sizeRow.total_price, q.currency,
+        source_site_url || null,
+        `E-Bike hire — ${size} (${pickedSubUnit.name})`,
+      ]
+    );
+    const bookingId = ins.rows[0].id;
+
+    // Resolve Stripe secret — same 3-place lookup as bike-storage.
+    let stripeSecret = null;
+    const acctRow = await pool.query(`SELECT stripe_secret_key FROM accounts WHERE id = $1`, [q.account_id]);
+    if (acctRow.rows[0]?.stripe_secret_key) stripeSecret = acctRow.rows[0].stripe_secret_key;
+    if (!stripeSecret) {
+      const pcRow = await pool.query(
+        `SELECT credentials FROM payment_configurations
+         WHERE account_id = $1 AND provider = 'stripe' AND is_enabled = true
+         ORDER BY property_id NULLS FIRST LIMIT 1`,
+        [q.account_id]
+      );
+      const creds = pcRow.rows[0]?.credentials;
+      const parsed = typeof creds === 'string' ? (() => { try { return JSON.parse(creds); } catch (_) { return null; } })() : creds;
+      if (parsed?.secret_key) stripeSecret = parsed.secret_key;
+    }
+    if (!stripeSecret) {
+      const propRow = await pool.query(`SELECT stripe_secret_key FROM properties WHERE id = $1 AND stripe_secret_key IS NOT NULL`, [propertyId]);
+      if (propRow.rows[0]?.stripe_secret_key) stripeSecret = propRow.rows[0].stripe_secret_key;
+    }
+    if (!stripeSecret) {
+      await pool.query(`UPDATE bookings SET status = 'cancelled', payment_status = 'failed', sync_errors = $1 WHERE id = $2`,
+        ['Stripe not configured for this account', bookingId]).catch(() => {});
+      return res.status(503).json({ success: false, error: 'Payment not set up for this property — contact the host directly.' });
+    }
+    const stripe = require('stripe')(stripeSecret);
+
+    const baseUrl = (source_site_url || '').replace(/\/+$/, '') || 'https://admin.gas.travel';
+    const unitAmount = Math.round(sizeRow.total_price * 100);
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [{
+        price_data: {
+          currency: q.currency.toLowerCase(),
+          unit_amount: unitAmount,
+          product_data: {
+            name: `E-Bike Hire — ${sizeRow.size} · ${q.nights} day${q.nights === 1 ? '' : 's'} · ${q.property_name}`,
+            description: `${q.check_in} → ${q.check_out} · Pickup ${q.pickup_time} · Return ${q.return_time}`,
+          },
+        },
+        quantity: 1,
+      }],
+      customer_email: String(guest_email).trim(),
+      metadata: {
+        gas_booking_id: String(bookingId),
+        gas_booking_ids: String(bookingId),
+        gas_kind: 'ebike_hire',
+        gas_unit_id: String(pickedSubUnit.bookable_unit_id),
+        gas_individual_unit_id: String(pickedSubUnit.id),
+        gas_account_id: String(q.account_id),
+        gas_size: sizeRow.size,
+      },
+      success_url: baseUrl + '/ebike-hire/?paid=1&session={CHECKOUT_SESSION_ID}',
+      cancel_url:  baseUrl + '/ebike-hire/?cancelled=1',
+    });
+
+    await pool.query(
+      `UPDATE bookings SET stripe_charge_id = $1, updated_at = NOW() WHERE id = $2`,
+      [session.id, bookingId]
+    ).catch(() => {});
+
+    res.json({
+      success: true,
+      booking_id: bookingId,
+      checkout_url: session.url,
+      picked_bike: pickedSubUnit.name,
+      size: sizeRow.size,
+      total_price: sizeRow.total_price,
+      currency: q.currency,
+    });
+  } catch (e) {
+    console.error('[ebike-hire checkout]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST /api/public/bike-storage/find-booking
 // Verify an existing booking exists by reference (GAS-XXX or bare ID) +
 // last name. Used by the bike-storage widget's "I already have a booking"
@@ -163419,15 +163733,21 @@ app.post('/api/webhooks/stripe-bike-storage', express.raw({ type: 'application/j
     }
 
     const session = event.data.object;
-    // gas_kind covers both 'bike_storage' (Flow A standalone) and
-    // 'bike_storage_linked' (Flow C standalone-attached-to-existing-
-    // booking). Both go through this same webhook + mint passcodes.
-    if (!['bike_storage', 'bike_storage_linked'].includes(session.metadata?.gas_kind)) {
+    // gas_kind covers three shapes now:
+    //   'bike_storage'        - standalone bike storage rental
+    //   'bike_storage_linked' - bike storage attached to an existing booking
+    //   'ebike_hire'          - e-bike hire (Slice 2 2026-09-01, no TTLock)
+    // All three go through the same webhook. E-bike bookings skip the
+    // TTLock passcode loop and get a bike-hire-branded confirmation email
+    // instead of the storage one.
+    const gasKind = session.metadata?.gas_kind;
+    if (!['bike_storage', 'bike_storage_linked', 'ebike_hire'].includes(gasKind)) {
       // Not ours — could be a shop / room booking using the same Stripe
       // account. Acknowledge so Stripe doesn't retry, but don't touch the
       // booking row.
-      return res.json({ received: true, skipped: 'not bike_storage' });
+      return res.json({ received: true, skipped: 'not our webhook' });
     }
+    const isEbikeHire = gasKind === 'ebike_hire';
     // Multi-cabinet: gas_booking_ids is a comma-separated list of all
     // bookings created in the same session. Fall back to gas_booking_id
     // for any older session that pre-dated the multi-cabinet rollout.
@@ -163487,13 +163807,25 @@ app.post('/api/webhooks/stripe-bike-storage', express.raw({ type: 'application/j
       return `<div><strong>${u?.unit_name || 'Cabinet'}:</strong> ${x.arrival_date instanceof Date ? x.arrival_date.toISOString().slice(0,10) : x.arrival_date} → ${x.departure_date instanceof Date ? x.departure_date.toISOString().slice(0,10) : x.departure_date}</div>`;
     }).join('');
     try {
-      await sendEmail({
-        to: [b.guest_email],
-        accountId: b.account_id,
-        subject: allBookings.length > 1
-          ? `Your ${allBookings.length} bike storage cabinets at ${unit?.property_name || 'the hostel'} are confirmed`
-          : `Your bike storage at ${unit?.property_name || 'the hostel'} is confirmed`,
-        html: `
+      const emailSubject = isEbikeHire
+        ? `Your e-bike hire at ${unit?.property_name || 'the hostel'} is confirmed`
+        : (allBookings.length > 1
+            ? `Your ${allBookings.length} bike storage cabinets at ${unit?.property_name || 'the hostel'} are confirmed`
+            : `Your bike storage at ${unit?.property_name || 'the hostel'} is confirmed`);
+      const emailHtml = isEbikeHire ? `
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1e293b;">
+            <h2 style="margin:0 0 16px;color:#0f172a;">✓ E-Bike hire confirmed</h2>
+            <p style="line-height:1.6;">Hi ${b.guest_first_name || 'there'},</p>
+            <p style="line-height:1.6;">Your e-bike hire at <strong>${unit?.property_name || ''}</strong> is booked.</p>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:20px 0;">
+              <div><strong>${session.metadata?.gas_size || 'E-Bike'}:</strong> ${b.arrival_date instanceof Date ? b.arrival_date.toISOString().slice(0,10) : b.arrival_date} → ${b.departure_date instanceof Date ? b.departure_date.toISOString().slice(0,10) : b.departure_date}</div>
+              <div style="margin-top:8px;color:#64748b;font-size:0.9rem;">Pickup from 10:00 on arrival day · return by 18:00 on departure day</div>
+              <div style="margin-top:8px;"><strong>Total paid:</strong> ${symbol}${totalPaidAll.toFixed(2)} ${b.currency}</div>
+            </div>
+            <p style="line-height:1.6;">Bring photo ID at pickup. We'll walk you through the bike + safety kit (helmet, lock, puncture kit) when you arrive.</p>
+            <p style="line-height:1.6;color:#64748b;font-size:0.9rem;margin-top:24px;">Bikes are hired at your own risk. Please return before 18:00 on your departure day so the next guest can pick up on time.</p>
+          </div>
+        ` : `
           <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1e293b;">
             <h2 style="margin:0 0 16px;color:#0f172a;">✓ Booking confirmed</h2>
             <p style="line-height:1.6;">Hi ${b.guest_first_name || 'there'},</p>
@@ -163506,28 +163838,36 @@ app.post('/api/webhooks/stripe-bike-storage', express.raw({ type: 'application/j
             <p style="line-height:1.6;">Your <strong>individual access code${allBookings.length > 1 ? 's' : ''}</strong> will arrive in ${allBookings.length > 1 ? 'separate emails' : 'a separate email'} shortly. Each code works for the whole rental window and stops working automatically afterwards.</p>
             <p style="line-height:1.6;color:#64748b;font-size:0.9rem;margin-top:24px;">A reminder that bikes are stored at your own risk. The cabinets are CCTV-monitored and each has electric points for charging e-bikes — please don't bring bikes or chargers inside the hostel.</p>
           </div>
-        `
+        `;
+      await sendEmail({
+        to: [b.guest_email],
+        accountId: b.account_id,
+        subject: emailSubject,
+        html: emailHtml,
       });
-      console.log('[BIKE-STORAGE] Consolidated confirmation email sent for', allBookings.length, 'booking(s) primary', bookingId);
+      console.log(`[${isEbikeHire ? 'EBIKE-HIRE' : 'BIKE-STORAGE'}] Confirmation email sent for booking`, bookingId);
     } catch (emailErr) {
       // Don't fail the webhook — Stripe would retry and we don't want
       // to flip the booking again. Just log so the operator can resend.
-      console.error('[BIKE-STORAGE] Confirmation email failed:', emailErr.message);
+      console.error(`[${isEbikeHire ? 'EBIKE-HIRE' : 'BIKE-STORAGE'}] Confirmation email failed:`, emailErr.message);
     }
 
     // Phase D — TTLock period passcode generation. Loop over every booking
     // in this session and mint a code per cabinet. Helper handles its own
     // error paths: missing lock pairing, TTLock API failure, owner-notify
     // emails. None of these failure modes failure the webhook.
-    for (const ab of allBookings) {
-      try {
-        await _mintBikeStoragePasscodeForBooking(ab.id);
-      } catch (passErr) {
-        console.error('[BIKE-STORAGE] Passcode loop crashed for booking', ab.id, '—', passErr.message);
-        await pool.query(
-          `UPDATE bookings SET sync_errors = COALESCE(sync_errors, '') || $1, updated_at = NOW() WHERE id = $2`,
-          [`[ttlock] passcode loop error: ${passErr.message.slice(0, 200)}\n`, ab.id]
-        ).catch(() => {});
+    // Skip entirely for e-bike hire — bikes don't have locks paired.
+    if (!isEbikeHire) {
+      for (const ab of allBookings) {
+        try {
+          await _mintBikeStoragePasscodeForBooking(ab.id);
+        } catch (passErr) {
+          console.error('[BIKE-STORAGE] Passcode loop crashed for booking', ab.id, '—', passErr.message);
+          await pool.query(
+            `UPDATE bookings SET sync_errors = COALESCE(sync_errors, '') || $1, updated_at = NOW() WHERE id = $2`,
+            [`[ttlock] passcode loop error: ${passErr.message.slice(0, 200)}\n`, ab.id]
+          ).catch(() => {});
+        }
       }
     }
 
