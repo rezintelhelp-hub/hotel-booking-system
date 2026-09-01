@@ -3,7 +3,7 @@
  * Plugin Name: GAS Shop
  * Plugin URI: https://gas.travel
  * Description: Online shop for GAS clients — services and digital products with Stripe checkout.
- * Version: 1.6.6
+ * Version: 1.6.7
  * Author: GAS - Guest Accommodation System
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -739,9 +739,9 @@ class GAS_Shop {
                     $tomorrow = date('Y-m-d', strtotime('+1 day'));
                     echo '<div id="gas-shop-rental-picker" style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:12px;padding:16px;margin-bottom:14px;max-width:520px;">';
                     echo '<div style="font-weight:600;font-size:0.95rem;margin-bottom:0.75rem;color:#0f172a;">Choose your pickup and return dates</div>';
-                    echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
-                    echo '  <label style="font-size:0.85rem;color:#374151;">Pickup<br><input type="date" id="gas-shop-rental-from" min="'.esc_attr($tomorrow).'" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:0.95rem;margin-top:4px;"></label>';
-                    echo '  <label style="font-size:0.85rem;color:#374151;">Return<br><input type="date" id="gas-shop-rental-to"   min="'.esc_attr($tomorrow).'" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:0.95rem;margin-top:4px;"></label>';
+                    echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;">';
+                    echo '  <label style="font-size:0.85rem;color:#374151;display:flex;flex-direction:column;gap:4px;">Pickup<input type="date" id="gas-shop-rental-from" min="'.esc_attr($tomorrow).'" style="box-sizing:border-box;width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:0.95rem;"></label>';
+                    echo '  <label style="font-size:0.85rem;color:#374151;display:flex;flex-direction:column;gap:4px;">Return<input type="date" id="gas-shop-rental-to"   min="'.esc_attr($tomorrow).'" style="box-sizing:border-box;width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:0.95rem;"></label>';
                     echo '</div>';
                     echo '<div id="gas-shop-rental-summary" style="margin-top:10px;font-size:0.9rem;color:#475569;">Pick dates to see the price.</div>';
                     echo '<div style="margin-top:12px;">';
