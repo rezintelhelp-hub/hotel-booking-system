@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.3.92');
+define('GAS_BOOKING_VERSION', '4.3.93');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -225,6 +225,7 @@ class GAS_Booking {
         add_shortcode('gas_footer', array($this, 'footer_shortcode'));
         add_shortcode('gas_portal', array($this, 'portal_shortcode'));
         add_shortcode('gas_bike_storage', array($this, 'bike_storage_shortcode'));
+        add_shortcode('gas_ebike_hire',   array($this, 'ebike_hire_shortcode'));
         
         // AJAX handlers
         add_action('wp_ajax_gas_get_availability', array($this, 'ajax_get_availability'));
@@ -12488,6 +12489,24 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             return '<p style="color:#b91c1c;font-size:0.9rem;">Bike Storage block: pick a property in Pro Builder so the widget knows which cabinets to show.</p>';
         }
         return '<div class="gas-bike-storage" data-property-id="' . esc_attr($pid) . '" data-booking-url="' . esc_attr($a['booking_url']) . '"></div>';
+    }
+
+    /**
+     * [gas_ebike_hire property_id="X"]
+     *
+     * Renders an empty container that the plugin's gas-booking.js hydrates
+     * into the e-bike hire booking widget on page load. Date picker, size
+     * selection, guest form, Stripe Checkout — all happens inside the JS
+     * once it spots the data-property-id attribute. Mirrors the bike_storage
+     * shortcode shape.
+     */
+    public function ebike_hire_shortcode($atts) {
+        $a = shortcode_atts(array('property_id' => ''), $atts);
+        $pid = intval($a['property_id']);
+        if (!$pid) {
+            return '<p style="color:#b91c1c;font-size:0.9rem;">E-Bike Hire block: pick a property in Pro Builder so the widget knows which bikes to show.</p>';
+        }
+        return '<div class="gas-ebike-hire" data-property-id="' . esc_attr($pid) . '"></div>';
     }
 
     public function footer_shortcode($atts) {

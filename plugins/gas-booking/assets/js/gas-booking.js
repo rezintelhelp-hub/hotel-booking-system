@@ -11855,6 +11855,250 @@ jQuery(document).ready(function($) {
     })();
     // ========== END BIKE STORAGE WIDGET ==========
 
+    // ========== E-BIKE HIRE WIDGET ==========
+    // Pro Builder / Text block emits:
+    //   <div class="gas-ebike-hire" data-property-id="X"></div>
+    // Widget lifecycle:
+    //   step 1 — pick pickup + return dates (max 3 nights), click Check
+    //   step 2 — size cards appear ("S/XS · 2 available · £50"); pick one,
+    //            fill guest form, click Book and pay
+    //   step 3 — redirect to Stripe Checkout
+    //   step 4 — Stripe returns ?paid=1, show confirmation
+    // Mirrors the bike-storage widget but adapted for tier pricing +
+    // size selection. Server picks the specific bike sub-unit on checkout.
+    (function initEbikeHireWidgets() {
+        var $widgets = $('.gas-ebike-hire[data-property-id]');
+        if (!$widgets.length) return;
+
+        if (!document.getElementById('gas-ebike-hire-styles')) {
+            var css = [
+                '.gas-eh-widget{font-family:inherit;max-width:640px;margin:1rem 0;padding:1.25rem;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}',
+                '.wp-block-column .gas-ebike-hire,.wp-block-columns .gas-ebike-hire,.pb-layout .gas-ebike-hire{height:100%;display:block}',
+                '.wp-block-column .gas-eh-widget,.wp-block-columns .gas-eh-widget,.pb-layout .gas-eh-widget{max-width:100%;width:100%;height:100%;margin:0;border-radius:0;box-sizing:border-box;display:flex;flex-direction:column}',
+                '.gas-eh-tagline{color:#64748b;font-size:0.9rem;margin-bottom:1rem}',
+                '.gas-eh-date-row{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem}',
+                '.gas-eh-date-row label{display:flex;flex-direction:column;font-size:0.85rem;color:#475569;gap:0.25rem}',
+                '.gas-eh-date-row input{padding:0.6rem 0.75rem;border:1px solid #cbd5e1;border-radius:8px;font-size:1rem;background:#fff}',
+                '.gas-eh-check-btn,.gas-eh-book-btn{display:block;width:100%;padding:0.75rem 1rem;border:none;border-radius:8px;background:var(--button_color,#F97224);color:#fff;font-size:1rem;font-weight:600;cursor:pointer;transition:opacity 0.15s}',
+                '.gas-eh-check-btn:hover,.gas-eh-book-btn:hover{opacity:0.92}',
+                '.gas-eh-check-btn:disabled,.gas-eh-book-btn:disabled{opacity:0.5;cursor:wait}',
+                '.gas-eh-back-btn{background:none;border:none;color:#64748b;font-size:0.85rem;cursor:pointer;margin-top:0.75rem;padding:0.25rem 0;text-decoration:underline}',
+                '.gas-eh-message,.gas-eh-form-error{margin-top:0.75rem;font-size:0.9rem;min-height:1.25rem}',
+                '.gas-eh-sizes{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;margin-bottom:1rem}',
+                '.gas-eh-size-card{padding:1rem;border:2px solid #e2e8f0;border-radius:10px;background:#fff;cursor:pointer;transition:all 0.15s;text-align:left}',
+                '.gas-eh-size-card:hover{border-color:var(--button_color,#F97224);background:#fffaf5}',
+                '.gas-eh-size-card.selected{border-color:var(--button_color,#F97224);background:#fffaf5;box-shadow:0 0 0 3px rgba(249,114,36,0.15)}',
+                '.gas-eh-size-card.unavailable{opacity:0.45;cursor:not-allowed;background:#f8fafc}',
+                '.gas-eh-size-card .lbl{font-size:1.05rem;font-weight:700;color:#0f172a}',
+                '.gas-eh-size-card .avail{font-size:0.82rem;color:#64748b;margin-top:0.25rem}',
+                '.gas-eh-size-card .price{font-size:1rem;font-weight:700;color:var(--button_color,#F97224);margin-top:0.5rem}',
+                '.gas-eh-summary{padding:0.85rem 1rem;background:#f8fafc;border-radius:8px;margin-bottom:1rem;font-size:0.95rem}',
+                '.gas-eh-form-row{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem}',
+                '.gas-eh-guest-form input{width:100%;padding:0.6rem 0.75rem;border:1px solid #cbd5e1;border-radius:8px;font-size:0.95rem;margin-bottom:0.5rem;box-sizing:border-box}',
+                '.gas-eh-step-success{text-align:center;padding:1rem 0}',
+                '.gas-eh-step-success h3{color:#10b981;margin:0 0 0.5rem}',
+                '@media(max-width:520px){.gas-eh-date-row,.gas-eh-form-row{grid-template-columns:1fr}}'
+            ].join('');
+            var styleEl = document.createElement('style');
+            styleEl.id = 'gas-ebike-hire-styles';
+            styleEl.textContent = css;
+            document.head.appendChild(styleEl);
+        }
+
+        function fmtSymbol(c) { return c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'USD' ? '$' : (c + ' '); }
+
+        $widgets.each(function() {
+            var $container = $(this);
+            if ($container.data('gasEhInited')) return;
+            $container.data('gasEhInited', true);
+
+            var propertyId = $container.data('property-id');
+            var apiUrl = (typeof gasBooking !== 'undefined' && gasBooking.apiUrl) ? gasBooking.apiUrl : 'https://admin.gas.travel';
+
+            $container.html(
+                '<div class="gas-eh-widget">' +
+                '  <div class="gas-eh-step gas-eh-step-dates">' +
+                '    <div class="gas-eh-tagline">Hire an e-bike for the day. Pickup 10:00, return by 18:00 · max 3-day hire.</div>' +
+                '    <div class="gas-eh-date-row">' +
+                '      <label>Pickup<input type="text" class="gas-eh-checkin" placeholder="Pick a date" readonly></label>' +
+                '      <label>Return<input type="text" class="gas-eh-checkout" placeholder="Pick a date" readonly></label>' +
+                '    </div>' +
+                '    <button type="button" class="gas-eh-check-btn">Check availability</button>' +
+                '    <div class="gas-eh-message"></div>' +
+                '  </div>' +
+                '  <div class="gas-eh-step gas-eh-step-pick" style="display:none">' +
+                '    <div class="gas-eh-summary"></div>' +
+                '    <div class="gas-eh-sizes"></div>' +
+                '    <form class="gas-eh-guest-form" style="display:none">' +
+                '      <div class="gas-eh-form-row">' +
+                '        <input name="first_name" placeholder="First name *">' +
+                '        <input name="last_name" placeholder="Last name *">' +
+                '      </div>' +
+                '      <input name="email" type="email" placeholder="Email *">' +
+                '      <input name="phone" type="tel" placeholder="Phone (optional)">' +
+                '      <button type="submit" class="gas-eh-book-btn">Book and pay</button>' +
+                '      <div class="gas-eh-form-error"></div>' +
+                '    </form>' +
+                '    <button type="button" class="gas-eh-back-btn">← Change dates</button>' +
+                '  </div>' +
+                '  <div class="gas-eh-step gas-eh-step-success" style="display:none">' +
+                '    <h3>✓ Booking confirmed</h3>' +
+                '    <p>Check your email — full pickup details on the way.</p>' +
+                '  </div>' +
+                '</div>'
+            );
+
+            var $checkin = $container.find('.gas-eh-checkin');
+            var $checkout = $container.find('.gas-eh-checkout');
+            if (typeof flatpickr !== 'undefined') {
+                flatpickr($checkin[0], {
+                    dateFormat: 'Y-m-d', minDate: 'today', disableMobile: true,
+                    onChange: function(dates) {
+                        if (dates.length && $checkout[0]._flatpickr) {
+                            var next = new Date(dates[0]); next.setDate(next.getDate() + 1);
+                            var max = new Date(dates[0]); max.setDate(max.getDate() + 3);
+                            $checkout[0]._flatpickr.set('minDate', next);
+                            $checkout[0]._flatpickr.set('maxDate', max);
+                            setTimeout(function() { $checkout[0]._flatpickr.open(); }, 100);
+                        }
+                    }
+                });
+                flatpickr($checkout[0], { dateFormat: 'Y-m-d', minDate: 'today', disableMobile: true });
+            }
+
+            // Handle Stripe return
+            var qparams = new URLSearchParams(window.location.search);
+            if (qparams.get('paid') === '1') {
+                $container.find('.gas-eh-step').hide();
+                $container.find('.gas-eh-step-success').show();
+            } else if (qparams.get('cancelled') === '1') {
+                $container.find('.gas-eh-message').html('<div style="color:#b91c1c">Payment cancelled — pick dates again any time.</div>');
+            }
+
+            var lastQuote = null;
+            var pickedSize = null;
+
+            function renderSizes() {
+                if (!lastQuote) return;
+                var symbol = fmtSymbol(lastQuote.currency);
+                $container.find('.gas-eh-summary').html(
+                    '<strong>' + lastQuote.nights + ' day' + (lastQuote.nights === 1 ? '' : 's') + '</strong> · pick a size below' +
+                    '<div style="color:#64748b;font-size:0.85rem;margin-top:0.25rem;">Pickup ' + lastQuote.pickup_time + ' · return by ' + lastQuote.return_time + '</div>'
+                );
+                var cardsHtml = lastQuote.sizes.map(function(s) {
+                    var isAvail = s.available_count > 0;
+                    var isPicked = (pickedSize && pickedSize.toLowerCase() === s.size.toLowerCase());
+                    return '<div class="gas-eh-size-card ' + (isAvail ? '' : 'unavailable ') + (isPicked ? 'selected' : '') + '" data-size="' + s.size.replace(/"/g,'&quot;') + '">' +
+                        '<div class="lbl">' + s.size + '</div>' +
+                        '<div class="avail">' + s.available_count + ' available</div>' +
+                        '<div class="price">' + symbol + s.total_price.toFixed(2) + ' total</div>' +
+                        '</div>';
+                }).join('');
+                if (!cardsHtml) {
+                    cardsHtml = '<div style="color:#b91c1c;grid-column:1/-1;padding:1rem;text-align:center;background:#fef2f2;border-radius:8px;">No bikes available for these dates — try a shorter range or different dates.</div>';
+                }
+                $container.find('.gas-eh-sizes').html(cardsHtml);
+                // Hide form until a size is picked.
+                if (pickedSize) $container.find('.gas-eh-guest-form').show();
+                else $container.find('.gas-eh-guest-form').hide();
+            }
+
+            $container.on('click', '.gas-eh-size-card:not(.unavailable)', function() {
+                pickedSize = $(this).data('size');
+                renderSizes();
+            });
+
+            $container.on('click', '.gas-eh-check-btn', function() {
+                var checkin = $checkin.val();
+                var checkout = $checkout.val();
+                var $msg = $container.find('.gas-eh-message');
+                if (!checkin || !checkout) {
+                    $msg.html('<div style="color:#b91c1c">Pick both dates first.</div>');
+                    return;
+                }
+                $msg.html('<div style="color:#64748b">Checking availability…</div>');
+                var $btn = $(this);
+                $btn.prop('disabled', true);
+                $.ajax({
+                    url: apiUrl + '/api/public/ebike-hire/availability',
+                    data: { property_id: propertyId, check_in: checkin, check_out: checkout },
+                    dataType: 'json'
+                }).done(function(r) {
+                    $btn.prop('disabled', false);
+                    if (!r.success) {
+                        $msg.html('<div style="color:#b91c1c">' + (r.error || 'Not available') + '</div>');
+                        return;
+                    }
+                    lastQuote = r;
+                    pickedSize = null;
+                    $container.find('.gas-eh-step').hide();
+                    $container.find('.gas-eh-step-pick').show();
+                    renderSizes();
+                }).fail(function(x) {
+                    $btn.prop('disabled', false);
+                    var em = (x.responseJSON && x.responseJSON.error) ? x.responseJSON.error : 'Network error';
+                    $msg.html('<div style="color:#b91c1c">' + em + '</div>');
+                });
+            });
+
+            $container.on('click', '.gas-eh-back-btn', function() {
+                $container.find('.gas-eh-step').hide();
+                $container.find('.gas-eh-step-dates').show();
+                pickedSize = null;
+            });
+
+            $container.on('submit', '.gas-eh-guest-form', function(e) {
+                e.preventDefault();
+                var $form = $(this);
+                var $err = $container.find('.gas-eh-form-error');
+                var $btn = $form.find('.gas-eh-book-btn');
+                var first = $form.find('[name="first_name"]').val().trim();
+                var last  = $form.find('[name="last_name"]').val().trim();
+                var email = $form.find('[name="email"]').val().trim();
+                var phone = $form.find('[name="phone"]').val().trim();
+                if (!first || !last || !email) {
+                    $err.html('<div style="color:#b91c1c">Name and email are required.</div>');
+                    return;
+                }
+                if (!pickedSize) {
+                    $err.html('<div style="color:#b91c1c">Pick a size first.</div>');
+                    return;
+                }
+                $err.html('');
+                $btn.prop('disabled', true).text('Redirecting to payment…');
+                $.ajax({
+                    url: apiUrl + '/api/public/ebike-hire/checkout',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        property_id: propertyId,
+                        check_in: $checkin.val(),
+                        check_out: $checkout.val(),
+                        size: pickedSize,
+                        guest_first_name: first,
+                        guest_last_name: last,
+                        guest_email: email,
+                        guest_phone: phone,
+                        source_site_url: window.location.origin + window.location.pathname
+                    }),
+                    dataType: 'json'
+                }).done(function(r) {
+                    if (r.success && r.checkout_url) {
+                        window.location.href = r.checkout_url;
+                    } else {
+                        $btn.prop('disabled', false).text('Book and pay');
+                        $err.html('<div style="color:#b91c1c">' + (r.error || 'Could not start checkout') + '</div>');
+                    }
+                }).fail(function(x) {
+                    $btn.prop('disabled', false).text('Book and pay');
+                    var em = (x.responseJSON && x.responseJSON.error) ? x.responseJSON.error : 'Network error';
+                    $err.html('<div style="color:#b91c1c">' + em + '</div>');
+                });
+            });
+        });
+    })();
+    // ========== END E-BIKE HIRE WIDGET ==========
+
 });
 
 // Global helpers for the inline card image slider (arrows on room cards).
