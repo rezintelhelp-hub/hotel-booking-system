@@ -81360,7 +81360,8 @@ app.get('/api/admin/bookings/:id/communications', async (req, res) => {
     const r = await pool.query(`
       SELECT gc.id, gc.booking_id, gc.channel, gc.direction, gc.event_type,
              gc.subject, gc.body, gc.status, gc.sent_at, gc.opened_at, gc.clicked_at,
-             gc.provider_message_id, gc.metadata,
+             gc.delivered_at, gc.failed_at, gc.failed_reason,
+             gc.to_email, gc.provider_message_id, gc.metadata,
              g.email AS recipient_email,
              TRIM(COALESCE(g.first_name,'') || ' ' || COALESCE(g.last_name,'')) AS recipient_name
       FROM guest_communications gc
