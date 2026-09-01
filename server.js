@@ -166537,6 +166537,48 @@ app.get('/api/admin/channex/writeback-health', async (req, res) => {
   }
 });
 
+// Detail lister behind the writeback-health "failed" counter. Given an
+// account_id (or a connection_id), returns the actual failed outbox rows
+// with last_error + linked booking so we can diagnose without shelling in.
+// Master-admin only. Steve 2026-09-01 — Charles House writeback showed 1
+// failed in 24h; needed a way to see the reason from the UI, not just the
+// count.
+app.get('/api/admin/channex/writeback-failures', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const accountId = req.query.account_id ? parseInt(req.query.account_id) : null;
+    const connectionId = req.query.connection_id ? parseInt(req.query.connection_id) : null;
+    const hours = Math.max(1, Math.min(720, parseInt(req.query.hours) || 24));
+    if (!accountId && !connectionId) return res.json({ success: false, error: 'account_id or connection_id required' });
+
+    const params = [];
+    let where = [`o.status = 'failed'`, `o.created_at >= NOW() - ($${params.push(hours + ' hours')})::interval`];
+    if (connectionId) { params.push(connectionId); where.push(`o.connection_id = $${params.length}`); }
+    else { params.push(accountId); where.push(`c.account_id = $${params.length}`); }
+
+    const rows = await pool.query(
+      `SELECT o.id, o.connection_id, c.account_id, o.change_type, o.status,
+              o.attempts, o.last_error, o.channex_task_id,
+              o.created_at, o.processed_at,
+              o.payload->>'gasBookingId'   AS gas_booking_id,
+              o.payload->>'roomTypeId'     AS room_type_id,
+              o.payload->>'ratePlanId'     AS rate_plan_id,
+              o.payload->>'date'           AS date
+         FROM gas_channex_outbox o
+         JOIN gas_sync_connections c ON c.id = o.connection_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY o.created_at DESC
+        LIMIT 100`,
+      params
+    );
+    res.json({ success: true, count: rows.rows.length, failures: rows.rows });
+  } catch (e) {
+    console.error('[writeback-failures]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // ─── Beds24 Sync Failures Daily Digest ─────────────────────────────
 // Nightly email listing any abandoned Beds24 sync failures — GAS captured
 // the booking + payment but the initial sync to Beds24 failed 5x and
