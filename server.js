@@ -27922,8 +27922,16 @@ app.post('/api/admin/accounts/:id/gocardless-mandate-status', async (req, res) =
     const id = parseInt(req.params.id);
     const status = String(req.body?.status || '').trim();
     if (!id || !status) return res.status(400).json({ success: false, error: 'id + status required' });
+    // Flip BOTH the GC-specific column and the generic billing_mandate_status
+    // (which the billing UI reads at line ~120716). They need to move in
+    // step or the account shows "no billing method" despite GC being active.
     const r = await pool.query(
-      `UPDATE accounts SET gocardless_mandate_status = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, gocardless_mandate_status`,
+      `UPDATE accounts
+          SET gocardless_mandate_status = $1,
+              billing_mandate_status = $1,
+              updated_at = NOW()
+        WHERE id = $2
+        RETURNING id, name, gocardless_mandate_status, billing_mandate_status, billing_method`,
       [status, id]
     );
     if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Account not found' });
