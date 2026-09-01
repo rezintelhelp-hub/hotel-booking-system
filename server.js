@@ -106996,7 +106996,15 @@ async function _ebikeHireTierPrice(roomId, standardPricePerNight, nights) {
   // ("£20 off for the 3-day tier" → net £70 on £30/night × 3). Percentage
   // and Replace-Standard-Rate offers are unaffected — they compute per-night
   // and multiply, same shape either way.
-  const isTierOffer = offer.min_nights != null && offer.max_nights != null && offer.min_nights === offer.max_nights;
+  //   * PG can return integer columns as strings in some driver configs —
+  //     Number() cast both sides before comparing.
+  //   * If max_nights is null but the requested night count MATCHES min_nights
+  //     exactly, treat as tier too — many operators leave max blank meaning
+  //     "at least this many" and set one offer per exact tier length.
+  const minN = offer.min_nights != null ? Number(offer.min_nights) : null;
+  const maxN = offer.max_nights != null ? Number(offer.max_nights) : null;
+  const isTierOffer = (minN != null && maxN != null && minN === maxN)
+                    || (minN != null && maxN == null && minN === nights);
   let total;
   if (offer.price_per_night != null) {
     total = Number(offer.price_per_night) * nights;
@@ -107016,6 +107024,19 @@ async function _ebikeHireTierPrice(roomId, standardPricePerNight, nights) {
     per_night: nights > 0 ? Math.round((total / nights) * 100) / 100 : 0,
     offer_id: offer.id,
     offer_name: offer.name,
+    debug: {
+      raw_min_nights: offer.min_nights,
+      raw_max_nights: offer.max_nights,
+      raw_min_typeof: typeof offer.min_nights,
+      raw_max_typeof: typeof offer.max_nights,
+      parsed_min: minN,
+      parsed_max: maxN,
+      is_tier: isTierOffer,
+      discount_type: offer.discount_type,
+      discount_value: offer.discount_value,
+      price_per_night: offer.price_per_night,
+      standard_used: standardPricePerNight,
+    },
   };
 }
 
@@ -107154,6 +107175,7 @@ async function _ebikeHireQuote(propertyId, checkIn, checkOut) {
     check_out: dep,
     sizes,
     tier_name: tier.offer_name,
+    tier_debug: tier.debug,
     pickup_time: '10:00',
     return_time: '18:00',
     stripe_publishable_key: publishableKey,
