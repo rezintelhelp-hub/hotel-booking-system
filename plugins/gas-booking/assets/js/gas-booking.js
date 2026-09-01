@@ -11983,8 +11983,10 @@ jQuery(document).ready(function($) {
                 if (!lastQuote) return;
                 var symbol = fmtSymbol(lastQuote.currency);
                 $container.find('.gas-eh-summary').html(
-                    '<strong>' + lastQuote.nights + ' day' + (lastQuote.nights === 1 ? '' : 's') + '</strong> · pick a size below' +
-                    '<div style="color:#64748b;font-size:0.85rem;margin-top:0.25rem;">Pickup ' + lastQuote.pickup_time + ' · return by ' + lastQuote.return_time + '</div>'
+                    '<strong>' + lastQuote.nights + ' day' + (lastQuote.nights === 1 ? '' : 's') + '</strong>' +
+                    ' &middot; ' + lastQuote.check_in + ' → ' + lastQuote.check_out +
+                    ' &middot; pick a size below' +
+                    '<div style="color:#64748b;font-size:0.85rem;margin-top:0.25rem;">Pickup ' + lastQuote.pickup_time + ' on ' + lastQuote.check_in + ' · return by ' + lastQuote.return_time + ' on ' + lastQuote.check_out + '</div>'
                 );
                 var cardsHtml = lastQuote.sizes.map(function(s) {
                     var isAvail = s.available_count > 0;
