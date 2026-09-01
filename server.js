@@ -4163,6 +4163,21 @@ async function runMigrations() {
       // (data.id on /devices), not numeric, so VARCHAR not BIGINT.
       // The pairing model is the same as TTLock: one device per unit.
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS remotelock_device_id VARCHAR(64)`);
+      // E-bike hire (Hebden trial 2026-09-01). unit_role='ebike' + these three
+      // attributes describe one hireable bike. size drives the guest picker
+      // ("M/L", "S", "XS" — free-form so operators can define their own).
+      // store + position are display metadata for staff so they know which
+      // cabinet to grab from ("Store 6 Left" etc.). Bike calendar reuses
+      // room_availability the same way rooms do.
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS ebike_size VARCHAR(30)`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS ebike_store INT`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS ebike_position VARCHAR(20)`);
+      // Property-level e-bike tier pricing. JSONB array of {days, price}
+      // (e.g. [{"days":1,"price":30},{"days":2,"price":50},{"days":3,"price":70}]).
+      // Same tiers apply to every ebike unit under the property; per-unit
+      // overrides can come later if a client needs premium/economy bike pricing.
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS ebike_pricing_tiers JSONB DEFAULT '[]'::jsonb`);
+      console.log('✅ e-bike columns ensured (bookable_units.ebike_*, properties.ebike_pricing_tiers)');
       await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS companion_bookable_unit_id INT REFERENCES bookable_units(id)`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS parent_booking_id INT REFERENCES bookings(id) ON DELETE SET NULL`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_role VARCHAR(20) DEFAULT 'primary'`);
@@ -163643,6 +163658,141 @@ async function _mintBikeStoragePasscodeForBooking(bookingId) {
 // unit_role='bike_storage' bookable_unit configured. The Pro Builder
 // property picker uses this so operators can only pick properties where
 // the feature is actually set up — no dead links.
+// ─── E-BIKE HIRE — admin CRUD ───────────────────────────────────────
+// Slice 1 (Hebden trial 2026-09-01). Manages bookable_units with
+// unit_role='ebike'. Reuses room_availability for calendar blocking.
+// Pricing tiers live on the property (properties.ebike_pricing_tiers)
+// and apply to every bike under that property.
+
+// GET /api/admin/ebikes?property_id=X — list e-bike units + tier pricing.
+app.get('/api/admin/ebikes', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const propertyId = parseInt(req.query.property_id);
+    if (!propertyId) return res.status(400).json({ success: false, error: 'property_id required' });
+    const bikesQ = await pool.query(
+      `SELECT bu.id, bu.name, bu.status, bu.ebike_size, bu.ebike_store, bu.ebike_position,
+              bu.ttlock_lock_id, bu.remotelock_device_id
+         FROM bookable_units bu
+        WHERE bu.property_id = $1 AND bu.unit_role = 'ebike'
+        ORDER BY COALESCE(bu.ebike_store, 999), COALESCE(bu.ebike_position, ''), bu.id`,
+      [propertyId]
+    );
+    const propQ = await pool.query(
+      `SELECT ebike_pricing_tiers FROM properties WHERE id = $1`,
+      [propertyId]
+    );
+    res.json({
+      success: true,
+      bikes: bikesQ.rows,
+      pricing_tiers: propQ.rows[0]?.ebike_pricing_tiers || [],
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/admin/ebikes — create a new e-bike unit.
+app.post('/api/admin/ebikes', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const { property_id, name, ebike_size, ebike_store, ebike_position } = req.body || {};
+    if (!property_id || !name || !ebike_size) {
+      return res.status(400).json({ success: false, error: 'property_id, name, ebike_size required' });
+    }
+    const r = await pool.query(
+      `INSERT INTO bookable_units (property_id, name, unit_role, status, ebike_size, ebike_store, ebike_position)
+       VALUES ($1, $2, 'ebike', 'available', $3, $4, $5)
+       RETURNING id, name, status, ebike_size, ebike_store, ebike_position`,
+      [property_id, name.trim(), String(ebike_size).trim(), ebike_store || null, ebike_position || null]
+    );
+    res.json({ success: true, bike: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// PUT /api/admin/ebikes/:id — update fields (partial patch).
+app.put('/api/admin/ebikes/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, error: 'invalid id' });
+    const allowed = ['name', 'status', 'ebike_size', 'ebike_store', 'ebike_position'];
+    const sets = [];
+    const vals = [];
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) {
+        sets.push(`${k} = $${sets.length + 1}`);
+        vals.push(req.body[k]);
+      }
+    }
+    if (sets.length === 0) return res.json({ success: false, error: 'nothing to update' });
+    vals.push(id);
+    const r = await pool.query(
+      `UPDATE bookable_units SET ${sets.join(', ')}, updated_at = NOW()
+        WHERE id = $${vals.length} AND unit_role = 'ebike'
+        RETURNING id, name, status, ebike_size, ebike_store, ebike_position`,
+      vals
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'e-bike unit not found' });
+    res.json({ success: true, bike: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// DELETE /api/admin/ebikes/:id — soft delete (status='inactive'). Keeps
+// history/bookings intact; the unit just stops appearing to guests.
+app.delete('/api/admin/ebikes/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, error: 'invalid id' });
+    const r = await pool.query(
+      `UPDATE bookable_units SET status = 'inactive', updated_at = NOW()
+        WHERE id = $1 AND unit_role = 'ebike' RETURNING id`,
+      [id]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'e-bike unit not found' });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// PUT /api/admin/properties/:id/ebike-tiers — replace the property's tier
+// pricing array. Body: { tiers: [{days, price}, ...] }.
+app.put('/api/admin/properties/:id/ebike-tiers', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, error: 'invalid id' });
+    let tiers = Array.isArray(req.body?.tiers) ? req.body.tiers : [];
+    // Sanitise — {days:int, price:float}, sorted by days, dedupe by days.
+    const seen = new Set();
+    tiers = tiers
+      .map(t => ({ days: parseInt(t.days), price: parseFloat(t.price) }))
+      .filter(t => Number.isFinite(t.days) && t.days > 0 && Number.isFinite(t.price) && t.price >= 0)
+      .filter(t => { if (seen.has(t.days)) return false; seen.add(t.days); return true; })
+      .sort((a, b) => a.days - b.days);
+    const r = await pool.query(
+      `UPDATE properties SET ebike_pricing_tiers = $1::jsonb, updated_at = NOW()
+        WHERE id = $2 RETURNING id, ebike_pricing_tiers`,
+      [JSON.stringify(tiers), id]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Property not found' });
+    res.json({ success: true, pricing_tiers: r.rows[0].ebike_pricing_tiers });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.get('/api/admin/bike-storage/properties', async (req, res) => {
   try {
     const decoded = await extractAccountFromToken(req);

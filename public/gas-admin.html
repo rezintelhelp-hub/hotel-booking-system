@@ -31941,6 +31941,31 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <textarea class="form-input" id="edit-property-house-rules" rows="4" placeholder="No smoking. No parties. Quiet hours 22:00–08:00. Pets by prior arrangement only." style="width: 100%; font-size:0.9rem;"></textarea>
                 </div>
 
+                <!-- E-Bike Hire — Slice 1 (2026-09-01). Manages bookable_units
+                     with unit_role='ebike' + property.ebike_pricing_tiers.
+                     Small inline surface so operators can seed their bike
+                     fleet + tier pricing without leaving the property view. -->
+                <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🚲 E-Bike Hire</h4>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">Manage rentable e-bike inventory + tier pricing for this property. Each bike is one physical unit; guests see sizes, not individual bikes.</p>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem;">
+                            <div style="font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem;">Tier pricing</div>
+                            <div id="ebike-tiers-list" style="display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem;"></div>
+                            <button type="button" onclick="ebikeAddTierRow()" style="margin-top: 0.5rem; padding: 0.35rem 0.75rem; background: #fff; border: 1px dashed #cbd5e1; border-radius: 6px; cursor: pointer; font-size: 0.8rem; color: #475569;">+ Add tier</button>
+                            <button type="button" onclick="ebikeSaveTiers()" style="margin-top: 0.5rem; margin-left: 0.5rem; padding: 0.35rem 0.75rem; background: #0f172a; color: #fff; border: 0; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">💾 Save pricing</button>
+                            <small id="ebike-tiers-status" style="display: block; margin-top: 0.4rem; font-size: 0.75rem; color: #64748b;"></small>
+                        </div>
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem;">
+                            <div style="font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem;">Bikes (<span id="ebike-count">0</span>)</div>
+                            <div id="ebike-units-list" style="display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem;"></div>
+                            <button type="button" onclick="ebikeAddUnit()" style="margin-top: 0.5rem; padding: 0.35rem 0.75rem; background: #fff; border: 1px dashed #cbd5e1; border-radius: 6px; cursor: pointer; font-size: 0.8rem; color: #475569;">+ Add bike</button>
+                            <small id="ebike-units-status" style="display: block; margin-top: 0.4rem; font-size: 0.75rem; color: #64748b;"></small>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Guest Portal section toggles. Save-on-change: each checkbox
                      PUTs /api/admin/properties/:id/portal-sections which merges
                      the flag into the JSONB column. All-ticked is the default;
@@ -82374,6 +82399,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-property-checkout-time').value = prop.check_out_time || '';
                     document.getElementById('edit-property-house-rules').value = prop.house_rules || '';
 
+                    // E-Bike Hire management — load the bikes + pricing tiers
+                    // for this property into the inline UI. Non-blocking.
+                    loadEbikeUnits(prop.id).catch(e => console.warn('[ebike load]', e));
+
                     // Guest Portal section toggles. Missing/unset = "show", so a
                     // legacy property with no portal_sections JSONB behaves
                     // exactly as before (every box ticked). savePropertyPortalSection
@@ -83430,6 +83459,174 @@ const promo = await fetch('/api/v1/offers/validate', {
                     rentEl.value = data.chargeautomation_rental_id || '';
                 }
             } catch (e) { console.error('CA mapping load error:', e); }
+        }
+
+        // ── E-Bike Hire management (Slice 1 2026-09-01) ──
+        // Two panels inside the property edit modal: tier pricing (property-
+        // level JSONB) and bike inventory (bookable_units with unit_role='ebike').
+        // Both are save-per-action (explicit Save for tiers, per-row Save for
+        // bikes) so operators can't lose the state by closing the modal.
+        let _ebikePropertyId = null;
+        let _ebikeTiersState = [];
+        let _ebikeBikesState = [];
+
+        async function loadEbikeUnits(propertyId) {
+            _ebikePropertyId = propertyId;
+            const listEl = document.getElementById('ebike-units-list');
+            const countEl = document.getElementById('ebike-count');
+            const tiersEl = document.getElementById('ebike-tiers-list');
+            if (!listEl) return; // section not on this view
+            listEl.innerHTML = '<div style="color:#94a3b8;font-size:0.8rem;">Loading…</div>';
+            tiersEl.innerHTML = '';
+            try {
+                const r = await fetch(`/api/admin/ebikes?property_id=${propertyId}`, { headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success) throw new Error(d.error || 'load failed');
+                _ebikeBikesState = d.bikes || [];
+                _ebikeTiersState = Array.isArray(d.pricing_tiers) ? [...d.pricing_tiers] : [];
+                renderEbikeTiers();
+                renderEbikeUnits();
+            } catch (e) {
+                listEl.innerHTML = '<div style="color:#dc2626;font-size:0.8rem;">⚠ ' + e.message + '</div>';
+            }
+        }
+
+        function renderEbikeTiers() {
+            const tiersEl = document.getElementById('ebike-tiers-list');
+            if (!tiersEl) return;
+            if (_ebikeTiersState.length === 0) {
+                tiersEl.innerHTML = '<div style="color:#94a3b8;font-size:0.8rem;">No tiers yet. Add one below (e.g. 1 day @ £30).</div>';
+                return;
+            }
+            tiersEl.innerHTML = _ebikeTiersState.map((t, i) => `
+                <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:0.4rem;align-items:center;">
+                    <input type="number" min="1" placeholder="Days" value="${t.days ?? ''}" onchange="_ebikeTiersState[${i}].days = parseInt(this.value)||0" style="padding:0.35rem 0.5rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.85rem;">
+                    <input type="number" min="0" step="0.01" placeholder="Price" value="${t.price ?? ''}" onchange="_ebikeTiersState[${i}].price = parseFloat(this.value)||0" style="padding:0.35rem 0.5rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.85rem;">
+                    <button type="button" onclick="ebikeRemoveTierRow(${i})" title="Remove" style="background:none;border:0;color:#dc2626;font-size:1.1rem;cursor:pointer;">🗑</button>
+                </div>`).join('');
+        }
+
+        function ebikeAddTierRow() {
+            _ebikeTiersState.push({ days: null, price: null });
+            renderEbikeTiers();
+        }
+        function ebikeRemoveTierRow(i) {
+            _ebikeTiersState.splice(i, 1);
+            renderEbikeTiers();
+        }
+
+        async function ebikeSaveTiers() {
+            const status = document.getElementById('ebike-tiers-status');
+            if (!_ebikePropertyId) return;
+            status.textContent = 'Saving…'; status.style.color = '#64748b';
+            try {
+                const r = await fetch(`/api/admin/properties/${_ebikePropertyId}/ebike-tiers`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ tiers: _ebikeTiersState })
+                });
+                const d = await r.json();
+                if (!d.success) throw new Error(d.error || 'save failed');
+                _ebikeTiersState = d.pricing_tiers || [];
+                renderEbikeTiers();
+                status.textContent = '✅ Saved'; status.style.color = '#15803d';
+            } catch (e) {
+                status.textContent = '⚠ ' + e.message; status.style.color = '#dc2626';
+            }
+        }
+
+        function renderEbikeUnits() {
+            const listEl = document.getElementById('ebike-units-list');
+            const countEl = document.getElementById('ebike-count');
+            if (countEl) countEl.textContent = _ebikeBikesState.length;
+            if (_ebikeBikesState.length === 0) {
+                listEl.innerHTML = '<div style="color:#94a3b8;font-size:0.8rem;">No bikes yet. Add one below.</div>';
+                return;
+            }
+            listEl.innerHTML = _ebikeBikesState.map((b, i) => `
+                <div style="display:grid;grid-template-columns:2fr 1fr 60px 80px auto auto;gap:0.4rem;align-items:center;" data-ebike-id="${b.id}">
+                    <input type="text" value="${(b.name||'').replace(/"/g,'&quot;')}" placeholder="Name" onchange="_ebikeBikesState[${i}].name = this.value" style="padding:0.35rem 0.5rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.85rem;">
+                    <input type="text" value="${(b.ebike_size||'').replace(/"/g,'&quot;')}" placeholder="Size (M/L, S, XS)" onchange="_ebikeBikesState[${i}].ebike_size = this.value" style="padding:0.35rem 0.5rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.85rem;">
+                    <input type="number" value="${b.ebike_store ?? ''}" placeholder="Store" onchange="_ebikeBikesState[${i}].ebike_store = parseInt(this.value)||null" style="padding:0.35rem 0.5rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.85rem;">
+                    <input type="text" value="${(b.ebike_position||'').replace(/"/g,'&quot;')}" placeholder="Position" onchange="_ebikeBikesState[${i}].ebike_position = this.value" style="padding:0.35rem 0.5rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.85rem;">
+                    <button type="button" onclick="ebikeSaveUnit(${i})" title="Save" style="background:#0f172a;color:#fff;border:0;border-radius:6px;padding:0.35rem 0.6rem;cursor:pointer;font-size:0.8rem;">💾</button>
+                    <button type="button" onclick="ebikeDeleteUnit(${i})" title="Remove" style="background:none;border:0;color:#dc2626;font-size:1.1rem;cursor:pointer;">🗑</button>
+                </div>`).join('');
+        }
+
+        async function ebikeAddUnit() {
+            if (!_ebikePropertyId) return;
+            const status = document.getElementById('ebike-units-status');
+            const name = prompt('Bike name (e.g. "Raleigh — Store 1 Left"):');
+            if (!name || !name.trim()) return;
+            const size = prompt('Size label (e.g. "M/L", "S", "XS"):');
+            if (!size || !size.trim()) return;
+            status.textContent = 'Adding…'; status.style.color = '#64748b';
+            try {
+                const r = await fetch('/api/admin/ebikes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        property_id: _ebikePropertyId,
+                        name: name.trim(),
+                        ebike_size: size.trim()
+                    })
+                });
+                const d = await r.json();
+                if (!d.success) throw new Error(d.error || 'add failed');
+                _ebikeBikesState.push(d.bike);
+                renderEbikeUnits();
+                status.textContent = '✅ Added';
+                status.style.color = '#15803d';
+            } catch (e) {
+                status.textContent = '⚠ ' + e.message; status.style.color = '#dc2626';
+            }
+        }
+
+        async function ebikeSaveUnit(i) {
+            const status = document.getElementById('ebike-units-status');
+            const b = _ebikeBikesState[i];
+            if (!b || !b.id) return;
+            status.textContent = 'Saving…'; status.style.color = '#64748b';
+            try {
+                const r = await fetch(`/api/admin/ebikes/${b.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        name: b.name,
+                        ebike_size: b.ebike_size,
+                        ebike_store: b.ebike_store,
+                        ebike_position: b.ebike_position
+                    })
+                });
+                const d = await r.json();
+                if (!d.success) throw new Error(d.error || 'save failed');
+                _ebikeBikesState[i] = d.bike;
+                status.textContent = '✅ Saved'; status.style.color = '#15803d';
+            } catch (e) {
+                status.textContent = '⚠ ' + e.message; status.style.color = '#dc2626';
+            }
+        }
+
+        async function ebikeDeleteUnit(i) {
+            const status = document.getElementById('ebike-units-status');
+            const b = _ebikeBikesState[i];
+            if (!b || !b.id) return;
+            if (!confirm(`Remove "${b.name}" from the fleet? (Existing bookings stay; the bike just stops appearing to guests.)`)) return;
+            status.textContent = 'Removing…'; status.style.color = '#64748b';
+            try {
+                const r = await fetch(`/api/admin/ebikes/${b.id}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const d = await r.json();
+                if (!d.success) throw new Error(d.error || 'delete failed');
+                _ebikeBikesState.splice(i, 1);
+                renderEbikeUnits();
+                status.textContent = '✅ Removed'; status.style.color = '#15803d';
+            } catch (e) {
+                status.textContent = '⚠ ' + e.message; status.style.color = '#dc2626';
+            }
         }
 
         // Guest Portal section toggle — fires from onchange on any checkbox
