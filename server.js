@@ -107197,14 +107197,53 @@ app.get('/api/public/ebike-hire/availability', async (req, res) => {
 app.post('/api/public/ebike-hire/checkout', async (req, res) => {
   try {
     const propertyId = parseInt(req.body?.property_id);
-    const {
+    let {
       check_in, check_out, size,
       guest_first_name, guest_last_name, guest_email, guest_phone,
       source_site_url,
       payment_method_id,  // inline branch — Stripe Elements PaymentMethod id
       payment_intent_id,  // SCA finish — retrieve already-succeeded PI
+      parent_booking_id,  // Flow C: attach hire to an existing accommodation booking
+      parent_last_name,   // re-verify last name so this isn't an enumeration exploit
     } = req.body || {};
     if (!size) return res.status(400).json({ success: false, error: 'Pick a size' });
+
+    // Flow C — linked-to-existing-booking. Re-verify + pull guest details
+    // from the parent so the guest doesn't retype them. Same rules as
+    // bike-storage: same property, same last name, parent must be standalone.
+    let parentBooking = null;
+    if (parent_booking_id) {
+      const pid = parseInt(parent_booking_id);
+      if (!pid) return res.status(400).json({ success: false, error: 'Invalid parent_booking_id' });
+      if (!parent_last_name) return res.status(400).json({ success: false, error: 'parent_last_name required for linked checkout' });
+      const pr = await pool.query(
+        `SELECT id, property_id, arrival_date, departure_date, currency,
+                guest_first_name, guest_last_name, guest_email, guest_phone, guest_mobile
+           FROM bookings
+          WHERE id = $1
+            AND property_id = $2
+            AND LOWER(TRIM(guest_last_name)) = LOWER($3)
+            AND status IN ('confirmed', 'pending', 'inquiry')
+            AND parent_booking_id IS NULL`,
+        [pid, propertyId, String(parent_last_name).trim()]
+      );
+      if (!pr.rows.length) return res.status(404).json({ success: false, error: 'Parent booking not found or last name mismatch' });
+      parentBooking = pr.rows[0];
+      guest_first_name = parentBooking.guest_first_name;
+      guest_last_name  = parentBooking.guest_last_name;
+      guest_email      = parentBooking.guest_email;
+      guest_phone      = parentBooking.guest_phone || parentBooking.guest_mobile || guest_phone;
+      // Fall back to parent's dates when caller didn't supply their own;
+      // otherwise the caller-supplied range must sit inside parent's dates.
+      const parentArr = parentBooking.arrival_date instanceof Date ? parentBooking.arrival_date.toISOString().slice(0, 10) : String(parentBooking.arrival_date).slice(0, 10);
+      const parentDep = parentBooking.departure_date instanceof Date ? parentBooking.departure_date.toISOString().slice(0, 10) : String(parentBooking.departure_date).slice(0, 10);
+      if (!check_in)  check_in  = parentArr;
+      if (!check_out) check_out = parentDep;
+      if (check_in < parentArr || check_out > parentDep) {
+        return res.status(400).json({ success: false, error: `Hire dates must sit inside your room dates (${parentArr} to ${parentDep})` });
+      }
+    }
+
     if (!guest_email || !guest_first_name || !guest_last_name) {
       return res.status(400).json({ success: false, error: 'Name and email are required' });
     }
@@ -107224,14 +107263,18 @@ app.post('/api/public/ebike-hire/checkout', async (req, res) => {
          arrival_date, departure_date,
          accommodation_price, subtotal, grand_total, total_amount, currency, num_adults,
          status, payment_status, booking_source, source_site_url,
-         message, notes, created_at, updated_at
+         message, notes,
+         parent_booking_id, booking_role,
+         created_at, updated_at
        ) VALUES (
          $1, 1, $2, $3,
          $4, $5, $6, $7, $7,
          $8, $9,
          $10, $10, $10, $10, $11, 1,
          'pending', 'unpaid', 'ebike_hire', $12,
-         $13, $13, NOW(), NOW()
+         $13, $13,
+         $14, $15,
+         NOW(), NOW()
        ) RETURNING id`,
       [
         propertyId, pickedSubUnit.bookable_unit_id, pickedSubUnit.id,
@@ -107240,7 +107283,9 @@ app.post('/api/public/ebike-hire/checkout', async (req, res) => {
         q.check_in, q.check_out,
         sizeRow.total_price, q.currency,
         source_site_url || null,
-        `E-Bike hire — ${size} (${pickedSubUnit.name})`,
+        `E-Bike hire — ${size} (${pickedSubUnit.name})${parentBooking ? ` · attached to GAS-${parentBooking.id}` : ''}`,
+        parentBooking ? parentBooking.id : null,
+        parentBooking ? 'addon' : 'primary',
       ]
     );
     const bookingId = ins.rows[0].id;
@@ -107422,6 +107467,57 @@ app.post('/api/public/ebike-hire/checkout', async (req, res) => {
     });
   } catch (e) {
     console.error('[ebike-hire checkout]', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/public/ebike-hire/find-booking
+// Same shape as bike-storage's find-booking — verify booking by ref +
+// last name so the widget can attach an e-bike hire to an existing
+// accommodation booking (parent_booking_id). Guest details pull from
+// the parent so the guest doesn't have to type them again.
+app.post('/api/public/ebike-hire/find-booking', async (req, res) => {
+  try {
+    const propertyId = parseInt(req.body?.property_id);
+    const refRaw = String(req.body?.booking_reference || '').trim();
+    const lastNameRaw = String(req.body?.last_name || '').trim();
+    if (!propertyId || !refRaw || !lastNameRaw) {
+      return res.status(400).json({ success: false, error: 'property_id, booking_reference and last_name required' });
+    }
+    const m = refRaw.toUpperCase().match(/^(?:GAS-)?0*(\d+)$/);
+    if (!m) return res.json({ success: false, error: 'Booking reference must be like GAS-123' });
+    const bookingId = parseInt(m[1], 10);
+    if (!bookingId) return res.json({ success: false, error: 'Booking reference must include a number' });
+    const r = await pool.query(
+      `SELECT id, property_id, arrival_date, departure_date, currency,
+              guest_first_name, guest_last_name, status, payment_status
+         FROM bookings
+        WHERE id = $1
+          AND property_id = $2
+          AND LOWER(TRIM(guest_last_name)) = LOWER($3)
+          AND status IN ('confirmed', 'pending', 'inquiry')
+          AND parent_booking_id IS NULL`,
+      [bookingId, propertyId, lastNameRaw]
+    );
+    if (!r.rows.length) {
+      return res.json({ success: false, error: 'No booking found matching that reference and last name at this property' });
+    }
+    const b = r.rows[0];
+    res.json({
+      success: true,
+      booking: {
+        id: b.id,
+        reference: `GAS-${b.id}`,
+        arrival_date: b.arrival_date instanceof Date ? b.arrival_date.toISOString().slice(0, 10) : String(b.arrival_date).slice(0, 10),
+        departure_date: b.departure_date instanceof Date ? b.departure_date.toISOString().slice(0, 10) : String(b.departure_date).slice(0, 10),
+        currency: b.currency,
+        guest_first_name: b.guest_first_name,
+        guest_last_name: b.guest_last_name,
+        status: b.status,
+      }
+    });
+  } catch (e) {
+    console.error('[ebike-hire find-booking]', e.message);
     res.status(500).json({ success: false, error: e.message });
   }
 });
