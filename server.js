@@ -167790,6 +167790,41 @@ app.post('/api/admin/channex/outbox/:id/dismiss', async (req, res) => {
   }
 });
 
+// Traffic profiler — groups recent outbox rows by change_type + status
+// so we can see what a runaway loop is pushing. Steve 2026-09-05:
+// Charles House hit 217,284 successful pushes in 24h (2.5/sec).
+// Master-admin only.
+app.get('/api/admin/channex/writeback-traffic', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const accountId = req.query.account_id ? parseInt(req.query.account_id) : null;
+    if (!accountId) return res.json({ success: false, error: 'account_id required' });
+    const hours = Math.max(1, Math.min(48, parseInt(req.query.hours) || 4));
+    const r = await pool.query(
+      `SELECT o.change_type,
+              o.status,
+              COUNT(*)::int              AS n,
+              MIN(o.created_at)          AS first_seen,
+              MAX(o.created_at)          AS last_seen,
+              (o.payload->>'roomTypeId') AS sample_room_type,
+              (o.payload->>'ratePlanId') AS sample_rate_plan,
+              (o.payload->>'date')       AS sample_date
+         FROM gas_channex_outbox o
+         JOIN gas_sync_connections c ON c.id = o.connection_id
+        WHERE c.account_id = $1
+          AND o.created_at >= NOW() - ($2 || ' hours')::interval
+        GROUP BY o.change_type, o.status, o.payload->>'roomTypeId', o.payload->>'ratePlanId', o.payload->>'date'
+        ORDER BY n DESC
+        LIMIT 50`,
+      [accountId, hours]
+    );
+    res.json({ success: true, rows: r.rows });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Detail lister behind the writeback-health "failed" counter. Given an
 // account_id (or a connection_id), returns the actual failed outbox rows
 // with last_error + linked booking so we can diagnose without shelling in.
