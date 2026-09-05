@@ -103830,7 +103830,7 @@ async function processChannexBookingNotification(payload) {
       notes = EXCLUDED.notes,
       raw_payload = EXCLUDED.raw_payload,
       updated_at = NOW()
-    RETURNING id
+    RETURNING id, (xmax = 0) AS was_new
   `, [
     connRow.gas_property_id, bookableUnitId, ownerId,
     bookingId, attrs.unique_id || ('CHANNEX-' + bookingId),
@@ -103852,7 +103852,8 @@ async function processChannexBookingNotification(payload) {
     otaChargeAmountMinor
   ]);
   const gasBookingId = upsert.rows[0]?.id;
-  console.log('[Channex webhook] upserted booking', bookingId, '→ GAS booking id', gasBookingId);
+  const wasNew = upsert.rows[0]?.was_new === true;
+  console.log('[Channex webhook] upserted booking', bookingId, '→ GAS booking id', gasBookingId, wasNew ? '(NEW)' : '(existing)');
 
   // For OTA-prepaid bookings, record the payment on GAS's ledger so the
   // Payment Summary card and reports agree with the top-level 'Paid' pill.
@@ -103934,7 +103935,7 @@ async function processChannexBookingNotification(payload) {
 
   if (revisionId) await adapter.acknowledgeBookingRevision(revisionId).catch(e => console.warn('[Channex webhook] ack failed:', e.message));
 
-  return { ok: true, action: 'upserted', bookingId, gasBookingId, guest: `${customer.first_name || ''} ${customer.last_name || ''}`.trim(), arrival, departure };
+  return { ok: true, action: 'upserted', bookingId, gasBookingId, was_new: wasNew, guest: `${customer.first_name || ''} ${customer.last_name || ''}`.trim(), arrival, departure };
 }
 
 app.post('/api/webhooks/channex', async (req, res) => {
@@ -135429,7 +135430,14 @@ async function pullChannexRecentForConnection(connectionId) {
           });
           if (result.ok && result.gasBookingId) {
             summary.upserted++;
-            summary.gas_ids.push(result.gasBookingId);
+            // Only actually-new bookings trigger the property-wide heal.
+            // Steve 2026-09-05 — Charles House was hitting Channex with 200k+
+            // ARI pushes per 24h because every 5-min poll re-echoed existing
+            // reservations (upsert returned ok+gasBookingId even on no-op
+            // refresh), and each property then re-healed 90 dates × N rooms.
+            // xmax=0 → row was INSERTed, so was_new distinguishes genuinely
+            // new landings from webhook-missed echoes.
+            if (result.was_new) summary.gas_ids.push(result.gasBookingId);
           }
         } catch (_) { /* non-fatal */ }
       }
