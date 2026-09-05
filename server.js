@@ -167825,6 +167825,36 @@ app.get('/api/admin/channex/writeback-traffic', async (req, res) => {
   }
 });
 
+// Raw-rows diagnostic — returns individual outbox rows in creation order
+// so we can fingerprint burst patterns (which cron/caller enqueues them).
+// Master-admin only. Steve 2026-09-05 — Charles House 200k+ pushes/24h.
+app.get('/api/admin/channex/writeback-raw', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const accountId = req.query.account_id ? parseInt(req.query.account_id) : null;
+    if (!accountId) return res.json({ success: false, error: 'account_id required' });
+    const minutes = Math.max(1, Math.min(180, parseInt(req.query.minutes) || 10));
+    const r = await pool.query(
+      `SELECT o.id, o.change_type, o.status, o.created_at,
+              o.payload->>'date' AS date,
+              o.payload->>'count' AS count,
+              o.channex_room_type_id AS room_type_id,
+              o.channex_rate_plan_id AS rate_plan_id
+         FROM gas_channex_outbox o
+         JOIN gas_sync_connections c ON c.id = o.connection_id
+        WHERE c.account_id = $1
+          AND o.created_at >= NOW() - ($2 || ' minutes')::interval
+        ORDER BY o.created_at DESC
+        LIMIT 500`,
+      [accountId, minutes]
+    );
+    res.json({ success: true, count: r.rows.length, rows: r.rows });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Detail lister behind the writeback-health "failed" counter. Given an
 // account_id (or a connection_id), returns the actual failed outbox rows
 // with last_error + linked booking so we can diagnose without shelling in.
