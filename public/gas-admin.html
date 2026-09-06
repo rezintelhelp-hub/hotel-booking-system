@@ -71027,7 +71027,39 @@ const promo = await fetch('/api/v1/offers/validate', {
             // back to normal.
             let needsReviewCount = 0;
             let reviewedCount = 0;
-            tbody.innerHTML = rows.map(row => {
+            // Month-subtotal support (Steve/Joanne 2026-09-06). When the
+            // first column is `month`, insert a subtotal row every time
+            // the month value changes. Aggregate keys are the same as
+            // report.summary.aggregates. Zero impact on reports that
+            // don't have a month column.
+            const hasMonthGrouping = report.columns[0] && report.columns[0].key === 'month';
+            const aggKeys = (report.summary && Array.isArray(report.summary.aggregates)) ? report.summary.aggregates : [];
+            const renderSubtotal = (label, sums) => {
+                return '<tr style="background:#eef2ff; border-top:1px solid #c7d2fe; border-bottom:2px solid #c7d2fe; font-weight:600; color:#1e3a8a;">' +
+                    report.columns.map((c, i) => {
+                        if (i === 0) return `<td style="padding:0.55rem 0.9rem;">${label} subtotal</td>`;
+                        if (aggKeys.includes(c.key)) {
+                            return `<td style="padding:0.55rem 0.9rem; text-align:${c.align || 'right'}; font-variant-numeric:tabular-nums;">${formatReportCell(sums[c.key] || 0, c.format)}</td>`;
+                        }
+                        return `<td style="padding:0.55rem 0.9rem;"></td>`;
+                    }).join('') +
+                '</tr>';
+            };
+            let currentMonth = null;
+            let monthSums = {};
+            const bodyChunks = [];
+            const flushMonth = () => {
+                if (hasMonthGrouping && currentMonth !== null && Object.keys(monthSums).length) {
+                    bodyChunks.push(renderSubtotal(formatReportCell(currentMonth, 'month'), monthSums));
+                }
+            };
+            rows.forEach(row => {
+                if (hasMonthGrouping) {
+                    const rowMonth = row.month;
+                    if (currentMonth !== null && rowMonth !== currentMonth) flushMonth();
+                    if (rowMonth !== currentMonth) { currentMonth = rowMonth; monthSums = {}; }
+                    for (const k of aggKeys) monthSums[k] = (monthSums[k] || 0) + (parseFloat(row[k]) || 0);
+                }
                 const ref = row && row.booking_ref ? String(row.booking_ref) : '';
                 const m = ref.match(/^GAS-(\d+)$/);
                 const bookingId = m ? parseInt(m[1]) : null;
@@ -71035,10 +71067,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const overrideActive = !!(row && row.override_active);
                 if (needsReview) needsReviewCount++;
                 if (overrideActive) reviewedCount++;
-                // Row colour by state:
-                //   yellow (#fef9c3) → GAS ≠ Beds24, no override yet (needs review)
-                //   light blue (#dbeafe) → override has been set (reviewed + locked)
-                //   transparent → nothing to flag
                 const bgIdle       = needsReview ? '#fef9c3' : (overrideActive ? '#dbeafe' : 'transparent');
                 const bgHover      = needsReview ? '#fde68a' : (overrideActive ? '#bfdbfe' : '#eef2ff');
                 const b24Price     = row && row.beds24_price != null ? parseFloat(row.beds24_price).toFixed(2) : null;
@@ -71048,22 +71076,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const rowAttrs = bookingId
                     ? ` data-review="${needsReview ? '1' : '0'}" style="border-bottom:1px solid #f1f5f9; cursor:pointer; background:${bgIdle};" onclick="openBookingDetail(${bookingId})" onmouseover="this.style.background='${bgHover}'" onmouseout="this.style.background='${bgIdle}'" title="${titleAttr}"`
                     : ' style="border-bottom:1px solid #f1f5f9;"';
-                return '<tr' + rowAttrs + '>' +
+                bodyChunks.push('<tr' + rowAttrs + '>' +
                     report.columns.map(c => {
                         const raw = row[c.key];
                         const cellText = formatReportCell(raw, c.format);
-                        // Drill-through — column spec's drill_to hints where
-                        // to jump when this cell is clicked. Serialised as
-                        // data-drill for the delegated click handler wired
-                        // in wireReportDrillHandler(). Steve 2026-08-27.
                         const drillAttr = (c.drill_to && raw != null && raw !== '')
                           ? ` class="report-drill-cell" data-drill="${escapeHtml(JSON.stringify({ target: c.drill_to.report, params: c.drill_to.params, row }))}"`
                           : '';
                         const drillStyle = c.drill_to ? 'cursor:pointer; color:#1d4ed8; text-decoration:underline dotted; font-weight:500;' : '';
                         return `<td${drillAttr} style="padding:0.55rem 0.9rem; text-align:${c.align || 'left'}; font-variant-numeric:${c.format === 'currency' || c.format === 'integer' ? 'tabular-nums' : 'normal'}; ${drillStyle}">${cellText}</td>`;
                     }).join('') +
-                '</tr>';
-            }).join('');
+                '</tr>');
+            });
+            // Emit the final month's subtotal after the last row.
+            flushMonth();
+            tbody.innerHTML = bodyChunks.join('');
             wireReportDrillHandler();
             // Summary banner: yellow while rows still need review, blue-only
             // once everything's been reconciled. Removed if neither state.
