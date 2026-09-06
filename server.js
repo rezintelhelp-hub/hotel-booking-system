@@ -77884,8 +77884,8 @@ const REPORTS_REGISTRY = {
 
   'monthly-revenue': {
     slug: 'monthly-revenue',
-    name: 'Monthly Revenue',
-    description: 'Accrual revenue grouped by stay-month, split by booking channel. Net of cancellations by default.',
+    name: 'Actual Stays (by Arrival Month)',
+    description: 'Value of confirmed bookings whose guests arrived (or will arrive) in the selected month range, grouped by channel. This is the accounting "revenue recognised" view — it answers "what did we earn from stays this month" using arrival-month attribution. Not the same as "bookings taken this month" (see New Bookings report).',
     category: 'Revenue',
     joanne: '#3',
     params: [
@@ -78183,8 +78183,8 @@ const REPORTS_REGISTRY = {
   // property + room + channel filters like the other Ops reports.
   'sales-ledger': {
     slug: 'sales-ledger',
-    name: 'Sales Ledger — audit trail (all bookings)',
-    description: 'One row per confirmed booking with booking date, stay dates, gross, VAT, net-ex-VAT, platform fee, and net receivable. VAT back-calculated from account tax rate (default 20% VAT-inclusive). Platform fee from bookings.commission_amount (populated by Beds24 sync for OTA channels). Direct + Rezintel show £0 fee. Filter by booking date (default) or arrival date. Full historical coverage requires the Full Re-sync from Beds24 button to have pulled the relevant years.',
+    name: 'New Bookings — audit trail (all bookings)',
+    description: 'One row per confirmed booking taken in the selected date range — this is the "what did we sell" view. Default date basis is when the guest booked (not when they arrive); switch to arrival to see stays instead. Includes booking date, stay dates, gross, VAT, net-ex-VAT, platform fee, and net receivable. VAT back-calculated from account tax rate (default 20% VAT-inclusive). Platform fee from bookings.commission_amount (populated by Beds24 sync for OTA channels). Direct + Rezintel show £0 fee.',
     category: 'Tax',
     joanne: '#8b',
     params: [
