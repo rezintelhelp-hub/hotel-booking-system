@@ -6200,37 +6200,23 @@ jQuery(document).ready(function($) {
                 });
 
                 // Stripe init — pull publishable key for this property.
-                // Also flip the "Loading..." card-status label + reveal the
-                // Stripe form section on success so the mount point isn't
-                // hidden. Steve/Hebden 2026-09-06 — cart-only was silently
-                // mounting Stripe onto a display:none element.
                 var stripeInstance = null, cardElement = null;
-                $checkoutPage.find('.gas-payment-card-option .gas-card-status').text('Loading…');
                 $.ajax({
                     url: apiUrl + '/api/public/property/' + propertyId + '/stripe-info',
                     method: 'GET',
                     success: function(resp) {
                         if (!resp || !resp.success || !resp.stripe_enabled || !resp.stripe_publishable_key) {
-                            $checkoutPage.find('.gas-payment-card-option .gas-card-status').text('Card unavailable');
                             $('#gas-card-errors, .gas-card-errors').text('Card payments not available — contact the host.').show();
                             return;
                         }
                         stripeInstance = Stripe(resp.stripe_publishable_key, resp.stripe_account_id ? { stripeAccount: resp.stripe_account_id } : undefined);
                         var elements = stripeInstance.elements();
                         cardElement = elements.create('card', { style: { base: { fontSize: '16px', color: '#0f172a' } } });
-                        // Reveal the Stripe form + payment summary sections
-                        // before mounting — main flow's slideDown runs when
-                        // the card option gets selected; cart-only needs to
-                        // do it explicitly.
-                        $checkoutPage.find('.gas-stripe-form, .gas-payment-summary').show();
                         // Find any card element mount point the existing checkout uses.
                         var mount = document.getElementById('gas-card-element') || $checkoutPage.find('.gas-card-element')[0];
                         if (mount) cardElement.mount(mount);
-                        // Clear the stale "Loading..." status text.
-                        $checkoutPage.find('.gas-payment-card-option .gas-card-status').text('');
                     },
                     error: function() {
-                        $checkoutPage.find('.gas-payment-card-option .gas-card-status').text('Setup failed');
                         $('#gas-card-errors, .gas-card-errors').text('Could not load payment setup.').show();
                     }
                 });
