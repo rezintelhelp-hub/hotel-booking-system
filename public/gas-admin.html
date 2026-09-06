@@ -27828,6 +27828,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                   <span style="color:#64748b; font-size:0.78rem;">No card on file — email the guest a secure Stripe checkout link for this item. Their card is saved on payment for future charges.</span>
                 </span>
               </label>
+              <div id="add-extra-email-block" style="margin-top:0.6rem;">
+                <label style="display:block; font-size:0.78rem; font-weight:600; margin-bottom:0.25rem;">Send to email <span id="add-extra-email-hint" style="font-weight:400; color:#64748b;"></span></label>
+                <input type="email" id="add-extra-guest-email" class="form-input" placeholder="guest@example.com" style="font-size:0.85rem;">
+                <div style="font-size:0.72rem; color:#64748b; margin-top:0.25rem;">If the booking has an OTA proxy email, ask the guest for their real address — this also updates the booking so future messages reach them.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -75948,6 +75953,16 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('add-extra-charge-now').checked = _currentBookingHasStripeCard;
             document.getElementById('add-extra-charge-now').disabled = !_currentBookingHasStripeCard;
             document.getElementById('add-extra-no-card-warning').style.display = _currentBookingHasStripeCard ? 'none' : 'block';
+            // Pre-populate email + flag OTA proxy addresses. Steve/Barbara
+            // 2026-09-06 — payment links to Airbnb/BDC proxies often silently
+            // drop; operator should be nudged to enter the guest's real email.
+            const bookingEmail = (window._currentViewingBooking?.guest_email || '').toLowerCase();
+            const emailInput = document.getElementById('add-extra-guest-email');
+            const emailHint = document.getElementById('add-extra-email-hint');
+            if (emailInput) emailInput.value = bookingEmail;
+            const isProxy = /guest\.(airbnb|booking|expedia)\.com$|@guest\.airbnb|@[a-z0-9]+\.airbnb|@stayforlong|@sender\.airbnb|@m\.expediapartnercentral|hostmatepms|reservation\.expedia|guest\.hostaway/.test(bookingEmail);
+            if (emailHint) emailHint.textContent = isProxy ? '⚠ OTA proxy — ask guest for real address' : '';
+            if (emailInput) emailInput.style.background = isProxy ? '#fef3c7' : '';
             // Load shop products AND standalone upsells (Steve 2026-08-25):
             // Lehmann's "Priority Check-in" was a standalone upsell — never
             // appeared in the picker because we only queried shop products.
@@ -76049,6 +76064,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             const qty = parseInt(document.getElementById('add-extra-qty').value, 10) || 1;
             const chargeNow = !!document.getElementById('add-extra-charge-now').checked;
             const sendPaymentLink = !!document.getElementById('add-extra-send-payment-link')?.checked;
+            const guestEmailOverride = (document.getElementById('add-extra-guest-email')?.value || '').trim();
+            // Payment-link path requires a valid email — nudge operator if
+            // they left it blank on an OTA booking. Basic shape check only.
+            if (sendPaymentLink && !_currentBookingHasStripeCard) {
+                if (!guestEmailOverride || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmailOverride)) {
+                    showNotification('Please enter a valid email for the payment link', 'error');
+                    return;
+                }
+            }
             let source_id = null;
             let source_type_out = source;
             let name = '';
@@ -76073,7 +76097,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const r = await fetch('/api/admin/bookings/' + _currentExtraBookingId + '/extras', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ source_type: source_type_out, source_id, name, unit_price: price, qty, charge_now: chargeNow, send_payment_link: sendPaymentLink })
+                    body: JSON.stringify({ source_type: source_type_out, source_id, name, unit_price: price, qty, charge_now: chargeNow, send_payment_link: sendPaymentLink, guest_email_override: guestEmailOverride || undefined })
                 });
                 const d = await r.json();
                 if (!d.success) { showNotification('Add failed: ' + (d.error || 'unknown'), 'error'); return; }

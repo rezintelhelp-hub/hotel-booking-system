@@ -123612,7 +123612,7 @@ app.post('/api/admin/bookings/:id/extras', express.json(), async (req, res) => {
     const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Not authenticated' });
     const bookingId = parseInt(req.params.id, 10);
-    const { source_type, source_id, name, unit_price, qty, charge_now, send_payment_link } = req.body || {};
+    const { source_type, source_id, name, unit_price, qty, charge_now, send_payment_link, guest_email_override } = req.body || {};
 
     // Validation
     if (!['shop_product', 'upsell', 'custom'].includes(source_type)) {
@@ -123764,6 +123764,18 @@ app.post('/api/admin/bookings/:id/extras', express.json(), async (req, res) => {
     if (!charged && send_payment_link === true) {
       try {
         if (!b.stripe_secret_key) throw new Error('Stripe not configured for this account');
+        // Resolve target email: operator override wins over booking's stored
+        // guest_email (which is often an OTA proxy). If operator provided
+        // a new email AND it differs, persist it on the booking so future
+        // comms (invoices, workflows) reach the real address too.
+        const targetEmail = (guest_email_override && String(guest_email_override).trim()) || b.guest_email || null;
+        if (!targetEmail) throw new Error('No email address for guest');
+        if (guest_email_override && guest_email_override !== b.guest_email) {
+          try {
+            await pool.query('UPDATE bookings SET guest_email = $1 WHERE id = $2', [guest_email_override, bookingId]);
+            b.guest_email = guest_email_override;
+          } catch (upErr) { console.warn('[admin add-extra] guest_email update failed:', upErr.message); }
+        }
         const stripeClient = require('stripe')(b.stripe_secret_key);
         const baseUrl = process.env.GAS_API_BASE_URL || 'https://admin.gas.travel';
         const session = await stripeClient.checkout.sessions.create({
@@ -123777,7 +123789,7 @@ app.post('/api/admin/bookings/:id/extras', express.json(), async (req, res) => {
             },
             quantity
           }],
-          customer_email: b.guest_email || undefined,
+          customer_email: targetEmail || undefined,
           success_url: `${baseUrl}/payment-thanks.html?extra=${extraId}`,
           cancel_url: `${baseUrl}/payment-thanks.html?cancelled=1&extra=${extraId}`,
           // Save the payment method for future off-session charges — closes
@@ -123812,7 +123824,7 @@ app.post('/api/admin/bookings/:id/extras', express.json(), async (req, res) => {
           const amt = totalAmount.toFixed(2);
           const itemName = String(name).trim().replace(/[<>]/g, '');
           await sendEmail({
-            to: b.guest_email,
+            to: targetEmail,
             subject: `Payment request: ${itemName} — ${cur} ${amt}`,
             html: `<div style="font-family:sans-serif;max-width:520px;padding:1.5rem;">
               <h2 style="color:#0f172a;">Hi ${first},</h2>
