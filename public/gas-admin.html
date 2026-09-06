@@ -70590,7 +70590,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Sub-tabs: Booking Ledger (bespoke, original) + every report from
         // the server's REPORTS_REGISTRY. State held in module scope so the
         // CSV download button can re-run with the current filter values.
-        let _reportsCurrentSlug = 'booking-ledger';
+        // Steve 2026-09-06 — no default report on open. Operator picks one
+        // from the dropdown; both panels are hidden until they do.
+        let _reportsCurrentSlug = '';
         let _reportsRegistry = [];   // [{slug, name, category, joanne}, ...]
         let _reportsCurrentSpec = null;
 
@@ -70631,7 +70633,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             // display so names read cleanly. Still stored in rep.joanne on
             // the row/spec so accountant workflows that reference the numbers
             // can pick them up elsewhere (kept in updateReportsPickerSubLabel).
-            let html = '<option value="booking-ledger">All Bookings</option>';
+            // "Select report" placeholder — the operator must pick one on
+            // every visit rather than being dropped into whichever was last
+            // run (which caused confusion — Steve/Joanne 2026-09-06).
+            let html = '<option value="" disabled>— Select report —</option>';
+            html += '<option value="booking-ledger">All Bookings</option>';
             for (const cat of categories) {
                 html += `<optgroup label="${cat}">`;
                 for (const rep of byCategory[cat].sort((a, b) => a.name.localeCompare(b.name))) {
@@ -70640,8 +70646,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 html += '</optgroup>';
             }
             picker.innerHTML = html;
-            // Reflect the current selection
-            picker.value = _reportsCurrentSlug || 'booking-ledger';
+            // Reflect the current selection — empty = show placeholder.
+            picker.value = _reportsCurrentSlug || '';
             updateReportsPickerSubLabel(picker.value);
         }
 
@@ -70656,33 +70662,43 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function switchReportsTab(slug) {
-            _reportsCurrentSlug = slug;
+            _reportsCurrentSlug = slug || '';
             // Reflect in the dropdown if the switch came from code rather than the user
             const picker = document.getElementById('reports-picker');
-            if (picker && picker.value !== slug) picker.value = slug;
-            updateReportsPickerSubLabel(slug);
+            if (picker && picker.value !== _reportsCurrentSlug) picker.value = _reportsCurrentSlug;
+            updateReportsPickerSubLabel(_reportsCurrentSlug);
 
-            // Swap panels
-            const isLedger = slug === 'booking-ledger';
             const ledger = document.getElementById('reports-panel-booking-ledger');
             const generic = document.getElementById('reports-panel-generic');
+            const head = document.getElementById('reports-heading');
+            const sub = document.getElementById('reports-subhead');
+
+            // Empty slug — no report picked. Hide both panels + show a
+            // prompt so the operator picks one before anything runs.
+            // Steve 2026-09-06.
+            if (!_reportsCurrentSlug) {
+                if (ledger)  ledger.style.display  = 'none';
+                if (generic) generic.style.display = 'none';
+                if (head) head.textContent = 'Reports';
+                if (sub) sub.textContent = 'Pick a report from the dropdown above to get started.';
+                return;
+            }
+
+            const isLedger = _reportsCurrentSlug === 'booking-ledger';
             if (ledger)  ledger.style.display  = isLedger ? '' : 'none';
             if (generic) generic.style.display = isLedger ? 'none' : '';
 
-            // Update heading
-            const head = document.getElementById('reports-heading');
-            const sub = document.getElementById('reports-subhead');
             if (isLedger) {
                 if (head) head.textContent = 'Booking Ledger';
                 if (sub) sub.textContent = 'When booked · Total · Deposit · Balance due · Where each booking stands.';
                 if (typeof initBookingLedger === 'function') initBookingLedger();
             } else {
-                const rep = _reportsRegistry.find(r => r.slug === slug);
+                const rep = _reportsRegistry.find(r => r.slug === _reportsCurrentSlug);
                 if (rep) {
                     if (head) head.textContent = rep.name;
                     if (sub) sub.textContent = rep.description || '';
                 }
-                loadReportSpec(slug);
+                loadReportSpec(_reportsCurrentSlug);
             }
         }
 
