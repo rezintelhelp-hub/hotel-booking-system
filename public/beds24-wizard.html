@@ -658,6 +658,120 @@
     </div>
     
     <script>
+        // MARKETPLACE-ENTRY MODE — Steve 2026-09-06.
+        // When the wizard loads with ?master=X&owner=Y&prop=Z&email=E in the URL,
+        // the guest has just clicked "Go to RezIntel Sitebuilder" from inside
+        // their Beds24 marketplace tab. Skip every step in the invite-code
+        // wizard below and run the one-shot orchestrator instead. The
+        // orchestrator (server.js) chains: find-or-create account -> link
+        // marketplace connection -> sync properties+rooms -> deploy WP site.
+        // Guest sees a single progress screen with the site URL on completion.
+        (function marketplaceEntry() {
+            const sp = new URLSearchParams(window.location.search);
+            const owner = sp.get('owner') || sp.get('ownerId');
+            const prop = sp.get('prop') || sp.get('propId');
+            const email = sp.get('email');
+            const propName = sp.get('propName') || sp.get('name');
+            if (!owner || !prop || !email) return; // Not marketplace mode — normal 5-step wizard runs
+            // Hide the existing wizard content, show a minimal progress card.
+            document.addEventListener('DOMContentLoaded', () => {
+                const content = document.querySelector('.wizard-content');
+                const header  = document.querySelector('.wizard-header');
+                const stepsInd = document.querySelector('.steps-indicator');
+                const footer  = document.querySelector('.wizard-footer');
+                if (header) header.querySelector('h1').textContent = '🏨 Setting up your website';
+                if (header) header.querySelector('p').textContent  = 'One-click setup from your Beds24 marketplace';
+                if (stepsInd) stepsInd.style.display = 'none';
+                if (footer) footer.style.display = 'none';
+                if (!content) return;
+                content.innerHTML = `
+                    <div id="mp-progress" style="text-align:center;padding:2rem 1rem;">
+                        <div class="spinner" style="margin:0 auto 1.25rem;"></div>
+                        <h2 style="color:#1e3a5f;margin-bottom:0.5rem;">Creating your website…</h2>
+                        <p id="mp-status" style="color:#64748b;font-size:0.95rem;">Getting started…</p>
+                        <ol id="mp-checklist" style="text-align:left;max-width:340px;margin:1.75rem auto 0;padding:0;list-style:none;">
+                            <li data-step="account"  style="padding:0.4rem 0;color:#94a3b8;">◯ Creating your account</li>
+                            <li data-step="link"     style="padding:0.4rem 0;color:#94a3b8;">◯ Linking Beds24 property</li>
+                            <li data-step="sync"     style="padding:0.4rem 0;color:#94a3b8;">◯ Importing rooms & data</li>
+                            <li data-step="deploy"   style="padding:0.4rem 0;color:#94a3b8;">◯ Building your website</li>
+                        </ol>
+                    </div>
+                    <div id="mp-success" style="display:none;text-align:center;padding:2rem 1rem;">
+                        <div style="font-size:3rem;margin-bottom:0.5rem;">🎉</div>
+                        <h2 style="color:#1e3a5f;">You're live!</h2>
+                        <p style="color:#64748b;margin:0.75rem 0 1.5rem;">Your website is ready. Take a look and start welcoming guests.</p>
+                        <p><a id="mp-site-link" href="#" target="_blank" class="btn btn-primary" style="display:inline-block;padding:0.75rem 2rem;text-decoration:none;">Open my site →</a></p>
+                        <p style="margin-top:1rem;"><a id="mp-admin-link" href="/gas-admin.html" style="color:#667eea;font-size:0.9rem;">Go to admin dashboard</a></p>
+                    </div>
+                    <div id="mp-error" style="display:none;text-align:center;padding:2rem 1rem;">
+                        <div style="font-size:2.5rem;color:#dc2626;margin-bottom:0.5rem;">⚠</div>
+                        <h2 style="color:#991b1b;">Setup hit a problem</h2>
+                        <p id="mp-error-msg" style="color:#64748b;margin:0.75rem 0 1.5rem;font-size:0.95rem;"></p>
+                        <p style="color:#94a3b8;font-size:0.85rem;">Contact support and we'll finish it manually.</p>
+                    </div>
+                `;
+                runOrchestrator();
+            });
+
+            function markStep(name, state) {
+                // state: 'active' | 'done' | 'fail'
+                const li = document.querySelector(`#mp-checklist li[data-step="${name}"]`);
+                if (!li) return;
+                const glyph = state === 'done' ? '✓' : state === 'fail' ? '✗' : '◯';
+                const colour = state === 'done' ? '#16a34a' : state === 'fail' ? '#dc2626' : (state === 'active' ? '#1e3a5f' : '#94a3b8');
+                li.textContent = `${glyph} ${li.textContent.slice(2)}`;
+                li.style.color = colour;
+                li.style.fontWeight = state === 'active' ? '600' : '400';
+            }
+            function setStatus(msg) {
+                const el = document.getElementById('mp-status');
+                if (el) el.textContent = msg;
+            }
+            function showError(msg) {
+                document.getElementById('mp-progress').style.display = 'none';
+                document.getElementById('mp-error').style.display = 'block';
+                document.getElementById('mp-error-msg').textContent = msg;
+            }
+            function showSuccess(siteUrl, adminUrl, sessionToken, accountId) {
+                document.getElementById('mp-progress').style.display = 'none';
+                document.getElementById('mp-success').style.display = 'block';
+                document.getElementById('mp-site-link').href = siteUrl;
+                // Store the session token so /gas-admin.html finds a logged-in state
+                if (sessionToken) {
+                    try {
+                        localStorage.setItem('gas_token', sessionToken);
+                        if (accountId) localStorage.setItem('gas_account_id', String(accountId));
+                    } catch (_) {}
+                }
+            }
+
+            async function runOrchestrator() {
+                markStep('account', 'active');
+                setStatus('Getting started — this takes about a minute.');
+                try {
+                    const resp = await fetch('/api/onboarding/beds24-marketplace-signup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, propId: prop, ownerId: owner, propName })
+                    });
+                    const data = await resp.json();
+                    if (!data.success) {
+                        // Which step failed — mark the checklist
+                        const s = data.step || 'account';
+                        markStep(s, 'fail');
+                        showError(data.error || 'Setup failed');
+                        return;
+                    }
+                    // Mark all steps done — the orchestrator ran them all server-side
+                    ['account','link','sync','deploy'].forEach(s => markStep(s, 'done'));
+                    setStatus('Done!');
+                    showSuccess(data.site_url, data.admin_url, data.session_token, data.account_id);
+                } catch (e) {
+                    showError(e.message || 'Network error');
+                }
+            }
+        })();
+
         let currentStep = 1;
         const totalSteps = 5;
         

@@ -23686,6 +23686,152 @@ app.post('/api/accounts/change-password', async (req, res) => {
 // =====================================================
 
 // Step 1: Create account during onboarding
+// Beds24 Marketplace one-click signup — the "click from Beds24" landing.
+// Chains the four existing steps into a single call so the client sees
+// "creating..." → "done, here's your site". Nothing new — this endpoint
+// just orchestrates:
+//   1. Find-or-create account by email (existing accounts login flow)
+//   2. Verify the propId in marketplace + link via existing /beds24v2/link
+//      logic (adapter='beds24-marketplace')
+//   3. Run the existing sync-marketplace pull (properties + rooms + images)
+//   4. Deploy a WP site via existing /api/deploy/create pipeline
+// Returns account_id, session_token, site_url, admin_url.
+// Steve 2026-09-06 — post-dinner wizard build.
+app.post('/api/onboarding/beds24-marketplace-signup', async (req, res) => {
+  try {
+    const { email, propId, ownerId, propName, rooms } = req.body || {};
+    if (!email || !propId || !ownerId) {
+      return res.status(400).json({ success: false, error: 'email, propId, ownerId required' });
+    }
+    const emailNorm = String(email).toLowerCase().trim();
+
+    // 1. Find or create account
+    let account, sessionToken;
+    const existing = await pool.query('SELECT id, public_id, name, email, role FROM accounts WHERE email = $1', [emailNorm]);
+    if (existing.rows.length > 0) {
+      account = existing.rows[0];
+    } else {
+      const parent = await pool.query(`SELECT id FROM accounts WHERE role = 'master_admin' LIMIT 1`);
+      const parentId = parent.rows[0]?.id || null;
+      const genPw = crypto.randomBytes(24).toString('hex');
+      const passwordHash = crypto.createHash('sha256').update(genPw).digest('hex');
+      const apiKey = 'gas_' + crypto.randomBytes(24).toString('hex');
+      const accountName = propName || emailNorm.split('@')[0];
+      const accountCode = await generateAccountCode(pool, accountName);
+      const created = await pool.query(`
+        INSERT INTO accounts (name, email, password_hash, business_name, role, parent_id,
+          account_code, api_key, api_key_created_at, status, terms_accepted, terms_accepted_at, terms_version)
+        VALUES ($1, $2, $3, $4, 'admin', $5, $6, $7, NOW(), 'active', true, NOW(), 'v1.0')
+        RETURNING id, public_id, name, email, role
+      `, [accountName, emailNorm, passwordHash, accountName, parentId, accountCode, apiKey]);
+      account = created.rows[0];
+    }
+    // Session token for the browser to use as auth going forward
+    sessionToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await pool.query(`
+      INSERT INTO account_sessions (account_id, token, expires_at, ip_address, user_agent)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [account.id, sessionToken, expiresAt, req.ip, req.get('User-Agent')]);
+
+    // 2. Verify marketplace + link. Same shape as /beds24v2/link but inlined
+    // so we don't need to re-authenticate through HTTP.
+    await pool.query(`
+      INSERT INTO gas_sync_adapters (code, name, description, auth_type, is_active, capabilities, supports_webhooks)
+      VALUES ('beds24-marketplace', 'Beds24 (Marketplace)', 'Beds24 via Rezintel marketplace master API key', 'api_key', true,
+        '["properties", "room_types", "availability", "rates", "reservations", "images"]', true)
+      ON CONFLICT (code) DO UPDATE SET is_active = true
+    `);
+    const mp = await beds24MarketplaceRequest('getAccounts', {}).catch(() => null);
+    const owner = mp?.getAccounts?.[String(ownerId)];
+    const prop = owner?.properties?.[String(propId)];
+    if (!prop) {
+      return res.status(404).json({ success: false, error: 'Property not found in marketplace under that owner ID. Confirm RezIntel marketplace access is enabled in Beds24.' });
+    }
+    const resolvedPropKey = prop.propKey || String(propId);
+    const resolvedPropName = propName || prop.name || 'Beds24 Property ' + propId;
+    const credentials = { ownerId, propId: String(propId), propKey: resolvedPropKey, propName: resolvedPropName, rooms: rooms || prop.rooms || [] };
+
+    const connExisting = await pool.query(
+      `SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = 'beds24-marketplace' AND credentials->>'propId' = $2`,
+      [account.id, String(propId)]);
+    let connectionId;
+    if (connExisting.rows.length > 0) {
+      connectionId = connExisting.rows[0].id;
+      await pool.query(`UPDATE gas_sync_connections SET credentials=$1, status='connected', external_account_id=$2, external_account_name=$3, updated_at=NOW() WHERE id=$4`,
+        [JSON.stringify(credentials), String(ownerId), resolvedPropName, connectionId]);
+    } else {
+      const c = await pool.query(`
+        INSERT INTO gas_sync_connections (account_id, adapter_code, external_account_id, external_account_name, credentials, status, sync_enabled, created_at)
+        VALUES ($1, 'beds24-marketplace', $2, $3, $4, 'connected', true, NOW()) RETURNING id`,
+        [account.id, String(ownerId), resolvedPropName, JSON.stringify(credentials)]);
+      connectionId = c.rows[0].id;
+    }
+
+    // 3. Trigger sync-marketplace via internal HTTP self-call (existing 500-line
+    // logic — reusing it avoids duplication + drift). Uses the session token
+    // we just minted so the endpoint authorises correctly.
+    const baseUrl = process.env.GAS_API_BASE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
+    const syncResp = await axios.post(`${baseUrl}/api/gas-sync/connections/${connectionId}/sync-marketplace`, {}, {
+      headers: { 'Authorization': `Bearer ${sessionToken}` },
+      timeout: 60000
+    }).catch(e => ({ data: { success: false, error: e.response?.data?.error || e.message } }));
+    if (!syncResp.data?.success) {
+      return res.json({ success: false, step: 'sync', error: syncResp.data?.error || 'sync-marketplace failed', account_id: account.id, session_token: sessionToken, connection_id: connectionId });
+    }
+
+    // 4. Deploy WP site. Grab the synced property + rooms.
+    const propRow = await pool.query(
+      `SELECT id FROM properties WHERE account_id = $1 AND cm_property_id = $2 LIMIT 1`,
+      [account.id, String(propId)]);
+    const propertyId = propRow.rows[0]?.id;
+    if (!propertyId) {
+      return res.json({ success: false, step: 'property-lookup', error: 'Property was not created by sync', account_id: account.id, session_token: sessionToken, connection_id: connectionId });
+    }
+    const roomsRes = await pool.query(
+      `SELECT id, name FROM bookable_units WHERE property_id = $1 AND COALESCE(unit_role, 'room') = 'room' ORDER BY id`,
+      [propertyId]);
+    const roomIds = roomsRes.rows.map(r => r.id);
+    if (roomIds.length === 0) {
+      return res.json({ success: false, step: 'rooms-lookup', error: 'No rooms found after sync', account_id: account.id, session_token: sessionToken, connection_id: connectionId });
+    }
+    // Slug from property name — kebab, alphanumerics only
+    const slug = resolvedPropName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || `site-${propertyId}`;
+    const deployResp = await axios.post(`${baseUrl}/api/deploy/create`, {
+      site_name: resolvedPropName,
+      slug,
+      admin_email: emailNorm,
+      account_id: account.id,
+      room_ids: roomIds,
+      rooms: roomsRes.rows,
+      property_ids: [propertyId],
+      use_theme: true,
+      use_plugin: true,
+      template: 'developer-light'
+    }, {
+      headers: { 'Authorization': `Bearer ${sessionToken}` },
+      timeout: 120000
+    }).catch(e => ({ data: { success: false, error: e.response?.data?.error || e.message } }));
+    if (!deployResp.data?.success) {
+      return res.json({ success: false, step: 'deploy', error: deployResp.data?.error || 'deploy failed', account_id: account.id, session_token: sessionToken, connection_id: connectionId, property_id: propertyId });
+    }
+
+    res.json({
+      success: true,
+      account_id: account.id,
+      session_token: sessionToken,
+      connection_id: connectionId,
+      property_id: propertyId,
+      site_url: deployResp.data.site?.url || deployResp.data.url,
+      admin_url: deployResp.data.site?.admin_url || deployResp.data.admin_url,
+      rooms_count: roomIds.length,
+    });
+  } catch (e) {
+    console.error('[beds24-marketplace-signup] fatal:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.post('/api/onboarding/create-account', async (req, res) => {
   try {
     const { name, email, password, channel_manager, business_name, terms_accepted } = req.body;
