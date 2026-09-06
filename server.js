@@ -136642,6 +136642,48 @@ async function runBeds24AvailabilityHeal() {
   }
 }
 
+// Raw Beds24 v2 calendar fetch — for debugging what field name Beds24
+// actually returns for no-check-in / no-check-out. Given a GAS room_id
+// and a date range, resolves the beds24_connection + external_id,
+// refreshes the token, calls Beds24 calendar API, returns the raw
+// entries JSON so we can eyeball field names. Master-admin only.
+// Steve 2026-09-06.
+app.get('/api/admin/diag/beds24-calendar-raw', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const gasRoomId = parseInt(req.query.room_id, 10);
+    const from = req.query.from;
+    const to = req.query.to;
+    if (!gasRoomId || !from || !to) return res.json({ success: false, error: 'room_id, from, to required' });
+    const map = await pool.query(`
+      SELECT gsrt.external_id AS beds24_room_id, gsc.id AS connection_id, gsc.refresh_token, gsc.access_token
+        FROM gas_sync_room_types gsrt
+        JOIN gas_sync_properties gsp ON gsp.id = gsrt.sync_property_id
+        JOIN gas_sync_connections gsc ON gsc.id = gsp.connection_id
+       WHERE gsrt.gas_room_id = $1 AND gsc.adapter_code = 'beds24'
+       LIMIT 1
+    `, [gasRoomId]);
+    if (map.rows.length === 0) return res.json({ success: false, error: 'no beds24 mapping for this room' });
+    const row = map.rows[0];
+    let token = row.access_token;
+    if (row.refresh_token) {
+      try {
+        const tk = await axios.get('https://beds24.com/api/v2/authentication/token', { headers: { refreshToken: row.refresh_token } });
+        token = tk.data?.token || token;
+      } catch (_) {}
+    }
+    if (!token) return res.json({ success: false, error: 'no token' });
+    const cal = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+      headers: { token },
+      params: { roomId: parseInt(row.beds24_room_id, 10), startDate: from, endDate: to, includeNumAvail: true, includePrices: true, includeMinStay: true, includeLinkedPrices: true }
+    });
+    res.json({ success: true, connection_id: row.connection_id, beds24_room_id: row.beds24_room_id, raw: cal.data });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message, response: e.response?.data });
+  }
+});
+
 // Diagnostic — list rooms currently considered broken (no writes).
 app.get('/api/admin/diag/missing-availability', async (req, res) => {
   try {
