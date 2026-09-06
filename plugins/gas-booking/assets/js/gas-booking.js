@@ -6310,6 +6310,14 @@ jQuery(document).ready(function($) {
                         });
                     });
                 });
+                // Extras step is a no-op for cart-only checkouts — the
+                // main upsell loader never runs (we return early). Hide the
+                // Loading... spinner and show the "no extras" fallback so
+                // Step 2 renders cleanly instead of a permanent Loading.
+                // Steve/Hebden 2026-09-06 (bike-storage cart).
+                $checkoutPage.find('.gas-upsells-loading').hide();
+                $checkoutPage.find('.gas-no-upsells').show();
+
                 // Step navigation for cart-only checkout (Details → Extras
                 // → Payment). The main room-checkout init at ~line 9472
                 // owns the delegated .gas-next-step handler but the cart
