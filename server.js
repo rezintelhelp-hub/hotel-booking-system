@@ -40170,10 +40170,10 @@ app.get('/api/admin/diag/offers-scope/:accountId', async (req, res) => {
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const q = (req.query.q || '').toLowerCase();
     const r = await pool.query(
-      `SELECT id, title, room_id, room_ids, property_id, property_ids, active, min_nights, max_nights
+      `SELECT id, name, room_id, room_ids, property_id, property_ids, active, min_nights, max_nights
          FROM offers
         WHERE account_id = $1
-          AND ($2 = '' OR LOWER(COALESCE(title,'')) LIKE '%' || $2 || '%')
+          AND ($2 = '' OR LOWER(COALESCE(name,'')) LIKE '%' || $2 || '%')
         ORDER BY id`,
       [parseInt(req.params.accountId, 10), q]);
     res.json({ success: true, offers: r.rows });
