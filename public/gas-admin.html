@@ -35641,6 +35641,30 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        // Pull latest Beds24 marketplace content into this site's
+        // Hero/About/Footer/Header sections. Master-admin only endpoint
+        // (checked server-side). Steve 2026-09-06 — trigger the same
+        // content pull-through the marketplace wizard fires at signup,
+        // without needing a fresh signup or a paste in devtools.
+        async function repopulateFromBeds24(siteId) {
+            if (!siteId) return;
+            if (!confirm('Pull latest content (name, description, images, address, amenities) from Beds24 and refresh this site\'s Hero/About/Footer? Existing Web Builder settings for those sections will be overwritten.')) return;
+            try {
+                showNotification('Pulling from Beds24…', 'info');
+                const r = await fetch(`/api/admin/deployed-sites/${siteId}/repopulate-from-beds24`, {
+                    method: 'POST', headers: authHeaders()
+                });
+                const d = await r.json();
+                if (!d.success) {
+                    showNotification('Pull failed: ' + (d.error || 'unknown'), 'error');
+                    return;
+                }
+                showNotification(`Pulled: ${d.images_used || 0} images, ${d.amenities_used || 0} amenities, ${d.description_length || 0}-char description`, 'success');
+            } catch (e) {
+                showNotification('Pull failed: ' + e.message, 'error');
+            }
+        }
+
         function editWebsite(websiteId) {
             console.log('editWebsite called with ID:', websiteId);
             console.log('availableWebsites:', availableWebsites);
@@ -55708,6 +55732,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     </p>
                                     <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                         <button onclick="editWebsite(${site.id})" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-color: #6366f1;">✏️ Edit Web Builder</button>
+                                        <button onclick="repopulateFromBeds24(${site.id})" class="btn btn-small" style="font-size: 0.75rem; background: #0284c7; border-color: #0284c7;" title="Pull latest property name, description, images, address from Beds24 and refresh Hero/About/Footer">🔄 Pull from Beds24</button>
                                         <a href="${site.custom_domain ? 'https://' + site.custom_domain : site.site_url}" target="_blank" class="btn btn-small" style="font-size: 0.75rem;">🌐 View Site</a>
                                         ${site.ga4_measurement_id ? `<button onclick="openAnalyticsForSite('${(site.site_url || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #4285f4 0%, #34a853 100%); border-color: #4285f4;">📊 Analytics</button>` : ''}
                                         <a href="${site.admin_url}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">⚙️ WP Admin</a>
