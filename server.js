@@ -40169,6 +40169,45 @@ app.get('/api/admin/diag/channex-booking-live/:id', async (req, res) => {
   }
 });
 
+// Fetch a Beds24 booking raw (invoiceItems, totals, tax breakdown)
+// so we can see how VAT is represented on the OTA side before deciding
+// what to pull into GAS. Given a GAS booking id, resolves beds24 id +
+// account creds, hits Beds24 v2 GET /bookings. Master-admin only.
+// Steve 2026-09-06.
+app.get('/api/admin/diag/beds24-booking-raw/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const gasId = parseInt(req.params.id, 10);
+    const bR = await pool.query(
+      `SELECT b.beds24_booking_id, p.account_id FROM bookings b JOIN properties p ON p.id = b.property_id WHERE b.id = $1`,
+      [gasId]);
+    const b = bR.rows[0];
+    if (!b) return res.json({ success: false, error: 'gas booking not found' });
+    if (!b.beds24_booking_id) return res.json({ success: false, error: 'no beds24_booking_id on this booking' });
+    const connRow = await pool.query(
+      `SELECT refresh_token FROM gas_sync_connections
+        WHERE account_id = $1 AND adapter_code = 'beds24' AND refresh_token IS NOT NULL
+        ORDER BY id LIMIT 1`, [b.account_id]);
+    if (connRow.rows.length === 0) return res.json({ success: false, error: 'no beds24 connection' });
+    const tk = await axios.get('https://beds24.com/api/v2/authentication/token', { headers: { refreshToken: connRow.rows[0].refresh_token } });
+    const token = tk.data?.token;
+    if (!token) return res.json({ success: false, error: 'token refresh failed' });
+    const bkResp = await axios.get('https://beds24.com/api/v2/bookings', {
+      headers: { token },
+      params: {
+        id: parseInt(b.beds24_booking_id, 10),
+        includeInvoiceItems: true,
+        includeInfoItems: true,
+        includeGuests: true,
+      }
+    });
+    res.json({ success: true, gas_id: gasId, beds24_id: b.beds24_booking_id, raw: bkResp.data });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message, response: e.response?.data });
+  }
+});
+
 // Sweep — apply the corrections to the 11 Hebden bookings identified
 // by hebden-vat-audit. Reversible: every change logged in
 // hebden_vat_correction_20260906 audit table with the full before-state
