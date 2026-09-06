@@ -23735,11 +23735,30 @@ app.post('/api/admin/deployed-sites/:id/repopulate-from-beds24', async (req, res
         `SELECT raw_data FROM gas_sync_properties WHERE connection_id = $1 AND external_id = $2 LIMIT 1`,
         [connectionId, String(extPropId)]);
       const raw = syncRaw.rows[0]?.raw_data || {};
+      // Beds24 shape: images.hosted[] + images.external[] (arrays of URLs
+      // or {url}/{image} objects). Also room-level images under roomIds
+      // (each room has its own .images). Property images take priority;
+      // fall back to room images if property has none.
+      const pushImg = (v) => {
+        if (typeof v === 'string' && v) imageList.push(v);
+        else if (v && v.url) imageList.push(v.url);
+        else if (v && v.image) imageList.push(v.image);
+      };
+      const drainArray = (arr) => {
+        if (!Array.isArray(arr)) return;
+        for (const v of arr) { pushImg(v); if (imageList.length >= 6) return; }
+      };
       if (raw.images && typeof raw.images === 'object') {
-        for (const img of Object.values(raw.images)) {
-          if (typeof img === 'string') imageList.push(img);
-          else if (img && img.url) imageList.push(img.url);
-          else if (img && img.image) imageList.push(img.image);
+        drainArray(raw.images.hosted);
+        if (imageList.length < 6) drainArray(raw.images.external);
+      }
+      // Fall back to room-level images when property has none.
+      if (imageList.length === 0 && raw.roomIds && typeof raw.roomIds === 'object') {
+        for (const room of Object.values(raw.roomIds)) {
+          if (room && room.images) {
+            drainArray(room.images.hosted);
+            if (imageList.length < 6) drainArray(room.images.external);
+          }
           if (imageList.length >= 6) break;
         }
       }
@@ -23986,6 +24005,21 @@ app.post('/api/onboarding/beds24-marketplace-signup', async (req, res) => {
           const d = typeof p.description === 'string' ? JSON.parse(p.description) : (p.description || {});
           descEn = d.en || d.EN || '';
         } catch (_) { descEn = String(p.description || ''); }
+        // Beds24 stores HTML in description fields — strip tags for the
+        // Web Builder text fields (theme renders as plain text, not HTML).
+        const stripHtml = (h) => String(h || '')
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/p>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/\s+/g, ' ')
+          .trim();
+        descEn = stripHtml(descEn);
         const shortDesc = descEn ? (descEn.split(/[.!?]/)[0] + '.').slice(0, 180) : '';
         // First few Beds24 images live on the raw sync payload
         const syncRaw = await pool.query(
