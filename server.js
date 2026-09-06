@@ -40171,7 +40171,7 @@ app.get('/api/admin/diag/property-refs/:propertyId', async (req, res) => {
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const id = parseInt(req.params.propertyId, 10);
     const [prop, rooms, bookings, offers, upsells, deployed] = await Promise.all([
-      pool.query(`SELECT id, name, account_id, deleted_at FROM properties WHERE id = $1`, [id]),
+      pool.query(`SELECT id, name, account_id, status FROM properties WHERE id = $1`, [id]),
       pool.query(`SELECT COUNT(*)::int AS n FROM bookable_units WHERE property_id = $1`, [id]),
       pool.query(`SELECT COUNT(*)::int AS n FROM bookings WHERE property_id = $1`, [id]),
       pool.query(`SELECT COUNT(*)::int AS n FROM offers WHERE property_id = $1 OR $1 = ANY(COALESCE(property_ids, ARRAY[]::int[]))`, [id]),
