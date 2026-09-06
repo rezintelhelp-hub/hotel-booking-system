@@ -113377,10 +113377,24 @@ app.post('/api/public/book', async (req, res) => {
         for (const t of teamEmails) if (t && t !== guest_email && !ownerRecipients.includes(t)) ownerRecipients.push(t);
       }
       if (ownerRecipients.length > 0) {
+        // Operator prefix — surfaces guest contact details at the top so
+        // operators (and their own automation) can see + parse guest_email
+        // + guest_phone directly from the notification without opening the
+        // admin UI. Lorenzo (acct 224) 2026-09-06 — asked for guest email
+        // in the new-booking email so he could automate follow-ups.
+        const _escHtml = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const _rows = [];
+        if (guest_email) _rows.push(`<tr><td style="padding:4px 8px 4px 0;color:#64748b;">Email:</td><td style="padding:4px 0;"><a href="mailto:${_escHtml(guest_email)}" style="color:#0f172a;">${_escHtml(guest_email)}</a></td></tr>`);
+        if (guest_phone) _rows.push(`<tr><td style="padding:4px 8px 4px 0;color:#64748b;">Phone:</td><td style="padding:4px 0;"><a href="tel:${_escHtml(guest_phone)}" style="color:#0f172a;">${_escHtml(guest_phone)}</a></td></tr>`);
+        _rows.push(`<tr><td style="padding:4px 8px 4px 0;color:#64748b;">Booking:</td><td style="padding:4px 0;color:#0f172a;">GAS-${newBooking.id}</td></tr>`);
+        const operatorPrefix = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px 16px;margin:0 0 16px;">
+          <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.5px;color:#0369a1;font-weight:600;margin-bottom:8px;">Guest contact (for your records)</div>
+          <table style="font-size:0.9rem;color:#0f172a;">${_rows.join('')}</table>
+        </div>`;
         await sendEmail({
           to: ownerRecipients,
           subject: `New Booking - ${guest_first_name} ${guest_last_name} (Ref: ${newBooking.id})`,
-          html: emailHtml,
+          html: operatorPrefix + emailHtml,
           from: brandedFrom,
           siteId: emailBranding.deployedSiteId || null
         });
