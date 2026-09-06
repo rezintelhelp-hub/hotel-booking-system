@@ -40113,6 +40113,61 @@ app.get('/api/admin/bookings/search', async (req, res) => {
 });
 
 // GET ledger for a booking — Phase 2 reads, used by the Payment Ops UI.
+// Payment-state diagnostic for one booking. Short single-line output so
+// pasted console fetches don't wrap and break. Master-admin only.
+// Steve/Barbara 2026-09-06 — Expedia VCC visibility check.
+app.get('/api/admin/diag/booking-payment/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const id = parseInt(req.params.id, 10);
+    const r = await pool.query(`
+      SELECT id, booking_source, api_source, arrival_date, departure_date,
+             status, payment_status, grand_total, balance_amount,
+             ota_prepaid, ota_payment_collect, ota_charge_amount, ota_payout_amount,
+             stripe_payment_method_id, stripe_customer_id, stripe_payment_intent_id,
+             channex_booking_id, guest_first_name, guest_last_name, guest_email,
+             raw_payload
+        FROM bookings WHERE id = $1`, [id]);
+    if (r.rows.length === 0) return res.json({ success: false, error: 'not found' });
+    const b = r.rows[0];
+    const p = b.raw_payload || {};
+    const attrs = p.attributes || p;
+    res.json({
+      success: true,
+      booking: {
+        id: b.id,
+        guest: `${b.guest_first_name || ''} ${b.guest_last_name || ''}`.trim(),
+        source: b.booking_source,
+        arrival: b.arrival_date,
+        payment_status: b.payment_status,
+        total: b.grand_total,
+        balance: b.balance_amount,
+        ota_prepaid: b.ota_prepaid,
+        ota_payment_collect: b.ota_payment_collect,
+        ota_charge_amount: b.ota_charge_amount,
+        stripe_pm: b.stripe_payment_method_id,
+        stripe_customer: b.stripe_customer_id,
+        stripe_pi: b.stripe_payment_intent_id,
+        channex_id: b.channex_booking_id,
+      },
+      channex_payload: {
+        payment_type: attrs.payment_type,
+        payment_collect: attrs.payment_collect,
+        card: attrs.card || attrs.card_details || null,
+        payments: attrs.payments || null,
+        deposits: attrs.deposits || null,
+      },
+      payment_transactions: (await pool.query(
+        `SELECT id, transaction_type, amount, currency, status, payment_gateway, gateway_transaction_id, description, created_at
+           FROM payment_transactions WHERE booking_id = $1 ORDER BY created_at DESC`, [id]
+      )).rows
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.get('/api/admin/bookings/:id/payment-transactions', async (req, res) => {
   try {
     const bookingId = parseInt(req.params.id);
