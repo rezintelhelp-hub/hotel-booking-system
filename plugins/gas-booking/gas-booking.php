@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.4.6');
+define('GAS_BOOKING_VERSION', '4.4.7');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -176,6 +176,12 @@ class GAS_Booking {
         
         // Also allow sync via query string (for cross-origin calls)
         add_action('init', array($this, 'handle_sync_request'));
+
+        // Admin bar link back to GAS Admin so operators viewing their live
+        // WP site can jump straight to the deployed-sites management view
+        // (where Edit Web Builder, Pull from Beds24, Rooms etc. live).
+        // Only shown to logged-in WP admins. Steve 2026-09-06.
+        add_action('admin_bar_menu', array($this, 'add_gas_admin_link'), 100);
         
         // SEO injection via wp_head
         add_action('wp_head', array($this, 'inject_seo_meta'), 1);
@@ -320,6 +326,20 @@ class GAS_Booking {
         ));
     }
     
+    /**
+     * Admin bar link back to GAS Admin — jumps operators from their
+     * live WP site to the deployed-sites management view. Steve 2026-09-06.
+     */
+    public function add_gas_admin_link($wp_admin_bar) {
+        if (!is_admin_bar_showing() || !current_user_can('manage_options')) return;
+        $wp_admin_bar->add_node(array(
+            'id'    => 'gas-manage-link',
+            'title' => '🔧 Manage in GAS',
+            'href'  => 'https://admin.gas.travel/gas-admin.html#deployed-sites',
+            'meta'  => array('target' => '_blank', 'title' => 'Open this site in the GAS admin dashboard'),
+        ));
+    }
+
     /**
      * Handle sync request via query string (for cross-origin)
      */

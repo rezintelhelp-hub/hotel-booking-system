@@ -54010,7 +54010,8 @@ app.get('/api/admin/deployed-sites', async (req, res) => {
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
     const result = await pool.query(`
-      SELECT ds.*, p.name as property_name, a.name as account_name, a.subscription_tier
+      SELECT ds.*, p.name as property_name, a.name as account_name, a.subscription_tier,
+             p.cm_source as property_cm_source
       FROM deployed_sites ds
       LEFT JOIN properties p ON ds.property_id = p.id
       LEFT JOIN accounts a ON ds.account_id = a.id
