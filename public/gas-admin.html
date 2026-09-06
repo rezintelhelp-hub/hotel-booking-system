@@ -70846,7 +70846,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // NOTE: no authHeaders() — matches loadProperties.
                 const r = await fetch('/api/db/properties' + queryString);
                 const d = await r.json();
-                const props = (d && d.success && Array.isArray(d.data)) ? d.data : [];
+                let props = (d && d.success && Array.isArray(d.data)) ? d.data : [];
+                // Hide inactive properties from reports dropdown — operators
+                // deactivate ghost/legacy properties (e.g. Hebden 1102 which
+                // was a Beds24 import artefact) and don't want them polluting
+                // report filters. The Properties management view still shows
+                // them so they can be reactivated. Steve/Hebden 2026-09-06.
+                props = props.filter(p => p.status !== 'inactive');
                 sel.innerHTML = '<option value="">All properties</option>' +
                     props.map(p => `<option value="${p.id}">${p.name || ('Property ' + p.id)}</option>`).join('');
                 if (props.length === 0) {
@@ -71270,11 +71276,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const url = accId ? `/api/admin/properties?account_id=${accId}` : '/api/admin/properties';
                 const r = await fetch(url, { headers: authHeaders() });
                 const data = await r.json();
-                const props = data.properties || data.data || [];
+                let props = data.properties || data.data || [];
+                // Hide inactive properties from the Booking Ledger dropdown
+                // too — same rationale as populateReportPropertyDropdown.
+                props = props.filter(p => p.status !== 'inactive');
                 sel.innerHTML = '<option value="">All properties</option>' +
                     props.map(p => `<option value="${p.id}">${p.name || `Property ${p.id}`}</option>`).join('');
-                // Single-property accounts (like Hebden) — auto-select so the
-                // room dropdown actually has something to populate from.
+                // Single-property accounts (like Hebden after ghost hidden) —
+                // auto-select so the room dropdown actually has something to
+                // populate from.
                 if (props.length === 1) sel.value = String(props[0].id);
             } catch (e) { console.warn('Reports properties load failed', e); }
             await populateReportsRooms();
