@@ -110647,6 +110647,42 @@ app.post('/api/public/book', async (req, res) => {
       }
     }
 
+    // Per-date operator override — No check-in / No check-out. Set from
+    // the calendar cell modal (Steve 2026-09-06). Wins over any offer's
+    // allowed-check-in-days rule. Booking 953118 (2026-09-02) landed on
+    // a Beds24 no-check-in day because we had no such gate; this closes it.
+    {
+      const ctaCtd = await pool.query(
+        `SELECT COALESCE(closed_to_arrival, false) AS cta,
+                COALESCE(closed_to_departure, false) AS ctd
+           FROM room_availability
+          WHERE room_id = $1 AND date = ANY($2::date[])`,
+        [parseInt(unit_id, 10), [check_in, check_out]]
+      );
+      const byDate = new Map();
+      for (const r of ctaCtd.rows) byDate.set(String(r.date || '').slice(0, 10) || r.date, r);
+      // ctaCtd.rows may return date as a Date object — normalise both rows
+      // by looking them up via full match against the strings we asked for.
+      const arrRow = ctaCtd.rows.find(r => (r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10)) === check_in);
+      const depRow = ctaCtd.rows.find(r => (r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10)) === check_out);
+      if (arrRow && arrRow.cta === true) {
+        console.log(`[public/book] CTA reject: unit=${unit_id} arrival=${check_in}`);
+        return res.status(409).json({
+          success: false,
+          error: `Sorry, we can't accept check-ins on ${check_in}. Please choose a different arrival date.`,
+          code: 'CLOSED_TO_ARRIVAL',
+        });
+      }
+      if (depRow && depRow.ctd === true) {
+        console.log(`[public/book] CTD reject: unit=${unit_id} departure=${check_out}`);
+        return res.status(409).json({
+          success: false,
+          error: `Sorry, we can't accept check-outs on ${check_out}. Please choose a different departure date.`,
+          code: 'CLOSED_TO_DEPARTURE',
+        });
+      }
+    }
+
     // Hostfully pre-flight (Steve 2026-07-28). For Hostfully-connected rooms,
     // check the room's Hostfully rules BEFORE we charge the card. Prevents the
     // 'guest charged, Hostfully rejects, orphaned booking that OTAs could

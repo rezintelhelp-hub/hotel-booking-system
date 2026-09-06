@@ -3655,6 +3655,8 @@ jQuery(document).ready(function($) {
                 success: function(resp) {
                     var unavail = [];
                     var cutoff = [];
+                    var cta = [];
+                    var ctd = [];
                     (resp && resp.availability || []).forEach(function(row) {
                         if (row.is_available === false || row.is_blocked === true || row.has_booking === true) {
                             unavail.push(row.date);
@@ -3664,6 +3666,12 @@ jQuery(document).ready(function($) {
                         // via flatpickr's disable callback so the guest can't
                         // click through.
                         if (row.cutoff_blocked === true) cutoff.push(row.date);
+                        // Per-date operator override (Steve 2026-09-06). CTA
+                        // blocks the checkin picker only; CTD blocks the
+                        // checkout picker only. A CTA date can still be a
+                        // valid departure and vice-versa.
+                        if (row.closed_to_arrival === true) cta.push(row.date);
+                        if (row.closed_to_departure === true) ctd.push(row.date);
                     });
                     // Merge cutoff into unavail for shading — guest sees the same
                     // greyed-out look. Track cutoff separately on window so the
@@ -3674,14 +3682,26 @@ jQuery(document).ready(function($) {
                     _flatpickrAvailCache[key] = merged;
                     window._gasCutoffBlockedDates = window._gasCutoffBlockedDates || {};
                     cutoff.forEach(function(iso) { window._gasCutoffBlockedDates[iso] = true; });
+                    window._gasCTABlockedDates = window._gasCTABlockedDates || {};
+                    cta.forEach(function(iso) { window._gasCTABlockedDates[iso] = true; });
+                    window._gasCTDBlockedDates = window._gasCTDBlockedDates || {};
+                    ctd.forEach(function(iso) { window._gasCTDBlockedDates[iso] = true; });
                     // Push the merged disable callback onto every picker so
                     // cells are also unclickable (not just visually shaded).
+                    // Split by picker role: checkin-family disables CTA dates;
+                    // checkout-family disables CTD dates. Cutoff blocks both.
                     document.querySelectorAll('.gas-checkin, .gas-checkout, .gas-checkin-date, .gas-checkout-date, .gas-search-checkin, .gas-search-checkout, .gas-filter-checkin, .gas-filter-checkout').forEach(function(el) {
                         if (!el || !el._flatpickr) return;
+                        var isCheckoutPicker = el.classList.contains('gas-checkout') || el.classList.contains('gas-checkout-date') || el.classList.contains('gas-search-checkout') || el.classList.contains('gas-filter-checkout');
                         el._flatpickr.set('disable', [
                             function(date) {
                                 var iso2 = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
                                 if (window._gasCutoffBlockedDates && window._gasCutoffBlockedDates[iso2]) return true;
+                                if (isCheckoutPicker) {
+                                    if (window._gasCTDBlockedDates && window._gasCTDBlockedDates[iso2]) return true;
+                                } else {
+                                    if (window._gasCTABlockedDates && window._gasCTABlockedDates[iso2]) return true;
+                                }
                                 if (typeof window._gasEventDateDisable === 'function' && window._gasEventDateDisable(date)) return true;
                                 return false;
                             }
