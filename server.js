@@ -40332,6 +40332,67 @@ app.post('/api/admin/diag/hebden-vat-sweep', async (req, res) => {
   }
 });
 
+// Audit — Hebden OTA bookings with missing VAT. OTAs (BDC, Airbnb,
+// Expedia, Hostelworld) don't send VAT as a discrete line item — they
+// give us gross + commission. GAS never populated bookings.tax_amount
+// for these, so VAT reports underState Hebden's HMRC liability. This
+// diag counts affected bookings + total missed VAT. Read-only — no
+// writes. Steve/Joanne 2026-09-06.
+app.get('/api/admin/diag/hebden-ota-vat-audit', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const ACCOUNT_ID = 169; // Hebden
+    // VAT-inclusive at 20% → VAT = gross × 20/120
+    const rows = await pool.query(`
+      SELECT
+        b.id                                            AS booking_id,
+        b.booking_source                                AS channel,
+        b.arrival_date::text                            AS arrival,
+        b.created_at::date::text                        AS booked_on,
+        TRIM(COALESCE(b.guest_first_name,'') || ' ' || COALESCE(b.guest_last_name,'')) AS guest,
+        b.grand_total::numeric(10,2)                    AS grand_total,
+        COALESCE(b.tax_amount, 0)::numeric(10,2)        AS current_tax_amount,
+        (b.grand_total * 20.0 / 120.0)::numeric(10,2)   AS expected_vat,
+        COALESCE(b.commission_amount, 0)::numeric(10,2) AS commission_amount,
+        COALESCE(b.status, '')                          AS status
+      FROM bookings b
+      JOIN properties p ON p.id = b.property_id
+      WHERE p.account_id = $1
+        AND COALESCE(b.booking_source, '') IN ('booking', 'airbnb', 'expedia', 'hostelworld')
+        AND (b.tax_amount IS NULL OR b.tax_amount = 0)
+        AND COALESCE(b.status, '') NOT IN ('cancelled', 'declined', 'expired')
+        AND b.grand_total > 0
+      ORDER BY b.arrival_date DESC`, [ACCOUNT_ID]);
+    const totalMissedVat = rows.rows.reduce((s, r) => s + Number(r.expected_vat || 0), 0);
+    const totalGross = rows.rows.reduce((s, r) => s + Number(r.grand_total || 0), 0);
+    const byChannel = {};
+    for (const r of rows.rows) {
+      const ch = r.channel || 'unknown';
+      byChannel[ch] = byChannel[ch] || { count: 0, gross: 0, missed_vat: 0 };
+      byChannel[ch].count++;
+      byChannel[ch].gross += Number(r.grand_total || 0);
+      byChannel[ch].missed_vat += Number(r.expected_vat || 0);
+    }
+    res.json({
+      success: true,
+      scope: 'account_id = 169 (Hebden), OTA channels (booking, airbnb, expedia, hostelworld)',
+      affected_count: rows.rows.length,
+      total_gross: totalGross.toFixed(2),
+      total_missed_vat: totalMissedVat.toFixed(2),
+      by_channel: Object.fromEntries(
+        Object.entries(byChannel).map(([k, v]) => [k, { count: v.count, gross: v.gross.toFixed(2), missed_vat: v.missed_vat.toFixed(2) }])
+      ),
+      sample: rows.rows.slice(0, 10),
+      earliest_arrival: rows.rows.length ? rows.rows[rows.rows.length - 1].arrival : null,
+      latest_arrival:   rows.rows.length ? rows.rows[0].arrival : null,
+      all_ids: rows.rows.map(r => r.booking_id),
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Audit — Hebden VAT double-count. Finds bookings where an exclusive
 // VAT row was persisted as booking_extras, inflating grand_total above
 // what the guest was actually quoted (VAT-inclusive pricing on
