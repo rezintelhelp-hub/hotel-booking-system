@@ -40169,6 +40169,130 @@ app.get('/api/admin/diag/channex-booking-live/:id', async (req, res) => {
   }
 });
 
+// Sweep — apply the corrections to the 11 Hebden bookings identified
+// by hebden-vat-audit. Reversible: every change logged in
+// hebden_vat_correction_20260906 audit table with the full before-state
+// before the write. Default DRY-RUN. Pass ?apply=1 to actually execute.
+// Master-admin only. Steve 2026-09-06.
+app.post('/api/admin/diag/hebden-vat-sweep', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const APPLY = String(req.query.apply || req.body?.apply || '') === '1';
+    const ACCOUNT_ID = 169;
+    // Audit table — one row per booking corrected, with full before-state
+    // as JSONB so reversal reads all needed data from a single row.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS hebden_vat_correction_20260906 (
+        id SERIAL PRIMARY KEY,
+        booking_id INTEGER NOT NULL,
+        vat_amount NUMERIC(10,2) NOT NULL,
+        before_state JSONB NOT NULL,
+        applied_at TIMESTAMPTZ DEFAULT NOW()
+      )`);
+    // Find affected bookings (same query as audit endpoint)
+    const affected = await client.query(`
+      SELECT
+        b.id                                                AS booking_id,
+        b.grand_total::numeric(10,2)                        AS grand_total,
+        b.balance_amount::numeric(10,2)                     AS balance_amount,
+        b.extras_total::numeric(10,2)                       AS extras_total,
+        b.deposit_amount::numeric(10,2)                     AS deposit_amount,
+        b.tax_amount::numeric(10,2)                         AS tax_amount,
+        vat_extras.total::numeric(10,2)                     AS vat_amount,
+        vat_extras.ids                                      AS vat_extra_ids
+      FROM bookings b
+      JOIN properties p ON p.id = b.property_id
+      JOIN (
+        SELECT
+          booking_id,
+          SUM(qty * unit_price)::numeric(14,2) AS total,
+          array_agg(id ORDER BY id) AS ids
+        FROM booking_extras
+        WHERE source_type = 'tax'
+          AND status <> 'cancelled'
+        GROUP BY booking_id
+      ) AS vat_extras ON vat_extras.booking_id = b.id
+      WHERE p.account_id = $1
+        AND COALESCE(b.booking_source, 'direct') IN ('direct', 'rezintel')
+      ORDER BY b.id`, [ACCOUNT_ID]);
+    const results = [];
+    await client.query('BEGIN');
+    for (const bk of affected.rows) {
+      // Skip idempotently — if we already corrected this booking, don't
+      // double-apply. Uses the audit table as the marker.
+      const already = await client.query(
+        `SELECT id FROM hebden_vat_correction_20260906 WHERE booking_id = $1 LIMIT 1`, [bk.booking_id]);
+      if (already.rows.length > 0) {
+        results.push({ booking_id: bk.booking_id, skipped: 'already corrected', audit_id: already.rows[0].id });
+        continue;
+      }
+      // Load the VAT extras rows we're about to delete so we can log
+      // the exact before-state (name, qty, unit_price, status).
+      const vatRows = await client.query(
+        `SELECT id, name, qty, unit_price, status, source_type FROM booking_extras
+           WHERE booking_id = $1 AND source_type = 'tax' AND status <> 'cancelled'`, [bk.booking_id]);
+      const vatAmount = Number(bk.vat_amount);
+      const newGrand = Math.max(0, Number(bk.grand_total) - vatAmount);
+      const newBalance = Math.max(0, newGrand - (Number(bk.deposit_amount) || 0));
+      const newExtrasTotal = Math.max(0, Number(bk.extras_total || 0) - vatAmount);
+      const before = {
+        grand_total: bk.grand_total,
+        balance_amount: bk.balance_amount,
+        extras_total: bk.extras_total,
+        deposit_amount: bk.deposit_amount,
+        tax_amount: bk.tax_amount,
+        vat_extras_deleted: vatRows.rows,
+      };
+      if (APPLY) {
+        await client.query(
+          `INSERT INTO hebden_vat_correction_20260906 (booking_id, vat_amount, before_state)
+           VALUES ($1, $2, $3::jsonb)`,
+          [bk.booking_id, vatAmount, JSON.stringify(before)]);
+        await client.query(
+          `DELETE FROM booking_extras WHERE id = ANY($1::int[])`,
+          [bk.vat_extra_ids]);
+        await client.query(
+          `UPDATE bookings
+              SET grand_total = $2::numeric(10,2),
+                  balance_amount = $3::numeric(10,2),
+                  extras_total = $4::numeric(10,2),
+                  updated_at = NOW()
+            WHERE id = $1`,
+          [bk.booking_id, newGrand.toFixed(2), newBalance.toFixed(2), newExtrasTotal.toFixed(2)]);
+      }
+      results.push({
+        booking_id: bk.booking_id,
+        vat_removed: vatAmount.toFixed(2),
+        grand_total: { before: bk.grand_total, after: newGrand.toFixed(2) },
+        balance_amount: { before: bk.balance_amount, after: newBalance.toFixed(2) },
+        extras_deleted: vatRows.rows.length,
+      });
+    }
+    if (APPLY) await client.query('COMMIT');
+    else       await client.query('ROLLBACK');
+    const totalReduced = results.reduce((s, r) => s + Number(r.vat_removed || 0), 0);
+    res.json({
+      success: true,
+      applied: APPLY,
+      scope: 'account_id = 169 (Hebden), channels = direct + rezintel',
+      corrections: results.length,
+      total_reduced: totalReduced.toFixed(2),
+      audit_table: 'hebden_vat_correction_20260906',
+      details: results,
+      note: APPLY
+        ? 'Changes committed. Reversal query available on request.'
+        : 'DRY-RUN — no changes applied. Re-call with ?apply=1 to execute.',
+    });
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    res.status(500).json({ success: false, error: e.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Audit — Hebden VAT double-count. Finds bookings where an exclusive
 // VAT row was persisted as booking_extras, inflating grand_total above
 // what the guest was actually quoted (VAT-inclusive pricing on
