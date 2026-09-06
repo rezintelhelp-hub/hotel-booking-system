@@ -87167,9 +87167,27 @@ app.get('/api/admin/bookings/:id/why-not-channex', async (req, res) => {
 // while in the modal from the calendar'.
 app.post('/api/admin/bookings/:id/set-status', async (req, res) => {
   try {
-    if (!await requireMasterAdmin(req, res)) return;
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
     const { id } = req.params;
     const { status, payment_status } = req.body || {};
+
+    // Ownership check — master admin can flip any booking; account admins
+    // can only flip bookings on their own account. Lorenzo (acct 224)
+    // 2026-09-06: couldn't cancel his own website bookings — endpoint had
+    // a hard master-only guard. Relaxed to match the pattern used by other
+    // admin booking endpoints (server.js:15704 etc.).
+    const isMaster = decoded.role === 'master_admin';
+    if (!isMaster) {
+      const own = await pool.query(
+        `SELECT p.account_id FROM bookings b
+           JOIN properties p ON p.id = b.property_id
+          WHERE b.id = $1`, [id]);
+      if (own.rows.length === 0) return res.json({ success: false, error: 'Booking not found' });
+      if (own.rows[0].account_id !== (decoded.accountId || decoded.id)) {
+        return res.status(403).json({ success: false, error: 'Not your booking' });
+      }
+    }
 
     const validStatus = ['confirmed', 'pending', 'inquiry', 'cancelled', 'new', 'declined', 'expired', 'rejected'];
     const validPayment = ['paid', 'pending', 'failed', 'refunded', 'partial', 'authorised'];
