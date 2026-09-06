@@ -78470,8 +78470,8 @@ const REPORTS_REGISTRY = {
   // property + room + channel filters like the other Ops reports.
   'sales-ledger': {
     slug: 'sales-ledger',
-    name: 'New Bookings — audit trail (all bookings)',
-    description: 'One row per confirmed booking taken in the selected date range — this is the "what did we sell" view. Default date basis is when the guest booked (not when they arrive); switch to arrival to see stays instead. Includes booking date, stay dates, gross, VAT, net-ex-VAT, platform fee, and net receivable. VAT back-calculated from account tax rate (default 20% VAT-inclusive). Platform fee from bookings.commission_amount (populated by Beds24 sync for OTA channels). Direct + Rezintel show £0 fee.',
+    name: 'Sales Ledger — audit trail (all bookings)',
+    description: 'One row per confirmed booking with booking date, stay dates, gross, VAT, net-ex-VAT, platform fee, and net receivable. VAT back-calculated from account tax rate (default 20% VAT-inclusive). Platform fee from bookings.commission_amount (populated by Beds24 sync for OTA channels). Direct + Rezintel show £0 fee. Filter by booking date (default) or arrival date. Full historical coverage requires the Full Re-sync from Beds24 button to have pulled the relevant years.',
     category: 'Tax',
     joanne: '#8b',
     params: [
