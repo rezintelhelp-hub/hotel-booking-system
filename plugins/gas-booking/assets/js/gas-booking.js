@@ -6310,6 +6310,49 @@ jQuery(document).ready(function($) {
                         });
                     });
                 });
+                // Step navigation for cart-only checkout (Details → Extras
+                // → Payment). The main room-checkout init at ~line 9472
+                // owns the delegated .gas-next-step handler but the cart
+                // branch returns BEFORE it wires up. Without this, Continue
+                // to Extras / Payment did nothing on bike-storage /
+                // shop-cart checkouts. Steve/Hebden 2026-09-06.
+                $(document).on('click.gasCartStep', '.gas-next-step', function() {
+                    var nextStep = parseInt($(this).data('next'), 10);
+                    var currentStep = nextStep - 1;
+                    if (currentStep === 1) {
+                        var $form = $('#gas-guest-form');
+                        if ($form.length && !$form[0].checkValidity()) {
+                            $form[0].reportValidity();
+                            return;
+                        }
+                        var email = $('#gas-email').val();
+                        var confirm = $('#gas-email-confirm').val();
+                        if (email && confirm && email !== confirm) {
+                            alert('Email addresses do not match. Please check and try again.');
+                            return;
+                        }
+                    }
+                    $('.gas-checkout-step-content').hide();
+                    $('.gas-checkout-step-content[data-step="' + nextStep + '"]').show();
+                    $('.gas-step').removeClass('active completed');
+                    $('.gas-step[data-step="' + nextStep + '"]').addClass('active');
+                    $('.gas-step').each(function() {
+                        if ($(this).data('step') < nextStep) $(this).addClass('completed');
+                    });
+                    // Payment step — make sure the Stripe form is visible
+                    // (main-flow init auto-shows this; mirror for cart-only).
+                    if (nextStep === 3) {
+                        $('.gas-stripe-form, .gas-payment-summary').show();
+                    }
+                    $('html, body').animate({scrollTop: 0}, 300);
+                });
+                $(document).on('click.gasCartStep', '.gas-prev-step', function() {
+                    var prevStep = parseInt($(this).data('prev'), 10);
+                    $('.gas-checkout-step-content').hide();
+                    $('.gas-checkout-step-content[data-step="' + prevStep + '"]').show();
+                    $('.gas-step').removeClass('active completed');
+                    $('.gas-step[data-step="' + prevStep + '"]').addClass('active');
+                });
             })();
             return; // Skip room-based checkout init
         }
