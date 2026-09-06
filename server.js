@@ -78773,6 +78773,36 @@ const REPORTS_REGISTRY = {
     },
   },
 
+  // Forward Bookings (Monthly) — pipeline value summarised by arrival
+  // month + channel. Mirrors Actual Stays (monthly-revenue) but for
+  // future arrivals so operators see "how much revenue is committed
+  // for each of the next N months" at a glance. Detail per-booking
+  // view lives in the Forward Bookings report below.
+  'forward-bookings-monthly': {
+    slug: 'forward-bookings-monthly',
+    name: 'Forward Bookings (Monthly Summary)',
+    description: 'Monthly rollup of the pipeline — for each month in the selected date range, the value of confirmed bookings arriving that month, grouped by channel. Same columns as Actual Stays; useful for "what does September / October / November look like so far?" Defaults to today + 90 days. For per-booking detail see the Forward Bookings report.',
+    category: 'Revenue',
+    joanne: '#3g',
+    params: [
+      { key: 'from',   type: 'date', required: true,  label: 'From (arrival)' },
+      { key: 'to',     type: 'date', required: true,  label: 'To (arrival)' },
+      { key: 'status', type: 'enum', required: false, label: 'Status filter',
+        default: 'confirmed',
+        options: [
+          { value: 'confirmed',  label: 'Confirmed only' },
+          { value: 'all_active', label: 'All except cancelled' },
+          { value: 'all',        label: 'All including cancelled' },
+        ],
+      },
+      { key: 'property_id', type: 'property_picker', required: false, label: 'Property' },
+      { key: 'room_id',     type: 'room_picker',     required: false, label: 'Room' },
+    ],
+    get columns() { return REPORTS_REGISTRY['monthly-revenue'].columns; },
+    get summary() { return REPORTS_REGISTRY['monthly-revenue'].summary; },
+    sql: (ctx) => REPORTS_REGISTRY['monthly-revenue'].sql(ctx),
+  },
+
   // Forward Bookings — pipeline of confirmed reservations for future
   // arrivals. Same underlying data + SQL as the New Bookings report
   // (sales-ledger) but pre-set to arrival-date basis + a future date
