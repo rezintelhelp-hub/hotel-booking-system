@@ -76011,6 +76011,37 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        // Payment-link fallback dialog — shown after Add Extra with
+        // send_payment_link=true. OTA proxy emails (BDC without a
+        // whitelist entry, some Expedia flows) can silently drop the
+        // link, so we always expose the URL for the operator to copy +
+        // share via WhatsApp / OTA thread / phone. Steve/Barbara 2026-09-06.
+        function _showPaymentLinkFallback(url, emailSent, currency, amount) {
+            const emailStatus = emailSent
+                ? `<div style="padding:0.5rem 0.75rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:0.85rem;color:#166534;margin-bottom:0.75rem;">✓ Email sent to guest</div>`
+                : `<div style="padding:0.5rem 0.75rem;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;font-size:0.85rem;color:#92400e;margin-bottom:0.75rem;">⚠ Email dispatch failed — please share the link manually</div>`;
+            const html = `
+                <div style="padding:1rem;">
+                    <h3 style="margin:0 0 0.75rem;font-size:1rem;">Payment link created</h3>
+                    <p style="font-size:0.85rem;color:#64748b;margin:0 0 0.75rem;">${currency} ${amount} payment link for the guest.</p>
+                    ${emailStatus}
+                    <p style="font-size:0.8rem;color:#64748b;margin:0 0 0.5rem;">If the guest is on Airbnb/BDC/Expedia their inbox email may not accept outside senders. Copy this link and share via WhatsApp, the OTA message thread, or phone:</p>
+                    <div style="display:flex;gap:0.5rem;">
+                        <input type="text" value="${url}" readonly style="flex:1;padding:0.5rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.8rem;font-family:monospace;" id="_paymentLinkCopyInput" onclick="this.select()">
+                        <button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('_paymentLinkCopyInput').value).then(()=>showNotification('Link copied','success'))" style="background:#0284c7;">Copy</button>
+                    </div>
+                    <div style="margin-top:1rem;text-align:right;">
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('_paymentLinkModal').remove()">Close</button>
+                    </div>
+                </div>`;
+            const el = document.createElement('div');
+            el.id = '_paymentLinkModal';
+            el.className = 'modal';
+            el.style.cssText = 'display:flex;z-index:1300;';
+            el.innerHTML = `<div class="modal-content" style="max-width:520px;border-radius:12px;">${html}</div>`;
+            document.body.appendChild(el);
+        }
+
         async function saveNewBookingExtra() {
             if (!_currentExtraBookingId) return;
             const source = document.querySelector('input[name="add-extra-source"]:checked')?.value;
@@ -76051,11 +76082,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     showNotification(`Added and charged ${d.currency} ${d.total_amount}`, 'success');
                 } else if (d.stripe_error) {
                     showNotification(`Added, but charge failed: ${d.stripe_error}. Item marked reserved.`, 'warning');
-                } else if (d.payment_link_sent) {
-                    showNotification(`Added — payment link emailed to guest (${d.currency} ${d.total_amount})`, 'success');
                 } else if (d.payment_link_url) {
-                    showNotification(`Added — payment link created but email failed. Copy link from console.`, 'warning');
-                    console.log('Guest payment link:', d.payment_link_url);
+                    // Show the link modal so operator can copy — email may
+                    // not reach OTA proxy addresses (BDC whitelist gaps,
+                    // Expedia proxy quirks). Always give the operator a
+                    // fallback path (WhatsApp, OTA thread reply, phone).
+                    _showPaymentLinkFallback(d.payment_link_url, d.payment_link_sent, d.currency, d.total_amount);
                 } else if (d.payment_link_error) {
                     showNotification(`Added, payment link failed: ${d.payment_link_error}. Item marked reserved.`, 'warning');
                 } else {
