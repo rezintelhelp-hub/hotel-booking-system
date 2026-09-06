@@ -58542,12 +58542,22 @@ const promo = await fetch('/api/v1/offers/validate', {
             // bookings/blocks/prices stay legible. Admin cell click still
             // fires so operators can take manual bookings by phone.
             const isCutoffBlocked = !isPast && !!(day && day.cutoff_blocked);
-            const cutoffOverlay = isCutoffBlocked
-                ? 'background-image: repeating-linear-gradient(45deg, rgba(220,38,38,0.28) 0 4px, transparent 4px 10px);'
-                : '';
+            const isCTA = !!(day && day.closed_to_arrival);
+            const isCTD = !!(day && day.closed_to_departure);
+            // Stack background images: cutoff hatch + top-left corner triangle
+            // for No-check-in + top-right triangle for No-check-out. All layered
+            // on top of the base bg colour. Corner triangles are red so the
+            // operator can see the state at-a-glance without clicking in.
+            const _bgLayers = [];
+            if (isCutoffBlocked) _bgLayers.push('repeating-linear-gradient(45deg, rgba(220,38,38,0.28) 0 4px, transparent 4px 10px)');
+            if (isCTA) _bgLayers.push('linear-gradient(135deg, #dc2626 0 9px, transparent 9px 100%)');
+            if (isCTD) _bgLayers.push('linear-gradient(225deg, #dc2626 0 9px, transparent 9px 100%)');
+            const cutoffOverlay = _bgLayers.length ? `background-image: ${_bgLayers.join(', ')}; background-repeat: no-repeat;` : '';
             const titleWithHint = (suppressBooking && !bookingId) ? `${title} — click to open row` : title;
             const cutoffSuffix = isCutoffBlocked ? ' · Cutoff (direct + OTAs closed; manual booking still allowed)' : '';
-            const safeTitle = (titleWithHint + cutoffSuffix).replace(/"/g, '&quot;');
+            const ctaSuffix = isCTA ? ' · No check-in' : '';
+            const ctdSuffix = isCTD ? ' · No check-out' : '';
+            const safeTitle = (titleWithHint + cutoffSuffix + ctaSuffix + ctdSuffix).replace(/"/g, '&quot;');
             // Corner badge: total bookings inside this multi-unit row on
             // this date when > 1. First booking is visible in the cell;
             // the badge flags that there are more (Steve 2026-06-25).
@@ -60375,7 +60385,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                         }
                     }
                     const cursorStyle = ((isPast && !(isBooked && bookingId)) || isCascadeBlocked) ? 'default' : 'pointer';
-                    const titleAttr = titleText ? `title="${titleText.replace(/"/g,'&quot;')}"` : '';
+                    // Corner triangle indicators for No-check-in / No-check-out.
+                    // Steve 2026-09-06 — operator needs to SEE the CTA/CTD state
+                    // without clicking into each cell. Red triangle top-left =
+                    // no check-in, top-right = no check-out.
+                    const _dCTA = !!(dayData && dayData.closed_to_arrival);
+                    const _dCTD = !!(dayData && dayData.closed_to_departure);
+                    const _cellBgLayers = [];
+                    if (_dCTA) _cellBgLayers.push('linear-gradient(135deg, #dc2626 0 9px, transparent 9px 100%)');
+                    if (_dCTD) _cellBgLayers.push('linear-gradient(225deg, #dc2626 0 9px, transparent 9px 100%)');
+                    const cornerCss = _cellBgLayers.length ? `background-image: ${_cellBgLayers.join(', ')}; background-repeat: no-repeat;` : '';
+                    const cornerTitle = (_dCTA ? ' · No check-in' : '') + (_dCTD ? ' · No check-out' : '');
+                    const titleAttr = (titleText || cornerTitle) ? `title="${(titleText + cornerTitle).replace(/"/g,'&quot;')}"` : '';
 
                     // &nbsp; fallback when the cell is empty so the row keeps
                     // a consistent line-box height. Without it, rows with no
@@ -60390,7 +60411,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // right action set per cell.
                     const dragSelectable = !isPast && !isCascadeBlocked && !(isBooked && bookingId);
                     const cellBlocked = dayData && dayData.is_blocked ? '1' : '0';
-                    r += `<td data-room-id="${room.id}" data-date="${dateStr}" data-kind="avail" data-selectable="${dragSelectable ? '1' : '0'}" data-booking-id="${bookingId || ''}" data-blocked="${cellBlocked}" style="padding: 2px; text-align: center; background: ${bgColor}; color: ${textColor}; font-size: 0.7rem; cursor: ${cursorStyle}; ${leftBar} ${pastStyle}"
+                    r += `<td data-room-id="${room.id}" data-date="${dateStr}" data-kind="avail" data-selectable="${dragSelectable ? '1' : '0'}" data-booking-id="${bookingId || ''}" data-blocked="${cellBlocked}" style="padding: 2px; text-align: center; background-color: ${bgColor}; ${cornerCss} color: ${textColor}; font-size: 0.7rem; cursor: ${cursorStyle}; ${leftBar} ${pastStyle}"
                         ${titleAttr}
                         onclick="${clickHandler}">${text || '&nbsp;'}</td>`;
                 });
