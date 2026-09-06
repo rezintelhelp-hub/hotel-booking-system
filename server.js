@@ -24988,6 +24988,66 @@ app.delete('/api/admin/accounts/:id', async (req, res) => {
   }
 });
 
+// Master-admin: full-cascade nuke for wizard test accounts.
+// Wipes deployed_sites + website_settings + bookable_units + properties
+// then chains into the standard delete which handles connections + account.
+// Requires body { confirm: 'YES_NUKE' }.
+app.post('/api/admin/accounts/:id/nuke', requireMasterAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.body?.confirm !== 'YES_NUKE') {
+      return res.status(400).json({ success: false, error: "Body must include confirm: 'YES_NUKE'" });
+    }
+    const acct = await pool.query('SELECT id, email, role FROM accounts WHERE id = $1', [id]);
+    if (acct.rows.length === 0) return res.json({ success: false, error: 'Account not found' });
+    if (acct.rows[0].role === 'master_admin') return res.json({ success: false, error: 'Cannot nuke master admin' });
+
+    const removed = { deployed_sites: 0, website_settings: 0, bookable_units: 0, properties: 0, connections: 0 };
+
+    // deployed_sites + website_settings first (FK to properties/accounts)
+    const dsRows = await pool.query('SELECT id FROM deployed_sites WHERE account_id = $1', [id]);
+    for (const ds of dsRows.rows) {
+      const ws = await pool.query('DELETE FROM website_settings WHERE deployed_site_id = $1', [ds.id]);
+      removed.website_settings += ws.rowCount || 0;
+    }
+    const ds = await pool.query('DELETE FROM deployed_sites WHERE account_id = $1', [id]);
+    removed.deployed_sites = ds.rowCount || 0;
+    // any orphan website_settings scoped by account_id (defensive)
+    await pool.query('DELETE FROM website_settings WHERE account_id = $1', [id]);
+
+    // Properties + bookable_units
+    const props = await pool.query('SELECT id FROM properties WHERE account_id = $1', [id]);
+    for (const p of props.rows) {
+      // room_availability + bookable_units belong to property
+      await pool.query('DELETE FROM room_availability WHERE property_id = $1', [p.id]);
+      const bu = await pool.query('DELETE FROM bookable_units WHERE property_id = $1', [p.id]);
+      removed.bookable_units += bu.rowCount || 0;
+    }
+    const pd = await pool.query('DELETE FROM properties WHERE account_id = $1', [id]);
+    removed.properties = pd.rowCount || 0;
+
+    // Connections + related sync tables (mirror the DELETE endpoint above)
+    const conns = await pool.query('SELECT id FROM gas_sync_connections WHERE account_id = $1', [id]);
+    for (const c of conns.rows) {
+      await pool.query('DELETE FROM gas_sync_logs WHERE connection_id = $1', [c.id]);
+      await pool.query('DELETE FROM gas_sync_images WHERE connection_id = $1', [c.id]);
+      await pool.query('DELETE FROM gas_sync_reservations WHERE connection_id = $1', [c.id]);
+      await pool.query('DELETE FROM gas_sync_room_types WHERE connection_id = $1', [c.id]);
+      await pool.query('DELETE FROM gas_sync_properties WHERE connection_id = $1', [c.id]);
+    }
+    const cd = await pool.query('DELETE FROM gas_sync_connections WHERE account_id = $1', [id]);
+    removed.connections = cd.rowCount || 0;
+
+    // Finally the account itself
+    await pool.query('DELETE FROM accounts WHERE id = $1', [id]);
+
+    res.json({ success: true, account_id: Number(id), email: acct.rows[0].email, removed });
+  } catch (error) {
+    console.error('Nuke account error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Generate account codes for all accounts missing one
 app.post('/api/admin/generate-account-codes', async (req, res) => {
   try {
