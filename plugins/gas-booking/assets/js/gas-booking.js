@@ -6318,6 +6318,20 @@ jQuery(document).ready(function($) {
                 $checkoutPage.find('.gas-upsells-loading').hide();
                 $checkoutPage.find('.gas-no-upsells').show();
 
+                // Cart-only flows (bike storage, e-bike hire, other shop
+                // items) are inherently prepaid — pay-at-property makes
+                // no sense. Main flow's payment-methods fetch would hide
+                // it based on property config, but that fetch never runs
+                // in cart-only (return early). Force-hide the option +
+                // auto-select the card option so Stripe Elements mounts
+                // and Continue-to-Payment works. Steve/Hebden 2026-09-06.
+                var $pap = $checkoutPage.find('.gas-payment-option').filter(function() {
+                    return $(this).find('input[value="pay_at_property"]').length > 0;
+                });
+                $pap.hide();
+                var $card = $checkoutPage.find('.gas-payment-card-option');
+                if ($card.length && !$card.hasClass('selected')) $card.trigger('click');
+
                 // Step navigation for cart-only checkout (Details → Extras
                 // → Payment). The main room-checkout init at ~line 9472
                 // owns the delegated .gas-next-step handler but the cart
