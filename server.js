@@ -78772,6 +78772,65 @@ const REPORTS_REGISTRY = {
       };
     },
   },
+
+  // Forward Bookings — pipeline of confirmed reservations for future
+  // arrivals. Same underlying data + SQL as the New Bookings report
+  // (sales-ledger) but pre-set to arrival-date basis + a future date
+  // window so operators see "what's booked for the months ahead" as its
+  // own named report rather than a Sales Ledger with fiddled filters.
+  // Steve/Joanne 2026-09-06.
+  'forward-bookings': {
+    slug: 'forward-bookings',
+    name: 'Forward Bookings — pipeline for future arrivals',
+    description: 'One row per confirmed booking arriving in the selected date range — pipeline view of what is already booked for future months. Default date basis is arrival; default range is today + 90 days. Same columns as New Bookings; VAT / fees / net all included so you can see the value of the pipeline broken down.',
+    category: 'Revenue',
+    joanne: '#3f',
+    params: [
+      { key: 'from', type: 'date', required: true, label: 'From (arrival)' },
+      { key: 'to',   type: 'date', required: true, label: 'To (arrival)' },
+      { key: 'booking_search', type: 'text', required: false, label: 'Search',
+        placeholder: 'GAS ID, Beds24 ID, or guest name (leave blank for all)' },
+      { key: 'date_basis', type: 'enum', required: false, label: 'Date basis',
+        default: 'arrival_date',
+        options: [
+          { value: 'arrival_date', label: 'Date of stay (arrival)' },
+          { value: 'booking_date', label: 'Date of booking (when guest booked)' },
+        ],
+      },
+      { key: 'vat_rate_pct',    type: 'text', required: false, label: 'VAT rate % (default: account or 20)' },
+      { key: 'stripe_fee_pct',  type: 'text', required: false, label: 'Stripe fee % — estimate (default 1.99)' },
+      { key: 'source', type: 'enum', required: false, label: 'Channel',
+        default: 'all',
+        options: [
+          { value: 'all',        label: 'All channels' },
+          { value: 'direct',     label: 'Direct' },
+          { value: 'rezintel',   label: 'Rezintel' },
+          { value: 'booking',    label: 'Booking.com' },
+          { value: 'airbnb',     label: 'Airbnb' },
+          { value: 'hostelworld',label: 'Hostelworld' },
+          { value: 'expedia',    label: 'Expedia' },
+        ],
+      },
+      { key: 'property_id', type: 'property_picker', required: false, label: 'Property' },
+      { key: 'room_id',     type: 'room_picker',     required: false, label: 'Room' },
+      { key: 'room_scope', type: 'enum', required: false, label: 'Room scope',
+        default: 'all',
+        options: [
+          { value: 'all',          label: 'All rooms (default)' },
+          { value: 'standard',     label: 'Standard rooms only (exclude Exclusive Hire)' },
+          { value: 'exclusive',    label: 'Exclusive Hire only' },
+        ],
+      },
+    ],
+    // Columns + summary aggregates are identical to New Bookings; we
+    // reference the same lists so a schema tweak lands in both.
+    get columns() { return REPORTS_REGISTRY['sales-ledger'].columns; },
+    get summary() { return REPORTS_REGISTRY['sales-ledger'].summary; },
+    // SQL builder — reuse New Bookings' SQL directly. Default date basis
+    // handling above ensures arrival-basis fires unless the operator
+    // explicitly switches.
+    sql: (ctx) => REPORTS_REGISTRY['sales-ledger'].sql(ctx),
+  },
 };
 
 // Resolve the effective account_id for a reports request.
