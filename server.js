@@ -40113,6 +40113,55 @@ app.get('/api/admin/bookings/search', async (req, res) => {
 });
 
 // GET ledger for a booking — Phase 2 reads, used by the Payment Ops UI.
+// Fetch the LIVE Channex-side view of a booking so we can see whether
+// the VCC has arrived on Channex but not made it into GAS. Used for
+// Expedia Collect bookings that arrive without card details in the
+// initial webhook — Expedia sometimes releases the VCC hours/days later.
+// Master-admin only. Steve/Barbara 2026-09-06.
+app.get('/api/admin/diag/channex-booking-live/:id', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const id = parseInt(req.params.id, 10);
+    const bR = await pool.query(
+      `SELECT b.channex_booking_id, b.raw_payload, p.account_id
+         FROM bookings b JOIN properties p ON p.id = b.property_id
+        WHERE b.id = $1`, [id]);
+    if (bR.rows.length === 0) return res.json({ success: false, error: 'booking not found' });
+    const b = bR.rows[0];
+    if (!b.channex_booking_id) return res.json({ success: false, error: 'no channex_booking_id on booking' });
+    const connRow = await pool.query(
+      `SELECT id, credentials FROM gas_sync_connections
+        WHERE account_id = $1 AND adapter_code = 'channex' AND sync_enabled = true
+        ORDER BY id LIMIT 1`, [b.account_id]);
+    const conn = connRow.rows[0];
+    if (!conn) return res.json({ success: false, error: 'no channex connection for account' });
+    const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : (conn.credentials || {});
+    const apiKey = creds.apiKey || process.env.CHANNEX_API_KEY;
+    if (!apiKey) return res.json({ success: false, error: 'no channex api key' });
+    const live = await axios.get(`https://staging.channex.io/api/v1/bookings/${b.channex_booking_id}`, {
+      headers: { 'user-api-key': apiKey }
+    }).catch(async e1 => {
+      // Fall through to production endpoint
+      return axios.get(`https://app.channex.io/api/v1/bookings/${b.channex_booking_id}`, {
+        headers: { 'user-api-key': apiKey }
+      });
+    });
+    const attrs = live.data?.data?.attributes || {};
+    res.json({
+      success: true,
+      channex_booking_id: b.channex_booking_id,
+      payment_type: attrs.payment_type,
+      payment_collect: attrs.payment_collect,
+      card: attrs.card || attrs.card_details || null,
+      payments: attrs.payments || null,
+      full: live.data
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message, response: e.response?.data });
+  }
+});
+
 // Payment-state diagnostic for one booking. Short single-line output so
 // pasted console fetches don't wrap and break. Master-admin only.
 // Steve/Barbara 2026-09-06 — Expedia VCC visibility check.
