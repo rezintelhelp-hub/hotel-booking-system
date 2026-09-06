@@ -23816,12 +23816,139 @@ app.post('/api/onboarding/beds24-marketplace-signup', async (req, res) => {
       return res.json({ success: false, step: 'deploy', error: deployResp.data?.error || 'deploy failed', account_id: account.id, session_token: sessionToken, connection_id: connectionId, property_id: propertyId });
     }
 
+    // 5. Pull pricing + availability so the site isn't all £0/no-book. Both
+    // are fire-and-forget best-effort — a slow response shouldn't hold up
+    // the wizard's success screen. Errors logged but don't fail the flow.
+    setImmediate(() => {
+      axios.post(`${baseUrl}/api/gas-sync/connections/${connectionId}/sync-marketplace-pricing`, {}, {
+        headers: { 'Authorization': `Bearer ${sessionToken}` }, timeout: 60000
+      }).catch(e => console.warn('[beds24-marketplace-signup] pricing-sync failed:', e.message));
+    });
+
+    // 6. Populate the WordPress Web Builder sections from the imported Beds24
+    // data so the site renders with real content instead of the generic
+    // starter template. Writes into website_settings (deployed_site_id,
+    // section) — the same table the Web Builder UI uses. Sections wired:
+    // hero (property name + first image), intro (short description),
+    // about (full description + featureCode-derived bullets), footer
+    // (address + phone + copyright). Best-effort; failures don't block
+    // the site from being live.
+    const deployedSiteRow = await pool.query(
+      `SELECT id FROM deployed_sites WHERE account_id = $1 AND $2 = ANY(COALESCE(property_ids::int[], ARRAY[]::int[])) ORDER BY id DESC LIMIT 1`,
+      [account.id, propertyId]
+    ).catch(() => ({ rows: [] }));
+    const deployedSiteId = deployedSiteRow.rows[0]?.id;
+    if (deployedSiteId) {
+      try {
+        const propFull = await pool.query(
+          `SELECT name, description, address, city, state, country, postal_code, phone, latitude, longitude
+             FROM properties WHERE id = $1`, [propertyId]);
+        const p = propFull.rows[0] || {};
+        // description is a multilingual JSONB — pull English string
+        let descEn = '';
+        try {
+          const d = typeof p.description === 'string' ? JSON.parse(p.description) : (p.description || {});
+          descEn = d.en || d.EN || '';
+        } catch (_) { descEn = String(p.description || ''); }
+        const shortDesc = descEn ? (descEn.split(/[.!?]/)[0] + '.').slice(0, 180) : '';
+        // First few Beds24 images live on the raw sync payload
+        const syncRaw = await pool.query(
+          `SELECT raw_data FROM gas_sync_properties WHERE connection_id = $1 AND external_id = $2 LIMIT 1`,
+          [connectionId, String(propId)]);
+        const raw = syncRaw.rows[0]?.raw_data || {};
+        // Beds24's images object is keyed by imageId — order matters loosely
+        // (roughly upload order). Take the first up to 4 for the hero slider.
+        const imageList = [];
+        if (raw.images && typeof raw.images === 'object') {
+          for (const img of Object.values(raw.images)) {
+            if (img && typeof img === 'string') imageList.push(img);
+            else if (img && img.url) imageList.push(img.url);
+            else if (img && img.image) imageList.push(img.image);
+            if (imageList.length >= 6) break;
+          }
+        }
+        // Aggregate featureCodes across all rooms → dedup list → first 6
+        // become the About Us feature bullets.
+        const roomsFull = await pool.query(
+          `SELECT amenities FROM bookable_units WHERE property_id = $1`, [propertyId]);
+        const amenitySet = new Set();
+        for (const r of roomsFull.rows) {
+          const arr = Array.isArray(r.amenities) ? r.amenities
+            : (typeof r.amenities === 'string' ? (() => { try { return JSON.parse(r.amenities); } catch { return []; } })() : []);
+          for (const a of (arr || [])) if (a) amenitySet.add(String(a));
+        }
+        const amenities = [...amenitySet].slice(0, 6);
+        const upsertSection = async (section, settings) => {
+          await pool.query(`
+            INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at)
+            VALUES ($1, $2, $3, $4::jsonb, 'wizard', NOW())
+            ON CONFLICT (deployed_site_id, section)
+            DO UPDATE SET settings = EXCLUDED.settings, sync_source = 'wizard', updated_at = NOW()`,
+            [deployedSiteId, account.id, section, JSON.stringify(settings)]);
+        };
+        // Hero
+        const heroSettings = {
+          'headline-en': p.name || resolvedPropName,
+          'subheadline-en': shortDesc || `Welcome to ${p.name || resolvedPropName}${p.city ? ' in ' + p.city : ''}`,
+          'button-text-en': 'Book Now',
+          'button-link': '/book-now/',
+          'image-url': imageList[0] || '',
+          'slide-1-url': imageList[0] || '',
+          'slide-2-url': imageList[1] || '',
+          'slide-3-url': imageList[2] || '',
+          'slide-4-url': imageList[3] || '',
+          'background-type': imageList.length > 1 ? 'slider' : 'image',
+          'overlay': '30',
+          'height': '80',
+          'show-search': true,
+          'menu-title-en': 'Home',
+        };
+        await upsertSection('hero', heroSettings);
+        // Intro
+        await upsertSection('intro', {
+          'enabled': true,
+          'title-en': `Welcome to ${p.name || resolvedPropName}`,
+          'text-en': shortDesc,
+        });
+        // About
+        const aboutFeatures = {};
+        amenities.forEach((a, i) => { aboutFeatures[`feature-${i + 1}-en`] = a; });
+        await upsertSection('about', {
+          'enabled': true,
+          'title-en': 'About Us',
+          'text-en': descEn || '',
+          'image-url': imageList[1] || imageList[0] || '',
+          'image-2-url': imageList[2] || '',
+          'layout': 'image-left',
+          ...aboutFeatures,
+        });
+        // Footer — address + phone + copyright
+        const addrParts = [p.address, p.city, p.state, p.postal_code, p.country].filter(Boolean);
+        await upsertSection('footer', {
+          'address': addrParts.join(', '),
+          'phone': p.phone || '',
+          'email': emailNorm,
+          'copyright-en': `© ${new Date().getFullYear()} ${p.name || resolvedPropName}. All rights reserved.`,
+        });
+        // Header — site name so the browser tab + logo area show correctly
+        await upsertSection('header', {
+          'site-name': p.name || resolvedPropName,
+          'cta-button-text-en': 'Book Now',
+          'cta-link': '/book-now/',
+        });
+        console.log(`[beds24-marketplace-signup] populated 5 website_settings sections for deployed_site ${deployedSiteId}`);
+      } catch (contentErr) {
+        console.warn('[beds24-marketplace-signup] content pull-through failed:', contentErr.message);
+      }
+    }
+
     res.json({
       success: true,
       account_id: account.id,
       session_token: sessionToken,
       connection_id: connectionId,
       property_id: propertyId,
+      deployed_site_id: deployedSiteId || null,
       site_url: deployResp.data.site?.url || deployResp.data.url,
       admin_url: deployResp.data.site?.admin_url || deployResp.data.admin_url,
       rooms_count: roomIds.length,
