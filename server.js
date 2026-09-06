@@ -23754,12 +23754,19 @@ app.post('/api/admin/deployed-sites/:id/repopulate-from-beds24', async (req, res
     }
     const amenities = [...amenitySet].slice(0, 6);
     const upsertSection = async (section, settings) => {
-      await pool.query(`
-        INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at)
-        VALUES ($1, $2, $3, $4::jsonb, 'wizard-repopulate', NOW())
-        ON CONFLICT (deployed_site_id, section)
-        DO UPDATE SET settings = EXCLUDED.settings, sync_source = 'wizard-repopulate', updated_at = NOW()`,
-        [deployedSiteId, s.account_id, section, JSON.stringify(settings)]);
+      const existing = await pool.query(
+        `SELECT id FROM website_settings WHERE deployed_site_id = $1 AND section = $2 LIMIT 1`,
+        [deployedSiteId, section]);
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE website_settings SET settings = $1::jsonb, sync_source = 'wizard-repopulate', updated_at = NOW() WHERE id = $2`,
+          [JSON.stringify(settings), existing.rows[0].id]);
+      } else {
+        await pool.query(
+          `INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at)
+           VALUES ($1, $2, $3, $4::jsonb, 'wizard-repopulate', NOW())`,
+          [deployedSiteId, s.account_id, section, JSON.stringify(settings)]);
+      }
     };
     const aboutFeatures = {};
     amenities.forEach((a, i) => { aboutFeatures[`feature-${i + 1}-en`] = a; });
@@ -24008,12 +24015,19 @@ app.post('/api/onboarding/beds24-marketplace-signup', async (req, res) => {
         }
         const amenities = [...amenitySet].slice(0, 6);
         const upsertSection = async (section, settings) => {
-          await pool.query(`
-            INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at)
-            VALUES ($1, $2, $3, $4::jsonb, 'wizard', NOW())
-            ON CONFLICT (deployed_site_id, section)
-            DO UPDATE SET settings = EXCLUDED.settings, sync_source = 'wizard', updated_at = NOW()`,
-            [deployedSiteId, account.id, section, JSON.stringify(settings)]);
+          const existing = await pool.query(
+            `SELECT id FROM website_settings WHERE deployed_site_id = $1 AND section = $2 LIMIT 1`,
+            [deployedSiteId, section]);
+          if (existing.rows.length > 0) {
+            await pool.query(
+              `UPDATE website_settings SET settings = $1::jsonb, sync_source = 'wizard', updated_at = NOW() WHERE id = $2`,
+              [JSON.stringify(settings), existing.rows[0].id]);
+          } else {
+            await pool.query(
+              `INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at)
+               VALUES ($1, $2, $3, $4::jsonb, 'wizard', NOW())`,
+              [deployedSiteId, account.id, section, JSON.stringify(settings)]);
+          }
         };
         // Hero
         const heroSettings = {
