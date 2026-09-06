@@ -103780,8 +103780,13 @@ async function processChannexBookingNotification(payload) {
   // line 102945 fallback branch.
   const _isExpediaCollect = bookingSource === 'expedia'
     && String(attrs.payment_collect || '').toLowerCase() === 'ota';
+  // Expedia Collect must NEVER short-circuit to 'paid' via any signal —
+  // Expedia sends payment_charge > 0 (they've taken the guest's money)
+  // but the hotel still has to charge the issued VCC via Stripe. Marie
+  // Natanson (GAS-993169, 2026-09-06) was mis-flagged 'paid' via the
+  // payment_charge path so no card was ever pulled + no auto-charge fired.
   const paymentStatus = ((/PRE-PAID/i.test(rawMsg) && !_isExpediaCollect)
-                         || (attrs.meta?.payment_charge > 0)
+                         || (attrs.meta?.payment_charge > 0 && !_isExpediaCollect)
                          || (bookingSource === 'airbnb' && !cancelled))
     ? 'paid' : 'pending';
 
@@ -104343,6 +104348,158 @@ app.post('/api/webhooks/channex', async (req, res) => {
     if (!res.headersSent) res.status(200).json({ received: true, error: e.message });
   }
 });
+
+// Attach a Channex-vaulted VCC to an existing GAS booking. Used by
+// (1) the manual admin re-fetch endpoint for one-off fixes and (2) the
+// hourly Expedia VCC poll cron. Idempotent — if a Stripe PM is already
+// attached, no-op. Silent skip when Channex has no token yet (Expedia
+// often releases the VCC close to arrival, not at booking creation).
+// Returns { attached, pm_id, card, reason }.
+async function attachChannexVccIfPresent(bookingId) {
+  const bR = await pool.query(`
+    SELECT b.id, b.channex_booking_id, b.stripe_payment_method_id, b.grand_total,
+           b.balance_amount, b.payment_status, b.currency, b.booking_source,
+           b.ota_payment_collect, p.account_id, p.id AS property_id
+      FROM bookings b JOIN properties p ON p.id = b.property_id
+     WHERE b.id = $1`, [bookingId]);
+  if (bR.rows.length === 0) return { attached: false, reason: 'booking not found' };
+  const b = bR.rows[0];
+  if (!b.channex_booking_id) return { attached: false, reason: 'no channex_booking_id' };
+  if (b.stripe_payment_method_id) return { attached: false, reason: 'already has stripe_pm' };
+  const connRow = await pool.query(
+    `SELECT credentials FROM gas_sync_connections
+      WHERE account_id = $1 AND adapter_code = 'channex' AND sync_enabled = true
+      ORDER BY id LIMIT 1`, [b.account_id]);
+  const conn = connRow.rows[0];
+  if (!conn) return { attached: false, reason: 'no channex connection' };
+  const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : (conn.credentials || {});
+  const apiKey = creds.apiKey || process.env.CHANNEX_API_KEY;
+  if (!apiKey) return { attached: false, reason: 'no channex api key' };
+  const { ChannexAdapter } = require('./gas-sync/adapters/channex-adapter');
+  const adapter = new ChannexAdapter({ apiKey });
+  const tokResp = await adapter.getBookingStripeToken(b.channex_booking_id, 'payment_method').catch(e => ({ error: e.message }));
+  if (tokResp?.error) return { attached: false, reason: 'channex token fetch failed: ' + tokResp.error };
+  const _rawTok = tokResp?.data?.token || tokResp?.raw?.token || tokResp?.raw?.data?.token || null;
+  const platformPmId = typeof _rawTok === 'string' ? _rawTok : (_rawTok?.id || null);
+  if (!platformPmId) return { attached: false, reason: 'no vcc on channex yet' };
+  const cfg = await pool.query(
+    `SELECT credentials FROM payment_configurations
+      WHERE property_id = $1 AND provider = 'stripe' AND is_enabled = true
+      ORDER BY id DESC LIMIT 1`, [b.property_id]);
+  const clientAcct = cfg.rows[0]?.credentials?.stripe_account_id || cfg.rows[0]?.credentials?.account_id;
+  if (!clientAcct) return { attached: false, reason: 'no stripe client account configured' };
+  const stripeClient = require('stripe')(process.env.STRIPE_SECRET_KEY);
+  const cloned = await stripeClient.paymentMethods.create(
+    { payment_method: platformPmId },
+    { stripeAccount: clientAcct }
+  ).catch(e => { console.warn('[attachVcc] clone failed:', e.message); return null; });
+  const clientPmId = cloned?.id;
+  if (!clientPmId) return { attached: false, reason: 'stripe pm clone failed' };
+  const card = cloned?.card || {};
+  await pool.query(
+    `UPDATE bookings SET
+        stripe_payment_method_id = $2,
+        card_last4    = COALESCE($3, card_last4),
+        card_brand    = COALESCE($4, card_brand),
+        card_exp_month = COALESCE($5, card_exp_month),
+        card_exp_year  = COALESCE($6, card_exp_year),
+        card_country   = COALESCE($7, card_country),
+        card_funding   = COALESCE($8, card_funding),
+        updated_at = NOW()
+      WHERE id = $1`,
+    [bookingId, clientPmId, card.last4 || null, card.brand || null,
+     card.exp_month || null, card.exp_year || null, card.country || null, card.funding || null]
+  );
+  console.log(`[attachVcc] booking=${bookingId} pm=${clientPmId} card=${card.brand} ****${card.last4 || '????'}`);
+  return { attached: true, pm_id: clientPmId, card: { brand: card.brand, last4: card.last4 } };
+}
+
+// Manual re-fetch: re-evaluate payment_status + attach VCC if now present.
+// Barbara triggers this from the booking detail modal when a booking
+// looks stale ("marked paid but no card visible"). Also fixes Marie
+// Natanson-style regressions on the fly. Master-admin only.
+app.post('/api/admin/bookings/:id/refetch-channex-payment', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const bookingId = parseInt(req.params.id, 10);
+    // 1. Reset payment_status for Expedia Collect bookings mis-flagged 'paid'.
+    //    Explicit source + payment_collect guard so we don't unpaid real payments.
+    const fix = await pool.query(`
+      UPDATE bookings SET
+        payment_status = 'pending',
+        balance_amount = grand_total,
+        updated_at = NOW()
+      WHERE id = $1
+        AND booking_source = 'expedia'
+        AND ota_payment_collect = 'ota'
+        AND payment_status = 'paid'
+        AND NOT EXISTS (
+          SELECT 1 FROM payment_transactions pt
+           WHERE pt.booking_id = bookings.id
+             AND pt.status IN ('completed','succeeded')
+             AND pt.transaction_type = 'charge'
+        )
+      RETURNING id, payment_status, balance_amount`, [bookingId]);
+    // 2. Attempt VCC attach from Channex
+    const attach = await attachChannexVccIfPresent(bookingId);
+    res.json({ success: true, status_reset: fix.rows[0] || null, attach });
+  } catch (e) {
+    console.error('[refetch-channex-payment]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Hourly Expedia VCC poll — Expedia often releases the VCC hours or days
+// after booking creation (sometimes only close to arrival). Iterate candidate
+// bookings and try to attach the VCC as it lands. Also fixes payment_status
+// on any Expedia Collect booking mis-flagged 'paid' by a stale webhook.
+async function runExpediaVccPoll() {
+  try {
+    // Find Expedia Collect bookings with no PM, upcoming arrival, not cancelled.
+    const candidates = await pool.query(`
+      SELECT id, guest_first_name, guest_last_name, arrival_date, payment_status
+        FROM bookings
+       WHERE booking_source = 'expedia'
+         AND ota_payment_collect = 'ota'
+         AND stripe_payment_method_id IS NULL
+         AND status NOT IN ('cancelled', 'declined', 'expired')
+         AND arrival_date >= CURRENT_DATE
+         AND arrival_date <= CURRENT_DATE + INTERVAL '60 days'
+       LIMIT 100`);
+    if (candidates.rows.length === 0) return;
+    let attached = 0, statusFixed = 0;
+    for (const b of candidates.rows) {
+      // Reset mis-flagged 'paid' first (same guard as manual endpoint)
+      if (b.payment_status === 'paid') {
+        const fix = await pool.query(`
+          UPDATE bookings SET payment_status = 'pending', balance_amount = grand_total, updated_at = NOW()
+           WHERE id = $1 AND payment_status = 'paid'
+             AND NOT EXISTS (
+               SELECT 1 FROM payment_transactions pt
+                WHERE pt.booking_id = bookings.id
+                  AND pt.status IN ('completed','succeeded')
+                  AND pt.transaction_type = 'charge'
+             )
+           RETURNING id`, [b.id]);
+        if (fix.rows[0]) statusFixed++;
+      }
+      // Try to pull VCC
+      const r = await attachChannexVccIfPresent(b.id).catch(() => null);
+      if (r?.attached) attached++;
+      // Be polite to Channex — 500ms per booking
+      await new Promise(rs => setTimeout(rs, 500));
+    }
+    if (attached || statusFixed) {
+      console.log(`[Expedia VCC poll] scanned=${candidates.rows.length} attached=${attached} status_fixed=${statusFixed}`);
+    }
+  } catch (e) {
+    console.error('[Expedia VCC poll] fatal:', e.message);
+  }
+}
+// First fire 5 min after boot, then hourly
+setTimeout(runExpediaVccPoll, 5 * 60 * 1000);
+setInterval(runExpediaVccPoll, 60 * 60 * 1000);
 
 // Register/refresh the Channex webhook for a given GAS connection. Call this
 // once per connection to point Channex at our /api/webhooks/channex endpoint.
