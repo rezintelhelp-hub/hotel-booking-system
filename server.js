@@ -40169,6 +40169,26 @@ app.get('/api/admin/diag/channex-booking-live/:id', async (req, res) => {
   }
 });
 
+// Diag: show the recipient-config fields for a booking-notification
+// dry-run on one account. Steve/Sarah 2026-09-06 — Hebden's
+// bookings@ CC not receiving copies despite being set.
+app.get('/api/admin/diag/notif-config/:accountId', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const id = parseInt(req.params.accountId, 10);
+    const acc = await pool.query(
+      `SELECT id, name, email, booking_cc_email, notify_main_email, reply_to_email
+         FROM accounts WHERE id = $1`, [id]);
+    const sites = await pool.query(
+      `SELECT id, site_url, notification_email, notification_cc
+         FROM deployed_sites WHERE account_id = $1`, [id]).catch(() => ({ rows: [] }));
+    res.json({ success: true, account: acc.rows[0] || null, deployed_sites: sites.rows });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Fetch a Beds24 booking raw (invoiceItems, totals, tax breakdown)
 // so we can see how VAT is represented on the OTA side before deciding
 // what to pull into GAS. Given a GAS booking id, resolves beds24 id +
