@@ -78832,6 +78832,13 @@ const REPORTS_REGISTRY = {
           WHERE p.account_id = $1
             AND be.created_at >= $2::date
             AND be.created_at <  ($3::date + INTERVAL '1 day')
+            -- Exclude tax rows — these are stored in booking_extras by some
+            -- sync paths but represent VAT applied to other items, not a
+            -- sold extra. Same filter as email invoice template at ~2336.
+            -- Steve/Joanne 2026-09-06 (Hebden extras report was showing
+            -- 10+ rows of 'VAT' as if they were sold items).
+            AND COALESCE(be.source_type, '') <> 'tax'
+            AND be.name !~* '^(vat|v\\.a\\.t\\.?|tax|sales tax|gst|iva|tva)$'
             ${statusFilter}
             ${propFilter}
           GROUP BY 1, 2
@@ -78911,6 +78918,13 @@ const REPORTS_REGISTRY = {
           WHERE p.account_id = $1
             AND be.created_at >= $2::date
             AND be.created_at <  ($3::date + INTERVAL '1 day')
+            -- Exclude tax rows — these are stored in booking_extras by some
+            -- sync paths but represent VAT applied to other items, not a
+            -- sold extra. Same filter as email invoice template at ~2336.
+            -- Steve/Joanne 2026-09-06 (Hebden extras report was showing
+            -- 10+ rows of 'VAT' as if they were sold items).
+            AND COALESCE(be.source_type, '') <> 'tax'
+            AND be.name !~* '^(vat|v\\.a\\.t\\.?|tax|sales tax|gst|iva|tva)$'
             ${statusFilter}
             ${propFilter}
             ${itemFilter}
