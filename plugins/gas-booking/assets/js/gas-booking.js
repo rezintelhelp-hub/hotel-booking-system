@@ -6160,6 +6160,11 @@ jQuery(document).ready(function($) {
                     $checkoutPage.find('.gas-price-breakdown .gas-nights-label').text('Subtotal');
                     $checkoutPage.find('.gas-price-breakdown .gas-nights-total').text(symbol + lt.toFixed(2));
                     $checkoutPage.find('.gas-grand-total, .gas-total-amount').text(symbol + lt.toFixed(2));
+                    // Cart-only pays in full on checkout — no deposit-vs-
+                    // balance split. Deposit amount = full total so the
+                    // Payment step's "Deposit Amount" display matches what
+                    // Stripe will charge. Steve/Hebden 2026-09-06.
+                    $checkoutPage.find('.gas-deposit-amount-display').text(symbol + lt.toFixed(2));
                     $checkoutPage.find('#gas-confirm-booking .gas-btn-text').text('Pay ' + symbol + lt.toFixed(2));
                     // Keep URL in sync with current qty so a refresh /
                     // share preserves what's on screen.
