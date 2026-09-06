@@ -23686,6 +23686,129 @@ app.post('/api/accounts/change-password', async (req, res) => {
 // =====================================================
 
 // Step 1: Create account during onboarding
+// Re-populate WordPress Web Builder sections for an existing deployed
+// site from its current Beds24 marketplace data. Same content-pull
+// logic that fires at wizard signup — extracted so operators can
+// re-run it against any existing site whose Beds24 data has updated
+// (or just to test the pull without re-signing-up). Master-admin only.
+// Steve 2026-09-06.
+app.post('/api/admin/deployed-sites/:id/repopulate-from-beds24', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const deployedSiteId = parseInt(req.params.id, 10);
+    const site = await pool.query(
+      `SELECT id, account_id, property_id, property_ids, site_url FROM deployed_sites WHERE id = $1`, [deployedSiteId]);
+    if (site.rows.length === 0) return res.status(404).json({ success: false, error: 'Deployed site not found' });
+    const s = site.rows[0];
+    // Pick the primary property (singular column preferred; else first from JSONB array)
+    let propertyId = s.property_id;
+    if (!propertyId && s.property_ids) {
+      try {
+        const arr = typeof s.property_ids === 'string' ? JSON.parse(s.property_ids) : s.property_ids;
+        propertyId = Array.isArray(arr) ? arr[0] : null;
+      } catch (_) {}
+    }
+    if (!propertyId) return res.json({ success: false, error: 'No property linked to this site' });
+    // Find the marketplace connection for this account + property
+    const conn = await pool.query(
+      `SELECT c.id, c.credentials FROM gas_sync_connections c
+        WHERE c.account_id = $1 AND c.adapter_code = 'beds24-marketplace'
+        ORDER BY c.id DESC LIMIT 1`, [s.account_id]);
+    const connectionId = conn.rows[0]?.id;
+    const creds = conn.rows[0] ? (typeof conn.rows[0].credentials === 'string' ? JSON.parse(conn.rows[0].credentials) : conn.rows[0].credentials) : null;
+    const extPropId = creds?.propId;
+    // Reload properties row
+    const propFull = await pool.query(
+      `SELECT name, description, address, city, state, country, postal_code, phone FROM properties WHERE id = $1`, [propertyId]);
+    const p = propFull.rows[0] || {};
+    let descEn = '';
+    try {
+      const d = typeof p.description === 'string' ? JSON.parse(p.description) : (p.description || {});
+      descEn = d.en || d.EN || '';
+    } catch (_) { descEn = String(p.description || ''); }
+    const shortDesc = descEn ? (descEn.split(/[.!?]/)[0] + '.').slice(0, 180) : '';
+    // Images from the raw sync payload
+    let imageList = [];
+    if (connectionId && extPropId) {
+      const syncRaw = await pool.query(
+        `SELECT raw_data FROM gas_sync_properties WHERE connection_id = $1 AND external_id = $2 LIMIT 1`,
+        [connectionId, String(extPropId)]);
+      const raw = syncRaw.rows[0]?.raw_data || {};
+      if (raw.images && typeof raw.images === 'object') {
+        for (const img of Object.values(raw.images)) {
+          if (typeof img === 'string') imageList.push(img);
+          else if (img && img.url) imageList.push(img.url);
+          else if (img && img.image) imageList.push(img.image);
+          if (imageList.length >= 6) break;
+        }
+      }
+    }
+    // Amenities aggregated across rooms
+    const roomsFull = await pool.query(`SELECT amenities FROM bookable_units WHERE property_id = $1`, [propertyId]);
+    const amenitySet = new Set();
+    for (const r of roomsFull.rows) {
+      const arr = Array.isArray(r.amenities) ? r.amenities
+        : (typeof r.amenities === 'string' ? (() => { try { return JSON.parse(r.amenities); } catch { return []; } })() : []);
+      for (const a of (arr || [])) if (a) amenitySet.add(String(a));
+    }
+    const amenities = [...amenitySet].slice(0, 6);
+    const upsertSection = async (section, settings) => {
+      await pool.query(`
+        INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at)
+        VALUES ($1, $2, $3, $4::jsonb, 'wizard-repopulate', NOW())
+        ON CONFLICT (deployed_site_id, section)
+        DO UPDATE SET settings = EXCLUDED.settings, sync_source = 'wizard-repopulate', updated_at = NOW()`,
+        [deployedSiteId, s.account_id, section, JSON.stringify(settings)]);
+    };
+    const aboutFeatures = {};
+    amenities.forEach((a, i) => { aboutFeatures[`feature-${i + 1}-en`] = a; });
+    const addrParts = [p.address, p.city, p.state, p.postal_code, p.country].filter(Boolean);
+    const heroSettings = {
+      'headline-en': p.name || '',
+      'subheadline-en': shortDesc || (p.city ? `Welcome to ${p.name || ''} in ${p.city}` : `Welcome to ${p.name || ''}`),
+      'button-text-en': 'Book Now',
+      'button-link': '/book-now/',
+      'image-url': imageList[0] || '',
+      'slide-1-url': imageList[0] || '',
+      'slide-2-url': imageList[1] || '',
+      'slide-3-url': imageList[2] || '',
+      'slide-4-url': imageList[3] || '',
+      'background-type': imageList.length > 1 ? 'slider' : 'image',
+      'overlay': '30', 'height': '80', 'show-search': true, 'menu-title-en': 'Home',
+    };
+    await upsertSection('hero', heroSettings);
+    await upsertSection('intro', { 'enabled': true, 'title-en': `Welcome to ${p.name || ''}`, 'text-en': shortDesc });
+    await upsertSection('about', {
+      'enabled': true, 'title-en': 'About Us', 'text-en': descEn || '',
+      'image-url': imageList[1] || imageList[0] || '', 'image-2-url': imageList[2] || '',
+      'layout': 'image-left', ...aboutFeatures,
+    });
+    await upsertSection('footer', {
+      'address': addrParts.join(', '), 'phone': p.phone || '',
+      'copyright-en': `© ${new Date().getFullYear()} ${p.name || ''}. All rights reserved.`,
+    });
+    await upsertSection('header', { 'site-name': p.name || '', 'cta-button-text-en': 'Book Now', 'cta-link': '/book-now/' });
+    // Flush the WP transient cache so the change appears immediately
+    try {
+      await axios.post(`${process.env.GAS_API_BASE_URL || 'https://admin.gas.travel'}/api/deployed-sites/${deployedSiteId}/flush-caches`, {}, {
+        headers: { 'Authorization': req.headers.authorization || '' }
+      });
+    } catch (_) {}
+    res.json({
+      success: true,
+      deployed_site_id: deployedSiteId, property_id: propertyId,
+      sections_written: ['hero','intro','about','footer','header'],
+      images_used: imageList.length, amenities_used: amenities.length,
+      description_length: descEn.length,
+      note: 'Cache flush attempted — hard-refresh the site to see changes.'
+    });
+  } catch (e) {
+    console.error('[repopulate-from-beds24]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Beds24 Marketplace one-click signup — the "click from Beds24" landing.
 // Chains the four existing steps into a single call so the client sees
 // "creating..." → "done, here's your site". Nothing new — this endpoint
@@ -23833,10 +23956,16 @@ app.post('/api/onboarding/beds24-marketplace-signup', async (req, res) => {
     // about (full description + featureCode-derived bullets), footer
     // (address + phone + copyright). Best-effort; failures don't block
     // the site from being live.
+    // property_ids is JSONB (e.g. [169]) — use jsonb containment, NOT
+    // ::int[] cast which fails silently. Also fall back to the singular
+    // property_id column for sites deployed via legacy paths.
     const deployedSiteRow = await pool.query(
-      `SELECT id FROM deployed_sites WHERE account_id = $1 AND $2 = ANY(COALESCE(property_ids::int[], ARRAY[]::int[])) ORDER BY id DESC LIMIT 1`,
+      `SELECT id FROM deployed_sites
+        WHERE account_id = $1
+          AND (property_id = $2 OR property_ids @> to_jsonb($2::int))
+        ORDER BY id DESC LIMIT 1`,
       [account.id, propertyId]
-    ).catch(() => ({ rows: [] }));
+    ).catch(e => { console.warn('[beds24-marketplace-signup] deployed_site lookup:', e.message); return { rows: [] }; });
     const deployedSiteId = deployedSiteRow.rows[0]?.id;
     if (deployedSiteId) {
       try {
