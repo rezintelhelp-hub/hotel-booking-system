@@ -109622,8 +109622,24 @@ app.post('/api/public/calculate-price', async (req, res) => {
       WHERE o.active = true
         AND (o.available_website = true OR o.available_website IS NULL)
         AND o.account_id = $6
-        AND (o.property_id IS NULL OR o.property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
-        AND (o.room_id IS NULL OR o.room_id = $1)
+        -- Scope check — most-specific-scope-wins. When room-level scope is
+        -- set (room_id OR non-empty room_ids), room MUST be in it; property
+        -- scope is IGNORED even if set. Otherwise fall through to property
+        -- scope. Steve 2026-09-06 — e-bike offers with room_ids=[2228,2230]
+        -- AND property_id=523 were leaking onto every Hebden room because
+        -- the old filter treated property_id as an additional widener.
+        AND (
+          CASE
+            WHEN o.room_id IS NOT NULL OR (o.room_ids IS NOT NULL AND cardinality(o.room_ids) > 0)
+              THEN (o.room_id = $1 OR $1 = ANY(COALESCE(o.room_ids, ARRAY[]::int[])))
+            WHEN o.property_id IS NOT NULL OR (o.property_ids IS NOT NULL AND cardinality(o.property_ids) > 0)
+              THEN (
+                o.property_id = (SELECT property_id FROM bookable_units WHERE id = $1)
+                OR (SELECT property_id FROM bookable_units WHERE id = $1) = ANY(COALESCE(o.property_ids, ARRAY[]::int[]))
+              )
+            ELSE TRUE
+          END
+        )
         AND (COALESCE(o.min_nights_override, o.min_nights) IS NULL OR COALESCE(o.min_nights_override, o.min_nights) <= $2)
         AND (COALESCE(o.max_nights_override, o.max_nights) IS NULL OR COALESCE(o.max_nights_override, o.max_nights) >= $2)
         AND (o.valid_from IS NULL OR o.valid_from <= $3)
@@ -116565,11 +116581,14 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
              AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE + INTERVAL '365 days')
              AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
              AND (
-                 o.room_id = bu.id
-              OR o.property_id = bu.property_id
-              OR o.account_id = p.account_id
-              OR bu.id = ANY(COALESCE(o.room_ids, ARRAY[]::int[]))
-              OR bu.property_id = ANY(COALESCE(o.property_ids, ARRAY[]::int[]))
+               -- Most-specific-scope-wins. Steve 2026-09-06.
+               CASE
+                 WHEN o.room_id IS NOT NULL OR (o.room_ids IS NOT NULL AND cardinality(o.room_ids) > 0)
+                   THEN (o.room_id = bu.id OR bu.id = ANY(COALESCE(o.room_ids, ARRAY[]::int[])))
+                 WHEN o.property_id IS NOT NULL OR (o.property_ids IS NOT NULL AND cardinality(o.property_ids) > 0)
+                   THEN (o.property_id = bu.property_id OR bu.property_id = ANY(COALESCE(o.property_ids, ARRAY[]::int[])))
+                 ELSE o.account_id = p.account_id
+               END
              )
            WHERE bu.id = ANY($1::int[])
            GROUP BY bu.id`,
