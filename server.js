@@ -4250,7 +4250,14 @@ async function runMigrations() {
     try {
       await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS closed_to_arrival BOOLEAN DEFAULT false`);
       await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS closed_to_departure BOOLEAN DEFAULT false`);
-      console.log('✅ closed_to_arrival / closed_to_departure columns ensured');
+      // Source tracking so operator-set overrides don't get overwritten by
+      // the next Beds24 sync tick. 'operator' means someone toggled it in
+      // GAS calendar; 'beds24' means the last write came from Beds24 sync;
+      // NULL means never explicitly set (default state). Beds24 sync only
+      // writes when source is NULL or 'beds24'.
+      await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS cta_source VARCHAR(20)`);
+      await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS ctd_source VARCHAR(20)`);
+      console.log('✅ closed_to_arrival / closed_to_departure + source columns ensured');
     } catch (e) {
       console.log('ℹ️  CTA/CTD columns:', e.message);
     }
@@ -85896,6 +85903,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
           ra.min_stay_override,
           COALESCE(ra.closed_to_arrival, false) AS closed_to_arrival,
           COALESCE(ra.closed_to_departure, false) AS closed_to_departure,
+          ra.cta_source,
+          ra.ctd_source,
           ra.source,
           ra.notes,
           CASE
@@ -85986,6 +85995,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
         effective_min_stay: a.min_stay_override || a.cm_min_stay || a.min_stay || 1,
         closed_to_arrival: a.closed_to_arrival === true,
         closed_to_departure: a.closed_to_departure === true,
+        cta_source: a.cta_source || null,
+        ctd_source: a.ctd_source || null,
         source: a.source
       };
     });
@@ -87863,20 +87874,30 @@ app.post('/api/admin/availability', async (req, res) => {
       // no check-out toggles from the calendar cell modal. Wins over
       // all offer / rate-plan allowed-day rules. Sent to Channex as
       // restriction (closedToArrival / closedToDeparture).
+      //
+      // Source tracking: setting TRUE marks source='operator' (sticky —
+      // Beds24 sync won't overwrite). Setting FALSE clears source to
+      // NULL so Beds24 sync flows again. This gives the operator a
+      // clean "toggle off" as the way to release the override.
       if (closed_to_arrival !== undefined || closed_to_departure !== undefined) {
         const cta = closed_to_arrival === true;
         const ctd = closed_to_departure === true;
+        const ctaSource = closed_to_arrival === undefined ? null : (cta ? 'operator' : null);
+        const ctdSource = closed_to_departure === undefined ? null : (ctd ? 'operator' : null);
         await client.query(`
-          INSERT INTO room_availability (room_id, date, closed_to_arrival, closed_to_departure, is_available)
-          VALUES ($1, $2, $3, $4, true)
+          INSERT INTO room_availability (room_id, date, closed_to_arrival, closed_to_departure, cta_source, ctd_source, is_available)
+          VALUES ($1, $2, $3, $4, $5, $6, true)
           ON CONFLICT (room_id, date)
           DO UPDATE SET
             closed_to_arrival = COALESCE($3, room_availability.closed_to_arrival),
             closed_to_departure = COALESCE($4, room_availability.closed_to_departure),
+            cta_source = CASE WHEN $3 IS NULL THEN room_availability.cta_source ELSE $5 END,
+            ctd_source = CASE WHEN $4 IS NULL THEN room_availability.ctd_source ELSE $6 END,
             updated_at = NOW()
         `, [room_id, dateStr,
             closed_to_arrival === undefined ? null : cta,
-            closed_to_departure === undefined ? null : ctd]);
+            closed_to_departure === undefined ? null : ctd,
+            ctaSource, ctdSource]);
         channexEvents.push({
           kind: 'restriction',
           date: dateStr,
@@ -136578,8 +136599,8 @@ async function runBeds24AvailabilityHeal() {
               const minStay = entry.minStay || 1;
 
               await pool.query(`
-                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, closed_to_arrival, closed_to_departure, source, updated_at)
-                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, $7, $8, 'beds24_heal', NOW())
+                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, closed_to_arrival, closed_to_departure, cta_source, ctd_source, source, updated_at)
+                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, $7, $8, 'beds24', 'beds24', 'beds24_heal', NOW())
                 ON CONFLICT (room_id, date)
                 DO UPDATE SET
                   price        = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
@@ -136589,8 +136610,13 @@ async function runBeds24AvailabilityHeal() {
                   is_blocked   = $5,
                   min_stay     = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
                   cm_min_stay  = $6,
-                  closed_to_arrival   = $7,
-                  closed_to_departure = $8,
+                  -- Only overwrite CTA/CTD when the current source isn't
+                  -- 'operator' — operator-set overrides are sticky until
+                  -- the operator untoggles them.
+                  closed_to_arrival   = CASE WHEN COALESCE(room_availability.cta_source, '') = 'operator' THEN room_availability.closed_to_arrival ELSE $7 END,
+                  closed_to_departure = CASE WHEN COALESCE(room_availability.ctd_source, '') = 'operator' THEN room_availability.closed_to_departure ELSE $8 END,
+                  cta_source = CASE WHEN COALESCE(room_availability.cta_source, '') = 'operator' THEN room_availability.cta_source ELSE 'beds24' END,
+                  ctd_source = CASE WHEN COALESCE(room_availability.ctd_source, '') = 'operator' THEN room_availability.ctd_source ELSE 'beds24' END,
                   source       = CASE WHEN room_availability.source IN ('manual', 'operator_override') THEN room_availability.source ELSE 'beds24_heal' END,
                   updated_at   = NOW()
               `, [room.room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay, cta, ctd]);
@@ -140110,8 +140136,8 @@ async function runGasSyncScheduler() {
                 const price = (entry.price1 != null) ? entry.price1 : (entry.price2 != null) ? entry.price2 : null;
                 const minStay = entry.minStay || 1;
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, closed_to_arrival, closed_to_departure, source, updated_at)
-                  VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, $7, $8, 'beds24', NOW())
+                  INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, closed_to_arrival, closed_to_departure, cta_source, ctd_source, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, $7, $8, 'beds24', 'beds24', 'beds24', NOW())
                   ON CONFLICT (room_id, date) DO UPDATE SET
                     price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                     cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
@@ -140119,8 +140145,12 @@ async function runGasSyncScheduler() {
                     is_available = $4, is_blocked = $5,
                     min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
                     cm_min_stay = $6,
-                    closed_to_arrival = $7,
-                    closed_to_departure = $8,
+                    -- Sticky operator override: only overwrite CTA/CTD when
+                    -- the current source isn't 'operator'.
+                    closed_to_arrival   = CASE WHEN COALESCE(room_availability.cta_source, '') = 'operator' THEN room_availability.closed_to_arrival ELSE $7 END,
+                    closed_to_departure = CASE WHEN COALESCE(room_availability.ctd_source, '') = 'operator' THEN room_availability.closed_to_departure ELSE $8 END,
+                    cta_source = CASE WHEN COALESCE(room_availability.cta_source, '') = 'operator' THEN room_availability.cta_source ELSE 'beds24' END,
+                    ctd_source = CASE WHEN COALESCE(room_availability.ctd_source, '') = 'operator' THEN room_availability.ctd_source ELSE 'beds24' END,
                     source = 'beds24', updated_at = NOW()
                 `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay, cta, ctd]);
               }
