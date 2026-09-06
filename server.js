@@ -68533,29 +68533,38 @@ function computeCutoffBlockedDates(minHours, cutoffTime, tz, fromIso, toIso) {
     todayInTz = now.toISOString().slice(0, 10);
     nowHHMM = now.toISOString().slice(11, 16);
   }
-  // Day-based semantics (Steve 2026-07-12) — operators think in whole days,
-  // not exact-hours-from-now:
-  //   * min_advance_hours = 24  → block TODAY (arrival can be tomorrow)
-  //   * min_advance_hours = 48  → block today + tomorrow
-  //   * min_advance_hours = N   → block floor(N/24) days starting today
-  //   * Sub-24h values (12, 6, etc.) block 0 whole days; the
-  //     same_day_cutoff_time handles the "no bookings after 6pm" case.
-  // Was: strict hour math meant a 24h setting at 2pm blocked BOTH today
-  // and tomorrow, because tomorrow-midnight was only 10h from now.
-  // Operators expected 24h = 1 day off.
-  const daysToBlockFromToday = Math.floor(mh / 24);
+  // Rolling-hour semantics (Steve/Barbara 2026-09-06) — operators mean
+  // "no bookings whose arrival is within X hours of now". Any date whose
+  // start-of-day in the property's TZ is closer than min_advance_hours
+  // from now is blocked. Examples with min_advance_hours = 30, "now" = 6pm:
+  //   * tomorrow's 00:00 = +6h  → blocked (< 30)
+  //   * day after's 00:00 = +30h → allowed (>= 30)
+  // Sub-24h values still work: min = 12 at 6pm blocks tomorrow (+6h) but
+  // allows day after (+30h). same_day_cutoff_time is a separate, additional
+  // guard that catches "no arrivals TODAY after HH:MM" regardless of the
+  // hour-lead-time value.
+  //
+  // Previous (day-based, 2026-07-12) treated 30h identically to 24h because
+  // it did floor(30/24) = 1 whole day. Barbara set 30h expecting stricter
+  // behaviour and got the same as 24h — that was the regression.
   const parseIso = (s) => { const p = String(s).split('-').map(x => parseInt(x, 10)); return Date.UTC(p[0], p[1] - 1, p[2]); };
+  // Compute "now" as ms since epoch in the same UTC-shifted frame we're
+  // using for the day boundaries. Take property-tz "today" 00:00 then add
+  // the current tz-local wall-clock time to get an aligned nowMs. This
+  // avoids DST / tz-offset drift that using Date.now() directly would hit.
   const todayMs = parseIso(todayInTz);
+  const [nowH, nowM] = String(nowHHMM || '00:00').split(':').map(x => parseInt(x, 10) || 0);
+  const nowMs = todayMs + (nowH * 3600000) + (nowM * 60000);
   const startMs = parseIso(fromIso);
   const endMs = parseIso(toIso);
+  const minMs = mh * 3600000;
   for (let ms = startMs; ms <= endMs; ms += 86400000) {
     const iso = new Date(ms).toISOString().slice(0, 10);
     let isBlocked = false;
-    // Rolling min lead time — block today through today+daysToBlock-1.
-    if (daysToBlockFromToday > 0) {
-      const daysAhead = Math.round((ms - todayMs) / 86400000);
-      if (daysAhead >= 0 && daysAhead < daysToBlockFromToday) isBlocked = true;
-    }
+    // Rolling min lead time — block any date whose 00:00 (property TZ) is
+    // less than min_advance_hours away from now. Past dates (ms - nowMs < 0)
+    // are implicitly blocked too.
+    if (mh > 0 && (ms - nowMs) < minMs) isBlocked = true;
     // Same-day cutoff — arrival today after HH:MM in the property's tz.
     if (!isBlocked && ct && iso === todayInTz && nowHHMM > ct) {
       isBlocked = true;
