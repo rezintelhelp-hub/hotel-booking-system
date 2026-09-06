@@ -40162,6 +40162,39 @@ app.get('/api/admin/diag/channex-booking-live/:id', async (req, res) => {
   }
 });
 
+// Diag: what references a property — used before archiving a "ghost"
+// property so we know what would break. Returns counts + a sample of
+// each. Master-admin only. Steve 2026-09-06 (Hebden 1102 ghost).
+app.get('/api/admin/diag/property-refs/:propertyId', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const id = parseInt(req.params.propertyId, 10);
+    const [prop, rooms, bookings, offers, upsells, deployed] = await Promise.all([
+      pool.query(`SELECT id, name, account_id, deleted_at FROM properties WHERE id = $1`, [id]),
+      pool.query(`SELECT COUNT(*)::int AS n FROM bookable_units WHERE property_id = $1`, [id]),
+      pool.query(`SELECT COUNT(*)::int AS n FROM bookings WHERE property_id = $1`, [id]),
+      pool.query(`SELECT COUNT(*)::int AS n FROM offers WHERE property_id = $1 OR $1 = ANY(COALESCE(property_ids, ARRAY[]::int[]))`, [id]),
+      pool.query(`SELECT COUNT(*)::int AS n FROM upsells WHERE property_id = $1 OR $1 = ANY(COALESCE(property_ids, ARRAY[]::int[]))`, [id]),
+      pool.query(`SELECT id, site_url FROM deployed_sites WHERE property_id = $1`, [id]).catch(() => ({ rows: [] })),
+    ]);
+    res.json({
+      success: true,
+      property: prop.rows[0] || null,
+      counts: {
+        rooms: rooms.rows[0]?.n || 0,
+        bookings: bookings.rows[0]?.n || 0,
+        offers: offers.rows[0]?.n || 0,
+        upsells: upsells.rows[0]?.n || 0,
+        deployed_sites: deployed.rows.length,
+      },
+      deployed_sites: deployed.rows,
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Diag: dump offers matching a search term for one account. Short paste
 // so console line-wrap doesn't break the fetch. Steve 2026-09-06.
 app.get('/api/admin/diag/offers-scope/:accountId', async (req, res) => {
