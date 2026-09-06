@@ -50935,7 +50935,7 @@ async function createDefaultWordPressMenu(siteUrl) {
       body: JSON.stringify({
         menu_items: [
           { title: 'Home', url: '/', order: 1 },
-          { title: 'Rooms', url: '/book-now/', order: 2 },
+          { title: 'Accommodation', url: '/book-now/', order: 2 },
           { title: 'Contact Us', url: '/contact/', order: 3 },
           { title: 'Book Now', url: '/book-now/', order: 4, classes: 'developer-nav-cta' }
         ]
