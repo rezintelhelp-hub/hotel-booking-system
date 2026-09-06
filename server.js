@@ -136725,6 +136725,74 @@ app.get('/api/admin/diag/beds24-calendar-raw', async (req, res) => {
   }
 });
 
+// Force-sync a single Beds24 room's calendar to room_availability.
+// Mirrors the tiered sync's inner loop but for ONE room in one call —
+// used to test the Beds24 override pull without waiting up to 15 min
+// for the next scheduled tick. Master-admin only. Steve 2026-09-06.
+app.post('/api/admin/diag/beds24-force-sync-room', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const gasRoomId = parseInt(req.body?.room_id || req.query?.room_id, 10);
+    const from = req.body?.from || req.query?.from;
+    const to = req.body?.to || req.query?.to;
+    if (!gasRoomId || !from || !to) return res.json({ success: false, error: 'room_id, from, to required' });
+    const map = await pool.query(`
+      SELECT gsrt.external_id AS beds24_room_id, gsc.refresh_token, gsc.access_token
+        FROM gas_sync_room_types gsrt
+        JOIN gas_sync_properties gsp ON gsp.id = gsrt.sync_property_id
+        JOIN gas_sync_connections gsc ON gsc.id = gsp.connection_id
+       WHERE gsrt.gas_room_id = $1 AND gsc.adapter_code = 'beds24'
+       LIMIT 1`, [gasRoomId]);
+    if (map.rows.length === 0) return res.json({ success: false, error: 'no beds24 mapping' });
+    const row = map.rows[0];
+    let token = row.access_token;
+    if (row.refresh_token) {
+      try {
+        const tk = await axios.get('https://beds24.com/api/v2/authentication/token', { headers: { refreshToken: row.refresh_token } });
+        token = tk.data?.token || token;
+      } catch (_) {}
+    }
+    if (!token) return res.json({ success: false, error: 'no token' });
+    const cal = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+      headers: { token },
+      params: { roomId: parseInt(row.beds24_room_id, 10), startDate: from, endDate: to, includeNumAvail: true, includePrices: true, includeMinStay: true, includeOverride: true }
+    });
+    const calendar = cal.data?.data?.[0]?.calendar || [];
+    let written = 0;
+    for (const entry of calendar) {
+      const fromDate = new Date(entry.from), toDate = new Date(entry.to);
+      const { cta, ctd } = _extractBeds24CheckinFlags(entry);
+      for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        const numAvail = entry.numAvail || 0;
+        const price = (entry.price1 != null) ? entry.price1 : (entry.price2 != null) ? entry.price2 : null;
+        const minStay = entry.minStay || 1;
+        await pool.query(`
+          INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, closed_to_arrival, closed_to_departure, cta_source, ctd_source, source, updated_at)
+          VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, $7, $8, 'beds24', 'beds24', 'beds24', NOW())
+          ON CONFLICT (room_id, date) DO UPDATE SET
+            price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+            cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
+            direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.direct_price END,
+            is_available = $4, is_blocked = $5,
+            min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+            cm_min_stay = $6,
+            closed_to_arrival   = CASE WHEN COALESCE(room_availability.cta_source, '') = 'operator' THEN room_availability.closed_to_arrival ELSE $7 END,
+            closed_to_departure = CASE WHEN COALESCE(room_availability.ctd_source, '') = 'operator' THEN room_availability.closed_to_departure ELSE $8 END,
+            cta_source = CASE WHEN COALESCE(room_availability.cta_source, '') = 'operator' THEN room_availability.cta_source ELSE 'beds24' END,
+            ctd_source = CASE WHEN COALESCE(room_availability.ctd_source, '') = 'operator' THEN room_availability.ctd_source ELSE 'beds24' END,
+            source = 'beds24', updated_at = NOW()
+        `, [gasRoomId, dateStr, price, numAvail > 0, numAvail === 0, minStay, cta, ctd]);
+        written++;
+      }
+    }
+    res.json({ success: true, days_written: written, entries: calendar.length });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message, response: e.response?.data });
+  }
+});
+
 // Diagnostic — list rooms currently considered broken (no writes).
 app.get('/api/admin/diag/missing-availability', async (req, res) => {
   try {
