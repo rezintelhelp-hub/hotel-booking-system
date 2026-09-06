@@ -22117,6 +22117,13 @@ app.get('/api/setup-accounts', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_lead_hours INT`).catch(() => {});
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_rules_pushed_at TIMESTAMPTZ`).catch(() => {});
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_rules_push_error TEXT`).catch(() => {});
+    // VAT-inclusive pricing flag — when TRUE the guest-visible prices
+    // on the widget already contain VAT, so exclusive-tax persist paths
+    // (server.js:112310 in /api/public/book) must be skipped or they
+    // double-count and inflate grand_total. Default FALSE for safety;
+    // Hebden (account 169) opts in. Steve/Joanne 2026-09-06.
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS vat_inclusive BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`UPDATE properties SET vat_inclusive = true WHERE account_id = 169 AND vat_inclusive IS DISTINCT FROM true`).catch(() => {});
 
     // ────────────────────────────────────────────────────────────────
     // GAS hostel inventory model — Phase 1 schema
@@ -78647,7 +78654,7 @@ const REPORTS_REGISTRY = {
       { key: 'refunds',       label: 'Refunds',         format: 'currency', align: 'right' },
       { key: 'net_received',  label: 'Net received',    format: 'currency', align: 'right' },
       { key: 'vat_collected', label: 'VAT collected',   format: 'currency', align: 'right' },
-      { key: 'vat_reclaimed', label: 'VAT reclaimed',   format: 'currency', align: 'right' },
+      { key: 'vat_reclaimed', label: 'VAT on refunds',  format: 'currency', align: 'right' },
       { key: 'vat_net',       label: 'Net VAT due',     format: 'currency', align: 'right' },
     ],
     summary: { aggregates: ['collections', 'refunds', 'net_received', 'vat_collected', 'vat_reclaimed', 'vat_net'] },
@@ -112308,6 +112315,22 @@ app.post('/api/public/book', async (req, res) => {
         }
       }
       if (price_breakdown && Array.isArray(price_breakdown.taxes)) {
+        // Property-level VAT-inclusive override — when the property is
+        // flagged vat_inclusive (Hebden / any UK VAT-registered client
+        // showing VAT-inclusive prices to guests), ALL taxes must be
+        // treated as inclusive regardless of what the widget sent. Fixes
+        // the 2026-08-07..08-11 window where 11 Hebden bookings got
+        // grand_total inflated by the persisted VAT amount. Steve
+        // 2026-09-06. Best-effort fetch — if the column doesn't exist
+        // yet in dev the query throws and we fall back to per-tax flag.
+        let _propVatInclusive = false;
+        try {
+          const _p = await pool.query(
+            `SELECT COALESCE(vat_inclusive, false) AS vat_inclusive FROM properties WHERE id = $1`,
+            [newBooking.property_id]
+          );
+          _propVatInclusive = _p.rows[0]?.vat_inclusive === true;
+        } catch (_) { /* column missing — fall through */ }
         for (const t of price_breakdown.taxes) {
           const amt = parseFloat(t.amount) || 0;
           if (!(amt > 0)) continue;
@@ -112318,7 +112341,12 @@ app.post('/api/public/book', async (req, res) => {
           // Lehmann bookings showed VAT £5 twice + grand_total £35
           // when accom (inclusive) was £30. Skip persist for inclusive.
           // tax_breakdown still carries the tax line for display.
-          if (t.inclusive) continue;
+          // 2026-09-06 — also skip when property.vat_inclusive is true,
+          // regardless of the per-tax flag from the widget (defensive
+          // override — the widget was sending inclusive:false on 11
+          // Hebden bookings even though the site displays inclusive
+          // prices).
+          if (t.inclusive || _propVatInclusive) continue;
           extrasTotal += amt;
           await pool.query(
             `INSERT INTO booking_extras (booking_id, source_type, source_id, name, qty, unit_price, currency, status, created_at, updated_at)
