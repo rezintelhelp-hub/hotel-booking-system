@@ -136674,11 +136674,46 @@ app.get('/api/admin/diag/beds24-calendar-raw', async (req, res) => {
       } catch (_) {}
     }
     if (!token) return res.json({ success: false, error: 'no token' });
-    const cal = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
-      headers: { token },
-      params: { roomId: parseInt(row.beds24_room_id, 10), startDate: from, endDate: to, includeNumAvail: true, includePrices: true, includeMinStay: true, includeLinkedPrices: true }
-    });
-    res.json({ success: true, connection_id: row.connection_id, beds24_room_id: row.beds24_room_id, raw: cal.data });
+    const brid = parseInt(row.beds24_room_id, 10);
+    const results = {};
+    // 1. Calendar with ALL possible include flags
+    try {
+      const r1 = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+        headers: { token },
+        params: {
+          roomId: brid, startDate: from, endDate: to,
+          includeNumAvail: true, includePrices: true, includeMinStay: true, includeMaxStay: true,
+          includeMultiplier: true, includeOverride: true, includeLinkedPrices: true,
+          includeAvailability: true
+        }
+      });
+      results.calendar_full = r1.data;
+    } catch (e) { results.calendar_full_error = e.response?.data || e.message; }
+    // 2. Availability endpoint (separate)
+    try {
+      const r2 = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+        headers: { token },
+        params: { roomId: brid, startDate: from, endDate: to }
+      });
+      results.availability = r2.data;
+    } catch (e) { results.availability_error = e.response?.data || e.message; }
+    // 3. Offers endpoint — often carries rate-plan-level restrictions
+    try {
+      const r3 = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+        headers: { token },
+        params: { roomId: brid, arrival: from, departure: to }
+      });
+      results.offers = r3.data;
+    } catch (e) { results.offers_error = e.response?.data || e.message; }
+    // 4. fixedPrices — rate/rule-level; includes minStay / maxStay / weekday flags
+    try {
+      const r4 = await axios.get('https://beds24.com/api/v2/inventory/fixedPrices', {
+        headers: { token },
+        params: { roomId: brid }
+      });
+      results.fixedPrices = r4.data;
+    } catch (e) { results.fixedPrices_error = e.response?.data || e.message; }
+    res.json({ success: true, connection_id: row.connection_id, beds24_room_id: row.beds24_room_id, ...results });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message, response: e.response?.data });
   }
