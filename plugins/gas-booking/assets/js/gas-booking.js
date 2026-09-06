@@ -6057,21 +6057,26 @@ jQuery(document).ready(function($) {
         });
         
         // ========================================
-        // CART-ONLY CHECKOUT (bike storage etc.)
+        // CART-ONLY CHECKOUT (bike storage / e-bike hire / shop cart)
         // ========================================
-        // When the guest arrives via the floating cart pill carrying just
-        // an upsell (no room), reuse this checkout page's guest form +
-        // Stripe Elements, but skip every room-related fetch + render.
-        // Submit goes to /api/public/bike-storage/checkout with the
-        // payment_method_id inline branch added on the server today.
+        // Self-contained flow. The room-checkout page HTML is reused (same
+        // 3-step containers, same summary panel, same payment section HTML)
+        // but this IIFE wires EVERYTHING itself — step navigation, payment
+        // section state, Stripe mount, submit — because cart-only can't
+        // safely share the room-checkout init (rooms fetch would 404, room
+        // upsells would 404, deposit calc would divide by zero, etc.). The
+        // duplication is intentional — a future proper refactor is queued
+        // in docs/checkout-shared-init-refactor.md.
+        //
+        // Rewrite 2026-09-06 (Steve/Hebden) — original IIFE was missing
+        // step nav, Stripe form reveal, pay-at-property hide, upsells step
+        // handling. Rather than patch each surfacing gap one at a time,
+        // rebuilt the whole flow coherently in one place.
         var isCartOnly = $checkoutPage.data('cart-only') == '1';
         if (isCartOnly) {
             (function initCartOnlyCheckout() {
-                console.log('[GAS Cart Checkout] init');
-                // Read URL params first; fall back to the single localStorage
-                // cart for anything missing. That's how the from_cart=1 entry
-                // works — /cart/ "Continue to checkout" redirects here with
-                // no URL params and we pull everything from window.gasCart.
+                console.log('[GAS Cart Checkout] init v2');
+                // ---- 1. READ CART DATA -----------------------------------
                 var apiUrl = $checkoutPage.data('api-url') || 'https://admin.gas.travel';
                 var sp = new URLSearchParams(window.location.search);
                 var cart = (window.gasCart && window.gasCart.read()) || null;
@@ -6092,24 +6097,37 @@ jQuery(document).ready(function($) {
                     $checkoutPage.html('<div style="padding:2rem;text-align:center;"><h2>Nothing to check out</h2><p>Your cart is empty. <a href="/cart/">Open the cart</a> or add an item from the shop.</p></div>');
                     return;
                 }
-                var lineTotal = unitPrice * qty;
 
-                // Render the upsell as a standard price-breakdown line —
-                // same DOM the room checkout already uses for mandatory
-                // extras. No separate "Your Cart" panel.
+                // ---- 2. INITIAL DOM STATE --------------------------------
+                // Hide room-specific summary rows so the panel only shows
+                // the cart line + totals.
                 $checkoutPage.find('.gas-summary-room').hide();
                 $checkoutPage.find('.gas-summary-info-row, .gas-summary-divider').first().hide();
                 if (checkin)      $checkoutPage.find('.gas-checkin-display').text(new Date(checkin).toDateString());
                 if (checkoutDate) $checkoutPage.find('.gas-checkout-display').text(new Date(checkoutDate).toDateString());
 
-                // Standard 3-step flow (Details → Extras → Payment) runs as
-                // normal — same UX whether it's a room booking or a
-                // cart-only purchase. Only the data source changes (cart
-                // line in place of room data). #gas-confirm-booking still
-                // fires Stripe + the cart submit handler at step 3.
-                // Upsell line with inline qty +/- + remove. No duplicate
-                // "add a room" CTA — the shop widget already handles that
-                // choice up-front via its own buttons.
+                // Extras step is a no-op for cart-only (there are no
+                // room-level upsells to apply). Hide the Loading spinner
+                // + show the empty-state message so Step 2 renders clean
+                // and the operator can click straight through to Payment.
+                $checkoutPage.find('.gas-upsells-loading').hide();
+                $checkoutPage.find('.gas-no-upsells').show();
+
+                // Payment section: cart-only flows are card-only. Hide the
+                // pay-at-property option, force-select the card option, and
+                // reveal the Stripe form container so Stripe.mount() lands
+                // on a visible element (not display:none).
+                var $papOpt = $checkoutPage.find('.gas-payment-option').filter(function() {
+                    return $(this).find('input[value="pay_at_property"]').length > 0;
+                });
+                $papOpt.hide();
+                var $cardOpt = $checkoutPage.find('.gas-payment-card-option');
+                $cardOpt.addClass('selected').find('input[type=radio]').prop('checked', true);
+                $checkoutPage.find('.gas-stripe-form, .gas-payment-summary').show();
+                // Interim status label until Stripe fetch resolves.
+                $checkoutPage.find('.gas-payment-card-option .gas-card-status').text('Loading…');
+
+                // ---- 3. LINE RENDERER + CART HANDLERS --------------------
                 function renderUpsellLine() {
                     var lt = unitPrice * qty;
                     var html =
@@ -6199,30 +6217,68 @@ jQuery(document).ready(function($) {
                     } catch (mirrorErr) { /* non-fatal */ }
                 });
 
-                // Stripe init — pull publishable key for this property.
+                // ---- 4. STEP NAVIGATION ----------------------------------
+                // Delegated handlers on $checkoutPage (not $(document)) so
+                // this listener is scoped to the cart-only page only and
+                // won't fire on other checkouts on the same document.
+                $checkoutPage.on('click', '.gas-next-step', function() {
+                    var nextStep = parseInt($(this).data('next'), 10);
+                    var currentStep = nextStep - 1;
+                    if (currentStep === 1) {
+                        var $form = $checkoutPage.find('#gas-guest-form');
+                        if ($form.length && !$form[0].checkValidity()) {
+                            $form[0].reportValidity();
+                            return;
+                        }
+                        var email = $('#gas-email').val();
+                        var confirmEmail = $('#gas-email-confirm').val();
+                        if (email && confirmEmail && email !== confirmEmail) {
+                            alert('Email addresses do not match. Please check and try again.');
+                            return;
+                        }
+                    }
+                    $checkoutPage.find('.gas-checkout-step-content').hide();
+                    $checkoutPage.find('.gas-checkout-step-content[data-step="' + nextStep + '"]').show();
+                    $checkoutPage.find('.gas-step').removeClass('active completed');
+                    $checkoutPage.find('.gas-step[data-step="' + nextStep + '"]').addClass('active');
+                    $checkoutPage.find('.gas-step').each(function() {
+                        if ($(this).data('step') < nextStep) $(this).addClass('completed');
+                    });
+                    $('html, body').animate({scrollTop: 0}, 300);
+                });
+                $checkoutPage.on('click', '.gas-prev-step', function() {
+                    var prevStep = parseInt($(this).data('prev'), 10);
+                    $checkoutPage.find('.gas-checkout-step-content').hide();
+                    $checkoutPage.find('.gas-checkout-step-content[data-step="' + prevStep + '"]').show();
+                    $checkoutPage.find('.gas-step').removeClass('active completed');
+                    $checkoutPage.find('.gas-step[data-step="' + prevStep + '"]').addClass('active');
+                });
+
+                // ---- 5. STRIPE INIT --------------------------------------
                 var stripeInstance = null, cardElement = null;
                 $.ajax({
                     url: apiUrl + '/api/public/property/' + propertyId + '/stripe-info',
                     method: 'GET',
                     success: function(resp) {
                         if (!resp || !resp.success || !resp.stripe_enabled || !resp.stripe_publishable_key) {
+                            $checkoutPage.find('.gas-payment-card-option .gas-card-status').text('Card unavailable');
                             $('#gas-card-errors, .gas-card-errors').text('Card payments not available — contact the host.').show();
                             return;
                         }
                         stripeInstance = Stripe(resp.stripe_publishable_key, resp.stripe_account_id ? { stripeAccount: resp.stripe_account_id } : undefined);
                         var elements = stripeInstance.elements();
                         cardElement = elements.create('card', { style: { base: { fontSize: '16px', color: '#0f172a' } } });
-                        // Find any card element mount point the existing checkout uses.
                         var mount = document.getElementById('gas-card-element') || $checkoutPage.find('.gas-card-element')[0];
                         if (mount) cardElement.mount(mount);
+                        $checkoutPage.find('.gas-payment-card-option .gas-card-status').text('');
                     },
                     error: function() {
+                        $checkoutPage.find('.gas-payment-card-option .gas-card-status').text('Setup failed');
                         $('#gas-card-errors, .gas-card-errors').text('Could not load payment setup.').show();
                     }
                 });
 
-                // Wire submit. The existing checkout page form has a submit
-                // button; we intercept it for cart-only mode.
+                // ---- 6. SUBMIT -------------------------------------------
                 // The room-flow "Confirm Booking" button is type="button"
                 // (it doesn't submit the form on its own). In cart-only mode
                 // it's the only Pay control we show — wire it to fire the
