@@ -40162,6 +40162,62 @@ app.get('/api/admin/diag/channex-booking-live/:id', async (req, res) => {
   }
 });
 
+// Audit — Hebden VAT double-count. Finds bookings where an exclusive
+// VAT row was persisted as booking_extras, inflating grand_total above
+// what the guest was actually quoted (VAT-inclusive pricing on
+// hebdenbridgehostel.org). Read-only — no writes. Steve 2026-09-06.
+app.get('/api/admin/diag/hebden-vat-audit', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const ACCOUNT_ID = 169; // Hebden hard-coded — this is scoped to them
+    // Find bookings that have at least one booking_extras row with
+    // source_type='tax' (the pattern from server.js:112268). Only direct
+    // + rezintel channels — OTA bookings settle differently.
+    const rows = await pool.query(`
+      SELECT
+        b.id                                              AS booking_id,
+        b.booking_source                                  AS channel,
+        b.arrival_date::text                              AS arrival,
+        b.created_at::date::text                          AS booked_on,
+        b.guest_first_name || ' ' || b.guest_last_name    AS guest,
+        b.accommodation_price::numeric(10,2)              AS accom,
+        b.grand_total::numeric(10,2)                      AS grand_total,
+        b.balance_amount::numeric(10,2)                   AS balance,
+        b.tax_amount::numeric(10,2)                       AS tax_amount_col,
+        vat_extras.n                                      AS vat_extras_count,
+        vat_extras.total::numeric(10,2)                   AS vat_extras_total,
+        (b.grand_total - vat_extras.total)::numeric(10,2) AS corrected_grand_total,
+        (b.balance_amount - vat_extras.total)::numeric(10,2) AS corrected_balance
+      FROM bookings b
+      JOIN properties p ON p.id = b.property_id
+      JOIN (
+        SELECT
+          booking_id,
+          COUNT(*)::int                       AS n,
+          SUM(qty * unit_price)::numeric(14,2) AS total
+        FROM booking_extras
+        WHERE source_type = 'tax'
+          AND status <> 'cancelled'
+        GROUP BY booking_id
+      ) AS vat_extras ON vat_extras.booking_id = b.id
+      WHERE p.account_id = $1
+        AND COALESCE(b.booking_source, 'direct') IN ('direct', 'rezintel')
+      ORDER BY b.created_at DESC`, [ACCOUNT_ID]);
+    const totalOverstated = rows.rows.reduce((s, r) => s + Number(r.vat_extras_total || 0), 0);
+    res.json({
+      success: true,
+      scope: 'account_id = 169 (Hebden), channels = direct + rezintel',
+      affected_count: rows.rows.length,
+      total_overstated: totalOverstated.toFixed(2),
+      sample: rows.rows.slice(0, 10),
+      all_ids: rows.rows.map(r => r.booking_id),
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Diag: what references a property — used before archiving a "ghost"
 // property so we know what would break. Returns counts + a sample of
 // each. Master-admin only. Steve 2026-09-06 (Hebden 1102 ghost).
