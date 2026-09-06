@@ -78773,6 +78773,154 @@ const REPORTS_REGISTRY = {
     },
   },
 
+  // Extras (Monthly Summary) — one row per (month, item name) showing
+  // units sold + gross value. Answers "how much bike storage did we
+  // sell in August? / which items are popular?" Data source is
+  // booking_extras (any add-on attached to a booking). Standalone
+  // shop_orders are a separate concern — deferred until asked.
+  // Steve/Joanne 2026-09-06.
+  'extras-monthly': {
+    slug: 'extras-monthly',
+    name: 'Extras Sold (Monthly Summary)',
+    description: 'Rollup of every extra sold (bike storage, towel hire, early check-in, e-bike hire etc.) by month + item. Uses the extra creation date so August sales land in August regardless of when the parent booking arrives. Excludes cancelled by default.',
+    category: 'Revenue',
+    joanne: '#3h',
+    params: [
+      { key: 'from',   type: 'date', required: true, label: 'From (sold)' },
+      { key: 'to',     type: 'date', required: true, label: 'To (sold)' },
+      { key: 'status', type: 'enum', required: false, label: 'Status',
+        default: 'active',
+        options: [
+          { value: 'active',    label: 'Paid + Reserved (default)' },
+          { value: 'paid',      label: 'Paid only' },
+          { value: 'reserved',  label: 'Reserved only (uncollected)' },
+          { value: 'all',       label: 'All including cancelled' },
+        ],
+      },
+      { key: 'property_id', type: 'property_picker', required: false, label: 'Property' },
+    ],
+    columns: [
+      { key: 'month',      label: 'Month',       format: 'month' },
+      { key: 'item',       label: 'Item',        format: 'text' },
+      { key: 'units',      label: 'Units sold',  format: 'integer', align: 'right' },
+      { key: 'bookings',   label: 'Bookings',    format: 'integer', align: 'right' },
+      { key: 'gross',      label: 'Gross',       format: 'currency', align: 'right' },
+    ],
+    summary: { aggregates: ['units', 'bookings', 'gross'] },
+    sql: ({ accountId, params }) => {
+      const args = [accountId, params.from, params.to];
+      let statusFilter = `AND be.status IN ('paid','reserved')`;
+      if (params.status === 'paid')     statusFilter = `AND be.status = 'paid'`;
+      else if (params.status === 'reserved') statusFilter = `AND be.status = 'reserved'`;
+      else if (params.status === 'all') statusFilter = '';
+      let propFilter = '';
+      if (params.property_id) {
+        args.push(parseInt(params.property_id));
+        propFilter = `AND b.property_id = $${args.length}`;
+      }
+      return {
+        sql: `
+          SELECT
+            to_char(date_trunc('month', be.created_at), 'YYYY-MM')   AS month,
+            be.name                                                  AS item,
+            SUM(be.qty)::int                                         AS units,
+            COUNT(DISTINCT be.booking_id)::int                       AS bookings,
+            SUM(be.qty * be.unit_price)::numeric(14,2)               AS gross
+          FROM booking_extras be
+          JOIN bookings b ON b.id = be.booking_id
+          JOIN properties p ON p.id = b.property_id
+          WHERE p.account_id = $1
+            AND be.created_at >= $2::date
+            AND be.created_at <  ($3::date + INTERVAL '1 day')
+            ${statusFilter}
+            ${propFilter}
+          GROUP BY 1, 2
+          ORDER BY 1 DESC, gross DESC
+        `,
+        args,
+      };
+    },
+  },
+
+  // Extras Sold (Detail) — per-extra ledger. One row per booking_extra
+  // with guest + booking link so operator can spot-check any sale +
+  // click through to the booking to see the full context.
+  'extras-ledger': {
+    slug: 'extras-ledger',
+    name: 'Extras Sold — audit trail (per-item)',
+    description: 'One row per extra sold with guest name, booking ref, item, qty, price, status. Filter by extra creation date. Click any GAS-<id> row to open the booking.',
+    category: 'Revenue',
+    joanne: '#3i',
+    params: [
+      { key: 'from', type: 'date', required: true, label: 'From (sold)' },
+      { key: 'to',   type: 'date', required: true, label: 'To (sold)' },
+      { key: 'status', type: 'enum', required: false, label: 'Status',
+        default: 'active',
+        options: [
+          { value: 'active',    label: 'Paid + Reserved (default)' },
+          { value: 'paid',      label: 'Paid only' },
+          { value: 'reserved',  label: 'Reserved only (uncollected)' },
+          { value: 'all',       label: 'All including cancelled' },
+        ],
+      },
+      { key: 'property_id', type: 'property_picker', required: false, label: 'Property' },
+      { key: 'item_search', type: 'text', required: false, label: 'Item search',
+        placeholder: 'e.g. bike, towel, check-in' },
+    ],
+    columns: [
+      { key: 'booking_ref', label: 'Booking',   format: 'text' },
+      { key: 'sold_on',     label: 'Sold on',   format: 'date' },
+      { key: 'guest_name',  label: 'Guest',     format: 'text' },
+      { key: 'item',        label: 'Item',      format: 'text' },
+      { key: 'qty',         label: 'Qty',       format: 'integer', align: 'right' },
+      { key: 'unit_price',  label: 'Unit price',format: 'currency', align: 'right' },
+      { key: 'gross',       label: 'Gross',     format: 'currency', align: 'right' },
+      { key: 'status',      label: 'Status',    format: 'text' },
+    ],
+    summary: { aggregates: ['qty', 'gross'] },
+    sql: ({ accountId, params }) => {
+      const args = [accountId, params.from, params.to];
+      let statusFilter = `AND be.status IN ('paid','reserved')`;
+      if (params.status === 'paid')     statusFilter = `AND be.status = 'paid'`;
+      else if (params.status === 'reserved') statusFilter = `AND be.status = 'reserved'`;
+      else if (params.status === 'all') statusFilter = '';
+      let propFilter = '';
+      if (params.property_id) {
+        args.push(parseInt(params.property_id));
+        propFilter = `AND b.property_id = $${args.length}`;
+      }
+      let itemFilter = '';
+      if (params.item_search && String(params.item_search).trim()) {
+        args.push('%' + String(params.item_search).trim() + '%');
+        itemFilter = `AND be.name ILIKE $${args.length}`;
+      }
+      return {
+        sql: `
+          SELECT
+            'GAS-' || b.id                                           AS booking_ref,
+            be.created_at::date                                      AS sold_on,
+            TRIM(COALESCE(b.guest_first_name,'') || ' ' || COALESCE(b.guest_last_name,'')) AS guest_name,
+            be.name                                                  AS item,
+            be.qty                                                   AS qty,
+            be.unit_price                                            AS unit_price,
+            (be.qty * be.unit_price)::numeric(14,2)                  AS gross,
+            be.status                                                AS status
+          FROM booking_extras be
+          JOIN bookings b ON b.id = be.booking_id
+          JOIN properties p ON p.id = b.property_id
+          WHERE p.account_id = $1
+            AND be.created_at >= $2::date
+            AND be.created_at <  ($3::date + INTERVAL '1 day')
+            ${statusFilter}
+            ${propFilter}
+            ${itemFilter}
+          ORDER BY be.created_at DESC, b.id DESC
+        `,
+        args,
+      };
+    },
+  },
+
   // Forward Bookings (Monthly) — pipeline value summarised by arrival
   // month + channel. Mirrors Actual Stays (monthly-revenue) but for
   // future arrivals so operators see "how much revenue is committed
