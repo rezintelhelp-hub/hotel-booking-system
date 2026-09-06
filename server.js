@@ -40162,6 +40162,26 @@ app.get('/api/admin/diag/channex-booking-live/:id', async (req, res) => {
   }
 });
 
+// Diag: dump offers matching a search term for one account. Short paste
+// so console line-wrap doesn't break the fetch. Steve 2026-09-06.
+app.get('/api/admin/diag/offers-scope/:accountId', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const q = (req.query.q || '').toLowerCase();
+    const r = await pool.query(
+      `SELECT id, title, room_id, room_ids, property_id, property_ids, active, min_nights, max_nights
+         FROM offers
+        WHERE account_id = $1
+          AND ($2 = '' OR LOWER(COALESCE(title,'')) LIKE '%' || $2 || '%')
+        ORDER BY id`,
+      [parseInt(req.params.accountId, 10), q]);
+    res.json({ success: true, offers: r.rows });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Payment-state diagnostic for one booking. Short single-line output so
 // pasted console fetches don't wrap and break. Master-admin only.
 // Steve/Barbara 2026-09-06 — Expedia VCC visibility check.
