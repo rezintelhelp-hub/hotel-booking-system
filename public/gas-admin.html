@@ -31273,11 +31273,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <span style="display:block; font-size:0.8rem; color:#64748b; margin-top:2px;">Nothing books — website + OTAs + direct all closed.</span>
                         </span>
                     </label>
-                    <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+                    <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:12px;">
                         <input type="checkbox" id="cell-edit-hide-otas" style="width: 18px; height: 18px; margin-top:2px;">
                         <span>
                             <span style="font-weight: 600; color:#111;">Hide from OTA channels</span>
                             <span style="display:block; font-size:0.8rem; color:#64748b; margin-top:2px;">Website + direct book normally. Airbnb, Booking.com, Vrbo see 0 units.</span>
+                        </span>
+                    </label>
+                    <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:12px;">
+                        <input type="checkbox" id="cell-edit-cta" style="width: 18px; height: 18px; margin-top:2px;">
+                        <span>
+                            <span style="font-weight: 600; color:#111;">No check-in on this date</span>
+                            <span style="display:block; font-size:0.8rem; color:#64748b; margin-top:2px;">Guests already staying can still be here; nobody new arrives. Overrides any offer's allowed-check-in days.</span>
+                        </span>
+                    </label>
+                    <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+                        <input type="checkbox" id="cell-edit-ctd" style="width: 18px; height: 18px; margin-top:2px;">
+                        <span>
+                            <span style="font-weight: 600; color:#111;">No check-out on this date</span>
+                            <span style="display:block; font-size:0.8rem; color:#64748b; margin-top:2px;">Nobody can leave on this date — arrivals still allowed. Overrides any offer's allowed-check-out days.</span>
                         </span>
                     </label>
                 </div>
@@ -60682,6 +60696,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('cell-edit-minstay').value = '';
             document.getElementById('cell-edit-blocked').checked = false;
             document.getElementById('cell-edit-hide-otas').checked = false;
+            document.getElementById('cell-edit-cta').checked = false;
+            document.getElementById('cell-edit-ctd').checked = false;
             // Reset current-state pills to loading state
             document.getElementById('cell-edit-current-price').textContent = '…';
             document.getElementById('cell-edit-current-minstay').textContent = '…';
@@ -60703,6 +60719,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (day.standard_price_raw != null) document.getElementById('cell-edit-price').value = day.standard_price_raw;
                     if (day.min_stay_override != null) document.getElementById('cell-edit-minstay').value = day.min_stay_override;
                     document.getElementById('cell-edit-blocked').checked = !!day.is_blocked;
+                    document.getElementById('cell-edit-cta').checked = !!day.closed_to_arrival;
+                    document.getElementById('cell-edit-ctd').checked = !!day.closed_to_departure;
                     // Current-state pills — show the effective values so the
                     // operator can SEE what's in effect today before deciding
                     // what to change. Price prefers standard_price_raw (the
@@ -60791,6 +60809,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             const priceRaw = document.getElementById('cell-edit-price').value.trim();
             const minStayRaw = document.getElementById('cell-edit-minstay').value.trim();
             const blocked = document.getElementById('cell-edit-blocked').checked;
+            const cta = document.getElementById('cell-edit-cta').checked;
+            const ctd = document.getElementById('cell-edit-ctd').checked;
             const body = {
                 room_id: roomId,
                 from_date: dateStr,
@@ -60800,6 +60820,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (priceRaw !== '') body.standard_price = priceRaw;
             // Always send min_stay_override so blanks clear it on the server
             body.min_stay_override = minStayRaw === '' ? null : parseInt(minStayRaw, 10);
+            // Always send CTA/CTD so unticking clears the flag on the server
+            body.closed_to_arrival = cta;
+            body.closed_to_departure = ctd;
             try {
                 const r = await fetch('/api/admin/availability', {
                     method: 'POST',

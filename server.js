@@ -4243,6 +4243,18 @@ async function runMigrations() {
       console.log('ℹ️  standard_price_override column:', e.message);
     }
 
+    // Per-date operator override — no check-in / no check-out for THIS date
+    // on THIS room. Wins over all offer / rate-plan allowed-day rules.
+    // Steve 2026-09-06 — mirrors Beds24's "override status" widget so
+    // operators can flip a single date on the fly.
+    try {
+      await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS closed_to_arrival BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS closed_to_departure BOOLEAN DEFAULT false`);
+      console.log('✅ closed_to_arrival / closed_to_departure columns ensured');
+    } catch (e) {
+      console.log('ℹ️  CTA/CTD columns:', e.message);
+    }
+
     // Trigger: every cm_price write recomputes standard_price using the
     // room's markup rule, unless a per-date override is set.
     // Steve's model: Reference CM (cm_price) drives everything; Standard CM
@@ -85882,6 +85894,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
           ra.min_stay,
           ra.cm_min_stay,
           ra.min_stay_override,
+          COALESCE(ra.closed_to_arrival, false) AS closed_to_arrival,
+          COALESCE(ra.closed_to_departure, false) AS closed_to_departure,
           ra.source,
           ra.notes,
           CASE
@@ -85970,6 +85984,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
         cm_min_stay: a.cm_min_stay,
         min_stay_override: a.min_stay_override,
         effective_min_stay: a.min_stay_override || a.cm_min_stay || a.min_stay || 1,
+        closed_to_arrival: a.closed_to_arrival === true,
+        closed_to_departure: a.closed_to_departure === true,
         source: a.source
       };
     });
@@ -87734,7 +87750,7 @@ app.post('/api/admin/availability', async (req, res) => {
   // transaction lean and prevents outbox writes if the main update rolls back.
   const channexEvents = [];
   try {
-    const { room_id, from_date, to_date, status, price, discount_percent, standard_price, min_stay_override } = req.body;
+    const { room_id, from_date, to_date, status, price, discount_percent, standard_price, min_stay_override, closed_to_arrival, closed_to_departure } = req.body;
 
     await client.query('BEGIN');
 
@@ -87840,6 +87856,35 @@ app.post('/api/admin/availability', async (req, res) => {
           kind: 'restriction',
           date: dateStr,
           payload: { date: dateStr, minStayArrival: ms, minStayThrough: ms }
+        });
+      }
+
+      // Per-date CTA / CTD override — operator on-the-fly no check-in /
+      // no check-out toggles from the calendar cell modal. Wins over
+      // all offer / rate-plan allowed-day rules. Sent to Channex as
+      // restriction (closedToArrival / closedToDeparture).
+      if (closed_to_arrival !== undefined || closed_to_departure !== undefined) {
+        const cta = closed_to_arrival === true;
+        const ctd = closed_to_departure === true;
+        await client.query(`
+          INSERT INTO room_availability (room_id, date, closed_to_arrival, closed_to_departure, is_available)
+          VALUES ($1, $2, $3, $4, true)
+          ON CONFLICT (room_id, date)
+          DO UPDATE SET
+            closed_to_arrival = COALESCE($3, room_availability.closed_to_arrival),
+            closed_to_departure = COALESCE($4, room_availability.closed_to_departure),
+            updated_at = NOW()
+        `, [room_id, dateStr,
+            closed_to_arrival === undefined ? null : cta,
+            closed_to_departure === undefined ? null : ctd]);
+        channexEvents.push({
+          kind: 'restriction',
+          date: dateStr,
+          payload: {
+            date: dateStr,
+            closedToArrival: cta,
+            closedToDeparture: ctd
+          }
         });
       }
 
