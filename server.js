@@ -136480,6 +136480,21 @@ async function findRoomsMissingAvailability() {
   `);
 }
 
+// Extract per-date no-check-in / no-check-out from a Beds24 v2 calendar entry.
+// Beds24 field naming varies across their API surface — we accept the common
+// aliases and coerce to strict booleans. Steve 2026-09-06 for Slice B (Beds24
+// operator "override status" widget → GAS room_availability.closed_to_arrival).
+function _extractBeds24CheckinFlags(entry) {
+  if (!entry) return { cta: false, ctd: false };
+  const cta = entry.noCheckIn === true || entry.noCheckIn === 1
+           || entry.overrideCheckIn === true || entry.overrideCheckIn === 1
+           || entry.closedForCheckin === true || entry.closedForCheckin === 1;
+  const ctd = entry.noCheckOut === true || entry.noCheckOut === 1
+           || entry.overrideCheckOut === true || entry.overrideCheckOut === 1
+           || entry.closedForCheckout === true || entry.closedForCheckout === 1;
+  return { cta: !!cta, ctd: !!ctd };
+}
+
 async function runBeds24AvailabilityHeal() {
   try {
     const broken = await findRoomsMissingAvailability();
@@ -136553,6 +136568,7 @@ async function runBeds24AvailabilityHeal() {
           for (const entry of calendar) {
             const from = new Date(entry.from);
             const to = new Date(entry.to);
+            const { cta, ctd } = _extractBeds24CheckinFlags(entry);
             for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
               const dateStr = d.toISOString().split('T')[0];
               const numAvail = entry.numAvail || 0;
@@ -136562,8 +136578,8 @@ async function runBeds24AvailabilityHeal() {
               const minStay = entry.minStay || 1;
 
               await pool.query(`
-                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24_heal', NOW())
+                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, closed_to_arrival, closed_to_departure, source, updated_at)
+                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, $7, $8, 'beds24_heal', NOW())
                 ON CONFLICT (room_id, date)
                 DO UPDATE SET
                   price        = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
@@ -136573,9 +136589,11 @@ async function runBeds24AvailabilityHeal() {
                   is_blocked   = $5,
                   min_stay     = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
                   cm_min_stay  = $6,
+                  closed_to_arrival   = $7,
+                  closed_to_departure = $8,
                   source       = CASE WHEN room_availability.source IN ('manual', 'operator_override') THEN room_availability.source ELSE 'beds24_heal' END,
                   updated_at   = NOW()
-              `, [room.room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+              `, [room.room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay, cta, ctd]);
               daysWritten++;
             }
           }
@@ -140085,22 +140103,26 @@ async function runGasSyncScheduler() {
             // Write price & availability to room_availability
             for (const entry of calendarData) {
               const fromDate = new Date(entry.from), toDate = new Date(entry.to);
+              const { cta, ctd } = _extractBeds24CheckinFlags(entry);
               for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
                 const dateStr = d.toISOString().split('T')[0];
                 const numAvail = entry.numAvail || 0;
                 const price = (entry.price1 != null) ? entry.price1 : (entry.price2 != null) ? entry.price2 : null;
                 const minStay = entry.minStay || 1;
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                  VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+                  INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, closed_to_arrival, closed_to_departure, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, $7, $8, 'beds24', NOW())
                   ON CONFLICT (room_id, date) DO UPDATE SET
                     price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                     cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                     direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.direct_price END,
                     is_available = $4, is_blocked = $5,
                     min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
-                    cm_min_stay = $6, source = 'beds24', updated_at = NOW()
-                `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+                    cm_min_stay = $6,
+                    closed_to_arrival = $7,
+                    closed_to_departure = $8,
+                    source = 'beds24', updated_at = NOW()
+                `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay, cta, ctd]);
               }
             }
 
