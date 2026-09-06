@@ -123612,7 +123612,7 @@ app.post('/api/admin/bookings/:id/extras', express.json(), async (req, res) => {
     const decoded = await extractAccountFromToken(req);
     if (!decoded) return res.status(401).json({ success: false, error: 'Not authenticated' });
     const bookingId = parseInt(req.params.id, 10);
-    const { source_type, source_id, name, unit_price, qty, charge_now } = req.body || {};
+    const { source_type, source_id, name, unit_price, qty, charge_now, send_payment_link } = req.body || {};
 
     // Validation
     if (!['shop_product', 'upsell', 'custom'].includes(source_type)) {
@@ -123751,6 +123751,89 @@ app.post('/api/admin/bookings/:id/extras', express.json(), async (req, res) => {
       );
     }
 
+    // 3b. Payment-link path — operator wants the guest to pay directly (OTA
+    // booking with no card on file, or intentionally billing the guest for a
+    // post-arrival extra like early check-in). Reuses the add_to_stay Stripe
+    // Checkout Session shape so the existing shop-webhook handler flips the
+    // extra to 'paid' + logs the payment_transactions row on completion.
+    // Steve/Barbara 2026-09-06 — Charles House Airbnb bookings need this
+    // since no card lands via the OTA.
+    let paymentLinkUrl = null;
+    let paymentLinkSent = false;
+    let paymentLinkError = null;
+    if (!charged && send_payment_link === true) {
+      try {
+        if (!b.stripe_secret_key) throw new Error('Stripe not configured for this account');
+        const stripeClient = require('stripe')(b.stripe_secret_key);
+        const baseUrl = process.env.GAS_API_BASE_URL || 'https://admin.gas.travel';
+        const session = await stripeClient.checkout.sessions.create({
+          mode: 'payment',
+          payment_method_types: ['card'],
+          line_items: [{
+            price_data: {
+              currency: currency.toLowerCase(),
+              product_data: { name: String(name).trim() },
+              unit_amount: toStripeAmount(price, currency.toLowerCase())
+            },
+            quantity
+          }],
+          customer_email: b.guest_email || undefined,
+          success_url: `${baseUrl}/payment-thanks.html?extra=${extraId}`,
+          cancel_url: `${baseUrl}/payment-thanks.html?cancelled=1&extra=${extraId}`,
+          // Save the payment method for future off-session charges — closes
+          // the operator's next problem ("guest paid this extra, can I now
+          // charge damage/late-checkout without asking again?"). setup_future
+          // usage records the mandate for reuse.
+          payment_intent_data: {
+            setup_future_usage: 'off_session',
+            description: `Extra: ${String(name).trim()} × ${quantity} — booking ${bookingId}`,
+            metadata: {
+              booking_id: String(bookingId),
+              account_id: String(b.account_id),
+              extra_id: String(extraId),
+              type: 'admin_extra_payment_link'
+            }
+          },
+          metadata: {
+            // Piggyback on add_to_stay webhook handler — same shape.
+            type: 'add_to_stay',
+            gas_booking_id: String(bookingId),
+            gas_extra_id: String(extraId),
+            gas_account_id: String(b.account_id)
+          }
+        });
+        paymentLinkUrl = session.url;
+
+        // Email guest the payment link. Best-effort — operator still gets
+        // the URL in the response even if email dispatch fails.
+        try {
+          const first = (b.guest_first_name || 'there').replace(/[<>]/g, '');
+          const cur = currency;
+          const amt = totalAmount.toFixed(2);
+          const itemName = String(name).trim().replace(/[<>]/g, '');
+          await sendEmail({
+            to: b.guest_email,
+            subject: `Payment request: ${itemName} — ${cur} ${amt}`,
+            html: `<div style="font-family:sans-serif;max-width:520px;padding:1.5rem;">
+              <h2 style="color:#0f172a;">Hi ${first},</h2>
+              <p>We've added <strong>${itemName}</strong> to your booking. Please complete payment by clicking the link below:</p>
+              <p style="margin:1.5rem 0;">
+                <a href="${paymentLinkUrl}" style="display:inline-block;padding:0.75rem 1.5rem;background:#0284c7;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Pay ${cur} ${amt}</a>
+              </p>
+              <p style="color:#64748b;font-size:0.9rem;">Secure payment powered by Stripe. If the button doesn't work, copy this link:<br>${paymentLinkUrl}</p>
+            </div>`,
+            accountId: b.account_id
+          });
+          paymentLinkSent = true;
+        } catch (emailErr) {
+          console.warn('[admin add-extra payment-link email]', emailErr.message);
+        }
+      } catch (linkErr) {
+        paymentLinkError = linkErr.message;
+        console.error('[admin add-extra payment-link]', linkErr.message);
+      }
+    }
+
     // 4. Fire-and-forget Beds24 sync so the invoice reflects the payment
     //    (only if we actually took money — no point syncing an unpaid reserved
     //    extra to Beds24's payment lines).
@@ -123765,7 +123848,10 @@ app.post('/api/admin/bookings/:id/extras', express.json(), async (req, res) => {
       payment_tx_id: paymentTxId,
       total_amount: totalAmount,
       currency,
-      stripe_error: stripeError || undefined
+      stripe_error: stripeError || undefined,
+      payment_link_url: paymentLinkUrl || undefined,
+      payment_link_sent: paymentLinkSent || undefined,
+      payment_link_error: paymentLinkError || undefined
     });
   } catch (e) {
     console.error('[admin extras POST]', e);

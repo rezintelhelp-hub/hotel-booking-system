@@ -27820,8 +27820,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <span style="color:#64748b; font-size:0.78rem;">Untick to add as a reserved item to be collected later.</span>
               </span>
             </label>
-            <div id="add-extra-no-card-warning" style="display:none; margin-top:0.4rem; padding:0.4rem; background:#fef3c7; border-radius:4px; font-size:0.78rem; color:#92400e;">
-              ⚠ No saved card on this booking — charge-now not possible. Extra will be added as 'reserved'.
+            <div id="add-extra-no-card-warning" style="display:none; margin-top:0.6rem; padding:0.6rem; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:4px;">
+              <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer; font-size:0.85rem;">
+                <input type="checkbox" id="add-extra-send-payment-link" checked style="margin-top:0.2rem;">
+                <span>
+                  <strong>Send guest a payment link</strong><br>
+                  <span style="color:#64748b; font-size:0.78rem;">No card on file — email the guest a secure Stripe checkout link for this item. Their card is saved on payment for future charges.</span>
+                </span>
+              </label>
             </div>
           </div>
         </div>
@@ -76011,6 +76017,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const price = parseFloat(document.getElementById('add-extra-price').value);
             const qty = parseInt(document.getElementById('add-extra-qty').value, 10) || 1;
             const chargeNow = !!document.getElementById('add-extra-charge-now').checked;
+            const sendPaymentLink = !!document.getElementById('add-extra-send-payment-link')?.checked;
             let source_id = null;
             let source_type_out = source;
             let name = '';
@@ -76035,7 +76042,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const r = await fetch('/api/admin/bookings/' + _currentExtraBookingId + '/extras', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ source_type: source_type_out, source_id, name, unit_price: price, qty, charge_now: chargeNow })
+                    body: JSON.stringify({ source_type: source_type_out, source_id, name, unit_price: price, qty, charge_now: chargeNow, send_payment_link: sendPaymentLink })
                 });
                 const d = await r.json();
                 if (!d.success) { showNotification('Add failed: ' + (d.error || 'unknown'), 'error'); return; }
@@ -76044,6 +76051,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     showNotification(`Added and charged ${d.currency} ${d.total_amount}`, 'success');
                 } else if (d.stripe_error) {
                     showNotification(`Added, but charge failed: ${d.stripe_error}. Item marked reserved.`, 'warning');
+                } else if (d.payment_link_sent) {
+                    showNotification(`Added — payment link emailed to guest (${d.currency} ${d.total_amount})`, 'success');
+                } else if (d.payment_link_url) {
+                    showNotification(`Added — payment link created but email failed. Copy link from console.`, 'warning');
+                    console.log('Guest payment link:', d.payment_link_url);
+                } else if (d.payment_link_error) {
+                    showNotification(`Added, payment link failed: ${d.payment_link_error}. Item marked reserved.`, 'warning');
                 } else {
                     showNotification(`Added ${d.currency} ${d.total_amount} to booking (reserved — not charged)`, 'success');
                 }

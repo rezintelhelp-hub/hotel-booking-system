@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Confirmation</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(15,23,42,0.08); max-width: 480px; width: 100%; padding: 2.5rem 2rem; text-align: center; }
+    .icon { width: 72px; height: 72px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1.25rem; font-size: 2.5rem; color: #fff; }
+    .success .icon { background: #10b981; }
+    .cancelled .icon { background: #f59e0b; }
+    h1 { font-size: 1.4rem; color: #0f172a; margin-bottom: 0.75rem; }
+    p { color: #64748b; line-height: 1.55; margin-bottom: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="icon" id="icon">✓</div>
+    <h1 id="title">Payment received</h1>
+    <p id="msg">Thanks — your payment has been received. It's now added to your booking. A receipt has been emailed to you.</p>
+    <p style="font-size:0.85rem;margin-top:1.5rem;">You can close this window.</p>
+  </div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    if (params.get('cancelled') === '1') {
+      document.getElementById('card').classList.add('cancelled');
+      document.getElementById('icon').textContent = '!';
+      document.getElementById('title').textContent = 'Payment cancelled';
+      document.getElementById('msg').textContent = 'No payment was taken. If you meant to complete this, use the same link from your email again or contact the property.';
+    } else {
+      document.getElementById('card').classList.add('success');
+    }
+  </script>
+</body>
+</html>
