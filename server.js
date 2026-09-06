@@ -136502,17 +136502,22 @@ async function findRoomsMissingAvailability() {
 }
 
 // Extract per-date no-check-in / no-check-out from a Beds24 v2 calendar entry.
-// Beds24 field naming varies across their API surface — we accept the common
-// aliases and coerce to strict booleans. Steve 2026-09-06 for Slice B (Beds24
-// operator "override status" widget → GAS room_availability.closed_to_arrival).
+// Beds24 v2 stores this as a single `override` STRING (requires
+// includeOverride:true in the request). Confirmed values seen 2026-09-06:
+//   "noCheckIn"    → block arrivals
+//   "noCheckOut"   → block departures
+//   "noCheckInOut" → block both (defensive — not yet confirmed)
+// Older / other endpoints may still use separate boolean fields; keep the
+// defensive aliases for those cases.
 function _extractBeds24CheckinFlags(entry) {
   if (!entry) return { cta: false, ctd: false };
-  const cta = entry.noCheckIn === true || entry.noCheckIn === 1
-           || entry.overrideCheckIn === true || entry.overrideCheckIn === 1
-           || entry.closedForCheckin === true || entry.closedForCheckin === 1;
-  const ctd = entry.noCheckOut === true || entry.noCheckOut === 1
-           || entry.overrideCheckOut === true || entry.overrideCheckOut === 1
-           || entry.closedForCheckout === true || entry.closedForCheckout === 1;
+  const ov = String(entry.override || '').toLowerCase();
+  const cta = ov === 'nocheckin' || ov === 'nocheckinout'
+           || entry.noCheckIn === true || entry.noCheckIn === 1
+           || entry.overrideCheckIn === true || entry.overrideCheckIn === 1;
+  const ctd = ov === 'nocheckout' || ov === 'nocheckinout'
+           || entry.noCheckOut === true || entry.noCheckOut === 1
+           || entry.overrideCheckOut === true || entry.overrideCheckOut === 1;
   return { cta: !!cta, ctd: !!ctd };
 }
 
@@ -136576,6 +136581,7 @@ async function runBeds24AvailabilityHeal() {
               includeNumAvail: true,
               includePrices: true,
               includeMinStay: true,
+              includeOverride: true,
             },
             timeout: 15000,
           });
@@ -140116,7 +140122,7 @@ async function runGasSyncScheduler() {
 
             const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
               headers: { 'token': accessToken },
-              params: { roomId: beds24RoomId, startDate: startDateStr, endDate: endDateStr, includeNumAvail: true, includePrices: true, includeMinStay: true }
+              params: { roomId: beds24RoomId, startDate: startDateStr, endDate: endDateStr, includeNumAvail: true, includePrices: true, includeMinStay: true, includeOverride: true }
             });
 
             let calendarData = calResponse.data.data?.[0]?.calendar || [];
