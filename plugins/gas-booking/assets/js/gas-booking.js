@@ -6122,9 +6122,11 @@ jQuery(document).ready(function($) {
                 });
                 $papOpt.hide();
                 var $cardOpt = $checkoutPage.find('.gas-payment-card-option');
-                $cardOpt.addClass('selected').find('input[type=radio]').prop('checked', true);
                 $checkoutPage.find('.gas-stripe-form, .gas-payment-summary').show();
-                // Interim status label until Stripe fetch resolves.
+                // Card option stays greyed (disabled class from CSS) until
+                // the Stripe fetch resolves — then the success handler
+                // below removes .disabled + adds .stripe-enabled .selected
+                // so the option takes the dark active styling.
                 $checkoutPage.find('.gas-payment-card-option .gas-card-status').text('Loading…');
 
                 // ---- 3. LINE RENDERER + CART HANDLERS --------------------
@@ -6270,7 +6272,12 @@ jQuery(document).ready(function($) {
                         cardElement = elements.create('card', { style: { base: { fontSize: '16px', color: '#0f172a' } } });
                         var mount = document.getElementById('gas-card-element') || $checkoutPage.find('.gas-card-element')[0];
                         if (mount) cardElement.mount(mount);
-                        $checkoutPage.find('.gas-payment-card-option .gas-card-status').text('');
+                        // Match room checkout: remove .disabled + add .stripe-enabled
+                        // so the option loses its greyed appearance and takes the
+                        // dark "active" styling. Enable input too.
+                        $cardOpt.removeClass('disabled').addClass('stripe-enabled selected');
+                        $cardOpt.find('input').prop('disabled', false).prop('checked', true);
+                        $checkoutPage.find('.gas-payment-card-option .gas-card-status').text('Secure payment via Stripe');
                     },
                     error: function() {
                         $checkoutPage.find('.gas-payment-card-option .gas-card-status').text('Setup failed');
