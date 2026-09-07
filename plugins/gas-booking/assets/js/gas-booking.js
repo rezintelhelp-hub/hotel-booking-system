@@ -4208,8 +4208,17 @@ jQuery(document).ready(function($) {
                     
                     // Build rate options if offer exists AND it's not a non-standard tier (corporate/agent)
                     // For non-standard tiers, the adjusted price IS the price - no rate options needed
-                    var hideDiscountBadge = activeOffer && activeOffer.hide_discount_badge;
-                    
+                    // hide_discount_badge is a PER-OFFER flag — it suppresses
+                    // the "Save X%" pill on that specific rate card (used by
+                    // corporate / agent tiers where the discount is hidden).
+                    // It must NOT gate whether the whole rate-options section
+                    // renders — that made offers vanish on every guest change
+                    // whenever the previously-picked offer had the flag
+                    // (Cleveland Quad — Flexible has replaces_standard=true +
+                    // hide_discount_badge=true, so auto-selecting it on load
+                    // tainted every subsequent recalc). Steve 2026-09-07.
+                    var hideDiscountBadge = false;
+
                     var allOffers = response.all_offers || [];
                     var cmTotal = response.cm_total || accommodationTotal;
                     // Standard Rate extras (rate-plan-derived, applied to
