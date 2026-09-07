@@ -33103,6 +33103,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
+                <!-- Child age range — used on the booking widget's Children
+                     picker ("Children aged X-Y"). Both blank = fallback to
+                     the property-level child_max_age with 2 as the min. -->
+                <div class="form-group" style="margin-top: 1rem; padding: 0.75rem 1rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+                    <label class="form-label" style="color:#0c4a6e; font-weight:600;">👶 Child age range</label>
+                    <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                        <label style="font-size:0.85rem; color:#334155; display:flex; align-items:center; gap:0.4rem;">Min
+                            <input type="number" id="edit-room-child-min-age" class="form-input" min="0" max="17" placeholder="2" style="width:70px; padding:0.35rem 0.5rem; text-align:center;">
+                        </label>
+                        <span style="color:#64748b;">to</span>
+                        <label style="font-size:0.85rem; color:#334155; display:flex; align-items:center; gap:0.4rem;">Max
+                            <input type="number" id="edit-room-child-max-age" class="form-input" min="1" max="17" placeholder="12" style="width:70px; padding:0.35rem 0.5rem; text-align:center;">
+                        </label>
+                        <span style="font-size:0.75rem; color:#64748b;">years</span>
+                    </div>
+                    <small style="color:#64748b; font-size:0.75rem; display:block; margin-top:0.35rem;">Below Min = infant (usually free). At Max = counted as adult. Leave blank for defaults (2-12).</small>
+                </div>
+
                 <div class="form-group" style="margin-top: 1rem;">
                     <label class="form-label">External Booking URL <small style="color: #64748b;">(optional — for ResNexus, Airbnb direct etc.)</small></label>
                     <input type="text" class="form-input" id="edit-room-external-url" placeholder="e.g., https://resnexus.com/resnexus/reservations/book/...">
@@ -84665,6 +84683,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-room-maxguests').value = mgVal;
                     document.getElementById('edit-room-maxadults').value = room.max_adults || 2;
                     document.getElementById('edit-room-maxchildren').value = room.max_children || 0;
+                    // Child age range — blank when null so the operator sees
+                    // the placeholder default (2-12) rather than a stale value.
+                    const _cMinEl = document.getElementById('edit-room-child-min-age');
+                    const _cMaxEl = document.getElementById('edit-room-child-max-age');
+                    if (_cMinEl) _cMinEl.value = (room.child_min_age === null || room.child_min_age === undefined) ? '' : room.child_min_age;
+                    if (_cMaxEl) _cMaxEl.value = (room.child_max_age === null || room.child_max_age === undefined) ? '' : room.child_max_age;
 
                     // Max Guests is read-only here — comparison + editing live
                     // in Amenities. This block just paints the display + chip
@@ -84940,6 +84964,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 max_guests: (() => { const v = parseInt(document.getElementById('edit-room-maxguests').value); return isNaN(v) ? 2 : v; })(),
                 max_adults: (() => { const v = parseInt(document.getElementById('edit-room-maxadults').value); return isNaN(v) ? 2 : v; })(),
                 max_children: parseInt(document.getElementById('edit-room-maxchildren').value) || 0,
+                // Blank string = clear (fall back to property level). A valid
+                // number saves. Server rejects out-of-range values.
+                child_min_age: (function(){ const v = (document.getElementById('edit-room-child-min-age')?.value || '').trim(); return v === '' ? null : parseInt(v, 10); })(),
+                child_max_age: (function(){ const v = (document.getElementById('edit-room-child-max-age')?.value || '').trim(); return v === '' ? null : parseInt(v, 10); })(),
                 quantity: document.getElementById('edit-room-quantity').value || 1,
                 status: document.getElementById('edit-room-status').value,
                 repuso_widget_id: document.getElementById('edit-room-repuso-widget-id').value || null,

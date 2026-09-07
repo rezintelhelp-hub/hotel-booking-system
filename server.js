@@ -3003,6 +3003,11 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_secret_key TEXT`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_enabled BOOLEAN DEFAULT false`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS child_max_age INTEGER DEFAULT 12`);
+      // Per-room child age range — supersedes the property-level column (which
+      // remains as a fallback). Widget shows "Children (aged X-Y)" using room
+      // values first, falling back to property, falling back to 2-12.
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS child_min_age INTEGER`).catch(() => {});
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS child_max_age INTEGER`).catch(() => {});
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS website_url VARCHAR(500)`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS district VARCHAR(255)`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS zip_code VARCHAR(50)`);
@@ -85738,7 +85743,7 @@ app.put('/api/admin/units/:id', async (req, res) => {
     const { id } = req.params;
     console.log('PUT /api/admin/units/' + id, 'body:', JSON.stringify(req.body));
     
-    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description, repuso_widget_id, book_via_master_key, unit_role, external_booking_url, default_access_code, reference_code, show_reference, min_rate } = req.body;
+    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description, repuso_widget_id, book_via_master_key, unit_role, external_booking_url, default_access_code, reference_code, show_reference, min_rate, child_min_age, child_max_age } = req.body;
 
     // Per-room minimum rate floor (Beds24-style). Nothing gets pushed to any
     // OTA below this. Feeds the Channex extender's floor guard + prevents
@@ -85795,6 +85800,27 @@ app.put('/api/admin/units/:id', async (req, res) => {
     }
     if (show_reference !== undefined) {
       await pool.query('UPDATE bookable_units SET show_reference = $1 WHERE id = $2', [!!show_reference, id]);
+    }
+
+    // Per-room child age range. Widget uses these for the "Children (aged X-Y)"
+    // label. Sending null / blank string clears (falls back to property level).
+    // Sending a number 0-17 saves it. Only touches the column when the caller
+    // explicitly includes the field.
+    const _parseAge = (v) => {
+      if (v === null || v === '' || v === undefined) return null;
+      const n = parseInt(v, 10);
+      if (!Number.isFinite(n) || n < 0 || n > 17) return undefined; // reject
+      return n;
+    };
+    if (child_min_age !== undefined) {
+      const val = _parseAge(child_min_age);
+      if (val === undefined) return res.status(400).json({ success: false, error: 'child_min_age must be 0-17 or blank' });
+      await pool.query('UPDATE bookable_units SET child_min_age = $1 WHERE id = $2', [val, id]);
+    }
+    if (child_max_age !== undefined) {
+      const val = _parseAge(child_max_age);
+      if (val === undefined) return res.status(400).json({ success: false, error: 'child_max_age must be 0-17 or blank' });
+      await pool.query('UPDATE bookable_units SET child_max_age = $1 WHERE id = $2', [val, id]);
     }
 
     // Master-admin-only toggle: route booking writes via V1 channel-partner
