@@ -4322,6 +4322,20 @@ jQuery(document).ready(function($) {
         // Check if any offer replaces standard rate
         var anyReplacesStandard = offers.some(function(o) { return o.replaces_standard; });
 
+        // Preserve the guest's currently-picked rate across re-renders.
+        // Every guest/date change fires calculatePrice → this function, which
+        // rebuilds the rate cards from scratch. Before the fix Standard was
+        // hardcoded `.selected` so the pick reset every recalc. Now we read
+        // the current data attrs, and after render re-apply `.selected` to
+        // whichever card matches — falls back to Standard if the previous
+        // pick is no longer in the offers list.
+        var _prevRate = $roomWidget.data('selected-rate') || null;
+        var _prevOfferId = null;
+        try {
+            var _ao = $roomWidget.data('active-offer');
+            if (_ao && _ao.id != null) _prevOfferId = String(_ao.id);
+        } catch (_) {}
+
         // Resolve Standard Rate labels — operator values win.
         // Name falls back to "Standard Rate" (generic, safe). Features have
         // NO default — the previous hardcoded "✓ Free cancellation" was
@@ -4447,6 +4461,31 @@ jQuery(document).ready(function($) {
             $('.gas-rate-options').replaceWith(html);
         } else {
             $('.gas-guest-fields').after(html);
+        }
+
+        // Restore the guest's previously-picked rate. Priority: match on
+        // offer_id first (survives array-index reshuffles), fall back to
+        // data-rate match, else leave Standard highlighted. Only re-apply
+        // if the previous pick still exists in the new render.
+        if (_prevOfferId != null || (_prevRate && _prevRate !== 'standard')) {
+            var $target = null;
+            if (_prevOfferId != null) {
+                $target = $('.gas-rate-option[data-offer-id="' + _prevOfferId + '"]');
+            }
+            if ((!$target || !$target.length) && _prevRate) {
+                $target = $('.gas-rate-option[data-rate="' + _prevRate + '"]');
+            }
+            if ($target && $target.length) {
+                $('.gas-rate-option').removeClass('selected');
+                $target.addClass('selected');
+                // Sync the widget's selected-rate + offer-total data so
+                // the Book Now button + downstream checkout use the same
+                // rate the user visually sees selected.
+                var _newRate = $target.data('rate') || _prevRate;
+                var _newTotal = parseFloat($target.attr('data-offer-total'));
+                $roomWidget.data('selected-rate', _newRate);
+                if (!isNaN(_newTotal)) $roomWidget.data('offer-total', _newTotal);
+            }
         }
 
         // Store totals for later — default to standard
