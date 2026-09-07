@@ -149213,6 +149213,11 @@ app.get('/beds24-diag', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'beds24-diag.html'));
 });
 
+// Rooms + Offers diagnostics — button-driven page, no console pastes.
+app.get('/rooms-diag', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'rooms-diag.html'));
+});
+
 // Serve the sync review page
 app.get('/sync-review', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'sync-review.html'));

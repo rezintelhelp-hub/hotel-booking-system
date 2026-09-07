@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rooms + Offers diagnostics — GAS</title>
+    <meta name="robots" content="noindex,nofollow">
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; max-width: 1100px; margin: 0 auto; }
+        h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: #f1f5f9; }
+        .sub { color: #94a3b8; font-size: 0.9rem; margin-bottom: 2rem; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 1.25rem; margin-bottom: 1.5rem; }
+        h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: #38bdf8; }
+        .row { display: flex; gap: 0.6rem; margin-bottom: 0.75rem; flex-wrap: wrap; align-items: center; }
+        input { padding: 0.5rem 0.75rem; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #f1f5f9; font-family: monospace; font-size: 0.9rem; }
+        input[type=text], input[type=number], input[type=date] { min-width: 120px; }
+        button { padding: 0.5rem 1rem; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
+        button:hover { background: #1d4ed8; }
+        button:disabled { background: #475569; cursor: wait; }
+        .output { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 1rem; font-family: monospace; font-size: 0.8rem; white-space: pre-wrap; max-height: 500px; overflow: auto; color: #cbd5e1; }
+        .output.error { border-color: #dc2626; color: #fca5a5; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-family: monospace; }
+        th, td { border: 1px solid #334155; padding: 0.4rem 0.6rem; text-align: left; }
+        th { background: #0f172a; color: #38bdf8; font-weight: 600; }
+        .hint { color: #64748b; font-size: 0.8rem; margin-top: 0.5rem; }
+        label { color: #94a3b8; font-size: 0.85rem; }
+        .empty { color: #64748b; font-style: italic; padding: 1rem; }
+    </style>
+</head>
+<body>
+    <h1>Rooms + Offers diagnostics</h1>
+    <p class="sub">Master-admin only. Public API — no auth needed to see what the booking widget sees.</p>
+
+    <div class="card">
+        <h2>Simulate booking widget's price + offers call</h2>
+        <p class="hint">Hits <code>/api/public/calculate-price</code> — same endpoint the widget uses. Shows what <code>all_offers</code> returns for a given guest count, so you can see immediately which offers drop when guests change.</p>
+        <div class="row">
+            <label>Room ID<input type="number" id="unit_id" value="932"></label>
+            <label>Check-in<input type="date" id="checkin"></label>
+            <label>Check-out<input type="date" id="checkout"></label>
+            <label>Adults<input type="number" id="adults" value="1" min="1" max="20" style="width:80px;"></label>
+            <label>Children<input type="number" id="children" value="0" min="0" max="10" style="width:80px;"></label>
+            <button id="btn-run" onclick="runCalc()">Run</button>
+        </div>
+        <div id="output" class="output">Enter room ID + dates and click Run.</div>
+    </div>
+
+<script>
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Pre-fill checkin/checkout to a sensible default (tomorrow + 3 nights).
+window.addEventListener('DOMContentLoaded', () => {
+    const t = new Date(); t.setDate(t.getDate() + 7);
+    const t2 = new Date(t); t2.setDate(t2.getDate() + 3);
+    document.getElementById('checkin').value = t.toISOString().slice(0, 10);
+    document.getElementById('checkout').value = t2.toISOString().slice(0, 10);
+});
+
+async function runCalc() {
+    const btn = document.getElementById('btn-run');
+    const out = document.getElementById('output');
+    const unit_id = document.getElementById('unit_id').value;
+    const check_in = document.getElementById('checkin').value;
+    const check_out = document.getElementById('checkout').value;
+    const adults = parseInt(document.getElementById('adults').value) || 1;
+    const children = parseInt(document.getElementById('children').value) || 0;
+    if (!unit_id || !check_in || !check_out) { out.className = 'output error'; out.textContent = 'Fill room ID + dates.'; return; }
+    btn.disabled = true; out.className = 'output'; out.textContent = 'Calling calculate-price…';
+    try {
+        const r = await fetch('/api/public/calculate-price', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ unit_id: parseInt(unit_id), check_in, check_out, guests: adults + children, adults, children })
+        });
+        const d = await r.json();
+        let html = `<p><strong style="color:#38bdf8;">Response summary</strong></p>`;
+        html += `<table><tbody>`;
+        html += `<tr><th>success</th><td>${esc(d.success)}</td></tr>`;
+        html += `<tr><th>available</th><td>${esc(d.available)}</td></tr>`;
+        html += `<tr><th>error</th><td>${esc(d.error || '')}</td></tr>`;
+        html += `<tr><th>nights</th><td>${esc(d.nights)}</td></tr>`;
+        html += `<tr><th>accommodation_total</th><td>${esc(d.accommodation_total)}</td></tr>`;
+        html += `<tr><th>all_offers count</th><td><strong>${(d.all_offers || []).length}</strong></td></tr>`;
+        html += `</tbody></table>`;
+        if (Array.isArray(d.all_offers) && d.all_offers.length > 0) {
+            html += `<p style="color:#22c55e;margin-top:1rem;"><strong>Offers returned (${d.all_offers.length}):</strong></p>`;
+            html += `<table><thead><tr><th>Name</th><th>Discount</th><th>Min guests</th><th>Max guests</th><th>Replaces standard</th><th>Rate plan total</th></tr></thead><tbody>`;
+            for (const o of d.all_offers) {
+                html += `<tr>
+                    <td>${esc(o.name)}</td>
+                    <td>${esc(o.discount_type)} ${esc(o.discount_value)}</td>
+                    <td>${esc(o.eff_min_guests ?? o.min_guests ?? '—')}</td>
+                    <td>${esc(o.eff_max_guests ?? o.max_guests ?? '—')}</td>
+                    <td>${o.replaces_standard ? '✓' : ''}</td>
+                    <td>${esc(o.rate_plan_total ?? '—')}</td>
+                </tr>`;
+            }
+            html += `</tbody></table>`;
+        } else {
+            html += `<div class="empty" style="margin-top:1rem;">No offers in the response. Either server filtered them out (check adults + children vs each offer's min_guests / max_guests) or the room's day-of-week / advance-window rules excluded them.</div>`;
+        }
+        html += `<p style="margin-top:1rem;color:#94a3b8;font-size:0.75rem;">Full response (JSON):</p>`;
+        html += `<pre style="font-size:0.7rem; white-space:pre-wrap; max-height:300px; overflow:auto; color:#cbd5e1;">${esc(JSON.stringify(d, null, 2))}</pre>`;
+        out.innerHTML = html;
+    } catch (e) {
+        out.className = 'output error';
+        out.textContent = 'Error: ' + e.message;
+    }
+    btn.disabled = false;
+}
+</script>
+</body>
+</html>
