@@ -52790,15 +52790,21 @@ app.put('/api/admin/deployed-sites/:id', async (req, res) => {
 // A records had the wrong IP and certbot just said "failed".
 const GAS_VPS_IP = '72.61.207.109';
 async function _preflightDomainDns(domain) {
-  const dnsP = require('dns').promises;
+  const dnsMod = require('dns');
+  const dnsP = dnsMod.promises;
+  // Explicitly hit public resolvers (Cloudflare + Google) so a stale
+  // Railway container resolver can't lie to us. dnsP.resolve4 uses
+  // whatever the container was booted with, which caches per TTL and
+  // does NOT match what the operator sees from their browser.
+  // Belmont 2026-09-07: operator updated A records, public resolvers
+  // saw 72.61.207.109 immediately, Railway container still returning
+  // the old 139.162.234.112 → GAS wrongly blocked the go-live.
+  const resolver = new dnsMod.promises.Resolver();
+  resolver.setServers(['1.1.1.1', '8.8.8.8']);
   const hosts = [domain, `www.${domain}`];
   const lookups = await Promise.all(hosts.map(async host => {
     try {
-      // Use a public resolver (Google) explicitly so we don't depend on
-      // the Railway container's resolver behaving the same as the
-      // outside world — operators typically test from their own browser
-      // which uses public DNS.
-      const ips = await dnsP.resolve4(host);
+      const ips = await resolver.resolve4(host);
       return { host, ips, ok: ips.includes(GAS_VPS_IP) };
     } catch (e) {
       return { host, ips: [], ok: false, error: e.code || e.message };
