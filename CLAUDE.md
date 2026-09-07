@@ -13,6 +13,27 @@
 - **ALWAYS** check `site_status` before any SCP/SSH deploy to a client site — NEVER push to a frozen site
 - Surgical edits only
 
+## BUG PROTOCOL — no drift, no waffle
+
+Every bug report follows this order, mechanically:
+
+1. **Grep** the exact symptom text / column / function name in the codebase
+2. **Read** the file at the found line (use the Read tool, top-to-bottom)
+3. **Reply** with `file:line where it's wrong + fix in one sentence`
+4. **Edit → commit → push**
+5. **Reply**: `Pushed. Test.` — nothing else
+
+**Banned in bug replies (self-catch before hitting send):**
+- "could be X or Y" — pick one from the code, don't offer options
+- Diag pastes / new diag pages — the answer is almost always already in the code
+- "worth flagging" / "also worth noting" — save it, don't tangent
+- New memory files — Steve has said memory files don't fix the drift
+- A/B tradeoff choices — you pick or Steve picks, never both
+
+**Steve's override:** if he types `READ`, stop mid-response, grep the symptom, Read the file, restart at step 1.
+
+This protocol was locked in after 2026-09-07 — a full day lost to guessing instead of reading. The pattern was: propose fix on hypothesis → wrong → propose diag fetch → wait → propose another fix on hypothesis → wrong. Each cycle burned Steve's time. The bugs were always one-line fixes visible immediately in the code.
+
 ---
 
 ## API DOCUMENTATION — ENDPOINT UPDATES
