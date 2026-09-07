@@ -55,7 +55,17 @@
     </div>
 
     <div class="card">
-        <h2>3. Lookup connections by Beds24 owner IDs</h2>
+        <h2>3. Test V1 key(s) against Beds24 live</h2>
+        <p class="hint">Pings Beds24 V1 API (<code>getProperties</code>) with each connection's stored V1 key. Confirms the key is accepted by Beds24 (not just saved in GAS). Enter one or more connection IDs.</p>
+        <div class="row">
+            <input type="text" id="test-conn-ids" value="12,22,32,41,43" placeholder="comma-separated connection IDs">
+            <button id="btn-test" onclick="testKeys()">Test</button>
+        </div>
+        <div id="test-output" class="output">Enter connection IDs and click Test.</div>
+    </div>
+
+    <div class="card">
+        <h2>4. Lookup connections by Beds24 owner IDs</h2>
         <p class="hint">Given a comma-separated list of Beds24 owner IDs, show each GAS connection that matches. Defaults to the 7 owners flagged for rotation.</p>
         <div class="row">
             <input type="text" id="owners" value="2158,2254,2656,2659,2743,9401,109705" placeholder="comma-separated owner IDs">
@@ -181,6 +191,39 @@ async function loadOwners() {
         const foundOwners = new Set(d.connections.map(c => c.external_account_id));
         const missing = owners.filter(o => !foundOwners.has(o));
         if (missing.length > 0) html += `<p style="color:#f59e0b;margin-top:0.75rem;">⚠ No GAS connections found for: <code>${missing.map(esc).join(', ')}</code></p>`;
+        out.innerHTML = html;
+    } catch (e) {
+        out.className = 'output error';
+        out.textContent = 'Error: ' + e.message;
+    }
+    btn.disabled = false;
+}
+
+async function testKeys() {
+    const btn = document.getElementById('btn-test');
+    const out = document.getElementById('test-output');
+    const ids = document.getElementById('test-conn-ids').value.trim().split(',').map(s => parseInt(s.trim())).filter(Boolean);
+    if (ids.length === 0) { out.className = 'output error'; out.textContent = 'Enter at least one connection ID.'; return; }
+    btn.disabled = true; out.className = 'output'; out.textContent = 'Pinging Beds24…';
+    try {
+        const r = await fetch('/api/admin/beds24/test-v1-keys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...auth() },
+            body: JSON.stringify({ connectionIds: ids })
+        });
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || 'unknown error');
+        const ok = d.results.filter(x => x.success);
+        const bad = d.results.filter(x => !x.success);
+        let html = `<p style="color:#22c55e;margin-bottom:0.5rem;"><strong>${ok.length} passed</strong>${bad.length ? ` &nbsp; <span style="color:#fca5a5;"><strong>${bad.length} failed</strong></span>` : ''}</p>`;
+        html += '<table><thead><tr><th>Conn ID</th><th>Account</th><th>Key ends</th><th>Result</th></tr></thead><tbody>';
+        for (const x of d.results) {
+            const status = x.success
+                ? `<span style="color:#22c55e;">✓ OK (${x.property_count} properties)</span>`
+                : `<span style="color:#fca5a5;">✗ ${esc(x.error)}</span>`;
+            html += `<tr><td>${esc(x.connection_id)}</td><td>${esc(x.account_name)}</td><td>${x.key_last4 ? `…${esc(x.key_last4)}` : '<span style="color:#f59e0b;">none</span>'}</td><td>${status}</td></tr>`;
+        }
+        html += '</tbody></table>';
         out.innerHTML = html;
     } catch (e) {
         out.className = 'output error';

@@ -25000,6 +25000,51 @@ app.get('/api/admin/beds24/env-fingerprints', async (req, res) => {
   }
 });
 
+// Master-admin: batch-ping Beds24 V1 API using each connection's stored key,
+// returning per-connection success/error. Used to verify V1 key rotations
+// actually landed and are accepted by Beds24 before trusting the migration.
+app.post('/api/admin/beds24/test-v1-keys', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const ids = Array.isArray(req.body?.connectionIds) ? req.body.connectionIds.map(Number).filter(Boolean) : [];
+    if (ids.length === 0) return res.status(400).json({ success: false, error: 'connectionIds[] required' });
+    const rows = await pool.query(
+      `SELECT c.id, c.account_id, c.credentials, a.name AS account_name
+         FROM gas_sync_connections c
+    LEFT JOIN accounts a ON a.id = c.account_id
+        WHERE c.id = ANY($1::int[])`,
+      [ids]
+    );
+    const results = await Promise.all(rows.rows.map(async (row) => {
+      const creds = typeof row.credentials === 'string' ? JSON.parse(row.credentials) : (row.credentials || {});
+      const v1Key = creds.v1ApiKey || creds.apiKey || null;
+      const keyLast4 = v1Key ? v1Key.slice(-4) : null;
+      if (!v1Key) return { connection_id: row.id, account_name: row.account_name, success: false, error: 'no V1 key set', key_last4: null };
+      try {
+        const resp = await fetch('https://beds24.com/api/json/getProperties', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: v1Key })
+        });
+        const data = await resp.json();
+        // Beds24 V1 returns { error: '...' } or an array of properties
+        if (data && data.error) {
+          return { connection_id: row.id, account_name: row.account_name, success: false, error: data.error, key_last4: keyLast4 };
+        }
+        const propCount = Array.isArray(data) ? data.length : (data && Array.isArray(data.properties) ? data.properties.length : 0);
+        return { connection_id: row.id, account_name: row.account_name, success: true, error: null, key_last4: keyLast4, property_count: propCount };
+      } catch (e) {
+        return { connection_id: row.id, account_name: row.account_name, success: false, error: e.message, key_last4: keyLast4 };
+      }
+    }));
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('beds24 test-v1-keys error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Master-admin: find every gas_sync_connections row whose stored V1 API key
 // ends with the given suffix. Used for pre-rotation impact analysis — before
 // deleting a Beds24 API key, check which GAS connections still reference it.
