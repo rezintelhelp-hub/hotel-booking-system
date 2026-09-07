@@ -25109,6 +25109,33 @@ app.get('/api/admin/beds24/find-v1-key-by-suffix', async (req, res) => {
   }
 });
 
+// Master-admin one-shot: backfill properties.stripe_account_id from
+// payment_configurations where a per-property Stripe row exists but
+// the properties column is empty. Fixes the missing 'acct ···xxxx'
+// badge on the Properties list for connects that landed before the
+// callback started mirroring the value. Safe to re-run.
+app.post('/api/admin/backfill-property-stripe-acct', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const r = await pool.query(`
+      UPDATE properties p
+         SET stripe_account_id = pc.credentials->>'stripe_account_id',
+             updated_at = NOW()
+        FROM payment_configurations pc
+       WHERE pc.property_id = p.id
+         AND pc.provider = 'stripe'
+         AND pc.is_enabled = true
+         AND pc.credentials->>'stripe_account_id' IS NOT NULL
+         AND (p.stripe_account_id IS NULL OR p.stripe_account_id = '')
+      RETURNING p.id, p.name, p.stripe_account_id
+    `);
+    res.json({ success: true, updated: r.rowCount, rows: r.rows });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Master-admin: given a list of Beds24 owner IDs, return which gas_sync_connections
 // they map to. Used for the 2026-09-07 V1 key rotation deadline — Steve regenerates
 // each owner's key in Beds24, then updates it via the existing set-v1-api-key
@@ -29437,6 +29464,15 @@ app.get('/api/stripe/callback', async (req, res) => {
                     [accountId, propertyId, (stateData.name || 'Stripe').slice(0, 100), JSON.stringify(credentials)]
                 );
             }
+            // Mirror the connected acct_... onto properties.stripe_account_id
+            // so the Properties list badge (`acct ···xxxx`) reflects the connect
+            // without a manual backfill. Belmont Adelphi 2026-09-07 —
+            // Cordelia connected a second Stripe on prop 105 but the badge
+            // stayed blank because this write was missing.
+            await pool.query(
+                'UPDATE properties SET stripe_account_id = $1, updated_at = NOW() WHERE id = $2',
+                [connectedAccountId, propertyId]
+            );
             console.log(`✅ Property Stripe connected — acct ${accountId} · property ${propertyId} · stripe ${connectedAccountId}`);
             return res.redirect('https://admin.gas.travel/gas-admin.html#properties?stripe_connected=1&property_id=' + propertyId);
         }
