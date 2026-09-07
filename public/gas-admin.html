@@ -13278,7 +13278,12 @@
 
                             <div class="card" style="margin-bottom: 1.5rem;">
                                 <div class="card-header"><h3>🕐 Opening Hours</h3>
-                                    <span style="font-size: 0.8rem; color: #64748b; font-weight: normal;">Only displayed if "Show Opening Hours" is checked above. Leave blank to hide individual days.</span>
+                                    <div style="display:flex; align-items:center; gap:1rem;">
+                                        <label style="display:flex; align-items:center; gap:0.4rem; font-weight:normal; font-size:0.85rem; color:#64748b;" title="Position on the live page (1 = top)">Position
+                                            <input type="number" id="wb-page-contact-hours-order" min="1" max="9" style="width:3rem; padding:0.25rem 0.4rem; text-align:center; border:1px solid #cbd5e1; border-radius:6px;" value="4">
+                                        </label>
+                                        <span style="font-size: 0.8rem; color: #64748b; font-weight: normal;">Only displayed if "Show Opening Hours" is checked above.</span>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <div style="display: grid; grid-template-columns: 120px 1fr; gap: 0.75rem; align-items: center;">
@@ -13399,10 +13404,15 @@
 
                             <!-- 4 Contact Cards with toggles -->
                             <div class="card" style="margin-bottom: 1.5rem;">
-                                <div class="card-header"><h3>📇 1. Company Details</h3>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: normal; font-size: 0.9rem;">
-                                        <input type="checkbox" id="wb-page-contact-show-details" checked style="accent-color: #10b981;"> Show on page
-                                    </label>
+                                <div class="card-header"><h3>📇 Company Details</h3>
+                                    <div style="display:flex; align-items:center; gap:1rem;">
+                                        <label style="display:flex; align-items:center; gap:0.4rem; font-weight:normal; font-size:0.85rem; color:#64748b;" title="Position on the live page (1 = top)">Position
+                                            <input type="number" id="wb-page-contact-details-order" min="1" max="9" style="width:3rem; padding:0.25rem 0.4rem; text-align:center; border:1px solid #cbd5e1; border-radius:6px;" value="1">
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: normal; font-size: 0.9rem;">
+                                            <input type="checkbox" id="wb-page-contact-show-details" checked style="accent-color: #10b981;"> Show on page
+                                        </label>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <div class="form-group" style="margin-bottom: 1rem;">
@@ -13465,10 +13475,15 @@
                             </div>
 
                             <div class="card" style="margin-bottom: 1.5rem;">
-                                <div class="card-header"><h3>🧭 2. Directions</h3>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: normal; font-size: 0.9rem;">
-                                        <input type="checkbox" id="wb-page-contact-show-directions" checked style="accent-color: #10b981;"> Show on page
-                                    </label>
+                                <div class="card-header"><h3>🧭 Directions</h3>
+                                    <div style="display:flex; align-items:center; gap:1rem;">
+                                        <label style="display:flex; align-items:center; gap:0.4rem; font-weight:normal; font-size:0.85rem; color:#64748b;" title="Position on the live page (1 = top)">Position
+                                            <input type="number" id="wb-page-contact-directions-order" min="1" max="9" style="width:3rem; padding:0.25rem 0.4rem; text-align:center; border:1px solid #cbd5e1; border-radius:6px;" value="2">
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: normal; font-size: 0.9rem;">
+                                            <input type="checkbox" id="wb-page-contact-show-directions" checked style="accent-color: #10b981;"> Show on page
+                                        </label>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <div class="form-group">
@@ -13552,10 +13567,15 @@
                             </div>
 
                             <div class="card" style="margin-bottom: 1.5rem;">
-                                <div class="card-header"><h3>🗺️ 3. Find Us (Map)</h3>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: normal; font-size: 0.9rem;">
-                                        <input type="checkbox" id="wb-page-contact-show-map" checked style="accent-color: #10b981;"> Show on page
-                                    </label>
+                                <div class="card-header"><h3>🗺️ Find Us (Map)</h3>
+                                    <div style="display:flex; align-items:center; gap:1rem;">
+                                        <label style="display:flex; align-items:center; gap:0.4rem; font-weight:normal; font-size:0.85rem; color:#64748b;" title="Position on the live page (1 = top)">Position
+                                            <input type="number" id="wb-page-contact-map-order" min="1" max="9" style="width:3rem; padding:0.25rem 0.4rem; text-align:center; border:1px solid #cbd5e1; border-radius:6px;" value="3">
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: normal; font-size: 0.9rem;">
+                                            <input type="checkbox" id="wb-page-contact-show-map" checked style="accent-color: #10b981;"> Show on page
+                                        </label>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <div class="form-group" style="margin-bottom: 1rem;">
@@ -13609,13 +13629,18 @@
                             </div>
 
                             <div class="card" style="margin-bottom: 1.5rem;">
-                                <div class="card-header"><h3>✉️ 4. Contact Form</h3>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: normal; font-size: 0.9rem;">
-                                        <input type="checkbox" id="wb-page-contact-show-form" checked style="accent-color: #10b981;"> Show on page
-                                    </label>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: normal; font-size: 0.9rem; margin-left: 1rem;">
-                                        <input type="checkbox" id="wb-page-contact-turnstile-enabled" style="accent-color: #10b981;"> Extra spam protection (Cloudflare Turnstile)
-                                    </label>
+                                <div class="card-header"><h3>✉️ Contact Form</h3>
+                                    <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+                                        <label style="display:flex; align-items:center; gap:0.4rem; font-weight:normal; font-size:0.85rem; color:#64748b;" title="Position on the live page (1 = top)">Position
+                                            <input type="number" id="wb-page-contact-form-order" min="1" max="9" style="width:3rem; padding:0.25rem 0.4rem; text-align:center; border:1px solid #cbd5e1; border-radius:6px;" value="5">
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: normal; font-size: 0.9rem;">
+                                            <input type="checkbox" id="wb-page-contact-show-form" checked style="accent-color: #10b981;"> Show on page
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: normal; font-size: 0.9rem;">
+                                            <input type="checkbox" id="wb-page-contact-turnstile-enabled" style="accent-color: #10b981;"> Extra spam protection (Cloudflare Turnstile)
+                                        </label>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <div class="form-group">

@@ -100527,6 +100527,12 @@ const SECTION_DEFAULTS = {
     'show-directions': true,
     'show-form': true,
     'show-opening-hours': false,
+    // Card display order (1 = top). Missing/duplicate values → default sequence.
+    'details-order': 1,
+    'directions-order': 2,
+    'map-order': 3,
+    'hours-order': 4,
+    'form-order': 5,
     // Opening Hours (free text per day)
     'hours-monday': '',
     'hours-tuesday': '',
