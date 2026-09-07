@@ -9012,9 +9012,20 @@ jQuery(document).ready(function($) {
             $('.gas-nights-label').text(t('booking', 'accommodation', 'Accommodation') + ' (' + nights + ' ' + nightWord + ')');
             $('.gas-nights-total').text(formatPrice(accommodationDisplay, currency));
             
-            // Discount line
-            if (discount > 0) {
-                $('.gas-discount-line').show().find('.gas-discount-amount').text('-' + formatPrice(discount, currency));
+            // Discount line. Two ways an offer reduces the price:
+            //   1. offer_discount > 0 — server-computed absolute discount
+            //      (percent/fixed offers on top of the standard rate).
+            //   2. accommodation_total < accommodation_gross with no
+            //      offer_discount — CM-imported rate plans (Beds24 Non-
+            //      Refundable etc) whose daily_prices ARE the rate; the
+            //      gross vs net gap IS the effective saving.
+            // Prefer the explicit discount; fall back to the gap so guests
+            // see the reason their Total is lower than Accommodation.
+            var effectiveDiscount = discount > 0
+                ? discount
+                : Math.max(0, accommodationDisplay - accommodationTotal);
+            if (effectiveDiscount > 0.005) {
+                $('.gas-discount-line').show().find('.gas-discount-amount').text('-' + formatPrice(effectiveDiscount, currency));
             } else {
                 $('.gas-discount-line').hide();
             }
