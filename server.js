@@ -110963,8 +110963,15 @@ app.post('/api/public/calculate-price', async (req, res) => {
         AND (o.pricing_tier IS NULL OR o.pricing_tier = $5)
         AND ($7::integer IS NULL OR o.min_advance_days IS NULL OR o.min_advance_days <= $7)
         AND ($7::integer IS NULL OR o.max_advance_days IS NULL OR o.max_advance_days >= $7)
-        AND ($8::integer IS NULL OR COALESCE(o.min_guests_override, o.min_guests) IS NULL OR COALESCE(o.min_guests_override, o.min_guests) <= $8)
-        AND ($8::integer IS NULL OR COALESCE(o.max_guests_override, o.max_guests) IS NULL OR COALESCE(o.max_guests_override, o.max_guests) >= $8)
+        -- Guest-count gates apply ONLY to tier offers (group / exclusive-hire
+        -- pricing where the operator explicitly split rates by headcount).
+        -- The Edit Offer form even labels these fields "Min/Max Guests
+        -- (tier offers)". Applying them to every offer meant CM-imported
+        -- rate plans with a leaked max_guests=1/2 silently disappeared as
+        -- soon as the guest bumped headcount. Steve 2026-09-07 — Cleveland
+        -- Quad's 4 Beds24 offers all vanished going 1→2 adults.
+        AND (o.tier_threshold_guests IS NULL OR $8::integer IS NULL OR COALESCE(o.min_guests_override, o.min_guests) IS NULL OR COALESCE(o.min_guests_override, o.min_guests) <= $8)
+        AND (o.tier_threshold_guests IS NULL OR $8::integer IS NULL OR COALESCE(o.max_guests_override, o.max_guests) IS NULL OR COALESCE(o.max_guests_override, o.max_guests) >= $8)
       ORDER BY o.priority DESC, o.discount_value DESC
     `, [unit_id, nights, check_in, check_out, requestedPricingTier, unitAccountId, advanceDays, totalGuests]);
 
