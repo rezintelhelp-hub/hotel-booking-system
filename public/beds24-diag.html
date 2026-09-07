@@ -112,22 +112,28 @@ async function loadSuffix() {
         if (d.matches.length === 0) {
             html += '<div class="empty">No gas_sync_connections rows reference a V1 key ending with this suffix. Safe to delete from Beds24 (env var caveat above still applies if flagged).</div>';
         } else {
-            html += '<table><thead><tr><th>Conn ID</th><th>Acct ID</th><th>Account</th><th>Adapter</th><th>Owner ID</th><th>Property</th><th>Field</th></tr></thead><tbody>';
-            for (const m of d.matches) {
-                const adapterBadge = m.adapter_code === 'beds24-marketplace'
-                    ? '<span class="badge master">marketplace</span>'
-                    : '<span class="badge per">per-account</span>';
-                html += `<tr>
-                    <td>${esc(m.connection_id)}</td>
-                    <td>${esc(m.account_id)}</td>
-                    <td>${esc(m.account_name)}<br><span style="color:#64748b;font-size:0.75rem;">${esc(m.account_email)}</span></td>
-                    <td>${adapterBadge}</td>
-                    <td>${esc(m.external_account_id)}</td>
-                    <td>${esc(m.external_account_name)}</td>
-                    <td>${esc(m.matched_field)}</td>
-                </tr>`;
+            const active = d.matches.filter(m => m.active_key_matches);
+            const legacyOnly = d.matches.filter(m => !m.active_key_matches);
+            if (active.length > 0) {
+                html += `<p style="color:#fca5a5;margin:0.75rem 0 0.25rem;"><strong>⚠ ${active.length} connection(s) STILL ACTIVELY use this key — need updating:</strong></p>`;
+                html += '<table><thead><tr><th>Conn ID</th><th>Account</th><th>Adapter</th><th>Field</th></tr></thead><tbody>';
+                for (const m of active) {
+                    const adapterBadge = m.adapter_code === 'beds24-marketplace'
+                        ? '<span class="badge master">marketplace</span>' : '<span class="badge per">per-account</span>';
+                    html += `<tr><td>${esc(m.connection_id)}</td><td>${esc(m.account_name)}<br><span style="color:#64748b;font-size:0.75rem;">${esc(m.account_email)}</span></td><td>${adapterBadge}</td><td>${esc(m.matched_field)}</td></tr>`;
+                }
+                html += '</tbody></table>';
             }
-            html += '</tbody></table>';
+            if (legacyOnly.length > 0) {
+                html += `<p style="color:#94a3b8;margin:1rem 0 0.25rem;font-size:0.85rem;"><strong>ℹ ${legacyOnly.length} connection(s) have this key in the LEGACY apiKey field only — v1ApiKey has been updated, runtime uses the new one, safe:</strong></p>`;
+                html += '<table><thead><tr><th>Conn ID</th><th>Account</th><th>Adapter</th></tr></thead><tbody>';
+                for (const m of legacyOnly) {
+                    const adapterBadge = m.adapter_code === 'beds24-marketplace'
+                        ? '<span class="badge master">marketplace</span>' : '<span class="badge per">per-account</span>';
+                    html += `<tr><td>${esc(m.connection_id)}</td><td>${esc(m.account_name)}<br><span style="color:#64748b;font-size:0.75rem;">${esc(m.account_email)}</span></td><td>${adapterBadge}</td></tr>`;
+                }
+                html += '</tbody></table>';
+            }
         }
         out.innerHTML = html;
     } catch (e) {

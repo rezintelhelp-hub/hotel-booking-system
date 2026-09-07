@@ -25020,11 +25020,16 @@ app.get('/api/admin/beds24/find-v1-key-by-suffix', async (req, res) => {
               a.name AS account_name,
               a.email AS account_email,
               CASE
-                WHEN c.credentials->>'v1ApiKey' LIKE '%' || $1 THEN 'v1ApiKey'
-                WHEN c.credentials->>'apiKey'   LIKE '%' || $1 THEN 'apiKey'
+                WHEN c.credentials->>'v1ApiKey' LIKE '%' || $1 THEN 'v1ApiKey (ACTIVE)'
+                WHEN c.credentials->>'v1ApiKey' IS NULL AND c.credentials->>'apiKey' LIKE '%' || $1 THEN 'apiKey (ACTIVE — no v1ApiKey set)'
+                WHEN c.credentials->>'apiKey' LIKE '%' || $1 THEN 'apiKey (legacy — v1ApiKey overrides)'
                 ELSE NULL
               END AS matched_field,
-              LENGTH(COALESCE(c.credentials->>'v1ApiKey', c.credentials->>'apiKey', '')) AS key_length
+              LENGTH(COALESCE(c.credentials->>'v1ApiKey', c.credentials->>'apiKey', '')) AS key_length,
+              -- The runtime uses v1ApiKey FIRST, then apiKey. So this row is
+              -- "actually still using the flagged key" only when the runtime
+              -- pick (v1ApiKey with apiKey fallback) matches the suffix.
+              COALESCE(c.credentials->>'v1ApiKey', c.credentials->>'apiKey', '') LIKE '%' || $1 AS active_key_matches
          FROM gas_sync_connections c
     LEFT JOIN accounts a ON a.id = c.account_id
         WHERE c.adapter_code IN ('beds24','beds24-marketplace')
