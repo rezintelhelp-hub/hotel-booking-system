@@ -26686,6 +26686,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <option value="">Choose a topic...</option>
                     </select>
                 </div>
+
+                <!-- Optional: expand the search area beyond the property's city.
+                     Free-text so the operator can name specific towns, a radius
+                     ("within 20 miles"), or a region ("Devon coast"). Passed to
+                     the AI prompt so it looks wider — useful when the local
+                     inventory has been exhausted. -->
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" style="font-weight: 600; font-size: 1rem;">Search area <span style="color:#94a3b8; font-weight:400; font-size:0.85rem;">(optional)</span></label>
+                    <input type="text" id="blog-wizard-search-area" class="form-input" style="width: 100%;" placeholder="e.g. Torquay + Paignton + Brixham, or within 20 miles, or the Devon coast">
+                    <small style="color:#6b7280; display:block; margin-top:0.35rem;">Leave blank for local (in and around the property's city). Fill in to expand.</small>
+                </div>
                 
                 <!-- What You'll Get -->
                 <div id="blog-wizard-preview" style="display: none; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #86efac; border-radius: 12px; padding: 1rem;">
@@ -26862,7 +26873,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </label>
                     </div>
                 </div>
-                
+
+                <!-- Optional: expand the search area. Same free-text control
+                     as the blog wizard so operators can broaden when local
+                     inventory keeps recycling. -->
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" style="font-weight: 600; font-size: 1rem;">Search area <span style="color:#94a3b8; font-weight:400; font-size:0.85rem;">(optional)</span></label>
+                    <input type="text" id="attraction-wizard-search-area" class="form-input" style="width: 100%;" placeholder="e.g. Torquay + Paignton + Brixham, or within 20 miles, or the Devon coast">
+                    <small style="color:#6b7280; display:block; margin-top:0.35rem;">Leave blank for local. Fill in to broaden the search.</small>
+                </div>
+
                 <!-- Loading State -->
                 <div id="attraction-wizard-loading" style="display: none; text-align: center; padding: 2rem;">
                     <div style="font-size: 3rem; margin-bottom: 1rem;"></div>
@@ -94003,6 +94023,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (wizardLoading) wizardLoading.style.display = 'block';
             
             try {
+                const searchArea = (document.getElementById('blog-wizard-search-area')?.value || '').trim();
                 const response = await fetch('/api/admin/content-ideas/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -94011,7 +94032,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         content_type: 'blog',
                         category: `${selectedBlogCategory}_${selectedBlogSubcategory}`,
                         count: 5,
-                        client_id: getClientId()
+                        client_id: getClientId(),
+                        search_area: searchArea || undefined
                     })
                 });
                 
@@ -94593,6 +94615,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (wizardLoading) wizardLoading.style.display = 'block';
             
             try {
+                const searchArea = (document.getElementById('attraction-wizard-search-area')?.value || '').trim();
                 const response = await fetch('/api/admin/content-ideas/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -94601,7 +94624,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         content_type: 'attraction',
                         category: selectedAttractionCategory,
                         count: 5,
-                        client_id: getClientId()
+                        client_id: getClientId(),
+                        search_area: searchArea || undefined
                     })
                 });
                 

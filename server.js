@@ -132440,7 +132440,7 @@ Generate the description now:`;
 // Generate content ideas with AI
 app.post('/api/admin/content-ideas/generate', async (req, res) => {
     try {
-        const { property_id, content_type, category, count, client_id } = req.body;
+        const { property_id, content_type, category, count, client_id, search_area } = req.body;
         
         if (!property_id) {
             return res.json({ success: false, error: 'Property ID required' });
@@ -132462,6 +132462,13 @@ app.post('/api/admin/content-ideas/generate', async (req, res) => {
         const property = propResult.rows[0];
         const propertyClientId = property.effective_client_id || property.account_id || property.client_id || client_id;
         const location = `${property.city || property.account_city || 'the area'}, ${property.country || property.account_country || ''}`.trim().replace(/,\s*$/, '');
+        // Operator-supplied search-area expansion. Free text like
+        // "Torquay + Paignton + Brixham" or "within 20 miles" or
+        // "the Devon coast". Empty = local-only (current behaviour).
+        const searchAreaClean = (typeof search_area === 'string' ? search_area.trim() : '').slice(0, 300);
+        const searchAreaBlock = searchAreaClean
+            ? `\nSEARCH AREA — expand beyond the property's city and consider: ${searchAreaClean}. Prioritise these places even if they are further from ${location}.\n`
+            : '';
         
         // Current date for time-relevant content
         const now = new Date();
@@ -132518,7 +132525,7 @@ app.post('/api/admin/content-ideas/generate', async (req, res) => {
 
 IMPORTANT: Generate content about REAL, ACTUAL places and events. Do not make up fictional events or places.
 Always respond with a valid JSON array only, no other text.
-${exclusionBlock}`;
+${searchAreaBlock}${exclusionBlock}`;
         
         if (content_type === 'blog') {
             // Parse category - format is "category_subcategory" like "events_sports" or "attractions_museums"
