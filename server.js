@@ -24975,7 +24975,9 @@ app.delete('/api/admin/accounts/:id', async (req, res) => {
 // Master-admin: return masked fingerprints (first 4 + last 4 + length) of the
 // Beds24-related env vars on Railway. Used to verify which V1 API key is
 // currently in play before rotating one. Never returns raw secrets.
-app.get('/api/admin/beds24/env-fingerprints', requireMasterAdmin, (req, res) => {
+app.get('/api/admin/beds24/env-fingerprints', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
   try {
     const fp = (v) => {
       if (!v || typeof v !== 'string') return null;
@@ -25002,7 +25004,9 @@ app.get('/api/admin/beds24/env-fingerprints', requireMasterAdmin, (req, res) => 
 // ends with the given suffix. Used for pre-rotation impact analysis — before
 // deleting a Beds24 API key, check which GAS connections still reference it.
 // Also flags whether BEDS24_MASTER_API_KEY env var matches.
-app.get('/api/admin/beds24/find-v1-key-by-suffix', requireMasterAdmin, async (req, res) => {
+app.get('/api/admin/beds24/find-v1-key-by-suffix', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
   try {
     const suffix = String(req.query.suffix || '').trim();
     if (!suffix || suffix.length < 3) return res.status(400).json({ success: false, error: 'suffix query param required (min 3 chars)' });
@@ -25049,7 +25053,9 @@ app.get('/api/admin/beds24/find-v1-key-by-suffix', requireMasterAdmin, async (re
 // they map to. Used for the 2026-09-07 V1 key rotation deadline — Steve regenerates
 // each owner's key in Beds24, then updates it via the existing set-v1-api-key
 // endpoint using the connection IDs this returns.
-app.post('/api/admin/beds24/lookup-owners', requireMasterAdmin, async (req, res) => {
+app.post('/api/admin/beds24/lookup-owners', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
   try {
     const owners = Array.isArray(req.body?.ownerIds) ? req.body.ownerIds.map(String) : [];
     if (owners.length === 0) return res.status(400).json({ success: false, error: 'ownerIds[] required' });
@@ -25088,7 +25094,9 @@ app.post('/api/admin/beds24/lookup-owners', requireMasterAdmin, async (req, res)
 // Wipes deployed_sites + website_settings + bookable_units + properties
 // then chains into the standard delete which handles connections + account.
 // Requires body { confirm: 'YES_NUKE' }.
-app.post('/api/admin/accounts/:id/nuke', requireMasterAdmin, async (req, res) => {
+app.post('/api/admin/accounts/:id/nuke', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
   try {
     const { id } = req.params;
     if (req.body?.confirm !== 'YES_NUKE') {
