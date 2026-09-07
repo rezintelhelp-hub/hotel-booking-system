@@ -24972,6 +24972,32 @@ app.delete('/api/admin/accounts/:id', async (req, res) => {
   }
 });
 
+// Master-admin: return masked fingerprints (first 4 + last 4 + length) of the
+// Beds24-related env vars on Railway. Used to verify which V1 API key is
+// currently in play before rotating one. Never returns raw secrets.
+app.get('/api/admin/beds24/env-fingerprints', requireMasterAdmin, (req, res) => {
+  try {
+    const fp = (v) => {
+      if (!v || typeof v !== 'string') return null;
+      const s = v.trim();
+      if (s.length < 9) return { length: s.length, hint: '(too short to fingerprint)' };
+      return { length: s.length, first: s.slice(0, 4), last: s.slice(-4), fingerprint: `${s.slice(0,4)}…${s.slice(-4)}` };
+    };
+    res.json({
+      success: true,
+      env: {
+        BEDS24_MASTER_API_KEY: fp(process.env.BEDS24_MASTER_API_KEY),       // V1 key — the one flagged for rotation
+        BEDS24_MASTER_TOKEN:   fp(process.env.BEDS24_MASTER_TOKEN),         // V2 org token — separate, not being rotated
+        BEDS24_ORG_ID:         process.env.BEDS24_ORG_ID || null,           // e.g. '70_rezintelnet' — not secret
+        BEDS24_MARKETPLACE_USER: fp(process.env.BEDS24_MARKETPLACE_USER),   // marketplace login
+        BEDS24_MARKETPLACE_APIKEY: fp(process.env.BEDS24_MARKETPLACE_APIKEY) // legacy alias, if set
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Master-admin: given a list of Beds24 owner IDs, return which gas_sync_connections
 // they map to. Used for the 2026-09-07 V1 key rotation deadline — Steve regenerates
 // each owner's key in Beds24, then updates it via the existing set-v1-api-key
