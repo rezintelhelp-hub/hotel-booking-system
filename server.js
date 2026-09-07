@@ -109874,25 +109874,36 @@ app.get('/api/public/rooms/:roomId/occupancy-settings', async (req, res) => {
         bu.child_charge_type,
         bu.child_charge,
         bu.children_allowed,
+        bu.child_min_age AS room_child_min_age,
+        bu.child_max_age AS room_child_max_age,
         p.child_max_age,
         p.currency
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
     `, [roomId]);
-    
+
     if (result.rows.length === 0) {
       return res.json({ success: false, error: 'Room not found' });
     }
-    
+
     const room = result.rows[0];
     const currencySymbol = getCurrencySymbol(room.currency);
-    
+
+    // Child age resolution: room overrides property, property falls back to
+    // 12 (max) and 2 (min). Widget uses these for the "Children (aged X-Y)"
+    // label + eventual pricing logic.
+    const resolvedChildMinAge = room.room_child_min_age != null ? room.room_child_min_age : 2;
+    const resolvedChildMaxAge = room.room_child_max_age != null ? room.room_child_max_age
+                              : (room.child_max_age != null ? room.child_max_age : 12);
+
     res.json({
       success: true,
       data: {
         ...room,
         currency_symbol: currencySymbol,
+        child_min_age: resolvedChildMinAge,
+        child_max_age: resolvedChildMaxAge,
         // Max adults: fall back to max_guests if explicitly NULL.
         max_adults: room.max_adults || room.max_guests || 4,
         // Max children: respect the actual DB value (set via GAS Controls).

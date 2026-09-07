@@ -2948,6 +2948,9 @@ jQuery(document).ready(function($) {
         var maxAdults = occSettings.max_adults || maxGuests;
         var childrenAllowed = occSettings.children_allowed !== false;
         var childMaxAge = occSettings.child_max_age || 12;
+        // Room-level min age (falls back to 2 if unset). When min > 0 the
+        // label reads "aged X-Y" instead of "under Y".
+        var childMinAge = occSettings.child_min_age != null ? occSettings.child_min_age : 2;
         var baseOccupancy = occSettings.base_occupancy || 1;
         
         // Default to base occupancy for better UX (price matches listing page)
@@ -2989,8 +2992,13 @@ jQuery(document).ready(function($) {
                 for (var c = 0; c <= maxChildrenNow; c++) {
                     $childrenSelect.append('<option value="' + c + '"' + (c == initialChildren ? ' selected' : '') + '>' + c + '</option>');
                 }
-                // Update child age label
-                $('.gas-child-age-label').text('(' + t('common', 'under', 'under') + ' ' + childMaxAge + ')');
+                // Update child age label. If min age > 0, show "aged X-Y",
+                // otherwise fall back to "under Y" (matches the legacy shape
+                // for rooms that haven't opted into the min-age control).
+                var _ageLabel = (childMinAge > 0)
+                    ? '(' + (t('common', 'aged', 'aged') || 'aged') + ' ' + childMinAge + '-' + childMaxAge + ')'
+                    : '(' + t('common', 'under', 'under') + ' ' + childMaxAge + ')';
+                $('.gas-child-age-label').text(_ageLabel);
             } else {
                 // No room for children when all adults selected
                 $childrenField.addClass('hidden').hide();
