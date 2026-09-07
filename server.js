@@ -92940,7 +92940,10 @@ function bedSleepCapacity(bed) {
   // Normalise: strip `BED_` prefix, hyphens → underscores, uppercase.
   const type = String(bed.type || '').toUpperCase().replace(/-/g, '_').replace(/^BED_/, '');
   const cap = BED_TYPE_CAPACITY[type] !== undefined ? BED_TYPE_CAPACITY[type] : 2;
-  const qty = parseInt(bed.quantity) || 1;
+  // Bed quantity — historically the Amenities UI wrote `qty`, later some
+  // paths write `quantity`, and legacy imports sometimes wrote `count`.
+  // Accept all three so pre-fix rooms recompute correctly on the next tick.
+  const qty = parseInt(bed.quantity ?? bed.qty ?? bed.count) || 1;
   return cap * qty;
 }
 
@@ -92963,7 +92966,7 @@ async function recomputeBookableUnitOccupancy(roomId) {
       if (!Array.isArray(cfg)) continue;
       for (const bed of cfg) {
         totalSleeps += bedSleepCapacity(bed);
-        totalBeds += parseInt(bed.quantity) || 1;
+        totalBeds += parseInt(bed.quantity ?? bed.qty ?? bed.count) || 1;
       }
     }
     // Write to the CACHE columns only. max_guests / max_adults / max_children

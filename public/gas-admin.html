@@ -52454,13 +52454,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                 return;
             }
             
-            // Collect bed config
+            // Collect bed config. Write BOTH `quantity` (canonical, what the
+            // server has always read) AND `qty` (legacy shape kept so any
+            // reader that grep'd for `qty` still works). The server-side
+            // bedSleepCapacity + recompute now accept quantity/qty/count so
+            // old records heal on the next tick.
             const bedConfig = [];
             document.querySelectorAll('#bedroom-beds-config .bed-config-row').forEach(row => {
                 const type = row.querySelector('.bed-type-modal').value;
                 const qty = parseInt(row.querySelector('.bed-qty-modal').value) || 1;
                 if (type) {
-                    bedConfig.push({ type, qty });
+                    bedConfig.push({ type, qty, quantity: qty });
                 }
             });
             
