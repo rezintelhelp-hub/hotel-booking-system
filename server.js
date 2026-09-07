@@ -24998,6 +24998,53 @@ app.get('/api/admin/beds24/env-fingerprints', requireMasterAdmin, (req, res) => 
   }
 });
 
+// Master-admin: find every gas_sync_connections row whose stored V1 API key
+// ends with the given suffix. Used for pre-rotation impact analysis — before
+// deleting a Beds24 API key, check which GAS connections still reference it.
+// Also flags whether BEDS24_MASTER_API_KEY env var matches.
+app.get('/api/admin/beds24/find-v1-key-by-suffix', requireMasterAdmin, async (req, res) => {
+  try {
+    const suffix = String(req.query.suffix || '').trim();
+    if (!suffix || suffix.length < 3) return res.status(400).json({ success: false, error: 'suffix query param required (min 3 chars)' });
+    const r = await pool.query(
+      `SELECT c.id AS connection_id,
+              c.account_id,
+              c.adapter_code,
+              c.external_account_id,
+              c.external_account_name,
+              c.status,
+              a.name AS account_name,
+              a.email AS account_email,
+              CASE
+                WHEN c.credentials->>'v1ApiKey' LIKE '%' || $1 THEN 'v1ApiKey'
+                WHEN c.credentials->>'apiKey'   LIKE '%' || $1 THEN 'apiKey'
+                ELSE NULL
+              END AS matched_field,
+              LENGTH(COALESCE(c.credentials->>'v1ApiKey', c.credentials->>'apiKey', '')) AS key_length
+         FROM gas_sync_connections c
+    LEFT JOIN accounts a ON a.id = c.account_id
+        WHERE c.adapter_code IN ('beds24','beds24-marketplace')
+          AND (c.credentials->>'v1ApiKey' LIKE '%' || $1
+               OR c.credentials->>'apiKey' LIKE '%' || $1)
+        ORDER BY c.account_id, c.id`,
+      [suffix]
+    );
+    const envKey = process.env.BEDS24_MASTER_API_KEY || '';
+    res.json({
+      success: true,
+      suffix,
+      matches: r.rows,
+      match_count: r.rows.length,
+      env_var_match: envKey.endsWith(suffix)
+        ? { name: 'BEDS24_MASTER_API_KEY', length: envKey.length, last4: envKey.slice(-4) }
+        : null
+    });
+  } catch (error) {
+    console.error('beds24 find-v1-key-by-suffix error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Master-admin: given a list of Beds24 owner IDs, return which gas_sync_connections
 // they map to. Used for the 2026-09-07 V1 key rotation deadline — Steve regenerates
 // each owner's key in Beds24, then updates it via the existing set-v1-api-key
