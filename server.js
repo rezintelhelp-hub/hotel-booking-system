@@ -149093,6 +149093,12 @@ app.get('/beds24-wizard', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'beds24-wizard.html'));
 });
 
+// Master-admin Beds24 diagnostics page (env fingerprints, key suffix search,
+// owner→connection lookup). Static page, endpoints inside are auth-gated.
+app.get('/beds24-diag', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'beds24-diag.html'));
+});
+
 // Serve the sync review page
 app.get('/sync-review', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'sync-review.html'));
