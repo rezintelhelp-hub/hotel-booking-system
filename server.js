@@ -24972,6 +24972,45 @@ app.delete('/api/admin/accounts/:id', async (req, res) => {
   }
 });
 
+// Master-admin: given a list of Beds24 owner IDs, return which gas_sync_connections
+// they map to. Used for the 2026-09-07 V1 key rotation deadline — Steve regenerates
+// each owner's key in Beds24, then updates it via the existing set-v1-api-key
+// endpoint using the connection IDs this returns.
+app.post('/api/admin/beds24/lookup-owners', requireMasterAdmin, async (req, res) => {
+  try {
+    const owners = Array.isArray(req.body?.ownerIds) ? req.body.ownerIds.map(String) : [];
+    if (owners.length === 0) return res.status(400).json({ success: false, error: 'ownerIds[] required' });
+    const r = await pool.query(
+      `SELECT c.id AS connection_id,
+              c.account_id,
+              c.adapter_code,
+              c.external_account_id,
+              c.external_account_name,
+              c.status,
+              a.name AS account_name,
+              a.email AS account_email,
+              (c.credentials->>'v1ApiKey') IS NOT NULL
+                OR (c.credentials->>'apiKey') IS NOT NULL AS has_v1_key,
+              LENGTH(COALESCE(c.credentials->>'v1ApiKey', c.credentials->>'apiKey', '')) AS v1_key_length
+         FROM gas_sync_connections c
+    LEFT JOIN accounts a ON a.id = c.account_id
+        WHERE c.adapter_code IN ('beds24','beds24-marketplace')
+          AND c.external_account_id = ANY($1::text[])
+        ORDER BY c.external_account_id, c.id`,
+      [owners]
+    );
+    const rowsByOwner = {};
+    for (const o of owners) rowsByOwner[o] = [];
+    for (const row of r.rows) {
+      (rowsByOwner[row.external_account_id] ||= []).push(row);
+    }
+    res.json({ success: true, owners: rowsByOwner, connections: r.rows });
+  } catch (error) {
+    console.error('beds24 lookup-owners error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Master-admin: full-cascade nuke for wizard test accounts.
 // Wipes deployed_sites + website_settings + bookable_units + properties
 // then chains into the standard delete which handles connections + account.
