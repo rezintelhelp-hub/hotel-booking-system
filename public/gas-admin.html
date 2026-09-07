@@ -84724,8 +84724,48 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 display.style.background = '#fef2f2';
                                 display.style.borderColor = '#fca5a5';
                                 display.style.color = '#991b1b';
-                                hint.innerHTML = `<strong style="color:#991b1b;">Mismatch:</strong> room says <strong>${stated}</strong>, Amenities bed setup adds up to <strong>${fromBeds}</strong>. Edit in Amenities to reconcile. ${amenitiesLink}`;
+                                hint.innerHTML = `<strong style="color:#991b1b;">Mismatch:</strong> room says <strong>${stated}</strong>, Amenities bed setup adds up to <strong>${fromBeds}</strong>. Edit in Amenities to reconcile. ${amenitiesLink}<div id="edit-room-beds-breakdown" style="margin-top:0.5rem; font-size:0.75rem; color:#64748b;">Loading bed breakdown from server…</div>`;
                                 hint.style.color = '#991b1b';
+                                // Fetch the actual bedrooms + bed_config the server sees so
+                                // the operator can spot which bed(s) are wrong / missing
+                                // without having to guess. Uses the existing bedrooms
+                                // endpoint. Fails silently — the breakdown is a
+                                // diagnostic, not a blocker.
+                                (async () => {
+                                    try {
+                                        const br = await fetch(`/api/admin/properties/${room.property_id}/bedrooms?room_id=${room.id}`, { headers: authHeaders() });
+                                        const bd = await br.json();
+                                        const bedrooms = bd.bedrooms || bd || [];
+                                        const CAP = { KING:2, QUEEN:2, DOUBLE:2, SINGLE:1, TWIN:1, SOFA:2, SOFA_BED:2, SOFABED:2, FUTON:2, BUNK:2, BUNKBED:2, BUNK_BED:2, FAMILY:2, MURPHY:2, FLOOR_MATTRESS:1, FLOORMATTRESS:1, SINGLE_FLOOR_MATTRESS:1, DOUBLE_FLOOR_MATTRESS:2, AIR_MATTRESS:1, TRUNDLE:1, CHILD:1, COT:0, CRIB:0 };
+                                        const norm = (t) => String(t || '').toUpperCase().replace(/-/g,'_').replace(/^BED_/,'');
+                                        const cap = (bed) => {
+                                            if (typeof bed.sleeps_adults === 'number' || typeof bed.sleeps_children === 'number')
+                                                return Math.max(bed.sleeps_adults || 0, bed.sleeps_children || 0);
+                                            const type = norm(bed.type);
+                                            const c = CAP[type] !== undefined ? CAP[type] : 2;
+                                            return c * (parseInt(bed.quantity) || 1);
+                                        };
+                                        let rows = '';
+                                        let sum = 0;
+                                        for (const br of bedrooms) {
+                                            const cfg = Array.isArray(br.bed_config) ? br.bed_config
+                                                      : (typeof br.bed_config === 'string' ? (() => { try { return JSON.parse(br.bed_config); } catch { return []; } })() : []);
+                                            const bedsList = cfg.map(b => {
+                                                const capacity = cap(b);
+                                                sum += capacity;
+                                                const typeLabel = String(b.type || '(no type)');
+                                                const qty = parseInt(b.quantity) || 1;
+                                                return `${qty}× ${typeLabel} = ${capacity}`;
+                                            }).join(', ') || '(no beds)';
+                                            rows += `<div><strong>${br.name || 'Bedroom'}:</strong> ${bedsList}</div>`;
+                                        }
+                                        const el = document.getElementById('edit-room-beds-breakdown');
+                                        if (el) el.innerHTML = `<strong style="color:#991b1b;">Server sees (sum=${sum}):</strong>${rows || '<div>No bedroom rows in DB.</div>'}`;
+                                    } catch (e) {
+                                        const el = document.getElementById('edit-room-beds-breakdown');
+                                        if (el) el.textContent = 'Bed breakdown fetch failed: ' + e.message;
+                                    }
+                                })();
                             }
                             const mg = parseInt(stated) || 0;
                             const kids = document.getElementById('edit-room-maxchildren');
