@@ -100511,6 +100511,11 @@ const SECTION_DEFAULTS = {
     // Section titles
     'details-title-en': 'Contact Details',
     'directions-text-en': 'Get Directions',
+    'directions-extra-en': '',
+    'directions-extra-fr': '',
+    'directions-extra-es': '',
+    'directions-extra-nl': '',
+    'directions-extra-de': '',
     'map-title-en': 'Find Us',
     'form-title-en': 'Send a Message',
     // Display Options
